@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Notebook;
 
@@ -203,6 +203,11 @@ public sealed class NotebookItemResponse
     public List<NotebookChecklistRowResponse> ChecklistRows { get; set; } = [];
     public List<NotebookLabelResponse> Labels { get; set; } = [];
     public Guid Version { get; set; }
+    public string OwnerId { get; set; } = string.Empty;
+    public string OwnerDisplayName { get; set; } = string.Empty;
+    public string AccessLevel { get; set; } = "Owner";
+    public bool IsShared { get; set; }
+    public List<NotebookCollaboratorResponse> Collaborators { get; set; } = [];
 }
 
 
@@ -212,6 +217,7 @@ public sealed class NotebookCountsResponse
     public int Home { get; init; }
     public int Today { get; init; }
     public int Reminders { get; init; }
+    public int Shared { get; init; }
     public int Labels { get; init; }
     public int Archive { get; init; }
     public int Completed { get; init; }
@@ -229,4 +235,36 @@ public sealed class NotebookMutationResponse
     public string? CardHtml { get; init; }
 
     public NotebookCountsResponse? Counts { get; init; }
+}
+
+
+// SECTION: Notebook collaboration contracts
+public sealed class AddNotebookCollaboratorRequest : NotebookVersionedRequest
+{
+    [Required]
+    public string UserId { get; set; } = string.Empty;
+
+    public NotebookCollaborationRole Role { get; set; } = NotebookCollaborationRole.Editor;
+}
+
+public sealed class RemoveNotebookCollaboratorRequest : NotebookVersionedRequest
+{
+}
+
+public sealed class NotebookCollaboratorResponse
+{
+    public string UserId { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Initials { get; set; } = string.Empty;
+    public NotebookCollaborationRole Role { get; set; }
+    public bool IsOwner { get; set; }
+}
+
+public sealed class NotebookCollaboratorSearchResponse
+{
+    public string UserId { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Initials { get; set; } = string.Empty;
 }

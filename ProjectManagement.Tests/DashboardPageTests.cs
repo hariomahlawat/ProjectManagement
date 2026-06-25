@@ -261,6 +261,43 @@ namespace ProjectManagement.Tests
 
             public Task<NotebookItemDetailVm> ToggleChecklistItemAsync(string ownerId, Guid itemId, int checklistItemId, bool isDone, Guid expectedVersion, CancellationToken ct = default) =>
                 throw new NotImplementedException();
+
+            public Task<IReadOnlyList<NotebookCollaboratorVm>> GetCollaboratorsAsync(
+                string userId,
+                Guid itemId,
+                CancellationToken ct = default) =>
+                Task.FromResult<IReadOnlyList<NotebookCollaboratorVm>>(Array.Empty<NotebookCollaboratorVm>());
+
+            public Task<IReadOnlyList<NotebookCollaboratorSearchVm>> SearchCollaboratorsAsync(
+                string userId,
+                Guid itemId,
+                string query,
+                int take = 10,
+                CancellationToken ct = default) =>
+                Task.FromResult<IReadOnlyList<NotebookCollaboratorSearchVm>>(Array.Empty<NotebookCollaboratorSearchVm>());
+
+            public Task<NotebookItemDetailVm> AddCollaboratorAsync(
+                string ownerId,
+                Guid itemId,
+                string collaboratorUserId,
+                NotebookCollaborationRole role,
+                Guid expectedVersion,
+                CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
+            public Task<NotebookItemDetailVm> RemoveCollaboratorAsync(
+                string ownerId,
+                Guid itemId,
+                string collaboratorUserId,
+                Guid expectedVersion,
+                CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
+            public Task LeaveCollaborationAsync(
+                string userId,
+                Guid itemId,
+                CancellationToken ct = default) =>
+                throw new NotImplementedException();
         }
 
         private sealed class StubSearchHealthService : ISearchHealthService

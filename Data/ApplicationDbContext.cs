@@ -56,6 +56,7 @@ namespace ProjectManagement.Data
         public DbSet<NotebookTag> NotebookTags => Set<NotebookTag>();
         public DbSet<NotebookItemTag> NotebookItemTags => Set<NotebookItemTag>();
         public DbSet<NotebookAttachment> NotebookAttachments => Set<NotebookAttachment>();
+        public DbSet<NotebookItemCollaborator> NotebookItemCollaborators => Set<NotebookItemCollaborator>();
         public DbSet<ActionTaskItem> ActionTasks => Set<ActionTaskItem>();
         public DbSet<ActionSprint> ActionSprints => Set<ActionSprint>();
         public DbSet<ActionSprintAuditLog> ActionSprintAuditLogs => Set<ActionSprintAuditLog>();
@@ -253,6 +254,18 @@ namespace ProjectManagement.Data
                 entity.HasIndex(x => x.NotebookItemId);
                 entity.HasOne(x => x.NotebookItem).WithMany(x => x.Attachments).HasForeignKey(x => x.NotebookItemId).OnDelete(DeleteBehavior.Cascade);
                 entity.HasOne(x => x.UploadedBy).WithMany().HasForeignKey(x => x.UploadedById).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<NotebookItemCollaborator>(entity =>
+            {
+                entity.HasKey(x => new { x.NotebookItemId, x.UserId });
+                entity.HasIndex(x => x.UserId);
+                entity.HasIndex(x => new { x.UserId, x.Role });
+                entity.Property(x => x.UserId).HasMaxLength(450);
+                entity.Property(x => x.AddedByUserId).HasMaxLength(450);
+                entity.HasOne(x => x.NotebookItem).WithMany(x => x.Collaborators).HasForeignKey(x => x.NotebookItemId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.AddedByUser).WithMany().HasForeignKey(x => x.AddedByUserId).OnDelete(DeleteBehavior.Restrict);
             });
 
             // SECTION: Project Ideas module

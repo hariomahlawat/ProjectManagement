@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -390,6 +390,54 @@ public sealed class NotebookController : Controller
         return Ok(await BuildMutationResponseAsync(copy, includeCard: true, ct));
     }
 
+    // SECTION: Notebook collaboration endpoints
+    [HttpGet("{id:guid}/collaborators")]
+    public async Task<IActionResult> Collaborators(Guid id, CancellationToken ct)
+    {
+        var rows = await _notebook.GetCollaboratorsAsync(CurrentUserId(), id, ct);
+        return Ok(rows.Select(ToCollaboratorResponse));
+    }
+
+    [HttpGet("{id:guid}/collaborator-search")]
+    public async Task<IActionResult> SearchCollaborators(Guid id, [FromQuery] string query, CancellationToken ct)
+    {
+        var rows = await _notebook.SearchCollaboratorsAsync(CurrentUserId(), id, query, 10, ct);
+        return Ok(rows.Select(row => new NotebookCollaboratorSearchResponse
+        {
+            UserId = row.UserId,
+            DisplayName = row.DisplayName,
+            Email = row.Email,
+            Initials = Initials(row.DisplayName)
+        }));
+    }
+
+    [Consumes("application/json")]
+    [HttpPost("{id:guid}/collaborators")]
+    public async Task<IActionResult> AddCollaborator(Guid id, [FromBody] AddNotebookCollaboratorRequest request, CancellationToken ct)
+    {
+        if (request.Version == Guid.Empty || string.IsNullOrWhiteSpace(request.UserId))
+            return BadRequest(ApiError("notebook_validation_failed", "The collaborator could not be added.", "userId", "Select a valid user."));
+        var item = await _notebook.AddCollaboratorAsync(CurrentUserId(), id, request.UserId, request.Role, request.Version, ct);
+        return Ok(await BuildMutationResponseAsync(item, includeCard: true, ct));
+    }
+
+    [Consumes("application/json")]
+    [HttpDelete("{id:guid}/collaborators/{collaboratorUserId}")]
+    public async Task<IActionResult> RemoveCollaborator(Guid id, string collaboratorUserId, [FromBody] RemoveNotebookCollaboratorRequest request, CancellationToken ct)
+    {
+        if (request.Version == Guid.Empty)
+            return BadRequest(ApiError("notebook_validation_failed", "The collaborator could not be removed.", "version", "Version is required."));
+        var item = await _notebook.RemoveCollaboratorAsync(CurrentUserId(), id, collaboratorUserId, request.Version, ct);
+        return Ok(await BuildMutationResponseAsync(item, includeCard: true, ct));
+    }
+
+    [HttpPost("{id:guid}/leave")]
+    public async Task<IActionResult> LeaveCollaboration(Guid id, CancellationToken ct)
+    {
+        await _notebook.LeaveCollaborationAsync(CurrentUserId(), id, ct);
+        return Ok(await BuildRemovalResponseAsync(id, ct));
+    }
+
     // SECTION: Mapping and validation helpers
     private string CurrentUserId() => _users.GetUserId(User) ?? throw new InvalidOperationException("Authenticated user id is unavailable.");
 
@@ -583,6 +631,7 @@ public sealed class NotebookController : Controller
         Home = counts.GetValueOrDefault("home"),
         Today = counts.GetValueOrDefault("today"),
         Reminders = counts.GetValueOrDefault("reminders"),
+        Shared = counts.GetValueOrDefault("shared"),
         Labels = counts.GetValueOrDefault("labels"),
         Archive = counts.GetValueOrDefault("archive", counts.GetValueOrDefault("archived")),
         Completed = counts.GetValueOrDefault("completed"),
@@ -612,7 +661,12 @@ public sealed class NotebookController : Controller
         ChecklistPreviewItems = item.ChecklistPreviewItems,
         IsOverdue = item.IsOverdue,
         IsDueToday = item.IsDueToday,
-        Version = item.Version
+        Version = item.Version,
+        OwnerId = item.OwnerId,
+        OwnerDisplayName = item.OwnerDisplayName,
+        AccessLevel = item.AccessLevel,
+        IsShared = item.IsShared,
+        Collaborators = item.Collaborators
     };
 
     private static string? NormaliseColourKey(string? value)
@@ -633,6 +687,22 @@ public sealed class NotebookController : Controller
         Count = label.Count
     };
 
+    private static NotebookCollaboratorResponse ToCollaboratorResponse(NotebookCollaboratorVm row) => new()
+    {
+        UserId = row.UserId,
+        DisplayName = row.DisplayName,
+        Email = row.Email,
+        Initials = string.IsNullOrWhiteSpace(row.Initials) ? Initials(row.DisplayName) : row.Initials,
+        Role = row.Role,
+        IsOwner = row.IsOwner
+    };
+
+    private static string Initials(string value)
+    {
+        var parts = (value ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return string.Concat(parts.Take(2).Select(part => char.ToUpperInvariant(part[0])));
+    }
+
     private static NotebookItemResponse ToResponse(NotebookItemDetailVm item) => new()
     {
         Id = item.Id,
@@ -648,6 +718,11 @@ public sealed class NotebookController : Controller
         UpdatedAtUtc = item.UpdatedAtUtc,
         DeletedAtUtc = item.DeletedAtUtc,
         Version = item.Version,
+        OwnerId = item.OwnerId,
+        OwnerDisplayName = item.OwnerDisplayName,
+        AccessLevel = item.AccessLevel.ToString(),
+        IsShared = item.IsShared,
+        Collaborators = item.Collaborators.Select(ToCollaboratorResponse).ToList(),
         ChecklistRows = item.ChecklistItems.Select(row => new NotebookChecklistRowResponse { Id = row.Id, ClientKey = row.ClientKey, Text = row.Text, IsDone = row.IsDone, SortOrder = row.SortOrder }).ToList(),
         Labels = item.Tags.Select(tag => new NotebookLabelResponse { Name = tag }).ToList()
     };

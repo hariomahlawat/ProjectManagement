@@ -22,6 +22,7 @@
     {
         "labels" => "Add tags to notebook items, then browse by label here.",
         "today" or "reminders" => "Add a reminder to any note, checklist or sticky item.",
+        "shared" => "Shared notes from other PRISM users will appear here.",
         "archive" or "archived" => "Archived notes will appear here.",
         "completed" => "Completed notes will appear here.",
         "trash" => "Items moved to Trash will appear here until permanently deleted.",
@@ -314,6 +315,7 @@
 <partial name="_NotebookLabelManager" model="Model.Notebook.Tags" />
 <partial name="_NotebookConfirmDialog" />
 <partial name="_NotebookToastRegion" />
+<partial name="_NotebookCollaboratorsDialog" />
 <partial name="_NotebookEditorTemplate" />
 
 @section Scripts { <script type="module" src="~/dist/notebook-index.bundle.js" asp-append-version="true"></script> }

@@ -1,4 +1,4 @@
-﻿@model ProjectManagement.ViewModels.Notebook.NotebookCardRenderVm
+@model ProjectManagement.ViewModels.Notebook.NotebookCardRenderVm
 @using ProjectManagement.Models
 @using ProjectManagement.ViewModels.Notebook
 @{
@@ -12,8 +12,8 @@
 }
 
 @* SECTION: Notebook board card *@
-<article data-note-id="@item.Id" data-notebook-card-id="@item.Id" data-version="@item.Version" data-labels="@System.Text.Json.JsonSerializer.Serialize(item.Tags)" data-is-pinned="@item.IsPinned.ToString().ToLowerInvariant()" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty) @(item.Status == NotebookItemStatus.Completed ? "is-completed" : string.Empty)">
-    @if (!isTrash && item.Status == NotebookItemStatus.Active)
+<article data-note-id="@item.Id" data-notebook-card-id="@item.Id" data-version="@item.Version" data-labels="@System.Text.Json.JsonSerializer.Serialize(item.Tags)" data-is-pinned="@item.IsPinned.ToString().ToLowerInvariant()" data-access-level="@item.AccessLevel" data-owner-id="@item.OwnerId" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty) @(item.Status == NotebookItemStatus.Completed ? "is-completed" : string.Empty)">
+    @if (!isTrash && item.Status == NotebookItemStatus.Active && item.AccessLevel == NotebookAccessLevel.Owner)
     {
         <button type="button" class="notebook-card-drag-handle" data-notebook-drag-handle hidden aria-label="Rearrange @item.Title" aria-grabbed="false" title="Drag to rearrange"><i class="bi bi-grip-vertical" aria-hidden="true"></i></button>
     }
@@ -90,6 +90,19 @@
             </div>
         }
     </div>
+    @if (item.IsShared)
+    {
+        <div class="notebook-collaborator-stack" aria-label="Shared note collaborators">
+            @foreach (var collaborator in item.Collaborators.Take(3))
+            {
+                <span class="notebook-collaborator-avatar" title="@(collaborator.IsOwner ? $"{collaborator.DisplayName} (owner)" : collaborator.DisplayName)">@collaborator.Initials</span>
+            }
+            @if (item.Collaborators.Count > 3)
+            {
+                <span class="notebook-collaborator-avatar notebook-collaborator-avatar--more">+@(item.Collaborators.Count - 3)</span>
+            }
+        </div>
+    }
     <div class="notebook-card-actions">
         <partial name="~/Pages/Notebook/_NotebookActions.cshtml" model="Model.Actions" />
     </div>

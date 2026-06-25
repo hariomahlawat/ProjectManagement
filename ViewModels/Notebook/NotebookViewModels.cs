@@ -3,6 +3,32 @@ using ProjectManagement.Models;
 // SECTION: My Notebook module read models
 namespace ProjectManagement.ViewModels.Notebook;
 
+public enum NotebookAccessLevel
+{
+    None = 0,
+    Viewer = 1,
+    Editor = 2,
+    Owner = 3
+}
+
+public sealed class NotebookCollaboratorVm
+{
+    public string UserId { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Initials { get; set; } = string.Empty;
+    public NotebookCollaborationRole Role { get; set; }
+    public bool IsOwner { get; set; }
+}
+
+public sealed class NotebookCollaboratorSearchVm
+{
+    public string UserId { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Initials { get; set; } = string.Empty;
+}
+
 public sealed class NotebookIndexVm
 {
     public string View { get; set; } = "home";
@@ -88,6 +114,14 @@ public class NotebookItemListVm
     public bool IsDueToday { get; set; }
 
     public Guid Version { get; set; }
+
+    public string OwnerId { get; set; } = string.Empty;
+    public string OwnerDisplayName { get; set; } = string.Empty;
+    public NotebookAccessLevel AccessLevel { get; set; } = NotebookAccessLevel.Owner;
+    public bool IsShared { get; set; }
+    public bool CanEdit => AccessLevel >= NotebookAccessLevel.Editor;
+    public bool CanManageCollaborators => AccessLevel == NotebookAccessLevel.Owner;
+    public IReadOnlyList<NotebookCollaboratorVm> Collaborators { get; set; } = Array.Empty<NotebookCollaboratorVm>();
 }
 
 public sealed class NotebookItemDetailVm : NotebookItemListVm

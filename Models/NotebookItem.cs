@@ -82,4 +82,6 @@ public class NotebookItem
     public ICollection<NotebookItemTag> Tags { get; set; } = new List<NotebookItemTag>();
 
     public ICollection<NotebookAttachment> Attachments { get; set; } = new List<NotebookAttachment>();
+
+    public ICollection<NotebookItemCollaborator> Collaborators { get; set; } = new List<NotebookItemCollaborator>();
 }

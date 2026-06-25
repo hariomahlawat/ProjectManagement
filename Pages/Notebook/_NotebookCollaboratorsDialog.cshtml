@@ -1,0 +1,30 @@
+@* SECTION: Notebook collaborators dialog *@
+<div class="notebook-collaborators-dialog" data-notebook-collaborators-dialog hidden>
+    <div class="notebook-collaborators-dialog__backdrop" data-collaborators-close></div>
+    <section class="notebook-collaborators-dialog__panel" role="dialog" aria-modal="true" aria-labelledby="notebook-collaborators-title">
+        <header class="notebook-collaborators-dialog__header">
+            <div>
+                <h2 id="notebook-collaborators-title">Collaborators</h2>
+                <p>Share this note with other PRISM users.</p>
+            </div>
+            <button type="button" class="notebook-dialog-icon" data-collaborators-close aria-label="Close collaborators"><i class="bi bi-x-lg"></i></button>
+        </header>
+        <div class="notebook-collaborators-dialog__body">
+            <div class="notebook-collaborators-search" data-collaborators-search-wrap>
+                <i class="bi bi-person-plus" aria-hidden="true"></i>
+                <input type="search" data-collaborator-search placeholder="Search by name, rank or email" autocomplete="off" aria-label="Search PRISM users" />
+                <span class="spinner-border spinner-border-sm" data-collaborator-search-spinner hidden aria-hidden="true"></span>
+            </div>
+            <div class="notebook-collaborator-search-results" data-collaborator-search-results hidden></div>
+            <div class="notebook-collaborator-list" data-collaborator-list></div>
+            <div class="notebook-collaborators-empty" data-collaborators-empty hidden>
+                <i class="bi bi-people"></i>
+                <p>This note has no collaborators yet.</p>
+            </div>
+        </div>
+        <footer class="notebook-collaborators-dialog__footer">
+            <span data-collaborators-status aria-live="polite"></span>
+            <button type="button" class="btn btn-primary" data-collaborators-close>Done</button>
+        </footer>
+    </section>
+</div>

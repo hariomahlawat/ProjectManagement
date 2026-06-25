@@ -285,8 +285,10 @@ export function initNotebookEditor(board, view, options = {}) {
     const pin = modal.querySelector('[data-modal-pin]');
     pin?.classList.toggle('is-active', Boolean(item?.isPinned));
     if (pin) {
+      const isOwner = String(item?.accessLevel || 'Owner').toLowerCase() === 'owner';
+      pin.hidden = !isOwner;
       pin.setAttribute('aria-label', item?.isPinned ? 'Unpin note' : 'Pin note');
-      pin.disabled = conflictState.active;
+      pin.disabled = conflictState.active || !isOwner;
     }
   }
 
@@ -294,6 +296,8 @@ export function initNotebookEditor(board, view, options = {}) {
     item = updated;
     colourPicker?.setValue(updated.colorKey || '');
     labelPicker?.setValue((updated.labels || []).map((label) => label?.name ?? label));
+    const labelHost = modal.querySelector('[data-notebook-label-picker]');
+    if (labelHost) labelHost.hidden = String(updated.accessLevel || 'Owner').toLowerCase() !== 'owner';
     applyNotebookSurfaceColour(modal.querySelector('.notebook-modal__dialog'), updated.colorKey || '');
     modal.querySelector('[data-modal-title]').value = updated.title || '';
     modal.querySelector('[data-modal-body]').value = updated.body || '';
@@ -956,7 +960,8 @@ export function initNotebookEditor(board, view, options = {}) {
     open,
     requestClose,
     isOpen: () => Boolean(item && modal && !modal.hidden),
-    syncExternalUpdate
+    syncExternalUpdate,
+    getCurrentItem: () => item
   };
 }
 

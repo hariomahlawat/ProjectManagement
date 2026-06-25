@@ -1,4 +1,4 @@
-﻿using ProjectManagement.Models;
+using ProjectManagement.Models;
 using ProjectManagement.ViewModels.Notebook;
 
 // SECTION: My Notebook module types
@@ -89,6 +89,12 @@ public interface INotebookService
 
 
     Task<NotebookItemDetailVm> ToggleChecklistItemAsync(string ownerId, Guid itemId, int checklistItemId, bool isDone, Guid expectedVersion, CancellationToken ct = default);
+
+    Task<IReadOnlyList<NotebookCollaboratorVm>> GetCollaboratorsAsync(string userId, Guid itemId, CancellationToken ct = default);
+    Task<IReadOnlyList<NotebookCollaboratorSearchVm>> SearchCollaboratorsAsync(string userId, Guid itemId, string query, int take = 10, CancellationToken ct = default);
+    Task<NotebookItemDetailVm> AddCollaboratorAsync(string ownerId, Guid itemId, string collaboratorUserId, NotebookCollaborationRole role, Guid expectedVersion, CancellationToken ct = default);
+    Task<NotebookItemDetailVm> RemoveCollaboratorAsync(string ownerId, Guid itemId, string collaboratorUserId, Guid expectedVersion, CancellationToken ct = default);
+    Task LeaveCollaborationAsync(string userId, Guid itemId, CancellationToken ct = default);
 }
 
 // SECTION: My Notebook command input contracts

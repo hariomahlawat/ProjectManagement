@@ -12,6 +12,7 @@ import { confirmNotebookAction, initNotebookConfirmDialog } from './notebook-con
 import { initNotebookToastRegion, showNotebookToast } from './notebook-toast.js';
 import { initNotebookDragOrder } from './notebook-drag-order.js';
 import { initNotebookMasonryGrid } from './notebook-masonry-grid.js';
+import { initNotebookCollaborators } from './notebook-collaborators.js';
 
 
 export function renderNotebookLabelNavigation(shell, labels = []) {
@@ -131,6 +132,7 @@ export function initNotebookApp() {
   applyBoardView(localStorage.getItem(storageKey) || shell.dataset.boardView || 'grid');
   const masonryGrid = initNotebookMasonryGrid(shell);
   const dragOrder = initNotebookDragOrder(shell, board, { api: NotebookApi, showError: showGlobalError, showToast: showNotebookToast });
+  const collaborators = initNotebookCollaborators(document, { board, view, applyCounts, showError: showGlobalError });
 
   document.addEventListener('click', async (event) => {
     const cardColourToggle = event.target.closest('.notebook-card [data-colour-picker-toggle]');
@@ -207,6 +209,24 @@ export function initNotebookApp() {
       activeLabelCard = card;
       cardLabelPicker?.configure({ value: parseCardLabels(card) });
       cardLabelPicker?.open(action);
+      return;
+    }
+    if (action.dataset.action === 'share-note' && card) { event.preventDefault(); action.closest('details')?.removeAttribute('open'); collaborators?.open(card); return; }
+    if (action.dataset.action === 'share-note-editor') {
+      event.preventDefault();
+      const current = editor.getCurrentItem?.();
+      if (!current?.id) return;
+      const editorCard = shell.querySelector(`[data-note-id="${current.id}"]`) || { dataset: { noteId: current.id, accessLevel: current.accessLevel || 'Owner', version: current.version } };
+      collaborators?.open(editorCard);
+      return;
+    }
+    if (action.dataset.action === 'leave-note' && card) {
+      event.preventDefault();
+      action.closest('details')?.removeAttribute('open');
+      const confirmed = await confirmNotebookAction({ title: 'Leave shared note?', message: 'The note will be removed from your notebook. The owner and other collaborators will keep access.', confirmText: 'Leave note', tone: 'warning' });
+      if (!confirmed) return;
+      try { const response = await NotebookApi.leaveCollaboration(id); board.removeCard(id); applyCounts(response?.counts); showNotebookToast({ message: 'You left the shared note.', tone: 'neutral' }); }
+      catch (error) { showGlobalError(error?.message || 'Unable to leave the shared note.'); }
       return;
     }
     if (action.dataset.action === 'open-note' && id) { event.preventDefault(); try { await editor.open(id); } catch (error) { showGlobalError(error.message || 'Unable to open the note.'); } }
