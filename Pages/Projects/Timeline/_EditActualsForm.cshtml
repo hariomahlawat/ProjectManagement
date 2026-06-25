@@ -17,7 +17,7 @@
 
     <!-- SECTION: Introduction -->
     <div class="small text-muted">
-        Add known actual dates for your stages. You may record start date, completion date, or both. Edits respect existing approvals and lock pending requests.
+        Record actual stage dates. For completed stages, completion date is authoritative; start date is optional and may be inferred from the preceding stage. For the current stage, actual start remains operationally important.
     </div>
 
     <!-- SECTION: Actuals list -->
@@ -57,7 +57,7 @@
 
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label" for="@startId">Actual start date</label>
+                            <label class="form-label" for="@startId">Actual start date @(row.Status == StageStatus.Completed ? "(optional)" : string.Empty)</label>
                             <input type="date"
                                    class="form-control"
                                    id="@startId"
@@ -67,7 +67,7 @@
                                    aria-describedby="@startId-help"
                                    data-field="start"
                                    @(disableAttr) />
-                            <div class="form-text" id="@startId-help">Enter when work began for this stage.</div>
+                            <div class="form-text" id="@startId-help">@(row.Status == StageStatus.Completed ? "Optional. If omitted, duration is inferred from the preceding completion date." : "Enter when work began for the current stage.")</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label" for="@completedId">Completed on</label>

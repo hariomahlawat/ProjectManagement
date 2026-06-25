@@ -35,7 +35,10 @@ public sealed class ProjectTimelineReadService
     }
 
     public Task<bool> HasBackfillAsync(int projectId, CancellationToken ct = default)
-        => _db.ProjectStages.AnyAsync(s => s.ProjectId == projectId && s.RequiresBackfill, ct);
+        => _db.ProjectStages.AnyAsync(s =>
+            s.ProjectId == projectId &&
+            s.Status == StageStatus.Completed &&
+            !s.CompletedOn.HasValue, ct);
 
     public async Task<ActualsEditorVm> GetActualsEditorAsync(int projectId, CancellationToken ct = default)
     {
@@ -82,7 +85,9 @@ public sealed class ProjectTimelineReadService
                     ActualStart = projectStage?.ActualStart,
                     CompletedOn = projectStage?.CompletedOn,
                     IsAutoCompleted = projectStage?.IsAutoCompleted ?? false,
-                    RequiresBackfill = projectStage?.RequiresBackfill ?? false,
+                    RequiresBackfill = projectStage is not null &&
+                        status == StageStatus.Completed &&
+                        !projectStage.CompletedOn.HasValue,
                     HasPendingDecision = hasPending
                 };
             })
@@ -191,6 +196,7 @@ public sealed class ProjectTimelineReadService
 
         var items = new List<TimelineItemVm>();
         var index = 0;
+        DateOnly? previousApplicableCompletion = null;
         foreach (var stage in workflowStages)
         {
             var code = stage.Code;
@@ -202,6 +208,16 @@ public sealed class ProjectTimelineReadService
             var actualStart = r?.ActualStart;
             var plannedEnd = r?.PlannedDue;
             var actualEnd = r?.CompletedOn;
+            var status = r?.Status ?? StageStatus.NotStarted;
+
+            DateOnly? effectiveActualStart = actualStart;
+            var isActualStartInferred = false;
+            if (status == StageStatus.Completed && !effectiveActualStart.HasValue && actualEnd.HasValue && previousApplicableCompletion.HasValue)
+            {
+                var inferred = previousApplicableCompletion.Value.AddDays(1);
+                effectiveActualStart = inferred > actualEnd.Value ? actualEnd.Value : inferred;
+                isActualStartInferred = true;
+            }
 
             int? startVarianceDays = null;
             if (plannedStart.HasValue && actualStart.HasValue)
@@ -219,14 +235,16 @@ public sealed class ProjectTimelineReadService
             {
                 Code = code,
                 Name = stage.Name,
-                Status = r?.Status ?? StageStatus.NotStarted,
+                Status = status,
                 PlannedStart = plannedStart,
                 PlannedEnd = plannedEnd,
                 ActualStart = actualStart,
+                EffectiveActualStart = effectiveActualStart,
+                IsActualStartInferred = isActualStartInferred,
                 CompletedOn = actualEnd,
                 IsAutoCompleted = r?.IsAutoCompleted ?? false,
                 AutoCompletedFromCode = r?.AutoCompletedFromCode,
-                RequiresBackfill = r?.RequiresBackfill ?? false,
+                RequiresBackfill = status == StageStatus.Completed && !actualEnd.HasValue,
                 SortOrder = index++,
                 Today = today,
                 HasPendingRequest = pendingRequest is not null,
@@ -236,6 +254,11 @@ public sealed class ProjectTimelineReadService
                 FinishVarianceDays = finishVarianceDays,
                 PendingRequestId = pendingRequest?.Id
             });
+
+            if (status == StageStatus.Completed && actualEnd.HasValue)
+            {
+                previousApplicableCompletion = actualEnd;
+            }
         }
 
         var completed = items.Count(i => i.Status == StageStatus.Completed);

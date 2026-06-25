@@ -60,7 +60,7 @@ public class StageBackfillServiceTests
     }
 
     [Fact]
-    public async Task ApplyAsync_WhenBackfillingAutoCompletedStage_ClearsInferredFlags()
+    public async Task ApplyAsync_AllowsCompletionWithoutActualStart()
     {
         var clock = FakeClock.ForIstDate(new DateOnly(2024, 12, 5));
         await using var db = CreateContext();
@@ -71,8 +71,6 @@ public class StageBackfillServiceTests
             StageCode = StageCodes.IPA,
             SortOrder = 1,
             Status = StageStatus.Completed,
-            ActualStart = new DateOnly(2024, 11, 1),
-            CompletedOn = new DateOnly(2024, 11, 5),
             RequiresBackfill = true,
             IsAutoCompleted = true,
             AutoCompletedFromCode = StageCodes.SOW
@@ -85,12 +83,15 @@ public class StageBackfillServiceTests
             projectId: 1,
             updates: new[]
             {
-                new StageBackfillUpdate(StageCodes.IPA, new DateOnly(2024, 11, 2), new DateOnly(2024, 11, 6))
+                new StageBackfillUpdate(StageCodes.IPA, null, new DateOnly(2024, 11, 6))
             },
             userId: "user-1",
             ct: CancellationToken.None);
 
         var stage = await db.ProjectStages.SingleAsync();
+        Assert.Null(stage.ActualStart);
+        Assert.Equal(new DateOnly(2024, 11, 6), stage.CompletedOn);
+        Assert.False(stage.RequiresBackfill);
         Assert.False(stage.IsAutoCompleted);
         Assert.Null(stage.AutoCompletedFromCode);
     }

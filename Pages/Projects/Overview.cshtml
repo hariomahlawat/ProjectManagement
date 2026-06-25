@@ -34,8 +34,6 @@
             <partial name="_ProjectOverviewCard" model="Model" />
             <partial name="_ProjectProcurementAtAGlance" model="Model.Procurement" />
             <partial name="_ProjectLifecyclePosition" model="Model.Portfolio" />
-            <span id="media" class="page-anchor"></span>
-            <partial name="_ProjectMediaTabs" model="Model" />
         </div>
         <aside class="col-xl-5 d-flex flex-column gap-3 project-portfolio-rail">
             <partial name="_ProjectTotPanel" model="Model" />
@@ -44,6 +42,11 @@
             <partial name="_ProjectLifecycleWorkspace" model="Model" />
         </aside>
     </div>
+
+    <section class="project-portfolio-files-full mb-4">
+        <span id="media" class="page-anchor"></span>
+        <partial name="_ProjectMediaTabs" model="Model" />
+    </section>
 
     <partial name="_ProjectWorkspaceHosts" model="Model" />
 

@@ -87,17 +87,11 @@
                       aria-label="Backfill required for @s.Name">
                 Backfill required
               </button>
-              @if (s.IsPlanMissingDiscrepancy)
+              @if (s.ShowPlanWarning)
               {
-                var planMissingHintId = TagBuilder.CreateSanitizedId($"plan-missing-hint-{s.Code}", "_");
-                <span class="badge bg-warning-subtle text-warning-emphasis badge-plan-missing"
-                      aria-label="Discrepancy: plan missing"
-                      aria-describedby="@planMissingHintId"
-                      data-badge="plan-missing">
-                  Plan missing
-                </span>
-                <span id="@planMissingHintId" class="badge-plan-missing-hint">
-                  Actual dates exist but planned dates are missing.
+                <span class="badge bg-warning-subtle text-warning-emphasis"
+                      aria-label="Planned completion date is not set for the current stage">
+                  Planned completion missing
                 </span>
               }
               <span class="pm-item-title text-truncate"
@@ -262,84 +256,85 @@
               }
             </span>
           </div>
-          <div class="pm-item-dates">
-            <div class="pm-date-block is-plan">
-              <div class="pm-date-block-header">
-                <span class="pm-date-badge">Planned</span>
+          @if (s.Status == StageStatus.Completed)
+          {
+            <div class="pm-stage-outcome">
+              <div class="pm-stage-outcome__primary">
+                <span class="pm-date-label">Completed on</span>
+                <strong data-stage-completed>@D(s.CompletedOn)</strong>
               </div>
-              <div class="pm-date-range">
-                <div class="pm-date pm-date-start">
-                  <span class="pm-date-label">Start</span>
-                  <span class="pm-date-value" data-stage-planned-start>@D(s.PlannedStart)</span>
-                </div>
-                <div class="pm-date-range-sep" aria-hidden="true">–</div>
-                <div class="pm-date pm-date-finish">
-                  <span class="pm-date-label">Finish</span>
-                  <span class="pm-date-value" data-stage-planned-end>@D(s.PlannedEnd)</span>
-                </div>
-              </div>
-            </div>
-            <div class="pm-date-block is-actual">
-              <div class="pm-date-block-header">
-                <span class="pm-date-badge">Actual</span>
-              </div>
-              <div class="pm-date-range">
-                <div class="pm-date pm-date-start">
-                  <span class="pm-date-label">Start</span>
-                  <span class="pm-date-value" data-stage-actual-start>@D(s.ActualStart)</span>
-                </div>
-                <div class="pm-date-range-sep" aria-hidden="true">–</div>
-                <div class="pm-date pm-date-finish">
-                  <span class="pm-date-label">Finish</span>
-                  <span class="pm-date-value" data-stage-completed>@D(s.CompletedOn)</span>
-                  <span class="pm-date-duration@(s.ActualDurationDays.HasValue ? string.Empty : " d-none")" data-stage-duration>
-                    @(s.ActualDurationDays.HasValue ? $"({s.ActualDurationDays} d)" : string.Empty)
-                  </span>
-                </div>
-              </div>
-              <div class="pm-date-meta small text-muted@(s.NeedsStart || s.NeedsFinish ? string.Empty : " d-none")" data-stage-date-hint>
-                @if (s.NeedsStart && s.NeedsFinish)
-                {
-                    <text>Actual start and finish missing</text>
-                }
-                else if (s.NeedsStart)
-                {
-                    <text>Actual start missing</text>
-                }
-                else if (s.NeedsFinish)
-                {
-                    <text>Actual finish missing</text>
-                }
-              </div>
-            </div>
-          </div>
-          <div class="pm-item-variance">
-            <div class="pm-variance-chips">
-              @if (s.PlannedStart.HasValue && s.ActualStart.HasValue && s.StartVarianceDays is int startVar)
+              @if (s.ActualDurationDays.HasValue)
               {
-                  var variance = VarianceToken("Start", startVar);
-                  <span class="@variance.cssClass"
-                        data-stage-start-variance
-                        aria-label="@variance.description"
-                        title="@variance.description">
-                    @variance.text
-                  </span>
+                <div class="pm-stage-outcome__metric">
+                  <span class="pm-date-label">Time taken</span>
+                  <strong data-stage-duration>@($"{s.ActualDurationDays.Value} day{(s.ActualDurationDays.Value == 1 ? string.Empty : "s")}")</strong>
+                </div>
               }
-              @if (s.PlannedEnd.HasValue && s.CompletedOn.HasValue && s.FinishVarianceDays is int finishVar)
+              @if (s.EffectiveActualStart.HasValue)
               {
-                  var variance = VarianceToken("Finish", finishVar);
-                  <span class="@variance.cssClass"
-                        data-stage-finish-variance
-                        aria-label="@variance.description"
-                        title="@variance.description">
-                    @variance.text
-                  </span>
+                <div class="pm-stage-outcome__metric">
+                  <span class="pm-date-label">Actual start</span>
+                  <strong data-stage-actual-start>@D(s.EffectiveActualStart)</strong>
+                  @if (s.IsActualStartInferred)
+                  {
+                    <span class="small text-muted">Inferred from preceding completion</span>
+                  }
+                </div>
+              }
+              @if (s.PlannedEnd.HasValue)
+              {
+                <div class="pm-stage-outcome__metric">
+                  <span class="pm-date-label">Planned completion</span>
+                  <strong>@D(s.PlannedEnd)</strong>
+                </div>
               }
             </div>
-            <div class="pm-variance-hint small text-muted@(s.HasPlanDates || s.IsPlanMissingDiscrepancy ? " d-none" : string.Empty)" data-stage-plan-hint>
-              No plan dates
+            @if (s.ShowFinishVariance && s.FinishVarianceDays is int finishVar)
+            {
+              var variance = VarianceToken("Finish", finishVar);
+              <div class="pm-item-variance">
+                <span class="@variance.cssClass" aria-label="@variance.description" title="@variance.description">@variance.text</span>
+              </div>
+            }
+          }
+          else if (s.Status == StageStatus.InProgress)
+          {
+            <div class="pm-current-stage-dates">
+              <div class="pm-current-stage-dates__item">
+                <span class="pm-date-label">Started on</span>
+                <strong>@D(s.ActualStart)</strong>
+                @if (s.NeedsStart)
+                {
+                  <span class="small text-warning-emphasis">Actual start required</span>
+                }
+              </div>
+              <div class="pm-current-stage-dates__item @(s.NeedsPlannedCompletion ? "is-attention" : string.Empty)">
+                <span class="pm-date-label">Planned completion</span>
+                <strong>@D(s.PlannedEnd)</strong>
+                @if (s.DaysRemaining is int remaining)
+                {
+                  <span class="small @(remaining < 0 ? "text-danger" : remaining <= 7 ? "text-warning-emphasis" : "text-muted")">
+                    @(remaining < 0 ? $"{Math.Abs(remaining)} day{(Math.Abs(remaining) == 1 ? string.Empty : "s")} overdue" : remaining == 0 ? "Due today" : $"{remaining} day{(remaining == 1 ? string.Empty : "s")} remaining")
+                  </span>
+                }
+                else
+                {
+                  <span class="small text-warning-emphasis">Set the planned completion date</span>
+                }
+              </div>
             </div>
-          </div>
+          }
+          else if (s.Status == StageStatus.NotStarted && s.HasPlanDates)
+          {
+            <div class="pm-future-stage-plan">
+              <i class="bi bi-calendar3" aria-hidden="true"></i>
+              <span>Planned @D(s.PlannedStart) – @D(s.PlannedEnd)</span>
+            </div>
+          }
+          else if (s.Status == StageStatus.NotStarted)
+          {
+            <div class="pm-future-stage-plan is-optional">Planning dates are optional for future stages.</div>
+          }
         </div>
       </div>
     }

@@ -44,7 +44,9 @@ public sealed class ProjectPortfolioPresentationVm
         var completedCount = ordered.Count(item => item.Status == StageStatus.Completed);
         var skippedCount = ordered.Count(item => item.Status == StageStatus.Skipped);
         var resolvedCount = completedCount + skippedCount;
-        var delayed = ordered.Count(item => item.IsOverdue || (item.StartVarianceDays ?? 0) > 0 || (item.FinishVarianceDays ?? 0) > 0);
+        var delayed = ordered.Count(item =>
+            item.IsOverdue ||
+            (item.Status == StageStatus.Completed && item.ShowFinishVariance && (item.FinishVarianceDays ?? 0) > 0));
         var backfillCount = ordered.Count(item => item.RequiresBackfill);
         var completeness = new[]
         {
@@ -81,7 +83,11 @@ public sealed class ProjectPortfolioPresentationVm
             BackfillStageCount = backfillCount,
             CompletenessPercent = (int)Math.Round(completeness.Count(value => value) * 100d / completeness.Length),
             PlanStatus = project?.PlanApprovedAt.HasValue == true ? "Approved" : timeline.PlanPendingApproval ? "Pending" : "Not approved",
-            PlanHealth = hasBackfill ? "Backfill required" : "Stage records aligned",
+            PlanHealth = project?.PlanApprovedAt.HasValue == true
+                ? "Current-stage deadline monitored"
+                : timeline.PlanPendingApproval
+                    ? "Timeline approval pending"
+                    : "Current-stage planned completion not approved",
             NextAction = nextAction
         };
     }

@@ -25,17 +25,17 @@
             </div>
             <div class="row g-3 mt-2">
                 <div class="col-md-6">
-                    <label class="form-label" for="backfill-start-@stage.StageCode">Actual start date</label>
+                    <label class="form-label" for="backfill-start-@stage.StageCode">Actual start date <span class="text-muted fw-normal">(optional)</span></label>
                     <input type="date"
                            class="form-control"
                            id="backfill-start-@stage.StageCode"
                            data-backfill-start
                            value="@startValue"
-                           max="@todayIso"
-                           required />
+                           max="@todayIso" />
+                    <div class="form-text">When omitted, duration is inferred from the preceding completed stage.</div>
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label" for="backfill-completed-@stage.StageCode">Completed on</label>
+                    <label class="form-label" for="backfill-completed-@stage.StageCode">Completed on <span class="text-danger">*</span></label>
                     <input type="date"
                            class="form-control"
                            id="backfill-completed-@stage.StageCode"

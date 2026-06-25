@@ -376,11 +376,7 @@ public sealed class StageDirectApplyService
 
                         stage.CompletedOn = completionDate;
 
-                        if (!stage.ActualStart.HasValue)
-                        {
-                            stage.RequiresBackfill = true;
-                        }
-                        else if (stage.CompletedOn.Value < stage.ActualStart.Value)
+                        if (stage.ActualStart.HasValue && stage.CompletedOn.Value < stage.ActualStart.Value)
                         {
                             stage.CompletedOn = stage.ActualStart.Value;
                             stage.RequiresBackfill = false;
@@ -408,9 +404,9 @@ public sealed class StageDirectApplyService
             }
         }
 
-        if (stage.Status == StageStatus.Completed && (!stage.ActualStart.HasValue || !stage.CompletedOn.HasValue))
+        if (stage.Status == StageStatus.Completed)
         {
-            stage.RequiresBackfill = true;
+            stage.RequiresBackfill = !stage.CompletedOn.HasValue;
         }
 
         var finalStatus = stage.Status;

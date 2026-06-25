@@ -1086,19 +1086,51 @@ namespace ProjectManagement.Pages.Analytics
                     && s.Project.LifecycleStatus == ProjectLifecycleStatus.Active)
                 .Select(s => new
                 {
+                    s.ProjectId,
                     s.StageCode,
+                    s.SortOrder,
+                    s.Status,
                     s.ActualStart,
                     s.CompletedOn
                 })
                 .ToListAsync(cancellationToken);
 
-            // SECTION: Stage duration aggregation
-            var durationListsByCode = stageRows
-                .Where(s => !string.IsNullOrWhiteSpace(s.StageCode) && s.ActualStart.HasValue)
-                .GroupBy(s => s.StageCode!, StringComparer.OrdinalIgnoreCase)
+            // SECTION: Completion-driven stage duration aggregation. Completed-stage starts may be inferred.
+            var durationSamples = new List<(string StageCode, double Duration)>();
+            foreach (var projectStages in stageRows.GroupBy(row => row.ProjectId))
+            {
+                DateOnly? previousCompletion = null;
+                foreach (var row in projectStages.OrderBy(item => item.SortOrder))
+                {
+                    if (string.IsNullOrWhiteSpace(row.StageCode))
+                    {
+                        continue;
+                    }
+
+                    var effectiveStart = row.ActualStart;
+                    if (row.Status == StageStatus.Completed && !effectiveStart.HasValue && row.CompletedOn.HasValue && previousCompletion.HasValue)
+                    {
+                        var inferred = previousCompletion.Value.AddDays(1);
+                        effectiveStart = inferred > row.CompletedOn.Value ? row.CompletedOn.Value : inferred;
+                    }
+
+                    if (effectiveStart.HasValue)
+                    {
+                        durationSamples.Add((row.StageCode, CalculateStageDurationDays(effectiveStart, row.CompletedOn)));
+                    }
+
+                    if (row.Status == StageStatus.Completed && row.CompletedOn.HasValue)
+                    {
+                        previousCompletion = row.CompletedOn;
+                    }
+                }
+            }
+
+            var durationListsByCode = durationSamples
+                .GroupBy(sample => sample.StageCode, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(
-                    g => g.Key,
-                    g => g.Select(item => CalculateStageDurationDays(item.ActualStart, item.CompletedOn)).ToList(),
+                    group => group.Key,
+                    group => group.Select(sample => sample.Duration).ToList(),
                     StringComparer.OrdinalIgnoreCase);
 
             var orderedStages = StageCodes.All

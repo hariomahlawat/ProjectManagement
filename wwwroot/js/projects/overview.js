@@ -322,7 +322,7 @@
         });
 
         backfillModal.addEventListener('shown.bs.modal', () => {
-            const firstInput = backfillModal.querySelector('[data-backfill-start], [data-backfill-completed]');
+            const firstInput = backfillModal.querySelector('[data-backfill-completed], [data-backfill-start]');
             if (firstInput instanceof HTMLInputElement) {
                 firstInput.focus();
             }
@@ -361,7 +361,7 @@
                 if (response.ok) {
                     const instance = bootstrap.Modal.getInstance(backfillModal);
                     instance?.hide();
-                    showToast('Stage dates updated.', 'success');
+                    showToast('Stage completion details updated.', 'success');
                     setTimeout(() => window.location.reload(), 500);
                     return;
                 }

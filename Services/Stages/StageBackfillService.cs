@@ -105,11 +105,7 @@ public sealed class StageBackfillService
             var start = update.ActualStart ?? stage.ActualStart;
             var completed = update.CompletedOn ?? stage.CompletedOn;
 
-            if (start is null)
-            {
-                validationErrors.Add($"Stage {update.StageCode}: actual start date is required.");
-            }
-            else if (start > today)
+            if (start is not null && start > today)
             {
                 validationErrors.Add($"Stage {update.StageCode}: actual start date cannot be in the future.");
             }
@@ -148,8 +144,8 @@ public sealed class StageBackfillService
             var originalActualStart = stage.ActualStart;
             var originalCompletedOn = stage.CompletedOn;
 
-            var resolvedStart = update.ActualStart ?? stage.ActualStart!;
-            var resolvedCompleted = update.CompletedOn ?? stage.CompletedOn!;
+            var resolvedStart = update.ActualStart ?? stage.ActualStart;
+            var resolvedCompleted = update.CompletedOn ?? stage.CompletedOn;
 
             stage.ActualStart = resolvedStart;
             stage.CompletedOn = resolvedCompleted;

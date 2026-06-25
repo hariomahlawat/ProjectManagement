@@ -241,7 +241,7 @@ public sealed class ProjectRecordHealthService
             actionUrl));
     }
 
-    // Historical stages deliberately consider only Actual Start and Actual Completion.
+    // Historical stages are completion-driven. Actual start is optional and may be inferred.
     private static WorkspaceRecordComponentScoreVm ScoreHistoricalTimeline(Project project)
     {
         var current = PresentStageHelper.Resolve(project.ProjectStages);
@@ -254,18 +254,11 @@ public sealed class ProjectRecordHealthService
             .ThenBy(stage => stage.StageCode)
             .ToList();
 
-        var fields = new List<ApplicableField>(historicalStages.Count * 2);
+        var fields = new List<ApplicableField>(historicalStages.Count);
         var actionUrl = WorkspaceRouteHelper.ProjectTimelineActuals(project.Id);
 
         foreach (var stage in historicalStages)
         {
-            fields.Add(new ApplicableField(
-                stage.ActualStart.HasValue,
-                $"{stage.StageCode}_ACTUAL_START",
-                $"{stage.StageCode} — Actual Start",
-                stage.StageCode,
-                $"Required because the {stage.StageCode} stage is completed.",
-                actionUrl));
             fields.Add(new ApplicableField(
                 stage.CompletedOn.HasValue,
                 $"{stage.StageCode}_ACTUAL_COMPLETION",
@@ -277,10 +270,10 @@ public sealed class ProjectRecordHealthService
 
         return ScoreApplicableFields(
             code: "HISTORICAL_TIMELINE",
-            label: "Historical stage actual dates",
+            label: "Historical stage completion dates",
             weight: HistoricalTimelineWeight,
             fields: fields,
-            componentReason: "Completed historical stages require Actual Start and Actual Completion. Planned dates are not assessed.",
+            componentReason: "Completed historical stages require an Actual Completion date. Actual Start is optional and may be inferred.",
             actionText: "Complete historical dates",
             icon: "bi-clock-history",
             priority: 30);

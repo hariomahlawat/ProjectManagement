@@ -257,6 +257,7 @@ namespace ProjectManagement.Services.Projects
 
                 int? inProgressIndex = null;
                 int lastCompletedIndex = -1;
+                DateOnly? previousApplicableCompletion = null;
 
                 for (var i = 0; i < stageCodes.Length; i++)
                 {
@@ -277,11 +278,18 @@ namespace ProjectManagement.Services.Projects
                         actualCompleted = stageRow.CompletedOn;
                         plannedDue = stageRow.PlannedDue;
 
-                        // SECTION: Duration calculation for timeline display
-                        if (actualStart.HasValue && actualCompleted.HasValue)
+                        // SECTION: Completion-driven duration. Start may be inferred from the previous completion.
+                        var effectiveStart = actualStart;
+                        if (status == StageStatus.Completed && !effectiveStart.HasValue && actualCompleted.HasValue && previousApplicableCompletion.HasValue)
                         {
-                            var rawDuration = actualCompleted.Value.DayNumber - actualStart.Value.DayNumber + 1;
-                            actualDurationDays = rawDuration > 0 ? rawDuration : null;
+                            var inferred = previousApplicableCompletion.Value.AddDays(1);
+                            effectiveStart = inferred > actualCompleted.Value ? actualCompleted.Value : inferred;
+                        }
+
+                        if (effectiveStart.HasValue && actualCompleted.HasValue)
+                        {
+                            var rawDuration = actualCompleted.Value.DayNumber - effectiveStart.Value.DayNumber + 1;
+                            actualDurationDays = Math.Max(1, rawDuration);
                         }
                     }
                     else
@@ -297,6 +305,10 @@ namespace ProjectManagement.Services.Projects
                     if (status == StageStatus.Completed)
                     {
                         lastCompletedIndex = i;
+                        if (actualCompleted.HasValue)
+                        {
+                            previousApplicableCompletion = actualCompleted;
+                        }
                     }
 
                     stageDtos.Add(new OngoingProjectStageDto

@@ -114,6 +114,7 @@ public sealed class StageActualsUpdateServiceTests
         var stage = await db.ProjectStages.SingleAsync();
         Assert.Null(stage.ActualStart);
         Assert.Equal(new DateOnly(2024, 1, 25), stage.CompletedOn);
+        Assert.False(stage.RequiresBackfill);
     }
 
     [Fact]

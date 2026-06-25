@@ -113,7 +113,7 @@ public sealed class WorkspaceNudgeService
         {
             var stage = GetCurrentStage(project);
 
-            if (project.ProjectStages.Any(s => s.RequiresBackfill))
+            if (project.ProjectStages.Any(NeedsBackfill))
             {
                 items.Add(new WorkspaceAttentionItemVm
                 {
@@ -176,7 +176,7 @@ public sealed class WorkspaceNudgeService
             var lastRemark = LastPoRemark(project, userId);
             var daysSinceRemark = lastRemark is null ? (int?)null : today.DayNumber - ToIstDate(lastRemark.Value).DayNumber;
 
-            if (project.ProjectStages.Any(s => s.RequiresBackfill)) items.Add(ProjectItem(project, "Timeline backfill required", "Danger", "Complete Backfill", WorkspaceRouteHelper.ProjectTimeline(project.Id)));
+            if (project.ProjectStages.Any(NeedsBackfill)) items.Add(ProjectItem(project, "Timeline backfill required", "Danger", "Complete Backfill", WorkspaceRouteHelper.ProjectTimeline(project.Id)));
             if (IsCurrentStageOverdue(stage, today)) items.Add(ProjectItem(project, $"Current stage overdue by {today.DayNumber - stage!.PlannedDue!.Value.DayNumber} days", "Danger", "Update Timeline", WorkspaceRouteHelper.ProjectTimeline(project.Id)));
             if (HasCurrentStageTimelineIssue(stage)) items.Add(ProjectItem(project, StageTimelineDetail(stage), "Warning", "Update Current Stage", WorkspaceRouteHelper.ProjectTimeline(project.Id)));
             if (lastRemark is null || daysSinceRemark > 7) items.Add(ProjectItem(project, lastRemark is null ? "No PO remark has been added yet" : $"No PO remark added in last {daysSinceRemark} days", daysSinceRemark > 10 || lastRemark is null ? "Danger" : "Warning", "Add Remark", WorkspaceRouteHelper.ProjectRemarks(project.Id)));
@@ -232,7 +232,7 @@ public sealed class WorkspaceNudgeService
     public string GetNextAction(Project project, WorkspaceRecordHealthVm health, string userId, DateOnly today, out string url)
     {
         var stage = GetCurrentStage(project); url = WorkspaceRouteHelper.ProjectOverview(project.Id);
-        if (project.ProjectStages.Any(s => s.RequiresBackfill)) { url = WorkspaceRouteHelper.ProjectTimeline(project.Id); return "Complete backfill"; }
+        if (project.ProjectStages.Any(NeedsBackfill)) { url = WorkspaceRouteHelper.ProjectTimeline(project.Id); return "Complete backfill"; }
         if (IsCurrentStageOverdue(stage, today)) { url = WorkspaceRouteHelper.ProjectTimeline(project.Id); return "Update current stage"; }
         if (HasCurrentStageTimelineIssue(stage)) { url = WorkspaceRouteHelper.ProjectTimeline(project.Id); return "Update current stage dates"; }
         if (GetUpdateStatus(LastPoRemark(project, userId), today) == "ActionRequired") { url = WorkspaceRouteHelper.ProjectRemarks(project.Id); return "Add remark"; }
@@ -270,6 +270,9 @@ public sealed class WorkspaceNudgeService
     }
 
     private static string GetCurrentStageIssueLabel(ProjectStage? stage) => StageTimelineDetail(stage);
+
+    private static bool NeedsBackfill(ProjectStage stage) =>
+        stage.Status == StageStatus.Completed && !stage.CompletedOn.HasValue;
 
     private static string StageTimelineDetail(ProjectStage? stage) => stage is null ? "Current stage timeline details are incomplete" : stage.Status == StageStatus.InProgress && stage.ActualStart is null ? "Current stage actual start missing" : stage.Status == StageStatus.InProgress && stage.PlannedDue is null ? "Current stage planned due missing" : stage.Status == StageStatus.Completed && stage.CompletedOn is null ? $"{stage.StageCode} stage completion date missing" : "Current stage timeline details are incomplete";
 

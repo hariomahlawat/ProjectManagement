@@ -334,19 +334,17 @@ button.project-intelligence-card:hover {
 }
 .project-files-card .table > :not(caption) > * > * { padding: .65rem .7rem; }
 
-/* Lifecycle rail: one natural page scroll; only the control header stays visible. */
+/* Lifecycle rail uses one natural browser scroll. Avoid nested or sticky scroll contexts. */
 .project-lifecycle-panel {
     position: relative;
     max-height: none;
     overflow: visible;
 }
 .project-lifecycle-panel > .card-header {
-    position: sticky;
-    top: 9.15rem;
-    z-index: 12;
-    background: color-mix(in srgb, var(--pm-card, #fff) 96%, transparent);
-    backdrop-filter: blur(10px);
-    box-shadow: 0 8px 16px -16px rgba(15, 23, 42, .45);
+    position: static;
+    background: var(--pm-card, #fff);
+    backdrop-filter: none;
+    box-shadow: none;
 }
 .project-lifecycle-panel > .card-body {
     max-height: none;
@@ -365,7 +363,8 @@ button.project-intelligence-card:hover {
 }
 .project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-item-flags,
 .project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-item-dates,
-.project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-item-variance {
+.project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-item-variance,
+.project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-stage-outcome {
     display: none;
 }
 .project-lifecycle-panel .pm-item.is-complete:not(.is-expanded) .pm-item-card {
@@ -547,4 +546,64 @@ button.project-intelligence-card:hover {
         margin: .3rem 0 0;
         align-items: flex-start;
     }
+}
+
+
+/* Outcome-driven completed stages */
+.pm-stage-outcome {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .55rem;
+    margin-top: .65rem;
+}
+.pm-stage-outcome > div {
+    min-width: 0;
+    padding: .62rem .68rem;
+    border: 1px solid var(--portfolio-border);
+    border-radius: .68rem;
+    background: var(--portfolio-soft);
+}
+.pm-stage-outcome__primary {
+    background: color-mix(in srgb, var(--bs-success-bg-subtle, #d1e7dd) 55%, white) !important;
+    border-color: color-mix(in srgb, var(--bs-success, #198754) 28%, var(--portfolio-border)) !important;
+}
+.pm-stage-outcome strong,
+.pm-current-stage-dates strong {
+    display: block;
+    margin-top: .15rem;
+    font-size: .9rem;
+}
+
+/* Deadline-driven current stage */
+.pm-current-stage-dates {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .6rem;
+    margin-top: .7rem;
+}
+.pm-current-stage-dates__item {
+    padding: .72rem;
+    border: 1px solid var(--portfolio-border);
+    border-radius: .72rem;
+    background: var(--portfolio-soft);
+}
+.pm-current-stage-dates__item.is-attention {
+    border-color: color-mix(in srgb, var(--bs-warning, #ffc107) 55%, var(--portfolio-border));
+    background: var(--bs-warning-bg-subtle, #fff3cd);
+}
+
+/* Future stages are compact; planning is optional. */
+.pm-future-stage-plan {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    margin-top: .55rem;
+    color: var(--portfolio-muted);
+    font-size: .78rem;
+}
+.pm-future-stage-plan.is-optional { opacity: .78; }
+
+@media (max-width: 575.98px) {
+    .pm-stage-outcome,
+    .pm-current-stage-dates { grid-template-columns: 1fr; }
 }

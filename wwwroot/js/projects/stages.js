@@ -167,7 +167,7 @@
 
   function computeNeedsStart(status, actualStart) {
     const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
-    return (normalizedStatus === 'inprogress' || normalizedStatus === 'completed') && !actualStart;
+    return normalizedStatus === 'inprogress' && !actualStart;
   }
 
   function computeNeedsFinish(status, completedOn) {

@@ -206,8 +206,7 @@ public sealed class StageActualsUpdateService
             // SECTION: Completed stage backfill state
             if (stage.Status == StageStatus.Completed)
             {
-                var hasBothActualDates = stage.ActualStart.HasValue && stage.CompletedOn.HasValue;
-                stage.RequiresBackfill = !hasBothActualDates;
+                stage.RequiresBackfill = !stage.CompletedOn.HasValue;
             }
 
             stage.IsAutoCompleted = false;

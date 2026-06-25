@@ -605,7 +605,7 @@ public sealed class ProjectOfficerWorkspaceService
             CurrentStageName = stage?.StageCode ?? "Not started",
             DaysInCurrentStage = WorkspaceNudgeService.GetCurrentStageAgeDays(p, today),
             UpdateStatus = _nudges.GetUpdateStatus(last, today),
-            TimelineStatus = p.ProjectStages.Any(s => s.RequiresBackfill) || overdue
+            TimelineStatus = p.ProjectStages.Any(s => s.Status == StageStatus.Completed && !s.CompletedOn.HasValue) || overdue
                 ? "ActionRequired"
                 : issue ? "Attention" : "Ok",
             RecordStatus = health.HealthPercent >= 80 ? "Ok" : health.HealthPercent >= 60 ? "Attention" : "ActionRequired",
@@ -613,7 +613,7 @@ public sealed class ProjectOfficerWorkspaceService
             RecordGapCount = health.GapDetails.Count,
             RecordHealth = health,
             LastPoRemarkAtUtc = last,
-            HasBackfill = p.ProjectStages.Any(s => s.RequiresBackfill),
+            HasBackfill = p.ProjectStages.Any(s => s.Status == StageStatus.Completed && !s.CompletedOn.HasValue),
             HasCurrentStageIssue = issue,
             HasOverdueCurrentStage = overdue,
             NextActionText = action,

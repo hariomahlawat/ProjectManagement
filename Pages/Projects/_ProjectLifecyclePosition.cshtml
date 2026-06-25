@@ -21,12 +21,12 @@
             <div>
                 <span class="project-lifecycle-summary__label">Backfill</span>
                 <strong>@(Model.BackfillStageCount == 0 ? "Clear" : $"{Model.BackfillStageCount} stage{(Model.BackfillStageCount == 1 ? string.Empty : "s")}")</strong>
-                <span>@(Model.BackfillStageCount == 0 ? "No missing stage details" : "Dates or costs require completion")</span>
+                <span>@(Model.BackfillStageCount == 0 ? "Completed stages have completion dates" : "Completion dates or required stage facts are missing")</span>
             </div>
             <div>
                 <span class="project-lifecycle-summary__label">Schedule variance</span>
                 <strong>@(Model.DelayedStageCount == 0 ? "None" : $"{Model.DelayedStageCount} stage{(Model.DelayedStageCount == 1 ? string.Empty : "s")}")</strong>
-                <span>@(Model.DelayedStageCount == 0 ? "No recorded delay" : "Late start, finish or overdue status")</span>
+                <span>@(Model.DelayedStageCount == 0 ? "No current overdue stage or recorded late completion" : "Current stage overdue or completed after planned finish")</span>
             </div>
             <div>
                 <span class="project-lifecycle-summary__label">Next action</span>

@@ -42,6 +42,8 @@ public sealed class TimelineItemVm
     public DateOnly? PlannedStart { get; init; }
     public DateOnly? PlannedEnd { get; init; }
     public DateOnly? ActualStart { get; init; }
+    public DateOnly? EffectiveActualStart { get; init; }
+    public bool IsActualStartInferred { get; init; }
     public DateOnly? CompletedOn { get; init; }
 
     public bool IsAutoCompleted { get; init; }
@@ -61,14 +63,22 @@ public sealed class TimelineItemVm
     public int? PlannedDurationDays =>
         (PlannedStart.HasValue && PlannedEnd.HasValue) ? (PlannedEnd.Value.DayNumber - PlannedStart.Value.DayNumber + 1) : null;
     public int? ActualDurationDays =>
-        (ActualStart.HasValue && CompletedOn.HasValue) ? (CompletedOn.Value.DayNumber - ActualStart.Value.DayNumber + 1) : null;
+        (EffectiveActualStart.HasValue && CompletedOn.HasValue)
+            ? Math.Max(1, CompletedOn.Value.DayNumber - EffectiveActualStart.Value.DayNumber + 1)
+            : null;
 
-    public bool NeedsStart => (Status is StageStatus.InProgress or StageStatus.Completed) && ActualStart is null;
+    // Completed stages are completion-driven. Actual start is optional and may be inferred.
+    public bool NeedsStart => Status == StageStatus.InProgress && ActualStart is null;
     public bool NeedsFinish => Status == StageStatus.Completed && CompletedOn is null;
-    public bool IsIncompleteData => NeedsStart || NeedsFinish;
-    public bool IsOverdue => Status != StageStatus.Completed && PlannedEnd.HasValue && Today > PlannedEnd.Value;
+    public bool NeedsPlannedCompletion => Status == StageStatus.InProgress && PlannedEnd is null;
+    public bool IsIncompleteData => NeedsStart || NeedsFinish || NeedsPlannedCompletion;
+    public bool IsOverdue => Status == StageStatus.InProgress && PlannedEnd.HasValue && Today > PlannedEnd.Value;
 
-    public bool HasPlanDates => PlannedStart.HasValue && PlannedEnd.HasValue;
+    public bool HasPlanDates => PlannedStart.HasValue || PlannedEnd.HasValue;
     public bool HasActualDates => ActualStart.HasValue || CompletedOn.HasValue;
-    public bool IsPlanMissingDiscrepancy => HasActualDates && !HasPlanDates;
+    public bool ShowPlanWarning => Status == StageStatus.InProgress && PlannedEnd is null;
+    public bool ShowFinishVariance => CompletedOn.HasValue && PlannedEnd.HasValue;
+    public int? DaysRemaining => Status == StageStatus.InProgress && PlannedEnd.HasValue
+        ? PlannedEnd.Value.DayNumber - Today.DayNumber
+        : null;
 }
