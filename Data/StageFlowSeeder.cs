@@ -62,15 +62,36 @@ public static class StageFlowSeeder
             }
         }
 
-        // SECTION: Dependency Upsert
+        // SECTION: Dependency Reconciliation
+        // Dependencies are configuration, not append-only seed data. Reconcile both
+        // additions and removals so a changed workflow becomes effective on restart.
         var existingDeps = await db.StageDependencyTemplates
             .Where(t => t.Version == version)
             .ToListAsync();
 
+        static string DependencyKey(string fromStageCode, string dependsOnStageCode)
+            => $"{fromStageCode.Trim().ToUpperInvariant()}|{dependsOnStageCode.Trim().ToUpperInvariant()}";
+
+        var desiredKeys = deps
+            .Select(dep => DependencyKey(dep.FromStageCode, dep.DependsOnStageCode))
+            .ToHashSet(StringComparer.Ordinal);
+
+        var existingKeys = existingDeps
+            .Select(dep => DependencyKey(dep.FromStageCode, dep.DependsOnStageCode))
+            .ToHashSet(StringComparer.Ordinal);
+
+        var staleDeps = existingDeps
+            .Where(dep => !desiredKeys.Contains(DependencyKey(dep.FromStageCode, dep.DependsOnStageCode)))
+            .ToArray();
+
+        if (staleDeps.Length > 0)
+        {
+            db.StageDependencyTemplates.RemoveRange(staleDeps);
+            changesMade = true;
+        }
+
         var missingDeps = deps
-            .Where(dep => !existingDeps.Any(existing =>
-                string.Equals(existing.FromStageCode, dep.FromStageCode, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(existing.DependsOnStageCode, dep.DependsOnStageCode, StringComparison.OrdinalIgnoreCase)))
+            .Where(dep => !existingKeys.Contains(DependencyKey(dep.FromStageCode, dep.DependsOnStageCode)))
             .ToArray();
 
         if (missingDeps.Length > 0)
@@ -157,8 +178,8 @@ public static class StageFlowSeeder
             D(StageCodes.AON, StageCodes.IPA, version),
             D(StageCodes.BID, StageCodes.AON, version),
             D(StageCodes.TEC, StageCodes.BID, version),
-            D(StageCodes.BM, StageCodes.BID, version),
-            D(StageCodes.COB, StageCodes.TEC, version), D(StageCodes.COB, StageCodes.BM, version),
+            D(StageCodes.BM, StageCodes.TEC, version),
+            D(StageCodes.COB, StageCodes.BM, version),
             D(StageCodes.PNC, StageCodes.COB, version),
             D(StageCodes.EAS, StageCodes.COB, version), D(StageCodes.EAS, StageCodes.PNC, version),
             D(StageCodes.SO, StageCodes.EAS, version),

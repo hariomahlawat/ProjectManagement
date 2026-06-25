@@ -17,16 +17,11 @@
                 <h1>Procurement process</h1>
                 <span class="process-version">Version @Model.ProcessVersion</span>
             </div>
-            <p>Review the complete procurement lifecycle and stage-wise processing checks.</p>
-        </div>
-        <div class="process-header__meta">
-            <div class="process-updated">
-                <span>Checklist updated</span>
-                <strong>@updatedText</strong>
+            <div class="process-header__summary" aria-label="Process summary">
+                <span><strong>15</strong> stages</span>
+                <span aria-hidden="true">•</span>
+                <span>Checklist updated <strong>@updatedText</strong></span>
             </div>
-            <button type="button" class="btn btn-outline-secondary process-action process-action--icon" data-action="print-process" title="Print process" aria-label="Print process">
-                <i class="bi bi-printer" aria-hidden="true"></i>
-            </button>
         </div>
     </header>
 
@@ -52,6 +47,9 @@
             <button type="button" class="btn btn-outline-secondary process-action" data-action="toggle-fullscreen" title="Open the process workspace in full screen">
                 <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
                 <span>Full screen</span>
+            </button>
+            <button type="button" class="btn btn-outline-secondary process-action process-action--icon" data-action="print-process" title="Print process" aria-label="Print process">
+                <i class="bi bi-printer" aria-hidden="true"></i>
             </button>
         </div>
     </section>

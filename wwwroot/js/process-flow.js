@@ -133,8 +133,7 @@ if (root) {
         code: String(node.code || node.id || '').toUpperCase(),
         name: String(node.name || node.label || node.code || ''),
         sequence: Number.parseInt(node.sequence, 10) || 0,
-        optional: node.optional === true || node.optional === 'true',
-        parallelGroup: node.parallelGroup || null
+        optional: node.optional === true || node.optional === 'true'
       }))
       .filter((node) => node.code)
       .sort((a, b) => a.sequence - b.sequence || a.code.localeCompare(b.code));
@@ -193,31 +192,6 @@ if (root) {
     return state.flow.nodes.filter((node) => node.phase.id === phase.id);
   }
 
-  function detectParallelSet(nodes) {
-    if (nodes.length < 2) return [];
-    const groups = [];
-    const used = new Set();
-    for (const node of nodes) {
-      if (used.has(node.code)) continue;
-      const incoming = state.incoming.get(node.code) || [];
-      const outgoing = state.outgoing.get(node.code) || [];
-      const siblings = nodes.filter((candidate) => {
-        if (candidate.code === node.code || used.has(candidate.code)) return false;
-        const ci = state.incoming.get(candidate.code) || [];
-        const co = state.outgoing.get(candidate.code) || [];
-        return incoming.length === 1 && outgoing.length === 1 &&
-          ci.length === 1 && co.length === 1 &&
-          ci[0] === incoming[0] && co[0] === outgoing[0];
-      });
-      if (siblings.length) {
-        const set = [node, ...siblings].sort((a, b) => a.sequence - b.sequence);
-        set.forEach((item) => used.add(item.code));
-        groups.push(set);
-      }
-    }
-    return groups;
-  }
-
   function renderPhaseStrip() {
     phaseStrip.innerHTML = '';
     PHASES.forEach((phase, index) => {
@@ -251,19 +225,10 @@ if (root) {
 
       const stack = document.createElement('div');
       stack.className = 'process-stage-stack';
-      const parallelSets = detectParallelSet(nodes);
-      const parallelCodes = new Set(parallelSets.flat().map((node) => node.code));
 
+      // The SDD-2.0 workflow is intentionally linear within each phase.
+      // Dependency configuration remains the source of truth for navigation.
       nodes.forEach((node) => {
-        if (parallelCodes.has(node.code)) {
-          const group = parallelSets.find((set) => set[0].code === node.code);
-          if (!group) return;
-          const branch = document.createElement('div');
-          branch.className = 'process-branch';
-          group.forEach((branchNode) => branch.appendChild(createStageButton(branchNode)));
-          stack.appendChild(branch);
-          return;
-        }
         const step = document.createElement('div');
         step.className = 'process-step';
         step.appendChild(createStageButton(node));
