@@ -15,18 +15,17 @@
             <div class="process-eyebrow">PROCUREMENT GOVERNANCE</div>
             <div class="process-title-row">
                 <h1>Procurement process</h1>
-                <span class="process-version">@Model.ProcessVersion</span>
+                <span class="process-version">Version @Model.ProcessVersion</span>
             </div>
-            <p>Navigate the complete SDD procurement lifecycle and review the mandatory processing checks at every stage.</p>
+            <p>Review the complete procurement lifecycle and stage-wise processing checks.</p>
         </div>
         <div class="process-header__meta">
             <div class="process-updated">
                 <span>Checklist updated</span>
                 <strong>@updatedText</strong>
             </div>
-            <button type="button" class="btn btn-outline-secondary process-action" data-action="print-process">
+            <button type="button" class="btn btn-outline-secondary process-action process-action--icon" data-action="print-process" title="Print process" aria-label="Print process">
                 <i class="bi bi-printer" aria-hidden="true"></i>
-                <span>Print</span>
             </button>
         </div>
     </header>
@@ -34,7 +33,7 @@
     <section class="process-commandbar" aria-label="Process navigation controls">
         <div class="process-search-wrap">
             <i class="bi bi-search" aria-hidden="true"></i>
-            <input type="search" class="form-control" placeholder="Search a stage or checklist…" data-stage-search aria-label="Search stages and checklists" />
+            <input type="search" class="form-control" placeholder="Search stages or checklist items…" data-stage-search aria-label="Search stages and checklists" />
             <button type="button" class="btn process-search-clear" data-search-clear aria-label="Clear search" hidden>
                 <i class="bi bi-x-lg" aria-hidden="true"></i>
             </button>
@@ -48,7 +47,7 @@
         <div class="process-command-actions">
             <button type="button" class="btn btn-outline-secondary process-action" data-action="show-overview">
                 <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
-                <span>Overview</span>
+                <span>Process overview</span>
             </button>
             <button type="button" class="btn btn-outline-secondary process-action" data-action="toggle-fullscreen">
                 <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
@@ -62,7 +61,7 @@
             <div class="process-map-toolbar">
                 <div>
                     <h2>Lifecycle map</h2>
-                    <p><span data-stage-count>15</span> stages across six governance phases</p>
+                    <p><span data-stage-count>15</span> stages · six governance phases</p>
                 </div>
                 <div class="process-legend" aria-label="Process map legend">
                     <span><i class="legend-dot legend-dot--mandatory"></i>Mandatory</span>
@@ -108,8 +107,9 @@
                     <h2 data-stage-title>Select a stage</h2>
                     <div class="stage-tags">
                         <span class="stage-code" data-stage-code-label></span>
-                        <span class="stage-requirement" data-stage-requirement></span>
+                        <span class="stage-requirement" data-stage-requirement hidden></span>
                     </div>
+                    <p class="stage-purpose" data-stage-purpose></p>
                 </div>
 
                 <div class="stage-relations">
@@ -129,7 +129,7 @@
                         <h3>Processing checklist</h3>
                         <p>Reference checks for this stage</p>
                     </div>
-                    <button type="button" class="btn btn-primary btn-sm" data-action="add-item" data-checklist-actions hidden>
+                    <button type="button" class="btn btn-outline-primary btn-sm stage-add-button" data-action="add-item" data-checklist-actions hidden>
                         <i class="bi bi-plus-lg" aria-hidden="true"></i>
                         Add item
                     </button>
@@ -157,10 +157,11 @@
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close stage guidance"></button>
     </div>
     <div class="offcanvas-body stage-offcanvas__body">
-        <div class="stage-tags mb-3">
+        <div class="stage-tags mb-2">
             <span class="stage-code" data-stage-code-label></span>
-            <span class="stage-requirement" data-stage-requirement></span>
+            <span class="stage-requirement" data-stage-requirement hidden></span>
         </div>
+        <p class="stage-purpose stage-purpose--mobile" data-stage-purpose></p>
         <div class="stage-relations stage-relations--mobile">
             <div><span>Previous</span><strong data-stage-previous>—</strong></div>
             <i class="bi bi-arrow-right" aria-hidden="true"></i>
@@ -168,7 +169,7 @@
         </div>
         <div class="stage-checklist-header mt-4">
             <div><h3>Processing checklist</h3><p>Reference checks for this stage</p></div>
-            <button type="button" class="btn btn-primary btn-sm" data-action="add-item" data-checklist-actions hidden>
+            <button type="button" class="btn btn-outline-primary btn-sm stage-add-button" data-action="add-item" data-checklist-actions hidden>
                 <i class="bi bi-plus-lg" aria-hidden="true"></i>
                 Add item
             </button>

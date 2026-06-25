@@ -25,6 +25,24 @@ if (root) {
     { id: 'closure', name: 'Closure & exploitation', codes: ['PAYMENT', 'TOT'] }
   ];
 
+  const STAGE_PURPOSES = {
+    FS: 'Establish operational need, feasibility, broad scope, stakeholders and indicative resources.',
+    SOW: 'Define and vet the technical scope, deliverables, standards, acceptance criteria and responsibilities.',
+    IPA: 'Obtain in-principle approval to progress the proposal for detailed processing and costing.',
+    AON: 'Secure formal acceptance of necessity or sanction for procurement and associated expenditure.',
+    BID: 'Publish the approved tender package and manage bidder communication, clarifications and submissions.',
+    TEC: 'Evaluate technical compliance, capability, demonstrations and mandatory documentation.',
+    BM: 'Establish an independent and defensible benchmark for assessing price reasonableness.',
+    COB: 'Open commercial bids of technically qualified firms and establish the commercial position.',
+    PNC: 'Conduct price negotiations where authorised and record the basis for the negotiated outcome.',
+    EAS: 'Obtain expenditure approval or financial sanction based on the evaluated commercial proposal.',
+    SO: 'Issue the supply order or contract with approved terms, milestones and obligations.',
+    DEVP: 'Execute development, integration, reviews and milestone monitoring against the contracted scope.',
+    ATP: 'Verify the delivered system against approved acceptance test procedures and contractual criteria.',
+    PAYMENT: 'Process payment against accepted deliverables, contractual milestones and supporting documents.',
+    TOT: 'Complete transfer of technology, knowledge, documentation and sustainment arrangements where applicable.'
+  };
+
   const canvas = root.querySelector('[data-flow-canvas]');
   const workspace = root.querySelector('[data-process-workspace]');
   const phaseStrip = root.querySelector('[data-phase-strip]');
@@ -281,11 +299,15 @@ if (root) {
     updateElements('[data-stage-title]', `${stage.displayIndex}. ${stage.name}`);
     updateElements('[data-stage-phase]', stage.phase.name);
     updateElements('[data-stage-code-label]', stage.code);
-    updateElements('[data-stage-requirement]', stage.optional ? 'Optional stage' : 'Mandatory stage');
+    updateElements('[data-stage-requirement]', stage.optional ? 'Optional stage' : '');
+    updateElements('[data-stage-purpose]', STAGE_PURPOSES[stage.code] || 'Review the approved checks, dependencies and required outputs for this stage.');
     updateElements('[data-stage-previous]', previous);
     updateElements('[data-stage-next]', next);
     updateElements('[data-stage-position]', `Stage ${stage.displayIndex} of ${state.flow.nodes.length}`);
-    document.querySelectorAll('[data-stage-requirement]').forEach((el) => el.classList.toggle('is-optional', stage.optional));
+    document.querySelectorAll('[data-stage-requirement]').forEach((el) => {
+      el.classList.toggle('is-optional', stage.optional);
+      el.hidden = !stage.optional;
+    });
     toggleEditActions(state.canEdit);
 
     const prevButton = root.querySelector('[data-action="previous-stage"]');
@@ -306,12 +328,9 @@ if (root) {
   }
 
   function applySelection() {
-    const incoming = new Set(state.selectedCode ? state.incoming.get(state.selectedCode) || [] : []);
-    const outgoing = new Set(state.selectedCode ? state.outgoing.get(state.selectedCode) || [] : []);
     root.querySelectorAll('[data-stage-code]').forEach((button) => {
       const code = button.dataset.stageCode;
       button.classList.toggle('is-selected', code === state.selectedCode);
-      button.classList.toggle('is-related', incoming.has(code) || outgoing.has(code));
       button.setAttribute('aria-pressed', code === state.selectedCode ? 'true' : 'false');
     });
     root.querySelectorAll('.phase-chip').forEach((chip) => {

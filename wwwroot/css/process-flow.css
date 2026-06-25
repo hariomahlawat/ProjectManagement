@@ -871,3 +871,329 @@
   .process-phase-grid { grid-template-columns: repeat(3, 1fr); }
   .process-phase-card { break-inside: avoid; }
 }
+
+/* 2026 refinement: calmer hierarchy, denser workspace and clearer stage guidance */
+.process-page {
+  padding: .95rem 0 1.5rem;
+}
+
+.process-header {
+  align-items: center;
+  margin-bottom: .7rem;
+}
+
+.process-title-row {
+  margin-top: .12rem;
+}
+
+.process-title-row h1 {
+  font-size: clamp(1.85rem, 2.55vw, 2.55rem);
+}
+
+.process-version {
+  padding: .2rem .48rem;
+  background: transparent;
+  border-color: #d9e2f0;
+  color: #5b6f91;
+  font-size: .68rem;
+}
+
+.process-header__copy p {
+  margin-top: .35rem;
+  font-size: .9rem;
+}
+
+.process-header__meta {
+  gap: .55rem;
+}
+
+.process-action--icon {
+  width: 42px;
+  min-width: 42px;
+  padding: 0;
+}
+
+.process-commandbar {
+  grid-template-columns: minmax(320px, .9fr) minmax(220px, 300px) auto;
+  padding: .58rem;
+  margin-bottom: .75rem;
+  border-radius: .85rem;
+  box-shadow: 0 5px 18px rgba(31, 54, 92, .04);
+}
+
+.process-commandbar .form-control,
+.process-commandbar .form-select,
+.process-action {
+  min-height: 40px;
+}
+
+.process-workspace {
+  grid-template-columns: minmax(0, 1fr) 430px;
+  gap: .8rem;
+}
+
+.process-map-panel,
+.stage-inspector {
+  border-radius: .95rem;
+  box-shadow: 0 10px 28px rgba(21, 45, 83, .065);
+}
+
+.process-map-toolbar {
+  padding: .78rem 1rem;
+}
+
+.process-map-toolbar p {
+  margin-top: .1rem;
+}
+
+.process-legend {
+  gap: .75rem;
+  font-size: .71rem;
+}
+
+.legend-dot {
+  width: .62rem;
+  height: .62rem;
+}
+
+.process-phase-strip {
+  padding: .42rem .75rem;
+  gap: .24rem;
+}
+
+.phase-chip {
+  padding: .33rem .55rem;
+  font-size: .7rem;
+}
+
+.phase-chip.is-active {
+  color: #315dbd;
+  border-color: transparent;
+  background: #f0f4ff;
+}
+
+.phase-chip__number {
+  width: 1.18rem;
+  height: 1.18rem;
+  font-size: .62rem;
+}
+
+.process-map {
+  min-height: 545px;
+  padding: .75rem;
+  background: #f6f8fc;
+}
+
+.process-phase-grid {
+  gap: .68rem;
+}
+
+.process-phase-card {
+  border-color: #e1e7f0;
+  border-radius: .78rem;
+  box-shadow: 0 2px 10px rgba(28, 52, 89, .025);
+}
+
+.process-phase-card__header {
+  padding: .55rem .68rem;
+  background: #fff;
+}
+
+.process-phase-index {
+  width: 1.48rem;
+  height: 1.48rem;
+  border-radius: .45rem;
+}
+
+.process-phase-card h3 {
+  font-size: .8rem;
+}
+
+.process-stage-stack {
+  gap: .52rem;
+  padding: .58rem;
+}
+
+.process-step:not(:last-child)::after,
+.process-branch:not(:last-child)::after {
+  bottom: -.52rem;
+  height: .52rem;
+  border-left-color: #cbd4e1;
+}
+
+.process-stage {
+  gap: .52rem;
+  padding: .5rem .56rem;
+  border-color: #dfe5ee;
+  border-radius: .65rem;
+  box-shadow: none;
+}
+
+.process-stage:hover {
+  transform: none;
+  border-color: #9fb5df;
+  background: #fbfdff;
+  box-shadow: 0 5px 14px rgba(42, 68, 111, .07);
+}
+
+.process-stage.is-selected {
+  border-color: var(--proc-blue);
+  background: #f1f5ff;
+  box-shadow: 0 0 0 2px rgba(53, 109, 255, .1);
+}
+
+.process-stage.is-related {
+  border-color: #dfe5ee;
+  background: #fff;
+}
+
+.process-stage__number {
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: .45rem;
+  font-size: .67rem;
+}
+
+.process-stage__copy strong {
+  font-size: .75rem;
+}
+
+.process-stage__copy small {
+  margin-top: .08rem;
+  font-size: .58rem;
+}
+
+.process-branch {
+  gap: .42rem;
+  padding-top: .3rem;
+}
+
+.process-branch::before {
+  top: -.1rem;
+  font-size: .55rem;
+  letter-spacing: .08em;
+}
+
+.stage-inspector {
+  min-height: 545px;
+  max-height: calc(100vh - var(--app-header-offset, 8.5rem) - 1rem);
+}
+
+.stage-inspector__topbar {
+  padding: .45rem .65rem;
+}
+
+.stage-inspector__heading {
+  padding: .72rem .9rem .6rem;
+}
+
+.stage-inspector__heading h2,
+.stage-offcanvas__header h2 {
+  margin: .16rem 0 .4rem;
+  font-size: 1.12rem;
+}
+
+.stage-kicker {
+  font-size: .64rem;
+  letter-spacing: .1em;
+}
+
+.stage-tags {
+  gap: .35rem;
+}
+
+.stage-code,
+.stage-requirement {
+  min-height: 1.45rem;
+  padding: .16rem .42rem;
+  font-size: .62rem;
+}
+
+.stage-purpose {
+  margin: .55rem 0 0;
+  color: #61718a;
+  font-size: .75rem;
+  line-height: 1.45;
+}
+
+.stage-purpose--mobile {
+  margin-bottom: .8rem;
+}
+
+.stage-relations {
+  gap: .45rem;
+  margin: 0 .9rem;
+  padding: .58rem .65rem;
+  border: 0;
+  border-radius: .65rem;
+  background: #f6f8fb;
+}
+
+.stage-relations strong {
+  font-size: .68rem;
+}
+
+.stage-checklist-header {
+  padding: .78rem .9rem .45rem;
+}
+
+.stage-checklist-header h3 {
+  font-size: .86rem;
+}
+
+.stage-add-button {
+  padding: .28rem .52rem;
+  font-size: .7rem;
+}
+
+.stage-checklist {
+  gap: 0;
+  padding: 0 .9rem .9rem;
+}
+
+.checklist-item {
+  gap: .48rem;
+  padding: .58rem .22rem;
+  border: 0;
+  border-bottom: 1px solid #e7ebf1;
+  border-radius: 0;
+  background: transparent;
+}
+
+.checklist-item:last-child {
+  border-bottom: 0;
+}
+
+.checklist-item__index {
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  font-size: .61rem;
+}
+
+.checklist-item .item-body p {
+  margin: 0;
+  font-size: .75rem;
+  line-height: 1.4;
+}
+
+.checklist-handle {
+  width: 1.4rem;
+  min-width: 1.4rem;
+  color: #75849a;
+}
+
+.item-actions .btn {
+  width: 1.65rem;
+  height: 1.65rem;
+}
+
+@media (max-width: 1399.98px) and (min-width: 1200px) {
+  .process-workspace { grid-template-columns: minmax(0, 1fr) 400px; }
+}
+
+@media (max-width: 767.98px) {
+  .process-header__copy p { font-size: .82rem; }
+  .process-version { display: none; }
+  .process-commandbar { padding: .5rem; }
+}
