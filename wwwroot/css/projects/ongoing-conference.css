@@ -539,16 +539,17 @@
 }
 
 .ongoing-table {
-    min-width: 1320px;
+    min-width: 1380px;
     table-layout: fixed;
 }
 
-.ongoing-table .col-project { width: 25%; }
-.ongoing-table .col-stage { width: 13%; }
-.ongoing-table .col-age { width: 8%; }
-.ongoing-table .col-pdc { width: 9%; }
-.ongoing-table .col-internal { width: 21%; }
-.ongoing-table .col-remarks { width: 24%; }
+/* Conference scan balance: factual columns stay narrow; briefing text receives most width. */
+.ongoing-table .col-project { width: 24%; }
+.ongoing-table .col-stage { width: 8%; }
+.ongoing-table .col-age { width: 6%; }
+.ongoing-table .col-pdc { width: 7%; }
+.ongoing-table .col-internal { width: 27%; }
+.ongoing-table .col-remarks { width: 28%; }
 
 .ongoing-table th {
     position: sticky;
@@ -595,10 +596,38 @@
 }
 
 .ongoing-table .pm-remark-text {
-    display: -webkit-box;
-    overflow: hidden;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    display: block !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: pre-line !important;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    line-height: 1.45;
+    -webkit-line-clamp: unset !important;
+    -webkit-box-orient: initial !important;
+}
+
+.ongoing-table .col-internal,
+.ongoing-table .col-remarks {
+    min-width: 0;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    overflow-wrap: anywhere;
+}
+
+.ongoing-table .col-internal > *,
+.ongoing-table .col-remarks > * {
+    min-width: 0;
+    max-width: none !important;
+}
+
+.ongoing-table .col-stage strong {
+    display: block;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
 }
 
 .projcell__text { min-width: 0; }
@@ -677,4 +706,16 @@
     min-width: auto;
     margin-left: 0;
     transform: none;
+}
+
+/* Final table-readability override: conference remarks must remain fully visible. */
+table.ongoing-table td.col-internal .pm-remark-text,
+table.ongoing-table td.col-remarks .pm-remark-text {
+    display: block !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: pre-line !important;
+    -webkit-line-clamp: unset !important;
+    line-clamp: unset !important;
+    -webkit-box-orient: initial !important;
 }
