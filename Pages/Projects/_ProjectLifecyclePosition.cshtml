@@ -6,7 +6,7 @@
             <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-signpost-split"></i></span>
             <div>
                 <h3 id="lifecycle-summary-title" class="pm-card-title h5 mb-0">Lifecycle position</h3>
-                <p class="pm-card-subtitle mb-0">Plan health, schedule variance and the next operational action.</p>
+                <p class="pm-card-subtitle mb-0">Plan health, schedule status and the next operational action.</p>
             </div>
         </div>
         <button class="btn btn-sm btn-outline-primary" type="button" data-scroll-target="#timeline">Open timeline</button>
@@ -21,21 +21,18 @@
             <div>
                 <span class="project-lifecycle-summary__label">Backfill</span>
                 <strong>@(Model.BackfillStageCount == 0 ? "Clear" : $"{Model.BackfillStageCount} stage{(Model.BackfillStageCount == 1 ? string.Empty : "s")}")</strong>
-                <span>@(Model.BackfillStageCount == 0 ? "Completed stages have completion dates" : "Completion dates or required stage facts are missing")</span>
+                <span>@(Model.BackfillStageCount == 0 ? "Completed stages have completion dates" : "Completion dates or mandatory stage facts require attention")</span>
             </div>
-            <div>
-                <span class="project-lifecycle-summary__label">Schedule variance</span>
-                <strong>@(Model.DelayedStageCount == 0 ? "None" : $"{Model.DelayedStageCount} stage{(Model.DelayedStageCount == 1 ? string.Empty : "s")}")</strong>
-                <span>@(Model.DelayedStageCount == 0 ? "No current overdue stage or recorded late completion" : "Current stage overdue or completed after planned finish")</span>
+            <div class="@(Model.CurrentStageOverdueDays.HasValue ? "is-attention" : string.Empty)">
+                <span class="project-lifecycle-summary__label">Schedule status</span>
+                <strong>@Model.ScheduleStatus</strong>
+                <span>@Model.ScheduleDetail</span>
             </div>
-            <div>
+            <div class="project-lifecycle-summary__next-action">
                 <span class="project-lifecycle-summary__label">Next action</span>
                 <strong class="project-lifecycle-summary__action">@Model.NextAction</strong>
-                <span>@(Model.IsWorkflowConcluded && Model.BackfillStageCount == 0 ? "Lifecycle sequence complete" : "Operational follow-up")</span>
+                <span>@Model.NextActionDetail</span>
             </div>
-        </div>
-        <div class="project-lifecycle-summary__progress" role="progressbar" aria-valuenow="@Model.ResolvedStages" aria-valuemin="0" aria-valuemax="@Model.ProgressMaximum">
-            <span style="--project-progress:@Model.ProgressPercent%"></span>
         </div>
     </div>
 </section>

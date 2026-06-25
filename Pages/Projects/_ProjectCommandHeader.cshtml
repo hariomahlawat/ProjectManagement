@@ -10,6 +10,9 @@
         if (user is null) return "—";
         return !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : user.UserName ?? "—";
     }
+
+    static string StageTarget(ProjectManagement.ViewModels.TimelineItemVm? stage) =>
+        stage is null ? "#timeline" : $"#timeline-stage-{stage.Code}";
 }
 <section class="project-command-header" aria-labelledby="project-title">
     <div class="project-command-header__main">
@@ -70,7 +73,7 @@
         </div>
     </div>
     <div class="project-intelligence-strip" aria-label="Project status summary">
-        <button class="project-intelligence-card" type="button" data-scroll-target="#timeline">
+        <button class="project-intelligence-card" type="button" data-scroll-target="@StageTarget(portfolio.CurrentStage)">
             <span class="project-intelligence-card__label">Current stage</span>
             <strong>@portfolio.CurrentStageDisplay</strong>
             <span>@portfolio.CurrentStageDetail</span>
@@ -80,7 +83,7 @@
             <strong>@portfolio.ResolvedStages of @portfolio.TotalStages</strong>
             <span>@portfolio.CompletedStages completed@(portfolio.SkippedStages > 0 ? $" · {portfolio.SkippedStages} skipped" : string.Empty)</span>
         </div>
-        <button class="project-intelligence-card" type="button" data-scroll-target="#timeline">
+        <button class="project-intelligence-card" type="button" data-scroll-target="@StageTarget(portfolio.NextStage)">
             @if (portfolio.NextStage is not null)
             {
                 <span class="project-intelligence-card__label">Next stage</span>
@@ -100,10 +103,10 @@
                 <span>@(portfolio.IsWorkflowConcluded ? "Workflow sequence concluded" : "No next stage available")</span>
             }
         </button>
-        <div class="project-intelligence-card">
+        <button class="project-intelligence-card" type="button" data-scroll-target="#project-profile-details">
             <span class="project-intelligence-card__label">Profile completeness</span>
             <strong>@portfolio.CompletenessPercent%</strong>
-            <span>@(portfolio.CompletenessPercent == 100 ? "Core profile complete" : "Review missing project facts")</span>
-        </div>
+            <span>@portfolio.ProfileCompletenessDetail</span>
+        </button>
     </div>
 </section>

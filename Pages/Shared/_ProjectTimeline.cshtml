@@ -7,6 +7,8 @@
     var access = Model.Access;
     var isHod = access.CanApplyStageChangeDirectly;
     var canRequestChange = access.CanRequestStageChange;
+    var canEditTimeline = access.CanEditTimeline;
+    var futureSectionStarted = false;
 }
 @functions {
     string D(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
@@ -64,13 +66,22 @@
   <div class="pm-items">
     @foreach (var s in timeline.Items.OrderBy(i => i.SortOrder))
     {
+      if (!futureSectionStarted && s.Status == StageStatus.NotStarted)
+      {
+        futureSectionStarted = true;
+        <div class="pm-future-stage-heading" role="separator" aria-label="Future stages">
+          <span>Future stages</span>
+          <small>Planned dates may be added when available.</small>
+        </div>
+      }
+
       var itemClass = s.Status switch
       {
         StageStatus.Completed  => "pm-item is-complete",
         StageStatus.InProgress => "pm-item is-active",
         _                      => "pm-item"
       };
-      <div class="@itemClass" data-stage-row="@s.Code" data-timeline-stage data-stage-status-value="@s.Status" data-requires-backfill="@(s.RequiresBackfill ? "true" : "false")">
+      <div id="timeline-stage-@s.Code" class="@itemClass" data-stage-row="@s.Code" data-timeline-stage data-stage-status-value="@s.Status" data-requires-backfill="@(s.RequiresBackfill ? "true" : "false")">
         <div class="pm-item-card" data-timeline-stage-card>
           <div class="pm-item-header">
             <div class="pm-item-heading">
@@ -89,10 +100,24 @@
               </button>
               @if (s.ShowPlanWarning)
               {
-                <span class="badge bg-warning-subtle text-warning-emphasis"
-                      aria-label="Planned completion date is not set for the current stage">
-                  Planned completion missing
-                </span>
+                @if (canEditTimeline)
+                {
+                  <button type="button"
+                          class="badge border-0 bg-warning-subtle text-warning-emphasis pm-stage-plan-action"
+                          data-bs-toggle="offcanvas"
+                          data-bs-target="#offcanvasPlanEdit"
+                          aria-controls="offcanvasPlanEdit"
+                          aria-label="Set the planned completion date for @s.Name">
+                    Planned completion missing
+                  </button>
+                }
+                else
+                {
+                  <span class="badge bg-warning-subtle text-warning-emphasis"
+                        aria-label="Planned completion date is not set for the current stage">
+                    Planned completion missing
+                  </span>
+                }
               }
               <span class="pm-item-title text-truncate"
                     title="@s.Name"
@@ -241,9 +266,6 @@
             {
               <span class="pm-flag" title="Auto-completed when a later stage finished." data-stage-autocomplete>Inferred</span>
             }
-            <span class="pm-flag@(s.IsIncompleteData || s.RequiresBackfill ? string.Empty : " d-none")" data-stage-incomplete>
-              Incomplete data
-            </span>
             <span class="pm-flag pm-flag-danger@(s.IsOverdue ? string.Empty : " d-none")" data-stage-overdue>Overdue</span>
             <span class="pm-flag pm-flag-warning@(s.HasPendingRequest ? string.Empty : " d-none")" data-stage-pending>
               @if (s.HasPendingRequest)
@@ -317,9 +339,19 @@
                     @(remaining < 0 ? $"{Math.Abs(remaining)} day{(Math.Abs(remaining) == 1 ? string.Empty : "s")} overdue" : remaining == 0 ? "Due today" : $"{remaining} day{(remaining == 1 ? string.Empty : "s")} remaining")
                   </span>
                 }
+                else if (canEditTimeline)
+                {
+                  <button type="button"
+                          class="btn btn-sm btn-link p-0 text-warning-emphasis fw-semibold pm-stage-plan-link"
+                          data-bs-toggle="offcanvas"
+                          data-bs-target="#offcanvasPlanEdit"
+                          aria-controls="offcanvasPlanEdit">
+                    Set planned completion
+                  </button>
+                }
                 else
                 {
-                  <span class="small text-warning-emphasis">Set the planned completion date</span>
+                  <span class="small text-warning-emphasis">Planned completion not set</span>
                 }
               </div>
             </div>
@@ -330,10 +362,6 @@
               <i class="bi bi-calendar3" aria-hidden="true"></i>
               <span>Planned @D(s.PlannedStart) – @D(s.PlannedEnd)</span>
             </div>
-          }
-          else if (s.Status == StageStatus.NotStarted)
-          {
-            <div class="pm-future-stage-plan is-optional">Planning dates are optional for future stages.</div>
           }
         </div>
       </div>

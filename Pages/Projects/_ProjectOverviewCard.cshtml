@@ -1,4 +1,5 @@
 @using System
+@using System.Collections.Generic
 @using ProjectManagement.Models
 @model ProjectManagement.Pages.Projects.OverviewModel
 
@@ -10,6 +11,11 @@
     var isThisProjectsPo = roles.IsAssignedProjectOfficer;
     var isThisProjectsHod = roles.IsAssignedHoD;
     var canManagePhotos = isAdmin || isThisProjectsPo || isThisProjectsHod;
+    var canEditDetails = isAdmin || isHoD;
+    var canRequestDetails = isThisProjectsPo;
+    var projectTypeName = project?.ProjectType?.Name;
+    var sponsoringUnitName = project?.SponsoringUnit?.Name;
+    var sponsoringDirectorateName = project?.SponsoringLineDirectorate?.Name;
     var coverPhoto = Model.MediaSummary.CoverPhoto ?? Model.CoverPhoto;
     var coverVersion = Model.MediaSummary.CoverPhotoVersion ?? Model.CoverPhotoVersion ?? coverPhoto?.Version;
     Func<ProjectPhoto, string, int?, string> photoUrl = (photo, size, version) =>
@@ -27,9 +33,15 @@
             $"{coverXl} 1600w"
         })
         : null;
+
+    var missingDetails = new List<string>();
+    if (string.IsNullOrWhiteSpace(projectTypeName)) missingDetails.Add("project type");
+    if (string.IsNullOrWhiteSpace(sponsoringUnitName)) missingDetails.Add("sponsoring unit");
+    if (string.IsNullOrWhiteSpace(sponsoringDirectorateName)) missingDetails.Add("sponsoring line directorate");
+    if (string.IsNullOrWhiteSpace(project?.Description)) missingDetails.Add("project description");
 }
 
-<div class="card pm-card project-profile-card">
+<div class="card pm-card project-profile-card" id="project-profile-details">
     <div class="card-header pm-card-header">
         <div class="pm-card-heading">
             <span class="pm-card-icon" aria-hidden="true">
@@ -57,7 +69,7 @@
                             <a class="dropdown-item d-flex align-items-center gap-2"
                                asp-page="/Projects/Photos/Index"
                                asp-route-id="@Model.Project!.Id">
-                                <i class="bi bi-sliders" aria-hidden="true"></i>
+                                <i class="bi bi-images" aria-hidden="true"></i>
                                 <span>Manage photos</span>
                             </a>
                         </li>
@@ -84,59 +96,37 @@
     </div>
     <div class="card-body pm-card-body">
         <div class="row g-3 align-items-start project-profile-card__layout">
-            <div class="col-12 col-md-4">
+            <div class="col-12 col-md-3">
                 <div class="project-photo-cover">
-                    @* SECTION: Cover photo frame without aspect-ratio lock. *@
                     <div class="project-photo-cover-frame w-100">
                         @if (coverPhoto != null)
                         {
                             <picture>
                                 <source type="image/webp"
                                         srcset="@coverSrcSet"
-                                        sizes="(min-width: 1200px) 360px, (min-width: 992px) 320px, 100vw" />
+                                        sizes="(min-width: 1200px) 280px, (min-width: 992px) 240px, 100vw" />
                                 <img class="w-100 h-100 object-fit-cover rounded border"
                                      src="@coverXs"
                                      srcset="@coverSrcSet"
-                                     sizes="(min-width: 1200px) 360px, (min-width: 992px) 320px, 100vw"
+                                     sizes="(min-width: 1200px) 280px, (min-width: 992px) 240px, 100vw"
                                      alt="@(string.IsNullOrWhiteSpace(coverPhoto.Caption) ? $"{project?.Name} cover photo" : coverPhoto.Caption)" />
                             </picture>
                         }
                         else
                         {
-                            @* SECTION: Cover photo empty-state with role-based actions. *@
                             <div class="project-photo-cover-empty text-center">
                                 <div class="project-photo-cover-empty__icon" aria-hidden="true">
                                     <i class="bi bi-image"></i>
                                 </div>
-
+                                <div class="project-photo-cover-empty__title">No cover photo</div>
                                 @if (canManagePhotos)
                                 {
-                                    <div class="project-photo-cover-empty__title">Add a cover photo</div>
-                                    <div class="project-photo-cover-empty__hint text-muted small">
-                                        Optional. Helps recognise the project quickly.
-                                    </div>
-
-                                    <div class="d-flex flex-wrap gap-2 justify-content-center mt-3">
-                                        <a class="btn btn-sm btn-primary"
-                                           asp-page="/Projects/Photos/Upload"
-                                           asp-route-id="@Model.Project!.Id"
-                                           asp-route-cover="true">
-                                            Upload cover photo
-                                        </a>
-
-                                        <a class="btn btn-sm btn-outline-secondary"
-                                           asp-page="/Projects/Photos/Index"
-                                           asp-route-id="@Model.Project!.Id">
-                                            Manage photos
-                                        </a>
-                                    </div>
-                                }
-                                else
-                                {
-                                    <div class="project-photo-cover-empty__title">No cover photo</div>
-                                    <div class="project-photo-cover-empty__hint text-muted small">
-                                        A cover image has not been set for this project.
-                                    </div>
+                                    <a class="btn btn-sm btn-primary mt-2"
+                                       asp-page="/Projects/Photos/Upload"
+                                       asp-route-id="@Model.Project!.Id"
+                                       asp-route-cover="true">
+                                        Upload cover
+                                    </a>
                                 }
                             </div>
                         }
@@ -147,8 +137,7 @@
                     }
                 </div>
             </div>
-            <div class="col-12 col-md-8">
-                @* SECTION: Project categories *@
+            <div class="col-12 col-md-9">
                 <dl class="project-facts mb-0">
                     <dt class="project-facts__label">Category</dt>
                     <dd class="project-facts__value">
@@ -156,24 +145,33 @@
                             ? string.Join(" › ", Model.CategoryPath.Select(c => c.Name))
                             : "—")
                     </dd>
-                    <dt class="project-facts__label">Technical Category</dt>
-                    <dd class="project-facts__value">
-                        @(Model.TechnicalCategoryPath.Any()
-                            ? string.Join(" › ", Model.TechnicalCategoryPath.Select(c => c.Name))
-                            : "—")
-                    </dd>
-                    @* SECTION: Project type and build flag *@
-                    <dt class="project-facts__label">Project type</dt>
-                    <dd class="project-facts__value">@(Model.Project?.ProjectType?.Name ?? "—")</dd>
+
+                    @if (Model.TechnicalCategoryPath.Any())
+                    {
+                        <dt class="project-facts__label">Technical category</dt>
+                        <dd class="project-facts__value">@string.Join(" › ", Model.TechnicalCategoryPath.Select(c => c.Name))</dd>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(projectTypeName))
+                    {
+                        <dt class="project-facts__label">Project type</dt>
+                        <dd class="project-facts__value">@projectTypeName</dd>
+                    }
 
                     <dt class="project-facts__label">Repeat build</dt>
-                    <dd class="project-facts__value">@((Model.Project?.IsBuild ?? false) ? "Yes" : "No")</dd>
+                    <dd class="project-facts__value">@((project?.IsBuild ?? false) ? "Yes" : "No")</dd>
 
-                    <dt class="project-facts__label">Sponsoring Unit</dt>
-                    <dd class="project-facts__value">@(Model.Project?.SponsoringUnit?.Name ?? "—")</dd>
+                    @if (!string.IsNullOrWhiteSpace(sponsoringUnitName))
+                    {
+                        <dt class="project-facts__label">Sponsoring unit</dt>
+                        <dd class="project-facts__value">@sponsoringUnitName</dd>
+                    }
 
-                    <dt class="project-facts__label">Sponsoring line directorate</dt>
-                    <dd class="project-facts__value">@(Model.Project?.SponsoringLineDirectorate?.Name ?? "—")</dd>
+                    @if (!string.IsNullOrWhiteSpace(sponsoringDirectorateName))
+                    {
+                        <dt class="project-facts__label">Sponsoring line directorate</dt>
+                        <dd class="project-facts__value">@sponsoringDirectorateName</dd>
+                    }
 
                     <dt class="project-facts__label">Head of Department</dt>
                     <dd class="project-facts__value">@FormatUser(project?.HodUser)</dd>
@@ -181,62 +179,65 @@
                     <dt class="project-facts__label">Project Officer</dt>
                     <dd class="project-facts__value">@FormatUser(project?.LeadPoUser)</dd>
 
-                    @* SECTION: Cost summary *@
-                    <dt class="project-facts__label">Initial procurement / R&amp;D cost</dt>
-                    <dd class="project-facts__value">@FormatCost(Model.CostSummary.RdCostLakhs)</dd>
+                    @if (Model.CostSummary.RdCostLakhs.HasValue)
+                    {
+                        <dt class="project-facts__label">Initial procurement / R&amp;D cost</dt>
+                        <dd class="project-facts__value">@FormatCost(Model.CostSummary.RdCostLakhs)</dd>
+                    }
 
-                    <dt class="project-facts__label">Approx. production cost</dt>
-                    <dd class="project-facts__value">@FormatCost(Model.CostSummary.ApproxProductionCost)</dd>
+                    @if (Model.CostSummary.ApproxProductionCost.HasValue)
+                    {
+                        <dt class="project-facts__label">Approx. production cost</dt>
+                        <dd class="project-facts__value">@FormatCost(Model.CostSummary.ApproxProductionCost)</dd>
+                    }
                 </dl>
-            </div>
-            <div class="col-12 project-description-block">
-                <h3 class="h6 mb-2">Project description</h3>
-                <div class="project-overview__description pm-markdown">
-                    @if (!string.IsNullOrWhiteSpace(Model.DescriptionHtml))
-                    {
-                        @Html.Raw(Model.DescriptionHtml)
-                    }
-                    else
-                    {
-                        <span class="text-muted">—</span>
-                    }
-                </div>
+
+                @if (!string.IsNullOrWhiteSpace(Model.DescriptionHtml))
+                {
+                    <div class="project-description-block">
+                        <h3 class="h6 mb-2">Project description</h3>
+                        <div class="project-overview__description pm-markdown">
+                            @Html.Raw(Model.DescriptionHtml)
+                        </div>
+                    </div>
+                }
+
+                @if (missingDetails.Count > 0)
+                {
+                    <div class="project-profile-missing" role="status">
+                        <div>
+                            <strong>@missingDetails.Count recommended detail@(missingDetails.Count == 1 ? string.Empty : "s") missing</strong>
+                            <span>@string.Join(", ", missingDetails)</span>
+                        </div>
+                        @if (canEditDetails)
+                        {
+                            <a class="btn btn-sm btn-outline-primary"
+                               asp-page="/Projects/Meta/Edit"
+                               asp-route-id="@Model.Project!.Id">Edit details</a>
+                        }
+                        else if (canRequestDetails)
+                        {
+                            <a class="btn btn-sm btn-outline-primary"
+                               asp-page="/Projects/Meta/Request"
+                               asp-route-id="@Model.Project!.Id">Request update</a>
+                        }
+                    </div>
+                }
             </div>
         </div>
-
     </div>
 </div>
 
 @functions {
     private static string FormatUser(ApplicationUser? user)
     {
-        if (user is null)
-        {
-            return "—";
-        }
-
-        if (!string.IsNullOrWhiteSpace(user.FullName))
-        {
-            return user.FullName!;
-        }
-
-        if (!string.IsNullOrWhiteSpace(user.UserName))
-        {
-            return user.UserName!;
-        }
-
-        if (!string.IsNullOrWhiteSpace(user.Email))
-        {
-            return user.Email!;
-        }
-
+        if (user is null) return "—";
+        if (!string.IsNullOrWhiteSpace(user.FullName)) return user.FullName!;
+        if (!string.IsNullOrWhiteSpace(user.UserName)) return user.UserName!;
+        if (!string.IsNullOrWhiteSpace(user.Email)) return user.Email!;
         return "—";
     }
 
-    private static string FormatCost(decimal? costLakhs)
-    {
-        return costLakhs.HasValue
-            ? $"{costLakhs.Value:0.##} lakh"
-            : "—";
-    }
+    private static string FormatCost(decimal? costLakhs) =>
+        costLakhs.HasValue ? $"{costLakhs.Value:0.##} lakh" : "—";
 }

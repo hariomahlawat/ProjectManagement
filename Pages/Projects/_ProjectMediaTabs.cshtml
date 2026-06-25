@@ -401,7 +401,7 @@
                                     <h3 class="h6 mb-2">Gallery</h3>
                                     <p class="text-muted small mb-0">Browse highlights from recent uploads.</p>
                                 </div>
-                                @if (photosTab.CanManagePhotos)
+                                @if (photosTab.CanManagePhotos && hasPreview)
                                 {
                                     <div class="d-flex flex-wrap gap-2">
                                         <a class="btn btn-sm btn-outline-secondary"
@@ -489,32 +489,30 @@
                             {
                                 var emptyStateHeadingId = $"project-photo-empty-title-{projectId}";
                                 var emptyStateDescriptionId = $"{emptyStateHeadingId}-desc";
-                                <div class="project-photo-empty border rounded bg-light-subtle text-center"
+                                <div class="project-photo-empty project-files-empty"
                                      role="region"
                                      aria-labelledby="@emptyStateHeadingId"
                                      aria-describedby="@emptyStateDescriptionId">
-                                    <div class="project-photo-empty-body">
-                                        <span class="project-photo-empty-icon" aria-hidden="true">
-                                            <i class="bi bi-images"></i>
-                                        </span>
-                                        <h3 id="@emptyStateHeadingId" class="h6 fw-semibold mb-2">
+                                    <span class="project-files-empty__icon" aria-hidden="true"><i class="bi bi-images"></i></span>
+                                    <div class="project-files-empty__content">
+                                        <h3 id="@emptyStateHeadingId" class="h6 fw-semibold mb-1">
                                             @(selectedTot.HasValue && !string.IsNullOrWhiteSpace(selectedTotLabel)
                                                 ? $"No {selectedTotLabel} photos yet"
-                                                : "No photos yet")
+                                                : "No photos uploaded")
                                         </h3>
-                                        <p id="@emptyStateDescriptionId" class="mb-3 text-muted">
+                                        <p id="@emptyStateDescriptionId" class="mb-0 text-muted small">
                                             @(selectedTot.HasValue && !string.IsNullOrWhiteSpace(selectedTotLabel)
-                                                ? "This filter doesn't have any photos yet. Try switching filters or add one now."
-                                                : "Add a cover or gallery photo to help everyone recognise this project at a glance.")
+                                                ? "Try another filter or add a photo."
+                                                : "Add a cover or gallery photo when available.")
                                         </p>
-                                        @if (canManagePhotos)
-                                        {
-                                            <a class="btn btn-primary"
-                                               asp-page="/Projects/Photos/Index"
-                                               asp-route-id="@projectId"
-                                               aria-label="Upload the first project photo">Upload photo</a>
-                                        }
                                     </div>
+                                    @if (canManagePhotos)
+                                    {
+                                        <a class="btn btn-sm btn-primary"
+                                           asp-page="/Projects/Photos/Upload"
+                                           asp-route-id="@projectId"
+                                           aria-label="Upload the first project photo">Upload photo</a>
+                                    }
                                 </div>
                             }
                         </div>
@@ -528,7 +526,11 @@
                         if (videosTab.Items.Count == 0)
                         {
                             <div class="project-files-empty">
-                                <p class="mb-2">No videos are available yet for this project.</p>
+                                <span class="project-files-empty__icon" aria-hidden="true"><i class="bi bi-play-btn"></i></span>
+                                <div class="project-files-empty__content">
+                                    <strong>No videos uploaded</strong>
+                                    <span>Add a project video when available.</span>
+                                </div>
                                 @if (canManageVideos)
                                 {
                                     <a class="btn btn-sm btn-primary"

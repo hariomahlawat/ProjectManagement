@@ -7,12 +7,13 @@
     var portfolio = Model.Portfolio;
     var planState = Model.PlanEdit?.State ?? new PlanEditorStateVm();
     var isHoD = access.IsHoD;
-    var isThisProjectsPo = access.IsAssignedProjectOfficer;
     var hasMyDraft = planState.HasMyDraft;
     var pendingOwnedByCurrentUser = planState.PendingOwnedByCurrentUser;
     var canEditTimeline = access.CanEditTimeline;
     var submissionBlocked = planState.HasPendingSubmission && !pendingOwnedByCurrentUser;
-    var completedStages = portfolio.ResolvedStages;
+    var completedStages = portfolio.CompletedStages;
+    var skippedStages = portfolio.SkippedStages;
+    var resolvedStages = portfolio.ResolvedStages;
     var totalStages = portfolio.TotalStages;
     var progressMax = portfolio.ProgressMaximum;
     var remarksConfigJson = JsonSerializer.Serialize(Model.RemarksPanel, new JsonSerializerOptions(JsonSerializerDefaults.Web));
@@ -31,34 +32,11 @@
                                             </span>
                                             <div>
                                                 <h5 class="pm-card-title mb-0">Timeline</h5>
-                                                @{
-                                                    string? viewerRole = null;
-                                                    if (isHoD && isThisProjectsPo)
-                                                    {
-                                                        viewerRole = "Head of Department & Project Officer";
-                                                    }
-                                                    else if (isHoD)
-                                                    {
-                                                        viewerRole = "Head of Department";
-                                                    }
-                                                    else if (isThisProjectsPo)
-                                                    {
-                                                        viewerRole = "Project Officer";
-                                                    }
-                                                }
+                                                <p class="pm-card-subtitle mb-0">Project lifecycle and stage outcomes.</p>
                                             </div>
                                         </div>
                                         <div class="d-flex flex-wrap align-items-center gap-2 ms-lg-2 mt-2 mt-lg-0">
-                                            @if (!string.IsNullOrEmpty(viewerRole))
-                                            {
-                                                    <span class="text-muted small" data-role-indicator title="Current permissions for timeline actions">Viewing as @viewerRole</span>
-                                                }
-                                                else
-                                                {
-                                                    <span class="text-muted small" data-role-indicator title="Current permissions for timeline actions">Viewing as read-only member</span>
-
-                                                }
-                                                @if (pendingOwnedByCurrentUser)
+                                            @if (pendingOwnedByCurrentUser)
                                             {
                                                 <span class="badge text-bg-warning">Submitted for approval</span>
                                             }
@@ -214,11 +192,20 @@
                         </div>
                         <div class="pm-card-meta w-100" data-panel-section="timeline" id="project-panel-meta-timeline" role="region" aria-labelledby="project-panel-toggle-timeline" aria-hidden="false">
                             <progress class="pm-progress pm-progress-slim pm-progress-fixed-180"
-                                      value="@completedStages"
+                                      value="@resolvedStages"
                                       max="@progressMax"
-                                      aria-label="Timeline stages completed">
+                                      aria-label="Timeline stages resolved">
                             </progress>
-                            <span class="text-muted small">@completedStages of @totalStages resolved</span>
+                            <span class="text-muted small">
+                                @if (skippedStages == 0)
+                                {
+                                    <text>@completedStages of @totalStages stages complete</text>
+                                }
+                                else
+                                {
+                                    <text>@resolvedStages of @totalStages resolved · @completedStages completed · @skippedStages skipped</text>
+                                }
+                            </span>
                         </div>
                     </div>
                 </div>

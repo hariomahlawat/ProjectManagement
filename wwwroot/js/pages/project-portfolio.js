@@ -11,7 +11,17 @@
         if (!selector) return;
         const target = document.querySelector(selector);
         if (!target) return;
-        target.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
+
+        target.scrollIntoView({
+            behavior: prefersReducedMotion ? 'auto' : 'smooth',
+            block: 'start'
+        });
+
+        if (target.matches('[data-timeline-stage]')) {
+            target.classList.remove('is-focus-pulse');
+            window.requestAnimationFrame(() => target.classList.add('is-focus-pulse'));
+            window.setTimeout(() => target.classList.remove('is-focus-pulse'), 1500);
+        }
     }
 
     function setStageExpanded(stage, expanded, persist = true) {
@@ -27,8 +37,11 @@
 
         if (!persist) return;
         const stageCode = stage.getAttribute('data-stage-row');
-        if (expanded && stageCode) sessionStorage.setItem(expandedStageStorageKey, stageCode);
-        else if (sessionStorage.getItem(expandedStageStorageKey) === stageCode) sessionStorage.removeItem(expandedStageStorageKey);
+        if (expanded && stageCode) {
+            sessionStorage.setItem(expandedStageStorageKey, stageCode);
+        } else if (sessionStorage.getItem(expandedStageStorageKey) === stageCode) {
+            sessionStorage.removeItem(expandedStageStorageKey);
+        }
     }
 
     function toggleCompletedStage(stage) {
@@ -64,8 +77,10 @@
         const remembered = rememberedCode
             ? completed.find((item) => item.getAttribute('data-stage-row') === rememberedCode)
             : null;
-        const stageToExpand = remembered || completed.at(-1);
-        if (stageToExpand) setStageExpanded(stageToExpand, true, false);
+
+        if (remembered) {
+            setStageExpanded(remembered, true, false);
+        }
     }
 
     function openRemarkComposer() {
@@ -101,19 +116,28 @@
     function initializeRemarkComposer() {
         const composer = root.querySelector('.remarks-composer');
         const launcher = root.querySelector('[data-project-remark-launcher]');
-        if (!composer || !launcher || composer.dataset.portfolioEnhanced === 'true') return;
+        if (!composer || !launcher) return;
 
-        composer.dataset.portfolioEnhanced = 'true';
-        composer.classList.add('is-collapsed');
-        launcher.removeAttribute('hidden');
+        if (composer.dataset.portfolioEnhanced !== 'true') {
+            composer.dataset.portfolioEnhanced = 'true';
+            composer.classList.add('is-collapsed');
+            launcher.removeAttribute('hidden');
 
-        launcher.addEventListener('click', openRemarkComposer);
-        composer.querySelector('[data-remarks-reset]')?.addEventListener('click', () => {
-            window.setTimeout(closeRemarkComposer, 0);
-        });
+            launcher.addEventListener('click', openRemarkComposer);
+            composer.querySelector('[data-remarks-reset]')?.addEventListener('click', () => {
+                window.setTimeout(closeRemarkComposer, 0);
+            });
+        }
     }
 
     initializeTimelineDensity();
     initializeRemarkComposer();
-    document.addEventListener('pm:remarks-rendered', initializeRemarkComposer);
+
+    document.addEventListener('pm:remarks-rendered', () => {
+        initializeRemarkComposer();
+        const body = root.querySelector('[data-remarks-body]');
+        if (body instanceof HTMLTextAreaElement && body.value.trim().length === 0) {
+            closeRemarkComposer();
+        }
+    });
 })();

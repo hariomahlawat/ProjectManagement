@@ -1,3 +1,4 @@
+@using System.Linq
 @model ProjectManagement.Pages.Projects.OverviewModel
 
 @if (!Model.ShowJdpPanel)
@@ -6,23 +7,41 @@
 }
 
 @{
-    // SECTION: Joint Development Partner panel state
     var partnerCount = Model.JdpPartners.Count;
     var isLinked = partnerCount > 0;
+    var primaryPartner = Model.JdpPartners.FirstOrDefault();
+}
 
+@if (!isLinked)
+{
+    <section class="card pm-card project-jdp-compact" aria-label="Joint Development Partner">
+        <div class="project-jdp-compact__content">
+            <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-building"></i></span>
+            <div>
+                <span class="project-jdp-compact__label">Joint Development Partner</span>
+                <strong>Not linked</strong>
+            </div>
+        </div>
+        @if (Model.CanManageIndustryPartners)
+        {
+            <a class="btn btn-sm btn-outline-primary" asp-page="/IndustryPartners/Index">Link partner</a>
+        }
+    </section>
+}
+else
+{
     var cardModel = new RightColumnSummaryCardViewModel
     {
         IconClass = "bi bi-building",
         Title = "Joint Development Partner",
         Subtitle = "Industry partner associated with this project.",
-        StatusText = isLinked ? "Linked" : "Not linked",
-        StatusBadgeClass = isLinked ? "text-bg-primary" : "text-bg-secondary",
+        StatusText = partnerCount == 1 ? "Linked" : $"{partnerCount} linked",
+        StatusBadgeClass = "text-bg-primary",
         BodyPartialName = "_ProjectJdpPanelBody",
         BodyModel = Model,
         HeaderActionsPartialName = "_ProjectJdpPanelHeaderActions",
         HeaderActionsModel = Model
     };
-}
 
-<!-- SECTION: Joint Development Partner panel -->
-<partial name="_RightColumnSummaryCard" model="cardModel" />
+    <partial name="_RightColumnSummaryCard" model="cardModel" />
+}
