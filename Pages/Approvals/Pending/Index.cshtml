@@ -3,147 +3,105 @@
 @{
     ViewData["Title"] = "Pending approvals";
 }
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/approvals.css" asp-append-version="true" />
+}
 
-<div class="container-fluid approvals-page">
-    @* SECTION: Page header *@
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+<div class="approvals-shell">
+    <header class="approvals-page-header">
         <div>
-            <h1 class="h2 mb-1">Pending approvals</h1>
-            <p class="text-muted mb-0">Review approval-gated requests across projects and project office reports.</p>
+            <div class="approvals-eyebrow">Decision workspace</div>
+            <h1>Pending approvals</h1>
+            <p>Review and decide approval-gated requests across Projects and Project Office Reports.</p>
         </div>
-    </div>
+    </header>
 
-    @* SECTION: Feedback *@
     @if (!string.IsNullOrWhiteSpace(Model.SuccessMessage))
     {
-        <div class="alert alert-success" role="alert">@Model.SuccessMessage</div>
+        <div class="approvals-feedback approvals-feedback--success" role="status"><i class="bi bi-check-circle"></i>@Model.SuccessMessage</div>
     }
 
-    @* SECTION: KPI strip *@
-    <div class="approvals-kpi-grid mb-4">
-        <div class="approvals-kpi-card">
-            <div class="approvals-kpi-label">Total pending</div>
-            <div class="approvals-kpi-value">@Model.TotalPendingCount</div>
-            <div class="approvals-kpi-meta">@Model.FilterContextLabel</div>
-        </div>
-        <div class="approvals-kpi-card">
-            <div class="approvals-kpi-label">Oldest pending</div>
-            <div class="approvals-kpi-value">@Model.OldestPendingDisplay</div>
-            <div class="approvals-kpi-meta">Oldest request in view</div>
-        </div>
-        <div class="approvals-kpi-card">
-            <div class="approvals-kpi-label">By module</div>
-            <div class="approvals-kpi-value">Projects: @Model.ProjectsPendingCount</div>
-            <div class="approvals-kpi-meta">Project office: @Model.ProjectOfficePendingCount</div>
-        </div>
-        <div class="approvals-kpi-card">
-            <div class="approvals-kpi-label">Top type</div>
-            <div class="approvals-kpi-value">@Model.TopTypeDisplay</div>
-            <div class="approvals-kpi-meta">@Model.TopTypeMeta</div>
-        </div>
-    </div>
+    @if (Model.TotalPendingCount == 0 && !Model.HasActiveFilters)
+    {
+        <section class="approvals-clear-state">
+            <div class="approvals-clear-icon"><i class="bi bi-check2"></i></div>
+            <div><h2>All caught up</h2><p>There are no pending approvals across Projects or Project Office Reports.</p></div>
+        </section>
+    }
+    else
+    {
+        <section class="approvals-metrics" aria-label="Approval queue summary">
+            <a class="approval-metric approval-metric--primary" asp-page="/Approvals/Pending/Index">
+                <span>Total pending</span><strong>@Model.TotalPendingCount</strong><small>Requests in current view</small>
+            </a>
+            <div class="approval-metric"><span>Oldest request</span><strong>@Model.OldestPendingDisplay</strong><small>Age of oldest pending item</small></div>
+            <a class="approval-metric" asp-page="/Approvals/Pending/Index" asp-route-Module="Projects">
+                <span>Projects</span><strong>@Model.ProjectsPendingCount</strong><small>Project approvals</small>
+            </a>
+            <a class="approval-metric" asp-page="/Approvals/Pending/Index" asp-route-Module="ProjectOfficeReports">
+                <span>Project Office</span><strong>@Model.ProjectOfficePendingCount</strong><small>Report approvals</small>
+            </a>
+            <a class="approval-metric @(Model.OverdueCount > 0 ? "approval-metric--alert" : "")" asp-page="/Approvals/Pending/Index" asp-route-Age="over7">
+                <span>Over 7 days</span><strong>@Model.OverdueCount</strong><small>Requires attention</small>
+            </a>
+        </section>
+    }
 
-    @* SECTION: Filters *@
-    <div class="card approval-card approvals-filter-bar mb-4">
-        <div class="card-body">
-            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-                <div class="fw-semibold">Filters</div>
-                @if (Model.HasActiveFilters)
+    <section class="approvals-filter-panel">
+        <form method="get" class="approvals-filter-form" data-approvals-filter-form>
+            <div class="approvals-filter-field approvals-filter-field--search">
+                <label asp-for="Search">Search</label>
+                <div class="approvals-search-control"><i class="bi bi-search"></i><input asp-for="Search" type="search" placeholder="Project, requester, request ID or summary" /></div>
+            </div>
+            <div class="approvals-filter-field"><label asp-for="Type">Request type</label><select asp-for="Type" asp-items="Model.TypeOptions"></select></div>
+            <div class="approvals-filter-field"><label asp-for="Module">Module</label><select asp-for="Module" asp-items="Model.ModuleOptions"></select></div>
+            <div class="approvals-filter-field"><label asp-for="Age">Age</label><select asp-for="Age" asp-items="Model.AgeOptions"></select></div>
+            <button type="submit" class="btn btn-primary approvals-apply-button">Apply</button>
+            @if (Model.HasActiveFilters)
+            {
+                <a class="btn btn-link approvals-clear-button" asp-page="/Approvals/Pending/Index">Clear</a>
+            }
+        </form>
+    </section>
+
+    <section class="approvals-results-panel">
+        @if (Model.Items.Count == 0)
+        {
+            <div class="approvals-empty-filtered">
+                <i class="bi bi-inbox"></i><h2>No matching approvals</h2><p>Adjust or clear the filters to view other pending requests.</p>
+                <a class="btn btn-outline-primary" asp-page="/Approvals/Pending/Index">Clear filters</a>
+            </div>
+        }
+        else
+        {
+            <div class="approvals-results-header">
+                <div><h2>Approval queue</h2><p>Showing @Model.PageStart–@Model.PageEnd of @Model.FilteredCount requests · oldest first</p></div>
+                @if (!string.IsNullOrWhiteSpace(Model.TopTypeDisplay) && Model.TopTypeDisplay != "—")
+                { <div class="approvals-top-type"><span>Most common</span><strong>@Model.TopTypeDisplay</strong><small>@Model.TopTypeMeta</small></div> }
+            </div>
+
+            <div class="approvals-list" role="list">
+                @foreach (var item in Model.Items)
                 {
-                    <span class="badge approvals-filter-badge">Filters active</span>
+                    <a class="approval-request" href="@item.DetailsUrl" role="listitem">
+                        <div class="approval-request__type"><span class="approval-type-icon"><i class="bi bi-check2-square"></i></span><div><span>@Model.GetTypeLabel(item.ApprovalType)</span><small>@Model.GetModuleLabel(item.Module)</small></div></div>
+                        <div class="approval-request__project"><strong>@(item.ProjectName ?? "Project Office report")</strong>@if (item.ProjectId.HasValue){<small>Project #@item.ProjectId</small>}</div>
+                        <div class="approval-request__summary">@item.Summary</div>
+                        <div class="approval-request__requester"><span>Requested by</span><strong>@item.RequestedByName</strong></div>
+                        <div class="approval-request__age"><span class="approval-age @Model.GetAgeClass(item.RequestedAtUtc)">@Model.GetAgeLabel(item.RequestedAtUtc)</span><small>@item.RequestedAtUtc.ToLocalTime().ToString("dd MMM yyyy, h:mm tt")</small></div>
+                        <span class="approval-request__arrow"><i class="bi bi-chevron-right"></i></span>
+                    </a>
                 }
             </div>
-            <form method="get" class="row g-3 align-items-end">
-                <div class="col-12 col-lg-3">
-                    <label class="form-label" asp-for="Type">Type</label>
-                    <select class="form-select" asp-for="Type" asp-items="Model.TypeOptions"></select>
-                </div>
-                <div class="col-12 col-lg-5">
-                    <label class="form-label" asp-for="Search">Search</label>
-                    <input type="search" class="form-control" asp-for="Search" placeholder="Project, requester, request id, summary" />
-                </div>
-                <div class="col-12 col-md-3 col-lg-2 d-grid">
-                    <button type="submit" class="btn btn-primary">Apply filters</button>
-                </div>
-                <div class="col-12 col-md-3 col-lg-2 d-grid">
-                    <a class="btn btn-outline-secondary" asp-page="/Approvals/Pending/Index">Clear</a>
-                </div>
-            </form>
-        </div>
-    </div>
 
-    @* SECTION: Results *@
-    <div class="card approval-card">
-        <div class="card-body">
-            @if (Model.Items.Count == 0)
+            @if (Model.TotalPages > 1)
             {
-                <div class="text-center py-5">
-                    <h2 class="h5">No pending approvals found</h2>
-                    <p class="text-muted mb-0">All approval queues are clear for the selected filters.</p>
-                </div>
+                <nav class="approvals-pagination" aria-label="Approval queue pages">
+                    <a class="btn btn-outline-secondary @(Model.HasPreviousPage ? "" : "disabled")" asp-route-Type="@Model.Type" asp-route-Module="@Model.Module" asp-route-Age="@Model.Age" asp-route-Search="@Model.Search" asp-route-PageNumber="@(Model.PageNumber - 1)">Previous</a>
+                    <span>Page @Model.PageNumber of @Model.TotalPages</span>
+                    <a class="btn btn-outline-secondary @(Model.HasNextPage ? "" : "disabled")" asp-route-Type="@Model.Type" asp-route-Module="@Model.Module" asp-route-Age="@Model.Age" asp-route-Search="@Model.Search" asp-route-PageNumber="@(Model.PageNumber + 1)">Next</a>
+                </nav>
             }
-            else
-            {
-                <div class="approvals-table-header mb-3">
-                    <div class="approvals-table-summary">
-                        <span class="fw-semibold">Showing @Model.Items.Count pending approvals</span>
-                        <span class="text-muted">Sorted by oldest first</span>
-                    </div>
-                </div>
-                <div class="table-responsive">
-                    <table class="table align-middle approvals-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Type</th>
-                                <th scope="col">Project</th>
-                                <th scope="col">Requested by</th>
-                                <th scope="col">Requested at</th>
-                                <th scope="col">Summary</th>
-                                <th scope="col">Module</th>
-                                <th scope="col">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var item in Model.Items)
-                            {
-                                <tr class="approvals-table-row"
-                                    data-approvals-row="true"
-                                    data-approvals-url="@item.DetailsUrl"
-                                    role="link"
-                                    tabindex="0"
-                                    aria-label="View details for @Model.GetTypeLabel(item.ApprovalType) request">
-                                    <td>
-                                        <span class="approval-type-chip">@Model.GetTypeLabel(item.ApprovalType)</span>
-                                        <a class="stretched-link approval-row-link" href="@item.DetailsUrl">
-                                            <span class="visually-hidden">View details</span>
-                                        </a>
-                                    </td>
-                                    <td>
-                                        @if (item.ProjectId.HasValue)
-                                        {
-                                            <div class="approval-project-name">@item.ProjectName</div>
-                                            <div class="approval-project-id">Project #@item.ProjectId</div>
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">—</span>
-                                        }
-                                    </td>
-                                    <td>@item.RequestedByName</td>
-                                    <td>@item.RequestedAtUtc.ToLocalTime().ToString("dd MMM yyyy, h:mm tt", System.Globalization.CultureInfo.InvariantCulture)</td>
-                                    <td>
-                                        <div class="approval-summary">@item.Summary</div>
-                                    </td>
-                                    <td class="text-muted">@Model.GetModuleLabel(item.Module)</td>
-                                    <td>
-                                        <a class="btn btn-sm btn-link approvals-action-link" href="@item.DetailsUrl">View details</a>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-        </div>
-    </div>
+        }
+    </section>
 </div>

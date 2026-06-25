@@ -1,7 +1,7 @@
 @page "/Approvals/Pending/{type}/{id}"
 @model ProjectManagement.Pages.Approvals.Pending.DetailsModel
 @{
-    ViewData["Title"] = "Pending approval details";
+    ViewData["Title"] = "Approval review";
 
     var item = Model.Detail.Item;
     string formatDate(DateOnly? value) => value?.ToString("dd MMM yyyy", System.Globalization.CultureInfo.InvariantCulture) ?? "—";
@@ -22,12 +22,16 @@
     }
 }
 
-<div class="container-fluid approvals-page">
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/approvals.css" asp-append-version="true" />
+}
+
+<div class="approval-details-shell">
     @* SECTION: Page header *@
     <div class="mb-4">
         <a class="btn btn-link px-0" asp-page="/Approvals/Pending/Index">&larr; Back to pending approvals</a>
         <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
-            <h1 class="h2 mb-0">Pending approval details</h1>
+            <h1 class="h2 mb-0">@item.ProjectName</h1>
             <span class="badge approval-status-badge @GetStatusBadgeClass(Model.CurrentStatus)">
                 @(Model.IsPending ? "Pending decision" : Model.CurrentStatus)
             </span>
@@ -49,7 +53,7 @@
 
     <div class="row g-4">
         <div class="col-lg-7">
-            <div class="card approval-card mb-4">
+            <div class="card approval-card approval-detail-section mb-4">
                 <div class="card-body">
                     <h2 class="h5">Request summary</h2>
                     <dl class="row mb-0">
@@ -57,7 +61,7 @@
                         <dd class="col-sm-8">@item.ApprovalType</dd>
 
                         <dt class="col-sm-4">Project</dt>
-                        <dd class="col-sm-8">@item.ProjectName</dd>
+                        <dd class="col-sm-8">@if (item.ProjectId.HasValue) { <a asp-page="/Projects/Overview" asp-route-id="@item.ProjectId" class="fw-semibold">@item.ProjectName <i class="bi bi-box-arrow-up-right ms-1"></i></a> } else { <span>@item.ProjectName</span> }</dd>
 
                         <dt class="col-sm-4">Requested by</dt>
                         <dd class="col-sm-8">@item.RequestedByName</dd>
@@ -77,7 +81,7 @@
 
             @if (Model.Detail.StageChange is not null)
             {
-                <div class="card approval-card mb-4">
+                <div class="card approval-card approval-detail-section mb-4">
                     <div class="card-body">
                         <h2 class="h6 text-uppercase text-muted mb-3">Stage change details</h2>
                         <dl class="row mb-0">
@@ -111,12 +115,12 @@
 
             @if (Model.Detail.MetaChange is not null)
             {
-                <div class="card approval-card mb-4">
+                <div class="card approval-card approval-detail-section mb-4">
                     <div class="card-body">
                         <h2 class="h6 text-uppercase text-muted mb-3">Metadata change details</h2>
                         <p class="text-muted mb-3">@Model.Detail.MetaChange.Summary</p>
                         <div class="table-responsive">
-                            <table class="table table-sm">
+                            <table class="table table-sm approval-comparison-table">
                                 <thead>
                                     <tr>
                                         <th>Field</th>
@@ -150,12 +154,12 @@
 
             @if (Model.Detail.PlanApproval is not null)
             {
-                <div class="card approval-card mb-4">
+                <div class="card approval-card approval-detail-section mb-4">
                     <div class="card-body">
                         <h2 class="h6 text-uppercase text-muted mb-3">Plan approval details</h2>
                         <p class="text-muted mb-3">Submitted @formatDateTime(Model.Detail.PlanApproval.SubmittedOnUtc) by @Model.Detail.PlanApproval.SubmittedBy.</p>
                         <div class="table-responsive">
-                            <table class="table table-sm">
+                            <table class="table table-sm approval-comparison-table">
                                 <thead>
                                     <tr>
                                         <th>Stage</th>
@@ -185,7 +189,7 @@
 
             @if (Model.Detail.DocumentModeration is not null)
             {
-                <div class="card approval-card mb-4">
+                <div class="card approval-card approval-detail-section mb-4">
                     <div class="card-body">
                         <h2 class="h6 text-uppercase text-muted mb-3">Document moderation details</h2>
                         <dl class="row mb-0">
@@ -228,11 +232,11 @@
 
             @if (Model.Detail.TotRequest is not null)
             {
-                <div class="card approval-card mb-4">
+                <div class="card approval-card approval-detail-section mb-4">
                     <div class="card-body">
                         <h2 class="h6 text-uppercase text-muted mb-3">Transfer of Technology details</h2>
                         <div class="table-responsive">
-                            <table class="table table-sm">
+                            <table class="table table-sm approval-comparison-table">
                                 <thead>
                                     <tr>
                                         <th>Field</th>
@@ -257,7 +261,7 @@
 
             @if (Model.Detail.ProliferationYearly is not null)
             {
-                <div class="card approval-card mb-4">
+                <div class="card approval-card approval-detail-section mb-4">
                     <div class="card-body">
                         <h2 class="h6 text-uppercase text-muted mb-3">Yearly proliferation details</h2>
                         <dl class="row mb-0">
@@ -289,7 +293,7 @@
 
             @if (Model.Detail.ProliferationGranular is not null)
             {
-                <div class="card approval-card mb-4">
+                <div class="card approval-card approval-detail-section mb-4">
                     <div class="card-body">
                         <h2 class="h6 text-uppercase text-muted mb-3">Granular proliferation details</h2>
                         <dl class="row mb-0">
@@ -323,7 +327,7 @@
         </div>
 
         <div class="col-lg-5">
-            <div class="card approval-card approval-decision-card">
+            <div class="card approval-card approval-detail-section approval-decision-card">
                 <div class="card-body">
                     @if (Model.IsPending)
                     {
@@ -334,7 +338,7 @@
                         <p class="text-muted">Approvals apply the change immediately. Rejections require a reason.</p>
 
                         @* SECTION: Decision form *@
-                        <form method="post" action="/Approvals/Pending/decide" class="d-grid gap-3">
+                        <form method="post" action="/Approvals/Pending/decide" class="d-grid gap-3 approval-decision-form">
                             @Html.AntiForgeryToken()
                             <input asp-for="Input.ApprovalType" type="hidden" />
                             <input asp-for="Input.RequestId" type="hidden" />
@@ -350,8 +354,8 @@
                             </div>
 
                             <div class="d-flex flex-wrap gap-2">
-                                <button type="submit" class="btn btn-success" name="Input.Decision" value="Approve">Approve</button>
-                                <button type="submit" class="btn btn-outline-danger" name="Input.Decision" value="Reject">Reject</button>
+                                <button type="submit" class="btn btn-success" name="Input.Decision" value="Approve" data-confirm-message="Approve this request? The approved change will be applied immediately."><i class="bi bi-check2 me-1"></i>Approve</button>
+                                <button type="submit" class="btn btn-outline-danger" name="Input.Decision" value="Reject"><i class="bi bi-x-lg me-1"></i>Reject</button>
                             </div>
                         </form>
                     }
@@ -404,4 +408,8 @@
             _ => "approval-status-badge--neutral"
         };
     }
+}
+
+@section Scripts {
+    <script src="~/js/pages/approvals.js" asp-append-version="true"></script>
 }
