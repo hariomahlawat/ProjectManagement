@@ -1,9 +1,26 @@
 @page
 @model ProjectManagement.Pages.Projects.CompletedSummary.IndexModel
 @using ProjectManagement.Models
+@using ProjectManagement.Models.Projects
+@using System.Linq
 @{
     ViewData["Title"] = "Completed projects - cost and proliferation";
     ViewData["UseFullWidth"] = true;
+
+    var resultCount = Model.Items.Count;
+    var currentCount = Model.Items.Count(x => string.Equals(x.TechStatus, "Current", StringComparison.OrdinalIgnoreCase));
+    var outdatedCount = Model.Items.Count(x => string.Equals(x.TechStatus, "Outdated", StringComparison.OrdinalIgnoreCase));
+    var proliferationCount = Model.Items.Count(x => x.AvailableForProliferation == true);
+    var totCompletedCount = Model.Items.Count(x => x.TotStatus == ProjectTotStatus.Completed);
+    var needsUpdateCount = Model.Items.Count(x =>
+        string.IsNullOrWhiteSpace(x.TechStatus)
+        || !x.AvailableForProliferation.HasValue
+        || !x.TotStatus.HasValue
+        || !x.CompletedYear.HasValue);
+
+    var advancedFiltersActive = !string.IsNullOrWhiteSpace(Model.Build)
+        || Model.AvailableForProliferation.HasValue
+        || Model.TotCompleted.HasValue;
 }
 
 @section Styles {
@@ -12,385 +29,386 @@
 }
 
 <div class="pm-page cs-page">
-    @* SECTION: Page header *@
-    <div class="cs-header">
-        <h2 class="cs-title">Completed projects</h2>
-    </div>
+    <header class="cs-hero" aria-labelledby="csPageTitle">
+        <div class="cs-hero-copy">
+            <div class="cs-eyebrow">PROJECT LIFECYCLE</div>
+            <h1 id="csPageTitle" class="cs-title">Completed projects</h1>
+            <p class="cs-subtitle">Cost, technology currency, proliferation readiness and transfer-of-technology status.</p>
+        </div>
 
-    @* SECTION: Filters *@
-    <div class="pm-card cs-card cs-filters">
+        <div class="cs-hero-actions">
+            <button type="button"
+                    class="btn cs-btn cs-btn-secondary"
+                    id="csFilterToggle"
+                    aria-expanded="@(advancedFiltersActive ? "true" : "false")"
+                    aria-controls="csAdvancedFilters">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+                Filters
+                @if (Model.HasActiveFilters)
+                {
+                    <span class="cs-action-count">@Model.ActiveFilterCount</span>
+                }
+            </button>
 
-        <div class="pm-card-body cs-card-body">
-            @* SECTION: Filter toolbar *@
-            <div class="cs-filter-toolbar">
-                <div class="cs-filter-summary">
-                    @if (Model.HasActiveFilters)
-                    {
-                        <span class="cs-muted">Active filters: <strong>@Model.ActiveFilterCount</strong></span>
-                    }
-                    else
-                    {
-                        <span class="cs-muted">No filters applied.</span>
-                    }
+            <a asp-page="./Index"
+               asp-page-handler="Export"
+               asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
+               asp-route-TechStatus="@Model.TechStatus"
+               asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
+               asp-route-TotCompleted="@Model.TotCompleted"
+               asp-route-CompletedYear="@Model.CompletedYear"
+               asp-route-Search="@Model.Search"
+               asp-route-Build="@Model.Build"
+               asp-route-Sort="@Model.Sort"
+               asp-route-Dir="@Model.Dir"
+               class="btn cs-btn cs-btn-primary"
+               title="Export the currently filtered result set">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2" /></svg>
+                Export
+            </a>
+        </div>
+    </header>
+
+    <section class="cs-kpi-grid" aria-label="Completed-project summary">
+        <article class="cs-kpi cs-kpi--primary">
+            <div class="cs-kpi-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+            </div>
+            <div><span class="cs-kpi-value">@resultCount</span><span class="cs-kpi-label">Projects shown</span></div>
+        </article>
+        <article class="cs-kpi">
+            <span class="cs-kpi-value">@currentCount</span>
+            <span class="cs-kpi-label">Current technology</span>
+        </article>
+        <article class="cs-kpi">
+            <span class="cs-kpi-value">@proliferationCount</span>
+            <span class="cs-kpi-label">Available for proliferation</span>
+        </article>
+        <article class="cs-kpi">
+            <span class="cs-kpi-value">@totCompletedCount</span>
+            <span class="cs-kpi-label">ToT completed</span>
+        </article>
+        <article class="cs-kpi cs-kpi--attention">
+            <span class="cs-kpi-value">@needsUpdateCount</span>
+            <span class="cs-kpi-label">Records needing update</span>
+        </article>
+    </section>
+
+    <section class="cs-filter-panel" aria-label="Filter completed projects">
+        <form method="get" id="csFiltersForm" class="cs-filter-form" novalidate>
+            <div class="cs-filter-primary">
+                <div class="cs-search-field">
+                    <label class="visually-hidden" asp-for="Search">Search by project name</label>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                    <input asp-for="Search"
+                           class="form-control"
+                           placeholder="Search completed projects..."
+                           autocomplete="off"
+                           data-search-input />
+                    <button type="button" class="cs-search-clear" data-clear-search aria-label="Clear search" title="Clear search">×</button>
                 </div>
 
-                <div class="cs-filter-actions">
-                    <button type="submit" form="csFiltersForm" class="btn btn-primary cs-btn">Filter</button>
+                <div class="cs-field">
+                    <label asp-for="TechnicalCategoryId">Technical category</label>
+                    <select asp-for="TechnicalCategoryId" asp-items="Model.TechnicalCategoryOptions" class="form-select" data-auto-submit="change"></select>
+                </div>
+
+                <div class="cs-field">
+                    <label asp-for="TechStatus">Technology status</label>
+                    <select asp-for="TechStatus" asp-items="Model.TechStatusOptions" class="form-select" data-auto-submit="change"></select>
+                </div>
+
+                <div class="cs-field cs-field--year">
+                    <label asp-for="CompletedYear">Completion year</label>
+                    <input asp-for="CompletedYear"
+                           class="form-control"
+                           inputmode="numeric"
+                           min="1900"
+                           max="2100"
+                           placeholder="All years"
+                           data-submit-on-enter />
+                </div>
+            </div>
+
+            <div class="cs-filter-advanced @(advancedFiltersActive ? "is-open" : string.Empty)" id="csAdvancedFilters" @(advancedFiltersActive ? null : "hidden")>
+                <div class="cs-field">
+                    <label class="form-label">Build type</label>
+                    <div class="cs-segmented" role="group" aria-label="Build type">
+                        <input type="radio" class="btn-check" name="Build" id="build_all" value="" data-auto-submit="change" @(string.IsNullOrWhiteSpace(Model.Build) ? "checked" : null) />
+                        <label for="build_all">All</label>
+                        <input type="radio" class="btn-check" name="Build" id="build_new" value="New" data-auto-submit="change" @(string.Equals(Model.Build, "New", StringComparison.OrdinalIgnoreCase) ? "checked" : null) />
+                        <label for="build_new">New</label>
+                        <input type="radio" class="btn-check" name="Build" id="build_rebuild" value="Rebuild" data-auto-submit="change" @(string.Equals(Model.Build, "Rebuild", StringComparison.OrdinalIgnoreCase) ? "checked" : null) />
+                        <label for="build_rebuild">Rebuild</label>
+                    </div>
+                </div>
+
+                <div class="cs-field">
+                    <label asp-for="AvailableForProliferation">Proliferation availability</label>
+                    <select asp-for="AvailableForProliferation" asp-items="Model.AvailabilityOptions" class="form-select" data-auto-submit="change"></select>
+                </div>
+
+                <div class="cs-field">
+                    <label asp-for="TotCompleted">ToT status</label>
+                    <select asp-for="TotCompleted" asp-items="Model.TotStatusOptions" class="form-select" data-auto-submit="change"></select>
+                </div>
+
+                <div class="cs-filter-actions-inline">
+                    <button type="submit" class="btn cs-btn cs-btn-primary">Apply</button>
                     @if (Model.HasActiveFilters)
                     {
                         <a asp-page="./Index"
-                           asp-route-TechnicalCategoryId=""
-                           asp-route-TechStatus=""
-                           asp-route-Build=""
-                           asp-route-AvailableForProliferation=""
-                           asp-route-TotCompleted=""
-                           asp-route-CompletedYear=""
-                           asp-route-Search=""
                            asp-route-Sort="@Model.Sort"
                            asp-route-Dir="@Model.Dir"
-                           class="btn btn-outline-secondary cs-btn cs-btn-clear">
-                            Clear
-                        </a>
+                           class="btn cs-btn cs-btn-quiet">Clear all</a>
                     }
-                    <a asp-page="./Index"
-                       asp-page-handler="Export"
-                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
-                       asp-route-TechStatus="@Model.TechStatus"
-                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
-                       asp-route-TotCompleted="@Model.TotCompleted"
-                       asp-route-CompletedYear="@Model.CompletedYear"
-                       asp-route-Search="@Model.Search"
-                       asp-route-Build="@Model.Build"
-                       asp-route-Sort="@Model.Sort"
-                       asp-route-Dir="@Model.Dir"
-                       class="btn btn-outline-secondary cs-btn">
-                        Export
-                    </a>
                 </div>
             </div>
 
-            <form method="get" id="csFiltersForm" class="cs-filter-form" novalidate>
-                <div class="cs-grid">
-                    <div class="cs-field cs-field--full">
-                        <label asp-for="Search">Search by project name</label>
-                        <input asp-for="Search"
-                               class="form-control" />
-                    </div>
-                    <div class="cs-field">
-                        <label asp-for="TechnicalCategoryId">Technical category</label>
-                        <select asp-for="TechnicalCategoryId"
-                                asp-items="Model.TechnicalCategoryOptions"
-                                class="form-select"
-                                data-auto-submit="change">
-                        </select>
-                    </div>
-                    <div class="cs-field">
-                        <label asp-for="TechStatus">Technology status</label>
-                        <select asp-for="TechStatus"
-                                asp-items="Model.TechStatusOptions"
-                                class="form-select"
-                                data-auto-submit="change">
-                        </select>
-                    </div>
-                    <div class="cs-field">
-                        <label class="form-label">Build type</label>
-                        <div class="btn-group cs-switch" role="group" aria-label="Build type">
-                            <input type="radio"
-                                   class="btn-check"
-                                   name="Build"
-                                   id="build_all"
-                                   value=""
-                                   data-auto-submit="change"
-                                   @(string.IsNullOrWhiteSpace(Model.Build) ? "checked" : null) />
-                            <label class="btn btn-outline-secondary" for="build_all">All</label>
+            <input type="hidden" asp-for="Sort" />
+            <input type="hidden" asp-for="Dir" />
+        </form>
 
-                            <input type="radio"
-                                   class="btn-check"
-                                   name="Build"
-                                   id="build_new"
-                                   value="New"
-                                   data-auto-submit="change"
-                                   @(string.Equals(Model.Build, "New", StringComparison.OrdinalIgnoreCase) ? "checked" : null) />
-                            <label class="btn btn-outline-secondary" for="build_new">New</label>
+        @if (Model.HasActiveFilters)
+        {
+            <div class="cs-active-filter-bar">
+                <span class="cs-active-label">Filtered view</span>
+                <span>@resultCount result@(resultCount == 1 ? string.Empty : "s")</span>
+                <a asp-page="./Index" asp-route-Sort="@Model.Sort" asp-route-Dir="@Model.Dir">Reset filters</a>
+            </div>
+        }
+    </section>
 
-                            <input type="radio"
-                                   class="btn-check"
-                                   name="Build"
-                                   id="build_rebuild"
-                                   value="Rebuild"
-                                   data-auto-submit="change"
-                                   @(string.Equals(Model.Build, "Rebuild", StringComparison.OrdinalIgnoreCase) ? "checked" : null) />
-                            <label class="btn btn-outline-secondary" for="build_rebuild">Rebuild</label>
-                        </div>
-                    </div>
-                    <div class="cs-field">
-                        <label asp-for="AvailableForProliferation">Available for proliferation</label>
-                        <select asp-for="AvailableForProliferation"
-                                asp-items="Model.AvailabilityOptions"
-                                class="form-select"
-                                data-auto-submit="change">
-                        </select>
-                    </div>
-                    <div class="cs-field">
-                        <label asp-for="TotCompleted">ToT status</label>
-                        <select asp-for="TotCompleted"
-                                asp-items="Model.TotStatusOptions"
-                                class="form-select"
-                                data-auto-submit="change">
-                        </select>
-                    </div>
-                    <div class="cs-field">
-                        <label asp-for="CompletedYear">Completion year</label>
-                        <input asp-for="CompletedYear"
-                               class="form-control"
-                               inputmode="numeric" />
-                    </div>
-                </div>
-
-                @* SECTION: Persist sorting while applying filters *@
-                <input type="hidden" asp-for="Sort" />
-                <input type="hidden" asp-for="Dir" />
-            </form>
-        </div>
-    </div>
-
-    @* SECTION: Results *@
-    <div class="pm-card cs-card cs-results">
-        <div class="pm-card-header cs-card-header">
+    <section class="cs-results-card" aria-labelledby="csResultsTitle">
+        <div class="cs-results-toolbar">
             <div>
-                <div class="pm-card-title">Results <span class="cs-results-count">(@Model.Items.Count)</span></div>
-                <div class="pm-card-subtitle">Completed projects matching the applied filters.</div>
+                <h2 id="csResultsTitle">Project register</h2>
+                <p>@(Model.HasActiveFilters ? $"Showing {resultCount} filtered completed projects" : $"All {resultCount} completed projects")</p>
+            </div>
+            <div class="cs-legend" aria-label="Status legend">
+                <span><i class="cs-dot cs-dot--success"></i>Available / completed</span>
+                <span><i class="cs-dot cs-dot--warning"></i>Outdated</span>
+                <span><i class="cs-dot cs-dot--muted"></i>Not recorded</span>
             </div>
         </div>
 
-        <div class="pm-card-body cs-card-body cs-card-body--flush">
-            @if (Model.Items.Count == 0)
-            {
-                <div class="cs-empty">No completed projects matched the selected filters.</div>
-            }
-            else
-            {
-                <div class="cs-table-wrap">
-                    <table class="pm-table pm-table-sm cs-table cs-table--fixed">
-                        @* SECTION: Column sizing *@
-                        <colgroup>
-                            <col class="cs-col-project" />
-                            <col class="cs-col-year" />
-                            <col class="cs-col-rd" />
-                            <col class="cs-col-prod" />
-                            <col class="cs-col-lpp" />
-                            <col class="cs-col-tech" />
-                            <col class="cs-col-avail" />
-                            <col class="cs-col-tot" />
-                            <col class="cs-col-remarks" />
-                            @if (Model.CanEdit)
-                            {
-                                <col class="cs-col-actions" />
-                            }
-                        </colgroup>
-                        <thead>
+        @if (Model.Items.Count == 0)
+        {
+            <div class="cs-empty">
+                <div class="cs-empty-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                </div>
+                <h3>No matching projects</h3>
+                <p>Adjust or clear the filters to view completed-project records.</p>
+                <a asp-page="./Index" class="btn cs-btn cs-btn-primary">Clear filters</a>
+            </div>
+        }
+        else
+        {
+            <div class="cs-table-wrap">
+                <table class="cs-table">
+                    <colgroup>
+                        <col class="cs-col-project" />
+                        <col class="cs-col-year" />
+                        <col class="cs-col-rd" />
+                        <col class="cs-col-prod" />
+                        <col class="cs-col-lpp" />
+                        <col class="cs-col-tech" />
+                        <col class="cs-col-avail" />
+                        <col class="cs-col-tot" />
+                        <col class="cs-col-remarks" />
+                        @if (Model.CanEdit) { <col class="cs-col-actions" /> }
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th scope="col">
+                                <a class="cs-sort @(Model.Sort == "name" ? "is-active" : string.Empty)"
+                                   asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus"
+                                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted"
+                                   asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build"
+                                   asp-route-Sort="name" asp-route-Dir="@(Model.NextSortDirection("name"))">
+                                    Project <span>@Model.GetSortIndicator("name")</span>
+                                </a>
+                            </th>
+                            <th scope="col" class="cs-center">
+                                <a class="cs-sort @(Model.Sort == "year" ? "is-active" : string.Empty)"
+                                   asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus"
+                                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted"
+                                   asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build"
+                                   asp-route-Sort="year" asp-route-Dir="@(Model.NextSortDirection("year"))">
+                                    Completed <span>@Model.GetSortIndicator("year")</span>
+                                </a>
+                            </th>
+                            <th scope="col" class="cs-num">
+                                <a class="cs-sort @(Model.Sort == "rd" ? "is-active" : string.Empty)"
+                                   asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus"
+                                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted"
+                                   asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build"
+                                   asp-route-Sort="rd" asp-route-Dir="@(Model.NextSortDirection("rd"))">
+                                    R&amp;D / L1 <small>₹ lakh</small><span>@Model.GetSortIndicator("rd")</span>
+                                </a>
+                            </th>
+                            <th scope="col" class="cs-num">
+                                <a class="cs-sort @(Model.Sort == "prod" ? "is-active" : string.Empty)"
+                                   asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus"
+                                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted"
+                                   asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build"
+                                   asp-route-Sort="prod" asp-route-Dir="@(Model.NextSortDirection("prod"))">
+                                    Production <small>₹ lakh</small><span>@Model.GetSortIndicator("prod")</span>
+                                </a>
+                            </th>
+                            <th scope="col">
+                                <a class="cs-sort @(Model.Sort == "lpp" ? "is-active" : string.Empty)"
+                                   asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus"
+                                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted"
+                                   asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build"
+                                   asp-route-Sort="lpp" asp-route-Dir="@(Model.NextSortDirection("lpp"))">
+                                    Latest LPP <span>@Model.GetSortIndicator("lpp")</span>
+                                </a>
+                            </th>
+                            <th scope="col">
+                                <a class="cs-sort @(Model.Sort == "tech" ? "is-active" : string.Empty)"
+                                   asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus"
+                                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted"
+                                   asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build"
+                                   asp-route-Sort="tech" asp-route-Dir="@(Model.NextSortDirection("tech"))">
+                                    Technology <span>@Model.GetSortIndicator("tech")</span>
+                                </a>
+                            </th>
+                            <th scope="col">
+                                <a class="cs-sort @(Model.Sort == "avail" ? "is-active" : string.Empty)"
+                                   asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus"
+                                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted"
+                                   asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build"
+                                   asp-route-Sort="avail" asp-route-Dir="@(Model.NextSortDirection("avail"))">
+                                    Proliferation <span>@Model.GetSortIndicator("avail")</span>
+                                </a>
+                            </th>
+                            <th scope="col">
+                                <a class="cs-sort @(Model.Sort == "tot" ? "is-active" : string.Empty)"
+                                   asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus"
+                                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted"
+                                   asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build"
+                                   asp-route-Sort="tot" asp-route-Dir="@(Model.NextSortDirection("tot"))">
+                                    ToT <span>@Model.GetSortIndicator("tot")</span>
+                                </a>
+                            </th>
+                            <th scope="col">Remarks</th>
+                            @if (Model.CanEdit) { <th scope="col" class="cs-actions-col"><span class="visually-hidden">Actions</span></th> }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.Items)
+                        {
+                            var techClass = string.Equals(item.TechStatus, "Current", StringComparison.OrdinalIgnoreCase)
+                                ? "cs-status--success"
+                                : string.Equals(item.TechStatus, "Outdated", StringComparison.OrdinalIgnoreCase)
+                                    ? "cs-status--warning"
+                                    : "cs-status--neutral";
                             <tr>
-                                <th scope="col">
-                                    <a asp-page="./Index"
-                                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
-                                       asp-route-TechStatus="@Model.TechStatus"
-                                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
-                                       asp-route-TotCompleted="@Model.TotCompleted"
-                                       asp-route-CompletedYear="@Model.CompletedYear"
-                                       asp-route-Search="@Model.Search"
-                                       asp-route-Build="@Model.Build"
-                                       asp-route-Sort="name"
-                                       asp-route-Dir="@(Model.NextSortDirection("name"))">
-                                        Project @Model.GetSortIndicator("name")
-                                    </a>
-                                </th>
-                                <th scope="col" class="cs-num text-end">
-                                    <a asp-page="./Index"
-                                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
-                                       asp-route-TechStatus="@Model.TechStatus"
-                                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
-                                       asp-route-TotCompleted="@Model.TotCompleted"
-                                       asp-route-CompletedYear="@Model.CompletedYear"
-                                       asp-route-Search="@Model.Search"
-                                       asp-route-Build="@Model.Build"
-                                       asp-route-Sort="year"
-                                       asp-route-Dir="@(Model.NextSortDirection("year"))">
-                                        Completion<br />
-                                        year @Model.GetSortIndicator("year")
-                                    </a>
-                                </th>
-                                <th scope="col" class="cs-num text-end">
-                                    <a asp-page="./Index"
-                                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
-                                       asp-route-TechStatus="@Model.TechStatus"
-                                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
-                                       asp-route-TotCompleted="@Model.TotCompleted"
-                                       asp-route-CompletedYear="@Model.CompletedYear"
-                                       asp-route-Search="@Model.Search"
-                                       asp-route-Build="@Model.Build"
-                                       asp-route-Sort="rd"
-                                       asp-route-Dir="@(Model.NextSortDirection("rd"))">
-                                        R&amp;D / L1 cost @Model.GetSortIndicator("rd")
-                                        <span class="cs-th-sub">(lakh)</span>
-                                    </a>
-                                </th>
-                                <th scope="col" class="cs-num text-end">
-                                    <a asp-page="./Index"
-                                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
-                                       asp-route-TechStatus="@Model.TechStatus"
-                                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
-                                       asp-route-TotCompleted="@Model.TotCompleted"
-                                       asp-route-CompletedYear="@Model.CompletedYear"
-                                       asp-route-Search="@Model.Search"
-                                       asp-route-Build="@Model.Build"
-                                       asp-route-Sort="prod"
-                                       asp-route-Dir="@(Model.NextSortDirection("prod"))">
-                                        Approx Prod cost @Model.GetSortIndicator("prod")
-                                        <span class="cs-th-sub">(lakh)</span>
-                                    </a>
-                                </th>
-                                <th scope="col" class="cs-th-lpp">
-                                    <a asp-page="./Index"
-                                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
-                                       asp-route-TechStatus="@Model.TechStatus"
-                                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
-                                       asp-route-TotCompleted="@Model.TotCompleted"
-                                       asp-route-CompletedYear="@Model.CompletedYear"
-                                       asp-route-Search="@Model.Search"
-                                       asp-route-Build="@Model.Build"
-                                       asp-route-Sort="lpp"
-                                       asp-route-Dir="@(Model.NextSortDirection("lpp"))">
-                                        Latest LPP @Model.GetSortIndicator("lpp")
-                                    </a>
-                                </th>
-                                <th scope="col">
-                                    <a asp-page="./Index"
-                                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
-                                       asp-route-TechStatus="@Model.TechStatus"
-                                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
-                                       asp-route-TotCompleted="@Model.TotCompleted"
-                                       asp-route-CompletedYear="@Model.CompletedYear"
-                                       asp-route-Search="@Model.Search"
-                                       asp-route-Build="@Model.Build"
-                                       asp-route-Sort="tech"
-                                       asp-route-Dir="@(Model.NextSortDirection("tech"))">
-                                        Tech status @Model.GetSortIndicator("tech")
-                                    </a>
-                                </th>
-                                <th scope="col">
-                                    <a asp-page="./Index"
-                                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
-                                       asp-route-TechStatus="@Model.TechStatus"
-                                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
-                                       asp-route-TotCompleted="@Model.TotCompleted"
-                                       asp-route-CompletedYear="@Model.CompletedYear"
-                                       asp-route-Search="@Model.Search"
-                                       asp-route-Build="@Model.Build"
-                                       asp-route-Sort="avail"
-                                       asp-route-Dir="@(Model.NextSortDirection("avail"))">
-                                        Available @Model.GetSortIndicator("avail")
-                                    </a>
-                                </th>
-                                <th scope="col">
-                                    <a asp-page="./Index"
-                                       asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
-                                       asp-route-TechStatus="@Model.TechStatus"
-                                       asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
-                                       asp-route-TotCompleted="@Model.TotCompleted"
-                                       asp-route-CompletedYear="@Model.CompletedYear"
-                                       asp-route-Search="@Model.Search"
-                                       asp-route-Build="@Model.Build"
-                                       asp-route-Sort="tot"
-                                       asp-route-Dir="@(Model.NextSortDirection("tot"))">
-                                        ToT status @Model.GetSortIndicator("tot")
-                                    </a>
-                                </th>
-                                <th scope="col" class="cs-th-remarks">Remarks</th>
+                                <td class="cs-project-cell">
+                                    <a asp-page="/Projects/Overview" asp-route-id="@item.ProjectId" class="cs-project-link">@item.Name</a>
+                                    <div class="cs-project-meta">
+                                        <span>Completed project</span>
+                                        @if (!item.CompletedYear.HasValue || string.IsNullOrWhiteSpace(item.TechStatus) || !item.AvailableForProliferation.HasValue || !item.TotStatus.HasValue)
+                                        {
+                                            <span class="cs-data-flag" title="One or more key fields are not recorded">Needs update</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td class="cs-center cs-year">@(item.CompletedYear?.ToString() ?? "—")</td>
+                                <td class="cs-num">@(item.RdCostLakhs.HasValue ? item.RdCostLakhs.Value.ToString("0.##") : "—")</td>
+                                <td class="cs-num">@(item.ApproxProductionCost.HasValue ? item.ApproxProductionCost.Value.ToString("0.##") : "—")</td>
+                                <td class="cs-lpp-cell">
+                                    @if (item.LatestLpp != null)
+                                    {
+                                        <span class="cs-lpp-value">₹@item.LatestLpp.Amount.ToString("0.##") L</span>
+                                        @if (item.LatestLpp.Date.HasValue)
+                                        {
+                                            <span class="cs-cell-sub">@item.LatestLpp.Date.Value.ToString("dd MMM yyyy")</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="cs-empty-value">Not recorded</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(item.TechStatus))
+                                    {
+                                        <span class="cs-status @techClass">@item.TechStatus</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="cs-status cs-status--neutral">Not recorded</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (item.AvailableForProliferation == true)
+                                    {
+                                        <span class="cs-status cs-status--success">Available</span>
+                                    }
+                                    else if (item.AvailableForProliferation == false)
+                                    {
+                                        <span class="cs-status cs-status--danger">Not available</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="cs-status cs-status--neutral">Not recorded</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (item.TotStatus == ProjectTotStatus.Completed)
+                                    {
+                                        <span class="cs-status cs-status--success">Completed</span>
+                                    }
+                                    else if (item.TotStatus.HasValue)
+                                    {
+                                        <span class="cs-status cs-status--danger">Not completed</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="cs-status cs-status--neutral">Not recorded</span>
+                                    }
+                                </td>
+                                <td class="cs-remarks-cell">
+                                    @if (!string.IsNullOrWhiteSpace(item.Remarks))
+                                    {
+                                        <button type="button" class="cs-remarks-button" title="@item.Remarks" data-remarks="@item.Remarks">
+                                            <span>@item.Remarks</span>
+                                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12h8M8 8h8M8 16h5" /><path d="M5 3h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H9l-5 3v-4a2 2 0 0 1-1-1V5a2 2 0 0 1 2-2Z" /></svg>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <span class="cs-empty-value">—</span>
+                                    }
+                                </td>
                                 @if (Model.CanEdit)
                                 {
-                                    <th scope="col" class="cs-actions-col">Actions</th>
-                                }
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var item in Model.Items)
-                            {
-                                <tr>
-                                    <td class="cs-project-cell">
-                                        <a asp-page="/Projects/Overview"
-                                           asp-route-id="@item.ProjectId"
-                                           class="cs-link pm-cell-clamp-2 cs-project-cell"
-                                           title="@(string.IsNullOrWhiteSpace(item.Remarks) ? item.Name : $"{item.Name} | {item.Remarks}")">
-                                            @item.Name
+                                    <td class="cs-actions">
+                                        <a asp-page="./Edit" asp-route-id="@item.ProjectId" class="cs-edit-button" title="Edit completed-project record" aria-label="Edit @item.Name">
+                                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" /></svg>
                                         </a>
                                     </td>
-                                    <td class="cs-num">@(item.CompletedYear?.ToString() ?? "—")</td>
-                                    <td class="cs-num text-end">@(item.RdCostLakhs?.ToString("0.##"))</td>
-                                    <td class="cs-num text-end">@(item.ApproxProductionCost?.ToString("0.##"))</td>
-                                    <td class="cs-muted cs-td-lpp">
-                                        @if (item.LatestLpp is { } latest)
-                                        {
-                                            var label = latest.Amount.ToString("0.##") + " lakh";
-                                            if (latest.Date.HasValue)
-                                            {
-                                                label += " (" + latest.Date.Value.ToString("MMM yyyy") + ")";
-                                            }
-                                            @label
-                                        }
-                                        else
-                                        {
-                                            <span>No LPP recorded</span>
-                                        }
-                                    </td>
-                                    <td>@item.TechStatus</td>
-                                    <td>
-                                        @if (item.AvailableForProliferation == true)
-                                        {
-                                            <span class="cs-pill cs-pill--yes">Yes</span>
-                                        }
-                                        else if (item.AvailableForProliferation == false)
-                                        {
-                                            <span class="cs-pill cs-pill--no">No</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="cs-pill cs-pill--muted">Not recorded</span>
-                                        }
-                                    </td>
-                                    <td class="cs-td-tot">
-                                        @if (item.TotStatus == ProjectTotStatus.Completed)
-                                        {
-                                            <span class="cs-pill cs-pill--yes">Completed</span>
-                                        }
-                                        else if (item.TotStatus.HasValue)
-                                        {
-                                            <span class="cs-pill cs-pill--no">Not completed</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="cs-pill cs-pill--muted">Not recorded</span>
-                                        }
-                                    </td>
-                                    <td class="cs-remarks cs-td-remarks">@item.Remarks</td>
-                                    @if (Model.CanEdit)
-                                    {
-                                        <td class="cs-actions">
-                                            <a asp-page="./Edit"
-                                               asp-route-id="@item.ProjectId"
-                                               class="btn btn-outline-primary btn-sm cs-icon-btn"
-                                               title="Edit"
-                                               aria-label="Edit">
-                                                <span class="cs-icon" aria-hidden="true">✎</span>
-                                            </a>
-                                        </td>
-                                    }
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+<div class="cs-modal" id="csRemarksModal" hidden>
+    <div class="cs-modal-backdrop" data-close-remarks></div>
+    <div class="cs-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="csRemarksTitle">
+        <div class="cs-modal-header">
+            <h2 id="csRemarksTitle">Project remarks</h2>
+            <button type="button" data-close-remarks aria-label="Close remarks">×</button>
         </div>
+        <div class="cs-modal-body" id="csRemarksBody"></div>
     </div>
 </div>
 
