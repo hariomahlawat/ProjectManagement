@@ -2,54 +2,104 @@
 @model ProjectManagement.Pages.Projects.CompletedSummary.IndexModel
 @using ProjectManagement.Models
 @using ProjectManagement.Models.Projects
-@using System.Linq
+@using ProjectManagement.Services.Projects
+@using System.Globalization
 @{
-    ViewData["Title"] = "Completed projects - cost and proliferation";
+    ViewData["Title"] = "Completed projects";
     ViewData["UseFullWidth"] = true;
 
-    var resultCount = Model.Items.Count;
-    var currentCount = Model.Items.Count(x => string.Equals(x.TechStatus, "Current", StringComparison.OrdinalIgnoreCase));
-    var outdatedCount = Model.Items.Count(x => string.Equals(x.TechStatus, "Outdated", StringComparison.OrdinalIgnoreCase));
-    var proliferationCount = Model.Items.Count(x => x.AvailableForProliferation == true);
-    var totCompletedCount = Model.Items.Count(x => x.TotStatus == ProjectTotStatus.Completed);
-    var needsUpdateCount = Model.Items.Count(x =>
-        string.IsNullOrWhiteSpace(x.TechStatus)
+    var items = Model.Items;
+    var total = items.Count;
+    var currentCount = items.Count(x => string.Equals(x.TechStatus, ProjectTechStatusCodes.Current, StringComparison.OrdinalIgnoreCase));
+    var outdatedCount = items.Count(x => string.Equals(x.TechStatus, ProjectTechStatusCodes.Outdated, StringComparison.OrdinalIgnoreCase));
+    var techMissingCount = items.Count(x => string.IsNullOrWhiteSpace(x.TechStatus));
+    var readyCount = items.Count(x =>
+        string.Equals(x.TechStatus, ProjectTechStatusCodes.Current, StringComparison.OrdinalIgnoreCase)
+        && x.AvailableForProliferation == true
+        && (x.TotStatus == ProjectTotStatus.Completed || x.TotStatus == ProjectTotStatus.NotRequired));
+    var availableCount = items.Count(x => x.AvailableForProliferation == true);
+    var totCompleteCount = items.Count(x => x.TotStatus == ProjectTotStatus.Completed);
+    var totPendingCount = items.Count(x => x.TotStatus == ProjectTotStatus.NotStarted || x.TotStatus == ProjectTotStatus.InProgress);
+    var dataGapCount = items.Count(x => string.IsNullOrWhiteSpace(x.TechStatus)
         || !x.AvailableForProliferation.HasValue
         || !x.TotStatus.HasValue
-        || !x.CompletedYear.HasValue);
+        || !x.RdCostLakhs.HasValue);
+    var recordedInvestment = items.Where(x => x.RdCostLakhs.HasValue).Sum(x => x.RdCostLakhs ?? 0m);
 
-    var advancedFiltersActive = !string.IsNullOrWhiteSpace(Model.Build)
-        || Model.AvailableForProliferation.HasValue
-        || Model.TotCompleted.HasValue;
+    static string FormatMoney(decimal? value)
+    {
+        if (!value.HasValue) return "—";
+        return value.Value >= 100m
+            ? $"₹{value.Value / 100m:0.##} Cr"
+            : $"₹{value.Value:0.##} L";
+    }
+
+    static string TotLabel(ProjectTotStatus? status) => status switch
+    {
+        ProjectTotStatus.Completed => "Completed",
+        ProjectTotStatus.InProgress => "In progress",
+        ProjectTotStatus.NotStarted => "Not started",
+        ProjectTotStatus.NotRequired => "Not required",
+        _ => "Not assessed"
+    };
+
+    static string TotTone(ProjectTotStatus? status) => status switch
+    {
+        ProjectTotStatus.Completed => "positive",
+        ProjectTotStatus.NotRequired => "neutral",
+        ProjectTotStatus.InProgress => "info",
+        ProjectTotStatus.NotStarted => "warning",
+        _ => "muted"
+    };
+
+    static int MissingCount(CompletedProjectSummaryDto item)
+    {
+        var missing = 0;
+        if (string.IsNullOrWhiteSpace(item.TechStatus)) missing++;
+        if (!item.AvailableForProliferation.HasValue) missing++;
+        if (!item.TotStatus.HasValue) missing++;
+        if (!item.RdCostLakhs.HasValue) missing++;
+        if (!item.ApproxProductionCost.HasValue) missing++;
+        if (item.LatestLpp is null) missing++;
+        return missing;
+    }
+
+    static string MissingFields(CompletedProjectSummaryDto item)
+    {
+        var fields = new List<string>();
+        if (string.IsNullOrWhiteSpace(item.TechStatus)) fields.Add("Technology assessment");
+        if (!item.AvailableForProliferation.HasValue) fields.Add("Proliferation decision");
+        if (!item.TotStatus.HasValue) fields.Add("ToT status");
+        if (!item.RdCostLakhs.HasValue) fields.Add("Development cost");
+        if (!item.ApproxProductionCost.HasValue) fields.Add("Production cost");
+        if (item.LatestLpp is null) fields.Add("Latest LPP");
+        return string.Join(", ", fields);
+    }
 }
 
 @section Styles {
-    <link rel="stylesheet" href="~/css/components/pm-table.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pages/projects-completed-summary.css" asp-append-version="true" />
 }
 
-<div class="pm-page cs-page">
-    <header class="cs-hero" aria-labelledby="csPageTitle">
-        <div class="cs-hero-copy">
-            <div class="cs-eyebrow">PROJECT LIFECYCLE</div>
-            <h1 id="csPageTitle" class="cs-title">Completed projects</h1>
-            <p class="cs-subtitle">Cost, technology currency, proliferation readiness and transfer-of-technology status.</p>
+<div class="cpw" data-default-view="portfolio">
+    <header class="cpw-commandbar">
+        <div class="cpw-titleblock">
+            <div class="cpw-kicker">Completed project portfolio</div>
+            <div class="cpw-titleline">
+                <h1>Completed projects</h1>
+                <span class="cpw-count">@total</span>
+            </div>
+            <p>Portfolio readiness, technology health, transfer-of-technology maturity and financial visibility.</p>
         </div>
-
-        <div class="cs-hero-actions">
-            <button type="button"
-                    class="btn cs-btn cs-btn-secondary"
-                    id="csFilterToggle"
-                    aria-expanded="@(advancedFiltersActive ? "true" : "false")"
-                    aria-controls="csAdvancedFilters">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+        <div class="cpw-command-actions">
+            <button type="button" class="cpw-btn cpw-btn-ghost" data-filter-toggle aria-expanded="false" aria-controls="cpwFilters">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
                 Filters
                 @if (Model.HasActiveFilters)
                 {
-                    <span class="cs-action-count">@Model.ActiveFilterCount</span>
+                    <span class="cpw-filter-count">@Model.ActiveFilterCount</span>
                 }
             </button>
-
             <a asp-page="./Index"
                asp-page-handler="Export"
                asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
@@ -61,355 +111,265 @@
                asp-route-Build="@Model.Build"
                asp-route-Sort="@Model.Sort"
                asp-route-Dir="@Model.Dir"
-               class="btn cs-btn cs-btn-primary"
-               title="Export the currently filtered result set">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2" /></svg>
-                Export
+               class="cpw-btn cpw-btn-primary">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 19h14"/></svg>
+                Export portfolio
             </a>
         </div>
     </header>
 
-    <section class="cs-kpi-grid" aria-label="Completed-project summary">
-        <article class="cs-kpi cs-kpi--primary">
-            <div class="cs-kpi-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+    <section class="cpw-filter-panel @(Model.HasActiveFilters ? "is-open" : string.Empty)" id="cpwFilters" data-filter-panel>
+        <form method="get" id="cpwFiltersForm" class="cpw-filter-form">
+            <div class="cpw-search-field">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input asp-for="Search" placeholder="Search by project name…" autocomplete="off" />
             </div>
-            <div><span class="cs-kpi-value">@resultCount</span><span class="cs-kpi-label">Projects shown</span></div>
+            <label class="cpw-field"><span>Technical category</span><select asp-for="TechnicalCategoryId" asp-items="Model.TechnicalCategoryOptions"></select></label>
+            <label class="cpw-field"><span>Technology</span><select asp-for="TechStatus" asp-items="Model.TechStatusOptions"></select></label>
+            <label class="cpw-field"><span>Completion year</span><input asp-for="CompletedYear" inputmode="numeric" placeholder="All years" /></label>
+            <label class="cpw-field"><span>Proliferation</span><select asp-for="AvailableForProliferation" asp-items="Model.AvailabilityOptions"></select></label>
+            <label class="cpw-field"><span>ToT</span><select asp-for="TotCompleted" asp-items="Model.TotStatusOptions"></select></label>
+            <div class="cpw-build-field">
+                <span>Build type</span>
+                <div class="cpw-segmented">
+                    <label><input type="radio" name="Build" value="" @(string.IsNullOrWhiteSpace(Model.Build) ? "checked" : null) /><span>All</span></label>
+                    <label><input type="radio" name="Build" value="New" @(string.Equals(Model.Build, "New", StringComparison.OrdinalIgnoreCase) ? "checked" : null) /><span>New</span></label>
+                    <label><input type="radio" name="Build" value="Rebuild" @(string.Equals(Model.Build, "Rebuild", StringComparison.OrdinalIgnoreCase) ? "checked" : null) /><span>Rebuild</span></label>
+                </div>
+            </div>
+            <input type="hidden" asp-for="Sort" />
+            <input type="hidden" asp-for="Dir" />
+            <div class="cpw-filter-actions">
+                @if (Model.HasActiveFilters)
+                {
+                    <a asp-page="./Index" class="cpw-btn cpw-btn-ghost">Clear</a>
+                }
+                <button type="submit" class="cpw-btn cpw-btn-primary">Apply filters</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="cpw-lenses" aria-label="Strategic portfolio lenses">
+        <button type="button" class="cpw-lens is-active" data-lens="all">
+            <span class="cpw-lens-icon neutral"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span>
+            <span><strong>@total</strong><small>Whole portfolio</small></span>
+        </button>
+        <button type="button" class="cpw-lens" data-lens="ready">
+            <span class="cpw-lens-icon positive"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></span>
+            <span><strong>@readyCount</strong><small>Ready for proliferation</small><em>@availableCount available overall</em></span>
+        </button>
+        <button type="button" class="cpw-lens" data-lens="refresh">
+            <span class="cpw-lens-icon warning"><svg viewBox="0 0 24 24"><path d="M12 8v5m0 3h.01M10.3 4.5 3.7 16a2 2 0 0 0 1.7 3h13.2a2 2 0 0 0 1.7-3L13.7 4.5a2 2 0 0 0-3.4 0Z"/></svg></span>
+            <span><strong>@outdatedCount</strong><small>Technology refresh</small><em>@techMissingCount not assessed</em></span>
+        </button>
+        <button type="button" class="cpw-lens" data-lens="tot-pending">
+            <span class="cpw-lens-icon info"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+            <span><strong>@totPendingCount</strong><small>ToT action pending</small><em>@totCompleteCount completed</em></span>
+        </button>
+        <button type="button" class="cpw-lens" data-lens="data-gap">
+            <span class="cpw-lens-icon danger"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg></span>
+            <span><strong>@dataGapCount</strong><small>Critical data gaps</small><em>Requires record action</em></span>
+        </button>
+    </section>
+
+    <section class="cpw-intelligence-grid">
+        <article class="cpw-intelligence-card cpw-investment-card">
+            <div class="cpw-card-label">Recorded development value</div>
+            <div class="cpw-investment-value">@FormatMoney(recordedInvestment)</div>
+            <div class="cpw-card-note">Across @items.Count(x => x.RdCostLakhs.HasValue) projects with recorded cost</div>
         </article>
-        <article class="cs-kpi">
-            <span class="cs-kpi-value">@currentCount</span>
-            <span class="cs-kpi-label">Current technology</span>
+
+        <article class="cpw-intelligence-card">
+            <div class="cpw-card-heading"><span>Technology health</span><strong>@currentCount current</strong></div>
+            <div class="cpw-stacked-bar" aria-label="Technology status distribution">
+                @if (total > 0)
+                {
+                    <span class="is-current" style="width:@(currentCount * 100d / total)%"></span>
+                    <span class="is-outdated" style="width:@(outdatedCount * 100d / total)%"></span>
+                    <span class="is-unknown" style="width:@(techMissingCount * 100d / total)%"></span>
+                }
+            </div>
+            <div class="cpw-bar-legend"><span><i class="current"></i>Current @currentCount</span><span><i class="outdated"></i>Outdated @outdatedCount</span><span><i class="unknown"></i>Not assessed @techMissingCount</span></div>
         </article>
-        <article class="cs-kpi">
-            <span class="cs-kpi-value">@proliferationCount</span>
-            <span class="cs-kpi-label">Available for proliferation</span>
-        </article>
-        <article class="cs-kpi">
-            <span class="cs-kpi-value">@totCompletedCount</span>
-            <span class="cs-kpi-label">ToT completed</span>
-        </article>
-        <article class="cs-kpi cs-kpi--attention">
-            <span class="cs-kpi-value">@needsUpdateCount</span>
-            <span class="cs-kpi-label">Records needing update</span>
+
+        <article class="cpw-intelligence-card">
+            <div class="cpw-card-heading"><span>Readiness conversion</span><strong>@readyCount fully ready</strong></div>
+            <div class="cpw-readiness-flow">
+                <div><b>@currentCount</b><span>Current</span></div><i>→</i><div><b>@availableCount</b><span>Available</span></div><i>→</i><div class="final"><b>@readyCount</b><span>Ready</span></div>
+            </div>
+            <div class="cpw-card-note">Current technology + proliferation available + ToT complete/not required</div>
         </article>
     </section>
 
-    <section class="cs-filter-panel" aria-label="Filter completed projects">
-        <form method="get" id="csFiltersForm" class="cs-filter-form" novalidate>
-            <div class="cs-filter-primary">
-                <div class="cs-search-field">
-                    <label class="visually-hidden" asp-for="Search">Search by project name</label>
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-                    <input asp-for="Search"
-                           class="form-control"
-                           placeholder="Search completed projects..."
-                           autocomplete="off"
-                           data-search-input />
-                    <button type="button" class="cs-search-clear" data-clear-search aria-label="Clear search" title="Clear search">×</button>
-                </div>
+    <div class="cpw-workspace-toolbar">
+        <div class="cpw-view-tabs" role="tablist" aria-label="Workspace view">
+            <button type="button" class="is-active" data-view="portfolio" role="tab" aria-selected="true">Portfolio</button>
+            <button type="button" data-view="register" role="tab" aria-selected="false">Register</button>
+            <button type="button" data-view="quality" role="tab" aria-selected="false">Data quality</button>
+        </div>
+        <div class="cpw-workspace-meta">
+            <span data-visible-count>@total</span> projects in current lens
+        </div>
+    </div>
 
-                <div class="cs-field">
-                    <label asp-for="TechnicalCategoryId">Technical category</label>
-                    <select asp-for="TechnicalCategoryId" asp-items="Model.TechnicalCategoryOptions" class="form-select" data-auto-submit="change"></select>
+    <main class="cpw-workspace">
+        <section class="cpw-view is-active" data-view-panel="portfolio">
+            @if (total == 0)
+            {
+                <div class="cpw-empty"><h2>No completed projects found</h2><p>Adjust or clear the selected filters.</p></div>
+            }
+            else
+            {
+                <div class="cpw-portfolio-grid">
+                    @foreach (var item in items)
+                    {
+                        var isReady = string.Equals(item.TechStatus, ProjectTechStatusCodes.Current, StringComparison.OrdinalIgnoreCase)
+                            && item.AvailableForProliferation == true
+                            && (item.TotStatus == ProjectTotStatus.Completed || item.TotStatus == ProjectTotStatus.NotRequired);
+                        var isRefresh = string.Equals(item.TechStatus, ProjectTechStatusCodes.Outdated, StringComparison.OrdinalIgnoreCase);
+                        var isTotPending = item.TotStatus == ProjectTotStatus.NotStarted || item.TotStatus == ProjectTotStatus.InProgress;
+                        var hasDataGap = string.IsNullOrWhiteSpace(item.TechStatus) || !item.AvailableForProliferation.HasValue || !item.TotStatus.HasValue || !item.RdCostLakhs.HasValue;
+                        var missingCount = MissingCount(item);
+                        <article class="cpw-project-card"
+                                 data-project
+                                 data-ready="@isReady.ToString().ToLowerInvariant()"
+                                 data-refresh="@isRefresh.ToString().ToLowerInvariant()"
+                                 data-tot-pending="@isTotPending.ToString().ToLowerInvariant()"
+                                 data-data-gap="@hasDataGap.ToString().ToLowerInvariant()"
+                                 data-name="@item.Name.ToLowerInvariant()">
+                            <button type="button" class="cpw-card-hit" data-open-project="@item.ProjectId" aria-label="Open @item.Name"></button>
+                            <div class="cpw-project-topline">
+                                <span class="cpw-year">@(item.CompletedYear?.ToString() ?? "Year not recorded")</span>
+                                @if (missingCount > 0)
+                                {
+                                    <span class="cpw-completeness" title="@MissingFields(item)">@missingCount data gap@(missingCount == 1 ? "" : "s")</span>
+                                }
+                                else
+                                {
+                                    <span class="cpw-completeness is-complete">Record complete</span>
+                                }
+                            </div>
+                            <h2>@item.Name</h2>
+                            <div class="cpw-project-value"><span>Development value</span><strong>@FormatMoney(item.RdCostLakhs)</strong></div>
+                            <div class="cpw-status-rail">
+                                <div class="@(string.Equals(item.TechStatus, ProjectTechStatusCodes.Current, StringComparison.OrdinalIgnoreCase) ? "is-positive" : isRefresh ? "is-warning" : "is-muted")">
+                                    <span>Technology</span><b>@(string.IsNullOrWhiteSpace(item.TechStatus) ? "Not assessed" : item.TechStatus)</b>
+                                </div>
+                                <div class="@(item.AvailableForProliferation == true ? "is-positive" : item.AvailableForProliferation == false ? "is-negative" : "is-muted")">
+                                    <span>Proliferation</span><b>@(item.AvailableForProliferation == true ? "Available" : item.AvailableForProliferation == false ? "Not available" : "Not assessed")</b>
+                                </div>
+                                <div class="is-@TotTone(item.TotStatus)"><span>ToT</span><b>@TotLabel(item.TotStatus)</b></div>
+                            </div>
+                            <div class="cpw-project-footer">
+                                <span>Latest LPP: @(item.LatestLpp is null ? "Not recorded" : FormatMoney(item.LatestLpp.Amount))</span>
+                                <span class="cpw-open-label">Open record <b>→</b></span>
+                            </div>
+                        </article>
+                    }
                 </div>
+                <div class="cpw-no-lens-results" hidden>No projects match this strategic lens.</div>
+            }
+        </section>
 
-                <div class="cs-field">
-                    <label asp-for="TechStatus">Technology status</label>
-                    <select asp-for="TechStatus" asp-items="Model.TechStatusOptions" class="form-select" data-auto-submit="change"></select>
+        <section class="cpw-view" data-view-panel="register" hidden>
+            <div class="cpw-register-shell">
+                <div class="cpw-register-head">
+                    <div><h2>Portfolio register</h2><p>High-density comparison across lifecycle, cost and readiness.</p></div>
+                    <span>@total records</span>
                 </div>
-
-                <div class="cs-field cs-field--year">
-                    <label asp-for="CompletedYear">Completion year</label>
-                    <input asp-for="CompletedYear"
-                           class="form-control"
-                           inputmode="numeric"
-                           min="1900"
-                           max="2100"
-                           placeholder="All years"
-                           data-submit-on-enter />
+                <div class="cpw-table-scroll">
+                    <table class="cpw-table">
+                        <thead><tr>
+                            <th>Project</th><th>Completed</th><th>Development</th><th>Production</th><th>Latest LPP</th><th>Technology</th><th>Proliferation</th><th>ToT</th><th>Data quality</th><th></th>
+                        </tr></thead>
+                        <tbody>
+                        @foreach (var item in items)
+                        {
+                            var isReady = string.Equals(item.TechStatus, ProjectTechStatusCodes.Current, StringComparison.OrdinalIgnoreCase)
+                                && item.AvailableForProliferation == true
+                                && (item.TotStatus == ProjectTotStatus.Completed || item.TotStatus == ProjectTotStatus.NotRequired);
+                            var isRefresh = string.Equals(item.TechStatus, ProjectTechStatusCodes.Outdated, StringComparison.OrdinalIgnoreCase);
+                            var isTotPending = item.TotStatus == ProjectTotStatus.NotStarted || item.TotStatus == ProjectTotStatus.InProgress;
+                            var hasDataGap = string.IsNullOrWhiteSpace(item.TechStatus) || !item.AvailableForProliferation.HasValue || !item.TotStatus.HasValue || !item.RdCostLakhs.HasValue;
+                            var missingCount = MissingCount(item);
+                            <tr data-project data-ready="@isReady.ToString().ToLowerInvariant()" data-refresh="@isRefresh.ToString().ToLowerInvariant()" data-tot-pending="@isTotPending.ToString().ToLowerInvariant()" data-data-gap="@hasDataGap.ToString().ToLowerInvariant()" data-name="@item.Name.ToLowerInvariant()">
+                                <td><button type="button" class="cpw-project-link" data-open-project="@item.ProjectId">@item.Name</button></td>
+                                <td>@(item.CompletedYear?.ToString() ?? "—")</td>
+                                <td class="cpw-num">@FormatMoney(item.RdCostLakhs)</td>
+                                <td class="cpw-num">@FormatMoney(item.ApproxProductionCost)</td>
+                                <td>@(item.LatestLpp is null ? "—" : FormatMoney(item.LatestLpp.Amount))</td>
+                                <td><span class="cpw-inline-status @(isRefresh ? "warning" : string.Equals(item.TechStatus, ProjectTechStatusCodes.Current, StringComparison.OrdinalIgnoreCase) ? "positive" : "muted")">@(string.IsNullOrWhiteSpace(item.TechStatus) ? "Not assessed" : item.TechStatus)</span></td>
+                                <td><span class="cpw-inline-status @(item.AvailableForProliferation == true ? "positive" : item.AvailableForProliferation == false ? "negative" : "muted")">@(item.AvailableForProliferation == true ? "Available" : item.AvailableForProliferation == false ? "Not available" : "Not assessed")</span></td>
+                                <td><span class="cpw-inline-status @TotTone(item.TotStatus)">@TotLabel(item.TotStatus)</span></td>
+                                <td><span class="cpw-quality-score @(missingCount == 0 ? "complete" : missingCount <= 2 ? "partial" : "poor")">@(missingCount == 0 ? "Complete" : $"{missingCount} missing")</span></td>
+                                <td><button type="button" class="cpw-row-open" data-open-project="@item.ProjectId" aria-label="Open @item.Name">→</button></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
                 </div>
             </div>
+        </section>
 
-            <div class="cs-filter-advanced @(advancedFiltersActive ? "is-open" : string.Empty)" id="csAdvancedFilters" @(advancedFiltersActive ? null : "hidden")>
-                <div class="cs-field">
-                    <label class="form-label">Build type</label>
-                    <div class="cs-segmented" role="group" aria-label="Build type">
-                        <input type="radio" class="btn-check" name="Build" id="build_all" value="" data-auto-submit="change" @(string.IsNullOrWhiteSpace(Model.Build) ? "checked" : null) />
-                        <label for="build_all">All</label>
-                        <input type="radio" class="btn-check" name="Build" id="build_new" value="New" data-auto-submit="change" @(string.Equals(Model.Build, "New", StringComparison.OrdinalIgnoreCase) ? "checked" : null) />
-                        <label for="build_new">New</label>
-                        <input type="radio" class="btn-check" name="Build" id="build_rebuild" value="Rebuild" data-auto-submit="change" @(string.Equals(Model.Build, "Rebuild", StringComparison.OrdinalIgnoreCase) ? "checked" : null) />
-                        <label for="build_rebuild">Rebuild</label>
+        <section class="cpw-view" data-view-panel="quality" hidden>
+            <div class="cpw-quality-layout">
+                <aside class="cpw-quality-summary">
+                    <div class="cpw-card-label">Portfolio completeness</div>
+                    <div class="cpw-quality-donut" style="--score:@(total == 0 ? 0 : Math.Round((total - dataGapCount) * 100d / total))">
+                        <strong>@(total == 0 ? 0 : Math.Round((total - dataGapCount) * 100d / total))%</strong><span>critical fields complete</span>
                     </div>
-                </div>
-
-                <div class="cs-field">
-                    <label asp-for="AvailableForProliferation">Proliferation availability</label>
-                    <select asp-for="AvailableForProliferation" asp-items="Model.AvailabilityOptions" class="form-select" data-auto-submit="change"></select>
-                </div>
-
-                <div class="cs-field">
-                    <label asp-for="TotCompleted">ToT status</label>
-                    <select asp-for="TotCompleted" asp-items="Model.TotStatusOptions" class="form-select" data-auto-submit="change"></select>
-                </div>
-
-                <div class="cs-filter-actions-inline">
-                    <button type="submit" class="btn cs-btn cs-btn-primary">Apply</button>
-                    @if (Model.HasActiveFilters)
+                    <p>Critical fields: technology assessment, proliferation decision, ToT status and development cost.</p>
+                </aside>
+                <div class="cpw-quality-list">
+                    <div class="cpw-quality-list-head"><div><h2>Records requiring attention</h2><p>Prioritised by number of missing data points.</p></div></div>
+                    @foreach (var item in items.OrderByDescending(x => MissingCount(x)).ThenBy(x => x.Name))
                     {
-                        <a asp-page="./Index"
-                           asp-route-Sort="@Model.Sort"
-                           asp-route-Dir="@Model.Dir"
-                           class="btn cs-btn cs-btn-quiet">Clear all</a>
+                        var missing = MissingCount(item);
+                        var isReady = string.Equals(item.TechStatus, ProjectTechStatusCodes.Current, StringComparison.OrdinalIgnoreCase)
+                            && item.AvailableForProliferation == true
+                            && (item.TotStatus == ProjectTotStatus.Completed || item.TotStatus == ProjectTotStatus.NotRequired);
+                        var isRefresh = string.Equals(item.TechStatus, ProjectTechStatusCodes.Outdated, StringComparison.OrdinalIgnoreCase);
+                        var isTotPending = item.TotStatus == ProjectTotStatus.NotStarted || item.TotStatus == ProjectTotStatus.InProgress;
+                        var hasDataGap = string.IsNullOrWhiteSpace(item.TechStatus) || !item.AvailableForProliferation.HasValue || !item.TotStatus.HasValue || !item.RdCostLakhs.HasValue;
+                        <article class="cpw-quality-row" data-project data-ready="@isReady.ToString().ToLowerInvariant()" data-refresh="@isRefresh.ToString().ToLowerInvariant()" data-tot-pending="@isTotPending.ToString().ToLowerInvariant()" data-data-gap="@hasDataGap.ToString().ToLowerInvariant()" data-name="@item.Name.ToLowerInvariant()">
+                            <div class="cpw-quality-rank @(missing == 0 ? "complete" : missing <= 2 ? "partial" : "poor")">@(missing == 0 ? "✓" : missing.ToString())</div>
+                            <div class="cpw-quality-main"><button type="button" data-open-project="@item.ProjectId">@item.Name</button><span>@(missing == 0 ? "No missing portfolio fields" : MissingFields(item))</span></div>
+                            <div class="cpw-quality-action">@(missing == 0 ? "Complete" : $"{missing} field{(missing == 1 ? "" : "s")}")</div>
+                        </article>
                     }
                 </div>
             </div>
+        </section>
+    </main>
 
-            <input type="hidden" asp-for="Sort" />
-            <input type="hidden" asp-for="Dir" />
-        </form>
-
-        @if (Model.HasActiveFilters)
-        {
-            <div class="cs-active-filter-bar">
-                <span class="cs-active-label">Filtered view</span>
-                <span>@resultCount result@(resultCount == 1 ? string.Empty : "s")</span>
-                <a asp-page="./Index" asp-route-Sort="@Model.Sort" asp-route-Dir="@Model.Dir">Reset filters</a>
-            </div>
-        }
-    </section>
-
-    <section class="cs-results-card" aria-labelledby="csResultsTitle">
-        <div class="cs-results-toolbar">
-            <div>
-                <h2 id="csResultsTitle">Project register</h2>
-                <p>@(Model.HasActiveFilters ? $"Showing {resultCount} filtered completed projects" : $"All {resultCount} completed projects")</p>
-            </div>
-            <div class="cs-legend" aria-label="Status legend">
-                <span><i class="cs-dot cs-dot--success"></i>Available / completed</span>
-                <span><i class="cs-dot cs-dot--warning"></i>Outdated</span>
-                <span><i class="cs-dot cs-dot--muted"></i>Not recorded</span>
-            </div>
-        </div>
-
-        @if (Model.Items.Count == 0)
-        {
-            <div class="cs-empty">
-                <div class="cs-empty-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+    @foreach (var item in items)
+    {
+        var missing = MissingCount(item);
+        <template id="cpw-project-@item.ProjectId">
+            <div class="cpw-drawer-content">
+                <div class="cpw-drawer-kicker">Completed project · @(item.CompletedYear?.ToString() ?? "Year not recorded")</div>
+                <h2>@item.Name</h2>
+                <div class="cpw-drawer-status-grid">
+                    <div><span>Technology</span><strong>@(string.IsNullOrWhiteSpace(item.TechStatus) ? "Not assessed" : item.TechStatus)</strong></div>
+                    <div><span>Proliferation</span><strong>@(item.AvailableForProliferation == true ? "Available" : item.AvailableForProliferation == false ? "Not available" : "Not assessed")</strong></div>
+                    <div><span>ToT</span><strong>@TotLabel(item.TotStatus)</strong></div>
                 </div>
-                <h3>No matching projects</h3>
-                <p>Adjust or clear the filters to view completed-project records.</p>
-                <a asp-page="./Index" class="btn cs-btn cs-btn-primary">Clear filters</a>
+                <div class="cpw-drawer-section"><h3>Financial picture</h3><dl><div><dt>Development / L1 cost</dt><dd>@FormatMoney(item.RdCostLakhs)</dd></div><div><dt>Approx. production cost</dt><dd>@FormatMoney(item.ApproxProductionCost)</dd></div><div><dt>Latest LPP</dt><dd>@(item.LatestLpp is null ? "Not recorded" : $"{FormatMoney(item.LatestLpp.Amount)} · {item.LatestLpp.Date:dd MMM yyyy}")</dd></div></dl></div>
+                <div class="cpw-drawer-section"><h3>Data quality</h3><p>@(missing == 0 ? "All portfolio fields are recorded." : $"Missing: {MissingFields(item)}")</p></div>
+                <div class="cpw-drawer-section"><h3>Remarks</h3><p class="cpw-remarks">@(string.IsNullOrWhiteSpace(item.Remarks) ? "No remarks recorded." : item.Remarks)</p></div>
+                @if (Model.CanEdit)
+                {
+                    <a asp-page="./Edit" asp-route-id="@item.ProjectId" class="cpw-btn cpw-btn-primary cpw-drawer-edit">Edit completed-project record</a>
+                }
             </div>
-        }
-        else
-        {
-            <div class="cs-table-wrap">
-                <table class="cs-table">
-                    <colgroup>
-                        <col class="cs-col-project" />
-                        <col class="cs-col-year" />
-                        <col class="cs-col-rd" />
-                        <col class="cs-col-prod" />
-                        <col class="cs-col-lpp" />
-                        <col class="cs-col-tech" />
-                        <col class="cs-col-avail" />
-                        <col class="cs-col-tot" />
-                        <col class="cs-col-remarks" />
-                        @if (Model.CanEdit) { <col class="cs-col-actions" /> }
-                    </colgroup>
-                    <thead>
-                        <tr>
-                            <th scope="col">
-                                <a class="cs-sort @(Model.Sort == "name" ? "is-active" : string.Empty)"
-                                   asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus"
-                                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted"
-                                   asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build"
-                                   asp-route-Sort="name" asp-route-Dir="@(Model.NextSortDirection("name"))">
-                                    Project <span>@Model.GetSortIndicator("name")</span>
-                                </a>
-                            </th>
-                            <th scope="col" class="cs-center">
-                                <a class="cs-sort @(Model.Sort == "year" ? "is-active" : string.Empty)"
-                                   asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus"
-                                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted"
-                                   asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build"
-                                   asp-route-Sort="year" asp-route-Dir="@(Model.NextSortDirection("year"))">
-                                    Completed <span>@Model.GetSortIndicator("year")</span>
-                                </a>
-                            </th>
-                            <th scope="col" class="cs-num">
-                                <a class="cs-sort @(Model.Sort == "rd" ? "is-active" : string.Empty)"
-                                   asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus"
-                                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted"
-                                   asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build"
-                                   asp-route-Sort="rd" asp-route-Dir="@(Model.NextSortDirection("rd"))">
-                                    R&amp;D / L1 <small>₹ lakh</small><span>@Model.GetSortIndicator("rd")</span>
-                                </a>
-                            </th>
-                            <th scope="col" class="cs-num">
-                                <a class="cs-sort @(Model.Sort == "prod" ? "is-active" : string.Empty)"
-                                   asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus"
-                                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted"
-                                   asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build"
-                                   asp-route-Sort="prod" asp-route-Dir="@(Model.NextSortDirection("prod"))">
-                                    Production <small>₹ lakh</small><span>@Model.GetSortIndicator("prod")</span>
-                                </a>
-                            </th>
-                            <th scope="col">
-                                <a class="cs-sort @(Model.Sort == "lpp" ? "is-active" : string.Empty)"
-                                   asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus"
-                                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted"
-                                   asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build"
-                                   asp-route-Sort="lpp" asp-route-Dir="@(Model.NextSortDirection("lpp"))">
-                                    Latest LPP <span>@Model.GetSortIndicator("lpp")</span>
-                                </a>
-                            </th>
-                            <th scope="col">
-                                <a class="cs-sort @(Model.Sort == "tech" ? "is-active" : string.Empty)"
-                                   asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus"
-                                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted"
-                                   asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build"
-                                   asp-route-Sort="tech" asp-route-Dir="@(Model.NextSortDirection("tech"))">
-                                    Technology <span>@Model.GetSortIndicator("tech")</span>
-                                </a>
-                            </th>
-                            <th scope="col">
-                                <a class="cs-sort @(Model.Sort == "avail" ? "is-active" : string.Empty)"
-                                   asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus"
-                                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted"
-                                   asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build"
-                                   asp-route-Sort="avail" asp-route-Dir="@(Model.NextSortDirection("avail"))">
-                                    Proliferation <span>@Model.GetSortIndicator("avail")</span>
-                                </a>
-                            </th>
-                            <th scope="col">
-                                <a class="cs-sort @(Model.Sort == "tot" ? "is-active" : string.Empty)"
-                                   asp-page="./Index" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" asp-route-TechStatus="@Model.TechStatus"
-                                   asp-route-AvailableForProliferation="@Model.AvailableForProliferation" asp-route-TotCompleted="@Model.TotCompleted"
-                                   asp-route-CompletedYear="@Model.CompletedYear" asp-route-Search="@Model.Search" asp-route-Build="@Model.Build"
-                                   asp-route-Sort="tot" asp-route-Dir="@(Model.NextSortDirection("tot"))">
-                                    ToT <span>@Model.GetSortIndicator("tot")</span>
-                                </a>
-                            </th>
-                            <th scope="col">Remarks</th>
-                            @if (Model.CanEdit) { <th scope="col" class="cs-actions-col"><span class="visually-hidden">Actions</span></th> }
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var item in Model.Items)
-                        {
-                            var techClass = string.Equals(item.TechStatus, "Current", StringComparison.OrdinalIgnoreCase)
-                                ? "cs-status--success"
-                                : string.Equals(item.TechStatus, "Outdated", StringComparison.OrdinalIgnoreCase)
-                                    ? "cs-status--warning"
-                                    : "cs-status--neutral";
-                            <tr>
-                                <td class="cs-project-cell">
-                                    <a asp-page="/Projects/Overview" asp-route-id="@item.ProjectId" class="cs-project-link">@item.Name</a>
-                                    <div class="cs-project-meta">
-                                        <span>Completed project</span>
-                                        @if (!item.CompletedYear.HasValue || string.IsNullOrWhiteSpace(item.TechStatus) || !item.AvailableForProliferation.HasValue || !item.TotStatus.HasValue)
-                                        {
-                                            <span class="cs-data-flag" title="One or more key fields are not recorded">Needs update</span>
-                                        }
-                                    </div>
-                                </td>
-                                <td class="cs-center cs-year">@(item.CompletedYear?.ToString() ?? "—")</td>
-                                <td class="cs-num">@(item.RdCostLakhs.HasValue ? item.RdCostLakhs.Value.ToString("0.##") : "—")</td>
-                                <td class="cs-num">@(item.ApproxProductionCost.HasValue ? item.ApproxProductionCost.Value.ToString("0.##") : "—")</td>
-                                <td class="cs-lpp-cell">
-                                    @if (item.LatestLpp != null)
-                                    {
-                                        <span class="cs-lpp-value">₹@item.LatestLpp.Amount.ToString("0.##") L</span>
-                                        @if (item.LatestLpp.Date.HasValue)
-                                        {
-                                            <span class="cs-cell-sub">@item.LatestLpp.Date.Value.ToString("dd MMM yyyy")</span>
-                                        }
-                                    }
-                                    else
-                                    {
-                                        <span class="cs-empty-value">Not recorded</span>
-                                    }
-                                </td>
-                                <td>
-                                    @if (!string.IsNullOrWhiteSpace(item.TechStatus))
-                                    {
-                                        <span class="cs-status @techClass">@item.TechStatus</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="cs-status cs-status--neutral">Not recorded</span>
-                                    }
-                                </td>
-                                <td>
-                                    @if (item.AvailableForProliferation == true)
-                                    {
-                                        <span class="cs-status cs-status--success">Available</span>
-                                    }
-                                    else if (item.AvailableForProliferation == false)
-                                    {
-                                        <span class="cs-status cs-status--danger">Not available</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="cs-status cs-status--neutral">Not recorded</span>
-                                    }
-                                </td>
-                                <td>
-                                    @if (item.TotStatus == ProjectTotStatus.Completed)
-                                    {
-                                        <span class="cs-status cs-status--success">Completed</span>
-                                    }
-                                    else if (item.TotStatus.HasValue)
-                                    {
-                                        <span class="cs-status cs-status--danger">Not completed</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="cs-status cs-status--neutral">Not recorded</span>
-                                    }
-                                </td>
-                                <td class="cs-remarks-cell">
-                                    @if (!string.IsNullOrWhiteSpace(item.Remarks))
-                                    {
-                                        <button type="button" class="cs-remarks-button" title="@item.Remarks" data-remarks="@item.Remarks">
-                                            <span>@item.Remarks</span>
-                                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12h8M8 8h8M8 16h5" /><path d="M5 3h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H9l-5 3v-4a2 2 0 0 1-1-1V5a2 2 0 0 1 2-2Z" /></svg>
-                                        </button>
-                                    }
-                                    else
-                                    {
-                                        <span class="cs-empty-value">—</span>
-                                    }
-                                </td>
-                                @if (Model.CanEdit)
-                                {
-                                    <td class="cs-actions">
-                                        <a asp-page="./Edit" asp-route-id="@item.ProjectId" class="cs-edit-button" title="Edit completed-project record" aria-label="Edit @item.Name">
-                                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" /></svg>
-                                        </a>
-                                    </td>
-                                }
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-        }
-    </section>
-</div>
+        </template>
+    }
 
-<div class="cs-modal" id="csRemarksModal" hidden>
-    <div class="cs-modal-backdrop" data-close-remarks></div>
-    <div class="cs-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="csRemarksTitle">
-        <div class="cs-modal-header">
-            <h2 id="csRemarksTitle">Project remarks</h2>
-            <button type="button" data-close-remarks aria-label="Close remarks">×</button>
-        </div>
-        <div class="cs-modal-body" id="csRemarksBody"></div>
-    </div>
+    <div class="cpw-drawer-backdrop" data-drawer-backdrop hidden></div>
+    <aside class="cpw-drawer" data-drawer aria-hidden="true" aria-label="Project details">
+        <div class="cpw-drawer-header"><span>Project intelligence</span><button type="button" data-close-drawer aria-label="Close">×</button></div>
+        <div data-drawer-body></div>
+    </aside>
 </div>
 
 @section Scripts {

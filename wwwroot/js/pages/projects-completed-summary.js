@@ -1,100 +1,88 @@
-(function () {
+(() => {
   'use strict';
 
-  const form = document.getElementById('csFiltersForm');
-  if (!form) return;
+  const root = document.querySelector('.cpw');
+  if (!root) return;
 
-  let submitting = false;
-  const submitForm = () => {
-    if (submitting) return;
-    submitting = true;
-    if (typeof form.requestSubmit === 'function') form.requestSubmit();
-    else form.submit();
+  const filterToggle = root.querySelector('[data-filter-toggle]');
+  const filterPanel = root.querySelector('[data-filter-panel]');
+  filterToggle?.addEventListener('click', () => {
+    const open = filterPanel.classList.toggle('is-open');
+    filterToggle.setAttribute('aria-expanded', String(open));
+  });
+
+  const tabs = [...root.querySelectorAll('[data-view]')];
+  const panels = [...root.querySelectorAll('[data-view-panel]')];
+  const setView = (view) => {
+    tabs.forEach((tab) => {
+      const active = tab.dataset.view === view;
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-selected', String(active));
+    });
+    panels.forEach((panel) => {
+      const active = panel.dataset.viewPanel === view;
+      panel.classList.toggle('is-active', active);
+      panel.hidden = !active;
+    });
+    sessionStorage.setItem('completedProjectsView', view);
+  };
+  tabs.forEach((tab) => tab.addEventListener('click', () => setView(tab.dataset.view)));
+  setView(sessionStorage.getItem('completedProjectsView') || root.dataset.defaultView || 'portfolio');
+
+  const lenses = [...root.querySelectorAll('[data-lens]')];
+  const visibleCount = root.querySelector('[data-visible-count]');
+  const noResults = root.querySelector('.cpw-no-lens-results');
+  let activeLens = 'all';
+
+  const applyLens = () => {
+    let visible = 0;
+    root.querySelectorAll('[data-project]').forEach((project) => {
+      const matches = activeLens === 'all' || project.dataset[activeLens] === 'true';
+      project.hidden = !matches;
+      if (matches && project.closest('[data-view-panel]:not([hidden])')) visible++;
+    });
+
+    const activePanel = root.querySelector('[data-view-panel]:not([hidden])');
+    visible = activePanel ? [...activePanel.querySelectorAll('[data-project]')].filter((x) => !x.hidden).length : 0;
+    if (visibleCount) visibleCount.textContent = String(visible);
+    if (noResults) noResults.hidden = visible !== 0;
   };
 
-  form.querySelectorAll('[data-auto-submit="change"]').forEach((element) => {
-    element.addEventListener('change', submitForm);
-  });
+  lenses.forEach((lens) => lens.addEventListener('click', () => {
+    activeLens = lens.dataset.lens || 'all';
+    lenses.forEach((x) => x.classList.toggle('is-active', x === lens));
+    applyLens();
+  }));
+  tabs.forEach((tab) => tab.addEventListener('click', applyLens));
+  applyLens();
 
-  form.querySelectorAll('[data-submit-on-enter]').forEach((element) => {
-    element.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        submitForm();
-      }
-    });
-    element.addEventListener('change', submitForm);
-  });
-
-  const searchInput = form.querySelector('[data-search-input]');
-  const searchField = searchInput?.closest('.cs-search-field');
-  const clearSearch = form.querySelector('[data-clear-search]');
-  let searchTimer;
-
-  const syncSearchState = () => {
-    searchField?.classList.toggle('has-value', Boolean(searchInput?.value.trim()));
+  const drawer = root.querySelector('[data-drawer]');
+  const drawerBody = root.querySelector('[data-drawer-body]');
+  const backdrop = root.querySelector('[data-drawer-backdrop]');
+  const closeDrawer = () => {
+    drawer?.classList.remove('is-open');
+    drawer?.setAttribute('aria-hidden', 'true');
+    if (backdrop) backdrop.hidden = true;
+    document.body.classList.remove('cpw-drawer-open');
+  };
+  const openDrawer = (id) => {
+    const template = document.getElementById(`cpw-project-${id}`);
+    if (!template || !drawer || !drawerBody) return;
+    drawerBody.replaceChildren(template.content.cloneNode(true));
+    drawer.classList.add('is-open');
+    drawer.setAttribute('aria-hidden', 'false');
+    if (backdrop) backdrop.hidden = false;
+    document.body.classList.add('cpw-drawer-open');
+    drawer.querySelector('button')?.focus();
   };
 
-  if (searchInput) {
-    syncSearchState();
-    searchInput.addEventListener('input', () => {
-      syncSearchState();
-      window.clearTimeout(searchTimer);
-      searchTimer = window.setTimeout(submitForm, 500);
-    });
-    searchInput.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        window.clearTimeout(searchTimer);
-        submitForm();
-      }
-    });
-  }
-
-  clearSearch?.addEventListener('click', () => {
-    if (!searchInput) return;
-    searchInput.value = '';
-    syncSearchState();
-    submitForm();
+  root.addEventListener('click', (event) => {
+    const opener = event.target.closest('[data-open-project]');
+    if (opener) openDrawer(opener.dataset.openProject);
+    if (event.target.closest('[data-close-drawer]')) closeDrawer();
   });
-
-  const toggle = document.getElementById('csFilterToggle');
-  const advanced = document.getElementById('csAdvancedFilters');
-  toggle?.addEventListener('click', () => {
-    if (!advanced) return;
-    const isOpen = !advanced.hasAttribute('hidden');
-    if (isOpen) advanced.setAttribute('hidden', '');
-    else advanced.removeAttribute('hidden');
-    toggle.setAttribute('aria-expanded', String(!isOpen));
-  });
-
-  const modal = document.getElementById('csRemarksModal');
-  const modalBody = document.getElementById('csRemarksBody');
-  let lastTrigger = null;
-
-  const closeModal = () => {
-    if (!modal) return;
-    modal.setAttribute('hidden', '');
-    document.body.classList.remove('cs-modal-open');
-    lastTrigger?.focus();
-  };
-
-  document.querySelectorAll('[data-remarks]').forEach((button) => {
-    button.addEventListener('click', () => {
-      if (!modal || !modalBody) return;
-      lastTrigger = button;
-      modalBody.textContent = button.getAttribute('data-remarks') || '';
-      modal.removeAttribute('hidden');
-      document.body.classList.add('cs-modal-open');
-      modal.querySelector('[data-close-remarks]')?.focus();
-    });
-  });
-
-  modal?.querySelectorAll('[data-close-remarks]').forEach((element) => {
-    element.addEventListener('click', closeModal);
-  });
-
+  backdrop?.addEventListener('click', closeDrawer);
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && modal && !modal.hasAttribute('hidden')) closeModal();
+    if (event.key === 'Escape') closeDrawer();
   });
 })();
