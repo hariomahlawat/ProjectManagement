@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using Microsoft.AspNetCore.Authorization;
@@ -7,7 +8,6 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Plans;
-using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Pages.Process;
 
@@ -15,38 +15,53 @@ namespace ProjectManagement.Pages.Process;
 public class IndexModel : PageModel
 {
     private readonly ApplicationDbContext _db;
+    private readonly IAuthorizationService _authorizationService;
 
-    public IndexModel(ApplicationDbContext db)
+    public IndexModel(ApplicationDbContext db, IAuthorizationService authorizationService)
     {
         _db = db;
+        _authorizationService = authorizationService;
     }
 
     public string ProcessVersion { get; private set; } = PlanConstants.DefaultStageTemplateVersion;
     public bool CanEditChecklist { get; private set; }
-        = false;
-
     public DateTimeOffset? ProcessUpdatedOn { get; private set; }
-        = null;
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        var latestVersion = await _db.StageTemplates
+        var availableVersions = await _db.StageTemplates
             .AsNoTracking()
-            .OrderByDescending(t => t.Version)
             .Select(t => t.Version)
-            .FirstOrDefaultAsync(cancellationToken);
+            .Distinct()
+            .ToListAsync(cancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(latestVersion))
-        {
-            ProcessVersion = latestVersion;
-        }
+        ProcessVersion = availableVersions
+            .OrderByDescending(ParseVersion)
+            .ThenByDescending(v => v, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault() ?? PlanConstants.DefaultStageTemplateVersion;
 
-        await LoadProcessUpdatedOnAsync(ProcessVersion, cancellationToken);
+        await LoadChecklistUpdatedOnAsync(ProcessVersion, cancellationToken);
 
-        CanEditChecklist = User.IsInRole("MCO") || User.IsInRole("HoD");
+        var editAuthorization = await _authorizationService.AuthorizeAsync(User, "Checklist.Edit");
+        CanEditChecklist = editAuthorization.Succeeded;
     }
 
-    private async Task LoadProcessUpdatedOnAsync(string version, CancellationToken cancellationToken)
+    private static Version ParseVersion(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return new Version(0, 0);
+        }
+
+        var candidate = value.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .LastOrDefault();
+
+        return Version.TryParse(candidate, out var version)
+            ? version
+            : new Version(0, 0);
+    }
+
+    private async Task LoadChecklistUpdatedOnAsync(string version, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(version))
         {
@@ -64,47 +79,23 @@ public class IndexModel : PageModel
             return;
         }
 
-        var templateIds = templateSnapshots
-            .Select(t => t.Id)
-            .ToArray();
-
+        var templateIds = templateSnapshots.Select(t => t.Id).ToArray();
         var candidateDates = new List<DateTimeOffset>();
 
-        foreach (var snapshot in templateSnapshots)
-        {
-            if (snapshot.UpdatedOn.HasValue)
-            {
-                candidateDates.Add(snapshot.UpdatedOn.Value);
-            }
-        }
+        candidateDates.AddRange(templateSnapshots
+            .Where(t => t.UpdatedOn.HasValue)
+            .Select(t => t.UpdatedOn!.Value));
 
         var latestItemUpdate = await _db.StageChecklistItemTemplates
             .AsNoTracking()
-            .Where(i => templateIds.Contains(i.TemplateId) && i.UpdatedOn != null)
-            .OrderByDescending(i => i.UpdatedOn)
-            .Select(i => i.UpdatedOn)
-            .FirstOrDefaultAsync(cancellationToken);
+            .Where(i => templateIds.Contains(i.TemplateId) && i.UpdatedOn.HasValue)
+            .MaxAsync(i => (DateTimeOffset?)i.UpdatedOn, cancellationToken);
 
         if (latestItemUpdate.HasValue)
         {
             candidateDates.Add(latestItemUpdate.Value);
         }
 
-        var latestAudit = await _db.StageChecklistAudits
-            .AsNoTracking()
-            .Where(a => templateIds.Contains(a.TemplateId))
-            .OrderByDescending(a => a.PerformedOn)
-            .Select(a => (DateTimeOffset?)a.PerformedOn)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (latestAudit.HasValue)
-        {
-            candidateDates.Add(latestAudit.Value);
-        }
-
-        if (candidateDates.Count > 0)
-        {
-            ProcessUpdatedOn = candidateDates.Max();
-        }
+        ProcessUpdatedOn = candidateDates.Count > 0 ? candidateDates.Max() : null;
     }
 }
