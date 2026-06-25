@@ -84,7 +84,7 @@
                 <div>
                     <h1 class="projects-header__title">Projects</h1>
                     <p class="projects-header__summary">
-                        <strong>@Model.TotalCount</strong> projects
+                        <strong>@Model.FilteredTotal</strong> projects
                         <span aria-hidden="true">·</span>
                         <span>@activeLifecycleLabel</span>
                     </p>
@@ -119,7 +119,7 @@
                    asp-page="./Index"
                    asp-all-route-data="routeValues"
                    aria-current="@(lifecycle.IsActive ? "page" : null)">
-                    <span>@(lifecycle.Filter == ProjectLifecycleFilter.Legacy ? "Legacy" : lifecycle.Label)</span>
+                    <span title="@(lifecycle.Filter == ProjectLifecycleFilter.Legacy ? "Older completed projects retained as institutional record" : null)">@(lifecycle.Filter == ProjectLifecycleFilter.Legacy ? "Legacy archive" : lifecycle.Label)</span>
                     <span class="projects-lifecycle__count">@lifecycle.Count</span>
                 </a>
             }
@@ -305,7 +305,7 @@
                 <div class="projects-grid">
                     @foreach (var project in Model.Projects)
                     {
-                        var stageSummary = FormatStageSummary(project);
+                        var stageDisplay = FormatStageDisplay(project);
                         var totStatus = FormatTotStatusShort(project);
                         string? coverPhotoUrl = null;
                         if (project.CoverPhotoId.HasValue)
@@ -314,8 +314,8 @@
                         }
                         var officerName = project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned";
                         var categoryName = project.Category?.Name ?? "Uncategorised";
-                        var caseFile = string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "No case file" : project.CaseFileNumber;
-                        <article class="project-card">
+                        var caseFile = string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "Not recorded" : project.CaseFileNumber;
+                        <article class="project-card @(project.IsLegacy ? "project-card--legacy" : null) @(project.IsArchived ? "project-card--archived" : null)">
                             <a asp-page="/Projects/Overview" asp-route-id="@project.Id" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" class="project-card__link" aria-label="Open @project.Name"></a>
                             <div class="project-card__topline">
                                 <div class="project-card__visual @(string.IsNullOrEmpty(coverPhotoUrl) ? "project-card__visual--icon" : null)">
@@ -332,7 +332,7 @@
                                     <h2>@project.Name</h2>
                                     <div class="project-card__badges">
                                         <span class="badge rounded-pill @GetLifecycleBadgeClass(project.LifecycleStatus)">@FormatLifecycleStatus(project.LifecycleStatus)@if (project.LifecycleStatus == ProjectLifecycleStatus.Completed && project.CompletedYear.HasValue){<text> @project.CompletedYear</text>}</span>
-                                        @if (project.IsLegacy) { <span class="badge rounded-pill text-bg-light">Legacy</span> }
+                                        @if (project.IsLegacy) { <span class="badge rounded-pill project-badge--legacy">Legacy archive</span> }
                                         @if (project.IsArchived) { <span class="badge rounded-pill text-bg-secondary">Archived</span> }
                                     </div>
                                 </div>
@@ -343,9 +343,15 @@
                                 <div class="@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "is-missing" : null)"><dt>Case file</dt><dd>@caseFile</dd></div>
                                 <div class="@((project.LeadPoUser is null) ? "is-missing" : null)"><dt>Project Officer</dt><dd>@officerName</dd></div>
                             </dl>
-                            <div class="project-card__stage">
+                            <div class="project-card__stage @(stageDisplay.IsMissing ? "is-missing" : null)">
                                 <i class="bi bi-signpost-split" aria-hidden="true"></i>
-                                <span>@stageSummary</span>
+                                <span>
+                                    <strong>@stageDisplay.Primary</strong>
+                                    @if (!string.IsNullOrWhiteSpace(stageDisplay.Secondary))
+                                    {
+                                        <small>@stageDisplay.Secondary</small>
+                                    }
+                                </span>
                             </div>
                             @if (project.LifecycleStatus == ProjectLifecycleStatus.Completed && !string.IsNullOrWhiteSpace(totStatus))
                             {
@@ -358,29 +364,33 @@
 
             <div class="projects-results-view" data-project-results="table" hidden>
                 <div class="projects-table-wrap">
-                    <table class="table projects-table align-middle">
+                    <table class="table projects-table align-middle" data-project-sort-table>
                         <thead>
                             <tr>
-                                <th scope="col">Project</th>
-                                <th scope="col">Status</th>
+                                <th scope="col"><button type="button" class="projects-sort" data-sort="project">Project <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                <th scope="col"><button type="button" class="projects-sort" data-sort="status">Status <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                 <th scope="col">Current position</th>
-                                <th scope="col">Project Officer</th>
-                                <th scope="col">Category</th>
-                                <th scope="col">Case file</th>
+                                <th scope="col"><button type="button" class="projects-sort" data-sort="officer">Project Officer <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                <th scope="col"><button type="button" class="projects-sort" data-sort="category">Category <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
+                                <th scope="col"><button type="button" class="projects-sort" data-sort="casefile">Case file <i class="bi bi-arrow-down-up" aria-hidden="true"></i></button></th>
                                 <th scope="col" class="projects-table__action"><span class="visually-hidden">Open</span></th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach (var project in Model.Projects)
                             {
-                                var stageSummary = FormatStageSummary(project);
-                                <tr>
-                                    <td><a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="projects-table__project">@project.Name</a></td>
-                                    <td><span class="badge rounded-pill @GetLifecycleBadgeClass(project.LifecycleStatus)">@FormatLifecycleStatus(project.LifecycleStatus)</span></td>
-                                    <td class="projects-table__stage">@stageSummary</td>
-                                    <td>@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned")</td>
-                                    <td>@(project.Category?.Name ?? "Uncategorised")</td>
-                                    <td class="@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "text-danger-emphasis" : null)">@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "Not recorded" : project.CaseFileNumber)</td>
+                                var stageDisplay = FormatStageDisplay(project);
+                                var rowHref = Url.Page("/Projects/Overview", new { id = project.Id });
+                                <tr class="projects-table__row @(project.IsLegacy ? "is-legacy" : null)" data-project-row data-href="@rowHref" tabindex="0">
+                                    <td data-sort-value="@project.Name"><a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="projects-table__project">@project.Name</a></td>
+                                    <td data-sort-value="@FormatLifecycleStatus(project.LifecycleStatus)"><span class="badge rounded-pill @GetLifecycleBadgeClass(project.LifecycleStatus)">@FormatLifecycleStatus(project.LifecycleStatus)</span></td>
+                                    <td class="projects-table__stage">
+                                        <strong>@stageDisplay.Primary</strong>
+                                        @if (!string.IsNullOrWhiteSpace(stageDisplay.Secondary)) { <small>@stageDisplay.Secondary</small> }
+                                    </td>
+                                    <td data-sort-value="@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned")">@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned")</td>
+                                    <td data-sort-value="@(project.Category?.Name ?? "Uncategorised")">@(project.Category?.Name ?? "Uncategorised")</td>
+                                    <td data-sort-value="@(project.CaseFileNumber ?? string.Empty)" class="@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "projects-table__missing" : null)">@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "Not recorded" : project.CaseFileNumber)</td>
                                     <td class="projects-table__action"><a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="btn btn-sm btn-link" aria-label="Open @project.Name"><i class="bi bi-chevron-right" aria-hidden="true"></i></a></td>
                                 </tr>
                             }
@@ -423,12 +433,14 @@
 
 @functions
 {
-    private static string? FormatStageSummary(Project project)
+    private readonly record struct StageDisplay(string Primary, string? Secondary, bool IsMissing = false);
+
+    private static StageDisplay FormatStageDisplay(Project project)
     {
-        static string FmtDate(DateOnly? d) => d.HasValue ? d.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture) : "";
+        static string FmtDate(DateOnly? d) => d.HasValue ? d.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture) : string.Empty;
 
         if (project.ProjectStages is not { Count: > 0 })
-            return "No stages defined";
+            return new StageDisplay("Lifecycle not recorded", "No stage activity is available for this project.", true);
 
         var stages = project.ProjectStages
             .Where(s => !IsTotStage(s.StageCode))
@@ -436,14 +448,11 @@
             .ToList();
 
         if (stages.Count == 0)
-            return "No stages defined";
+            return new StageDisplay("Lifecycle not recorded", "No stage activity is available for this project.", true);
 
         var paymentStage = stages.FirstOrDefault(s => IsPaymentStage(s.StageCode));
         if (paymentStage is not null)
-        {
-            var cutoff = paymentStage.SortOrder;
-            stages = stages.Where(s => s.SortOrder <= cutoff).ToList();
-        }
+            stages = stages.Where(s => s.SortOrder <= paymentStage.SortOrder).ToList();
 
         var topCompleted = stages
             .Where(s => s.Status == StageStatus.Completed)
@@ -453,59 +462,32 @@
 
         var started = stages.FirstOrDefault(s => s.Status is StageStatus.InProgress or StageStatus.Blocked);
 
-        var missed = topCompleted is null
-            ? Array.Empty<string>()
-            : stages
-                .Where(s => s.SortOrder < topCompleted.SortOrder && s.Status != StageStatus.Completed)
-                .Select(s => StageCodes.DisplayNameOf(s.StageCode))
-                .ToArray();
-
         if (started is not null)
         {
-            var prevCompleted = stages
-                .LastOrDefault(s => s.SortOrder < started.SortOrder && s.Status == StageStatus.Completed);
-
-            var prevLabel = prevCompleted is null ? null : StageCodes.DisplayNameOf(prevCompleted.StageCode);
-            var prevDate = prevCompleted is null ? "" : FmtDate(prevCompleted.CompletedOn);
-            var nowLabel = StageCodes.DisplayNameOf(started.StageCode);
-            var nowState = started.Status == StageStatus.Blocked ? "Blocked" : "In progress";
-            var missedPart = missed.Length > 0 ? $" — missed: {string.Join(", ", missed)}" : string.Empty;
-
-            if (prevLabel is null)
-                return $"Now: {nowLabel} ({nowState}){missedPart}";
-
-            var prevPart = string.IsNullOrEmpty(prevDate) ? prevLabel : $"{prevLabel} ({prevDate})";
-            return $"Last completed: {prevPart} · Now: {nowLabel} ({nowState}){missedPart}";
+            var currentLabel = StageCodes.DisplayNameOf(started.StageCode);
+            var currentState = started.Status == StageStatus.Blocked ? "Blocked" : "In progress";
+            var previous = stages.LastOrDefault(s => s.SortOrder < started.SortOrder && s.Status == StageStatus.Completed);
+            var secondary = previous is null
+                ? "Current project stage"
+                : $"Previous: {StageCodes.DisplayNameOf(previous.StageCode)}{(previous.CompletedOn.HasValue ? $" · {FmtDate(previous.CompletedOn)}" : string.Empty)}";
+            return new StageDisplay($"{currentLabel} · {currentState}", secondary);
         }
 
         if (topCompleted is not null)
         {
-            var topLabel = StageCodes.DisplayNameOf(topCompleted.StageCode);
-            var topDate = FmtDate(topCompleted.CompletedOn);
-            var topPart = string.IsNullOrEmpty(topDate) ? topLabel : $"{topLabel} ({topDate})";
-
+            var completedLabel = StageCodes.DisplayNameOf(topCompleted.StageCode);
             var next = stages.FirstOrDefault(s => s.SortOrder > topCompleted.SortOrder);
-            string nextPart = string.Empty;
-            if (next is not null)
-            {
-                var nextLabel = StageCodes.DisplayNameOf(next.StageCode);
-                var suffix = next.Status switch
-                {
-                    StageStatus.InProgress => " (Started)",
-                    StageStatus.Blocked => " (Blocked)",
-                    _ => " (Not started)"
-                };
-                nextPart = $" · Next: {nextLabel}{suffix}";
-            }
-
-            var missedPart = missed.Length > 0 ? $" — missed: {string.Join(", ", missed)}" : string.Empty;
-            return $"Last completed: {topPart}{nextPart}{missedPart}";
+            var primary = next is null ? $"{completedLabel} completed" : $"{completedLabel} → {StageCodes.DisplayNameOf(next.StageCode)}";
+            var secondary = topCompleted.CompletedOn.HasValue
+                ? $"Completed {FmtDate(topCompleted.CompletedOn)}{(next is null ? string.Empty : " · Next stage not started")}"
+                : next is null ? "Latest recorded stage completed" : "Next stage not started";
+            return new StageDisplay(primary, secondary);
         }
 
-        var firstDefined = stages.FirstOrDefault();
-        return firstDefined is null
-            ? null
-            : $"Not started · First stage: {StageCodes.DisplayNameOf(firstDefined.StageCode)}";
+        var first = stages.FirstOrDefault();
+        return first is null
+            ? new StageDisplay("Lifecycle not recorded", "No stage activity is available for this project.", true)
+            : new StageDisplay($"Next: {StageCodes.DisplayNameOf(first.StageCode)}", "Project lifecycle has not started.");
     }
 
     private static bool IsTotStage(string code) => StageCodes.IsTot(code);

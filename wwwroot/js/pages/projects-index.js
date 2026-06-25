@@ -82,3 +82,78 @@
         });
     }
 })();
+
+// Enhancement block: current-page sorting and full-row keyboard/mouse navigation.
+(() => {
+    'use strict';
+
+    const table = document.querySelector('[data-project-sort-table]');
+    if (!table) return;
+
+    const tbody = table.tBodies[0];
+    const rows = () => Array.from(tbody.querySelectorAll('[data-project-row]'));
+    const sortButtons = table.querySelectorAll('[data-sort]');
+    let currentKey = '';
+    let currentDirection = 1;
+
+    const columnIndexByKey = {
+        project: 0,
+        status: 1,
+        officer: 3,
+        category: 4,
+        casefile: 5
+    };
+
+    const normalise = value => (value || '').trim().toLocaleLowerCase();
+
+    const sortTable = key => {
+        const columnIndex = columnIndexByKey[key];
+        if (columnIndex === undefined) return;
+
+        currentDirection = currentKey === key ? currentDirection * -1 : 1;
+        currentKey = key;
+
+        const sorted = rows().sort((a, b) => {
+            const aCell = a.cells[columnIndex];
+            const bCell = b.cells[columnIndex];
+            const aValue = normalise(aCell?.dataset.sortValue || aCell?.textContent);
+            const bValue = normalise(bCell?.dataset.sortValue || bCell?.textContent);
+            return aValue.localeCompare(bValue, undefined, { numeric: true, sensitivity: 'base' }) * currentDirection;
+        });
+
+        sorted.forEach(row => tbody.appendChild(row));
+        sortButtons.forEach(button => {
+            const active = button.dataset.sort === key;
+            button.classList.toggle('is-active', active);
+            button.setAttribute('aria-sort', active ? (currentDirection === 1 ? 'ascending' : 'descending') : 'none');
+            const icon = button.querySelector('i');
+            if (icon) icon.className = active
+                ? `bi ${currentDirection === 1 ? 'bi-sort-alpha-down' : 'bi-sort-alpha-up'} `
+                : 'bi bi-arrow-down-up';
+        });
+    };
+
+    sortButtons.forEach(button => button.addEventListener('click', event => {
+        event.stopPropagation();
+        sortTable(button.dataset.sort);
+    }));
+
+    rows().forEach(row => {
+        const open = () => {
+            const href = row.dataset.href;
+            if (href) window.location.assign(href);
+        };
+
+        row.addEventListener('click', event => {
+            if (event.target.closest('a, button, input, select, textarea, label')) return;
+            open();
+        });
+
+        row.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                open();
+            }
+        });
+    });
+})();
