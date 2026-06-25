@@ -4,179 +4,350 @@
 @{
     ViewData["Title"] = "Create Project";
     const int descriptionMaxLength = ProjectManagement.Models.ProjectFieldLimits.DescriptionMaxLength;
+
+    var advancedHasErrors = ViewData.ModelState
+        .Where(entry => entry.Key.StartsWith("Input.WorkflowVersion", StringComparison.Ordinal)
+            || entry.Key.StartsWith("Input.IsOngoing", StringComparison.Ordinal)
+            || entry.Key.StartsWith("Input.LastStageCompleted", StringComparison.Ordinal)
+            || entry.Key.StartsWith("Input.LastStageCompletedOn", StringComparison.Ordinal)
+            || entry.Key.StartsWith("Input.IsLegacy", StringComparison.Ordinal)
+            || entry.Key.StartsWith("Input.LegacyCompleted", StringComparison.Ordinal))
+        .Any(entry => entry.Value?.Errors.Count > 0);
+
+    var advancedOpen = Model.Input?.IsOngoing == true || Model.Input?.IsLegacy == true || advancedHasErrors;
 }
 
-<div class="container-xxl">
-    <nav aria-label="breadcrumb" class="mb-3">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a asp-page="/Projects/Index">Projects</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Create</li>
-        </ol>
-    </nav>
+@section Styles {
+    <link rel="stylesheet" href="~/css/projects/create.css" asp-append-version="true" />
+}
 
-    <h1 class="h3 mb-3">Create Project</h1>
+<div class="project-create-page">
+    <div class="project-create-shell">
+        <nav aria-label="Breadcrumb" class="project-create-breadcrumb">
+            <a asp-page="/Projects/Index">Projects</a>
+            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+            <span aria-current="page">Create</span>
+        </nav>
 
-    <form method="post" class="needs-validation" novalidate>
-        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-
-        <div class="card mb-3">
-            <div class="card-header">Project Details</div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <label asp-for="Input.Name" class="form-label"></label>
-                    <input asp-for="Input.Name" class="form-control" />
-                    <span asp-validation-for="Input.Name" class="text-danger"></span>
-                </div>
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label asp-for="Input.CaseFileNumber" class="form-label">Case File Number (optional)</label>
-                        <input asp-for="Input.CaseFileNumber" class="form-control" />
-                        <span asp-validation-for="Input.CaseFileNumber" class="text-danger"></span>
-                    </div>
-                    <div class="col-md-6">
-                        <label asp-for="Input.Description" class="form-label"></label>
-                        <textarea asp-for="Input.Description" class="form-control" rows="3" maxlength="@descriptionMaxLength"></textarea>
-                        <div class="form-text" data-char-count-for="Input_Description">0/@descriptionMaxLength</div>
-                        <span asp-validation-for="Input.Description" class="text-danger"></span>
-                    </div>
-                </div>
+        <header class="project-create-header">
+            <div>
+                <span class="project-create-eyebrow">PROJECT SETUP</span>
+                <h1>Create project</h1>
+                <p>Enter the core project details. Optional assignments and status information can be completed later.</p>
             </div>
-        </div>
+            <div class="project-create-header__note" aria-label="Required field guidance">
+                <span class="required-marker" aria-hidden="true">*</span>
+                Required field
+            </div>
+        </header>
 
-        <div class="card mb-3">
-            <div class="card-header">Classification</div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label asp-for="Input.CategoryId" class="form-label">Category</label>
-                        <select asp-for="Input.CategoryId" class="form-select" asp-items="Model.TopCategories"></select>
+        <form method="post"
+              class="project-create-form needs-validation"
+              novalidate
+              data-project-create-form
+              data-name-check-url="@Url.Page("/Projects/Create", "CheckName")">
+
+            <div asp-validation-summary="ModelOnly" class="project-create-validation-summary" role="alert"></div>
+
+            <section class="project-form-section" aria-labelledby="core-information-heading">
+                <div class="project-form-section__heading">
+                    <div class="project-form-section__icon" aria-hidden="true"><i class="bi bi-file-earmark-text"></i></div>
+                    <div>
+                        <h2 id="core-information-heading">Core information</h2>
+                        <p>Basic identity and purpose of the project.</p>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Subcategory</label>
-                        <select id="SubCategoryId" name="Input.SubCategoryId" class="form-select" disabled data-selected="@Model.Input?.SubCategoryId">
-                            <option value="">— (none) —</option>
+                </div>
+
+                <div class="project-form-grid project-form-grid--core">
+                    <div class="project-field project-field--wide">
+                        <label asp-for="Input.Name" class="project-field__label">
+                            Project name <span class="required-marker" aria-hidden="true">*</span>
+                        </label>
+                        <input asp-for="Input.Name"
+                               class="form-control project-control project-control--prominent"
+                               maxlength="100"
+                               autocomplete="off"
+                               aria-describedby="project-name-help project-name-duplicate" />
+                        <div id="project-name-help" class="project-field__hint">Use the formal project or simulator/product name.</div>
+                        <div id="project-name-duplicate" class="project-name-warning" hidden aria-live="polite"></div>
+                        <span asp-validation-for="Input.Name" class="project-field__error"></span>
+                    </div>
+
+                    <div class="project-field project-field--wide">
+                        <div class="project-field__label-row">
+                            <label asp-for="Input.Description" class="project-field__label"></label>
+                            <span class="project-field__optional">Optional</span>
+                        </div>
+                        <textarea asp-for="Input.Description"
+                                  class="form-control project-control project-control--textarea"
+                                  rows="3"
+                                  maxlength="@descriptionMaxLength"
+                                  placeholder="Summarise the operational need, intended capability or project scope."></textarea>
+                        <div class="project-field__meta">
+                            <span>Can be refined later.</span>
+                            <span data-char-count-for="Input_Description">0/@descriptionMaxLength</span>
+                        </div>
+                        <span asp-validation-for="Input.Description" class="project-field__error"></span>
+                    </div>
+
+                    <div class="project-field project-field--compact">
+                        <div class="project-field__label-row">
+                            <label asp-for="Input.CaseFileNumber" class="project-field__label">Case file number</label>
+                            <span class="project-field__optional">Optional</span>
+                        </div>
+                        <input asp-for="Input.CaseFileNumber"
+                               class="form-control project-control"
+                               maxlength="64"
+                               placeholder="e.g. SDD/Proj/2026/04" />
+                        <span asp-validation-for="Input.CaseFileNumber" class="project-field__error"></span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="project-form-section" aria-labelledby="classification-heading">
+                <div class="project-form-section__heading">
+                    <div class="project-form-section__icon" aria-hidden="true"><i class="bi bi-diagram-3"></i></div>
+                    <div>
+                        <h2 id="classification-heading">Classification</h2>
+                        <p>Organise the project for reporting, governance and portfolio analysis.</p>
+                    </div>
+                </div>
+
+                <div class="project-form-grid">
+                    <div class="project-field">
+                        <div class="project-field__label-row">
+                            <label asp-for="Input.CategoryId" class="project-field__label">Category</label>
+                            <span class="project-field__optional">Optional</span>
+                        </div>
+                        <select asp-for="Input.CategoryId" class="form-select project-control" asp-items="Model.TopCategories">
+                            <option value="">— Select category —</option>
                         </select>
-                        <div class="form-text">Appears when the category has active children.</div>
                     </div>
-                </div>
-                <div class="row g-3 mt-0">
-                    <div class="col-md-6">
-                        <label asp-for="Input.WorkflowVersion" class="form-label">Workflow version</label>
-                        <select asp-for="Input.WorkflowVersion" class="form-select" asp-items="Model.WorkflowVersionOptions"></select>
-                        <span asp-validation-for="Input.WorkflowVersion" class="text-danger"></span>
-                        <div class="form-text">Default is v2 as per current policy. Existing projects stay on v1.</div>
+
+                    <div class="project-field" id="SubCategoryField" hidden>
+                        <div class="project-field__label-row">
+                            <label for="SubCategoryId" class="project-field__label">Subcategory</label>
+                            <span class="project-field__optional">Optional</span>
+                        </div>
+                        <select id="SubCategoryId"
+                                name="Input.SubCategoryId"
+                                class="form-select project-control"
+                                disabled
+                                data-selected="@Model.Input?.SubCategoryId">
+                            <option value="">— Select subcategory —</option>
+                        </select>
                     </div>
-                </div>
-                <div class="row g-3 mt-0">
-                    <div class="col-md-6">
-                        <label asp-for="Input.TechnicalCategoryId" class="form-label">Technical Category (optional)</label>
-                        <select asp-for="Input.TechnicalCategoryId" class="form-select" asp-items="Model.TechnicalCategoryOptions"></select>
-                        <span asp-validation-for="Input.TechnicalCategoryId" class="text-danger"></span>
+
+                    <div class="project-field">
+                        <div class="project-field__label-row">
+                            <label asp-for="Input.TechnicalCategoryId" class="project-field__label">Technical category</label>
+                            <span class="project-field__optional">Optional</span>
+                        </div>
+                        <select asp-for="Input.TechnicalCategoryId"
+                                class="form-select project-control"
+                                asp-items="Model.TechnicalCategoryOptions"></select>
+                        <span asp-validation-for="Input.TechnicalCategoryId" class="project-field__error"></span>
                     </div>
-                </div>
-                @* SECTION: Project type and build flag *@
-                <div class="row g-3 mt-0">
-                    <div class="col-md-6">
-                        <label asp-for="Input.ProjectTypeId" class="form-label">Project type</label>
-                        <select asp-for="Input.ProjectTypeId" class="form-select" asp-items="Model.ProjectTypeOptions"></select>
-                        <span asp-validation-for="Input.ProjectTypeId" class="text-danger"></span>
+
+                    <div class="project-field">
+                        <div class="project-field__label-row">
+                            <label asp-for="Input.ProjectTypeId" class="project-field__label">Project type</label>
+                            <span class="project-field__optional">Optional</span>
+                        </div>
+                        <select asp-for="Input.ProjectTypeId"
+                                class="form-select project-control"
+                                asp-items="Model.ProjectTypeOptions"></select>
+                        <span asp-validation-for="Input.ProjectTypeId" class="project-field__error"></span>
                     </div>
-                    <div class="col-md-6 d-flex align-items-end">
-                        <div class="form-check form-switch">
+
+                    <label class="project-option-card project-option-card--full" for="Input_IsBuild">
+                        <span class="project-option-card__content">
+                            <span class="project-option-card__icon" aria-hidden="true"><i class="bi bi-arrow-repeat"></i></span>
+                            <span>
+                                <strong>Repeat build / remanufacture</strong>
+                                <small>Use for repeat manufacture, rebuild or remanufacture of an existing system.</small>
+                            </span>
+                        </span>
+                        <span class="form-check form-switch project-option-card__switch">
                             <input class="form-check-input" type="checkbox" asp-for="Input.IsBuild" />
-                            <label class="form-check-label" asp-for="Input.IsBuild">Build (repeat / re-manufacture)</label>
-                        </div>
+                        </span>
+                    </label>
+                </div>
+            </section>
+
+            <section class="project-form-section" aria-labelledby="sponsorship-heading">
+                <div class="project-form-section__heading">
+                    <div class="project-form-section__icon" aria-hidden="true"><i class="bi bi-building"></i></div>
+                    <div>
+                        <h2 id="sponsorship-heading">Sponsorship</h2>
+                        <p>Identify the sponsoring organisation, where known.</p>
                     </div>
                 </div>
-                <div class="row g-3 mt-0">
-                    <div class="col-md-6">
-                        <label asp-for="Input.SponsoringUnitId" class="form-label">Sponsoring Unit</label>
-                        <select asp-for="Input.SponsoringUnitId" class="form-select js-async-select" asp-items="Model.SponsoringUnitOptions" data-source="/api/lookups/sponsoring-units" data-search-placeholder="Search sponsoring units"></select>
-                        <div class="form-text">Optional; can be set later.</div>
-                        <span asp-validation-for="Input.SponsoringUnitId" class="text-danger"></span>
+
+                <div class="project-form-grid">
+                    <div class="project-field">
+                        <div class="project-field__label-row">
+                            <label asp-for="Input.SponsoringUnitId" class="project-field__label">Sponsoring unit</label>
+                            <span class="project-field__optional">Optional</span>
+                        </div>
+                        <select asp-for="Input.SponsoringUnitId"
+                                class="form-select project-control js-create-combobox"
+                                asp-items="Model.SponsoringUnitOptions"
+                                data-combobox-placeholder="Search or select sponsoring unit"></select>
+                        <span asp-validation-for="Input.SponsoringUnitId" class="project-field__error"></span>
                     </div>
-                    <div class="col-md-6">
-                        <label asp-for="Input.SponsoringLineDirectorateId" class="form-label">Sponsoring Line Dte</label>
-                        <select asp-for="Input.SponsoringLineDirectorateId" class="form-select js-async-select" asp-items="Model.LineDirectorateOptions" data-source="/api/lookups/line-directorates" data-search-placeholder="Search line directorates"></select>
-                        <span asp-validation-for="Input.SponsoringLineDirectorateId" class="text-danger"></span>
+
+                    <div class="project-field">
+                        <div class="project-field__label-row">
+                            <label asp-for="Input.SponsoringLineDirectorateId" class="project-field__label">Sponsoring line directorate</label>
+                            <span class="project-field__optional">Optional</span>
+                        </div>
+                        <select asp-for="Input.SponsoringLineDirectorateId"
+                                class="form-select project-control js-create-combobox"
+                                asp-items="Model.LineDirectorateOptions"
+                                data-combobox-placeholder="Search or select line directorate"></select>
+                        <span asp-validation-for="Input.SponsoringLineDirectorateId" class="project-field__error"></span>
                     </div>
+                </div>
+            </section>
+
+            <section class="project-form-section" aria-labelledby="ownership-heading">
+                <div class="project-form-section__heading">
+                    <div class="project-form-section__icon" aria-hidden="true"><i class="bi bi-people"></i></div>
+                    <div>
+                        <h2 id="ownership-heading">Ownership</h2>
+                        <p>Assign responsibility now or leave unassigned for later allocation.</p>
+                    </div>
+                </div>
+
+                <div class="project-form-grid">
+                    <div class="project-field">
+                        <div class="project-field__label-row">
+                            <label asp-for="Input.HodUserId" class="project-field__label">Head of Department</label>
+                            <span class="project-field__optional">Optional</span>
+                        </div>
+                        <select asp-for="Input.HodUserId"
+                                class="form-select project-control js-create-combobox"
+                                asp-items="Model.HodList"
+                                data-combobox-placeholder="Search Head of Department"></select>
+                    </div>
+
+                    <div class="project-field">
+                        <div class="project-field__label-row">
+                            <label asp-for="Input.PoUserId" class="project-field__label">Project Officer</label>
+                            <span class="project-field__optional">Optional</span>
+                        </div>
+                        <select asp-for="Input.PoUserId"
+                                class="form-select project-control js-create-combobox"
+                                asp-items="Model.PoList"
+                                data-combobox-placeholder="Search Project Officer"></select>
+                    </div>
+                </div>
+            </section>
+
+            <details class="project-advanced" open="@advancedOpen">
+                <summary class="project-advanced__summary">
+                    <span class="project-advanced__summary-content">
+                        <span class="project-form-section__icon" aria-hidden="true"><i class="bi bi-sliders"></i></span>
+                        <span>
+                            <strong>Advanced setup</strong>
+                            <small>Workflow version and existing-project status.</small>
+                        </span>
+                    </span>
+                    <i class="bi bi-chevron-down project-advanced__chevron" aria-hidden="true"></i>
+                </summary>
+
+                <div class="project-advanced__body">
+                    <div class="project-form-grid">
+                        <div class="project-field">
+                            <label asp-for="Input.WorkflowVersion" class="project-field__label">
+                                Workflow version <span class="required-marker" aria-hidden="true">*</span>
+                            </label>
+                            <select asp-for="Input.WorkflowVersion"
+                                    class="form-select project-control"
+                                    asp-items="Model.WorkflowVersionOptions"></select>
+                            <span asp-validation-for="Input.WorkflowVersion" class="project-field__error"></span>
+                            <div class="project-field__hint">Default is v2 as per current policy. Existing projects stay on v1.</div>
+                        </div>
+                    </div>
+
+                    <div class="project-status-grid" role="group" aria-label="Current project status">
+                        <div class="project-status-card" data-status-card="ongoing">
+                            <div class="project-status-card__header">
+                                <span class="project-status-card__icon" aria-hidden="true"><i class="bi bi-play-circle"></i></span>
+                                <div>
+                                    <h3>Already in progress</h3>
+                                    <p>Use when entering a project that has already commenced.</p>
+                                </div>
+                                <div class="form-check form-switch project-status-card__switch">
+                                    <input class="form-check-input" type="checkbox" id="IsOngoing" asp-for="Input.IsOngoing" />
+                                </div>
+                            </div>
+
+                            <div id="OngoingFields" class="project-status-card__fields visually-hidden">
+                                <div class="project-field">
+                                    <label asp-for="Input.LastStageCompleted" class="project-field__label">Last stage completed</label>
+                                    <select asp-for="Input.LastStageCompleted"
+                                            class="form-select project-control"
+                                            asp-items="Model.StageOptions"></select>
+                                    <span asp-validation-for="Input.LastStageCompleted" class="project-field__error"></span>
+                                </div>
+                                <div class="project-field">
+                                    <label asp-for="Input.LastStageCompletedOn" class="project-field__label">Completed on</label>
+                                    <input asp-for="Input.LastStageCompletedOn" type="date" class="form-control project-control" />
+                                    <span asp-validation-for="Input.LastStageCompletedOn" class="project-field__error"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="project-status-card" data-status-card="legacy">
+                            <div class="project-status-card__header">
+                                <span class="project-status-card__icon" aria-hidden="true"><i class="bi bi-archive"></i></span>
+                                <div>
+                                    <h3>Legacy record</h3>
+                                    <p>Use for a completed historical project being entered retrospectively.</p>
+                                </div>
+                                <div class="form-check form-switch project-status-card__switch">
+                                    <input class="form-check-input" type="checkbox" id="IsLegacy" asp-for="Input.IsLegacy" />
+                                </div>
+                            </div>
+
+                            <div id="LegacyFields" class="project-status-card__fields@(Model.Input?.IsLegacy == true ? string.Empty : " visually-hidden")">
+                                <div class="project-field">
+                                    <label asp-for="Input.LegacyCompletedOn" class="project-field__label">Completion date</label>
+                                    <input asp-for="Input.LegacyCompletedOn" type="date" class="form-control project-control" />
+                                    <div class="project-field__hint">Use the exact date when known.</div>
+                                    <span asp-validation-for="Input.LegacyCompletedOn" class="project-field__error"></span>
+                                </div>
+                                <div class="project-field">
+                                    <label asp-for="Input.LegacyCompletedYear" class="project-field__label">Completion year</label>
+                                    <input asp-for="Input.LegacyCompletedYear" type="number" class="form-control project-control" min="1900" max="2099" />
+                                    <div class="project-field__hint">Use only when the exact date is unavailable.</div>
+                                    <span asp-validation-for="Input.LegacyCompletedYear" class="project-field__error"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="project-status-message" data-status-message hidden aria-live="polite"></div>
+                </div>
+            </details>
+
+            <div class="project-create-actions" data-sticky-actions>
+                <div class="project-create-actions__inner">
+                    <a asp-page="/Projects/Index" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary project-create-submit">
+                        <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                        Create project
+                    </button>
                 </div>
             </div>
-        </div>
-
-        <div class="card mb-3">
-            <div class="card-header">Roles (optional)</div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <label asp-for="Input.HodUserId" class="form-label">Head of Department</label>
-                        <select asp-for="Input.HodUserId" class="form-select" asp-items="Model.HodList"></select>
-                    </div>
-                    <div class="col-md-6">
-                        <label asp-for="Input.PoUserId" class="form-label">Project Officer</label>
-                        <select asp-for="Input.PoUserId" class="form-select" asp-items="Model.PoList"></select>
-                    </div>
-                </div>
-                <div class="form-text">You can assign these later from the overview page.</div>
-            </div>
-        </div>
-
-        <div class="card mb-4">
-            <div class="card-header">Current Status (optional)</div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-lg-6">
-                        <div class="form-check form-switch mb-2">
-                            <input class="form-check-input" type="checkbox" id="IsOngoing" asp-for="Input.IsOngoing" />
-                            <label class="form-check-label" for="IsOngoing">Project already in progress</label>
-                        </div>
-                        <div id="OngoingFields" class="row g-3 visually-hidden">
-                            <div class="col-md-12">
-                                <label asp-for="Input.LastStageCompleted" class="form-label">Last stage completed</label>
-                                <select asp-for="Input.LastStageCompleted" class="form-select" asp-items="Model.StageOptions"></select>
-                                <span asp-validation-for="Input.LastStageCompleted" class="text-danger"></span>
-                            </div>
-                            <div class="col-md-12">
-                                <label asp-for="Input.LastStageCompletedOn" class="form-label">Completed on</label>
-                                <input asp-for="Input.LastStageCompletedOn" type="date" class="form-control" />
-                                <span asp-validation-for="Input.LastStageCompletedOn" class="text-danger"></span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-6">
-                        <div class="form-check form-switch mb-2">
-                            <input class="form-check-input" type="checkbox" id="IsLegacy" asp-for="Input.IsLegacy" />
-                            <label class="form-check-label" for="IsLegacy">Project is a legacy record</label>
-                        </div>
-                        <div id="LegacyFields" class="row g-3@(Model.Input?.IsLegacy == true ? string.Empty : " visually-hidden")">
-                            <div class="col-md-12">
-                                <label asp-for="Input.LegacyCompletedOn" class="form-label">Completion date</label>
-                                <input asp-for="Input.LegacyCompletedOn" type="date" class="form-control" />
-                                <div class="form-text">Provide the exact completion date, or leave blank and record the year.</div>
-                                <span asp-validation-for="Input.LegacyCompletedOn" class="text-danger"></span>
-                            </div>
-                            <div class="col-md-12">
-                                <label asp-for="Input.LegacyCompletedYear" class="form-label">Completion year</label>
-                                <input asp-for="Input.LegacyCompletedYear" type="number" class="form-control" min="1900" max="2099" />
-                                <div class="form-text">If the exact date is unknown, capture the calendar year only.</div>
-                                <span asp-validation-for="Input.LegacyCompletedYear" class="text-danger"></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="d-flex justify-content-between">
-            <a asp-page="/Projects/Index" class="btn btn-outline-secondary">Cancel</a>
-            <button type="submit" class="btn btn-primary">Create Project</button>
-        </div>
-    </form>
+        </form>
+    </div>
 </div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-    <script src="~/js/widgets/async-select.js" asp-append-version="true" defer></script>
     <script src="~/js/widgets/char-count.js" asp-append-version="true" defer></script>
-    <script src="~/js/projects/create.js" asp-append-version="true"></script>
+    <script src="~/js/projects/create.js" asp-append-version="true" defer></script>
 }

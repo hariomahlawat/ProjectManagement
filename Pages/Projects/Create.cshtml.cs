@@ -108,6 +108,31 @@ namespace ProjectManagement.Pages.Projects
             await LoadAsync();
         }
 
+        public async Task<JsonResult> OnGetCheckNameAsync(string? name)
+        {
+            var term = name?.Trim();
+            if (string.IsNullOrWhiteSpace(term) || term.Length < 3)
+            {
+                return new JsonResult(new { matches = Array.Empty<object>() });
+            }
+
+            var pattern = $"%{term}%";
+            var matches = await _db.Projects
+                .AsNoTracking()
+                .Where(project => EF.Functions.ILike(project.Name, pattern))
+                .OrderBy(project => project.Name)
+                .Take(5)
+                .Select(project => new
+                {
+                    project.Id,
+                    project.Name,
+                    project.CaseFileNumber
+                })
+                .ToListAsync();
+
+            return new JsonResult(new { matches });
+        }
+
         public async Task<IActionResult> OnPostAsync()
         {
             await LoadAsync();
