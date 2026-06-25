@@ -1,0 +1,43 @@
+@model ProjectManagement.Pages.Projects.OverviewModel
+@using ProjectManagement.Models.Plans
+<partial name="Projects/_BackfillModal" model="Model.Backfill" />
+<partial name="_StageDirectApplyModal" />
+<partial name="Projects/Stages/_StageRequestModal" />
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasProcurement" aria-labelledby="offcanvasProcurementLabel">
+    <div class="offcanvas-header">
+        <h5 id="offcanvasProcurementLabel" class="mb-0">Edit procurement details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body"><partial name="Projects/Procurement/_EditFormBody" model="Model.ProcurementEdit" /></div>
+</div>
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasActualDates" aria-labelledby="offcanvasActualDatesLabel">
+    <div class="offcanvas-header">
+        <h5 id="offcanvasActualDatesLabel" class="mb-0">Edit actual dates</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body"><partial name="Projects/Timeline/_EditActualsForm" model="Model.ActualsEditor" /></div>
+</div>
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasPlanReview" aria-labelledby="offcanvasPlanReviewLabel">
+    <div class="offcanvas-header">
+        <h5 id="offcanvasPlanReviewLabel" class="mb-0">Review current plan</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+        @{
+            ViewBag.ProjectId = Model.Project.Id;
+            ViewBag.HasBackfill = Model.HasBackfill;
+            ViewBag.PlanState = Model.PlanEdit?.State ?? new ProjectManagement.ViewModels.PlanEditorStateVm();
+            ViewBag.WorkflowVersion = Model.Project.WorkflowVersion;
+            var differences = await Model.PlanCompare.GetDraftVsCurrentAsync(Model.Project.Id);
+            await Html.RenderPartialAsync("~/Pages/Projects/Timeline/_ReviewPlan.cshtml", differences ?? Array.Empty<ProjectManagement.Services.Stages.PlanDiffRow>());
+        }
+    </div>
+</div>
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasPlanEdit" aria-labelledby="offcanvasPlanEditLabel">
+    <div class="offcanvas-header">
+        <h5 id="offcanvasPlanEditLabel" class="mb-0">Edit timeline plan</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body"><partial name="Projects/Timeline/_EditPlanForm" model="Model.PlanEdit" /></div>
+</div>

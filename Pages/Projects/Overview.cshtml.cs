@@ -35,7 +35,7 @@ using ProjectManagement.ViewModels;
 namespace ProjectManagement.Pages.Projects
 {
     [Authorize]
-    public class OverviewModel : PageModel
+    public partial class OverviewModel : PageModel
     {
         private readonly ApplicationDbContext _db;
         private readonly ProjectProcurementReadService _procureRead;
@@ -184,6 +184,8 @@ namespace ProjectManagement.Pages.Projects
             CurrentUserId = _users.GetUserId(User);
 
             var project = await _db.Projects
+                .AsNoTracking()
+                .AsSplitQuery()
                 .Include(p => p.Category)
                 .Include(p => p.HodUser)
                 .Include(p => p.LeadPoUser)
@@ -259,6 +261,7 @@ namespace ProjectManagement.Pages.Projects
             var orderedStageCodes = ProcurementWorkflow.StageCodesFor(workflowVersion);
 
             var projectStages = await _db.ProjectStages
+                .AsNoTracking()
                 .Where(s => s.ProjectId == id)
                 .ToListAsync(ct);
 

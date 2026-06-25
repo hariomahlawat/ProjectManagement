@@ -1,11 +1,12 @@
-@model ProjectManagement.ViewModels.TimelineVm
+@model ProjectManagement.ViewModels.ProjectTimelinePanelVm
 @using System.Globalization
 @using ProjectManagement.Models.Execution
 @using Microsoft.AspNetCore.Mvc.Rendering
 @{
-    var isHod = User.IsInRole("HoD");
-    var isProjectOfficer = ViewBag?.IsProjectOfficerForProject is bool b && b;
-    var canRequestChange = isProjectOfficer || isHod;
+    var timeline = Model.Timeline;
+    var access = Model.Access;
+    var isHod = access.CanApplyStageChangeDirectly;
+    var canRequestChange = access.CanRequestStageChange;
 }
 @functions {
     string D(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
@@ -56,14 +57,12 @@
         return (text, description, cssClass);
     }
 }
-<link rel="stylesheet" href="~/css/projects/timeline.css" />
-
 <div class="pm-timeline-grid">
   <div class="pm-rail" aria-hidden="true">
     <div class="pm-rail-line"></div>
   </div>
   <div class="pm-items">
-    @foreach (var s in Model.Items.OrderBy(i => i.SortOrder))
+    @foreach (var s in timeline.Items.OrderBy(i => i.SortOrder))
     {
       var itemClass = s.Status switch
       {
@@ -108,7 +107,13 @@
               </span>
               @if (s.Status == StageStatus.Completed)
               {
-                <span class="pm-item-expand-hint" aria-hidden="true"><i class="bi bi-chevron-down"></i></span>
+                <button type="button"
+                        class="pm-item-expand-toggle"
+                        data-timeline-toggle
+                        aria-expanded="false"
+                        aria-label="Expand details for @s.Name">
+                  <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                </button>
               }
             </div>
             <div class="pm-item-actions">
@@ -150,7 +155,7 @@
                       <button class="dropdown-item"
                               type="button"
                               data-direct-apply
-                              data-project="@Model.ProjectId"
+                              data-project="@timeline.ProjectId"
                               data-stage="@s.Code"
                               data-stage-name="@s.Name"
                               data-status="InProgress"
@@ -162,7 +167,7 @@
                       <button class="dropdown-item"
                               type="button"
                               data-direct-apply
-                              data-project="@Model.ProjectId"
+                              data-project="@timeline.ProjectId"
                               data-stage="@s.Code"
                               data-stage-name="@s.Name"
                               data-status="Completed"
@@ -174,7 +179,7 @@
                       <button class="dropdown-item"
                               type="button"
                               data-direct-apply
-                              data-project="@Model.ProjectId"
+                              data-project="@timeline.ProjectId"
                               data-stage="@s.Code"
                               data-stage-name="@s.Name"
                               data-status="Blocked">
@@ -185,7 +190,7 @@
                       <button class="dropdown-item"
                               type="button"
                               data-direct-apply
-                              data-project="@Model.ProjectId"
+                              data-project="@timeline.ProjectId"
                               data-stage="@s.Code"
                               data-stage-name="@s.Name"
                               data-status="Skipped">
@@ -196,7 +201,7 @@
                       <button class="dropdown-item"
                               type="button"
                               data-direct-apply
-                              data-project="@Model.ProjectId"
+                              data-project="@timeline.ProjectId"
                               data-stage="@s.Code"
                               data-stage-name="@s.Name"
                               data-status="Reopen">
@@ -215,7 +220,7 @@
                               type="button"
                               data-stage-request
                               data-stage-request-button
-                              data-project="@Model.ProjectId"
+                              data-project="@timeline.ProjectId"
                               data-stage="@s.Code"
                               data-stage-name="@s.Name"
                               data-current-status="@s.Status"

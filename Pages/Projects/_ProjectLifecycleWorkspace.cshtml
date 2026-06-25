@@ -1,0 +1,307 @@
+@using System.Text.Json
+@using ProjectManagement.ViewModels
+@model ProjectManagement.Pages.Projects.OverviewModel
+@{
+    var project = Model.Project;
+    var access = Model.Access;
+    var portfolio = Model.Portfolio;
+    var planState = Model.PlanEdit?.State ?? new PlanEditorStateVm();
+    var isHoD = access.IsHoD;
+    var isThisProjectsPo = access.IsAssignedProjectOfficer;
+    var completedStages = portfolio.CompletedStages;
+    var totalStages = portfolio.TotalStages;
+    var progressMax = portfolio.ProgressMaximum;
+    var remarksConfigJson = JsonSerializer.Serialize(Model.RemarksPanel, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+}
+            <div class="card pm-card project-lifecycle-panel" data-panel-project-id="@Model.Project!.Id">
+                <div class="card-header pm-card-header flex-column gap-3">
+                    <div class="d-flex flex-column gap-2">
+                        <div class="d-flex flex-column flex-lg-row align-items-start gap-3 justify-content-lg-between">
+                            <div class="flex-grow-1 w-100 min-w-0">
+                                <span id="timeline" class="page-anchor"></span>
+                                <div class="d-flex flex-column gap-3" data-panel-section="timeline">
+                                    <div class="d-flex flex-wrap align-items-center gap-2">
+                                        <div class="pm-card-heading">
+                                            <span class="pm-card-icon" aria-hidden="true">
+                                                <i class="bi bi-clock-history"></i>
+                                            </span>
+                                            <div>
+                                                <h5 class="pm-card-title mb-0">Timeline</h5>
+                                                @{
+                                                    string? viewerRole = null;
+                                                    if (isHoD && isThisProjectsPo)
+                                                    {
+                                                        viewerRole = "Head of Department & Project Officer";
+                                                    }
+                                                    else if (isHoD)
+                                                    {
+                                                        viewerRole = "Head of Department";
+                                                    }
+                                                    else if (isThisProjectsPo)
+                                                    {
+                                                        viewerRole = "Project Officer";
+                                                    }
+                                                }
+                                            </div>
+                                        </div>
+                                        <div class="d-flex flex-wrap align-items-center gap-2 ms-lg-2 mt-2 mt-lg-0">
+                                            @if (!string.IsNullOrEmpty(viewerRole))
+                                            {
+                                                    <span class="text-muted small" data-role-indicator title="Current permissions for timeline actions">Viewing as @viewerRole</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted small" data-role-indicator title="Current permissions for timeline actions">Viewing as read-only member</span>
+
+                                                }
+                                                @if (pendingOwnedByCurrentUser)
+                                            {
+                                                <span class="badge text-bg-warning">Submitted for approval</span>
+                                            }
+                                            else if (Model.Timeline.PlanPendingApproval)
+                                            {
+                                                <span class="badge text-bg-warning">Another submission pending</span>
+                                            }
+                                            else if (hasMyDraft)
+                                            {
+                                                <span class="badge text-bg-secondary">Draft saved (not submitted)</span>
+                                            }
+                                            <span class="badge text-bg-secondary@(Model.HasBackfill ? string.Empty : " d-none")"
+                                                  title="Resolve procurement backfill to proceed"
+                                                  data-backfill-summary>
+                                                Backfill required
+                                            </span>
+                                            @if (project?.PlanApprovedAt is DateTimeOffset approvedAt)
+                                            {
+                                                <span class="badge text-bg-success">Approved on @approvedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
+                                            }
+                                        </div>
+                                    </div>
+                                    @if (hasMyDraft && !pendingOwnedByCurrentUser)
+                                    {
+                                        <div class="d-flex flex-wrap align-items-center gap-2">
+                                            <button class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-2"
+                                                    type="button"
+                                                    data-bs-toggle="offcanvas"
+                                                    data-bs-target="#offcanvasPlanEdit"
+                                                    aria-controls="offcanvasPlanEdit">
+                                                <span>Your draft saved</span>
+                                                @if (planState.LastSavedOn is DateTimeOffset savedOn)
+                                                {
+                                                    <span class="text-muted">@savedOn.ToLocalTime().ToString("dd MMM HH:mm")</span>
+                                                }
+                                                <span class="fw-semibold">Continue editing</span>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-secondary"
+                                                    type="button"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#discardDraftModal">
+                                                Discard draft
+                                            </button>
+                                        </div>
+                                    }
+                                </div>
+                                <span id="remarks" class="page-anchor"></span>
+                                <div class="d-flex flex-column gap-3 d-none" data-panel-section="remarks" id="project-panel-section-remarks" role="region" aria-labelledby="project-panel-toggle-remarks" aria-hidden="true">
+                                    <div class="d-flex flex-wrap align-items-center gap-3 w-100">
+                                        <div class="pm-card-heading">
+                                            <span class="pm-card-icon" aria-hidden="true">
+                                                <i class="bi bi-chat-dots"></i>
+                                            </span>
+                                            <div>
+                                                <h5 class="pm-card-title mb-0">Remarks</h5>
+                                                <p class="pm-card-subtitle mb-0">Monitor and update project progress.</p>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex flex-column flex-lg-row gap-2 w-100 w-lg-auto align-items-lg-center justify-content-lg-end">
+                                            <div class="d-flex flex-wrap gap-2 justify-content-between justify-content-lg-end w-100 w-lg-auto" role="toolbar" aria-label="Filter remarks">
+                                                @if (Model.RemarksPanel.ScopeOptions.Count > 1)
+                                                {
+                                                    <div class="btn-group btn-group-sm pm-remarks-filter" role="group" aria-label="Filter remarks by scope" data-remarks-scope-group>
+                                                        <button type="button" class="btn btn-outline-primary active" data-remarks-scope="all" aria-pressed="true">All scopes</button>
+                                                        @foreach (var scope in Model.RemarksPanel.ScopeOptions)
+                                                        {
+                                                            <button type="button" class="btn btn-outline-primary" data-remarks-scope="@scope.Canonical" aria-pressed="false">@scope.Label</button>
+                                                        }
+                                                    </div>
+                                                }
+                                                <div class="btn-group btn-group-sm pm-remarks-filter" role="group" aria-label="Filter remarks by type" data-remarks-type-group>
+                                                    <button type="button" class="btn btn-outline-primary active" data-remarks-type="all" aria-pressed="true">All</button>
+                                                    <button type="button" class="btn btn-outline-primary" data-remarks-type="Internal" aria-pressed="false">Internal</button>
+                                                    <button type="button" class="btn btn-outline-primary" data-remarks-type="External" aria-pressed="false">External</button>
+                                                </div>
+                                                <div class="btn-group btn-group-sm pm-remarks-filter" role="group" aria-label="Filter remarks by time" data-remarks-time-group>
+                                                    <button type="button" class="btn btn-outline-primary active" data-remarks-time="all" aria-pressed="true">All</button>
+                                                    <button type="button" class="btn btn-outline-primary" data-remarks-time="last-month" aria-pressed="false">Last month</button>
+                                                </div>
+                                            </div>
+                                            @if (Model.RemarksPanel.ShowDeletedToggle)
+                                            {
+                                                <div class="form-check form-switch mt-1 mt-lg-0 align-self-start align-self-lg-end">
+                                                    <input class="form-check-input" type="checkbox" id="remarks-include-deleted" data-remarks-include-deleted>
+                                                    <label class="form-check-label" for="remarks-include-deleted">Show deleted</label>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="d-flex flex-column align-items-stretch gap-2">
+                                <div class="btn-group btn-group-sm align-self-lg-end" role="group" aria-label="Toggle timeline or remarks" data-panel-switch>
+                                    <button type="button" class="btn btn-outline-primary active" id="project-panel-toggle-timeline" data-panel-target="timeline" aria-pressed="true" aria-expanded="true" aria-controls="project-panel-body-timeline">Timeline</button>
+                                    <button type="button" class="btn btn-outline-primary" id="project-panel-toggle-remarks" data-panel-target="remarks" aria-pressed="false" aria-expanded="false" aria-controls="project-panel-body-remarks">Remarks</button>
+                                </div>
+                                <div class="pm-card-actions d-flex flex-wrap align-items-center gap-2 justify-content-lg-end" data-panel-section="timeline" id="project-panel-section-timeline" role="region" aria-labelledby="project-panel-toggle-timeline" aria-hidden="false">
+                                    @{
+                                        var canReviewTimeline = planState.HasPendingSubmission && isHoD;
+                                        var canEditTimelinePlan = canEditTimeline && !(hasMyDraft && !pendingOwnedByCurrentUser);
+
+                                        if (canReviewTimeline || canEditTimelinePlan)
+                                        {
+                                            <!-- SECTION: Timeline actions menu -->
+                                            <div class="pm-card-menu dropdown">
+                                                <button class="btn pm-card-menu-toggle"
+                                                        type="button"
+                                                        data-bs-toggle="dropdown"
+                                                        aria-expanded="false"
+                                                        aria-label="Timeline actions">
+                                                    <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end">
+                                                    @if (canReviewTimeline)
+                                                    {
+                                                        <li>
+                                                            <button class="dropdown-item"
+                                                                    type="button"
+                                                                    data-bs-toggle="offcanvas"
+                                                                    data-bs-target="#offcanvasPlanReview"
+                                                                    aria-controls="offcanvasPlanReview">
+                                                                Review &amp; approve
+                                                            </button>
+                                                        </li>
+                                                    }
+                                                    @if (canEditTimelinePlan)
+                                                    {
+                                                        <li>
+                                                            <button class="dropdown-item"
+                                                                    type="button"
+                                                                    data-bs-toggle="offcanvas"
+                                                                    data-bs-target="#offcanvasActualDates"
+                                                                    aria-controls="offcanvasActualDates">
+                                                                Edit actual dates
+                                                            </button>
+                                                        </li>
+                                                        <li>
+                                                            <button class="dropdown-item"
+                                                                    type="button"
+                                                                    data-bs-toggle="offcanvas"
+                                                                    data-bs-target="#offcanvasPlanEdit"
+                                                                    aria-controls="offcanvasPlanEdit">
+                                                                Edit timeline
+                                                            </button>
+                                                        </li>
+                                                    }
+                                                </ul>
+                                            </div>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pm-card-meta w-100" data-panel-section="timeline" id="project-panel-meta-timeline" role="region" aria-labelledby="project-panel-toggle-timeline" aria-hidden="false">
+                            <progress class="pm-progress pm-progress-slim pm-progress-fixed-180"
+                                      value="@completedStages"
+                                      max="@progressMax"
+                                      aria-label="Timeline stages completed">
+                            </progress>
+                            <span class="text-muted small">@completedStages of @totalStages complete</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body pm-card-body">
+                    <div data-panel="timeline" id="project-panel-body-timeline" role="region" aria-labelledby="project-panel-toggle-timeline" aria-hidden="false">
+                        @if (submissionBlocked)
+                        {
+                            <div class="alert alert-warning" role="status">
+                                Another plan is already awaiting approval. You can keep editing your draft, but submitting is disabled until the review is complete.
+                            </div>
+                        }
+                        <partial name="_ProjectTimeline" model="Model.TimelinePanel" />
+                    </div>
+                    <div class="d-none" data-panel="remarks" id="project-panel-body-remarks" role="region" aria-labelledby="project-panel-toggle-remarks" aria-hidden="true">
+                        <div class="remarks-panel" data-remarks-panel data-config='@remarksConfigJson'>
+                            @if (Model.RemarksPanel.ShowComposer)
+                            {
+                                <form class="remarks-composer" data-remarks-composer>
+                                    @Html.AntiForgeryToken()
+                                    <div class="d-flex flex-column gap-3">
+                                        <div>
+                                            <label for="remark-body" class="form-label fw-semibold mb-1">Add a remark</label>
+                                            <textarea id="remark-body" class="form-control" rows="3" maxlength="4000" data-remarks-body required></textarea>
+                                            <div class="form-text">Maximum 4000 characters.</div>
+                                            @if (!string.IsNullOrWhiteSpace(Model.RemarksPanel.ActorDisplayName))
+                                            {
+                                                <div class="small text-muted mt-1">Posting as @Model.RemarksPanel.ActorDisplayName</div>
+                                            }
+                                        </div>
+                                        <div class="remarks-composer-options d-flex flex-wrap align-items-center gap-2">
+                                            @if (Model.RemarksPanel.ScopeOptions.Count > 1)
+                                            {
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="Remark scope" data-remarks-composer-scope>
+                                                    @foreach (var scope in Model.RemarksPanel.ScopeOptions)
+                                                    {
+                                                        var isDefaultScope = string.Equals(scope.Canonical, Model.RemarksPanel.DefaultScope, StringComparison.OrdinalIgnoreCase);
+                                                        <button type="button" class="btn btn-outline-secondary@(isDefaultScope ? " active" : string.Empty)" data-remarks-composer-scope-option="@scope.Canonical" aria-pressed="@(isDefaultScope ? "true" : "false")">@scope.Label</button>
+                                                    }
+                                                </div>
+                                            }
+                                            <div class="btn-group btn-group-sm" role="group" aria-label="Remark audience" data-remarks-composer-type>
+                                                <button type="button" class="btn btn-outline-secondary active" data-remarks-composer-option="Internal" aria-pressed="true">Internal</button>
+                                                @if (Model.RemarksPanel.AllowExternal)
+                                                {
+                                                    <button type="button" class="btn btn-outline-secondary" data-remarks-composer-option="External" aria-pressed="false">External</button>
+                                                }
+                                            </div>
+                                            <div class="remarks-composer-external d-flex flex-wrap align-items-end gap-2 d-none" data-remarks-external-fields>
+                                                <div>
+                                                    <label for="remark-event-date" class="form-label mb-1 small">Event date</label>
+                                                    <input type="date" id="remark-event-date" class="form-control form-control-sm" data-remarks-event-date value="@Model.RemarksPanel.Today" max="@Model.RemarksPanel.Today" />
+                                                </div>
+                                                <div>
+                                                    <label for="remark-stage" class="form-label mb-1 small">Stage <span class="text-muted">(optional)</span></label>
+                                                    <select id="remark-stage" class="form-select form-select-sm" data-remarks-stage>
+                                                        <option value="">Not linked</option>
+                                                        @foreach (var stage in Model.RemarksPanel.StageOptions)
+                                                        {
+                                                            var isDefaultStage = string.Equals(stage.Value, Model.RemarksPanel.DefaultStage, StringComparison.OrdinalIgnoreCase);
+                                                            <option value="@stage.Value" selected="@(isDefaultStage ? "selected" : null)">@stage.Label</option>
+                                                        }
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex flex-column flex-sm-row gap-2 align-items-sm-center justify-content-between">
+                                            <div class="small" data-remarks-feedback></div>
+                                            <div class="d-flex gap-2 ms-sm-auto">
+                                                <button type="reset" class="btn btn-sm btn-outline-secondary" data-remarks-reset>Clear</button>
+                                                <button type="submit" class="btn btn-primary btn-sm" data-remarks-submit>Post remark</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </form>
+                            }
+                            else
+                            {
+                                <div class="alert alert-info border-info-subtle bg-info-subtle text-dark" role="status">
+                                    Remarks can only be posted by the assigned project team and leadership.
+                                </div>
+                            }
+                            <div class="remarks-list" data-remarks-list>
+                                <div class="text-muted" data-remarks-empty>Loading remarks…</div>
+                                <div class="vstack gap-3" data-remarks-items></div>
+                                <a class="btn btn-outline-secondary btn-sm align-self-start" asp-page="/Projects/Remarks/Index" asp-route-projectId="@Model.Project!.Id">View all remarks</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>

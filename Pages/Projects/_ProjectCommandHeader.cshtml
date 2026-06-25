@@ -1,0 +1,94 @@
+@using ProjectManagement.Models
+@model ProjectManagement.Pages.Projects.OverviewModel
+@{
+    var project = Model.Project;
+    var portfolio = Model.Portfolio;
+    var access = Model.Access;
+
+    static string DisplayUser(ApplicationUser? user)
+    {
+        if (user is null) return "—";
+        return !string.IsNullOrWhiteSpace(user.FullName) ? user.FullName : user.UserName ?? "—";
+    }
+}
+<section class="project-command-header" aria-labelledby="project-title">
+    <div class="project-command-header__main">
+        <div class="project-command-header__identity">
+            <div class="project-command-header__eyebrow">Project portfolio</div>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <h1 id="project-title" class="project-command-header__title">@portfolio.PageTitle</h1>
+                @if (!string.IsNullOrWhiteSpace(project?.CaseFileNumber))
+                {
+                    <span class="project-command-header__case">@project.CaseFileNumber</span>
+                }
+                @if (Model.LifecycleSummary.Status != ProjectLifecycleStatus.Active)
+                {
+                    <span class="badge rounded-pill text-bg-secondary">@Model.LifecycleSummary.Status</span>
+                }
+            </div>
+            <div class="project-command-header__meta">
+                <span><i class="bi bi-diagram-3" aria-hidden="true"></i> Workflow @project?.WorkflowVersion</span>
+                <span><i class="bi bi-calendar3" aria-hidden="true"></i> Created @(project is { } value ? value.CreatedAt.ToString("dd MMM yyyy") : "—")</span>
+                <span><i class="bi bi-person-badge" aria-hidden="true"></i> PO @DisplayUser(project?.LeadPoUser)</span>
+                <span><i class="bi bi-person-check" aria-hidden="true"></i> HoD @DisplayUser(project?.HodUser)</span>
+            </div>
+        </div>
+        <div class="project-command-header__actions">
+            @if (Model.RemarksPanel.ShowComposer)
+            {
+                <button type="button" class="btn btn-primary" data-project-quick-action="remark">
+                    <i class="bi bi-chat-left-text" aria-hidden="true"></i>
+                    Add remark
+                </button>
+            }
+            <partial name="_AssignRolesOffcanvas" model="Model.AssignRoles" />
+            @if (Model.LifecycleActions.CanManageLifecycle)
+            {
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary" type="button" id="project-actions-menu" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-three-dots" aria-hidden="true"></i>
+                        <span class="visually-hidden">Project actions</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="project-actions-menu">
+                        <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectLifecycleActionsModal">Manage lifecycle</button></li>
+                        @if (access.CanAssignRoles)
+                        {
+                            <li><hr class="dropdown-divider" /></li>
+                            @if (project?.IsArchived == true)
+                            {
+                                <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectRestoreArchiveModal">Restore from archive</button></li>
+                            }
+                            else
+                            {
+                                <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectArchiveModal">Archive project</button></li>
+                            }
+                            <li><button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#projectTrashModal">Move to Trash</button></li>
+                        }
+                    </ul>
+                </div>
+            }
+        </div>
+    </div>
+    <div class="project-intelligence-strip" aria-label="Project status summary">
+        <button class="project-intelligence-card" type="button" data-scroll-target="#timeline">
+            <span class="project-intelligence-card__label">Current stage</span>
+            <strong>@(portfolio.CurrentStage?.Name ?? "Not started")</strong>
+            <span>@(portfolio.CurrentStage?.Code ?? "—")</span>
+        </button>
+        <div class="project-intelligence-card">
+            <span class="project-intelligence-card__label">Lifecycle progress</span>
+            <strong>@portfolio.CompletedStages of @portfolio.TotalStages</strong>
+            <span>@portfolio.ProgressPercent% complete</span>
+        </div>
+        <button class="project-intelligence-card" type="button" data-scroll-target="#timeline">
+            <span class="project-intelligence-card__label">Next stage</span>
+            <strong>@(portfolio.NextStage?.Name ?? "—")</strong>
+            <span>@(portfolio.DelayedStageCount > 0 ? $"{portfolio.DelayedStageCount} stage(s) need attention" : "On track")</span>
+        </button>
+        <div class="project-intelligence-card">
+            <span class="project-intelligence-card__label">Profile completeness</span>
+            <strong>@portfolio.CompletenessPercent%</strong>
+            <span>@(portfolio.CompletenessPercent == 100 ? "Core profile complete" : "Review missing project facts")</span>
+        </div>
+    </div>
+</section>

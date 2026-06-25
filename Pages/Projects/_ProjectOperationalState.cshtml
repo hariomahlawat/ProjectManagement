@@ -1,0 +1,79 @@
+@model ProjectManagement.Pages.Projects.OverviewModel
+@{
+    var project = Model.Project;
+    var access = Model.Access;
+    var planState = Model.PlanEdit?.State ?? new ProjectManagement.ViewModels.PlanEditorStateVm();
+}
+@if (string.Equals(Context.Request.Query["oc"], "procurement", StringComparison.Ordinal))
+{
+    <div id="open-procurement" data-open="1"></div>
+}
+@if (TempData["OpenOffcanvas"] as string == "assign-roles")
+{
+    <div id="open-assign-roles" data-open="1"></div>
+}
+@if (TempData["OpenOffcanvas"] as string == "plan-edit")
+{
+    <div id="open-plan-edit" data-open="1"></div>
+}
+@if (TempData["OpenOffcanvas"] as string == "plan-review")
+{
+    <div id="open-plan-review" data-open="1"></div>
+}
+@if (TempData["OpenOffcanvas"] as string == "actuals-edit" || string.Equals(Context.Request.Query["oc"], "actuals", StringComparison.Ordinal))
+{
+    <div id="open-actuals-edit" data-open="1"></div>
+}
+@if (TempData["Error"] is string error)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @error
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+@if (TempData["Flash"] is string message)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @message
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+@if (Model.LifecycleActions.CanManageLifecycle)
+{
+    <partial name="_ProjectLifecycleActions" model="Model" />
+}
+@if (access.CanAssignRoles)
+{
+    <partial name="_ProjectModerationActions" model="Model" />
+}
+<div class="alert alert-warning d-flex align-items-center justify-content-between@(Model.HasBackfill ? string.Empty : " d-none")" role="alert" data-backfill-banner>
+    <div><strong>Action needed:</strong> Some earlier stages were auto-completed and need dates or costs.</div>
+    <button type="button" class="btn btn-sm btn-warning text-dark" data-action="open-backfill">Backfill now</button>
+</div>
+@if (project?.HodUserId == null || project?.LeadPoUserId == null)
+{
+    <div class="alert alert-warning d-flex align-items-center" role="alert">
+        <div class="me-3">
+            @if (project?.HodUserId == null) { <div>Head of Department not assigned.</div> }
+            @if (project?.LeadPoUserId == null) { <div>Project Officer not assigned.</div> }
+        </div>
+        @if (access.CanAssignRoles)
+        {
+            <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="offcanvas" data-bs-target="#offcanvasAssignRoles" aria-controls="offcanvasAssignRoles">Assign roles</button>
+        }
+    </div>
+}
+@if (planState.HasPendingSubmission)
+{
+    <div class="alert alert-info d-flex align-items-center justify-content-between" role="alert">
+        <div>
+            <strong>@(planState.PendingOwnedByCurrentUser ? "Your plan submission is awaiting HoD review." : "Timeline plan awaiting HoD review.")</strong>
+            @if (planState.PendingSubmittedOn is DateTimeOffset submittedOn) { <span class="ms-1">Submitted on @submittedOn.ToLocalTime().ToString("dd MMM yyyy").</span> }
+            @if (!string.IsNullOrWhiteSpace(planState.PendingSubmittedBy)) { <span class="ms-1">Submitted by @planState.PendingSubmittedBy.</span> }
+        </div>
+        @if (access.CanReviewPlan)
+        {
+            <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasPlanReview" aria-controls="offcanvasPlanReview">Review &amp; approve</button>
+        }
+    </div>
+}

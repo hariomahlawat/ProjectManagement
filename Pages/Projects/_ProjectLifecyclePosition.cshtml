@@ -1,0 +1,25 @@
+@using ProjectManagement.ViewModels
+@model ProjectPortfolioPresentationVm
+<section class="card pm-card project-lifecycle-summary" aria-labelledby="lifecycle-summary-title">
+    <div class="card-header pm-card-header">
+        <div class="pm-card-heading">
+            <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-signpost-split"></i></span>
+            <div>
+                <h3 id="lifecycle-summary-title" class="pm-card-title h5 mb-0">Lifecycle position</h3>
+                <p class="pm-card-subtitle mb-0">Current state and next operational action.</p>
+            </div>
+        </div>
+        <button class="btn btn-sm btn-outline-primary" type="button" data-scroll-target="#timeline">Open timeline</button>
+    </div>
+    <div class="card-body pm-card-body">
+        <div class="project-lifecycle-summary__grid">
+            <div><span class="project-lifecycle-summary__label">Current</span><strong>@(Model.CurrentStage?.Name ?? "Not started")</strong><span>@(Model.CurrentStage is null ? "No active stage" : ProjectPortfolioPresentationVm.StageStatusLabel(Model.CurrentStage.Status))</span></div>
+            <div><span class="project-lifecycle-summary__label">Next</span><strong>@(Model.NextStage?.Name ?? "—")</strong><span>@(Model.NextStage?.Code ?? "No subsequent stage")</span></div>
+            <div><span class="project-lifecycle-summary__label">Progress</span><strong>@Model.CompletedStages / @Model.TotalStages</strong><span>@(Model.DelayedStageCount == 0 ? "No recorded delay" : $"{Model.DelayedStageCount} delayed stage(s)")</span></div>
+            <div><span class="project-lifecycle-summary__label">Plan</span><strong>@Model.PlanStatus</strong><span>@Model.PlanHealth</span></div>
+        </div>
+        <div class="project-lifecycle-summary__progress" role="progressbar" aria-valuenow="@Model.CompletedStages" aria-valuemin="0" aria-valuemax="@Model.ProgressMaximum">
+            <span style="--project-progress:@Model.ProgressPercent%"></span>
+        </div>
+    </div>
+</section>

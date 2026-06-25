@@ -5,12 +5,30 @@
     if (!root) return;
 
     const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    const expandedStageStorageKey = 'prism.projectPortfolio.expandedStage';
 
     function scrollToTarget(selector) {
         if (!selector) return;
         const target = document.querySelector(selector);
         if (!target) return;
         target.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
+    }
+
+    function setStageExpanded(stage, expanded, persist = true) {
+        if (!stage) return;
+        stage.classList.toggle('is-expanded', expanded);
+
+        const toggle = stage.querySelector('[data-timeline-toggle]');
+        if (toggle) {
+            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            const stageName = stage.querySelector('[data-stage-name]')?.textContent?.trim() || 'stage';
+            toggle.setAttribute('aria-label', `${expanded ? 'Collapse' : 'Expand'} details for ${stageName}`);
+        }
+
+        if (!persist) return;
+        const stageCode = stage.getAttribute('data-stage-row');
+        if (expanded && stageCode) sessionStorage.setItem(expandedStageStorageKey, stageCode);
+        else if (sessionStorage.getItem(expandedStageStorageKey) === stageCode) sessionStorage.removeItem(expandedStageStorageKey);
     }
 
     root.addEventListener('click', (event) => {
@@ -21,28 +39,23 @@
             return;
         }
 
-        const stage = event.target.closest('[data-timeline-stage]');
+        const toggle = event.target.closest('[data-timeline-toggle]');
+        if (!toggle) return;
+        const stage = toggle.closest('[data-timeline-stage]');
         if (!stage || !stage.classList.contains('is-complete')) return;
-        if (event.target.closest('button, a, input, select, textarea, .dropdown-menu')) return;
-
-        stage.classList.toggle('is-expanded');
-        stage.querySelector('[data-timeline-stage-card]')?.setAttribute(
-            'aria-expanded',
-            stage.classList.contains('is-expanded') ? 'true' : 'false'
-        );
+        setStageExpanded(stage, !stage.classList.contains('is-expanded'));
     });
 
     function initializeTimelineDensity() {
         const completed = Array.from(root.querySelectorAll('[data-timeline-stage].is-complete'));
-        completed.forEach((item) => {
-            item.classList.remove('is-expanded');
-            item.querySelector('[data-timeline-stage-card]')?.setAttribute('aria-expanded', 'false');
-        });
-        const lastCompleted = completed.at(-1);
-        if (lastCompleted) {
-            lastCompleted.classList.add('is-expanded');
-            lastCompleted.querySelector('[data-timeline-stage-card]')?.setAttribute('aria-expanded', 'true');
-        }
+        completed.forEach((item) => setStageExpanded(item, false, false));
+
+        const rememberedCode = sessionStorage.getItem(expandedStageStorageKey);
+        const remembered = rememberedCode
+            ? completed.find((item) => item.getAttribute('data-stage-row') === rememberedCode)
+            : null;
+        const stageToExpand = remembered || completed.at(-1);
+        if (stageToExpand) setStageExpanded(stageToExpand, true, false);
     }
 
     function activateRemarksPanel() {
@@ -89,6 +102,5 @@
 
     initializeTimelineDensity();
     initializeRemarkComposer();
-
     document.addEventListener('pm:remarks-rendered', initializeRemarkComposer);
 })();

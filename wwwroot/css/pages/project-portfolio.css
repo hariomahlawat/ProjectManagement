@@ -449,3 +449,28 @@ button.project-intelligence-card:hover {
     .project-lifecycle-panel .pm-item.is-complete .pm-item-dates,
     .project-lifecycle-panel .pm-item.is-complete .pm-item-variance { display: block !important; }
 }
+
+.project-portfolio .pm-item-expand-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    margin-left: auto;
+    border: 0;
+    border-radius: 50%;
+    color: var(--bs-secondary-color);
+    background: transparent;
+    transition: background-color .15s ease, color .15s ease, transform .15s ease;
+}
+
+.project-portfolio .pm-item-expand-toggle:hover,
+.project-portfolio .pm-item-expand-toggle:focus-visible {
+    color: var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+    outline: none;
+}
+
+.project-portfolio [data-timeline-stage].is-expanded .pm-item-expand-toggle {
+    transform: rotate(180deg);
+}
