@@ -25,6 +25,12 @@
         || !x.TotStatus.HasValue
         || !x.RdCostLakhs.HasValue);
     var recordedInvestment = items.Where(x => x.RdCostLakhs.HasValue).Sum(x => x.RdCostLakhs ?? 0m);
+    var currentYear = DateTime.Today.Year;
+    var age0To5Count = items.Count(x => x.CompletedYear.HasValue && currentYear - x.CompletedYear.Value >= 0 && currentYear - x.CompletedYear.Value <= 5);
+    var age6To10Count = items.Count(x => x.CompletedYear.HasValue && currentYear - x.CompletedYear.Value >= 6 && currentYear - x.CompletedYear.Value <= 10);
+    var age11To15Count = items.Count(x => x.CompletedYear.HasValue && currentYear - x.CompletedYear.Value >= 11 && currentYear - x.CompletedYear.Value <= 15);
+    var age16PlusCount = items.Count(x => x.CompletedYear.HasValue && currentYear - x.CompletedYear.Value >= 16);
+    var ageUnknownCount = items.Count(x => !x.CompletedYear.HasValue);
 
     static string FormatMoney(decimal? value)
     {
@@ -192,12 +198,28 @@
             <div class="cpw-bar-legend"><span><i class="current"></i>Current @currentCount</span><span><i class="outdated"></i>Outdated @outdatedCount</span><span><i class="unknown"></i>Not assessed @techMissingCount</span></div>
         </article>
 
-        <article class="cpw-intelligence-card">
-            <div class="cpw-card-heading"><span>Readiness conversion</span><strong>@readyCount fully ready</strong></div>
-            <div class="cpw-readiness-flow">
-                <div><b>@currentCount</b><span>Current</span></div><i>→</i><div><b>@availableCount</b><span>Available</span></div><i>→</i><div class="final"><b>@readyCount</b><span>Ready</span></div>
+        <article class="cpw-intelligence-card cpw-age-card">
+            <div class="cpw-card-heading"><span>Portfolio age profile</span><strong>@age0To5Count completed in last 5 years</strong></div>
+            <div class="cpw-age-bar" aria-label="Completed project age distribution">
+                @if (total > 0)
+                {
+                    <span class="age-new" style="width:@(age0To5Count * 100d / total)%" title="0–5 years: @age0To5Count"></span>
+                    <span class="age-mid" style="width:@(age6To10Count * 100d / total)%" title="6–10 years: @age6To10Count"></span>
+                    <span class="age-mature" style="width:@(age11To15Count * 100d / total)%" title="11–15 years: @age11To15Count"></span>
+                    <span class="age-legacy" style="width:@(age16PlusCount * 100d / total)%" title="16+ years: @age16PlusCount"></span>
+                    <span class="age-unknown" style="width:@(ageUnknownCount * 100d / total)%" title="Year not recorded: @ageUnknownCount"></span>
+                }
             </div>
-            <div class="cpw-card-note">Current technology + proliferation available + ToT complete/not required</div>
+            <div class="cpw-age-bands">
+                <span><i class="new"></i><b>@age0To5Count</b><small>0–5 yrs</small></span>
+                <span><i class="mid"></i><b>@age6To10Count</b><small>6–10 yrs</small></span>
+                <span><i class="mature"></i><b>@age11To15Count</b><small>11–15 yrs</small></span>
+                <span><i class="legacy"></i><b>@age16PlusCount</b><small>16+ yrs</small></span>
+                @if (ageUnknownCount > 0)
+                {
+                    <span><i class="unknown"></i><b>@ageUnknownCount</b><small>Unknown</small></span>
+                }
+            </div>
         </article>
     </section>
 
@@ -207,8 +229,26 @@
             <button type="button" data-view="register" role="tab" aria-selected="false">Register</button>
             <button type="button" data-view="quality" role="tab" aria-selected="false">Data quality</button>
         </div>
-        <div class="cpw-workspace-meta">
-            <span data-visible-count>@total</span> projects in current lens
+        <div class="cpw-workspace-tools">
+            <label data-portfolio-control>
+                <span>Arrange</span>
+                <select data-card-sort>
+                    <option value="name">Project name</option>
+                    <option value="newest">Newest completed</option>
+                    <option value="oldest">Oldest completed</option>
+                    <option value="value">Highest value</option>
+                    <option value="gaps">Most data gaps</option>
+                </select>
+            </label>
+            <label data-portfolio-control>
+                <span>Group</span>
+                <select data-card-group>
+                    <option value="none">None</option>
+                    <option value="age">Portfolio age</option>
+                    <option value="readiness">Readiness</option>
+                </select>
+            </label>
+            <div class="cpw-workspace-meta"><span data-visible-count>@total</span> projects</div>
         </div>
     </div>
 
@@ -230,19 +270,28 @@
                         var isTotPending = item.TotStatus == ProjectTotStatus.NotStarted || item.TotStatus == ProjectTotStatus.InProgress;
                         var hasDataGap = string.IsNullOrWhiteSpace(item.TechStatus) || !item.AvailableForProliferation.HasValue || !item.TotStatus.HasValue || !item.RdCostLakhs.HasValue;
                         var missingCount = MissingCount(item);
+                        var readinessGroup = isReady ? "Ready" : isRefresh ? "Technology refresh" : isTotPending ? "ToT action pending" : hasDataGap ? "Assessment incomplete" : "Other";
+                        var ageYears = item.CompletedYear.HasValue ? Math.Max(0, currentYear - item.CompletedYear.Value) : -1;
+                        var ageGroup = ageYears < 0 ? "Year not recorded" : ageYears <= 5 ? "0–5 years" : ageYears <= 10 ? "6–10 years" : ageYears <= 15 ? "11–15 years" : "16+ years";
+                        var gapTone = missingCount >= 5 ? "is-severe" : missingCount >= 3 ? "is-moderate" : "is-minor";
                         <article class="cpw-project-card"
                                  data-project
                                  data-ready="@isReady.ToString().ToLowerInvariant()"
                                  data-refresh="@isRefresh.ToString().ToLowerInvariant()"
                                  data-tot-pending="@isTotPending.ToString().ToLowerInvariant()"
                                  data-data-gap="@hasDataGap.ToString().ToLowerInvariant()"
-                                 data-name="@item.Name.ToLowerInvariant()">
+                                 data-name="@item.Name.ToLowerInvariant()"
+                                 data-year="@(item.CompletedYear ?? 0)"
+                                 data-value="@(item.RdCostLakhs ?? -1m)"
+                                 data-gaps="@missingCount"
+                                 data-age-group="@ageGroup"
+                                 data-readiness-group="@readinessGroup">
                             <button type="button" class="cpw-card-hit" data-open-project="@item.ProjectId" aria-label="Open @item.Name"></button>
                             <div class="cpw-project-topline">
                                 <span class="cpw-year">@(item.CompletedYear?.ToString() ?? "Year not recorded")</span>
                                 @if (missingCount > 0)
                                 {
-                                    <span class="cpw-completeness" title="@MissingFields(item)">@missingCount data gap@(missingCount == 1 ? "" : "s")</span>
+                                    <span class="cpw-completeness @gapTone" title="@MissingFields(item)">@missingCount record gap@(missingCount == 1 ? "" : "s")</span>
                                 }
                                 else
                                 {
@@ -261,7 +310,7 @@
                                 <div class="is-@TotTone(item.TotStatus)"><span>ToT</span><b>@TotLabel(item.TotStatus)</b></div>
                             </div>
                             <div class="cpw-project-footer">
-                                <span>Latest LPP: @(item.LatestLpp is null ? "Not recorded" : FormatMoney(item.LatestLpp.Amount))</span>
+                                <span><b>LPP</b> @(item.LatestLpp is null ? "Not recorded" : FormatMoney(item.LatestLpp.Amount))</span>
                                 <span class="cpw-open-label">Open record <b>→</b></span>
                             </div>
                         </article>
