@@ -325,25 +325,6 @@
   display: none;
 }
 
-/* The lifecycle continues from phase 3 to phase 4 on the next row. */
-.process-phase-card[data-phase-index="3"]::before {
-  content: "Continue to Contracting";
-  position: absolute;
-  right: .8rem;
-  bottom: -.8rem;
-  z-index: 2;
-  padding: .16rem .45rem;
-  border-radius: 999px;
-  background: var(--proc-bg);
-  color: #7b889d;
-  font-size: .58rem;
-  font-weight: 750;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
 .process-phase-card__header {
   display: flex;
   align-items: center;

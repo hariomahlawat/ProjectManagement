@@ -13,7 +13,9 @@ if (root) {
     currentChecklist: null,
     checklistRequest: null,
     sortable: null,
-    searchTerm: ''
+    searchTerm: '',
+    authenticationRecoveryStarted: false,
+    checklistRequestCode: null
   };
 
   const PHASES = [
@@ -78,17 +80,43 @@ if (root) {
   }
 
   async function sendJson(url, { method = 'GET', body } = {}) {
-    const headers = { Accept: 'application/json' };
+    const headers = {
+      Accept: 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
+    };
     let payload;
     if (body !== undefined) {
       headers['Content-Type'] = 'application/json';
       payload = JSON.stringify(body);
     }
-    const response = await fetch(url, { method, headers, body: payload, credentials: 'same-origin' });
+
+    const response = await fetch(url, {
+      method,
+      headers,
+      body: payload,
+      credentials: 'same-origin',
+      cache: 'no-store'
+    });
+
+    const redirectedToLogin = response.redirected && /\/Account\/Login/i.test(response.url);
+    if (response.status === 401 || redirectedToLogin) {
+      recoverAuthentication();
+      const error = new HttpError(response, { message: 'Your sign-in session has expired.' });
+      error.authenticationHandled = true;
+      throw error;
+    }
+
     const type = response.headers.get('content-type') || '';
     const data = type.includes('application/json') ? await response.json().catch(() => null) : null;
     if (!response.ok) throw new HttpError(response, data);
     return data;
+  }
+
+  function recoverAuthentication() {
+    if (state.authenticationRecoveryStarted) return;
+    state.authenticationRecoveryStarted = true;
+    showToast('Your sign-in session has expired. Reconnecting…', 'warning', 1800);
+    window.setTimeout(() => window.location.reload(), 900);
   }
 
   function flowUrl() {
@@ -360,8 +388,11 @@ if (root) {
   }
 
   async function loadChecklist(code, { force = false } = {}) {
+    if (!force && state.checklistRequestCode === code) return;
+
     const token = Symbol(code);
     state.checklistRequest = token;
+    state.checklistRequestCode = code;
     state.currentChecklist = null;
     renderChecklist(null, { loading: true });
 
@@ -380,8 +411,14 @@ if (root) {
       renderChecklist(checklist);
     } catch (error) {
       if (state.checklistRequest !== token) return;
+      if (error?.authenticationHandled) {
+        renderChecklist(null, { error: 'Reconnecting to your session…' });
+        return;
+      }
       renderChecklist(null, { error: 'Unable to load the checklist for this stage.' });
       handleError(error, 'Unable to load checklist.');
+    } finally {
+      if (state.checklistRequest === token) state.checklistRequestCode = null;
     }
   }
 
@@ -629,7 +666,7 @@ if (root) {
     return String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
   }
 
-  function showToast(message, variant = 'primary') {
+  function showToast(message, variant = 'primary', delay = 4500) {
     let container = document.getElementById('processToastContainer');
     if (!container) {
       container = document.createElement('div');
@@ -643,13 +680,17 @@ if (root) {
     element.innerHTML = `<div class="d-flex"><div class="toast-body"></div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>`;
     element.querySelector('.toast-body').textContent = message;
     container.appendChild(element);
-    const toast = bootstrap.Toast.getOrCreateInstance(element, { delay: 4500 });
+    const toast = bootstrap.Toast.getOrCreateInstance(element, { delay });
     element.addEventListener('hidden.bs.toast', () => element.remove());
     toast.show();
   }
 
   function handleError(error, fallback) {
     console.error(error);
+    if (error?.authenticationHandled || error?.status === 401) {
+      recoverAuthentication();
+      return;
+    }
     if (error?.status === 409) showToast('This checklist changed in another session. Reloading the latest version.', 'warning');
     else if (error?.status === 403) showToast('You are not authorised to change this checklist.', 'danger');
     else showToast(error?.message || fallback, 'danger');
