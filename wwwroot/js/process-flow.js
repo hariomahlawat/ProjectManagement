@@ -310,10 +310,14 @@ if (root) {
     });
     toggleEditActions(state.canEdit);
 
-    const prevButton = root.querySelector('[data-action="previous-stage"]');
-    const nextButton = root.querySelector('[data-action="next-stage"]');
-    if (prevButton) prevButton.disabled = stage.displayIndex === 1;
-    if (nextButton) nextButton.disabled = stage.displayIndex === state.flow.nodes.length;
+    document.querySelectorAll('[data-action="previous-stage"]').forEach((button) => {
+      button.disabled = stage.displayIndex === 1;
+      button.setAttribute('aria-disabled', button.disabled ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-action="next-stage"]').forEach((button) => {
+      button.disabled = stage.displayIndex === state.flow.nodes.length;
+      button.setAttribute('aria-disabled', button.disabled ? 'true' : 'false');
+    });
   }
 
   function stageName(code) {
@@ -346,6 +350,10 @@ if (root) {
     stageJump.value = stage.code;
     showInspector(stage);
     applySelection();
+    const selectedButton = root.querySelector(`[data-stage-code="${CSS.escape(stage.code)}"]`);
+    if (selectedButton && !isElementMostlyVisible(selectedButton)) {
+      selectedButton.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+    }
     await loadChecklist(stage.code);
     if (updateHash) history.replaceState(null, '', `#stage-${stage.code.toLowerCase()}`);
     if (openMobile && window.innerWidth < 1200) offcanvas?.show();
@@ -378,6 +386,11 @@ if (root) {
   }
 
   function renderChecklist(checklist, options = {}) {
+    const checklistCount = checklist?.items?.length || 0;
+    document.querySelectorAll('[data-checklist-count]').forEach((element) => {
+      element.textContent = String(checklistCount);
+      element.setAttribute('aria-label', `${checklistCount} checklist item${checklistCount === 1 ? '' : 's'}`);
+    });
     checklistLists.forEach((list) => {
       list.innerHTML = '';
       list.setAttribute('aria-busy', String(options.loading === true));
@@ -585,6 +598,12 @@ if (root) {
 
   function scrollToPhase(id) {
     document.getElementById(`process-phase-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function isElementMostlyVisible(element) {
+    const rect = element.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    return rect.top >= 120 && rect.bottom <= viewportHeight - 40;
   }
 
   function showOverview() {

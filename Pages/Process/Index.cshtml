@@ -33,7 +33,7 @@
     <section class="process-commandbar" aria-label="Process navigation controls">
         <div class="process-search-wrap">
             <i class="bi bi-search" aria-hidden="true"></i>
-            <input type="search" class="form-control" placeholder="Search stages or checklist items…" data-stage-search aria-label="Search stages and checklists" />
+            <input type="search" class="form-control" placeholder="Search stages…" data-stage-search aria-label="Search procurement stages" />
             <button type="button" class="btn process-search-clear" data-search-clear aria-label="Clear search" hidden>
                 <i class="bi bi-x-lg" aria-hidden="true"></i>
             </button>
@@ -45,11 +45,11 @@
             </select>
         </div>
         <div class="process-command-actions">
-            <button type="button" class="btn btn-outline-secondary process-action" data-action="show-overview">
+            <button type="button" class="btn btn-outline-secondary process-action" data-action="show-overview" title="Clear the current stage selection and show the full process">
                 <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
                 <span>Process overview</span>
             </button>
-            <button type="button" class="btn btn-outline-secondary process-action" data-action="toggle-fullscreen">
+            <button type="button" class="btn btn-outline-secondary process-action" data-action="toggle-fullscreen" title="Open the process workspace in full screen">
                 <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
                 <span>Full screen</span>
             </button>
@@ -93,11 +93,11 @@
 
             <div class="stage-inspector__content" data-stage-content hidden>
                 <div class="stage-inspector__topbar">
-                    <button type="button" class="btn btn-sm btn-light" data-action="previous-stage" aria-label="Previous stage">
+                    <button type="button" class="btn btn-sm btn-light" data-action="previous-stage" aria-label="Previous stage" title="Previous stage">
                         <i class="bi bi-arrow-left" aria-hidden="true"></i>
                     </button>
                     <span data-stage-position>Stage</span>
-                    <button type="button" class="btn btn-sm btn-light" data-action="next-stage" aria-label="Next stage">
+                    <button type="button" class="btn btn-sm btn-light" data-action="next-stage" aria-label="Next stage" title="Next stage">
                         <i class="bi bi-arrow-right" aria-hidden="true"></i>
                     </button>
                 </div>
@@ -113,20 +113,20 @@
                 </div>
 
                 <div class="stage-relations">
-                    <div>
+                    <button type="button" class="stage-relation-link" data-action="previous-stage" title="Open previous stage">
                         <span>Previous</span>
                         <strong data-stage-previous>—</strong>
-                    </div>
+                    </button>
                     <i class="bi bi-arrow-right" aria-hidden="true"></i>
-                    <div>
+                    <button type="button" class="stage-relation-link" data-action="next-stage" title="Open next stage">
                         <span>Next</span>
                         <strong data-stage-next>—</strong>
-                    </div>
+                    </button>
                 </div>
 
                 <div class="stage-checklist-header">
                     <div>
-                        <h3>Processing checklist</h3>
+                        <div class="stage-checklist-title-row"><h3>Processing checklist</h3><span class="stage-checklist-count" data-checklist-count>0</span></div>
                         <p>Reference checks for this stage</p>
                     </div>
                     <button type="button" class="btn btn-outline-primary btn-sm stage-add-button" data-action="add-item" data-checklist-actions hidden>
@@ -163,12 +163,12 @@
         </div>
         <p class="stage-purpose stage-purpose--mobile" data-stage-purpose></p>
         <div class="stage-relations stage-relations--mobile">
-            <div><span>Previous</span><strong data-stage-previous>—</strong></div>
+            <button type="button" class="stage-relation-link" data-action="previous-stage" title="Open previous stage"><span>Previous</span><strong data-stage-previous>—</strong></button>
             <i class="bi bi-arrow-right" aria-hidden="true"></i>
-            <div><span>Next</span><strong data-stage-next>—</strong></div>
+            <button type="button" class="stage-relation-link" data-action="next-stage" title="Open next stage"><span>Next</span><strong data-stage-next>—</strong></button>
         </div>
         <div class="stage-checklist-header mt-4">
-            <div><h3>Processing checklist</h3><p>Reference checks for this stage</p></div>
+            <div><div class="stage-checklist-title-row"><h3>Processing checklist</h3><span class="stage-checklist-count" data-checklist-count>0</span></div><p>Reference checks for this stage</p></div>
             <button type="button" class="btn btn-outline-primary btn-sm stage-add-button" data-action="add-item" data-checklist-actions hidden>
                 <i class="bi bi-plus-lg" aria-hidden="true"></i>
                 Add item

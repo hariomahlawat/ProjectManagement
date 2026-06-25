@@ -204,10 +204,11 @@
 }
 
 .legend-dot {
-  width: .55rem;
-  height: .55rem;
+  width: .58rem;
+  height: .58rem;
   border-radius: 50%;
-  background: #c9d3e2;
+  background: #9eabc0;
+  box-shadow: inset 0 0 0 1px rgba(47, 67, 99, .08);
 }
 
 .legend-dot--optional {
@@ -266,7 +267,7 @@
 }
 
 .process-map {
-  min-height: 590px;
+  min-height: 540px;
   padding: 1rem;
   background:
     radial-gradient(circle at top right, rgba(53, 109, 255, .055), transparent 34%),
@@ -287,8 +288,10 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-areas:
     "p1 p2 p3"
-    "p6 p5 p4";
+    "p4 p5 p6";
   gap: .9rem;
+  align-items: start;
+  position: relative;
 }
 
 .process-phase-card {
@@ -314,6 +317,7 @@
   right: -.95rem;
   width: .9rem;
   border-top: 2px solid #b7c4d8;
+  pointer-events: none;
 }
 
 .process-phase-card[data-phase-index="3"]::after,
@@ -321,10 +325,23 @@
   display: none;
 }
 
-.process-phase-card[data-phase-index="4"]::after,
-.process-phase-card[data-phase-index="5"]::after {
-  right: auto;
-  left: -.95rem;
+/* The lifecycle continues from phase 3 to phase 4 on the next row. */
+.process-phase-card[data-phase-index="3"]::before {
+  content: "Continue to Contracting";
+  position: absolute;
+  right: .8rem;
+  bottom: -.8rem;
+  z-index: 2;
+  padding: .16rem .45rem;
+  border-radius: 999px;
+  background: var(--proc-bg);
+  color: #7b889d;
+  font-size: .58rem;
+  font-weight: 750;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .process-phase-card__header {
@@ -403,7 +420,7 @@
 .process-branch::before {
   content: "Parallel activities";
   position: absolute;
-  top: -.35rem;
+  top: -.48rem;
   left: 50%;
   transform: translate(-50%, -100%);
   color: #8793a7;
@@ -420,7 +437,7 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: .62rem;
   align-items: center;
-  padding: .62rem .68rem;
+  padding: .62rem .78rem;
   border: 1px solid #d9e2ef;
   border-radius: .75rem;
   background: #fff;
@@ -516,14 +533,14 @@
 .stage-inspector {
   position: sticky;
   top: calc(var(--app-header-offset, 8.5rem) + .75rem);
-  min-height: 590px;
+  min-height: 540px;
   max-height: calc(100vh - var(--app-header-offset, 8.5rem) - 1.5rem);
   flex-direction: column;
   overflow: hidden;
 }
 
 .stage-inspector__empty {
-  min-height: 590px;
+  min-height: 540px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -648,6 +665,36 @@
   min-width: 0;
 }
 
+.stage-relation-link {
+  width: 100%;
+  min-width: 0;
+  padding: .15rem .2rem;
+  border: 0;
+  border-radius: .5rem;
+  background: transparent;
+  text-align: left;
+  transition: background .15s ease, color .15s ease;
+}
+
+.stage-relation-link:last-child {
+  text-align: left;
+}
+
+.stage-relation-link:hover:not(:disabled),
+.stage-relation-link:focus-visible:not(:disabled) {
+  background: #edf3ff;
+}
+
+.stage-relation-link:focus-visible {
+  outline: 2px solid rgba(53, 109, 255, .24);
+  outline-offset: 1px;
+}
+
+.stage-relation-link:disabled {
+  cursor: default;
+  opacity: .72;
+}
+
 .stage-relations span {
   display: block;
   color: #8592a6;
@@ -677,6 +724,27 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 1rem 1rem .65rem;
+}
+
+
+.stage-checklist-title-row {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+}
+
+.stage-checklist-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.45rem;
+  height: 1.35rem;
+  padding: 0 .38rem;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #596a83;
+  font-size: .62rem;
+  font-weight: 800;
 }
 
 .stage-checklist-header h3 {
@@ -1137,6 +1205,27 @@
   padding: .78rem .9rem .45rem;
 }
 
+
+.stage-checklist-title-row {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+}
+
+.stage-checklist-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.45rem;
+  height: 1.35rem;
+  padding: 0 .38rem;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #596a83;
+  font-size: .62rem;
+  font-weight: 800;
+}
+
 .stage-checklist-header h3 {
   font-size: .86rem;
 }
@@ -1196,4 +1285,8 @@
   .process-header__copy p { font-size: .82rem; }
   .process-version { display: none; }
   .process-commandbar { padding: .5rem; }
+}
+
+@media (max-width: 1199.98px) {
+  .process-phase-card[data-phase-index="3"]::before { display: none; }
 }
