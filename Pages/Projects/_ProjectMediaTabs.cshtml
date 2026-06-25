@@ -36,15 +36,15 @@
     var canManageVideos = Model.CanManageVideos;
 }
 
-<div class="card pm-card">
+<div class="card pm-card project-files-card">
     <div class="card-header pm-card-header">
         <div class="pm-card-heading">
             <span class="pm-card-icon" aria-hidden="true">
                 <i class="bi bi-collection"></i>
             </span>
             <div>
-                <h3 class="pm-card-title h5 mb-0">Project media</h3>
-                <p class="pm-card-subtitle mb-0">Documents, photos, and more without leaving this page.</p>
+                <h3 class="pm-card-title h5 mb-0">Project files</h3>
+                <p class="pm-card-subtitle mb-0">Documents, photographs and videos associated with this project.</p>
             </div>
         </div>
         <div class="pm-card-actions align-items-center gap-2">
@@ -72,7 +72,7 @@
         </div>
     </div>
     <div class="card-body pm-card-body">
-        <ul class="nav nav-tabs card-tabs" role="tablist">
+        <ul class="nav nav-pills project-files-tabs" role="tablist">
             @for (var index = 0; index < media.Tabs.Count; index++)
             {
                 var tab = media.Tabs[index];
@@ -165,7 +165,7 @@
                         </div>
                         @if (!docList.HasItems)
                         {
-                            <div class="border rounded p-4 text-center text-muted bg-light-subtle">
+                            <div class="project-files-empty">
                                 <p class="mb-2">
                                     @(selectedTot.HasValue && !string.IsNullOrWhiteSpace(selectedTotLabel)
                                         ? $"No {selectedTotLabel} documents are available yet."
@@ -527,7 +527,7 @@
                     {
                         if (videosTab.Items.Count == 0)
                         {
-                            <div class="border rounded p-4 text-center text-muted bg-light-subtle">
+                            <div class="project-files-empty">
                                 <p class="mb-2">No videos are available yet for this project.</p>
                                 @if (canManageVideos)
                                 {

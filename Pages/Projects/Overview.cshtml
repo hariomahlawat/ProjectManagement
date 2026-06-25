@@ -25,6 +25,28 @@
     var completedStages = Model.Timeline.CompletedCount;
     var totalStages = Model.Timeline.TotalStages;
     var progressMax = totalStages == 0 ? 1 : totalStages;
+    var orderedTimelineItems = Model.Timeline.Items.OrderBy(i => i.SortOrder).ToList();
+    var currentStage = orderedTimelineItems.FirstOrDefault(i => i.Status == StageStatus.InProgress)
+        ?? orderedTimelineItems.FirstOrDefault(i => i.Status != StageStatus.Completed && i.Status != StageStatus.Skipped)
+        ?? orderedTimelineItems.LastOrDefault();
+    var nextStage = currentStage is null
+        ? null
+        : orderedTimelineItems.FirstOrDefault(i => i.SortOrder > currentStage.SortOrder && i.Status != StageStatus.Skipped);
+    var delayedStageCount = orderedTimelineItems.Count(i => i.IsOverdue || (i.StartVarianceDays ?? 0) > 0 || (i.FinishVarianceDays ?? 0) > 0);
+    var completenessFields = new[]
+    {
+        !string.IsNullOrWhiteSpace(project?.Name),
+        project?.CategoryId is not null,
+        project?.TechnicalCategoryId is not null,
+        project?.HodUserId is not null,
+        project?.LeadPoUserId is not null,
+        project?.SponsoringUnitId is not null,
+        project?.SponsoringLineDirectorateId is not null,
+        !string.IsNullOrWhiteSpace(project?.Description)
+    };
+    var completenessPercent = completenessFields.Length == 0
+        ? 0
+        : (int)Math.Round(completenessFields.Count(v => v) * 100d / completenessFields.Length);
     ViewData["Title"] = pageTitle;
     var remarksConfigJson = JsonSerializer.Serialize(Model.RemarksPanel, new JsonSerializerOptions(JsonSerializerDefaults.Web));
 }
@@ -47,7 +69,7 @@
 
 }
 
-<div class="container-xxl">
+<div class="container-xxl project-portfolio">
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a asp-page="/Projects/Index">Projects</a></li>
@@ -55,62 +77,87 @@
         </ol>
     </nav>
 
-    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3 gap-3">
-        <div class="d-flex align-items-start gap-2">
-            <div>
-                <h1 class="h3 mb-1">
-                    @pageTitle
+    <section class="project-command-header" aria-labelledby="project-title">
+        <div class="project-command-header__main">
+            <div class="project-command-header__identity">
+                <div class="project-command-header__eyebrow">Project portfolio</div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <h1 id="project-title" class="project-command-header__title">@pageTitle</h1>
                     @if (!string.IsNullOrWhiteSpace(project?.CaseFileNumber))
                     {
-                        <small class="text-muted">(@project?.CaseFileNumber)</small>
+                        <span class="project-command-header__case">@project.CaseFileNumber</span>
                     }
-                </h1>
-                <div class="text-muted">Created on @(project is { } p ? p.CreatedAt.ToString("dd MMM yyyy") : "—")</div>
-            </div>
-            @if (Model.LifecycleActions.CanManageLifecycle)
-            {
-                <div class="dropdown">
-                    <button class="btn btn-outline-secondary btn-sm" type="button" id="project-actions-menu" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-three-dots"></i>
-                        <span class="visually-hidden">Project actions</span>
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="project-actions-menu">
-                        <li>
-                            <button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectLifecycleActionsModal">
-                                Manage lifecycle
-                            </button>
-                        </li>
-                        @if (isAdmin || isHoD)
-                        {
-                            <li><hr class="dropdown-divider" /></li>
-                            @if (project?.IsArchived == true)
-                            {
-                                <li>
-                                    <button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectRestoreArchiveModal">
-                                        Restore from archive
-                                    </button>
-                                </li>
-                            }
-                            else
-                            {
-                                <li>
-                                    <button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectArchiveModal">
-                                        Archive project
-                                    </button>
-                                </li>
-                            }
-                            <li>
-                                <button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#projectTrashModal">
-                                    Move to Trash
-                                </button>
-                            </li>
-                        }
-                    </ul>
+                    @if (Model.LifecycleSummary.Status != ProjectLifecycleStatus.Active)
+                    {
+                        <span class="badge rounded-pill text-bg-secondary">@Model.LifecycleSummary.Status</span>
+                    }
                 </div>
-            }
+                <div class="project-command-header__meta">
+                    <span><i class="bi bi-diagram-3" aria-hidden="true"></i> Workflow @project?.WorkflowVersion</span>
+                    <span><i class="bi bi-calendar3" aria-hidden="true"></i> Created @(project is { } p ? p.CreatedAt.ToString("dd MMM yyyy") : "—")</span>
+                    <span><i class="bi bi-person-badge" aria-hidden="true"></i> PO @DisplayUser(project?.LeadPoUser)</span>
+                    <span><i class="bi bi-person-check" aria-hidden="true"></i> HoD @DisplayUser(project?.HodUser)</span>
+                </div>
+            </div>
+            <div class="project-command-header__actions">
+                @if (Model.RemarksPanel.ShowComposer)
+                {
+                    <button type="button" class="btn btn-primary" data-project-quick-action="remark">
+                        <i class="bi bi-chat-left-text" aria-hidden="true"></i>
+                        Add remark
+                    </button>
+                }
+                <partial name="_AssignRolesOffcanvas" model="Model.AssignRoles" />
+                @if (Model.LifecycleActions.CanManageLifecycle)
+                {
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary" type="button" id="project-actions-menu" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-three-dots" aria-hidden="true"></i>
+                            <span class="visually-hidden">Project actions</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="project-actions-menu">
+                            <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectLifecycleActionsModal">Manage lifecycle</button></li>
+                            @if (isAdmin || isHoD)
+                            {
+                                <li><hr class="dropdown-divider" /></li>
+                                @if (project?.IsArchived == true)
+                                {
+                                    <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectRestoreArchiveModal">Restore from archive</button></li>
+                                }
+                                else
+                                {
+                                    <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectArchiveModal">Archive project</button></li>
+                                }
+                                <li><button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#projectTrashModal">Move to Trash</button></li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </div>
         </div>
-        <partial name="_AssignRolesOffcanvas" model="Model.AssignRoles" />
-    </div>
+        <div class="project-intelligence-strip" aria-label="Project status summary">
+            <button class="project-intelligence-card" type="button" data-scroll-target="#timeline">
+                <span class="project-intelligence-card__label">Current stage</span>
+                <strong>@(currentStage?.Name ?? "Not started")</strong>
+                <span>@(currentStage?.Code ?? "—")</span>
+            </button>
+            <div class="project-intelligence-card">
+                <span class="project-intelligence-card__label">Lifecycle progress</span>
+                <strong>@completedStages of @totalStages</strong>
+                <span>@(totalStages == 0 ? 0 : (int)Math.Round(completedStages * 100d / totalStages))% complete</span>
+            </div>
+            <button class="project-intelligence-card" type="button" data-scroll-target="#timeline">
+                <span class="project-intelligence-card__label">Next stage</span>
+                <strong>@(nextStage?.Name ?? "—")</strong>
+                <span>@(delayedStageCount > 0 ? $"{delayedStageCount} stage(s) need attention" : "On track")</span>
+            </button>
+            <div class="project-intelligence-card">
+                <span class="project-intelligence-card__label">Profile completeness</span>
+                <strong>@completenessPercent%</strong>
+                <span>@(completenessPercent == 100 ? "Core profile complete" : "Review missing project facts")</span>
+            </div>
+        </div>
+    </section>
 
     @if (string.Equals(Request.Query["oc"], "procurement", StringComparison.Ordinal))
     {
@@ -227,8 +274,8 @@
         </div>
     }
 
-    <div class="row g-3 mb-4">
-        <div class="col-lg-8 d-flex flex-column gap-3">
+    <div class="row g-4 mb-4 project-portfolio-layout">
+        <div class="col-xl-7 d-flex flex-column gap-3 project-portfolio-main">
             @if (Model.LifecycleSummary.Status != ProjectLifecycleStatus.Active || Model.LifecycleSummary.IsLegacy)
             {
                 <!-- SECTION: Lifecycle summary banner -->
@@ -237,74 +284,49 @@
 
             <partial name="_ProjectOverviewCard" model="Model" />
             <partial name="_ProjectProcurementAtAGlance" model="Model.Procurement" />
-            <div class="card pm-card">
-                @{
-                    var stageTotal = Model.Stages.Count;
-                    var stageCompleted = Model.Stages.Count(s => s.Status == StageStatus.Completed);
-                    var stageBlocked = Model.Stages.Count(s => s.Status == StageStatus.Blocked);
-                    var stageProgressPercent = stageTotal == 0
-                        ? 0
-                        : (int)Math.Round((decimal)stageCompleted / stageTotal * 100, MidpointRounding.AwayFromZero);
-                }
+            <section class="card pm-card project-lifecycle-summary" aria-labelledby="lifecycle-summary-title">
                 <div class="card-header pm-card-header">
                     <div class="pm-card-heading">
-                        <span class="pm-card-icon" aria-hidden="true">
-                            <i class="bi bi-list-check"></i>
-                        </span>
+                        <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-signpost-split"></i></span>
                         <div>
-                            <h3 class="pm-card-title h5 mb-0">Stage progress</h3>
-                            <p class="pm-card-subtitle mb-0">Current status.</p>
+                            <h3 id="lifecycle-summary-title" class="pm-card-title h5 mb-0">Lifecycle position</h3>
+                            <p class="pm-card-subtitle mb-0">Current state and next operational action.</p>
                         </div>
                     </div>
-                    @if (stageTotal > 0)
-                    {
-                        <div class="pm-card-meta">
-                            <div class="pm-card-progress" aria-hidden="true">
-                                <span class="pm-card-progress-bar" data-stage-progress="@stageProgressPercent"></span>
-                            </div>
-                            <span class="text-muted small">@stageCompleted of @stageTotal completed</span>
-                            @if (stageBlocked > 0)
-                            {
-                                <span class="badge bg-warning-subtle text-warning-emphasis small">@stageBlocked blocked</span>
-                            }
-                        </div>
-                    }
+                    <button class="btn btn-sm btn-outline-primary" type="button" data-scroll-target="#timeline">Open timeline</button>
                 </div>
                 <div class="card-body pm-card-body">
-                    @if (!Model.Stages.Any())
-                    {
-                        <p class="mb-0 text-muted">No stage updates recorded yet.</p>
-                    }
-                    else
-                    {
-                        <div class="table-responsive">
-                            <table class="table align-middle mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Stage</th>
-                                        <th>Status</th>
-                                        <th>Completed On</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var stage in Model.Stages)
-                                    {
-                                        <tr>
-                                            <td>@stage.StageCode</td>
-                                            <td>@stage.Status</td>
-                                            <td>@(stage.CompletedOn?.ToString("dd MMM yyyy") ?? "—")</td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
+                    <div class="project-lifecycle-summary__grid">
+                        <div>
+                            <span class="project-lifecycle-summary__label">Current</span>
+                            <strong>@(currentStage?.Name ?? "Not started")</strong>
+                            <span>@(currentStage is null ? "No active stage" : StageStatusLabel(currentStage.Status))</span>
                         </div>
-                    }
+                        <div>
+                            <span class="project-lifecycle-summary__label">Next</span>
+                            <strong>@(nextStage?.Name ?? "—")</strong>
+                            <span>@(nextStage?.Code ?? "No subsequent stage")</span>
+                        </div>
+                        <div>
+                            <span class="project-lifecycle-summary__label">Progress</span>
+                            <strong>@completedStages / @totalStages</strong>
+                            <span>@(delayedStageCount == 0 ? "No recorded delay" : $"{delayedStageCount} delayed stage(s)")</span>
+                        </div>
+                        <div>
+                            <span class="project-lifecycle-summary__label">Plan</span>
+                            <strong>@(project?.PlanApprovedAt.HasValue == true ? "Approved" : Model.Timeline.PlanPendingApproval ? "Pending" : "Not approved")</strong>
+                            <span>@(Model.HasBackfill ? "Backfill required" : "Stage records aligned")</span>
+                        </div>
+                    </div>
+                    <div class="project-lifecycle-summary__progress" role="progressbar" aria-valuenow="@completedStages" aria-valuemin="0" aria-valuemax="@progressMax">
+                        <span style="--project-progress:@(totalStages == 0 ? 0 : (int)Math.Round(completedStages * 100d / totalStages))%"></span>
+                    </div>
                 </div>
-            </div>
+            </section>
             <span id="media" class="page-anchor"></span>
             <partial name="_ProjectMediaTabs" model="Model" />
         </div>
-        <div class="col-lg-4 d-flex flex-column gap-3">
+        <aside class="col-xl-5 d-flex flex-column gap-3 project-portfolio-rail">
             <partial name="_ProjectTotPanel" model="Model" />
             <partial name="_ProjectJdpPanel" model="Model" />
             @if (Model.IsDocumentApprover && Model.DocumentPendingRequests.Any())
@@ -628,7 +650,7 @@
                     </div>
                 }
             }
-            <div class="card pm-card" data-panel-project-id="@Model.Project!.Id">
+            <div class="card pm-card project-lifecycle-panel" data-panel-project-id="@Model.Project!.Id">
                 <div class="card-header pm-card-header flex-column gap-3">
                     <div class="d-flex flex-column gap-2">
                         <div class="d-flex flex-column flex-lg-row align-items-start gap-3 justify-content-lg-between">
@@ -921,7 +943,7 @@
                     </div>
                 </div>
             </div>
-        </div>
+        </aside>
     </div>
     }
 
@@ -981,11 +1003,16 @@
 
 <partial name="_PlanDiscardDraftModal" model="Model.Project.Id" />
 
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/project-portfolio.css" asp-append-version="true" />
+}
+
 @section Scripts {
     <script type="module" src="~/js/gallery-lightbox.js" asp-append-version="true"></script>
     <script type="module" src="~/js/pages/projects/media-tabs.js" asp-append-version="true"></script>
     <script src="~/js/projects/remarks-panel.js" asp-append-version="true"></script>
     <script src="~/js/projects/overview.js" asp-append-version="true"></script>
+    <script src="~/js/pages/project-portfolio.js" asp-append-version="true"></script>
     <script src="~/js/projects/actuals-edit.js" asp-append-version="true"></script>
     <script src="~/js/projects/plan-edit.js" asp-append-version="true"></script>
     <script src="~/js/projects/stages.js" asp-append-version="true"></script>

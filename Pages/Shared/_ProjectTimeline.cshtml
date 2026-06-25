@@ -71,8 +71,8 @@
         StageStatus.InProgress => "pm-item is-active",
         _                      => "pm-item"
       };
-      <div class="@itemClass" data-stage-row="@s.Code" data-requires-backfill="@(s.RequiresBackfill ? "true" : "false")">
-        <div class="pm-item-card">
+      <div class="@itemClass" data-stage-row="@s.Code" data-timeline-stage data-stage-status-value="@s.Status" data-requires-backfill="@(s.RequiresBackfill ? "true" : "false")">
+        <div class="pm-item-card" data-timeline-stage-card>
           <div class="pm-item-header">
             <div class="pm-item-heading">
               <span class="@StatusPillClass(s.Status)"
@@ -106,6 +106,10 @@
                     data-stage-name>
                 @s.Name
               </span>
+              @if (s.Status == StageStatus.Completed)
+              {
+                <span class="pm-item-expand-hint" aria-hidden="true"><i class="bi bi-chevron-down"></i></span>
+              }
             </div>
             <div class="pm-item-actions">
               <div class="dropdown">

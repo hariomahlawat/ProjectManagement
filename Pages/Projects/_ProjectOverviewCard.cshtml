@@ -29,7 +29,7 @@
         : null;
 }
 
-<div class="card pm-card">
+<div class="card pm-card project-profile-card">
     <div class="card-header pm-card-header">
         <div class="pm-card-heading">
             <span class="pm-card-icon" aria-hidden="true">
@@ -83,8 +83,8 @@
         }
     </div>
     <div class="card-body pm-card-body">
-        <div class="row g-4 align-items-start">
-            <div class="col-12 col-lg-5 col-xl-4">
+        <div class="row g-3 align-items-start project-profile-card__layout">
+            <div class="col-12 col-md-4">
                 <div class="project-photo-cover">
                     @* SECTION: Cover photo frame without aspect-ratio lock. *@
                     <div class="project-photo-cover-frame w-100">
@@ -147,49 +147,49 @@
                     }
                 </div>
             </div>
-            <div class="col-12 col-lg-7 col-xl-8">
+            <div class="col-12 col-md-8">
                 @* SECTION: Project categories *@
-                <dl class="row mb-0">
-                    <dt class="col-sm-4">Category</dt>
-                    <dd class="col-sm-8">
+                <dl class="project-facts mb-0">
+                    <dt class="project-facts__label">Category</dt>
+                    <dd class="project-facts__value">
                         @(Model.CategoryPath.Any()
                             ? string.Join(" › ", Model.CategoryPath.Select(c => c.Name))
                             : "—")
                     </dd>
-                    <dt class="col-sm-4">Technical Category</dt>
-                    <dd class="col-sm-8">
+                    <dt class="project-facts__label">Technical Category</dt>
+                    <dd class="project-facts__value">
                         @(Model.TechnicalCategoryPath.Any()
                             ? string.Join(" › ", Model.TechnicalCategoryPath.Select(c => c.Name))
                             : "—")
                     </dd>
                     @* SECTION: Project type and build flag *@
-                    <dt class="col-sm-4">Project type</dt>
-                    <dd class="col-sm-8">@(Model.Project?.ProjectType?.Name ?? "—")</dd>
+                    <dt class="project-facts__label">Project type</dt>
+                    <dd class="project-facts__value">@(Model.Project?.ProjectType?.Name ?? "—")</dd>
 
-                    <dt class="col-sm-4">Build (repeat / re-manufacture)</dt>
-                    <dd class="col-sm-8">@((Model.Project?.IsBuild ?? false) ? "Yes" : "No")</dd>
+                    <dt class="project-facts__label">Repeat build</dt>
+                    <dd class="project-facts__value">@((Model.Project?.IsBuild ?? false) ? "Yes" : "No")</dd>
 
-                    <dt class="col-sm-4">Sponsoring Unit</dt>
-                    <dd class="col-sm-8">@(Model.Project?.SponsoringUnit?.Name ?? "—")</dd>
+                    <dt class="project-facts__label">Sponsoring Unit</dt>
+                    <dd class="project-facts__value">@(Model.Project?.SponsoringUnit?.Name ?? "—")</dd>
 
-                    <dt class="col-sm-4">Sponsoring Line Dte</dt>
-                    <dd class="col-sm-8">@(Model.Project?.SponsoringLineDirectorate?.Name ?? "—")</dd>
+                    <dt class="project-facts__label">Sponsoring line directorate</dt>
+                    <dd class="project-facts__value">@(Model.Project?.SponsoringLineDirectorate?.Name ?? "—")</dd>
 
-                    <dt class="col-sm-4">Head of Department</dt>
-                    <dd class="col-sm-8">@FormatUser(project?.HodUser)</dd>
+                    <dt class="project-facts__label">Head of Department</dt>
+                    <dd class="project-facts__value">@FormatUser(project?.HodUser)</dd>
 
-                    <dt class="col-sm-4">Project Officer</dt>
-                    <dd class="col-sm-8">@FormatUser(project?.LeadPoUser)</dd>
+                    <dt class="project-facts__label">Project Officer</dt>
+                    <dd class="project-facts__value">@FormatUser(project?.LeadPoUser)</dd>
 
                     @* SECTION: Cost summary *@
-                    <dt class="col-sm-4">Initial procurement/ R&amp;D cost</dt>
-                    <dd class="col-sm-8">@FormatCost(Model.CostSummary.RdCostLakhs)</dd>
+                    <dt class="project-facts__label">Initial procurement / R&amp;D cost</dt>
+                    <dd class="project-facts__value">@FormatCost(Model.CostSummary.RdCostLakhs)</dd>
 
-                    <dt class="col-sm-4">Approx Prod cost</dt>
-                    <dd class="col-sm-8">@FormatCost(Model.CostSummary.ApproxProductionCost)</dd>
+                    <dt class="project-facts__label">Approx. production cost</dt>
+                    <dd class="project-facts__value">@FormatCost(Model.CostSummary.ApproxProductionCost)</dd>
                 </dl>
             </div>
-            <div class="col-12">
+            <div class="col-12 project-description-block">
                 <h3 class="h6 mb-2">Project description</h3>
                 <div class="project-overview__description pm-markdown">
                     @if (!string.IsNullOrWhiteSpace(Model.DescriptionHtml))
