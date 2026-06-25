@@ -37,6 +37,7 @@
         "completed" => "Completed",
         "today" => "Today",
         "reminders" => "Reminders",
+        "shared" => "Shared with me",
         "labels" when !string.IsNullOrWhiteSpace(Model.Notebook.Tag) => selectedLabelName,
         "labels" => "Labels",
         "trash" => "Trash",
@@ -48,6 +49,7 @@
         "completed" => "Completed reminders and notebook items.",
         "today" => "Items due today.",
         "reminders" => "Upcoming reminders across your notebook.",
+        "shared" => "Notes and checklists shared with you by other PRISM users.",
         "labels" when !string.IsNullOrWhiteSpace(Model.Notebook.Tag) => $"Items labelled {selectedLabelName}.",
         "labels" => "Browse and organise notebook labels.",
         "trash" => "Items in Trash are permanently deleted after 30 days.",
@@ -65,7 +67,7 @@
     <aside class="notebook-rail" aria-label="Notebook views">
         <div class="notebook-rail__brand"><i class="bi bi-journal-bookmark"></i><span>My Notebook</span></div>
 
-        @foreach (var item in Model.Notebook.RailItems.Where(item => item.Key is "home" or "today" or "reminders"))
+        @foreach (var item in Model.Notebook.RailItems.Where(item => item.Key is "home" or "today" or "reminders" or "shared"))
         {
             <a class="notebook-rail__item @(item.IsActive ? "is-active" : "")" href="@item.Url"><i class="bi @item.Icon"></i><span>@item.Label</span><b data-notebook-count="@item.Key">@item.Count</b></a>
         }

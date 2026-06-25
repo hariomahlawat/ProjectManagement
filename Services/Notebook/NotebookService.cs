@@ -50,9 +50,20 @@ public sealed class NotebookService : INotebookService
             .Include(item => item.ChecklistItems)
             .Where(item => item.OwnerId == ownerId || item.Collaborators.Any(collaborator => collaborator.UserId == ownerId));
 
-        var scopedQuery = view == "shared"
-            ? accessibleQuery.Where(item => item.OwnerId != ownerId && item.Collaborators.Any(collaborator => collaborator.UserId == ownerId))
-            : accessibleQuery.Where(item => item.OwnerId == ownerId);
+        var ownedQuery = accessibleQuery.Where(item => item.OwnerId == ownerId);
+        var sharedQuery = accessibleQuery.Where(item =>
+            item.OwnerId != ownerId &&
+            item.Collaborators.Any(collaborator => collaborator.UserId == ownerId));
+
+        // Active shared notes participate in the main notebook experience, just as they do in
+        // Google Keep. Owner-only lifecycle views remain isolated so a collaborator cannot
+        // accidentally browse or operate on the owner's archive, completed items or trash.
+        var scopedQuery = view switch
+        {
+            "shared" => sharedQuery,
+            "home" or "today" or "reminders" => accessibleQuery,
+            _ => ownedQuery
+        };
 
         var baseQuery = view == "trash"
             ? scopedQuery.Where(item => item.DeletedAtUtc != null)
@@ -239,8 +250,13 @@ public sealed class NotebookService : INotebookService
     public async Task<IReadOnlyDictionary<string, int>> GetCountsAsync(string ownerId, CancellationToken ct = default)
     {
         var bounds = TodayBounds(_clock.UtcNow);
-        var query = _db.NotebookItems.AsNoTracking().Where(item => item.OwnerId == ownerId && item.DeletedAtUtc == null);
-        var active = query.Where(item => item.Status == NotebookItemStatus.Active);
+        var accessible = _db.NotebookItems
+            .AsNoTracking()
+            .Where(item =>
+                item.DeletedAtUtc == null &&
+                (item.OwnerId == ownerId || item.Collaborators.Any(collaborator => collaborator.UserId == ownerId)));
+        var owned = accessible.Where(item => item.OwnerId == ownerId);
+        var active = accessible.Where(item => item.Status == NotebookItemStatus.Active);
         return new Dictionary<string, int>
         {
             ["home"] = await active.CountAsync(ct),
@@ -248,8 +264,8 @@ public sealed class NotebookService : INotebookService
             ["reminders"] = await ReminderItems(active).CountAsync(ct),
             ["shared"] = await _db.NotebookItemCollaborators.AsNoTracking().CountAsync(collaborator => collaborator.UserId == ownerId && collaborator.NotebookItem.DeletedAtUtc == null && collaborator.NotebookItem.Status == NotebookItemStatus.Active, ct),
             ["labels"] = await _db.NotebookTags.AsNoTracking().CountAsync(tag => tag.OwnerId == ownerId, ct),
-            ["archive"] = await query.CountAsync(item => item.Status == NotebookItemStatus.Archived, ct),
-            ["completed"] = await query.CountAsync(item => item.Status == NotebookItemStatus.Completed, ct),
+            ["archive"] = await owned.CountAsync(item => item.Status == NotebookItemStatus.Archived, ct),
+            ["completed"] = await owned.CountAsync(item => item.Status == NotebookItemStatus.Completed, ct),
             ["trash"] = await _db.NotebookItems.AsNoTracking().CountAsync(item => item.OwnerId == ownerId && item.DeletedAtUtc != null, ct),
             ["pinned"] = await active.CountAsync(item => item.IsPinned, ct),
             ["others"] = await active.CountAsync(item => !item.IsPinned, ct)
@@ -1428,9 +1444,9 @@ public sealed class NotebookService : INotebookService
         var query = _db.NotebookItems
             .AsNoTracking()
             .Where(item =>
-                item.OwnerId == ownerId &&
                 item.DeletedAtUtc == null &&
-                item.Status == NotebookItemStatus.Active);
+                item.Status == NotebookItemStatus.Active &&
+                (item.OwnerId == ownerId || item.Collaborators.Any(collaborator => collaborator.UserId == ownerId)));
 
         return new NotebookSummaryVm
         {
@@ -1450,22 +1466,25 @@ public sealed class NotebookService : INotebookService
         (DateTimeOffset StartUtc, DateTimeOffset EndUtc) bounds,
         CancellationToken ct)
     {
-        var query = _db.NotebookItems
+        var accessibleQuery = _db.NotebookItems
             .AsNoTracking()
-            .Where(item => item.OwnerId == ownerId && item.DeletedAtUtc == null);
+            .Where(item =>
+                item.DeletedAtUtc == null &&
+                (item.OwnerId == ownerId || item.Collaborators.Any(collaborator => collaborator.UserId == ownerId)));
+        var ownedQuery = accessibleQuery.Where(item => item.OwnerId == ownerId);
 
         async Task<int> CountAsync(string view) => view switch
         {
-            "home" => await query.CountAsync(item => item.Status == NotebookItemStatus.Active, ct),
-            "today" => await query.CountAsync(item =>
+            "home" => await accessibleQuery.CountAsync(item => item.Status == NotebookItemStatus.Active, ct),
+            "today" => await accessibleQuery.CountAsync(item =>
                 item.Status == NotebookItemStatus.Active &&
                 item.ReminderAtUtc != null &&
                 item.ReminderAtUtc < bounds.EndUtc,
                 ct),
-            "reminders" => await ReminderItems(ActiveItems(query)).CountAsync(ct),
+            "reminders" => await ReminderItems(ActiveItems(accessibleQuery)).CountAsync(ct),
             "shared" => await _db.NotebookItemCollaborators.AsNoTracking().CountAsync(collaborator => collaborator.UserId == ownerId && collaborator.NotebookItem.DeletedAtUtc == null && collaborator.NotebookItem.Status == NotebookItemStatus.Active, ct),
-            "archive" or "archived" => await query.CountAsync(item => item.Status == NotebookItemStatus.Archived, ct),
-            "completed" => await query.CountAsync(item => item.Status == NotebookItemStatus.Completed, ct),
+            "archive" or "archived" => await ownedQuery.CountAsync(item => item.Status == NotebookItemStatus.Archived, ct),
+            "completed" => await ownedQuery.CountAsync(item => item.Status == NotebookItemStatus.Completed, ct),
             "trash" => await _db.NotebookItems.AsNoTracking().CountAsync(item => item.OwnerId == ownerId && item.DeletedAtUtc != null, ct),
             _ => 0
         };
