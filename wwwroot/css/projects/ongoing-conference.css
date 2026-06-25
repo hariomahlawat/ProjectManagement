@@ -248,26 +248,36 @@
 }
 
 /* Full lifecycle timeline */
-.briefing-timeline {
-    padding: .75rem 1rem .85rem;
-    border-top: 1px solid var(--oc-border);
-    background: #fff;
+.ongoing-timeline-view {
+    display: block;
 }
 
-.briefing-timeline__legend {
+.timeline-global-legend {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: .45rem 1rem;
-    margin-bottom: .55rem;
+    gap: .35rem 1rem;
+    margin: 0 0 .55rem .25rem;
     color: #6a778a;
     font-size: .68rem;
 }
 
-.briefing-timeline__legend > span {
+.timeline-global-legend > span {
     display: inline-flex;
     align-items: center;
     gap: .28rem;
+}
+
+.briefing-timeline {
+    padding: .55rem 1rem .65rem;
+    border-top: 1px solid var(--oc-border);
+    background: #fff;
+}
+
+.briefing-timeline__status {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: .38rem;
 }
 
 .briefing-dot {
@@ -299,7 +309,7 @@
     gap: 0;
     overflow-x: auto;
     overflow-y: hidden;
-    padding: .1rem .05rem .35rem;
+    padding: .05rem .05rem .28rem;
     scroll-behavior: smooth;
     scrollbar-width: thin;
     scrollbar-color: #b8c3d3 transparent;
@@ -441,31 +451,20 @@
 
 /* Discussion and higher-HQ status */
 .ongoing-remarks {
-    padding: .75rem 1rem .9rem;
+    padding: .55rem 1rem .65rem;
     background: #fbfcfe;
-}
-
-.ongoing-remarks__header {
-    margin-bottom: .45rem;
-}
-
-.ongoing-remarks__title {
-    color: #33445e;
-    font-size: .72rem;
-    font-weight: 800;
-    letter-spacing: .055em;
-    text-transform: uppercase;
 }
 
 .ongoing-remarks__summary {
     display: grid;
-    grid-template-columns: minmax(0, 1.45fr) minmax(290px, .8fr);
-    gap: .75rem;
+    grid-template-columns: minmax(0, 1.55fr) minmax(300px, .85fr);
+    align-items: start;
+    gap: .65rem;
 }
 
 .ongoing-remarks__column {
     min-width: 0;
-    padding: .65rem .72rem;
+    padding: .5rem .65rem .55rem;
     border: 1px solid var(--oc-border);
     border-radius: 10px;
     background: #fff;
@@ -480,8 +479,16 @@
     background: #fcfbff;
 }
 
+.ongoing-remarks__column-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .65rem;
+    margin-bottom: .3rem;
+}
+
 .ongoing-remarks__column-title {
-    margin: 0 0 .42rem;
+    margin: 0 0 .3rem;
     color: #6653a8;
     font-size: .7rem;
     font-weight: 800;
@@ -489,23 +496,37 @@
     text-transform: uppercase;
 }
 
+.ongoing-remarks__column-header .ongoing-remarks__column-title {
+    margin-bottom: 0;
+}
+
+.ongoing-remarks__column-title--internal {
+    color: #425a82;
+}
+
+.ongoing-remarks__empty {
+    color: #7a8798;
+    font-size: .76rem;
+    line-height: 1.35;
+}
+
 .ongoing-remarks__list {
     display: grid;
-    gap: .5rem;
+    gap: .4rem;
     margin: 0;
     padding: 0;
     list-style: none;
 }
 
 .ongoing-remarks__item + .ongoing-remarks__item {
-    padding-top: .5rem;
+    padding-top: .4rem;
     border-top: 1px solid #e8edf4;
 }
 
 .ongoing-remarks__body {
     color: #253650;
-    font-size: .8rem;
-    line-height: 1.45;
+    font-size: .79rem;
+    line-height: 1.4;
 }
 
 .ongoing-remarks__body--collapsed {
@@ -516,7 +537,7 @@
 }
 
 .ongoing-remarks__meta {
-    margin-top: .28rem;
+    margin-top: .22rem;
     color: #7a8798;
     font-size: .66rem;
 }
@@ -702,7 +723,7 @@
     }
 }
 
-.briefing-timeline__legend .briefing-duration {
+.timeline-global-legend .briefing-duration {
     min-width: auto;
     margin-left: 0;
     transform: none;
