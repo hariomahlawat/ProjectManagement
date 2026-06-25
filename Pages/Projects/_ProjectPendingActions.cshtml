@@ -278,7 +278,7 @@
             {
                 if (Model.Timeline.PendingRequests.Any())
                 {
-                    var decisionTokens = Antiforgery.GetAndStoreTokens(HttpContext);
+                    var decisionTokens = Antiforgery.GetAndStoreTokens(Context);
                     <div class="card pm-card" data-stage-requests-card>
                         <div class="card-header pm-card-header">
                             <div class="pm-card-heading">

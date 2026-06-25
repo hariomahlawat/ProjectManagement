@@ -8,6 +8,10 @@
     var planState = Model.PlanEdit?.State ?? new PlanEditorStateVm();
     var isHoD = access.IsHoD;
     var isThisProjectsPo = access.IsAssignedProjectOfficer;
+    var hasMyDraft = planState.HasMyDraft;
+    var pendingOwnedByCurrentUser = planState.PendingOwnedByCurrentUser;
+    var canEditTimeline = access.CanEditTimeline;
+    var submissionBlocked = planState.HasPendingSubmission && !pendingOwnedByCurrentUser;
     var completedStages = portfolio.CompletedStages;
     var totalStages = portfolio.TotalStages;
     var progressMax = portfolio.ProgressMaximum;

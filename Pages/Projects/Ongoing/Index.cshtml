@@ -52,12 +52,6 @@
     }
 
     // SECTION: Table helpers
-    string FormatDate(DateOnly? date)
-        => date.HasValue ? date.Value.ToString("dd-MMM-yy") : "N/A";
-
-    string FormatMilestoneDate(DateOnly? date)
-        => date.HasValue ? date.Value.ToString("dd-MMM-yy") : "NA";
-
     string FormatValue(string? value)
         => string.IsNullOrWhiteSpace(value) ? "N/A" : value;
 
@@ -366,15 +360,7 @@
 else
 {
     <!-- SECTION: Timeline view -->
-    <section class="ongoing-timeline-view" @(isTableView ? "hidden" : string.Empty)>
-        <div class="timeline-global-legend" aria-label="Timeline legend">
-            <span><i class="briefing-dot briefing-dot--complete"></i>Completed</span>
-            <span><i class="briefing-dot briefing-dot--missing"></i>Passed · date missing</span>
-            <span><i class="briefing-dot briefing-dot--current"></i>Current</span>
-            <span><i class="briefing-dot briefing-dot--future"></i>Upcoming</span>
-        </div>
-
-        <div class="row g-3">
+    <section class="row g-3" @(isTableView ? "hidden" : string.Empty)>
         @foreach (var item in Model.Items)
         {
             // SECTION: Identify current stage index using the present snapshot first
@@ -548,7 +534,7 @@ else
                                     }
                                     else
                                     {
-                                        <span class="text-muted">No previous stage</span>
+                                        <span class="text-muted">None</span>
                                     }
                                 </p>
                             </div>
@@ -557,12 +543,16 @@ else
 
                         <!-- SECTION: Complete lifecycle timeline -->
                         <section class="briefing-timeline" aria-label="Project lifecycle timeline">
-                            @if (presentStage.DaysSinceStartOrLastCompletion.HasValue && presentStage.DaysSinceStartOrLastCompletion.Value >= 90)
-                            {
-                                <div class="briefing-timeline__status">
+                            <div class="briefing-timeline__legend" aria-label="Timeline legend">
+                                <span><i class="briefing-dot briefing-dot--complete"></i>Completed</span>
+                                <span><i class="briefing-dot briefing-dot--missing"></i>Passed · date missing</span>
+                                <span><i class="briefing-dot briefing-dot--current"></i>Current</span>
+                                <span><i class="briefing-dot briefing-dot--future"></i>Upcoming</span>
+                                @if (presentStage.DaysSinceStartOrLastCompletion.HasValue && presentStage.DaysSinceStartOrLastCompletion.Value >= 90)
+                                {
                                     <span class="briefing-current-alert">Current stage prolonged</span>
-                                </div>
-                            }
+                                }
+                            </div>
                             <div class="briefing-timeline__rail" role="list" data-auto-focus-current="true">
                                 @for (var i = 0; i < item.Stages.Count; i++)
                                 {
@@ -632,33 +622,38 @@ else
                                  data-expanded="0">
                             @{
                                 // SECTION: Remarks preview settings
-                                const int collapsedInternalCount = 1;
+                                const int collapsedInternalCount = 2;
                                 var internalRemarksCollapsed = item.RecentInternalRemarks.Take(collapsedInternalCount).ToList();
                                 var internalRemarksExpandedOnly = item.RecentInternalRemarks.Skip(collapsedInternalCount).ToList();
                                 var hasExpandableInternalRemarks = internalRemarksExpandedOnly.Count > 0;
                                 var latestExternalRemark = item.LatestExternalRemark;
                             }
 
+                            <!-- SECTION: Remarks panel heading and toggle -->
+                            <div class="ongoing-remarks__header">
+                                <div class="ongoing-remarks__title-wrap">
+                                    <span class="ongoing-remarks__title">Internal updates</span>
+                                    
+                                </div>
+                                @if (hasExpandableInternalRemarks)
+                                {
+                                    <button type="button"
+                                            class="ongoing-remarks__toggle btn btn-sm btn-link p-0 text-decoration-none"
+                                            data-remarks-toggle
+                                            aria-expanded="false">
+                                        <span data-remarks-toggle-label>View earlier updates</span>
+                                        <span class="ongoing-remarks__toggle-chevron" data-remarks-toggle-chevron aria-hidden="true">▾</span>
+                                    </button>
+                                }
+                            </div>
+
                             <!-- SECTION: Remarks two-column summary -->
                             <div class="ongoing-remarks__summary">
-                                <!-- SECTION: Internal remarks -->
+                                <!-- SECTION: Internal remarks (70%) -->
                                 <div class="ongoing-remarks__column ongoing-remarks__column--internal">
-                                    <div class="ongoing-remarks__column-header">
-                                        <h3 class="ongoing-remarks__column-title ongoing-remarks__column-title--internal">Internal updates</h3>
-                                        @if (hasExpandableInternalRemarks)
-                                        {
-                                            <button type="button"
-                                                    class="ongoing-remarks__toggle btn btn-sm btn-link p-0 text-decoration-none"
-                                                    data-remarks-toggle
-                                                    aria-expanded="false">
-                                                <span data-remarks-toggle-label>Earlier updates</span>
-                                                <span class="ongoing-remarks__toggle-chevron" data-remarks-toggle-chevron aria-hidden="true">▾</span>
-                                            </button>
-                                        }
-                                    </div>
                                     @if (item.RecentInternalRemarks.Count == 0)
                                     {
-                                        <p class="ongoing-remarks__empty mb-0">No internal update recorded.</p>
+                                        <p class="small text-muted mb-0">No internal update recorded.</p>
                                     }
                                     else
                                     {
@@ -666,7 +661,7 @@ else
                                             @foreach (var r in internalRemarksCollapsed)
                                             {
                                                 <li class="ongoing-remarks__item">
-                                                    <div class="ongoing-remarks__body">
+                                                    <div class="ongoing-remarks__body ongoing-remarks__body--collapsed">
                                                         @Html.Raw(RenderRemark(r.Text))
                                                     </div>
                                                     <div class="ongoing-remarks__meta">
@@ -704,14 +699,14 @@ else
                                     <h3 class="ongoing-remarks__column-title">External status · Higher HQ</h3>
                                     @if (string.IsNullOrWhiteSpace(latestExternalRemark?.Body))
                                     {
-                                        <p class="ongoing-remarks__empty mb-0">No external status recorded.</p>
+                                        <p class="small text-muted mb-0">No external status recorded.</p>
                                     }
                                     else
                                     {
                                         var externalRemark = latestExternalRemark!;
                                         var externalRemarkBody = externalRemark.Body ?? string.Empty;
                                         <article class="ongoing-remarks__item">
-                                            <div class="ongoing-remarks__body">
+                                            <div class="ongoing-remarks__body ongoing-remarks__body--collapsed">
                                                 @Html.Raw(RenderRemark(externalRemarkBody))
                                             </div>
                                             <div class="ongoing-remarks__meta">
@@ -730,7 +725,6 @@ else
                 </article>
             </div>
         }
-        </div>
     </section>
 
     <!-- SECTION: Table view -->
