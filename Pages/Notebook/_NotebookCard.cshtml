@@ -9,6 +9,43 @@
     var tags = item.Tags.Take(3).ToArray();
     var extraTags = Math.Max(0, item.Tags.Count - tags.Length);
     var isTrash = string.Equals(Model.View, "trash", StringComparison.OrdinalIgnoreCase);
+
+    static string FriendlyFirstName(string? displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName)) return "Unknown";
+        var parts = displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 1) return parts[0];
+        return parts.Length >= 3 ? string.Join(" ", parts.Take(parts.Length - 1)) : parts[0];
+    }
+
+    var owner = item.Collaborators.FirstOrDefault(c => c.IsOwner);
+    var otherCollaborators = item.Collaborators.Where(c => !c.IsOwner).ToArray();
+    var sharingText = string.Empty;
+    var sharingTitle = string.Empty;
+
+    if (item.IsShared)
+    {
+        if (item.AccessLevel == NotebookAccessLevel.Owner)
+        {
+            var names = otherCollaborators.Select(c => FriendlyFirstName(c.DisplayName)).ToArray();
+            sharingText = names.Length switch
+            {
+                0 => "Shared note",
+                1 => $"Shared with {names[0]}",
+                2 => $"Shared with {names[0]}, {names[1]}",
+                _ => $"Shared with {names[0]}, {names[1]} +{names.Length - 2}"
+            };
+            sharingTitle = otherCollaborators.Length == 0
+                ? "Shared note"
+                : $"Shared with {string.Join(", ", otherCollaborators.Select(c => c.DisplayName))}";
+        }
+        else
+        {
+            var ownerName = FriendlyFirstName(owner?.DisplayName ?? item.OwnerDisplayName);
+            sharingText = $"Shared by {ownerName}";
+            sharingTitle = $"Shared by {owner?.DisplayName ?? item.OwnerDisplayName}";
+        }
+    }
 }
 
 @* SECTION: Notebook board card *@
@@ -92,15 +129,9 @@
     </div>
     @if (item.IsShared)
     {
-        <div class="notebook-collaborator-stack" aria-label="Shared note collaborators">
-            @foreach (var collaborator in item.Collaborators.Take(3))
-            {
-                <span class="notebook-collaborator-avatar" title="@(collaborator.IsOwner ? $"{collaborator.DisplayName} (owner)" : collaborator.DisplayName)">@collaborator.Initials</span>
-            }
-            @if (item.Collaborators.Count > 3)
-            {
-                <span class="notebook-collaborator-avatar notebook-collaborator-avatar--more">+@(item.Collaborators.Count - 3)</span>
-            }
+        <div class="notebook-sharing-summary" title="@sharingTitle" aria-label="@sharingTitle">
+            <i class="bi bi-people" aria-hidden="true"></i>
+            <span>@sharingText</span>
         </div>
     }
     <div class="notebook-card-actions">

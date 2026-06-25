@@ -296,8 +296,18 @@ export function initNotebookEditor(board, view, options = {}) {
     item = updated;
     colourPicker?.setValue(updated.colorKey || '');
     labelPicker?.setValue((updated.labels || []).map((label) => label?.name ?? label));
+    const isOwner = String(updated.accessLevel || 'Owner').toLowerCase() === 'owner';
     const labelHost = modal.querySelector('[data-notebook-label-picker]');
-    if (labelHost) labelHost.hidden = String(updated.accessLevel || 'Owner').toLowerCase() !== 'owner';
+    if (labelHost) labelHost.hidden = !isOwner;
+    modal.dataset.itemType = String(updated.type || 'Note').toLowerCase();
+    const shareButton = modal.querySelector('[data-action="share-note-editor"]');
+    if (shareButton) {
+      const label = isOwner ? 'Manage collaborators' : 'View collaborators';
+      shareButton.setAttribute('aria-label', label);
+      shareButton.title = label;
+      const icon = shareButton.querySelector('i');
+      if (icon) icon.className = `bi ${isOwner ? 'bi-person-plus' : 'bi-people'}`;
+    }
     applyNotebookSurfaceColour(modal.querySelector('.notebook-modal__dialog'), updated.colorKey || '');
     modal.querySelector('[data-modal-title]').value = updated.title || '';
     modal.querySelector('[data-modal-body]').value = updated.body || '';

@@ -108,7 +108,9 @@ public sealed class NotebookService : INotebookService
             .ToArray();
 
         var pinned = (await activeQuery
-                .Where(item => item.Status == NotebookItemStatus.Active && item.IsPinned)
+                .Where(item => item.Status == NotebookItemStatus.Active &&
+                               item.OwnerId == ownerId &&
+                               item.IsPinned)
                 .OrderBy(item => item.SortOrder == 0 ? int.MaxValue : item.SortOrder)
                 .ThenByDescending(item => item.UpdatedAtUtc)
                 .Take(80)
@@ -138,7 +140,8 @@ public sealed class NotebookService : INotebookService
 
         // SECTION: Home board uses a manual-order friendly Others section.
         var recent = (await activeQuery
-                .Where(item => item.Status == NotebookItemStatus.Active && !item.IsPinned)
+                .Where(item => item.Status == NotebookItemStatus.Active &&
+                               (item.OwnerId != ownerId || !item.IsPinned))
                 .OrderBy(item => item.SortOrder == 0 ? int.MaxValue : item.SortOrder)
                 .ThenByDescending(item => item.UpdatedAtUtc)
                 .Take(80)
@@ -1350,7 +1353,7 @@ public sealed class NotebookService : INotebookService
         Priority = item.Priority,
         ReminderAtUtc = item.ReminderAtUtc,
         ReminderDisplay = NotebookReminderFormatter.FormatReminder(item.ReminderAtUtc),
-        IsPinned = item.IsPinned,
+        IsPinned = item.OwnerId == currentUserId && item.IsPinned,
         IsFavorite = item.IsFavorite,
         ColorKey = item.ColorKey ?? "white",
         UpdatedAtUtc = item.UpdatedAtUtc,
@@ -1454,7 +1457,7 @@ public sealed class NotebookService : INotebookService
             DueToday = await query.CountAsync(item => item.ReminderAtUtc >= bounds.StartUtc && item.ReminderAtUtc < bounds.EndUtc, ct),
             Overdue = await query.CountAsync(item => item.ReminderAtUtc < bounds.StartUtc && item.Status == NotebookItemStatus.Active, ct),
             StickyCount = await query.CountAsync(item => item.Type == NotebookItemType.Sticky, ct),
-            PinnedCount = await query.CountAsync(item => item.IsPinned, ct),
+            PinnedCount = await query.CountAsync(item => item.OwnerId == ownerId && item.IsPinned, ct),
             ChecklistCount = await query.CountAsync(item => item.Type == NotebookItemType.Checklist, ct),
             CompletedCount = await _db.NotebookItems.AsNoTracking().CountAsync(item => item.OwnerId == ownerId && item.DeletedAtUtc == null && item.Status == NotebookItemStatus.Completed, ct)
         };

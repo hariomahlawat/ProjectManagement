@@ -37,7 +37,7 @@ export function createChecklistEditor(root, options = {}) {
     const wrapper = document.createElement('div');
     wrapper.className = 'notebook-checklist-row';
     wrapper.dataset.checklistRow = '';
-    wrapper.innerHTML = `<input type="checkbox" data-checklist-done><input type="text" data-checklist-text maxlength="${maxLength}" placeholder="List item"><button type="button" data-checklist-remove aria-label="Remove checklist item">×</button>`;
+    wrapper.innerHTML = `<label class="notebook-checklist-row__check" aria-label="Checklist item completion"><input type="checkbox" data-checklist-done><span aria-hidden="true"></span></label><input type="text" data-checklist-text maxlength="${maxLength}" placeholder="List item"><button type="button" class="notebook-checklist-remove" data-checklist-remove aria-label="Remove checklist item" title="Remove item"><i class="bi bi-x-lg" aria-hidden="true"></i></button>`;
     row.element = wrapper;
     updateRowElement(row, { forceContent: true });
     return wrapper;
@@ -134,7 +134,7 @@ export function createChecklistEditor(root, options = {}) {
       button.type = 'button';
       button.className = 'notebook-checklist-add';
       button.dataset.checklistAdd = '';
-      button.textContent = '+ List item';
+      button.innerHTML = '<i class="bi bi-plus-lg" aria-hidden="true"></i><span>List item</span>';
       root.append(button);
     }
     return button;

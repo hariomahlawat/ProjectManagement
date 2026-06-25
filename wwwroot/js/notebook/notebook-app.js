@@ -134,6 +134,38 @@ export function initNotebookApp() {
   const dragOrder = initNotebookDragOrder(shell, board, { api: NotebookApi, showError: showGlobalError, showToast: showNotebookToast });
   const collaborators = initNotebookCollaborators(document, { board, view, applyCounts, showError: showGlobalError });
 
+  // SECTION: Accessible, single-open card action menus
+  const closeNotebookMenus = (except = null, { restoreFocus = false } = {}) => {
+    shell.querySelectorAll('.notebook-card-more[open]').forEach((menu) => {
+      if (menu === except) return;
+      menu.removeAttribute('open');
+      menu.querySelector('summary')?.setAttribute('aria-expanded', 'false');
+      menu.closest('.notebook-card')?.classList.remove('has-open-menu');
+      if (restoreFocus) menu.querySelector('summary')?.focus?.();
+    });
+  };
+
+  document.addEventListener('toggle', (event) => {
+    const menu = event.target?.matches?.('.notebook-card-more') ? event.target : null;
+    if (!menu || !shell.contains(menu)) return;
+    const summary = menu.querySelector('summary');
+    summary?.setAttribute('aria-expanded', String(menu.open));
+    menu.closest('.notebook-card')?.classList.toggle('has-open-menu', menu.open);
+    if (menu.open) closeNotebookMenus(menu);
+  }, true);
+
+  document.addEventListener('pointerdown', (event) => {
+    if (!event.target.closest('.notebook-card-more')) closeNotebookMenus();
+  }, true);
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    const openMenu = shell.querySelector('.notebook-card-more[open]');
+    if (!openMenu) return;
+    event.preventDefault();
+    closeNotebookMenus(null, { restoreFocus: true });
+  });
+
   document.addEventListener('click', async (event) => {
     const cardColourToggle = event.target.closest('.notebook-card [data-colour-picker-toggle]');
     if (cardColourToggle) {
@@ -202,6 +234,7 @@ export function initNotebookApp() {
       return;
     }
     const action = closestAction(event); if (!action) return;
+    if (action.closest('.notebook-card-more__menu')) closeNotebookMenus();
     const card = action.closest('[data-note-id]'); const id = card?.dataset.noteId;
     if (action.dataset.action === 'label-note' && card) {
       event.preventDefault();

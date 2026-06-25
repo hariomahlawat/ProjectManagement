@@ -33,8 +33,8 @@ export function initNotebookCollaborators(root, options = {}) {
       item.innerHTML = `
         <span class="notebook-collaborator-avatar">${escapeHtml(row.initials || initials(row.displayName))}</span>
         <span class="notebook-collaborator-row__identity"><strong>${escapeHtml(row.displayName)}</strong><small>${escapeHtml(row.email)}</small></span>
-        <span class="notebook-collaborator-role">${row.isOwner ? 'Owner' : row.role || 'Editor'}</span>
-        ${!row.isOwner && canManage() ? `<button type="button" class="notebook-dialog-icon text-danger" data-remove-collaborator="${escapeHtml(row.userId)}" aria-label="Remove ${escapeHtml(row.displayName)}"><i class="bi bi-x-circle"></i></button>` : ''}`;
+        <span class="notebook-collaborator-role">${row.isOwner ? 'Owner' : 'Can edit'}</span>
+        ${!row.isOwner && canManage() ? `<button type="button" class="notebook-dialog-icon text-danger" data-remove-collaborator="${escapeHtml(row.userId)}" aria-label="Remove ${escapeHtml(row.displayName)}" title="Remove collaborator"><i class="bi bi-x-circle"></i></button>` : ''}`;
       list.appendChild(item);
     });
     searchWrap.hidden = !canManage();
@@ -110,7 +110,8 @@ export function initNotebookCollaborators(root, options = {}) {
     }
     const remove = event.target.closest('[data-remove-collaborator]');
     if (remove && currentItem) {
-      const confirmed = await confirmNotebookAction({ title: 'Remove collaborator?', message: 'This person will immediately lose access to the shared note.', confirmText: 'Remove', tone: 'danger' });
+      const name = remove.closest('.notebook-collaborator-row')?.querySelector('strong')?.textContent?.trim() || 'This person';
+      const confirmed = await confirmNotebookAction({ title: `Remove ${name}?`, message: `${name} will immediately lose access to this shared note.`, confirmText: 'Remove', tone: 'danger' });
       if (!confirmed) return;
       remove.disabled = true;
       try { await reconcile(await NotebookApi.removeCollaborator(currentItem.id, remove.dataset.removeCollaborator, currentItem.version)); }

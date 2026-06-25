@@ -7,7 +7,7 @@
 {
     <button type="button" class="notebook-action-button" data-action="restore-trash-note"><i class="bi bi-arrow-counterclockwise"></i><span>Restore</span></button>
     <details class="notebook-card-more">
-        <summary class="notebook-action-button" aria-label="More actions"><i class="bi bi-three-dots"></i></summary>
+        <summary class="notebook-action-button" aria-label="More actions" aria-expanded="false"><i class="bi bi-three-dots"></i></summary>
         <div class="notebook-card-more__menu" role="menu">
             <button type="button" role="menuitem" data-action="restore-trash-note">Restore</button>
             <button class="text-danger" type="button" role="menuitem" data-action="delete-permanently">Delete permanently</button>
@@ -25,9 +25,16 @@ else
     {
         <partial name="~/Pages/Notebook/_NotebookColourPicker.cshtml" model="Model.Item.ColorKey ?? string.Empty" />
     }
-    <button type="button" class="notebook-action-icon" data-action="share-note" title="Collaborators" aria-label="Manage collaborators"><i class="bi bi-person-plus"></i></button>
+    @if (Model.Item.AccessLevel == ProjectManagement.ViewModels.Notebook.NotebookAccessLevel.Owner)
+    {
+        <button type="button" class="notebook-action-icon" data-action="share-note" title="Manage collaborators" aria-label="Manage collaborators"><i class="bi bi-person-plus"></i></button>
+    }
+    else
+    {
+        <button type="button" class="notebook-action-icon" data-action="share-note" title="View collaborators" aria-label="View collaborators"><i class="bi bi-people"></i></button>
+    }
     <details class="notebook-card-more">
-        <summary class="notebook-action-button" aria-label="More actions"><i class="bi bi-three-dots"></i></summary>
+        <summary class="notebook-action-button" aria-label="More actions" aria-expanded="false"><i class="bi bi-three-dots"></i></summary>
         <div class="notebook-card-more__menu" role="menu">
             @if (Model.Item.AccessLevel == ProjectManagement.ViewModels.Notebook.NotebookAccessLevel.Owner)
             {

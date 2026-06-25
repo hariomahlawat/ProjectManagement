@@ -2792,3 +2792,186 @@ body.notebook-confirm-open { overflow: hidden; }
     .notebook-collaborator-row { grid-template-columns: auto minmax(0,1fr) auto; }
     .notebook-collaborator-role { display: none; }
 }
+
+
+/* SECTION: Shared-note relationship and robust action-menu polish */
+.notebook-sharing-summary {
+    display: flex;
+    align-items: center;
+    gap: .38rem;
+    min-width: 0;
+    max-width: calc(100% - 8.5rem);
+    margin: .35rem 14px 10px;
+    color: #5f6b7d;
+    font-size: .72rem;
+    font-weight: 650;
+    line-height: 1.25;
+}
+
+.notebook-sharing-summary i {
+    flex: 0 0 auto;
+    color: #5574c8;
+    font-size: .8rem;
+}
+
+.notebook-sharing-summary span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.notebook-card-more summary[aria-expanded="true"] {
+    background: rgba(255,255,255,.88);
+    border-color: rgba(82, 104, 144, .28);
+    color: #1d4ed8;
+}
+
+.notebook-card-more__menu button:focus-visible {
+    outline: 2px solid rgba(59, 105, 235, .42);
+    outline-offset: -2px;
+    background: #f1f5f9;
+}
+
+/* SECTION: Refined checklist editor */
+.notebook-modal[data-item-type="checklist"] .notebook-modal__body {
+    min-height: 96px;
+    margin-bottom: .35rem;
+}
+
+.notebook-checklist-editor {
+    display: grid;
+    gap: 0;
+    margin-top: .25rem;
+    border-top: 1px solid rgba(100, 116, 139, .16);
+}
+
+.notebook-checklist-row {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) 34px;
+    align-items: center;
+    gap: .35rem;
+    min-height: 44px;
+    padding: 2px 0;
+    border-bottom: 1px solid rgba(100, 116, 139, .13);
+    background: transparent;
+}
+
+.notebook-checklist-row__check {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 36px;
+    margin: 0;
+    cursor: pointer;
+}
+
+.notebook-checklist-row__check input {
+    width: 17px;
+    height: 17px;
+    margin: 0;
+    accent-color: #3f6df2;
+    cursor: pointer;
+}
+
+.notebook-checklist-row [data-checklist-text] {
+    width: 100%;
+    min-width: 0;
+    min-height: 38px;
+    padding: .45rem .2rem;
+    border: 0;
+    border-radius: .4rem;
+    background: transparent;
+    color: #1f2937;
+    outline: 0;
+}
+
+.notebook-checklist-row [data-checklist-text]:focus {
+    background: rgba(255,255,255,.5);
+    box-shadow: inset 0 -2px 0 rgba(63, 109, 242, .35);
+}
+
+.notebook-checklist-remove {
+    display: inline-grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: #697586;
+    opacity: 0;
+    transition: opacity .12s ease, background-color .12s ease, color .12s ease;
+}
+
+.notebook-checklist-row:hover .notebook-checklist-remove,
+.notebook-checklist-row:focus-within .notebook-checklist-remove {
+    opacity: 1;
+}
+
+.notebook-checklist-remove:hover,
+.notebook-checklist-remove:focus-visible {
+    background: rgba(220, 38, 38, .08);
+    color: #c81e1e;
+    outline: none;
+}
+
+.notebook-checklist-add {
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    min-height: 36px;
+    margin-top: .35rem;
+    padding: .35rem .55rem;
+    border: 0;
+    border-radius: .55rem;
+    background: transparent;
+    color: #536174;
+    font-size: .86rem;
+    font-weight: 650;
+}
+
+.notebook-checklist-add:hover,
+.notebook-checklist-add:focus-visible {
+    background: rgba(255,255,255,.58);
+    color: #2459d7;
+    outline: none;
+}
+
+.notebook-modal__dialog > footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .5rem;
+    padding-top: .4rem;
+}
+
+.notebook-editor-close-button {
+    border: 0;
+    border-radius: .55rem;
+    background: transparent;
+    color: #334155;
+    font-weight: 700;
+    padding: .42rem .75rem;
+}
+
+.notebook-editor-close-button:hover,
+.notebook-editor-close-button:focus-visible {
+    background: rgba(255,255,255,.62);
+    color: #1d4ed8;
+    outline: none;
+}
+
+@media (hover: none) {
+    .notebook-checklist-remove { opacity: 1; }
+    .notebook-sharing-summary { max-width: 100%; margin-bottom: .25rem; }
+}
+
+@media (max-width: 560px) {
+    .notebook-sharing-summary {
+        max-width: 100%;
+        margin-right: 14px;
+    }
+}
