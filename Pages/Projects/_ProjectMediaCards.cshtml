@@ -1,0 +1,84 @@
+@using System.Linq
+@model ProjectManagement.Pages.Projects.OverviewModel
+@{
+    var media = Model.MediaSummary;
+    var projectId = Model.Project.Id;
+}
+<span id="media" class="page-anchor"></span>
+<div class="row g-3 project-media-cards">
+    <div class="col-md-6">
+        <section class="card pm-card h-100 project-media-card">
+            <div class="card-header pm-card-header">
+                <div class="pm-card-heading">
+                    <span class="pm-card-icon"><i class="bi bi-file-earmark-text"></i></span>
+                    <div><h3 class="pm-card-title h5 mb-0">Documents</h3><p class="pm-card-subtitle mb-0">Approved project records and submissions.</p></div>
+                </div>
+                <span class="project-media-count">@media.DocumentCount</span>
+            </div>
+            <div class="card-body">
+                <div class="project-media-summary">
+                    <strong>@media.DocumentCount document@(media.DocumentCount == 1 ? "" : "s")</strong>
+                    @if (media.PendingDocumentCount > 0)
+                    { <span class="text-warning-emphasis">@media.PendingDocumentCount awaiting approval</span> }
+                    else { <span class="text-muted">No document approvals pending</span> }
+                </div>
+                <div class="project-media-actions">
+                    <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Overview" asp-route-id="@projectId" asp-fragment="media">View documents</a>
+                    @if (Model.CanUploadDocuments)
+                    { <a class="btn btn-sm btn-primary" asp-page="/Projects/Documents/UploadRequest" asp-route-id="@projectId">Upload</a> }
+                </div>
+            </div>
+        </section>
+    </div>
+    <div class="col-md-6">
+        <section class="card pm-card h-100 project-media-card">
+            <div class="card-header pm-card-header">
+                <div class="pm-card-heading">
+                    <span class="pm-card-icon"><i class="bi bi-images"></i></span>
+                    <div><h3 class="pm-card-title h5 mb-0">Photos</h3><p class="pm-card-subtitle mb-0">Cover and project gallery.</p></div>
+                </div>
+                <span class="project-media-count">@media.PhotoCount</span>
+            </div>
+            <div class="card-body">
+                @if (media.PreviewPhotos.Count > 0)
+                {
+                    <div class="project-photo-strip">
+                        @foreach (var photo in media.PreviewPhotos.Take(3))
+                        {
+                            <img src="@Url.Page("/Projects/Photos/View", new { id = projectId, photoId = photo.Id, v = photo.Version })" alt="@(photo.Caption ?? "Project photograph")" loading="lazy" />
+                        }
+                    </div>
+                }
+                else
+                { <div class="project-media-empty"><i class="bi bi-image"></i><span>No photos uploaded</span></div> }
+                <div class="project-media-actions">
+                    <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Photos/Index" asp-route-id="@projectId">View gallery</a>
+                    @if (Model.CanManagePhotos)
+                    { <a class="btn btn-sm btn-primary" asp-page="/Projects/Photos/Upload" asp-route-id="@projectId">Upload</a> }
+                </div>
+            </div>
+        </section>
+    </div>
+    <div class="col-12">
+        <section class="card pm-card project-media-card project-media-card--video">
+            <div class="card-header pm-card-header">
+                <div class="pm-card-heading">
+                    <span class="pm-card-icon"><i class="bi bi-play-btn"></i></span>
+                    <div><h3 class="pm-card-title h5 mb-0">Videos</h3><p class="pm-card-subtitle mb-0">Demonstrations, trials and project highlights.</p></div>
+                </div>
+                <span class="project-media-count">@media.VideoCount</span>
+            </div>
+            <div class="card-body project-video-summary">
+                <div>
+                    <strong>@media.VideoCount video@(media.VideoCount == 1 ? "" : "s")</strong>
+                    <span class="text-muted d-block">Open the video library to view or manage project recordings.</span>
+                </div>
+                <div class="project-media-actions mt-0">
+                    <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Videos/Index" asp-route-id="@projectId">View videos</a>
+                    @if (Model.CanManageVideos)
+                    { <a class="btn btn-sm btn-primary" asp-page="/Projects/Videos/Upload" asp-route-id="@projectId">Upload</a> }
+                </div>
+            </div>
+        </section>
+    </div>
+</div>

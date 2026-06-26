@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -43,6 +44,8 @@ public sealed class RequestModel : PageModel
     public IReadOnlyList<SelectListItem> LineDirectorateOptions { get; private set; } = Array.Empty<SelectListItem>();
     public string CurrentProjectType { get; private set; } = "—";
     public string CurrentBuildFlag { get; private set; } = "No";
+    public bool HasPendingRequest { get; private set; }
+    public DateTimeOffset? PendingRequestedOnUtc { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
@@ -75,9 +78,39 @@ public sealed class RequestModel : PageModel
             TechnicalCategoryId = project.TechnicalCategoryId,
             SponsoringUnitId = project.SponsoringUnitId,
             SponsoringLineDirectorateId = project.SponsoringLineDirectorateId,
-            ProjectTypeId = null,
-            IsBuild = null
+            ProjectTypeId = project.ProjectTypeId,
+            IsBuild = project.IsBuild
         };
+
+        var pending = await _db.ProjectMetaChangeRequests
+            .AsNoTracking()
+            .SingleOrDefaultAsync(r => r.ProjectId == project.Id && r.DecisionStatus == ProjectMetaDecisionStatuses.Pending, cancellationToken);
+        if (pending is not null)
+        {
+            try
+            {
+                var payload = JsonSerializer.Deserialize<ProjectMetaChangeRequestPayload>(pending.Payload);
+                if (payload is not null)
+                {
+                    Input.Name = payload.Name;
+                    Input.Description = payload.Description;
+                    Input.CaseFileNumber = payload.CaseFileNumber;
+                    Input.CategoryId = payload.CategoryId;
+                    Input.TechnicalCategoryId = payload.TechnicalCategoryId;
+                    Input.ProjectTypeId = payload.ProjectTypeId;
+                    Input.IsBuild = payload.IsBuild ?? project.IsBuild;
+                    Input.SponsoringUnitId = payload.SponsoringUnitId;
+                    Input.SponsoringLineDirectorateId = payload.SponsoringLineDirectorateId;
+                    Input.Reason = pending.RequestNote;
+                    HasPendingRequest = true;
+                    PendingRequestedOnUtc = pending.RequestedOnUtc;
+                }
+            }
+            catch (JsonException)
+            {
+                // Preserve the approved project values if an old payload cannot be read.
+            }
+        }
 
         await LoadCategoryOptionsAsync(project.CategoryId, cancellationToken);
         await LoadTechnicalCategoryOptionsAsync(project.TechnicalCategoryId, cancellationToken);
@@ -389,7 +422,7 @@ public sealed class RequestModel : PageModel
 
         var options = new List<SelectListItem>
         {
-            new($"Keep current ({CurrentProjectType})", string.Empty, selectedProjectTypeId is null)
+            new("— Not specified —", string.Empty, selectedProjectTypeId is null)
         };
 
         options.AddRange(items.Select(item => new SelectListItem(item.Name, item.Id.ToString(), selectedProjectTypeId == item.Id)));
@@ -420,7 +453,7 @@ public sealed class RequestModel : PageModel
         [Display(Name = "Project type")]
         public int? ProjectTypeId { get; set; }
 
-        [Display(Name = "Build (repeat / re-manufacture)")]
+        [Display(Name = "Repeat build or re-manufacture")]
         public bool? IsBuild { get; set; }
 
         [Display(Name = "Sponsoring Unit")]
@@ -429,7 +462,9 @@ public sealed class RequestModel : PageModel
         [Display(Name = "Sponsoring Line Dte")]
         public int? SponsoringLineDirectorateId { get; set; }
 
+        [Required(ErrorMessage = "Please provide a brief reason for the update.")]
         [StringLength(1024)]
+        [Display(Name = "Reason for update")]
         public string? Reason { get; set; }
     }
 

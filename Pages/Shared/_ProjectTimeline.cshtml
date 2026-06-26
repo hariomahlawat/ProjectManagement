@@ -8,6 +8,7 @@
     var isHod = access.CanApplyStageChangeDirectly;
     var canSubmitStageUpdate = access.CanSubmitStageUpdate;
     var canEditTimeline = access.CanEditTimeline;
+    var pendingSectionStarted = false;
     var futureSectionStarted = false;
     var currentStageCode = timeline.Items
         .OrderBy(item => item.SortOrder)
@@ -97,11 +98,19 @@
   <div class="pm-items">
     @foreach (var s in timeline.Items.OrderBy(i => i.SortOrder))
     {
-      if (!futureSectionStarted && s.Status == StageStatus.NotStarted)
+      if (!pendingSectionStarted && s.HasPendingRequest)
+      {
+        pendingSectionStarted = true;
+        <div class="pm-future-stage-heading pm-pending-stage-heading" role="separator" aria-label="Pending lifecycle updates">
+          <span>Pending lifecycle updates</span>
+          <small>Official stage states remain unchanged until the HoD decides.</small>
+        </div>
+      }
+      if (!futureSectionStarted && s.Status == StageStatus.NotStarted && !s.HasPendingRequest)
       {
         futureSectionStarted = true;
-        <div class="pm-future-stage-heading" role="separator" aria-label="Future stages">
-          <span>Future stages</span>
+        <div class="pm-future-stage-heading" role="separator" aria-label="Later stages">
+          <span>Later stages</span>
           <small>Planned dates may be added when available.</small>
         </div>
       }
@@ -195,7 +204,7 @@
                         data-pending-start-date="@s.PendingStartDate?.ToString("yyyy-MM-dd")"
                         data-pending-note="@s.PendingNote">
                   <i class="bi @(s.HasPendingRequest ? "bi-pencil-square" : "bi-arrow-repeat")" aria-hidden="true"></i>
-                  @(s.HasPendingRequest ? "Review update" : "Update stage")
+                  @(s.HasPendingRequest ? (isHod ? "Review and decide" : "Edit submission") : "Update stage")
                 </button>
               }
               @if (hasStageMenuActions)
@@ -359,7 +368,7 @@
                               data-pending-date="@s.PendingDate?.ToString("yyyy-MM-dd")"
                               data-pending-start-date="@s.PendingStartDate?.ToString("yyyy-MM-dd")"
                               data-pending-note="@s.PendingNote">
-                        @(s.HasPendingRequest ? "Review pending update" : "Update stage")
+                        @(s.HasPendingRequest ? (isHod ? "Review and decide" : "Edit submission") : "Update stage")
                       </button>
                     </li>
                   }
@@ -387,7 +396,7 @@
               <div class="pm-stage-pending-update__header">
                 <div>
                   <span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle">Awaiting HoD approval</span>
-                  <strong>@PendingActionTitle(s.PendingStatus)</strong>
+                  <strong>Submitted transition: @PendingActionTitle(s.PendingStatus)</strong>
                 </div>
               </div>
               <div class="pm-stage-pending-update__proposal">@PendingProposal(s)</div>
