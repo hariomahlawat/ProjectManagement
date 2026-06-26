@@ -122,7 +122,7 @@
                 <span>@(portfolio.IsWorkflowConcluded ? "Workflow sequence concluded" : "No next stage available")</span>
             }
         </button>
-        <button class="project-intelligence-card" type="button" data-scroll-target="#record-completeness">
+        <button class="project-intelligence-card" type="button" data-bs-toggle="modal" data-bs-target="#recordCompletenessModal" aria-controls="recordCompletenessModal">
             <span class="project-intelligence-card__label">Record completeness</span>
             <strong>@Model.RecordHealth.HealthPercent%</strong>
             <span>@(Model.RecordHealth.GapDetails.Count == 0

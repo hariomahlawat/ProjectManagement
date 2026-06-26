@@ -216,9 +216,8 @@
             <div class="db-section-head">
                 <div>
                     <span class="db-section-icon db-section-icon--teal"><i class="bi bi-bar-chart-line"></i></span>
-                    <div><h2 id="outputs-title">Institutional outputs</h2><p>Cumulative totals with monthly activity for the last 12 months</p></div>
+                    <div><h2 id="outputs-title">Institutional outputs</h2><p>Key institutional results with a 12-month activity view</p></div>
                 </div>
-                <span class="db-context-note">Trend comparison: last 3 months vs previous 3 months</span>
             </div>
             <div class="db-output-grid">
                 @foreach (var tile in outputTiles)
@@ -275,7 +274,7 @@
         <section class="db-dual-grid db-reveal" aria-label="Engagement and innovation">
             <article class="db-panel db-engagement-card">
                 <div class="db-section-head">
-                    <div><span class="db-section-icon db-section-icon--teal"><i class="bi bi-people"></i></span><div><h2>Institutional activities</h2><p>Activity mix, recent momentum and latest engagements</p></div></div>
+                    <div><span class="db-section-icon db-section-icon--teal"><i class="bi bi-people"></i></span><div><h2>Institutional activities</h2><p>Recent engagement, monthly activity and leading activity types</p></div></div>
                     <a asp-page="/Activities/Index" class="db-text-link">View activities <i class="bi bi-arrow-right"></i></a>
                 </div>
                 <div class="db-activity-overview">
@@ -284,7 +283,7 @@
                         <div><span>Last 30 days</span><strong>@Model.ActivitySummary.Last30DaysCount</strong></div>
                     </div>
                     <div class="db-activity-trend" data-db-activity-trend data-values='@Html.Raw(Json(Model.ActivitySummary.MonthlyTrend))' data-labels='@Html.Raw(Json(Model.ActivitySummary.MonthlyLabels))'>
-                        <div class="db-activity-trend__head"><span>12-month activity trend</span><small>activities per month</small></div>
+                        <div class="db-activity-trend__head"><span>Monthly activity</span><small>Last 12 months</small></div>
                         <canvas role="img" aria-label="Institutional activities recorded per month for the last 12 months"></canvas>
                         @if (Model.ActivitySummary.MonthlyLabels.Count > 0)
                         {

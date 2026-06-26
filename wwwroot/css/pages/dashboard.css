@@ -325,3 +325,51 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
 .db-processing-metrics strong.is-failed,
 .db-processing-metrics strong.is-failed { color:var(--db-red); }
 .db-activity-trend canvas { height:48px!important; }
+
+/* V7 dashboard density and activity refinements */
+.analytics-main > .analytics-shell {
+    width: min(100%, 1720px) !important;
+    margin-inline: auto !important;
+}
+.db-section-head h2 { font-size: 1.02rem; }
+.db-section-head p { max-width: 680px; font-size: .73rem; line-height: 1.35; }
+.db-output-grid { gap: 12px; padding: 15px; }
+.db-output-card { min-height: 184px; padding: 14px; }
+.db-output-card__label { font-size: .74rem; }
+.db-output-card__metric strong { letter-spacing: -.025em; }
+.db-engagement-card { min-height: 360px; }
+.db-activity-overview {
+    grid-template-columns: 210px minmax(0, 1fr);
+    gap: 14px;
+    padding: 16px 18px 12px;
+}
+.db-activity-kpis { gap: 10px; }
+.db-activity-kpis > div {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 112px;
+    padding: 15px 14px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #fff, #f8fbfd);
+}
+.db-activity-kpis span { font-size: .66rem; }
+.db-activity-kpis strong { margin: 5px 0 0; font-size: 1.55rem; line-height: 1; letter-spacing: -.035em; }
+.db-activity-trend {
+    min-height: 112px;
+    padding: 12px 14px 10px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #fbfefe, #f5fbfa);
+}
+.db-activity-trend__head { margin-bottom: 7px; font-size: .7rem; }
+.db-activity-trend canvas { height: 68px !important; }
+.db-activity-detail { gap: 18px; padding: 4px 18px 18px; }
+.db-top-types h3,.db-recent-activities h3 { font-size: .75rem; }
+@media (min-width: 1600px) {
+    .db-top-grid { grid-template-columns: minmax(0, 1.65fr) minmax(470px, .92fr); }
+    .db-output-card { min-height: 194px; }
+}
+@media (max-width: 991.98px) {
+    .db-activity-overview { grid-template-columns: 1fr; }
+    .db-activity-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

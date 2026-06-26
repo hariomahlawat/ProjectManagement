@@ -113,16 +113,21 @@
         target.dataset.rendered = 'true';
         const scale = commonScales(values);
         new window.Chart(canvas.getContext('2d'), {
-            type: 'bar',
+            type: 'line',
             data: {
                 labels,
                 datasets: [{
                     data: values,
-                    backgroundColor: 'rgba(22,139,136,.18)',
                     borderColor: '#168b88',
-                    borderWidth: 1,
-                    borderRadius: 4,
-                    maxBarThickness: 18
+                    backgroundColor: 'rgba(22,139,136,.10)',
+                    borderWidth: 2.25,
+                    pointRadius: context => context.raw > 0 ? 2.5 : 0,
+                    pointHoverRadius: 4,
+                    pointBackgroundColor: '#168b88',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 1.5,
+                    tension: .34,
+                    fill: true
                 }]
             },
             options: {
