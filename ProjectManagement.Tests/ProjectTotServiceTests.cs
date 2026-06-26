@@ -211,6 +211,34 @@ public sealed class ProjectTotServiceTests
     }
 
     [Fact]
+    public async Task SubmitRequestAsync_AllowsActiveProjectPortfolioStatus()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 51,
+            Name = "Active project",
+            CreatedAt = new DateTime(2024, 1, 1),
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Active
+        });
+        await db.SaveChangesAsync();
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero));
+        var service = new ProjectTotService(db, clock);
+
+        var result = await service.SubmitRequestAsync(
+            51,
+            CreateRequest(ProjectTotStatus.NotRequired),
+            "project-officer");
+
+        Assert.True(result.IsSuccess);
+        var request = await db.ProjectTotRequests.SingleAsync(item => item.ProjectId == 51);
+        Assert.Equal(ProjectTotStatus.NotRequired, request.ProposedStatus);
+        Assert.Equal(ProjectTotRequestDecisionState.Pending, request.DecisionState);
+    }
+
+    [Fact]
     public async Task UpdateAsync_InProgressWithoutStart_ReturnsValidationError()
     {
         await using var db = CreateContext();

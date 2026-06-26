@@ -12,7 +12,7 @@
     var hasPending = tot.HasPendingRequest;
     var summaryText = hasTot
         ? tot.Summary
-        : "Transfer of Technology tracking has not been configured for this project.";
+        : "No Transfer of Technology status has been recorded for this project.";
 
     var istZone = TimeZoneHelper.GetIst();
     DateTime? ToIst(DateTime? value) => value.HasValue

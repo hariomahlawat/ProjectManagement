@@ -5,6 +5,7 @@
     var canManageTot = Model.CanManageTot;
     var hasPending = Model.TotSummary.HasPendingRequest;
     var project = Model.Project;
+    var hasRecord = Model.TotSummary.HasTotRecord;
 }
 
 @if (project is not null && canManageTot)
@@ -18,7 +19,7 @@
                role="button"
                aria-disabled="true"
                tabindex="-1">
-                Update
+                Pending approval
             </a>
         }
         else
@@ -26,7 +27,7 @@
             <a class="btn btn-sm btn-outline-secondary"
                asp-page="/Projects/Tot/Edit"
                asp-route-id="@project.Id">
-                Update
+                @(hasRecord ? "Update" : "Record status")
             </a>
         }
 

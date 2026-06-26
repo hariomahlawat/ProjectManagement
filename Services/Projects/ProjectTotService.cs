@@ -87,10 +87,8 @@ public sealed class ProjectTotService
             return ProjectTotRequestActionResult.NotFound();
         }
 
-        if (project.LifecycleStatus != ProjectLifecycleStatus.Completed)
-        {
-            return ProjectTotRequestActionResult.ValidationFailed("Transfer of Technology can only be updated once the project is completed.");
-        }
+        // ToT is a project-level portfolio record throughout the lifecycle. It may be
+        // recorded as Not required, Not started, In progress or Completed at any stage.
 
         var todayLocal = GetTodayInIst();
         var validation = ValidateRequest(request, todayLocal, out var normalizedRequest);

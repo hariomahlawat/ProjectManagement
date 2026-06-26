@@ -187,7 +187,7 @@
       if (!items.length) {
         const emptyState = document.createElement('div');
         emptyState.className = 'ip-typeahead-item';
-        emptyState.textContent = 'No eligible projects found (only Development stage or Completed projects can be linked)';
+        emptyState.textContent = 'No projects found';
         emptyState.setAttribute('aria-disabled', 'true');
         resultsContainer.appendChild(emptyState);
         resultsContainer.classList.remove('d-none');
@@ -390,7 +390,7 @@
 
       if (!latestSuggestionIds.has(String(selectedProjectId))) {
         event.preventDefault();
-        const eligibilityMessage = 'Only projects in Development stage or Completed can be linked.';
+        const eligibilityMessage = 'Select a project from the current search results.';
         showError(eligibilityMessage);
         showToast(eligibilityMessage, 'warning');
         clearSelection();

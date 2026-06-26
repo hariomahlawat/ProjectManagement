@@ -55,7 +55,7 @@ public sealed class IndustryPartnerRulesTests
 
 
     [Fact]
-    public async Task LinkProjectAsync_RejectsProjectBeforeDevelopmentStage()
+    public async Task LinkProjectAsync_AllowsProjectBeforeDevelopmentStage()
     {
         await using var db = CreateDb();
         var project = new Project
@@ -77,8 +77,10 @@ public sealed class IndustryPartnerRulesTests
         var user = User();
         var partnerId = await service.CreateAsync(new CreateIndustryPartnerRequest("Beta", null, null), user);
 
-        var ex = await Assert.ThrowsAsync<IndustryPartnerValidationException>(() => service.LinkProjectAsync(partnerId, project.Id, user));
-        Assert.Contains("Project is not eligible to be linked", ex.Errors["project"].First());
+        await service.LinkProjectAsync(partnerId, project.Id, user);
+
+        var linked = await db.IndustryPartnerProjects.AnyAsync(x => x.IndustryPartnerId == partnerId && x.ProjectId == project.Id);
+        Assert.True(linked);
     }
 
     [Fact]

@@ -879,3 +879,154 @@ button.project-intelligence-card:hover {
         gap: .15rem;
     }
 }
+
+
+/* Exploitation and transfer portfolio section */
+.project-portfolio-files-column,
+.project-exploitation-section {
+    min-width: 0;
+}
+
+.project-exploitation-section {
+    padding-top: .15rem;
+}
+
+.project-exploitation-section__header {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    margin-bottom: .65rem;
+    padding-inline: .15rem;
+}
+
+.project-exploitation-section__header .pm-card-icon {
+    width: 2rem;
+    height: 2rem;
+    border-radius: .62rem;
+}
+
+.project-exploitation-section__header h2 {
+    color: var(--pm-text-strong, #0f172a);
+    font-size: .92rem;
+    font-weight: 750;
+}
+
+.project-exploitation-section__header p {
+    margin-top: .08rem;
+    color: var(--portfolio-muted);
+    font-size: .74rem;
+}
+
+.project-exploitation-grid > [class*="col-"] {
+    min-width: 0;
+}
+
+.project-exploitation-card {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    width: 100%;
+    min-height: 12.5rem;
+}
+
+.project-exploitation-card .pm-right-summary-card__header {
+    align-items: flex-start;
+    min-height: 4.15rem;
+    padding: .72rem .78rem;
+}
+
+.project-exploitation-card .pm-card-heading {
+    min-width: 0;
+}
+
+.project-exploitation-card .pm-card-title {
+    font-size: .86rem;
+    line-height: 1.2;
+}
+
+.project-exploitation-card .pm-card-subtitle {
+    margin-top: .12rem;
+    font-size: .69rem;
+    line-height: 1.28;
+}
+
+.project-exploitation-card .pm-card-header-actions {
+    gap: .25rem;
+}
+
+.project-exploitation-card .pm-card-header-actions .badge {
+    max-width: 7.5rem;
+    overflow: hidden;
+    font-size: .65rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.project-exploitation-card .pm-right-summary-card__body {
+    flex: 1 1 auto;
+    padding: .72rem .8rem;
+}
+
+.project-exploitation-card .pm-right-summary-card__footer {
+    padding: .6rem .8rem;
+    background: color-mix(in srgb, var(--pm-surface-subtle, #f8fafc) 70%, white);
+}
+
+.project-exploitation-card .pm-summary-footer-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: .4rem;
+}
+
+.project-exploitation-card .pm-summary-row-list {
+    display: grid;
+    gap: .38rem;
+}
+
+.project-exploitation-card .pm-summary-row-link {
+    padding: .46rem .5rem;
+    border: 1px solid var(--portfolio-border);
+    border-radius: .58rem;
+    background: var(--pm-surface-subtle, #f8fafc);
+}
+
+.project-exploitation-card dl {
+    row-gap: .18rem;
+}
+
+.project-exploitation-card dt,
+.project-exploitation-card dd {
+    margin-bottom: .22rem;
+    font-size: .72rem;
+}
+
+.project-exploitation-card .alert {
+    padding: .55rem .62rem;
+    font-size: .7rem;
+}
+
+.project-exploitation-empty {
+    display: grid;
+    gap: .2rem;
+    min-height: 3.4rem;
+    align-content: center;
+}
+
+.project-exploitation-empty strong {
+    color: var(--pm-text-strong, #0f172a);
+    font-size: .82rem;
+}
+
+.project-exploitation-empty span {
+    color: var(--portfolio-muted);
+    font-size: .72rem;
+    line-height: 1.35;
+}
+
+@media (max-width: 767.98px) {
+    .project-exploitation-card {
+        min-height: 0;
+    }
+}

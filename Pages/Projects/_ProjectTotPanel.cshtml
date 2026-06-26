@@ -2,37 +2,33 @@
 @model ProjectManagement.Pages.Projects.OverviewModel
 
 @{
-    // SECTION: ToT panel visibility
-    var showTransferOfTechnology = Model.LifecycleSummary.Status == ProjectLifecycleStatus.Completed;
-}
-
-@if (showTransferOfTechnology)
-{
-    // SECTION: ToT status chip mapping
     var tot = Model.TotSummary;
-    var badgeVariant = tot.HasTotRecord
-        ? tot.Status switch
+    var badgeVariant = !tot.HasTotRecord
+        ? "secondary"
+        : tot.Status switch
         {
             ProjectTotStatus.Completed => "success",
             ProjectTotStatus.InProgress => "info",
             ProjectTotStatus.NotRequired => "secondary",
+            ProjectTotStatus.NotStarted => "warning",
             _ => "secondary"
-        }
-        : "secondary";
+        };
 
     var cardModel = new RightColumnSummaryCardViewModel
     {
         IconClass = "bi bi-diagram-3",
         Title = "Transfer of Technology",
-        Subtitle = "Status and milestones.",
-        StatusText = tot.StatusLabel,
+        Subtitle = "Transfer status, milestones and sustainment position.",
+        StatusText = tot.HasTotRecord ? tot.StatusLabel : "Not recorded",
         StatusBadgeClass = $"text-bg-{badgeVariant}",
         BodyPartialName = "_ProjectTotPanelBody",
         BodyModel = Model,
         HeaderActionsPartialName = "_ProjectTotPanelHeaderActions",
-        HeaderActionsModel = Model
+        HeaderActionsModel = Model,
+        FooterPartialName = Model.CanManageTot ? "_ProjectTotPanelFooter" : null,
+        FooterModel = Model,
+        CardClass = "project-exploitation-card project-exploitation-card--tot h-100"
     };
-
-    <!-- SECTION: ToT summary card -->
-    <partial name="_RightColumnSummaryCard" model="cardModel" />
 }
+
+<partial name="_RightColumnSummaryCard" model="cardModel" />

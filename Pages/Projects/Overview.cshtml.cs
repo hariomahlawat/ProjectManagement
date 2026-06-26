@@ -25,7 +25,6 @@ using ProjectManagement.Models.IndustryPartners;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
-using ProjectManagement.Services.IndustryPartners;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Services.Text;
@@ -101,7 +100,6 @@ namespace ProjectManagement.Pages.Projects
         public ProjectRemarkSummaryViewModel RemarkSummary { get; private set; } = ProjectRemarkSummaryViewModel.Empty;
         public ProjectTotSummaryViewModel TotSummary { get; private set; } = ProjectTotSummaryViewModel.Empty;
         public ProjectCostSummaryViewModel CostSummary { get; private set; } = ProjectCostSummaryViewModel.Empty;
-        public bool ShowJdpPanel { get; private set; }
         public IReadOnlyList<JdpPartnerLinkVm> JdpPartners { get; private set; } = Array.Empty<JdpPartnerLinkVm>();
         public bool CanManageTot { get; private set; }
         public bool CanManageIndustryPartners { get; private set; }
@@ -302,25 +300,19 @@ namespace ProjectManagement.Pages.Projects
                     .ToList();
             }
 
-            // SECTION: Project Overview - Joint Development Partner panel data
-            ShowJdpPanel = ShouldShowJdpPanel(project, Stages);
-            if (ShowJdpPanel)
-            {
-                JdpPartners = await _db.IndustryPartnerProjects
-                    .AsNoTracking()
-                    .Where(x => x.ProjectId == project.Id)
-                    .OrderBy(x => x.IndustryPartner.Name)
-                    .Select(x => new JdpPartnerLinkVm(
-                        x.IndustryPartnerId,
-                        x.IndustryPartner.Name,
-                        x.IndustryPartner.Location
-                    ))
-                    .ToListAsync(ct);
-            }
-            else
-            {
-                JdpPartners = Array.Empty<JdpPartnerLinkVm>();
-            }
+            // SECTION: Project Overview - Joint Development Partner portfolio data
+            // JDP is a project-level portfolio record for every project. An empty link set
+            // represents the current nil / not-linked position and must remain visible.
+            JdpPartners = await _db.IndustryPartnerProjects
+                .AsNoTracking()
+                .Where(x => x.ProjectId == project.Id)
+                .OrderBy(x => x.IndustryPartner.Name)
+                .Select(x => new JdpPartnerLinkVm(
+                    x.IndustryPartnerId,
+                    x.IndustryPartner.Name,
+                    x.IndustryPartner.Location
+                ))
+                .ToListAsync(ct);
 
             var stageLookup = projectStages
                 .Where(s => s.StageCode is not null)
@@ -502,13 +494,6 @@ namespace ProjectManagement.Pages.Projects
 
             return Page();
         }
-
-        // SECTION: Project Overview - Joint Development Partner panel visibility rules
-        private static bool ShouldShowJdpPanel(Project project, IList<ProjectStage> stages)
-        {
-            return IndustryPartnerProjectEligibility.IsEligibleForJdpLink(project, stages);
-        }
-
 
         public async Task<IActionResult> OnPostCompleteAsync(int id, CancellationToken ct)
         {
@@ -1521,7 +1506,7 @@ namespace ProjectManagement.Pages.Projects
                 {
                     HasTotRecord = false,
                     Status = ProjectTotStatus.NotStarted,
-                    StatusLabel = "Not tracked",
+                    StatusLabel = "Not recorded",
                     Summary = "Transfer of Technology tracking has not been configured for this project.",
                     PendingRequest = request is { State: ProjectTotRequestDecisionState.Pending }
                         ? BuildTotRequestSummary(request)

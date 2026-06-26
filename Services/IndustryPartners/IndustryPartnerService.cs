@@ -173,21 +173,15 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
 
     public async Task LinkProjectAsync(int partnerId, int projectId, ClaimsPrincipal user, CancellationToken cancellationToken = default)
     {
-        // SECTION: Eligibility validation for JDP linking
-        var project = await _db.Projects
+        // SECTION: Project validation for JDP linking
+        // Every live project can carry a JDP association; no lifecycle-stage gate applies.
+        var projectExists = await _db.Projects
             .AsNoTracking()
-            .Include(item => item.ProjectStages)
-            .FirstOrDefaultAsync(item => item.Id == projectId && !item.IsDeleted && !item.IsArchived, cancellationToken);
+            .AnyAsync(item => item.Id == projectId && !item.IsDeleted && !item.IsArchived, cancellationToken);
 
-        if (project is null)
+        if (!projectExists)
         {
             throw Error("project", "Selected project was not found.");
-        }
-
-        var isEligible = IndustryPartnerProjectEligibility.IsEligibleForJdpLink(project, project.ProjectStages);
-        if (!isEligible)
-        {
-            throw Error("project", "Project is not eligible to be linked. Only Development stage or Completed projects can be linked.");
         }
 
         var exists = await _db.IndustryPartnerProjects.AnyAsync(x => x.IndustryPartnerId == partnerId && x.ProjectId == projectId, cancellationToken);
