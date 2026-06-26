@@ -184,6 +184,14 @@
       width: editor.querySelector('input[data-photo-editor-field="width"]'),
       height: editor.querySelector('input[data-photo-editor-field="height"]')
     };
+    const dirtyFieldSelector = editor.getAttribute('data-photo-editor-dirty-field');
+    const dirtyField = dirtyFieldSelector ? document.querySelector(dirtyFieldSelector) : editor.querySelector('[data-photo-editor-dirty]');
+
+    function setCropDirty(isDirty) {
+      if (dirtyField) {
+        dirtyField.value = isDirty ? 'true' : 'false';
+      }
+    }
 
     const previews = Array.from(previewGrid.querySelectorAll('[data-photo-editor-preview]')).map((element) => {
       const itemElement = element.closest('[data-photo-preview-item]');
@@ -287,6 +295,9 @@
     let isModernCropper = false;
     let legacyListenerCleanup = null;
     let activeObjectUrl = null;
+    let sourceSequence = 0;
+    let cropInteractionReady = false;
+    let userCropInteractionActive = false;
     let lastDetail = null;
     let previewSequence = 0;
     let activePreview = null;
@@ -482,12 +493,19 @@
       }
     });
 
+    const cropSection = editor.closest('[data-photo-crop-section]');
+
     function setActiveState(isActive) {
-      editor.classList.toggle('is-active', !!isActive);
+      const active = !!isActive;
+      editor.classList.toggle('is-active', active);
       if (selectionPlaceholder) {
-        selectionPlaceholder.classList.toggle('d-none', !!isActive);
+        selectionPlaceholder.classList.toggle('d-none', active);
       }
-      previewGrid.classList.toggle('d-none', !isActive);
+      previewGrid.classList.toggle('d-none', !active);
+      if (cropSection) {
+        cropSection.hidden = !active;
+        cropSection.setAttribute('aria-hidden', active ? 'false' : 'true');
+      }
     }
 
     function clearPreviews() {
@@ -660,12 +678,18 @@
       updatePreviews();
     }
 
-    function handleSelectionChange(detail) {
+    function handleSelectionChange(detail, markDirty = false) {
+      if (markDirty && cropInteractionReady) {
+        setCropDirty(true);
+      }
       const scale = isModernCropper ? computeScale(detail) : null;
       applyCropDetail(detail, scale);
     }
 
-    function handleLegacyCrop(detail) {
+    function handleLegacyCrop(detail, markDirty = false) {
+      if (markDirty && cropInteractionReady) {
+        setCropDirty(true);
+      }
       applyCropDetail(detail, null);
       if (detail && detail.width > 0 && detail.height > 0) {
         setActiveState(true);
@@ -688,13 +712,28 @@
       selection.precise = true;
       selection.outlined = true;
 
+      selection.addEventListener('pointerdown', () => {
+        userCropInteractionActive = true;
+      });
+
       selection.addEventListener('change', (event) => {
-        handleSelectionChange(event.detail || null);
+        handleSelectionChange(event.detail || null, userCropInteractionActive);
       });
 
       selection.addEventListener('pointerup', () => {
         if (lastDetail) {
-          handleSelectionChange(lastDetail);
+          handleSelectionChange(lastDetail, true);
+        }
+        userCropInteractionActive = false;
+      });
+
+      selection.addEventListener('pointercancel', () => {
+        userCropInteractionActive = false;
+      });
+
+      selection.addEventListener('keydown', (event) => {
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+          setCropDirty(true);
         }
       });
     }
@@ -747,7 +786,7 @@
         };
 
         const handleCropEvent = (event) => {
-          handleLegacyCrop(event && event.detail ? event.detail : null);
+          handleLegacyCrop(event && event.detail ? event.detail : null, true);
         };
 
         image.addEventListener('ready', handleReady);
@@ -769,6 +808,8 @@
 
     function resetEditor() {
       collapseExpansion();
+      cropInteractionReady = false;
+      userCropInteractionActive = false;
 
       if (cropper) {
         if (typeof cropper.destroy === 'function') {
@@ -798,80 +839,115 @@
       setActiveState(false);
     }
 
-    function setImageSource(source, isObjectUrl) {
+    function setImageSource(source) {
+      const requestId = ++sourceSequence;
+      resetEditor();
+
       if (!source) {
-        resetEditor();
         return;
       }
 
-      setActiveState(false);
-      if (isObjectUrl) {
-        revokeObjectUrl();
-        activeObjectUrl = source;
-      } else {
-        revokeObjectUrl();
-      }
-
-      if (cropper) {
-        try {
-          cropper.replace(source);
-          if (isModernCropper) {
-            selection = cropper.getCropperSelection();
-            window.setTimeout(() => {
-              if (selection) {
-                const detail = {
-                  x: selection.x,
-                  y: selection.y,
-                  width: selection.width,
-                  height: selection.height
-                };
-                handleSelectionChange(detail);
-              }
-              setActiveState(true);
-            }, 0);
-          } else if (cropper && typeof cropper.getData === 'function') {
-            window.setTimeout(() => {
-              handleLegacyCrop(cropper.getData(true));
-            }, 0);
-          }
-        } catch (err) {
-          resetEditor();
+      let settled = false;
+      const handleLoad = () => {
+        if (settled || requestId !== sourceSequence) {
           return;
         }
-      } else {
-        image.src = source;
-        image.addEventListener('load', () => {
-          ensureCropperReady();
-          if (isModernCropper && selection) {
-            const detail = {
-              x: selection.x,
-              y: selection.y,
-              width: selection.width,
-              height: selection.height
-            };
-            handleSelectionChange(detail);
-            setActiveState(true);
-          } else if (!isModernCropper && cropper && typeof cropper.getData === 'function') {
-            handleLegacyCrop(cropper.getData(true));
+        settled = true;
+
+        editor.classList.remove('has-load-error');
+        ensureCropperReady();
+
+        window.requestAnimationFrame(() => {
+          if (requestId !== sourceSequence) {
+            return;
           }
-        }, { once: true });
+
+          if (isModernCropper) {
+            selection = cropper ? cropper.getCropperSelection() : null;
+            if (selection) {
+              const detail = {
+                x: selection.x,
+                y: selection.y,
+                width: selection.width,
+                height: selection.height
+              };
+              handleSelectionChange(detail);
+              setActiveState(true);
+            }
+          } else if (cropper && typeof cropper.getData === 'function') {
+            handleLegacyCrop(cropper.getData(true));
+            setActiveState(true);
+          }
+          cropInteractionReady = true;
+        });
+      };
+
+      const handleError = () => {
+        if (settled || requestId !== sourceSequence) {
+          return;
+        }
+        settled = true;
+
+        editor.classList.add('has-load-error');
+        resetFields();
+        clearPreviews();
+        setActiveState(false);
+        editor.dispatchEvent(new CustomEvent('project-photo-editor:error', {
+          bubbles: true,
+          detail: { message: 'The selected image could not be previewed. Choose another JPEG, PNG or WebP file.' }
+        }));
+      };
+
+      image.addEventListener('load', handleLoad, { once: true });
+      image.addEventListener('error', handleError, { once: true });
+      image.src = source;
+
+      if (image.complete) {
+        if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+          window.queueMicrotask(handleLoad);
+        } else {
+          window.queueMicrotask(handleError);
+        }
       }
     }
 
     function handleFileChange() {
       const [file] = fileInput.files || [];
       if (!file || !file.type || !file.type.startsWith('image/')) {
+        setCropDirty(false);
         const initialUrl = editor.getAttribute('data-photo-editor-initial-url');
         if (initialUrl) {
-          setImageSource(initialUrl, false);
+          setImageSource(initialUrl);
         } else {
+          sourceSequence += 1;
           resetEditor();
         }
         return;
       }
 
-      const objectUrl = URL.createObjectURL(file);
-      setImageSource(objectUrl, true);
+      setCropDirty(true);
+      const reader = new FileReader();
+      const requestId = ++sourceSequence;
+
+      reader.addEventListener('load', () => {
+        if (requestId !== sourceSequence || typeof reader.result !== 'string') {
+          return;
+        }
+        setImageSource(reader.result);
+      }, { once: true });
+
+      reader.addEventListener('error', () => {
+        if (requestId !== sourceSequence) {
+          return;
+        }
+        editor.dispatchEvent(new CustomEvent('project-photo-editor:error', {
+          bubbles: true,
+          detail: { message: 'The selected file could not be read. Choose another image and try again.' }
+        }));
+        resetEditor();
+      }, { once: true });
+
+      reader.readAsDataURL(file);
     }
 
     window.addEventListener('resize', () => {
@@ -889,28 +965,17 @@
     });
 
     fileInput.addEventListener('change', handleFileChange);
+    fileInput.addEventListener('project-photo-file-cleared', handleFileChange);
 
     const initialUrl = editor.getAttribute('data-photo-editor-initial-url');
+    setCropDirty(false);
     if (initialUrl) {
-      setImageSource(initialUrl, false);
+      setImageSource(initialUrl);
     } else {
       resetFields();
       clearPreviews();
       setActiveState(false);
     }
-  }
-
-  function getDragAfterElement(container, pointerY) {
-    const siblings = Array.from(container.querySelectorAll('[data-photo-item]:not(.is-dragging)'));
-    let closest = { offset: Number.NEGATIVE_INFINITY, element: null };
-    siblings.forEach((item) => {
-      const box = item.getBoundingClientRect();
-      const offset = pointerY - box.top - (box.height / 2);
-      if (offset < 0 && offset > closest.offset) {
-        closest = { offset, element: item };
-      }
-    });
-    return closest.element;
   }
 
   function getItemCaption(item, fallbackIndex) {
@@ -937,17 +1002,68 @@
     items.forEach((item, index) => {
       const position = index + 1;
       const ordinalInput = item.querySelector('[data-photo-ordinal]');
+      const positionLabel = item.querySelector('[data-photo-position-label]');
+      const dragHandle = item.querySelector('[data-photo-drag-handle]');
       const caption = getItemCaption(item, index);
+
       if (ordinalInput) {
         ordinalInput.value = String(position);
         ordinalInput.setAttribute('aria-label', `Display position for ${caption}`);
       }
+      if (positionLabel) {
+        positionLabel.textContent = `Position ${position}`;
+      }
+      if (dragHandle) {
+        dragHandle.setAttribute('aria-label', `Move ${caption}, currently position ${position} of ${total}`);
+      }
+
       item.setAttribute('aria-setsize', String(total));
       item.setAttribute('aria-posinset', String(position));
       item.setAttribute('aria-label', `${caption} – position ${position} of ${total}`);
     });
 
     return { items, total };
+  }
+
+  function getOrderSignature(container) {
+    return Array.from(container.querySelectorAll('[data-photo-item]'))
+      .map((item) => item.getAttribute('data-photo-id') || '')
+      .join('|');
+  }
+
+  function getGridInsertion(container, clientX, clientY, activeItem, placeholder) {
+    const candidates = Array.from(container.querySelectorAll('[data-photo-item]'))
+      .filter((item) => item !== activeItem && item !== placeholder && item.offsetParent !== null);
+
+    if (!candidates.length) {
+      return { element: null, before: false };
+    }
+
+    let nearest = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    candidates.forEach((item) => {
+      const rect = item.getBoundingClientRect();
+      const centerX = rect.left + (rect.width / 2);
+      const centerY = rect.top + (rect.height / 2);
+      const distance = Math.hypot(clientX - centerX, clientY - centerY);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = { item, rect, centerX, centerY };
+      }
+    });
+
+    if (!nearest) {
+      return { element: null, before: false };
+    }
+
+    const verticalThreshold = nearest.rect.height * 0.45;
+    const sameVisualRow = Math.abs(clientY - nearest.centerY) <= verticalThreshold;
+    const before = sameVisualRow
+      ? clientX < nearest.centerX
+      : clientY < nearest.centerY;
+
+    return { element: nearest.item, before };
   }
 
   function initReorder(container) {
@@ -961,179 +1077,276 @@
     }
 
     const root = container.closest('[data-photo-reorder-root]') || container;
+    const form = container.closest('[data-photo-order-form]');
     const statusRegion = root.querySelector('[data-photo-reorder-status]');
+    const saveButton = form ? form.querySelector('[data-photo-order-save]') : null;
+    const orderIndicator = form ? form.querySelector('[data-photo-order-indicator]') : null;
+    const initialSignature = getOrderSignature(container);
+
     let activeItem = null;
+    let activeHandle = null;
+    let activeMode = null;
+    let activeOriginalIndex = -1;
+    let placeholder = null;
+    let dropped = false;
+    let dragFrame = null;
+    let pendingPointer = null;
 
     refreshOrdinals(container);
-    if (statusRegion) {
-      statusRegion.textContent = '';
-    }
     container.setAttribute('aria-expanded', 'false');
 
     function announce(message) {
       if (statusRegion) {
-        statusRegion.textContent = message;
+        statusRegion.textContent = '';
+        window.requestAnimationFrame(() => {
+          statusRegion.textContent = message;
+        });
       }
     }
 
-    function updateExpandedState() {
-      container.setAttribute('aria-expanded', activeItem ? 'true' : 'false');
+    function syncDirtyState() {
+      const changed = getOrderSignature(container) !== initialSignature;
+      if (saveButton) {
+        saveButton.disabled = !changed;
+      }
+      if (orderIndicator) {
+        orderIndicator.textContent = changed ? 'Unsaved order changes' : 'Order unchanged';
+        orderIndicator.classList.toggle('is-dirty', changed);
+      }
+      if (form) {
+        form.classList.toggle('has-order-changes', changed);
+      }
+      return changed;
     }
 
-    function activateItem(item) {
-      if (activeItem && activeItem !== item) {
-        deactivateItem(activeItem);
-      }
+    function createPlaceholder(item) {
+      const rect = item.getBoundingClientRect();
+      const nextPlaceholder = document.createElement('div');
+      nextPlaceholder.className = 'pm-photo-grid-placeholder';
+      nextPlaceholder.setAttribute('aria-hidden', 'true');
+      nextPlaceholder.style.minHeight = `${Math.max(180, Math.round(rect.height))}px`;
+      return nextPlaceholder;
+    }
+
+    function setActiveState(item, handle, mode) {
       activeItem = item;
-      if (activeItem) {
-        activeItem.classList.add('is-dragging');
-        activeItem.setAttribute('aria-grabbed', 'true');
+      activeHandle = handle;
+      activeMode = mode;
+      activeOriginalIndex = Array.from(container.querySelectorAll('[data-photo-item]')).indexOf(item);
+      dropped = false;
+      item.classList.add('is-dragging');
+      item.setAttribute('aria-grabbed', 'true');
+      container.setAttribute('aria-expanded', 'true');
+
+      if (mode === 'pointer') {
+        placeholder = createPlaceholder(item);
+        item.insertAdjacentElement('afterend', placeholder);
+        window.setTimeout(() => {
+          if (activeItem === item && activeMode === 'pointer') {
+            item.classList.add('is-drag-source-hidden');
+          }
+        }, 0);
       }
-      updateExpandedState();
     }
 
-    function deactivateItem(item, options = {}) {
-      if (!item) {
+    function restoreOriginalPosition(item) {
+      const remainingItems = Array.from(container.querySelectorAll('[data-photo-item]')).filter((candidate) => candidate !== item);
+      if (activeOriginalIndex < 0 || activeOriginalIndex >= remainingItems.length) {
+        container.appendChild(item);
+      } else {
+        container.insertBefore(item, remainingItems[activeOriginalIndex]);
+      }
+    }
+
+    function clearActiveState({ restoreFocus = false, restoreOriginal = false } = {}) {
+      if (!activeItem) {
         return;
       }
+
+      const item = activeItem;
+      const handle = activeHandle;
+
+      item.classList.remove('is-drag-source-hidden');
+      if (activeMode === 'pointer' && placeholder) {
+        if (restoreOriginal) {
+          placeholder.remove();
+          restoreOriginalPosition(item);
+        } else {
+          container.insertBefore(item, placeholder);
+          placeholder.remove();
+        }
+      } else if (restoreOriginal) {
+        restoreOriginalPosition(item);
+      }
+
       item.classList.remove('is-dragging');
       item.setAttribute('aria-grabbed', 'false');
-      if (options.restoreFocus) {
-        item.focus();
+      activeItem = null;
+      activeHandle = null;
+      activeMode = null;
+      activeOriginalIndex = -1;
+      placeholder = null;
+      pendingPointer = null;
+      if (dragFrame) {
+        window.cancelAnimationFrame(dragFrame);
+        dragFrame = null;
       }
-      if (activeItem === item) {
-        activeItem = null;
+      container.setAttribute('aria-expanded', 'false');
+      refreshOrdinals(container);
+      syncDirtyState();
+
+      if (restoreFocus && handle && typeof handle.focus === 'function') {
+        handle.focus({ preventScroll: true });
       }
-      updateExpandedState();
     }
 
-    function announcePickup(item) {
-      const caption = getItemCaption(item);
-      announce(`${caption} selected. Use arrow keys to change position, Enter to drop, or Escape to cancel.`);
-    }
-
-    function announceDrop(item, position, total) {
-      const caption = getItemCaption(item);
-      announce(`${caption} placed in position ${position} of ${total}.`);
-    }
-
-    function announceCancel(item) {
-      const caption = getItemCaption(item);
-      announce(`Cancelled moving ${caption}.`);
-    }
-
-    function announceBoundary(item, direction) {
-      const caption = getItemCaption(item);
-      announce(`${caption} is already at the ${direction < 0 ? 'start' : 'end'} of the list.`);
-    }
-
-    function moveItem(item, direction) {
+    function moveKeyboardItem(item, direction) {
       const currentItems = Array.from(container.querySelectorAll('[data-photo-item]'));
-      const index = currentItems.indexOf(item);
-      if (index === -1) {
-        return;
-      }
-
-      const newIndex = index + direction;
-      if (newIndex < 0 || newIndex >= currentItems.length) {
-        announceBoundary(item, direction);
+      const currentIndex = currentItems.indexOf(item);
+      const nextIndex = currentIndex + direction;
+      if (currentIndex < 0 || nextIndex < 0 || nextIndex >= currentItems.length) {
+        announce(`${getItemCaption(item)} is already at the ${direction < 0 ? 'start' : 'end'} of the gallery.`);
         return;
       }
 
       if (direction > 0) {
-        const reference = currentItems[newIndex].nextElementSibling;
-        container.insertBefore(item, reference || null);
+        currentItems[nextIndex].insertAdjacentElement('afterend', item);
       } else {
-        const reference = currentItems[newIndex];
-        container.insertBefore(item, reference);
+        container.insertBefore(item, currentItems[nextIndex]);
       }
 
       const { items: updatedItems, total } = refreshOrdinals(container);
       const position = updatedItems.indexOf(item) + 1;
-      item.focus();
+      syncDirtyState();
       announce(`${getItemCaption(item)} moved to position ${position} of ${total}.`);
     }
 
+    function processPointerMove() {
+      dragFrame = null;
+      if (!activeItem || activeMode !== 'pointer' || !placeholder || !pendingPointer) {
+        return;
+      }
+
+      const { clientX, clientY } = pendingPointer;
+      const insertion = getGridInsertion(container, clientX, clientY, activeItem, placeholder);
+      if (!insertion.element) {
+        container.appendChild(placeholder);
+        return;
+      }
+
+      if (insertion.before) {
+        container.insertBefore(placeholder, insertion.element);
+      } else {
+        insertion.element.insertAdjacentElement('afterend', placeholder);
+      }
+    }
+
     container.addEventListener('dragover', (event) => {
-      if (!activeItem) {
+      if (!activeItem || activeMode !== 'pointer') {
         return;
       }
       event.preventDefault();
-      const afterElement = getDragAfterElement(container, event.clientY);
-      if (!afterElement) {
-        container.appendChild(activeItem);
-      } else if (afterElement !== activeItem) {
-        container.insertBefore(activeItem, afterElement);
+      pendingPointer = { clientX: event.clientX, clientY: event.clientY };
+      if (!dragFrame) {
+        dragFrame = window.requestAnimationFrame(processPointerMove);
       }
     });
 
     container.addEventListener('drop', (event) => {
-      if (!activeItem) {
+      if (!activeItem || activeMode !== 'pointer') {
         return;
       }
       event.preventDefault();
+      dropped = true;
       const item = activeItem;
-      const afterElement = getDragAfterElement(container, event.clientY);
-      if (!afterElement) {
-        container.appendChild(item);
-      } else if (afterElement !== item) {
-        container.insertBefore(item, afterElement);
-      }
-      const { items: updatedItems, total } = refreshOrdinals(container);
+      const caption = getItemCaption(item);
+      clearActiveState({ restoreFocus: true });
+      const updatedItems = Array.from(container.querySelectorAll('[data-photo-item]'));
       const position = updatedItems.indexOf(item) + 1;
-      deactivateItem(item, { restoreFocus: true });
-      announceDrop(item, position, total);
-    });
-
-    container.addEventListener('dragend', () => {
-      if (!activeItem) {
-        return;
-      }
-      const item = activeItem;
-      deactivateItem(item, { restoreFocus: true });
-      refreshOrdinals(container);
-      announceCancel(item);
+      announce(`${caption} placed in position ${position} of ${updatedItems.length}.`);
     });
 
     items.forEach((item) => {
-      item.setAttribute('draggable', 'true');
-      item.addEventListener('dragstart', (event) => {
-        activateItem(item);
+      const handle = item.querySelector('[data-photo-drag-handle]') || item;
+      handle.setAttribute('draggable', 'true');
+
+      handle.addEventListener('dragstart', (event) => {
+        if (activeItem && activeItem !== item) {
+          clearActiveState();
+        }
+        setActiveState(item, handle, 'pointer');
         if (event.dataTransfer) {
           event.dataTransfer.effectAllowed = 'move';
-          event.dataTransfer.setData('text/plain', '');
+          event.dataTransfer.setData('text/plain', item.getAttribute('data-photo-id') || 'photo');
+          try {
+            event.dataTransfer.setDragImage(item, Math.min(item.offsetWidth / 2, 160), 28);
+          } catch (_) {
+            // Browser may not support a custom drag image.
+          }
         }
-        announcePickup(item);
+        announce(`${getItemCaption(item)} selected for moving.`);
       });
-      item.addEventListener('keydown', (event) => {
+
+      handle.addEventListener('dragend', () => {
+        if (!activeItem || activeMode !== 'pointer') {
+          return;
+        }
+        const itemBeingMoved = activeItem;
+        const caption = getItemCaption(itemBeingMoved);
+        const wasDropped = dropped;
+        clearActiveState({ restoreFocus: true, restoreOriginal: !wasDropped });
+        if (!wasDropped) {
+          announce(`Moving ${caption} was cancelled.`);
+        }
+      });
+
+      handle.addEventListener('keydown', (event) => {
         const key = event.key;
         if (key === ' ' || key === 'Spacebar' || key === 'Enter') {
           event.preventDefault();
-          if (activeItem === item) {
+          if (activeItem === item && activeMode === 'keyboard') {
             const { items: updatedItems, total } = refreshOrdinals(container);
             const position = updatedItems.indexOf(item) + 1;
-            deactivateItem(item, { restoreFocus: true });
-            announceDrop(item, position, total);
+            clearActiveState({ restoreFocus: true });
+            announce(`${getItemCaption(item)} placed in position ${position} of ${total}.`);
           } else {
-            if (activeItem && activeItem !== item) {
-              const previous = activeItem;
-              deactivateItem(previous);
-              announceCancel(previous);
+            if (activeItem) {
+              clearActiveState();
             }
-            activateItem(item);
-            announcePickup(item);
+            setActiveState(item, handle, 'keyboard');
+            announce(`${getItemCaption(item)} selected. Use the arrow keys to move it, Enter to place it, or Escape to cancel.`);
           }
-        } else if ((key === 'Escape' || key === 'Esc') && activeItem === item) {
+          return;
+        }
+
+        if ((key === 'Escape' || key === 'Esc') && activeItem === item) {
           event.preventDefault();
-          deactivateItem(item, { restoreFocus: true });
-          announceCancel(item);
-        } else if (activeItem === item && (key === 'ArrowUp' || key === 'ArrowLeft' || key === 'ArrowDown' || key === 'ArrowRight')) {
+          clearActiveState({ restoreFocus: true, restoreOriginal: true });
+          announce(`Moving ${getItemCaption(item)} was cancelled.`);
+          return;
+        }
+
+        if (activeItem === item && activeMode === 'keyboard' && ['ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight'].includes(key)) {
           event.preventDefault();
           const direction = key === 'ArrowUp' || key === 'ArrowLeft' ? -1 : 1;
-          moveItem(item, direction);
+          moveKeyboardItem(item, direction);
         }
       });
     });
+
+    if (form) {
+      form.addEventListener('submit', () => {
+        refreshOrdinals(container);
+        if (saveButton) {
+          saveButton.disabled = true;
+        }
+        if (orderIndicator) {
+          orderIndicator.textContent = 'Saving order…';
+        }
+      });
+    }
+
+    syncDirtyState();
   }
 
   document.addEventListener('DOMContentLoaded', () => {

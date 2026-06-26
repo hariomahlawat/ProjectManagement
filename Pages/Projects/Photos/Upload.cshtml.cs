@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -40,6 +41,10 @@ public class UploadModel : PageModel
 
     public Project Project { get; private set; } = null!;
 
+    public ProjectPhoto? CurrentCoverPhoto { get; private set; }
+
+    public bool HasCurrentCoverPhoto => CurrentCoverPhoto is not null;
+
     public bool AllowTotLinking => Project?.Tot is { Status: not ProjectTotStatus.NotRequired };
 
     public string TotStatusDisplay => Project?.Tot?.Status switch
@@ -61,6 +66,7 @@ public class UploadModel : PageModel
 
         var project = await _db.Projects
             .Include(p => p.Tot)
+            .Include(p => p.Photos)
             .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (project is null)
         {
@@ -73,6 +79,7 @@ public class UploadModel : PageModel
         }
 
         Project = project;
+        CurrentCoverPhoto = ResolveCoverPhoto(project);
         Input.ProjectId = project.Id;
         Input.RowVersion = Convert.ToBase64String(project.RowVersion);
         Input.LinkToTot = false;
@@ -115,6 +122,7 @@ public class UploadModel : PageModel
 
         var project = await _db.Projects
             .Include(p => p.Tot)
+            .Include(p => p.Photos)
             .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (project is null)
         {
@@ -127,17 +135,17 @@ public class UploadModel : PageModel
         }
 
         Project = project;
+        CurrentCoverPhoto = ResolveCoverPhoto(project);
         Input.RowVersion = Convert.ToBase64String(project.RowVersion);
 
         var tot = project.Tot;
-        var canLinkTot = tot is not null && tot.Status != ProjectTotStatus.NotRequired;
-        if (Input.LinkToTot && !canLinkTot)
-        {
-            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology is not required for this project.");
-        }
-        else if (Input.LinkToTot && tot is null)
+        if (Input.LinkToTot && tot is null)
         {
             ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology details have not been set up for this project yet.");
+        }
+        else if (Input.LinkToTot && tot?.Status == ProjectTotStatus.NotRequired)
+        {
+            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology is not required for this project.");
         }
 
         if (rowVersionBytes is not null && !project.RowVersion.SequenceEqual(rowVersionBytes))
@@ -199,6 +207,24 @@ public class UploadModel : PageModel
         }
     }
 
+    private static ProjectPhoto? ResolveCoverPhoto(Project project)
+    {
+        if (project.CoverPhotoId.HasValue)
+        {
+            var explicitCover = project.Photos.FirstOrDefault(photo => photo.Id == project.CoverPhotoId.Value);
+            if (explicitCover is not null)
+            {
+                return explicitCover;
+            }
+        }
+
+        return project.Photos
+            .Where(photo => photo.IsCover)
+            .OrderBy(photo => photo.Ordinal)
+            .ThenBy(photo => photo.Id)
+            .FirstOrDefault();
+    }
+
     private static byte[]? ParseRowVersion(string rowVersion)
     {
         if (string.IsNullOrWhiteSpace(rowVersion))
@@ -258,6 +284,7 @@ public class UploadModel : PageModel
 
         public IFormFile? File { get; set; }
 
+        [StringLength(512)]
         public string? Caption { get; set; }
 
         public bool SetAsCover { get; set; }

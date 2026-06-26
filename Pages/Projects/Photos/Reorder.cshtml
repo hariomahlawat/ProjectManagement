@@ -71,6 +71,10 @@
     <a asp-page="./Index" asp-route-id="@Model.Project.Id" class="btn btn-link">Cancel</a>
 </form>
 
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/project-photos.css" asp-append-version="true" />
+}
+
 @section Scripts {
     <script src="~/js/widgets/project-photo-gallery.js" asp-append-version="true"></script>
 }

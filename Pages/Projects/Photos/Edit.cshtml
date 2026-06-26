@@ -2,10 +2,14 @@
 @model ProjectManagement.Pages.Projects.Photos.EditModel
 @using Microsoft.Extensions.Options
 @using ProjectManagement.Services.Projects
+@using System
+@using System.Collections.Generic
+@using System.Linq
 @inject IOptions<ProjectPhotoOptions> PhotoOptions
 @{
     ViewData["Title"] = "Edit Project Photo";
-    var derivativeSettings = PhotoOptions.Value.Derivatives;
+    var photoOptions = PhotoOptions.Value;
+    var derivativeSettings = photoOptions.Derivatives;
     var coverOptions = derivativeSettings.TryGetValue("xl", out var xlOptions)
         ? xlOptions
         : new ProjectPhotoDerivativeOptions { Width = 1600, Height = 1200 };
@@ -15,245 +19,280 @@
     var thumbOptions = derivativeSettings.TryGetValue("sm", out var smOptions)
         ? smOptions
         : new ProjectPhotoDerivativeOptions { Width = 800, Height = 600 };
-    var originalPhotoUrl = Url.Page("./View", new { id = Model.Project.Id, photoId = Model.Photo.Id, size = "md" });
-    var editorInitialUrl = Url.Page("./View", new { id = Model.Project.Id, photoId = Model.Photo.Id, size = "xl" });
-    var coverLabelId = "project-photo-preview-label-xl";
-    var coverMetaId = "project-photo-preview-meta-xl";
-    var largeLabelId = "project-photo-preview-label-md";
-    var largeMetaId = "project-photo-preview-meta-md";
-    var thumbLabelId = "project-photo-preview-label-sm";
-    var thumbMetaId = "project-photo-preview-meta-sm";
+    var originalPhotoUrl = Url.Page("./View", new { id = Model.Project.Id, photoId = Model.Photo.Id, size = "md", v = Model.Photo.Version });
+    var editorInitialUrl = Url.Page("./View", new { id = Model.Project.Id, photoId = Model.Photo.Id, size = "xl", v = Model.Photo.Version });
+    var currentCoverUrl = Model.CurrentCoverPhoto is null
+        ? null
+        : Url.Page("./View", new { id = Model.Project.Id, photoId = Model.CurrentCoverPhoto.Id, size = "sm", v = Model.CurrentCoverPhoto.Version });
+    var allowedContentTypes = photoOptions.AllowedContentTypes?.ToList() ?? new List<string>();
+    var allowedContentTypesValue = string.Join(",", allowedContentTypes);
+    var maxFileSizeText = photoOptions.MaxFileSizeBytes >= 1024 * 1024
+        ? $"{photoOptions.MaxFileSizeBytes / (1024d * 1024d):0.#} MB"
+        : $"{Math.Max(1, photoOptions.MaxFileSizeBytes / 1024d):0.#} KB";
 }
 
-<h1 class="mb-4">Edit Project Photo</h1>
+<div class="container-xl project-photo-page">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-page="/Projects/Index">Projects</a></li>
+            <li class="breadcrumb-item"><a asp-page="/Projects/Overview" asp-route-id="@Model.Project.Id">@Model.Project.Name</a></li>
+            <li class="breadcrumb-item"><a asp-page="./Index" asp-route-id="@Model.Project.Id">Photos</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Edit</li>
+        </ol>
+    </nav>
 
-<div class="mb-4 project-photo-current">
-    <div class="pm-photo-frame">
-        <img src="@originalPhotoUrl" alt="Current project photo" class="img-fluid" />
-    </div>
+    <header class="project-photo-page__header">
+        <a asp-page="./Index" asp-route-id="@Model.Project.Id" class="project-photo-page__back">
+            <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to photos
+        </a>
+        <h1>Edit project photo</h1>
+        <p class="project-photo-page__project">@Model.Project.Name</p>
+        <p class="text-muted mb-0">Update the caption, project use or crop. Replacing the image is optional.</p>
+    </header>
+
+    <form method="post"
+          enctype="multipart/form-data"
+          class="project-photo-form"
+          data-photo-upload-form
+          data-file-required="false"
+          data-max-file-size="@photoOptions.MaxFileSizeBytes"
+          data-allowed-content-types="@allowedContentTypesValue">
+        <input asp-for="Input.ProjectId" type="hidden" />
+        <input asp-for="Input.PhotoId" type="hidden" />
+        <input asp-for="Input.RowVersion" type="hidden" />
+        <input asp-for="Input.PhotoVersion" type="hidden" />
+
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+        <section class="card pm-card project-photo-section">
+            <div class="card-header project-photo-section__header">
+                <div>
+                    <h2>Image</h2>
+                    <p>Review the current photo or select a replacement.</p>
+                </div>
+                <span class="project-photo-step">1</span>
+            </div>
+            <div class="card-body">
+                <div class="project-photo-edit-image-grid">
+                    <div class="project-photo-edit-current">
+                        <div class="project-photo-edit-current__frame">
+                            <img src="@originalPhotoUrl" alt="Current project photo" />
+                            @if (Model.IsCurrentCover)
+                            {
+                                <span class="pm-photo-cover-badge">Cover</span>
+                            }
+                        </div>
+                        <div class="project-photo-edit-current__meta">
+                            <strong>@Model.Photo.OriginalFileName</strong>
+                            <span>@Model.Photo.Width × @Model.Photo.Height px</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <input asp-for="Input.File"
+                               class="visually-hidden"
+                               type="file"
+                               accept="@allowedContentTypesValue"
+                               data-photo-file-input />
+                        <label for="Input_File" class="project-photo-dropzone project-photo-dropzone--compact" data-photo-dropzone tabindex="0">
+                            <span class="project-photo-dropzone__icon" aria-hidden="true"><i class="bi bi-arrow-repeat"></i></span>
+                            <strong>Replace image</strong>
+                            <span>Drag another photo here or choose a file</span>
+                            <small>JPEG, PNG or WebP · Maximum @maxFileSizeText</small>
+                        </label>
+                        <div class="project-photo-file-summary" data-photo-file-summary hidden>
+                            <span class="project-photo-file-summary__icon" aria-hidden="true"><i class="bi bi-image"></i></span>
+                            <div class="project-photo-file-summary__body">
+                                <strong data-photo-file-name>Replacement photo</strong>
+                                <span data-photo-file-meta></span>
+                            </div>
+                            <div class="project-photo-file-summary__actions">
+                                <label for="Input_File" class="btn btn-sm btn-outline-primary mb-0">Replace</label>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-photo-file-remove>Use current image</button>
+                            </div>
+                        </div>
+                        <div class="alert alert-danger mt-3 mb-0" role="alert" data-photo-file-error hidden></div>
+                        <span asp-validation-for="Input.File" class="text-danger d-block mt-2"></span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card pm-card project-photo-section">
+            <div class="card-header project-photo-section__header">
+                <div>
+                    <h2>Details and use</h2>
+                    <p>Describe the photo and control where it appears.</p>
+                </div>
+                <span class="project-photo-step">2</span>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <label asp-for="Input.Caption" class="form-label">Caption <span class="text-muted fw-normal">(optional)</span></label>
+                    <textarea asp-for="Input.Caption" class="form-control" rows="3" maxlength="512" placeholder="Describe the activity, milestone, trial or equipment shown."></textarea>
+                    <span asp-validation-for="Input.Caption" class="text-danger"></span>
+                </div>
+
+                <div class="project-photo-use-grid">
+                    <div class="project-photo-use-option">
+                        @if (Model.IsCurrentCover)
+                        {
+                            <input type="hidden" name="Input.SetAsCover" value="true" />
+                            <div class="project-photo-use-option__disabled project-photo-use-option__disabled--active">
+                                <i class="bi bi-star-fill" aria-hidden="true"></i>
+                                <div>
+                                    <strong>Current project cover</strong>
+                                    <span>To change the cover, edit another gallery photo and select “Use as project cover”.</span>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="form-check form-switch">
+                                <input asp-for="Input.SetAsCover" class="form-check-input" data-photo-cover-toggle />
+                                <label asp-for="Input.SetAsCover" class="form-check-label">
+                                    <strong>Use as project cover</strong>
+                                    <span>Show this image in the project header, cards and overview.</span>
+                                </label>
+                            </div>
+
+                            @if (Model.WillReplaceAnotherCover && currentCoverUrl is not null)
+                            {
+                                <div class="project-photo-current-cover">
+                                    <img src="@currentCoverUrl" alt="Current project cover photo" />
+                                    <div>
+                                        <strong>Current cover</strong>
+                                        <span>@(string.IsNullOrWhiteSpace(Model.CurrentCoverPhoto!.Caption) ? "No caption" : Model.CurrentCoverPhoto.Caption)</span>
+                                    </div>
+                                </div>
+                                <div class="alert alert-warning project-photo-cover-warning mb-0" data-photo-cover-warning hidden>
+                                    <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                                    <span>This photo will become the project cover. The existing cover will remain in the gallery.</span>
+                                </div>
+                            }
+                        }
+                    </div>
+
+                    @if (Model.Project.Tot is not null)
+                    {
+                        <div class="project-photo-use-option @(Model.AllowTotLinking ? string.Empty : "is-disabled")">
+                            @if (Model.AllowTotLinking)
+                            {
+                                <div class="form-check form-switch">
+                                    <input asp-for="Input.LinkToTot" class="form-check-input" />
+                                    <label asp-for="Input.LinkToTot" class="form-check-label">
+                                        <strong>Associate with Transfer of Technology</strong>
+                                        <span>Add this image to the supporting ToT record.</span>
+                                    </label>
+                                </div>
+                                <div class="project-photo-use-note">
+                                    <span class="badge rounded-pill text-bg-light">@Model.TotStatusDisplay</span>
+                                    <span>@(Model.Project.Tot.Status == ProjectManagement.Models.ProjectTotStatus.NotStarted ? "ToT has not started; the photo can still be retained as supporting evidence." : "The photo will also appear with the project's ToT material.")</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="project-photo-use-option__disabled">
+                                    <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                                    <div>
+                                        <strong>Transfer of Technology</strong>
+                                        <span>Not available because ToT is @Model.TotStatusDisplay.ToLowerInvariant() for this project.</span>
+                                    </div>
+                                </div>
+                            }
+                            <span asp-validation-for="Input.LinkToTot" class="text-danger"></span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </section>
+
+        <section class="card pm-card project-photo-section project-photo-crop-section" data-photo-crop-section hidden>
+            <div class="card-header project-photo-section__header">
+                <div>
+                    <h2>Crop and preview</h2>
+                    <p>Adjust how the current or replacement image will appear across PRISM.</p>
+                </div>
+                <span class="project-photo-step">3</span>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small project-photo-editor__fallback">JavaScript is disabled, so the existing crop will be retained.</p>
+                <div class="project-photo-editor"
+                     data-photo-editor
+                     data-photo-editor-input="#Input_File"
+                     data-photo-editor-initial-url="@editorInitialUrl"
+                     data-photo-editor-dirty-field="#Input_ApplyCrop"
+                     aria-describedby="project-photo-preview-helper">
+                    <div class="project-photo-editor__toolbar">
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-sm project-photo-editor__toggle"
+                                data-photo-editor-toggle
+                                aria-expanded="false"
+                                aria-controls="project-photo-editor-canvas">
+                            <span class="project-photo-editor__toggle-icon" aria-hidden="true"></span>
+                            <span data-photo-editor-toggle-label>Expand editor</span>
+                        </button>
+                    </div>
+                    <div class="project-photo-editor__canvas" id="project-photo-editor-canvas">
+                        <img data-photo-editor-image alt="Project photo being edited" />
+                    </div>
+                    <div class="project-photo-editor__sidebar">
+                        <p class="text-muted mb-0 project-photo-editor__placeholder" data-photo-editor-placeholder>Preparing the image editor…</p>
+                        <div class="project-photo-preview-grid" data-photo-editor-previews>
+                            <div class="project-photo-preview-item">
+                                <div class="project-photo-preview-frame" data-photo-editor-preview="xl" data-width="@coverOptions.Width" data-height="@coverOptions.Height">
+                                    <img alt="Cover preview" />
+                                    <span class="pm-photo-cover-badge">Cover</span>
+                                </div>
+                                <div class="project-photo-preview-label">Project cover · up to @coverOptions.Width × @coverOptions.Height</div>
+                            </div>
+                            <div class="project-photo-preview-item">
+                                <div class="project-photo-preview-frame" data-photo-editor-preview="md" data-width="@largeOptions.Width" data-height="@largeOptions.Height">
+                                    <img alt="Gallery preview" />
+                                </div>
+                                <div class="project-photo-preview-label">Gallery · up to @largeOptions.Width × @largeOptions.Height</div>
+                            </div>
+                            <div class="project-photo-preview-item">
+                                <div class="project-photo-preview-frame" data-photo-editor-preview="sm" data-width="@thumbOptions.Width" data-height="@thumbOptions.Height">
+                                    <img alt="Thumbnail preview" />
+                                </div>
+                                <div class="project-photo-preview-label">Thumbnail · up to @thumbOptions.Width × @thumbOptions.Height</div>
+                            </div>
+                        </div>
+                        <p class="text-muted small mb-0" id="project-photo-preview-helper">Keep the crop within the image bounds. Saving a revised crop regenerates every display size from the largest stored image.</p>
+                    </div>
+                    <input asp-for="Input.ApplyCrop" type="hidden" data-photo-editor-dirty />
+                    <input asp-for="Input.CropX" type="hidden" data-photo-editor-field="x" />
+                    <input asp-for="Input.CropY" type="hidden" data-photo-editor-field="y" />
+                    <input asp-for="Input.CropWidth" type="hidden" data-photo-editor-field="width" />
+                    <input asp-for="Input.CropHeight" type="hidden" data-photo-editor-field="height" />
+                </div>
+                <noscript>
+                    <style>
+                        .project-photo-editor { display: none !important; }
+                        .project-photo-editor__fallback { display: block !important; }
+                    </style>
+                </noscript>
+            </div>
+        </section>
+
+        <div class="project-photo-actions">
+            <a asp-page="./Index" asp-route-id="@Model.Project.Id" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary" data-photo-submit data-busy-label="Saving…">
+                <i class="bi bi-check2" aria-hidden="true"></i> Save changes
+            </button>
+        </div>
+    </form>
 </div>
-
-<form method="post" enctype="multipart/form-data">
-    <input asp-for="Input.ProjectId" type="hidden" />
-    <input asp-for="Input.PhotoId" type="hidden" />
-    <input asp-for="Input.RowVersion" type="hidden" />
-
-    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-
-    <div class="mb-3">
-        <label asp-for="Input.File" class="form-label">Replace image (optional)</label>
-        <input asp-for="Input.File" class="form-control" type="file" accept="image/*" />
-        <span asp-validation-for="Input.File" class="text-danger"></span>
-        <div class="form-text">Select a new file to replace the photo. For best results, use a clear 4:3 image; smaller uploads are accepted but may appear softer when enlarged.</div>
-    </div>
-
-    <div class="mb-3">
-        <label asp-for="Input.Caption" class="form-label">Caption</label>
-        <textarea asp-for="Input.Caption" class="form-control" rows="3"></textarea>
-        <span asp-validation-for="Input.Caption" class="text-danger"></span>
-    </div>
-
-    @if (Model.Project.Tot is not null)
-    {
-        <div class="mb-3">
-            <label class="form-label">Transfer of Technology</label>
-            @if (Model.AllowTotLinking)
-            {
-                <div class="form-check">
-                    <input asp-for="Input.LinkToTot" class="form-check-input" />
-                    <label asp-for="Input.LinkToTot" class="form-check-label">Link this photo to Transfer of Technology work</label>
-                </div>
-                <div class="form-text">Current status: @Model.TotStatusDisplay.</div>
-                <span asp-validation-for="Input.LinkToTot" class="text-danger"></span>
-            }
-            else
-            {
-                <p class="form-text mb-0">Transfer of Technology is @Model.TotStatusDisplay for this project.</p>
-            }
-        </div>
-    }
-
-    <div class="form-check mb-3">
-        <input asp-for="Input.SetAsCover"
-               class="form-check-input"
-               aria-label="Set this photo as the cover image for @Model.Project.Name" />
-        <label asp-for="Input.SetAsCover" class="form-check-label">Set as cover photo</label>
-    </div>
-
-    <fieldset class="border rounded p-3 mb-3">
-        <legend class="float-none w-auto fs-6 px-2">Crop &amp; preview</legend>
-        <p class="text-muted small project-photo-editor__fallback">JavaScript is disabled, so the existing crop will be centred automatically.</p>
-        <div class="project-photo-editor"
-             data-photo-editor
-             data-photo-editor-input="#Input_File"
-             data-photo-editor-initial-url="@editorInitialUrl">
-            <div class="project-photo-editor__toolbar">
-                <button type="button"
-                        class="btn btn-outline-secondary btn-sm project-photo-editor__toggle"
-                        data-photo-editor-toggle
-                        aria-expanded="false"
-                        aria-controls="project-photo-editor-canvas">
-                    <span class="project-photo-editor__toggle-icon" aria-hidden="true"></span>
-                    <span data-photo-editor-toggle-label>Expand editor</span>
-                </button>
-            </div>
-
-            <div class="project-photo-editor__canvas" id="project-photo-editor-canvas">
-                <img data-photo-editor-image alt="Project photo ready for cropping" />
-            </div>
-
-            <div class="project-photo-editor__sidebar">
-                <p class="text-muted mb-0 project-photo-editor__placeholder" data-photo-editor-placeholder>Select a new photo or adjust the crop on the existing image.</p>
-                <div class="project-photo-preview-grid" data-photo-editor-previews>
-                    <div class="project-photo-preview-item" data-photo-preview-item>
-                        <div class="project-photo-preview-frame"
-                             data-photo-editor-preview="xl"
-                             data-width="@coverOptions.Width"
-                             data-height="@coverOptions.Height">
-                            <img alt="Cover preview" data-photo-preview-thumb />
-                            <span class="pm-photo-cover-badge">Cover</span>
-                            <button type="button"
-                                    class="project-photo-preview-action"
-                                    data-photo-preview-open
-                                    aria-haspopup="dialog"
-                                    aria-controls="project-photo-preview-expanded-xl"
-                                    aria-label="Open full-size cover preview">
-                                <span class="project-photo-preview-action-icon" aria-hidden="true"></span>
-                                <span class="project-photo-preview-action-text">Open preview</span>
-                            </button>
-                        </div>
-                        <div class="project-photo-preview-label" id="@coverLabelId">Cover (@coverOptions.Width × @coverOptions.Height)</div>
-                        <div class="project-photo-preview-expanded"
-                             id="project-photo-preview-expanded-xl"
-                             data-photo-preview-expanded
-                             role="dialog"
-                             aria-modal="true"
-                             aria-labelledby="@coverLabelId"
-                             aria-describedby="@coverMetaId"
-                             aria-hidden="true"
-                             tabindex="-1">
-                            <div class="project-photo-preview-expanded-dialog">
-                                <button type="button"
-                                        class="btn-close project-photo-preview-close"
-                                        data-photo-preview-close
-                                        aria-label="Close full preview"></button>
-                                <div class="project-photo-preview-expanded-media">
-                                    <img alt="Cover derivative preview" data-photo-preview-large />
-                                </div>
-                                <div class="project-photo-preview-expanded-meta" id="@coverMetaId">
-                                    <div class="project-photo-preview-meta-title">Cover derivative</div>
-                                    <div class="project-photo-preview-meta-size">@coverOptions.Width × @coverOptions.Height</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="project-photo-preview-item" data-photo-preview-item>
-                        <div class="project-photo-preview-frame"
-                             data-photo-editor-preview="md"
-                             data-width="@largeOptions.Width"
-                             data-height="@largeOptions.Height">
-                            <img alt="Large preview" data-photo-preview-thumb />
-                            <button type="button"
-                                    class="project-photo-preview-action"
-                                    data-photo-preview-open
-                                    aria-haspopup="dialog"
-                                    aria-controls="project-photo-preview-expanded-md"
-                                    aria-label="Open full-size large preview">
-                                <span class="project-photo-preview-action-icon" aria-hidden="true"></span>
-                                <span class="project-photo-preview-action-text">Open preview</span>
-                            </button>
-                        </div>
-                        <div class="project-photo-preview-label" id="@largeLabelId">Large (@largeOptions.Width × @largeOptions.Height)</div>
-                        <div class="project-photo-preview-expanded"
-                             id="project-photo-preview-expanded-md"
-                             data-photo-preview-expanded
-                             role="dialog"
-                             aria-modal="true"
-                             aria-labelledby="@largeLabelId"
-                             aria-describedby="@largeMetaId"
-                             aria-hidden="true"
-                             tabindex="-1">
-                            <div class="project-photo-preview-expanded-dialog">
-                                <button type="button"
-                                        class="btn-close project-photo-preview-close"
-                                        data-photo-preview-close
-                                        aria-label="Close full preview"></button>
-                                <div class="project-photo-preview-expanded-media">
-                                    <img alt="Large derivative preview" data-photo-preview-large />
-                                </div>
-                                <div class="project-photo-preview-expanded-meta" id="@largeMetaId">
-                                    <div class="project-photo-preview-meta-title">Large derivative</div>
-                                    <div class="project-photo-preview-meta-size">@largeOptions.Width × @largeOptions.Height</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="project-photo-preview-item" data-photo-preview-item>
-                        <div class="project-photo-preview-frame"
-                             data-photo-editor-preview="sm"
-                             data-width="@thumbOptions.Width"
-                             data-height="@thumbOptions.Height">
-                            <img alt="Thumbnail preview" data-photo-preview-thumb />
-                            <button type="button"
-                                    class="project-photo-preview-action"
-                                    data-photo-preview-open
-                                    aria-haspopup="dialog"
-                                    aria-controls="project-photo-preview-expanded-sm"
-                                    aria-label="Open full-size thumbnail preview">
-                                <span class="project-photo-preview-action-icon" aria-hidden="true"></span>
-                                <span class="project-photo-preview-action-text">Open preview</span>
-                            </button>
-                        </div>
-                        <div class="project-photo-preview-label" id="@thumbLabelId">Thumbnail (@thumbOptions.Width × @thumbOptions.Height)</div>
-                        <div class="project-photo-preview-expanded"
-                             id="project-photo-preview-expanded-sm"
-                             data-photo-preview-expanded
-                             role="dialog"
-                             aria-modal="true"
-                             aria-labelledby="@thumbLabelId"
-                             aria-describedby="@thumbMetaId"
-                             aria-hidden="true"
-                             tabindex="-1">
-                            <div class="project-photo-preview-expanded-dialog">
-                                <button type="button"
-                                        class="btn-close project-photo-preview-close"
-                                        data-photo-preview-close
-                                        aria-label="Close full preview"></button>
-                                <div class="project-photo-preview-expanded-media">
-                                    <img alt="Thumbnail derivative preview" data-photo-preview-large />
-                                </div>
-                                <div class="project-photo-preview-expanded-meta" id="@thumbMetaId">
-                                    <div class="project-photo-preview-meta-title">Thumbnail derivative</div>
-                                    <div class="project-photo-preview-meta-size">@thumbOptions.Width × @thumbOptions.Height</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <input asp-for="Input.CropX" type="hidden" data-photo-editor-field="x" />
-            <input asp-for="Input.CropY" type="hidden" data-photo-editor-field="y" />
-            <input asp-for="Input.CropWidth" type="hidden" data-photo-editor-field="width" />
-            <input asp-for="Input.CropHeight" type="hidden" data-photo-editor-field="height" />
-        </div>
-        <noscript>
-            <style>
-                .project-photo-editor { display: none !important; }
-                .project-photo-editor__fallback { display: block !important; }
-            </style>
-        </noscript>
-    </fieldset>
-
-    <button type="submit" class="btn btn-primary">Save changes</button>
-    <a asp-page="./Index" asp-route-id="@Model.Project.Id" class="btn btn-link">Cancel</a>
-</form>
 
 @section Styles {
     <link rel="stylesheet" href="~/lib/cropperjs/dist/cropper.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/project-photos.css" asp-append-version="true" />
 }
 
 @section Scripts {
+    <partial name="_ValidationScriptsPartial" />
     <script src="~/lib/cropperjs/dist/cropper.js" asp-append-version="true"></script>
     <script src="~/js/widgets/project-photo-gallery.js" asp-append-version="true"></script>
+    <script src="~/js/pages/project-photo-upload.js" asp-append-version="true"></script>
 }

@@ -1071,8 +1071,9 @@ namespace ProjectManagement.Pages.Projects
                 .Where(p => coverPhoto is null || p.Id != coverPhoto.Id)
                 .ToList();
 
+            const int overviewAdditionalPhotoPreviewCount = 7;
             var previewPhotos = additionalPhotos
-                .Take(ProjectMediaSummaryViewModel.DefaultPreviewCount)
+                .Take(overviewAdditionalPhotoPreviewCount)
                 .ToList();
 
             var remaining = Math.Max(0, additionalPhotos.Count - previewPhotos.Count);

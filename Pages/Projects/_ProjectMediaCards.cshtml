@@ -17,23 +17,32 @@
         ?.Videos;
     var videoPreview = videoTab?.Items.Take(2).ToList() ?? new List<ProjectMediaVideoViewModel>();
 
+    const int maxPhotoPreviewCount = 8;
     var photoPreview = new List<(string Url, string Alt, bool IsCover)>();
+    var includedPhotoIds = new HashSet<int>();
     if (media.CoverPhoto is not null && !string.IsNullOrWhiteSpace(media.CoverPhotoUrl))
     {
         photoPreview.Add((media.CoverPhotoUrl!, media.CoverPhoto.Caption ?? "Project cover photograph", true));
+        includedPhotoIds.Add(media.CoverPhoto.Id);
     }
 
     foreach (var photo in media.PreviewPhotos)
     {
-        if (photoPreview.Count >= 4)
+        if (photoPreview.Count >= maxPhotoPreviewCount)
         {
             break;
+        }
+
+        if (!includedPhotoIds.Add(photo.Id))
+        {
+            continue;
         }
 
         var photoUrl = Url.Page("/Projects/Photos/View", new
         {
             id = projectId,
             photoId = photo.Id,
+            size = "sm",
             v = photo.Version
         });
 
@@ -44,6 +53,11 @@
     }
 
     var remainingPhotos = Math.Max(0, media.PhotoCount - photoPreview.Count);
+
+    string CountLabel(int count, string singular, string plural) => $"{count} {(count == 1 ? singular : plural)}";
+    var documentCountLabel = CountLabel(media.DocumentCount, "document", "documents");
+    var photoCountLabel = CountLabel(media.PhotoCount, "photo", "photos");
+    var videoCountLabel = CountLabel(media.VideoCount, "video", "videos");
 
     string FormatDuration(TimeSpan duration)
     {
@@ -64,7 +78,7 @@
                     <p class="pm-card-subtitle mb-0">Approved project records and submissions.</p>
                 </div>
             </div>
-            <span class="project-media-count" aria-label="@media.DocumentCount documents">@media.DocumentCount</span>
+            <span class="project-media-count" aria-label="@documentCountLabel">@media.DocumentCount</span>
         </div>
 
         <div class="card-body">
@@ -143,7 +157,7 @@
                     <p class="pm-card-subtitle mb-0">Cover image and project gallery.</p>
                 </div>
             </div>
-            <span class="project-media-count" aria-label="@media.PhotoCount photos">@media.PhotoCount</span>
+            <span class="project-media-count" aria-label="@photoCountLabel">@media.PhotoCount</span>
         </div>
 
         <div class="card-body">
@@ -186,15 +200,15 @@
                 <div class="project-media-context">
                     @if (media.PhotoCount > 0)
                     {
-                        <span class="text-muted">Showing @photoPreview.Count of @media.PhotoCount photographs</span>
+                        <span class="text-muted">Showing @photoPreview.Count of @photoCountLabel</span>
                     }
                 </div>
                 <div class="project-media-actions">
-                    <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Photos/Index" asp-route-id="@projectId">View gallery</a>
+                    <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Photos/Index" asp-route-id="@projectId">View all photos</a>
                     @if (Model.CanManagePhotos)
                     {
                         <a class="btn btn-sm btn-primary" asp-page="/Projects/Photos/Upload" asp-route-id="@projectId">
-                            <i class="bi bi-upload me-1" aria-hidden="true"></i>Upload photos
+                            <i class="bi bi-upload me-1" aria-hidden="true"></i>Upload photo
                         </a>
                     }
                 </div>
@@ -211,7 +225,7 @@
                     <p class="pm-card-subtitle mb-0">Demonstrations, trials and project highlights.</p>
                 </div>
             </div>
-            <span class="project-media-count" aria-label="@media.VideoCount videos">@media.VideoCount</span>
+            <span class="project-media-count" aria-label="@videoCountLabel">@media.VideoCount</span>
         </div>
 
         <div class="card-body">
@@ -252,7 +266,7 @@
                 <div class="project-media-context">
                     @if (media.VideoCount > 0)
                     {
-                        <span class="text-muted">Showing @videoPreview.Count of @media.VideoCount videos</span>
+                        <span class="text-muted">Showing @videoPreview.Count of @videoCountLabel</span>
                     }
                 </div>
                 <div class="project-media-actions">

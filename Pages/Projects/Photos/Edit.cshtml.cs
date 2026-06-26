@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -42,6 +43,12 @@ public class EditModel : PageModel
 
     public ProjectPhoto Photo { get; private set; } = null!;
 
+    public ProjectPhoto? CurrentCoverPhoto { get; private set; }
+
+    public bool IsCurrentCover => CurrentCoverPhoto is not null && CurrentCoverPhoto.Id == Photo.Id;
+
+    public bool WillReplaceAnotherCover => CurrentCoverPhoto is not null && CurrentCoverPhoto.Id != Photo.Id;
+
     public bool AllowTotLinking => Project?.Tot is { Status: not ProjectTotStatus.NotRequired };
 
     public string TotStatusDisplay => Project?.Tot?.Status switch
@@ -84,13 +91,15 @@ public class EditModel : PageModel
 
         Project = project;
         Photo = photo;
+        CurrentCoverPhoto = ResolveCoverPhoto(project);
         Input = new EditInput
         {
             ProjectId = project.Id,
             PhotoId = photo.Id,
             RowVersion = Convert.ToBase64String(project.RowVersion),
+            PhotoVersion = photo.Version,
             Caption = photo.Caption,
-            SetAsCover = photo.IsCover,
+            SetAsCover = CurrentCoverPhoto?.Id == photo.Id,
             LinkToTot = photo.TotId.HasValue
         };
 
@@ -110,8 +119,8 @@ public class EditModel : PageModel
             ModelState.AddModelError(string.Empty, "The form has expired. Please reload and try again.");
         }
 
-        var crop = BuildCrop(Input);
-        if (crop is null && HasPartialCrop(Input))
+        var crop = Input.ApplyCrop ? BuildCrop(Input) : null;
+        if (Input.ApplyCrop && crop is null && HasPartialCrop(Input))
         {
             ModelState.AddModelError(string.Empty, "Crop requires X, Y, Width, and Height values.");
         }
@@ -150,17 +159,22 @@ public class EditModel : PageModel
 
         Project = project;
         Photo = photo;
+        CurrentCoverPhoto = ResolveCoverPhoto(project);
         Input.RowVersion = Convert.ToBase64String(project.RowVersion);
 
-        var tot = project.Tot;
-        var canLinkTot = tot is not null && tot.Status != ProjectTotStatus.NotRequired;
-        if (Input.LinkToTot && !canLinkTot)
+        if (Input.PhotoVersion <= 0 || Input.PhotoVersion != photo.Version)
         {
-            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology is not required for this project.");
+            ModelState.AddModelError(string.Empty, "This photo was updated by someone else. Reload the page before making further changes.");
         }
-        else if (Input.LinkToTot && tot is null)
+
+        var tot = project.Tot;
+        if (Input.LinkToTot && tot is null)
         {
             ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology details have not been set up for this project yet.");
+        }
+        else if (Input.LinkToTot && tot?.Status == ProjectTotStatus.NotRequired)
+        {
+            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology is not required for this project.");
         }
 
         if (!ModelState.IsValid)
@@ -211,7 +225,7 @@ public class EditModel : PageModel
                 hasChanges = hasChanges || updated is not null;
             }
 
-            if (Input.SetAsCover && !photo.IsCover)
+            if (Input.SetAsCover && CurrentCoverPhoto?.Id != photo.Id)
             {
                 foreach (var other in project.Photos.Where(p => p.IsCover && p.Id != photo.Id))
                 {
@@ -251,6 +265,24 @@ public class EditModel : PageModel
 
         TempData["Flash"] = "Photo updated.";
         return RedirectToPage("./Index", new { id });
+    }
+
+    private static ProjectPhoto? ResolveCoverPhoto(Project project)
+    {
+        if (project.CoverPhotoId.HasValue)
+        {
+            var explicitCover = project.Photos.FirstOrDefault(candidate => candidate.Id == project.CoverPhotoId.Value);
+            if (explicitCover is not null)
+            {
+                return explicitCover;
+            }
+        }
+
+        return project.Photos
+            .Where(candidate => candidate.IsCover)
+            .OrderBy(candidate => candidate.Ordinal)
+            .ThenBy(candidate => candidate.Id)
+            .FirstOrDefault();
     }
 
     private bool UserCanManageProject(Project project, string userId)
@@ -312,6 +344,9 @@ public class EditModel : PageModel
 
         public string RowVersion { get; set; } = string.Empty;
 
+        public int PhotoVersion { get; set; }
+
+        [StringLength(512)]
         public string? Caption { get; set; }
 
         public bool SetAsCover { get; set; }
@@ -319,6 +354,8 @@ public class EditModel : PageModel
         public bool LinkToTot { get; set; }
 
         public IFormFile? File { get; set; }
+
+        public bool ApplyCrop { get; set; }
 
         public int? CropX { get; set; }
 
