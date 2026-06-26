@@ -15,7 +15,7 @@
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="backfillModalLabel">Backfill missing stage details</h5>
+                <h5 class="modal-title" id="backfillModalLabel">Complete missing stage details</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -28,14 +28,14 @@
                     @if (hasStages)
                     {
                         <p class="text-muted small">
-                            Enter the actual start and completion dates for stages that were auto-completed without full data.
+                            Enter the missing completion details for stages completed through an authorised override or predecessor auto-completion. Completion date is required. Actual start is optional and, when omitted, duration is inferred from the preceding completed stage.
                         </p>
                         @await Html.PartialAsync("_BackfillForm", Model)
                     }
                     else
                     {
                         <div class="alert alert-success mb-0" role="status" data-backfill-empty-message>
-                            All procurement stages have complete data.
+                            All completed stages have the required record details.
                         </div>
                     }
                 </form>

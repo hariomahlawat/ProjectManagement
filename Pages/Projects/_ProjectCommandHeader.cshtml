@@ -81,7 +81,14 @@
         <div class="project-intelligence-card">
             <span class="project-intelligence-card__label">Lifecycle progress</span>
             <strong>@portfolio.ResolvedStages of @portfolio.TotalStages</strong>
-            <span>@portfolio.CompletedStages completed@(portfolio.SkippedStages > 0 ? $" · {portfolio.SkippedStages} skipped" : string.Empty)</span>
+            @if (portfolio.CompletedStagesRequiringBackfill > 0)
+            {
+                <span>@portfolio.FullyRecordedCompletedStages fully recorded · @portfolio.CompletedStagesRequiringBackfill @(portfolio.CompletedStagesRequiringBackfill == 1 ? "requires" : "require") backfill@(portfolio.SkippedStages > 0 ? $" · {portfolio.SkippedStages} skipped" : string.Empty)</span>
+            }
+            else
+            {
+                <span>@portfolio.CompletedStages completed@(portfolio.SkippedStages > 0 ? $" · {portfolio.SkippedStages} skipped" : string.Empty)</span>
+            }
         </div>
         <button class="project-intelligence-card" type="button" data-scroll-target="@StageTarget(portfolio.NextStage)">
             @if (portfolio.NextStage is not null)

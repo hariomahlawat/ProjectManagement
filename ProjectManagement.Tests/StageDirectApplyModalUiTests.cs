@@ -23,10 +23,12 @@ public class StageDirectApplyModalUiTests
     private static readonly IServiceProvider Services = BuildServiceProvider();
 
     [Fact]
-    public async Task RendersForceCompleteCheckbox()
+    public async Task RendersAuthorisedOverrideAndPredecessorControls()
     {
         var html = await RenderAsync();
-        Assert.Contains("Force complete predecessors (may leave dates blank)", html, StringComparison.Ordinal);
+        Assert.Contains("Authorised completion override", html, StringComparison.Ordinal);
+        Assert.Contains("Also complete unresolved predecessor stages", html, StringComparison.Ordinal);
+        Assert.Contains("data-direct-apply-force-group", html, StringComparison.Ordinal);
     }
 
     private static async Task<string> RenderAsync()

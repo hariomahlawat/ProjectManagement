@@ -21,7 +21,7 @@
             <div>
                 <span class="project-lifecycle-summary__label">Backfill</span>
                 <strong>@(Model.BackfillStageCount == 0 ? "Clear" : $"{Model.BackfillStageCount} stage{(Model.BackfillStageCount == 1 ? string.Empty : "s")}")</strong>
-                <span>@(Model.BackfillStageCount == 0 ? "Completed stages have completion dates" : "Completion dates or mandatory stage facts require attention")</span>
+                <span>@(Model.BackfillStageCount == 0 ? "Completed stages have completion dates" : "Completed stages are operationally advanced but require completion dates or mandatory stage facts")</span>
             </div>
             <div class="@(Model.CurrentStageOverdueDays.HasValue ? "is-attention" : string.Empty)">
                 <span class="project-lifecycle-summary__label">Schedule status</span>

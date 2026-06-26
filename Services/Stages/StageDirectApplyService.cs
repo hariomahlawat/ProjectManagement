@@ -22,7 +22,8 @@ public sealed class StageDirectApplyService
     private const string DirectApplyLogAction = "DirectApply";
     private const string AppliedLogAction = "Applied";
     private const string AutoBackfillLogAction = "AutoBackfill";
-    private const string AdminCompletionNote = "Administrative completion (no dates) by HoD";
+    private const string AuthorisedCompletionNote = "Authorised completion without date by HoD; mandatory backfill created.";
+    private const string AuthorisedCompletionWarning = "Stage completed through an authorised override. Add the completion date through the mandatory backfill workflow.";
     private const string AutoBackfillNoteTemplate = "Auto-backfilled (no dates) due to completion of {0}";
     private const string ClampWarning = "CompletedOn was clamped to ActualStart";
 
@@ -317,7 +318,7 @@ public sealed class StageDirectApplyService
             }
         }
 
-        bool adminCompletion = false;
+        bool authorisedCompletion = false;
 
         stage.IsAutoCompleted = false;
         stage.AutoCompletedFromCode = null;
@@ -362,7 +363,7 @@ public sealed class StageDirectApplyService
                         {
                             stage.ActualStart = null;
                             stage.CompletedOn = null;
-                            adminCompletion = true;
+                            authorisedCompletion = true;
                             stage.RequiresBackfill = true;
                             break;
                         }
@@ -413,7 +414,7 @@ public sealed class StageDirectApplyService
         var finalActualStart = stage.ActualStart;
         var finalCompletedOn = stage.CompletedOn;
 
-        var logNote = CombineNotes(trimmedNote, adminCompletion ? AdminCompletionNote : null);
+        var logNote = CombineNotes(trimmedNote, authorisedCompletion ? AuthorisedCompletionNote : null);
 
         var directApplyLog = new StageChangeLog
         {
@@ -466,6 +467,11 @@ public sealed class StageDirectApplyService
                     hodUserId,
                     ct);
             }
+        }
+
+        if (authorisedCompletion)
+        {
+            warnings.Add(AuthorisedCompletionWarning);
         }
 
         if (superseded)

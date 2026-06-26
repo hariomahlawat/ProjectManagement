@@ -13,6 +13,8 @@ public sealed class ProjectPortfolioPresentationVm
     public TimelineItemVm? NextStage { get; init; }
     public bool IsWorkflowConcluded { get; init; }
     public int CompletedStages { get; init; }
+    public int FullyRecordedCompletedStages { get; init; }
+    public int CompletedStagesRequiringBackfill { get; init; }
     public int SkippedStages { get; init; }
     public int ResolvedStages { get; init; }
     public int TotalStages { get; init; }
@@ -53,6 +55,8 @@ public sealed class ProjectPortfolioPresentationVm
                 item.Status is StageStatus.NotStarted or StageStatus.Blocked);
 
         var completedCount = ordered.Count(item => item.Status == StageStatus.Completed);
+        var completedBackfillCount = ordered.Count(item => item.Status == StageStatus.Completed && item.RequiresBackfill);
+        var fullyRecordedCompletedCount = completedCount - completedBackfillCount;
         var skippedCount = ordered.Count(item => item.Status == StageStatus.Skipped);
         var resolvedCount = completedCount + skippedCount;
         var completedLateCount = ordered.Count(item =>
@@ -91,6 +95,8 @@ public sealed class ProjectPortfolioPresentationVm
             NextStage = next,
             IsWorkflowConcluded = isWorkflowConcluded,
             CompletedStages = completedCount,
+            FullyRecordedCompletedStages = fullyRecordedCompletedCount,
+            CompletedStagesRequiringBackfill = completedBackfillCount,
             SkippedStages = skippedCount,
             ResolvedStages = resolvedCount,
             TotalStages = timeline.TotalStages,

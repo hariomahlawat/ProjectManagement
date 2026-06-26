@@ -14,6 +14,8 @@
     var completedStages = portfolio.CompletedStages;
     var skippedStages = portfolio.SkippedStages;
     var resolvedStages = portfolio.ResolvedStages;
+    var fullyRecordedCompletedStages = portfolio.FullyRecordedCompletedStages;
+    var completedStagesRequiringBackfill = portfolio.CompletedStagesRequiringBackfill;
     var totalStages = portfolio.TotalStages;
     var progressMax = portfolio.ProgressMaximum;
     var remarksConfigJson = JsonSerializer.Serialize(Model.RemarksPanel, new JsonSerializerOptions(JsonSerializerDefaults.Web));
@@ -197,13 +199,17 @@
                                       aria-label="Timeline stages resolved">
                             </progress>
                             <span class="text-muted small">
-                                @if (skippedStages == 0)
+                                @if (completedStagesRequiringBackfill > 0)
+                                {
+                                    <text>@completedStages completed · @fullyRecordedCompletedStages fully recorded · @completedStagesRequiringBackfill backfill pending@(skippedStages > 0 ? $" · {skippedStages} skipped" : string.Empty)</text>
+                                }
+                                else if (skippedStages == 0)
                                 {
                                     <text>@completedStages of @totalStages stages complete</text>
                                 }
                                 else
                                 {
-                                    <text>@resolvedStages of @totalStages resolved · @completedStages completed · @skippedStages skipped</text>
+                                    <text>@resolvedStages of @totalStages progressed · @completedStages completed · @skippedStages skipped</text>
                                 }
                             </span>
                         </div>

@@ -17,7 +17,7 @@ namespace ProjectManagement.Tests;
 public class StageDirectApplyServiceTests
 {
     [Fact]
-    public async Task ApplyAsync_AdminCompletion_AllowsNullDatesAndLogsNote()
+    public async Task ApplyAsync_AuthorisedCompletion_AllowsNullDatesCreatesBackfillAndLogsAudit()
     {
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 10, 9, 30, 0, TimeSpan.Zero));
         await using var db = CreateContext();
@@ -31,7 +31,7 @@ public class StageDirectApplyServiceTests
             stageCode: StageCodes.IPA,
             status: StageStatus.Completed.ToString(),
             date: null,
-            note: "  Completed administratively  ",
+            note: "  Completed through authorised override  ",
             hodUserId: "hod-1",
             forceBackfillPredecessors: false,
             CancellationToken.None);
@@ -42,7 +42,7 @@ public class StageDirectApplyServiceTests
         Assert.True(result.RequiresBackfill);
         Assert.Equal(0, result.BackfilledCount);
         Assert.Empty(result.BackfilledStages);
-        Assert.Empty(result.Warnings);
+        Assert.Contains(result.Warnings, warning => warning.Contains("authorised override", StringComparison.OrdinalIgnoreCase));
 
         var stage = await db.ProjectStages.SingleAsync();
         Assert.Equal(StageStatus.Completed, stage.Status);
@@ -52,7 +52,7 @@ public class StageDirectApplyServiceTests
 
         var logs = await db.StageChangeLogs.OrderBy(l => l.Id).ToListAsync();
         Assert.Contains(logs, l => l.Note != null &&
-            l.Note.Contains("Administrative completion (no dates) by HoD", StringComparison.Ordinal));
+            l.Note.Contains("Authorised completion without date by HoD; mandatory backfill created.", StringComparison.Ordinal));
     }
 
     [Fact]

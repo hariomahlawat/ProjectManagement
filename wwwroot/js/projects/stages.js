@@ -503,32 +503,76 @@
     const tokenInput = modalEl.querySelector('input[name="__RequestVerificationToken"]');
     const errorContainer = modalEl.querySelector('[data-direct-apply-errors]');
     const dateHint = modalEl.querySelector('[data-direct-apply-date-hint]');
+    const dateLabel = modalEl.querySelector('[data-direct-apply-date-label]');
     const missingPredecessorsContainer = modalEl.querySelector('[data-direct-apply-missing]');
+    const forceGroup = modalEl.querySelector('[data-direct-apply-force-group]');
     const forceCheckbox = modalEl.querySelector('[data-direct-apply-force]');
     const forceHint = modalEl.querySelector('[data-direct-apply-force-hint]');
     const submitButton = modalEl.querySelector('[data-direct-apply-submit]');
     const noDateWarning = modalEl.querySelector('[data-direct-apply-no-date-warning]');
-    const actorIsHod = modalEl.getAttribute('data-actor-hod') === 'true';
+    const actorCanOverride = modalEl.getAttribute('data-authorised-override') === 'true';
     let activeStatus = '';
+
+    function updateSubmitButton(status) {
+      if (!submitButton) return;
+      if (status === 'Completed') {
+        submitButton.textContent = actorCanOverride && !dateInput?.value
+          ? 'Complete and create backfill'
+          : 'Complete stage';
+        return;
+      }
+      submitButton.textContent = status === 'InProgress'
+        ? 'Start stage'
+        : status === 'Skipped'
+          ? 'Skip stage'
+          : status === 'Reopen'
+            ? 'Reopen stage'
+            : 'Apply change';
+    }
 
     function updateNoDateWarning(status) {
       if (!noDateWarning || !dateInput) return;
-      const shouldShow = actorIsHod && status === 'Completed' && !dateInput.value;
+      const shouldShow = actorCanOverride && status === 'Completed' && !dateInput.value;
       noDateWarning.classList.toggle('d-none', !shouldShow);
+      updateSubmitButton(status);
     }
 
     function applyDateState(status, { resetValue = false } = {}) {
       if (!dateInput) return false;
-      const requiresDate = DIRECT_DATE_REQUIRED_STATUSES.has(status);
+      const requiresDate = DIRECT_DATE_REQUIRED_STATUSES.has(status)
+        || (status === 'Completed' && !actorCanOverride);
       dateInput.required = requiresDate;
+
+      if (dateLabel) {
+        dateLabel.textContent = status === 'InProgress'
+          ? 'Started on'
+          : status === 'Completed'
+            ? 'Completed on'
+            : status === 'Reopen'
+              ? 'Reopened on'
+              : 'Effective date';
+      }
+
       if (resetValue) {
         dateInput.value = requiresDate ? todayIso() : '';
       }
       if (dateHint) {
-        dateHint.textContent = requiresDate ? 'Required' : 'Optional';
+        dateHint.textContent = status === 'Completed' && actorCanOverride
+          ? 'Optional for an authorised override; omitting it creates mandatory backfill.'
+          : requiresDate
+            ? 'Required'
+            : 'Optional';
       }
       updateNoDateWarning(status);
       return requiresDate;
+    }
+
+    function setForceGroupVisible(visible) {
+      if (!forceGroup) return;
+      forceGroup.classList.toggle('d-none', !visible);
+      if (!visible && forceCheckbox) {
+        forceCheckbox.checked = false;
+      }
     }
 
     function setForceHintHighlighted(highlighted) {
@@ -573,6 +617,7 @@
       if (noteInput) {
         noteInput.value = '';
       }
+      setForceGroupVisible(false);
       if (forceCheckbox) {
         forceCheckbox.checked = false;
       }
@@ -603,6 +648,7 @@
 
     const resetControls = () => {
       renderMissingPredecessors(missingPredecessorsContainer, []);
+      setForceGroupVisible(false);
       setForceHintHighlighted(false);
       if (submitButton) submitButton.disabled = false;
     };
@@ -651,6 +697,7 @@
           renderErrors(errorContainer, messages);
           const missing = Array.isArray(data?.missingPredecessors) ? data.missingPredecessors : [];
           renderMissingPredecessors(missingPredecessorsContainer, missing);
+          setForceGroupVisible(missing.length > 0);
           if (missing.length > 0) {
             const shouldHighlight = !forceCheckbox || !forceCheckbox.checked;
             setForceHintHighlighted(shouldHighlight);

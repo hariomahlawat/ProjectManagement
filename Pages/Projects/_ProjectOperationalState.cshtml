@@ -53,11 +53,12 @@
         @if (Model.Backfill.HasStages)
         {
             var stageNames = string.Join(", ", Model.Backfill.Stages.Select(stage => stage.StageName));
-            <span>@Model.Backfill.Stages.Count stage@(Model.Backfill.Stages.Count == 1 ? string.Empty : "s") require missing details: @stageNames.</span>
+            var count = Model.Backfill.Stages.Count;
+            <span>@count completed stage@(count == 1 ? string.Empty : "s") @(count == 1 ? "requires" : "require") completion details: @stageNames.</span>
         }
         else
         {
-            <span>Some completed stages need a completion date or required stage facts.</span>
+            <span>Some completed stages require a completion date or mandatory stage facts.</span>
         }
     </div>
     <button type="button" class="btn btn-sm btn-warning text-dark flex-shrink-0" data-action="open-backfill">Complete missing details</button>
