@@ -11,7 +11,7 @@
     ViewData["Title"] = Model.Portfolio.PageTitle;
 }
 
-<div class="container-xxl project-portfolio">
+<div class="project-portfolio project-portfolio-shell">
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a asp-page="/Projects/Index">Projects</a></li>
@@ -23,8 +23,8 @@
 
     <partial name="_ProjectOperationalState" model="Model" />
 
-    <div class="row g-4 mb-4 project-portfolio-layout">
-        <div class="col-xl-7 d-flex flex-column gap-3 project-portfolio-main">
+    <div class="project-portfolio-layout mb-4">
+        <main class="d-flex flex-column gap-3 project-portfolio-main">
             @if (Model.LifecycleSummary.Status != ProjectLifecycleStatus.Active || Model.LifecycleSummary.IsLegacy)
             {
                 <!-- SECTION: Lifecycle summary banner -->
@@ -40,8 +40,8 @@
             </section>
 
             <partial name="_ProjectExploitationTransfer" model="Model" />
-        </div>
-        <aside class="col-xl-5 d-flex flex-column gap-3 project-portfolio-rail">
+        </main>
+        <aside class="d-flex flex-column gap-3 project-portfolio-rail">
             <partial name="_ProjectPendingActions" model="Model" />
             <partial name="_ProjectLifecycleWorkspace" model="Model" />
         </aside>

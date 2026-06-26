@@ -45,17 +45,6 @@ public class UploadModel : PageModel
 
     public bool HasCurrentCoverPhoto => CurrentCoverPhoto is not null;
 
-    public bool AllowTotLinking => Project?.Tot is { Status: not ProjectTotStatus.NotRequired };
-
-    public string TotStatusDisplay => Project?.Tot?.Status switch
-    {
-        ProjectTotStatus.NotRequired => "Not required",
-        ProjectTotStatus.NotStarted => "Not started",
-        ProjectTotStatus.InProgress => "In progress",
-        ProjectTotStatus.Completed => "Completed",
-        _ => "Unknown"
-    };
-
     public async Task<IActionResult> OnGetAsync(int id, bool cover, CancellationToken cancellationToken)
     {
         var userId = _userContext.UserId;
@@ -65,7 +54,6 @@ public class UploadModel : PageModel
         }
 
         var project = await _db.Projects
-            .Include(p => p.Tot)
             .Include(p => p.Photos)
             .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (project is null)
@@ -82,7 +70,6 @@ public class UploadModel : PageModel
         CurrentCoverPhoto = ResolveCoverPhoto(project);
         Input.ProjectId = project.Id;
         Input.RowVersion = Convert.ToBase64String(project.RowVersion);
-        Input.LinkToTot = false;
 
         // SECTION: Default cover selection when launched from cover CTA.
         Input.SetAsCover = cover;
@@ -121,7 +108,6 @@ public class UploadModel : PageModel
         }
 
         var project = await _db.Projects
-            .Include(p => p.Tot)
             .Include(p => p.Photos)
             .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (project is null)
@@ -137,16 +123,6 @@ public class UploadModel : PageModel
         Project = project;
         CurrentCoverPhoto = ResolveCoverPhoto(project);
         Input.RowVersion = Convert.ToBase64String(project.RowVersion);
-
-        var tot = project.Tot;
-        if (Input.LinkToTot && tot is null)
-        {
-            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology details have not been set up for this project yet.");
-        }
-        else if (Input.LinkToTot && tot?.Status == ProjectTotStatus.NotRequired)
-        {
-            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology is not required for this project.");
-        }
 
         if (rowVersionBytes is not null && !project.RowVersion.SequenceEqual(rowVersionBytes))
         {
@@ -171,7 +147,7 @@ public class UploadModel : PageModel
                     Input.SetAsCover,
                     Input.Caption,
                     crop.Value,
-                    Input.LinkToTot ? project.Tot!.Id : (int?)null,
+                    null,
                     cancellationToken);
             }
             else
@@ -183,7 +159,7 @@ public class UploadModel : PageModel
                     userId,
                     Input.SetAsCover,
                     Input.Caption,
-                    Input.LinkToTot ? project.Tot!.Id : (int?)null,
+                    null,
                     cancellationToken);
             }
 
@@ -219,10 +195,6 @@ public class UploadModel : PageModel
         if (text.Contains("crop", StringComparison.OrdinalIgnoreCase) || text.Contains("bounds", StringComparison.OrdinalIgnoreCase))
         {
             return "The selected crop could not be applied. Adjust it and try again.";
-        }
-        if (text.Contains("Transfer of Technology", StringComparison.OrdinalIgnoreCase))
-        {
-            return text;
         }
         return "Choose a valid JPEG, PNG or WebP image and try again.";
     }
@@ -291,7 +263,6 @@ public class UploadModel : PageModel
 
         public bool SetAsCover { get; set; }
 
-        public bool LinkToTot { get; set; }
 
         public int? CropX { get; set; }
 

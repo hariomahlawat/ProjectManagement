@@ -796,3 +796,8 @@
     max-width: calc(100% - 6rem);
   }
 }
+
+/* Photo use is intentionally simple: caption plus optional project cover. */
+.project-photo-use-grid {
+    grid-template-columns: minmax(0, 1fr);
+}

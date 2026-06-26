@@ -151,10 +151,6 @@
                                         <p class="project-photo-management-card__caption" title="@caption">@caption</p>
                                         <div class="project-photo-management-card__meta">
                                             <span>@photo.Width × @photo.Height px</span>
-                                            @if (photo.TotId.HasValue)
-                                            {
-                                                <span class="badge rounded-pill text-bg-info">ToT</span>
-                                            }
                                             @if (photo.IsLowResolution)
                                             {
                                                 <span class="badge rounded-pill text-bg-warning">Low resolution</span>

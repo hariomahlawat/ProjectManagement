@@ -90,135 +90,113 @@
         }
     </div>
     <div class="card-body pm-card-body">
-        <div class="row g-3 align-items-start project-profile-card__layout">
-            <div class="col-12 col-md-3">
-                <div class="project-photo-cover">
-                    <div class="project-photo-cover-frame w-100">
-                        @if (coverPhoto != null)
-                        {
-                            <picture>
-                                <source type="image/webp"
-                                        srcset="@coverSrcSet"
-                                        sizes="(min-width: 1200px) 280px, (min-width: 992px) 240px, 100vw" />
-                                <img class="w-100 h-100 object-fit-cover rounded border"
-                                     src="@coverXs"
-                                     srcset="@coverSrcSet"
-                                     sizes="(min-width: 1200px) 280px, (min-width: 992px) 240px, 100vw"
-                                     alt="@(string.IsNullOrWhiteSpace(coverPhoto.Caption) ? $"{project?.Name} cover photo" : coverPhoto.Caption)" />
-                            </picture>
-                        }
-                        else
-                        {
-                            <div class="project-photo-cover-empty text-center">
-                                <div class="project-photo-cover-empty__icon" aria-hidden="true">
-                                    <i class="bi bi-image"></i>
-                                </div>
-                                <div class="project-photo-cover-empty__title">No cover photo</div>
-                                @if (canManagePhotos)
-                                {
-                                    <a class="btn btn-sm btn-primary mt-2"
-                                       asp-page="/Projects/Photos/Upload"
-                                       asp-route-id="@Model.Project!.Id"
-                                       asp-route-cover="true">
-                                        Upload cover
-                                    </a>
-                                }
-                            </div>
-                        }
-                    </div>
-                    @if (!string.IsNullOrWhiteSpace(coverPhoto?.Caption))
+        <div class="project-profile-flow">
+            <figure class="project-cover-float mb-0">
+                <div class="project-photo-cover-frame w-100">
+                    @if (coverPhoto != null)
                     {
-                        <div class="mt-2 text-muted small">@coverPhoto.Caption</div>
+                        <picture>
+                            <source type="image/webp"
+                                    srcset="@coverSrcSet"
+                                    sizes="(min-width: 1400px) 250px, (min-width: 768px) 220px, 100vw" />
+                            <img class="w-100 h-100 object-fit-cover rounded border"
+                                 src="@coverXs"
+                                 srcset="@coverSrcSet"
+                                 sizes="(min-width: 1400px) 250px, (min-width: 768px) 220px, 100vw"
+                                 alt="@(string.IsNullOrWhiteSpace(coverPhoto.Caption) ? $"{project?.Name} cover photo" : coverPhoto.Caption)" />
+                        </picture>
+                    }
+                    else
+                    {
+                        <div class="project-photo-cover-empty text-center">
+                            <div class="project-photo-cover-empty__icon" aria-hidden="true">
+                                <i class="bi bi-image"></i>
+                            </div>
+                            <div class="project-photo-cover-empty__title">No cover photo</div>
+                            @if (canManagePhotos)
+                            {
+                                <a class="btn btn-sm btn-primary mt-2"
+                                   asp-page="/Projects/Photos/Upload"
+                                   asp-route-id="@Model.Project!.Id"
+                                   asp-route-cover="true">Upload cover</a>
+                            }
+                        </div>
                     }
                 </div>
-            </div>
-            <div class="col-12 col-md-9">
-                <dl class="project-facts mb-0">
-                    <dt class="project-facts__label">Category</dt>
-                    <dd class="project-facts__value">
-                        @(Model.CategoryPath.Any()
-                            ? string.Join(" › ", Model.CategoryPath.Select(c => c.Name))
-                            : "—")
-                    </dd>
-
-                    @if (Model.TechnicalCategoryPath.Any())
-                    {
-                        <dt class="project-facts__label">Technical category</dt>
-                        <dd class="project-facts__value">@string.Join(" › ", Model.TechnicalCategoryPath.Select(c => c.Name))</dd>
-                    }
-
-                    @if (!string.IsNullOrWhiteSpace(projectTypeName))
-                    {
-                        <dt class="project-facts__label">Project type</dt>
-                        <dd class="project-facts__value">@projectTypeName</dd>
-                    }
-
-                    <dt class="project-facts__label">Repeat build</dt>
-                    <dd class="project-facts__value">@((project?.IsBuild ?? false) ? "Yes" : "No")</dd>
-
-                    @if (!string.IsNullOrWhiteSpace(sponsoringUnitName))
-                    {
-                        <dt class="project-facts__label">Sponsoring unit</dt>
-                        <dd class="project-facts__value">@sponsoringUnitName</dd>
-                    }
-
-                    @if (!string.IsNullOrWhiteSpace(sponsoringDirectorateName))
-                    {
-                        <dt class="project-facts__label">Sponsoring line directorate</dt>
-                        <dd class="project-facts__value">@sponsoringDirectorateName</dd>
-                    }
-
-                    <dt class="project-facts__label">Head of Department</dt>
-                    <dd class="project-facts__value">@FormatUser(project?.HodUser)</dd>
-
-                    <dt class="project-facts__label">Project Officer</dt>
-                    <dd class="project-facts__value">@FormatUser(project?.LeadPoUser)</dd>
-
-                    @if (Model.CostSummary.RdCostLakhs.HasValue)
-                    {
-                        <dt class="project-facts__label">Initial procurement / R&amp;D cost</dt>
-                        <dd class="project-facts__value">@FormatCost(Model.CostSummary.RdCostLakhs)</dd>
-                    }
-
-                    @if (Model.CostSummary.ApproxProductionCost.HasValue)
-                    {
-                        <dt class="project-facts__label">Approx. production cost</dt>
-                        <dd class="project-facts__value">@FormatCost(Model.CostSummary.ApproxProductionCost)</dd>
-                    }
-                </dl>
-
-                @if (!string.IsNullOrWhiteSpace(Model.DescriptionHtml))
+                @if (!string.IsNullOrWhiteSpace(coverPhoto?.Caption))
                 {
-                    <div class="project-description-block">
-                        <h3 class="h6 mb-2">Project description</h3>
-                        <div class="project-overview__description pm-markdown">
-                            @Html.Raw(Model.DescriptionHtml)
-                        </div>
-                    </div>
+                    <figcaption class="mt-2 text-muted small">@coverPhoto.Caption</figcaption>
                 }
+            </figure>
 
-                @if (missingDetails.Count > 0)
+            <dl class="project-facts mb-0">
+                <dt class="project-facts__label">Category</dt>
+                <dd class="project-facts__value">
+                    @(Model.CategoryPath.Any() ? string.Join(" › ", Model.CategoryPath.Select(c => c.Name)) : "—")
+                </dd>
+                @if (Model.TechnicalCategoryPath.Any())
                 {
-                    <div class="project-profile-missing" role="status">
-                        <div>
-                            <strong>@missingDetails.Count recommended detail@(missingDetails.Count == 1 ? string.Empty : "s") missing</strong>
-                            <span>@string.Join(", ", missingDetails)</span>
-                        </div>
-                        @if (canEditDetails)
-                        {
-                            <a class="btn btn-sm btn-outline-primary"
-                               asp-page="/Projects/Meta/Edit"
-                               asp-route-id="@Model.Project!.Id">Edit details</a>
-                        }
-                        else if (canRequestDetails)
-                        {
-                            <a class="btn btn-sm btn-outline-primary"
-                               asp-page="/Projects/Meta/Request"
-                               asp-route-id="@Model.Project!.Id">Request update</a>
-                        }
-                    </div>
+                    <dt class="project-facts__label">Technical category</dt>
+                    <dd class="project-facts__value">@string.Join(" › ", Model.TechnicalCategoryPath.Select(c => c.Name))</dd>
                 }
-            </div>
+                @if (!string.IsNullOrWhiteSpace(projectTypeName))
+                {
+                    <dt class="project-facts__label">Project type</dt>
+                    <dd class="project-facts__value">@projectTypeName</dd>
+                }
+                <dt class="project-facts__label">Repeat build</dt>
+                <dd class="project-facts__value">@((project?.IsBuild ?? false) ? "Yes" : "No")</dd>
+                @if (!string.IsNullOrWhiteSpace(sponsoringUnitName))
+                {
+                    <dt class="project-facts__label">Sponsoring unit</dt>
+                    <dd class="project-facts__value">@sponsoringUnitName</dd>
+                }
+                @if (!string.IsNullOrWhiteSpace(sponsoringDirectorateName))
+                {
+                    <dt class="project-facts__label">Sponsoring line directorate</dt>
+                    <dd class="project-facts__value">@sponsoringDirectorateName</dd>
+                }
+                <dt class="project-facts__label">Head of Department</dt>
+                <dd class="project-facts__value">@FormatUser(project?.HodUser)</dd>
+                <dt class="project-facts__label">Project Officer</dt>
+                <dd class="project-facts__value">@FormatUser(project?.LeadPoUser)</dd>
+                @if (Model.CostSummary.RdCostLakhs.HasValue)
+                {
+                    <dt class="project-facts__label">Initial procurement / R&amp;D cost</dt>
+                    <dd class="project-facts__value">@FormatCost(Model.CostSummary.RdCostLakhs)</dd>
+                }
+                @if (Model.CostSummary.ApproxProductionCost.HasValue)
+                {
+                    <dt class="project-facts__label">Approx. production cost</dt>
+                    <dd class="project-facts__value">@FormatCost(Model.CostSummary.ApproxProductionCost)</dd>
+                }
+            </dl>
+
+            @if (!string.IsNullOrWhiteSpace(Model.DescriptionHtml))
+            {
+                <section class="project-description-block">
+                    <h3 class="h6 mb-2">Project description</h3>
+                    <div class="project-overview__description pm-markdown">@Html.Raw(Model.DescriptionHtml)</div>
+                </section>
+            }
+
+            @if (missingDetails.Count > 0)
+            {
+                <div class="project-profile-missing project-profile-missing--clear" role="status">
+                    <div>
+                        <strong>@missingDetails.Count recommended detail@(missingDetails.Count == 1 ? string.Empty : "s") missing</strong>
+                        <span>@string.Join(", ", missingDetails)</span>
+                    </div>
+                    @if (canEditDetails)
+                    {
+                        <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Meta/Edit" asp-route-id="@Model.Project!.Id">Edit details</a>
+                    }
+                    else if (canRequestDetails)
+                    {
+                        <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Meta/Request" asp-route-id="@Model.Project!.Id">Update details</a>
+                    }
+                </div>
+            }
         </div>
     </div>
 </div>

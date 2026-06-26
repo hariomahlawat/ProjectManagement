@@ -173,36 +173,7 @@
                         }
                     </div>
 
-                    @if (Model.Project.Tot is not null)
-                    {
-                        <div class="project-photo-use-option @(Model.AllowTotLinking ? string.Empty : "is-disabled")">
-                            @if (Model.AllowTotLinking)
-                            {
-                                <div class="form-check form-switch">
-                                    <input asp-for="Input.LinkToTot" class="form-check-input" />
-                                    <label asp-for="Input.LinkToTot" class="form-check-label">
-                                        <strong>Associate with Transfer of Technology</strong>
-                                        <span>Add this image to the supporting ToT record.</span>
-                                    </label>
-                                </div>
-                                <div class="project-photo-use-note">
-                                    <span class="badge rounded-pill text-bg-light">@Model.TotStatusDisplay</span>
-                                    <span>@(Model.Project.Tot.Status == ProjectManagement.Models.ProjectTotStatus.NotStarted ? "ToT has not started; the photo can still be retained as supporting evidence." : "The photo will also appear with the project's ToT material.")</span>
-                                </div>
-                            }
-                            else
-                            {
-                                <div class="project-photo-use-option__disabled">
-                                    <i class="bi bi-diagram-3" aria-hidden="true"></i>
-                                    <div>
-                                        <strong>Transfer of Technology</strong>
-                                        <span>Not available because ToT is @Model.TotStatusDisplay.ToLowerInvariant() for this project.</span>
-                                    </div>
-                                </div>
-                            }
-                            <span asp-validation-for="Input.LinkToTot" class="text-danger"></span>
-                        </div>
-                    }
+
                 </div>
             </div>
         </section>

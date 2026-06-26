@@ -1682,3 +1682,76 @@ button.project-intelligence-card:hover {
         grid-template-columns: 6.25rem minmax(0, 1fr);
     }
 }
+
+
+/* V5: wider, bounded project workspace */
+.project-portfolio-shell {
+    width: min(calc(100% - 2rem), 108rem);
+    margin-inline: auto;
+    padding-inline: 0;
+}
+.project-portfolio-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.62fr) minmax(31rem, .98fr);
+    gap: 1.5rem;
+    align-items: start;
+}
+.project-portfolio-main,
+.project-portfolio-rail { width: auto; max-width: none; }
+
+/* V5: editorial project profile flow; description wraps below the cover */
+.project-profile-flow { display: flow-root; }
+.project-cover-float {
+    float: left;
+    width: clamp(11.5rem, 25%, 15.5rem);
+    margin: 0 1.25rem .9rem 0;
+}
+.project-cover-float .project-photo-cover-frame {
+    aspect-ratio: 3 / 4;
+    min-height: 0;
+}
+.project-cover-float picture,
+.project-cover-float img { display: block; width: 100%; height: 100%; }
+.project-profile-flow .project-facts { min-width: 18rem; }
+.project-profile-flow .project-description-block { margin-top: .75rem; }
+.project-profile-missing--clear { clear: both; }
+
+/* V5: one aligned remarks filter toolbar */
+.remarks-filter-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .55rem .8rem;
+    width: 100%;
+}
+.remarks-filter-groups {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .45rem;
+    min-width: 0;
+}
+.remarks-deleted-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    margin: 0 0 0 auto;
+    min-width: max-content;
+    white-space: nowrap;
+}
+.remarks-deleted-toggle .form-check-input { margin: 0; flex: 0 0 auto; }
+.remarks-deleted-toggle .form-check-label { line-height: 1.1; white-space: nowrap; }
+
+@media (max-width: 74rem) {
+    .project-portfolio-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 48rem) {
+    .project-portfolio-shell { width: min(calc(100% - 1rem), 108rem); }
+    .project-cover-float {
+        float: none;
+        width: min(100%, 20rem);
+        margin: 0 auto 1rem;
+    }
+    .project-profile-flow .project-facts { min-width: 0; }
+    .remarks-deleted-toggle { margin-left: 0; }
+}

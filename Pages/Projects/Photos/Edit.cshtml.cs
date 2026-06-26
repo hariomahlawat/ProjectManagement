@@ -49,17 +49,6 @@ public class EditModel : PageModel
 
     public bool WillReplaceAnotherCover => CurrentCoverPhoto is not null && CurrentCoverPhoto.Id != Photo.Id;
 
-    public bool AllowTotLinking => Project?.Tot is { Status: not ProjectTotStatus.NotRequired };
-
-    public string TotStatusDisplay => Project?.Tot?.Status switch
-    {
-        ProjectTotStatus.NotRequired => "Not required",
-        ProjectTotStatus.NotStarted => "Not started",
-        ProjectTotStatus.InProgress => "In progress",
-        ProjectTotStatus.Completed => "Completed",
-        _ => "Unknown"
-    };
-
     public async Task<IActionResult> OnGetAsync(int id, int photoId, CancellationToken cancellationToken)
     {
         var userId = _userContext.UserId;
@@ -69,7 +58,6 @@ public class EditModel : PageModel
         }
 
         var project = await _db.Projects
-            .Include(p => p.Tot)
             .Include(p => p.Photos)
             .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
 
@@ -99,8 +87,7 @@ public class EditModel : PageModel
             RowVersion = Convert.ToBase64String(project.RowVersion),
             PhotoVersion = photo.Version,
             Caption = photo.Caption,
-            SetAsCover = CurrentCoverPhoto?.Id == photo.Id,
-            LinkToTot = photo.TotId.HasValue
+            SetAsCover = CurrentCoverPhoto?.Id == photo.Id
         };
 
         return Page();
@@ -132,7 +119,6 @@ public class EditModel : PageModel
         }
 
         var project = await _db.Projects
-            .Include(p => p.Tot)
             .Include(p => p.Photos)
             .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
 
@@ -167,16 +153,6 @@ public class EditModel : PageModel
             ModelState.AddModelError(string.Empty, "This photo was updated by someone else. Reload the page before making further changes.");
         }
 
-        var tot = project.Tot;
-        if (Input.LinkToTot && tot is null)
-        {
-            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology details have not been set up for this project yet.");
-        }
-        else if (Input.LinkToTot && tot?.Status == ProjectTotStatus.NotRequired)
-        {
-            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology is not required for this project.");
-        }
-
         if (!ModelState.IsValid)
         {
             return Page();
@@ -188,7 +164,6 @@ public class EditModel : PageModel
                 ? Input.File.OpenReadStream()
                 : null;
 
-            var desiredTotId = Input.LinkToTot ? project.Tot?.Id : null;
             var updated = await _photoService.UpdateAsync(
                 project.Id,
                 photo.Id,
@@ -198,7 +173,7 @@ public class EditModel : PageModel
                 crop,
                 Input.Caption,
                 Input.SetAsCover,
-                desiredTotId,
+                null,
                 Input.PhotoVersion,
                 userId,
                 cancellationToken);
@@ -268,10 +243,6 @@ public class EditModel : PageModel
         {
             return "Choose a JPEG, PNG or WebP image.";
         }
-        if (text.Contains("Transfer of Technology", StringComparison.OrdinalIgnoreCase))
-        {
-            return text;
-        }
         return "The photo could not be processed. Choose another image or try again.";
     }
 
@@ -323,7 +294,6 @@ public class EditModel : PageModel
 
         public bool SetAsCover { get; set; }
 
-        public bool LinkToTot { get; set; }
 
         public IFormFile? File { get; set; }
 
