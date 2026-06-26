@@ -857,13 +857,16 @@
       optionsByCode.set(code, {
         code,
         name: button.getAttribute('data-stage-name') || code,
+        sortOrder: Number.parseInt(button.getAttribute('data-stage-sort-order') || '', 10) || 0,
         currentStatus: button.getAttribute('data-current-status') || 'NotStarted',
+        actualStart: button.getAttribute('data-actual-start') || '',
         pendingStatus: button.getAttribute('data-pending-status') || '',
         pendingDate: button.getAttribute('data-pending-date') || '',
+        pendingStartDate: button.getAttribute('data-pending-start-date') || '',
         pendingNote: button.getAttribute('data-pending-note') || ''
       });
     });
-    const stageOptions = Array.from(optionsByCode.values());
+    const stageOptions = Array.from(optionsByCode.values()).sort((a, b) => a.sortOrder - b.sortOrder);
 
     function transitionOptions(currentStatus) {
       switch (currentStatus) {
@@ -963,6 +966,28 @@
       }
     }
 
+    function retainedStartDate(stage) {
+      if (!stage) return '';
+      if (stage.actualStart) return stage.actualStart;
+      if (stage.pendingStatus === 'InProgress' && stage.pendingDate) return stage.pendingDate;
+      return stage.pendingStartDate || '';
+    }
+
+    function refreshCarriedStartState(row) {
+      const stageSelect = row.querySelector('[data-stage-request-stage]');
+      const targetSelect = row.querySelector('[data-stage-request-target]');
+      const container = row.querySelector('[data-stage-request-carried-start]');
+      const text = row.querySelector('[data-stage-request-carried-start-text]');
+      if (!container || !text) return;
+
+      const stage = stageOptionFor(stageSelect?.value || '');
+      const startDate = targetSelect?.value === 'Completed' ? retainedStartDate(stage) : '';
+      container.classList.toggle('d-none', !startDate);
+      text.textContent = startDate
+        ? `Proposed start ${formatDate(startDate)} will be retained when this completion update is saved.`
+        : '';
+    }
+
     function refreshNoteState() {
       if (!rowsContainer) return;
       const rows = Array.from(rowsContainer.querySelectorAll('[data-stage-request-row]'));
@@ -1054,34 +1079,125 @@
 
       const noteInput = row.querySelector('[data-stage-request-note]');
       if (noteInput) noteInput.value = effectiveNote;
+      refreshCarriedStartState(row);
       refreshNoteState();
       renderSummary();
+    }
+
+    function proposalDescription(stage, currentStatus, targetStatus, requestedDate) {
+      const stageName = stage?.name || stage?.code || 'Stage';
+      const dateText = requestedDate ? formatDate(requestedDate) : null;
+
+      if (targetStatus === 'Completed') {
+        const startDate = retainedStartDate(stage);
+        const parts = [];
+        if (startDate) parts.push(`Start ${formatDate(startDate)}`);
+        parts.push(dateText ? `Complete ${dateText}` : 'Complete');
+        return `${stageName} — ${parts.join(' → ')}`;
+      }
+
+      const action = transitionLabel(currentStatus || stage?.currentStatus || 'NotStarted', targetStatus);
+      const config = dateConfiguration(targetStatus);
+      return `${stageName} — ${action}${dateText ? ` · ${config.label} ${dateText}` : ''}`;
+    }
+
+    function appendSummaryItem(description, kind, kindClass) {
+      const item = document.createElement('li');
+      item.className = 'stage-update-summary__item';
+
+      const line = document.createElement('div');
+      line.className = 'stage-update-summary__line';
+
+      const text = document.createElement('span');
+      text.textContent = description;
+      line.appendChild(text);
+
+      const badge = document.createElement('span');
+      badge.className = `stage-update-summary__kind ${kindClass || ''}`.trim();
+      badge.textContent = kind;
+      line.appendChild(badge);
+
+      item.appendChild(line);
+      summaryList.appendChild(item);
     }
 
     function renderSummary() {
       if (!summaryList || !rowsContainer) return;
       summaryList.innerHTML = '';
-      const rows = Array.from(rowsContainer.querySelectorAll('[data-stage-request-row]'));
-      if (rows.length === 0) {
-        const empty = document.createElement('li');
-        empty.textContent = 'No stages selected yet.';
-        summaryList.appendChild(empty);
-        return;
-      }
 
-      rows.forEach((row) => {
+      const rowsByStage = new Map();
+      rowsContainer.querySelectorAll('[data-stage-request-row]').forEach((row) => {
         const stageSelect = row.querySelector('[data-stage-request-stage]');
         const targetSelect = row.querySelector('[data-stage-request-target]');
         const dateInput = row.querySelector('[data-stage-request-date]');
+        const noteInput = row.querySelector('[data-stage-request-note]');
         if (!stageSelect?.value || !targetSelect?.value) return;
-        const stage = stageOptionFor(stageSelect.value);
-        const action = transitionLabel(row.dataset.currentStatus || stage?.currentStatus || 'NotStarted', targetSelect.value);
-        const config = dateConfiguration(targetSelect.value);
-        const dateText = dateInput?.value ? formatDate(dateInput.value) : null;
-        const item = document.createElement('li');
-        item.textContent = `${stage?.name || stageSelect.value} — ${action}${dateText ? ` · ${config.label} ${dateText}` : ''}`;
-        summaryList.appendChild(item);
+        rowsByStage.set(stageSelect.value, {
+          currentStatus: row.dataset.currentStatus || stageOptionFor(stageSelect.value)?.currentStatus || 'NotStarted',
+          targetStatus: targetSelect.value,
+          requestedDate: dateInput?.value || '',
+          note: noteInput?.value?.trim() || ''
+        });
       });
+
+      let itemCount = 0;
+      stageOptions.forEach((stage) => {
+        const row = rowsByStage.get(stage.code);
+        const hasPending = Boolean(stage.pendingStatus);
+
+        if (hasPending && row) {
+          const changed = row.targetStatus !== stage.pendingStatus
+            || row.requestedDate !== (stage.pendingDate || '')
+            || row.note !== (stage.pendingNote || '').trim();
+
+          if (changed) {
+            appendSummaryItem(
+              proposalDescription(stage, stage.currentStatus, stage.pendingStatus, stage.pendingDate),
+              'Existing pending',
+              ''
+            );
+            appendSummaryItem(
+              proposalDescription(stage, row.currentStatus, row.targetStatus, row.requestedDate),
+              'Current revision',
+              'is-revision'
+            );
+            itemCount += 2;
+          } else {
+            appendSummaryItem(
+              proposalDescription(stage, stage.currentStatus, stage.pendingStatus, stage.pendingDate),
+              'Pending update',
+              ''
+            );
+            itemCount += 1;
+          }
+          return;
+        }
+
+        if (hasPending) {
+          appendSummaryItem(
+            proposalDescription(stage, stage.currentStatus, stage.pendingStatus, stage.pendingDate),
+            'Existing pending',
+            ''
+          );
+          itemCount += 1;
+          return;
+        }
+
+        if (row) {
+          appendSummaryItem(
+            proposalDescription(stage, row.currentStatus, row.targetStatus, row.requestedDate),
+            'New update',
+            'is-new'
+          );
+          itemCount += 1;
+        }
+      });
+
+      if (itemCount === 0) {
+        const empty = document.createElement('li');
+        empty.textContent = 'No stages selected yet.';
+        summaryList.appendChild(empty);
+      }
     }
 
     function createRow({ stageCode = '', targetStatus = '', requestedDate = '', note = '', locked = false } = {}) {
@@ -1120,6 +1236,7 @@
       const targetSelect = row.querySelector('[data-stage-request-target]');
       targetSelect?.addEventListener('change', () => {
         setDateState(row, targetSelect.value, { resetValue: true });
+        refreshCarriedStartState(row);
         refreshNoteState();
         renderSummary();
       });
@@ -1170,7 +1287,7 @@
       }
       if (submitButton) {
         submitButton.disabled = false;
-        submitButton.textContent = isEditingPending ? 'Update submission' : 'Submit update';
+        submitButton.textContent = isEditingPending ? 'Save update' : 'Submit update';
       }
       modal.show();
     });

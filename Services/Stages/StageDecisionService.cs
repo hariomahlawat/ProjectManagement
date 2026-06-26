@@ -22,6 +22,7 @@ public sealed class StageDecisionService
     private const string PendingDecisionStatus = "Pending";
     private const string ApprovedDecisionStatus = "Approved";
     private const string RejectedDecisionStatus = "Rejected";
+    private const string SupersededDecisionStatus = "Superseded";
 
     private const string ApprovedLogAction = "Approved";
     private const string RejectedLogAction = "Rejected";
@@ -196,6 +197,7 @@ public sealed class StageDecisionService
 
         var warnings = new List<string>();
         DateOnly? effectiveDate = request.RequestedDate;
+        DateOnly? carriedForwardStart = null;
 
         if (requestedStatus == StageStatus.Completed)
         {
@@ -205,9 +207,12 @@ public sealed class StageDecisionService
                     "A completion date is required when approving completion.");
             }
 
-            if (stage.ActualStart.HasValue && request.RequestedDate.Value < stage.ActualStart.Value)
+            carriedForwardStart = stage.ActualStart
+                ?? await FindCarriedForwardStartAsync(request, cancellationToken);
+
+            if (carriedForwardStart.HasValue && request.RequestedDate.Value < carriedForwardStart.Value)
             {
-                effectiveDate = stage.ActualStart;
+                effectiveDate = carriedForwardStart;
                 warnings.Add(CompletionClampedWarning);
             }
         }
@@ -230,6 +235,13 @@ public sealed class StageDecisionService
         await using var transaction = useTransaction
             ? await _db.Database.BeginTransactionAsync(cancellationToken)
             : null;
+
+        if (requestedStatus == StageStatus.Completed
+            && !stage.ActualStart.HasValue
+            && carriedForwardStart.HasValue)
+        {
+            stage.ActualStart = carriedForwardStart;
+        }
 
         await _stageProgressService.UpdateStageStatusAsync(
             stage.ProjectId,
@@ -319,6 +331,25 @@ public sealed class StageDecisionService
         }
 
         return StageDecisionResult.Success(afterStatus, afterActualStart, afterCompletedOn, warnings);
+    }
+
+    private Task<DateOnly?> FindCarriedForwardStartAsync(
+        StageChangeRequest completionRequest,
+        CancellationToken cancellationToken)
+    {
+        return _db.StageChangeRequests
+            .AsNoTracking()
+            .Where(item =>
+                item.ProjectId == completionRequest.ProjectId
+                && item.StageCode == completionRequest.StageCode
+                && item.RequestedStatus == StageStatus.InProgress.ToString()
+                && item.RequestedDate.HasValue
+                && item.RequestedOn < completionRequest.RequestedOn
+                && item.DecisionStatus == SupersededDecisionStatus)
+            .OrderByDescending(item => item.RequestedOn)
+            .ThenByDescending(item => item.Id)
+            .Select(item => item.RequestedDate)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     private async Task<IReadOnlyList<string>> FindIncompletePredecessorsAsync(

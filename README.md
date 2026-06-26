@@ -1,50 +1,48 @@
-# PRISM Project Officer Multi-Stage Updates — Ready to Replace
+# PRISM Project Officer Smooth Experience
 
-This cumulative package is prepared against **ProjectManagement-master (95)** and includes the preceding workflow-consistency and Project Officer stage-update UX files together with the new multi-stage proposal implementation.
+This is a cumulative ready-to-replace package. Copy the files into the project root while preserving the folder structure.
 
-## What this implementation does
+## Main improvements
 
-- The assigned Project Officer may submit updates for **one or many different stages in one submission**.
-- The officer may continue submitting updates while earlier stage proposals are awaiting HoD approval.
-- A pending completion/skip proposal for a predecessor is recognised when validating a downstream stage proposal.
-- All rows in the current submission are evaluated as one **projected lifecycle**, independent of their visual row order.
-- The approved lifecycle, progress count and current stage remain unchanged until HoD approval.
-- Every submitted proposal is visible immediately on its stage as awaiting approval.
-- A later update for the same stage supersedes only that stage's previous pending proposal. Pending proposals for other stages remain active.
-- Each stage may appear once in a single submission. The same stage may be revised again through any later submission, preserving the audit history.
-- Routine multi-stage updates do not require repetitive notes. Notes remain mandatory for block, skip, resume and reopen actions.
-- Projected dates are checked against predecessor completion dates.
-- Revising a predecessor cannot silently invalidate an untouched downstream pending update. The officer is asked to include the affected downstream stage in the same submission and revise it.
-- The current-stage card uses one primary Update/Review action and avoids duplicate visible actions.
-- Planned-completion warnings are suppressed while completion is already awaiting HoD approval.
+- The Project Officer may continue submitting updates for any number of stages while earlier updates await HoD approval.
+- The update modal now shows the complete projected lifecycle, including existing pending updates, new updates and the current revision.
+- Revising a pending stage start to completion retains the earlier proposed start date without adding database columns.
+- The retained start is shown in the modal, timeline and HoD review, and is applied when completion is approved.
+- Every stage with a pending proposal exposes a consistent **Review update** action.
+- Pending completion suppresses the competing planned-completion warning and action.
+- The Next Stage summary acknowledges a submitted start update.
+- The stage-update modal uses a viewport-safe scrollable body with permanently accessible header and footer controls.
+- The add-stage action is compact and remains on one line.
+- Timeline and Remarks tab state now stays synchronized with the URL hash.
+- HoD pending-stage review uses update-oriented wording and shows proposed start and completion separately.
+- Existing multi-stage projected validation, workflow-version awareness, role controls and approval governance are retained.
 
-## Database impact
+## Database
 
-**No database migration, new table or new column is required.** Existing `StageChangeRequest` and audit records are used.
+No database migration is required. Existing `StageChangeRequest` history is used to carry forward a superseded proposed start.
 
-## Replacement steps
+## Deployment
 
-1. Stop the application.
-2. Copy the contents of this folder over the project root, preserving the included folder structure.
-3. Delete `bin` and `obj` folders from `ProjectManagement` and `ProjectManagement.Tests`.
-4. Rebuild the main project first, then rebuild the test project.
-5. Restart the application and perform a hard refresh (`Ctrl+F5`).
+1. Back up the solution.
+2. Replace the files in this package using the included relative paths.
+3. Delete the solution `bin` and `obj` folders.
+4. Rebuild the main project, then rebuild the test project.
+5. Restart the application.
+6. Perform a hard browser refresh (`Ctrl+F5`).
 
-## Recommended acceptance checks
+## Recommended verification
 
-1. Keep Acceptance of Necessity officially **In progress**.
-2. Submit its completion as the Project Officer.
-3. Before HoD approval, submit Bidding/Tendering as **Start stage** with a date after the proposed AoN completion.
-4. Confirm both stages display their pending proposals while official lifecycle progress is unchanged.
-5. Open a single submission, add AoN completion and Bidding/Tendering start, and confirm it is accepted as a projected sequence.
-6. Revise AoN only to a later date that would invalidate the pending Bidding start; confirm the system asks for Bidding to be revised in the same submission.
-7. Revise AoN and Bidding together with valid dates; confirm only the prior AoN and Bidding proposals are superseded and other pending stages remain untouched.
-8. Confirm a normal completion proposal hides the current-stage planned-completion warning while it awaits approval.
+1. Submit completion for the current stage.
+2. Submit a start update for the next stage while the first update remains pending.
+3. Open the second stage again and revise it from Start to Completion.
+4. Confirm the modal shows the earlier proposed start and the new completion in the projected lifecycle.
+5. Confirm the timeline displays both proposed dates after submission.
+6. Approve the completion and confirm the retained start becomes the stage actual start.
+7. Switch between Timeline and Remarks and refresh the page to confirm the URL state is preserved.
 
-## Validation performed in this environment
+## Validation performed
 
-- `node --check wwwroot/js/projects/stages.js` — passed.
-- Focused Project Officer stage-update JavaScript tests — **5/5 passed**.
-- ZIP archive integrity — verified.
-- The broader JavaScript command could not complete because the source environment does not have the existing `jsdom` dependency installed; unaffected non-jsdom tests and the focused stage-update tests passed.
-- A full .NET build could not be executed because the .NET SDK is not installed in this environment. Rebuild locally after replacement.
+- JavaScript syntax validation passed for `stages.js` and `overview.js`.
+- Focused Node tests passed for direct refresh, Project Officer updates, projected lifecycle, retained start and panel hash synchronization.
+- ZIP integrity was checked.
+- A full .NET build could not be run in the packaging environment because the .NET SDK is not installed.

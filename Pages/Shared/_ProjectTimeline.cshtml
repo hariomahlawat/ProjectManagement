@@ -44,8 +44,10 @@
     string PendingProposal(ProjectManagement.ViewModels.TimelineItemVm stage)
     {
         var date = stage.PendingDate.HasValue ? D(stage.PendingDate) : null;
+        var start = stage.PendingStartDate.HasValue ? D(stage.PendingStartDate) : null;
         return stage.PendingStatus?.Trim().ToLowerInvariant() switch
         {
+            "completed" when start is not null && date is not null => $"Proposed start: {start} · Proposed completion: {date}",
             "completed" => date is null ? "Proposed status: Completed" : $"Proposed completion: {date}",
             "inprogress" => date is null ? "Proposed status: In progress" : $"Proposed start: {date}",
             "blocked" => date is null ? "Proposed status: Blocked" : $"Proposed blocked date: {date}",
@@ -111,7 +113,7 @@
         _                      => "pm-item"
       };
       var isCurrentStage = string.Equals(s.Code, currentStageCode, StringComparison.OrdinalIgnoreCase);
-      var hasStageMenuActions = isHod || (canSubmitStageUpdate && !isCurrentStage);
+      var hasStageMenuActions = isHod || (canSubmitStageUpdate && !isCurrentStage && !s.HasPendingRequest);
       <div id="timeline-stage-@s.Code" class="@itemClass" data-stage-row="@s.Code" data-timeline-stage data-stage-status-value="@s.Status" data-requires-backfill="@(s.RequiresBackfill ? "true" : "false")">
         <div class="pm-item-card" data-timeline-stage-card>
           <div class="pm-item-header">
@@ -176,7 +178,7 @@
               }
             </div>
             <div class="pm-item-actions">
-              @if (canSubmitStageUpdate && isCurrentStage)
+              @if (canSubmitStageUpdate && (isCurrentStage || s.HasPendingRequest))
               {
                 <button class="btn btn-sm @(s.HasPendingRequest ? "btn-warning" : "btn-outline-primary") pm-stage-update-primary"
                         type="button"
@@ -186,8 +188,11 @@
                         data-stage="@s.Code"
                         data-stage-name="@s.Name"
                         data-current-status="@s.Status"
+                        data-actual-start="@s.ActualStart?.ToString("yyyy-MM-dd")"
+                        data-stage-sort-order="@s.SortOrder"
                         data-pending-status="@s.PendingStatus"
                         data-pending-date="@s.PendingDate?.ToString("yyyy-MM-dd")"
+                        data-pending-start-date="@s.PendingStartDate?.ToString("yyyy-MM-dd")"
                         data-pending-note="@s.PendingNote">
                   <i class="bi @(s.HasPendingRequest ? "bi-pencil-square" : "bi-arrow-repeat")" aria-hidden="true"></i>
                   @(s.HasPendingRequest ? "Review update" : "Update stage")
@@ -337,7 +342,7 @@
                       <li><hr class="dropdown-divider" /></li>
                     }
                   }
-                  @if (canSubmitStageUpdate && !isCurrentStage)
+                  @if (canSubmitStageUpdate && !isCurrentStage && !s.HasPendingRequest)
                   {
                     <li>
                       <button class="dropdown-item"
@@ -348,8 +353,11 @@
                               data-stage="@s.Code"
                               data-stage-name="@s.Name"
                               data-current-status="@s.Status"
+                              data-actual-start="@s.ActualStart?.ToString("yyyy-MM-dd")"
+                              data-stage-sort-order="@s.SortOrder"
                               data-pending-status="@s.PendingStatus"
                               data-pending-date="@s.PendingDate?.ToString("yyyy-MM-dd")"
+                              data-pending-start-date="@s.PendingStartDate?.ToString("yyyy-MM-dd")"
                               data-pending-note="@s.PendingNote">
                         @(s.HasPendingRequest ? "Review pending update" : "Update stage")
                       </button>
@@ -447,7 +455,7 @@
                   <span class="small text-warning-emphasis">Actual start required</span>
                 }
               </div>
-              <div class="pm-current-stage-dates__item @(s.NeedsPlannedCompletion ? "is-attention" : string.Empty)">
+              <div class="pm-current-stage-dates__item @((s.NeedsPlannedCompletion && !s.HasPendingCompletion) ? "is-attention" : string.Empty)">
                 <span class="pm-date-label">Planned completion</span>
                 <strong>@D(s.PlannedEnd)</strong>
                 @if (s.DaysRemaining is int remaining)
@@ -455,6 +463,10 @@
                   <span class="small @(remaining < 0 ? "text-danger" : remaining <= 7 ? "text-warning-emphasis" : "text-muted")">
                     @(remaining < 0 ? $"{Math.Abs(remaining)} day{(Math.Abs(remaining) == 1 ? string.Empty : "s")} overdue" : remaining == 0 ? "Due today" : $"{remaining} day{(remaining == 1 ? string.Empty : "s")} remaining")
                   </span>
+                }
+                else if (s.HasPendingCompletion)
+                {
+                  <span class="small text-muted">Completion update awaiting approval</span>
                 }
                 else if (canEditTimeline)
                 {

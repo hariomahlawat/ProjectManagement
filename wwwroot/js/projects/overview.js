@@ -488,6 +488,10 @@
                 ? window.location.hash.trim().toLowerCase()
                 : '';
 
+            if (hash === '#remarks' || hash === '#project-panel-toggle-remarks' || hash === '#project-panel-body-remarks') {
+                return 'remarks';
+            }
+
             if (hash === '#timeline' || hash === '#project-panel-toggle-timeline' || hash === '#project-panel-body-timeline' || hash.startsWith('#timeline-stage')) {
                 return 'timeline';
             }
@@ -529,7 +533,7 @@
             return null;
         }
 
-        function setActive(name) {
+        function setActive(name, syncUrl = false) {
             const target = name === 'remarks' ? 'remarks' : 'timeline';
             buttons.forEach((button) => {
                 const value = button.getAttribute('data-panel-target');
@@ -566,6 +570,13 @@
                 // ignore storage failures
             }
 
+            if (syncUrl && typeof window.history?.replaceState === 'function') {
+                const desiredHash = target === 'remarks' ? '#remarks' : '#timeline';
+                if (window.location.hash !== desiredHash) {
+                    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${desiredHash}`);
+                }
+            }
+
             if (target === 'remarks' && remarksPanel) {
                 remarksPanel.ensureLoaded();
             }
@@ -577,13 +588,20 @@
                 if (!target) {
                     return;
                 }
-                setActive(target);
+                setActive(target, true);
             });
         });
 
         const override = getTimelineOverride();
         const initial = override || getStored();
-        setActive(initial);
+        setActive(initial, false);
+
+        window.addEventListener('hashchange', () => {
+            const hashTarget = getTimelineOverride();
+            if (hashTarget) {
+                setActive(hashTarget, false);
+            }
+        });
     }
 
     function getTimelineStageTarget() {

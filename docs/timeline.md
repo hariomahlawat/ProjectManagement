@@ -52,3 +52,7 @@ The same policy controls validation, direct application, approval decisions, pre
 - **Authorised completion override:** any HoD may complete a stage without a completion date. The workflow advances, the stage counts as operationally completed, and mandatory backfill remains until the completion date and any mandatory stage facts are recorded.
 
 Actual dates can be corrected directly from **Timeline → Edit actual dates**. The editor avoids artificial status transitions and preserves the stage audit trail through the actuals-update workflow.
+
+## Project Officer projected lifecycle
+
+The assigned Project Officer can submit and revise updates for multiple stages while earlier updates await HoD approval. The update modal renders the complete projected lifecycle, distinguishing existing pending updates, new updates and the current revision. If a stage start is already pending and the officer later records completion, that proposed start is retained without adding database columns; it is recovered from the superseded request history and applied when the completion is approved. Official lifecycle progress remains based on approved stage records.

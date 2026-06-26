@@ -18,6 +18,7 @@ namespace ProjectManagement.Services.Projects;
 public sealed class ProjectTimelineReadService
 {
     private const string PendingDecisionStatus = "Pending";
+    private const string SupersededDecisionStatus = "Superseded";
     private static readonly TimeZoneInfo IndiaTimeZone = TimeZoneHelper.GetIst();
 
     private readonly ApplicationDbContext _db;
@@ -114,10 +115,17 @@ public sealed class ProjectTimelineReadService
             .Where(x => x.ProjectId == projectId)
             .ToListAsync(ct);
 
-        var pendingRequests = await _db.StageChangeRequests
+        var requestHistory = await _db.StageChangeRequests
             .AsNoTracking()
-            .Where(r => r.ProjectId == projectId && r.DecisionStatus == PendingDecisionStatus)
+            .Where(r =>
+                r.ProjectId == projectId
+                && (r.DecisionStatus == PendingDecisionStatus
+                    || r.DecisionStatus == SupersededDecisionStatus))
             .ToListAsync(ct);
+
+        var pendingRequests = requestHistory
+            .Where(r => r.DecisionStatus == PendingDecisionStatus)
+            .ToList();
 
         // SECTION: Workflow metadata
         var workflowStages = _workflowStageMetadataProvider.GetStages(workflowVersion);
@@ -164,6 +172,26 @@ public sealed class ProjectTimelineReadService
             .OrderByDescending(r => r.RequestedOn)
             .ToList();
 
+        var proposedStartLookup = latestPendingByStage
+            .Where(r => string.Equals(r.RequestedStatus, StageStatus.Completed.ToString(), StringComparison.OrdinalIgnoreCase))
+            .Select(r => new
+            {
+                r.StageCode,
+                StartDate = requestHistory
+                    .Where(history =>
+                        string.Equals(history.StageCode, r.StageCode, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(history.RequestedStatus, StageStatus.InProgress.ToString(), StringComparison.OrdinalIgnoreCase)
+                        && history.RequestedDate.HasValue
+                        && history.RequestedOn < r.RequestedOn
+                        && history.DecisionStatus == SupersededDecisionStatus)
+                    .OrderByDescending(history => history.RequestedOn)
+                    .ThenByDescending(history => history.Id)
+                    .Select(history => history.RequestedDate)
+                    .FirstOrDefault()
+            })
+            .Where(item => item.StartDate.HasValue)
+            .ToDictionary(item => item.StageCode, item => item.StartDate, StringComparer.OrdinalIgnoreCase);
+
         var pendingRequestVms = latestPendingByStage
             .Select(r =>
             {
@@ -182,6 +210,12 @@ public sealed class ProjectTimelineReadService
                     CurrentStatus = stageRow?.Status ?? StageStatus.NotStarted,
                     RequestedStatus = r.RequestedStatus,
                     RequestedDate = r.RequestedDate,
+                    ProposedStartDate = stageRow?.ActualStart
+                        ?? (proposedStartLookup.TryGetValue(r.StageCode, out var proposedStart)
+                            ? proposedStart
+                            : string.Equals(r.RequestedStatus, StageStatus.InProgress.ToString(), StringComparison.OrdinalIgnoreCase)
+                                ? r.RequestedDate
+                                : null),
                     Note = r.Note,
                     RequestedBy = requestedBy,
                     RequestedOn = r.RequestedOn
@@ -250,6 +284,14 @@ public sealed class ProjectTimelineReadService
                 HasPendingRequest = pendingRequest is not null,
                 PendingStatus = pendingRequest?.RequestedStatus,
                 PendingDate = pendingRequest?.RequestedDate,
+                PendingStartDate = pendingRequest is null
+                    ? null
+                    : actualStart
+                        ?? (string.Equals(pendingRequest.RequestedStatus, StageStatus.InProgress.ToString(), StringComparison.OrdinalIgnoreCase)
+                            ? pendingRequest.RequestedDate
+                            : proposedStartLookup.TryGetValue(code, out var pendingStart)
+                                ? pendingStart
+                                : null),
                 PendingNote = pendingRequest?.Note,
                 PendingRequestedBy = pendingRequest is not null && userLookup.TryGetValue(pendingRequest.RequestedByUserId, out var pendingRequester)
                     ? pendingRequester

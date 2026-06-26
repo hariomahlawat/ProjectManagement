@@ -198,6 +198,26 @@ public class StageRequestService
             .ThenBy(item => item.Id)
             .ToListAsync(cancellationToken);
 
+        var startProposalHistory = await _db.StageChangeRequests
+            .AsNoTracking()
+            .Where(item =>
+                item.ProjectId == input.ProjectId
+                && item.RequestedStatus == StageStatus.InProgress.ToString()
+                && item.RequestedDate.HasValue
+                && (item.DecisionStatus == PendingDecisionStatus
+                    || item.DecisionStatus == SupersededDecisionStatus))
+            .OrderBy(item => item.RequestedOn)
+            .ThenBy(item => item.Id)
+            .ToListAsync(cancellationToken);
+
+        var carriedStartByStage = startProposalHistory
+            .GroupBy(item => item.StageCode, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group
+                .OrderByDescending(item => item.RequestedOn)
+                .ThenByDescending(item => item.Id)
+                .First())
+            .ToDictionary(item => item.StageCode, item => item.RequestedDate, StringComparer.OrdinalIgnoreCase);
+
         ProjectStageWorkflowSnapshot? workflow = null;
         if (_workflowPolicy is not null)
         {
@@ -212,7 +232,7 @@ public class StageRequestService
                 .ThenByDescending(request => request.Id)
                 .First())
             .ToDictionary(request => request.StageCode, StringComparer.OrdinalIgnoreCase);
-        var projectedStates = BuildProjectedStates(stages, latestPendingByStage.Values);
+        var projectedStates = BuildProjectedStates(stages, latestPendingByStage.Values, carriedStartByStage);
         var submittedStageCodes = preparedItems
             .Select(item => item.StageCode)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -224,7 +244,16 @@ public class StageRequestService
         foreach (var item in preparedItems)
         {
             var projectedStage = projectedStates[item.StageCode];
+            var carriedStart = item.RequestedStatus == StageStatus.Completed
+                ? projectedStage.ProjectedStartDate
+                : null;
+
             ResetToOfficialProjection(projectedStage);
+            if (carriedStart.HasValue && !projectedStage.OfficialActualStart.HasValue)
+            {
+                projectedStage.ProjectedStartDate = carriedStart;
+            }
+
             ApplyProjection(projectedStage, item.RequestedStatus, item.RequestedDate);
         }
 
@@ -382,7 +411,11 @@ public class StageRequestService
                     FromStatus = stage.Status.ToString(),
                     ToStatus = item.RequestedStatus.ToString(),
                     FromActualStart = stage.ActualStart,
-                    ToActualStart = item.RequestedStatus == StageStatus.InProgress ? item.RequestedDate : stage.ActualStart,
+                    ToActualStart = item.RequestedStatus == StageStatus.InProgress
+                        ? item.RequestedDate
+                        : item.RequestedStatus == StageStatus.Completed
+                            ? projectedStates[item.StageCode].ProjectedStartDate
+                            : stage.ActualStart,
                     FromCompletedOn = stage.CompletedOn,
                     ToCompletedOn = item.RequestedStatus == StageStatus.Completed ? item.RequestedDate : stage.CompletedOn,
                     UserId = userId,
@@ -413,7 +446,8 @@ public class StageRequestService
 
     private static Dictionary<string, ProjectedStageState> BuildProjectedStates(
         IReadOnlyCollection<ProjectStage> stages,
-        IReadOnlyCollection<StageChangeRequest> pendingRequests)
+        IReadOnlyCollection<StageChangeRequest> pendingRequests,
+        IReadOnlyDictionary<string, DateOnly?> carriedStartByStage)
     {
         var states = stages.ToDictionary(
             stage => stage.StageCode,
@@ -426,6 +460,16 @@ public class StageRequestService
                 stage.ActualStart,
                 stage.CompletedOn),
             StringComparer.OrdinalIgnoreCase);
+
+        foreach (var state in states.Values)
+        {
+            if (!state.ProjectedStartDate.HasValue
+                && carriedStartByStage.TryGetValue(state.StageCode, out var carriedStart)
+                && carriedStart.HasValue)
+            {
+                state.ProjectedStartDate = carriedStart;
+            }
+        }
 
         foreach (var pending in pendingRequests)
         {

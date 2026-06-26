@@ -1241,3 +1241,118 @@ button.project-intelligence-card:hover {
         flex-direction: column;
     }
 }
+
+/* SECTION: Project Officer stage update modal */
+#stageRequestModal .stage-update-modal-dialog {
+    max-height: calc(100dvh - 1.5rem);
+    margin-top: .75rem;
+    margin-bottom: .75rem;
+}
+
+#stageRequestModal .modal-content,
+#stageRequestModal .stage-update-modal-form {
+    max-height: calc(100dvh - 1.5rem);
+    min-height: 0;
+}
+
+#stageRequestModal .stage-update-modal-form {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#stageRequestModal .modal-header,
+#stageRequestModal .modal-footer {
+    flex: 0 0 auto;
+    background: #fff;
+    z-index: 2;
+}
+
+#stageRequestModal .modal-header {
+    border-bottom-color: var(--portfolio-border);
+}
+
+#stageRequestModal .modal-body {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+#stageRequestModal .modal-footer {
+    border-top-color: var(--portfolio-border);
+    box-shadow: 0 -.35rem .9rem rgba(15, 23, 42, .05);
+}
+
+.stage-update-add-button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.stage-update-carried-start {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    margin-top: .75rem;
+    padding: .55rem .65rem;
+    border-radius: .6rem;
+    background: var(--pm-surface-subtle, #f8fafc);
+    color: var(--portfolio-muted);
+    font-size: .75rem;
+}
+
+.stage-update-carried-start > i {
+    color: var(--bs-primary);
+}
+
+.stage-update-summary__list {
+    display: grid;
+    gap: .45rem;
+    padding-left: 1.25rem;
+}
+
+.stage-update-summary__item {
+    padding-left: .15rem;
+}
+
+.stage-update-summary__line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .45rem;
+}
+
+.stage-update-summary__kind {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: .12rem .42rem;
+    border: 1px solid var(--portfolio-border);
+    background: #fff;
+    color: var(--portfolio-muted);
+    font-size: .66rem;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.stage-update-summary__kind.is-new {
+    border-color: color-mix(in srgb, var(--bs-primary) 32%, var(--portfolio-border));
+    color: var(--bs-primary);
+}
+
+.stage-update-summary__kind.is-revision {
+    border-color: color-mix(in srgb, var(--bs-warning) 42%, var(--portfolio-border));
+    background: color-mix(in srgb, var(--bs-warning-bg-subtle, #fff3cd) 48%, #fff);
+    color: var(--bs-warning-text-emphasis, #664d03);
+}
+
+@media (max-width: 575.98px) {
+    #stageRequestModal .stage-update-modal-dialog {
+        max-height: calc(100dvh - .5rem);
+        margin: .25rem;
+    }
+
+    #stageRequestModal .modal-content,
+    #stageRequestModal .stage-update-modal-form {
+        max-height: calc(100dvh - .5rem);
+    }
+}

@@ -222,6 +222,68 @@ public sealed class StageDecisionServiceTests
     }
 
     [Fact]
+    public async Task ApproveCompletionAsync_UsesSupersededProposedStart()
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 3, 20, 12, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedProjectAsync(
+            db,
+            "hod-5",
+            (StageCodes.FS, StageStatus.Completed),
+            (StageCodes.IPA, StageStatus.NotStarted));
+
+        db.ProjectIpaFacts.Add(new ProjectIpaFact
+        {
+            ProjectId = 1,
+            IpaCost = 200m,
+            CreatedByUserId = "seed",
+            CreatedOnUtc = clock.UtcNow.UtcDateTime
+        });
+
+        var proposedStart = new DateOnly(2024, 3, 2);
+        db.StageChangeRequests.Add(new StageChangeRequest
+        {
+            ProjectId = 1,
+            StageCode = StageCodes.IPA,
+            RequestedStatus = StageStatus.InProgress.ToString(),
+            RequestedDate = proposedStart,
+            RequestedByUserId = "po-1",
+            RequestedOn = clock.UtcNow.AddDays(-2),
+            DecisionStatus = "Superseded",
+            DecidedByUserId = "po-1",
+            DecidedOn = clock.UtcNow.AddDays(-1),
+            DecisionNote = "Superseded by newer stage update"
+        });
+
+        var completionRequest = new StageChangeRequest
+        {
+            ProjectId = 1,
+            StageCode = StageCodes.IPA,
+            RequestedStatus = StageStatus.Completed.ToString(),
+            RequestedDate = new DateOnly(2024, 3, 10),
+            RequestedByUserId = "po-1",
+            RequestedOn = clock.UtcNow.AddHours(-1),
+            DecisionStatus = "Pending"
+        };
+        db.StageChangeRequests.Add(completionRequest);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, clock);
+        var result = await service.DecideAsync(
+            new StageDecisionInput(completionRequest.Id, StageDecisionAction.Approve, null),
+            "hod-5",
+            isAdmin: false,
+            isHoD: true,
+            cancellationToken: CancellationToken.None);
+
+        Assert.Equal(StageDecisionOutcome.Success, result.Outcome);
+        Assert.NotNull(result.Stage);
+        Assert.Equal(StageStatus.Completed, result.Stage!.Status);
+        Assert.Equal(proposedStart, result.Stage.ActualStart);
+        Assert.Equal(new DateOnly(2024, 3, 10), result.Stage.CompletedOn);
+    }
+
+    [Fact]
     public async Task ApproveAsync_AddsPredecessorWarning()
     {
         var clock = new TestClock(new DateTimeOffset(2024, 4, 15, 7, 0, 0, TimeSpan.Zero));

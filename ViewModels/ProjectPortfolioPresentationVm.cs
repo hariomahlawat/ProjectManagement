@@ -117,9 +117,11 @@ public sealed class ProjectPortfolioPresentationVm
                 ? "Current-stage deadline monitored"
                 : timeline.PlanPendingApproval
                     ? "Timeline approval pending"
-                    : current?.NeedsPlannedCompletion == true
-                        ? "Current-stage planned completion not set"
-                        : "Current-stage plan not approved",
+                    : current?.HasPendingCompletion == true
+                        ? "Completion update awaiting HoD approval"
+                        : current?.NeedsPlannedCompletion == true
+                            ? "Current-stage planned completion not set"
+                            : "Current-stage plan not approved",
             ScheduleStatus = schedule.Status,
             ScheduleDetail = schedule.Detail,
             NextAction = nextAction.Action,

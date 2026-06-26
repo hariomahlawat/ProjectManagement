@@ -28,6 +28,7 @@ public sealed class TimelineStageRequestVm
     public StageStatus CurrentStatus { get; init; } = StageStatus.NotStarted;
     public string RequestedStatus { get; init; } = string.Empty;
     public DateOnly? RequestedDate { get; init; }
+    public DateOnly? ProposedStartDate { get; init; }
     public string? Note { get; init; }
     public string RequestedBy { get; init; } = string.Empty;
     public DateTimeOffset RequestedOn { get; init; }
@@ -52,6 +53,7 @@ public sealed class TimelineItemVm
     public bool HasPendingRequest { get; init; }
     public string? PendingStatus { get; init; }
     public DateOnly? PendingDate { get; init; }
+    public DateOnly? PendingStartDate { get; init; }
     public int? PendingRequestId { get; init; }
     public string? PendingNote { get; init; }
     public string? PendingRequestedBy { get; init; }

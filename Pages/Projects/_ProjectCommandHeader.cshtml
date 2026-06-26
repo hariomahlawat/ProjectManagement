@@ -95,7 +95,11 @@
             {
                 <span class="project-intelligence-card__label">Next stage</span>
                 <strong>@portfolio.NextStage.Name</strong>
-                @if (portfolio.CurrentStage?.HasPendingRequest == true
+                @if (portfolio.NextStage.HasPendingRequest)
+                {
+                    <span>@ProjectManagement.ViewModels.ProjectPortfolioPresentationVm.PendingActionLabel(portfolio.NextStage.PendingStatus) · Awaiting HoD approval</span>
+                }
+                else if (portfolio.CurrentStage?.HasPendingRequest == true
                     && string.Equals(portfolio.CurrentStage.PendingStatus, "Completed", StringComparison.OrdinalIgnoreCase))
                 {
                     <span>Becomes current after HoD approval</span>

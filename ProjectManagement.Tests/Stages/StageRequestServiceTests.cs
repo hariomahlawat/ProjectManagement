@@ -187,6 +187,55 @@ public class StageRequestServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_ReplacingPendingStartWithCompletion_PreservesProjectedStart()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2025, 2, 8, 6, 30, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStageAsync(db, StageStatus.NotStarted);
+
+        var proposedStart = new DateOnly(2025, 2, 4);
+        db.StageChangeRequests.Add(new StageChangeRequest
+        {
+            ProjectId = 1,
+            StageCode = StageCodes.IPA,
+            RequestedStatus = StageStatus.InProgress.ToString(),
+            RequestedDate = proposedStart,
+            RequestedByUserId = "po-1",
+            RequestedOn = clock.UtcNow.AddDays(-1),
+            DecisionStatus = "Pending"
+        });
+        await db.SaveChangesAsync();
+
+        var service = new StageRequestService(db, clock, new StubStageValidationService());
+        var result = await service.CreateAsync(
+            new StageChangeRequestInput
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.IPA,
+                RequestedStatus = StageStatus.Completed.ToString(),
+                RequestedDate = new DateOnly(2025, 2, 7)
+            },
+            "po-1");
+
+        Assert.Equal(StageRequestOutcome.Success, result.Outcome);
+
+        var requests = await db.StageChangeRequests
+            .OrderBy(request => request.RequestedOn)
+            .ToListAsync();
+        Assert.Equal("Superseded", requests[0].DecisionStatus);
+        Assert.Equal(StageStatus.InProgress.ToString(), requests[0].RequestedStatus);
+        Assert.Equal("Pending", requests[1].DecisionStatus);
+        Assert.Equal(StageStatus.Completed.ToString(), requests[1].RequestedStatus);
+
+        var requestedLog = await db.StageChangeLogs
+            .Where(log => log.Action == "Requested")
+            .OrderByDescending(log => log.At)
+            .FirstAsync();
+        Assert.Equal(proposedStart, requestedLog.ToActualStart);
+        Assert.Equal(new DateOnly(2025, 2, 7), requestedLog.ToCompletedOn);
+    }
+
+    [Fact]
     public async Task CreateAsync_ExceptionalUpdateWithoutNote_IsRejected()
     {
         var clock = FakeClock.AtUtc(new DateTimeOffset(2025, 2, 5, 6, 30, 0, TimeSpan.Zero));

@@ -34,3 +34,20 @@ test('validation errors are deduplicated and server messages are preserved', () 
   assert.match(source, /Array\.from\(new Set\(/);
   assert.doesNotMatch(source, /Complete required predecessor stages first \(\$\{missing\.join/);
 });
+
+test('projected lifecycle shows existing pending updates and current revisions', () => {
+  assert.match(source, /Projected lifecycle|proposalDescription/);
+  assert.match(source, /Existing pending/);
+  assert.match(source, /Current revision/);
+  assert.match(source, /Pending update/);
+});
+
+test('completion revisions retain and display an earlier proposed start', () => {
+  assert.match(source, /pendingStartDate/);
+  assert.match(source, /retainedStartDate/);
+  assert.match(source, /will be retained when this completion update is saved/);
+});
+
+test('editing a pending update uses save wording', () => {
+  assert.match(source, /isEditingPending \? 'Save update' : 'Submit update'/);
+});

@@ -286,7 +286,7 @@
                                     <i class="bi bi-repeat"></i>
                                 </span>
                                 <div>
-                                    <h3 class="pm-card-title h6 mb-0">Stage change requests</h3>
+                                    <h3 class="pm-card-title h6 mb-0">Stage updates</h3>
                                     <p class="pm-card-subtitle mb-0">Pending updates awaiting HoD decisions.</p>
                                 </div>
                             </div>
@@ -294,7 +294,7 @@
                         <div class="card-body pm-card-body d-flex flex-column gap-3">
                             <input type="hidden" value="@decisionTokens.RequestToken" data-stage-decision-token />
                             <div class="text-muted small @(Model.Timeline.PendingRequests.Any() ? "d-none" : string.Empty)" data-stage-requests-empty>
-                                No pending stage change requests.
+                                No stage updates are awaiting approval.
                             </div>
                             <div class="d-flex flex-column gap-3" data-stage-decision-list>
                                 @foreach (var request in Model.Timeline.PendingRequests)
@@ -313,14 +313,21 @@
                                         <dl class="row small mt-3 mb-0">
                                             <dt class="col-4">Current</dt>
                                             <dd class="col-8">@StageStatusLabel(request.CurrentStatus)</dd>
-                                            <dt class="col-4">Target</dt>
+                                            <dt class="col-4">Proposed update</dt>
                                             <dd class="col-8">
                                                 @StageStatusLabel(request.RequestedStatus)
-                                                @if (request.RequestedDate.HasValue)
-                                                {
-                                                    <span>· @request.RequestedDate.Value.ToString("dd MMM yyyy")</span>
-                                                }
                                             </dd>
+                                            @if (request.ProposedStartDate.HasValue)
+                                            {
+                                                <dt class="col-4">Proposed start</dt>
+                                                <dd class="col-8">@request.ProposedStartDate.Value.ToString("dd MMM yyyy")</dd>
+                                            }
+                                            @if (request.RequestedDate.HasValue
+                                                && !string.Equals(request.RequestedStatus, "InProgress", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                <dt class="col-4">@(string.Equals(request.RequestedStatus, "Completed", StringComparison.OrdinalIgnoreCase) ? "Proposed completion" : "Effective date")</dt>
+                                                <dd class="col-8">@request.RequestedDate.Value.ToString("dd MMM yyyy")</dd>
+                                            }
                                             @if (!string.IsNullOrWhiteSpace(request.Note))
                                             {
                                                 <dt class="col-4">PO note</dt>
