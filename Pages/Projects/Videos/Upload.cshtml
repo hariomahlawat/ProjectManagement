@@ -1,27 +1,18 @@
 @page "/Projects/{id:int}/Videos/Upload"
 @model ProjectManagement.Pages.Projects.Videos.UploadModel
-@using System
-@using ProjectManagement.Services.Projects
-@inject Microsoft.Extensions.Options.IOptions<ProjectVideoOptions> VideoOptions
 @{
-    ViewData["Title"] = $"Upload video · {Model.Project.Name}";
-    var options = VideoOptions.Value;
-    string FormatFileSize(long bytes)
+    ViewData["Title"] = $"Upload video – {Model.Project.Name}";
+
+    string FormatSize(long bytes)
     {
-        if (bytes <= 0)
-        {
-            return "0 B";
-        }
-        string[] units = { "B", "KB", "MB", "GB", "TB" };
-        var order = (int)Math.Min(units.Length - 1, Math.Log(bytes, 1024));
-        var value = bytes / Math.Pow(1024, order);
-        return $"{value:0.##} {units[order]}";
+        var mb = bytes / (1024d * 1024d);
+        return mb >= 1024 ? $"{mb / 1024d:0.#} GB" : $"{mb:0} MB";
     }
 }
 
-<div class="container py-4">
-    <nav aria-label="Breadcrumb" class="mb-3">
-        <ol class="breadcrumb mb-0">
+<div class="container-xl project-video-upload">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
             <li class="breadcrumb-item"><a asp-page="/Projects/Index">Projects</a></li>
             <li class="breadcrumb-item"><a asp-page="/Projects/Overview" asp-route-id="@Model.Project.Id">@Model.Project.Name</a></li>
             <li class="breadcrumb-item"><a asp-page="/Projects/Videos/Index" asp-route-id="@Model.Project.Id">Videos</a></li>
@@ -29,45 +20,100 @@
         </ol>
     </nav>
 
-    <div class="row">
-        <div class="col-lg-8">
-            <h1 class="h3 mb-3">Upload a video</h1>
-            <form method="post" enctype="multipart/form-data" novalidate>
-                <input type="hidden" asp-for="Input.ProjectId" />
-                <input type="hidden" asp-for="Input.RowVersion" />
+    <header class="project-video-upload__header">
+        <a asp-page="/Projects/Videos/Index" asp-route-id="@Model.Project.Id" class="project-video-upload__back">
+            <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to videos
+        </a>
+        <h1>Upload project video</h1>
+        <p class="fw-semibold mb-1">@Model.Project.Name</p>
+        <p class="text-muted mb-0">Add a demonstration, trial recording or project highlight.</p>
+    </header>
 
-                <div class="mb-3">
-                    <label class="form-label" asp-for="Input.File">Video file</label>
-                    <input class="form-control" asp-for="Input.File" type="file" accept="video/*" />
-                    <span class="form-text text-muted">Maximum size @FormatFileSize(options.MaxFileSizeBytes). Supported formats: @string.Join(", ", options.AllowedContentTypes).</span>
-                    <span class="text-danger" asp-validation-for="Input.File"></span>
+    <form method="post"
+          enctype="multipart/form-data"
+          class="project-video-upload__form"
+          data-video-upload-form
+          data-max-size="@Model.MaxFileSizeBytes">
+        <input type="hidden" asp-for="Input.ProjectId" />
+        <input type="hidden" asp-for="Input.RowVersion" />
+
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+        <section class="project-video-upload__section">
+            <div class="project-video-upload__section-heading">
+                <div>
+                    <h2>Choose video</h2>
+                    <p>Select one video from your device.</p>
                 </div>
+                <span>1</span>
+            </div>
+            <div class="project-video-upload__section-body">
+                <label class="project-video-dropzone" data-video-dropzone>
+                    <input asp-for="Input.File"
+                           type="file"
+                           accept=".mp4,.webm,.ogg,.ogv,video/mp4,video/webm,video/ogg"
+                           data-video-file-input />
+                    <span class="project-video-dropzone__icon" aria-hidden="true"><i class="bi bi-cloud-arrow-up"></i></span>
+                    <strong>Drag and drop a video here</strong>
+                    <span>or choose a file from this device</span>
+                    <small>MP4, WebM or OGG · Maximum @FormatSize(Model.MaxFileSizeBytes)</small>
+                </label>
 
-                <div class="mb-3">
-                    <label class="form-label" asp-for="Input.Title">Title</label>
-                    <input class="form-control" asp-for="Input.Title" maxlength="200" />
-                    <span class="form-text text-muted">Optional. Defaults to the file name if left blank.</span>
+                <div class="project-video-selected" data-video-selected hidden>
+                    <span class="project-video-selected__icon" aria-hidden="true"><i class="bi bi-file-earmark-play"></i></span>
+                    <span class="project-video-selected__details">
+                        <strong data-video-file-name></strong>
+                        <small data-video-file-details></small>
+                    </span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-video-replace>Replace</button>
+                    <button type="button" class="btn btn-sm btn-link text-danger" data-video-remove>Remove</button>
                 </div>
+                <span asp-validation-for="Input.File" class="text-danger"></span>
+                <p class="project-video-upload__client-error text-danger" data-video-error role="alert" hidden></p>
+            </div>
+        </section>
 
-                <div class="mb-3">
-                    <label class="form-label" asp-for="Input.Description">Description</label>
-                    <textarea class="form-control" asp-for="Input.Description" rows="3" maxlength="512"></textarea>
-                    <span class="form-text text-muted">Optional short description for context.</span>
+        <section class="project-video-upload__section">
+            <div class="project-video-upload__section-heading">
+                <div>
+                    <h2>Add details</h2>
+                    <p>Give the video a clear name and short context.</p>
                 </div>
-
-                <div class="form-check mb-3">
-                    <input class="form-check-input" asp-for="Input.SetAsFeatured" />
-                    <label class="form-check-label" asp-for="Input.SetAsFeatured">Set as featured video</label>
-                    <span class="form-text text-muted">Featured videos are highlighted on the project overview.</span>
+                <span>2</span>
+            </div>
+            <div class="project-video-upload__section-body project-video-upload__fields">
+                <div>
+                    <label asp-for="Input.Title" class="form-label">Video title <span class="text-muted fw-normal">(optional)</span></label>
+                    <input asp-for="Input.Title" class="form-control" maxlength="200" placeholder="For example: User trial at SDD" />
+                    <div class="form-text">The file name will be used if this is left blank.</div>
                 </div>
+                <div>
+                    <label asp-for="Input.Description" class="form-label">Description <span class="text-muted fw-normal">(optional)</span></label>
+                    <textarea asp-for="Input.Description" class="form-control" rows="3" maxlength="512" placeholder="Briefly describe what the video shows."></textarea>
+                </div>
+                <label class="project-video-feature-option">
+                    <input asp-for="Input.SetAsFeatured" class="form-check-input" />
+                    <span>
+                        <strong>Show as featured video</strong>
+                        <small>Use this for the main video visitors should notice first.</small>
+                    </span>
+                </label>
+            </div>
+        </section>
 
-                <button type="submit" class="btn btn-primary">Upload video</button>
-                <a class="btn btn-outline-secondary" asp-page="/Projects/Videos/Index" asp-route-id="@Model.Project.Id">Cancel</a>
-            </form>
+        <div class="project-video-upload__actions">
+            <a class="btn btn-outline-secondary" asp-page="/Projects/Videos/Index" asp-route-id="@Model.Project.Id">Cancel</a>
+            <button type="submit" class="btn btn-primary" data-video-submit>
+                <i class="bi bi-upload" aria-hidden="true"></i> Upload video
+            </button>
         </div>
-    </div>
+    </form>
 </div>
 
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/project-video-upload.css" asp-append-version="true" />
+}
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script type="module" src="~/js/pages/project-video-upload.js" asp-append-version="true"></script>
 }

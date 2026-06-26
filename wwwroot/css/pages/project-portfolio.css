@@ -238,10 +238,10 @@ button.project-intelligence-card:hover {
 }
 
 .project-overview__description {
-    max-height: 9rem;
-    overflow: auto;
     color: var(--pm-text, #334155);
     font-size: .84rem;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
 }
 
 /* Compact lifecycle summary */
@@ -1448,7 +1448,7 @@ button.project-intelligence-card:hover {
 
 .project-document-preview__row {
     display: grid;
-    grid-template-columns: 2rem minmax(0, 1fr) auto 1rem;
+    grid-template-columns: 2rem minmax(0, 1fr) 1rem;
     align-items: center;
     gap: .65rem;
     min-height: 3.5rem;
@@ -1516,7 +1516,7 @@ button.project-intelligence-card:hover {
 
 .project-photo-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 190px));
     gap: .55rem;
 }
 
@@ -1660,10 +1660,6 @@ button.project-intelligence-card:hover {
         flex: 1 1 0;
     }
 
-    .project-photo-grid {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
     .project-video-preview {
         grid-template-columns: 1fr;
     }
@@ -1679,7 +1675,7 @@ button.project-intelligence-card:hover {
     }
 
     .project-photo-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
     }
 
     .project-video-preview__item {

@@ -2247,7 +2247,7 @@ app.MapGet("/Projects/Documents/View", async (
         return Results.NotFound();
     }
 
-    if (!ProjectAccessGuard.CanViewProject(document.Project, principal, userId))
+    if (!ProjectAccessGuard.CanViewProjectInformation(document.Project, principal))
     {
         return Results.Forbid();
     }
@@ -2368,7 +2368,7 @@ app.MapGet("/Projects/Documents/Download", async (
         return Results.NotFound();
     }
 
-    if (!ProjectAccessGuard.CanViewProject(document.Project, principal, userId))
+    if (!ProjectAccessGuard.CanViewProjectInformation(document.Project, principal))
     {
         return Results.Forbid();
     }

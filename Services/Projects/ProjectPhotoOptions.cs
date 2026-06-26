@@ -11,6 +11,13 @@ namespace ProjectManagement.Services.Projects
 
         public int MinHeight { get; set; } = 540;
 
+        // Protect the server from images that are small on disk but extremely large when decoded.
+        public int MaxWidth { get; set; } = 12000;
+
+        public int MaxHeight { get; set; } = 12000;
+
+        public long MaxPixelCount { get; set; } = 60_000_000;
+
         public HashSet<string> AllowedContentTypes { get; set; } = new(StringComparer.OrdinalIgnoreCase)
         {
             "image/jpeg",

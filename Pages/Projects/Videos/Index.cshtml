@@ -1,117 +1,164 @@
 @page "/Projects/{id:int}/Videos"
 @model ProjectManagement.Pages.Projects.Videos.IndexModel
 @using System
+@{
+    ViewData["Title"] = $"Videos – {Model.Project.Name}";
 
-@functions {
-    static string FormatSize(long bytes)
+    string DisplayTitle(ProjectManagement.Models.ProjectVideo video) =>
+        !string.IsNullOrWhiteSpace(video.Title)
+            ? video.Title!
+            : System.IO.Path.GetFileNameWithoutExtension(video.OriginalFileName);
+
+    string FormatSize(long bytes)
     {
-        if (bytes <= 0)
+        if (bytes <= 0) return "—";
+        string[] units = { "B", "KB", "MB", "GB" };
+        var value = (double)bytes;
+        var index = 0;
+        while (value >= 1024 && index < units.Length - 1)
         {
-            return "0 B";
+            value /= 1024;
+            index++;
         }
-
-        string[] units = { "B", "KB", "MB", "GB", "TB" };
-        var order = (int)Math.Min(units.Length - 1, Math.Log(bytes, 1024));
-        var value = bytes / Math.Pow(1024, order);
-        return $"{value:0.##} {units[order]}";
+        return $"{value:0.#} {units[index]}";
     }
 }
-@{
-    ViewData["Title"] = $"Manage videos · {Model.Project.Name}";
-}
 
-<div class="container py-4">
-    <nav aria-label="Breadcrumb" class="mb-3">
-        <ol class="breadcrumb mb-0">
+<div class="container-xl project-video-library">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
             <li class="breadcrumb-item"><a asp-page="/Projects/Index">Projects</a></li>
             <li class="breadcrumb-item"><a asp-page="/Projects/Overview" asp-route-id="@Model.Project.Id">@Model.Project.Name</a></li>
             <li class="breadcrumb-item active" aria-current="page">Videos</li>
         </ol>
     </nav>
 
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <header class="project-video-library__header">
         <div>
-            <h1 class="h3 mb-1">Manage videos</h1>
-            <p class="text-muted mb-0">Upload and curate videos that appear on the project overview page.</p>
+            <a asp-page="/Projects/Overview" asp-route-id="@Model.Project.Id" asp-fragment="media" class="project-video-library__back">
+                <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to project
+            </a>
+            <div class="d-flex align-items-center gap-2 mt-2">
+                <h1 class="mb-0">Project videos</h1>
+                <span class="project-video-library__count">@Model.Videos.Count</span>
+            </div>
+            <p class="fw-semibold mb-1">@Model.Project.Name</p>
+            <p class="text-muted mb-0">Demonstrations, trials and project highlights.</p>
         </div>
-        <div class="d-flex gap-2">
-            <a class="btn btn-outline-secondary" asp-page="/Projects/Overview" asp-route-id="@Model.Project.Id">Back to overview</a>
-            <a class="btn btn-primary" asp-page="/Projects/Videos/Upload" asp-route-id="@Model.Project.Id">Upload video</a>
-        </div>
-    </div>
+        @if (Model.CanManage)
+        {
+            <a class="btn btn-primary" asp-page="./Upload" asp-route-id="@Model.Project.Id">
+                <i class="bi bi-plus-lg" aria-hidden="true"></i> Upload video
+            </a>
+        }
+    </header>
 
     @if (TempData.ContainsKey("Flash"))
     {
         <div class="alert alert-success" role="status">@TempData["Flash"]</div>
     }
-    else if (TempData.ContainsKey("Error"))
+    @if (TempData.ContainsKey("Error"))
     {
-        <div class="alert alert-danger" role="status">@TempData["Error"]</div>
+        <div class="alert alert-danger" role="alert">@TempData["Error"]</div>
     }
 
     @if (Model.Videos.Count == 0)
     {
-        <div class="alert alert-info" role="status">
-            <p class="mb-1 fw-semibold">No videos yet</p>
-            <p class="mb-0">Upload your first project video to spotlight progress or share demonstrations.</p>
-        </div>
+        <section class="card pm-card project-video-library__empty">
+            <div class="card-body">
+                <span aria-hidden="true"><i class="bi bi-camera-video"></i></span>
+                <h2>No project videos yet</h2>
+                <p>Videos of demonstrations, trials and important milestones will appear here.</p>
+                @if (Model.CanManage)
+                {
+                    <a class="btn btn-primary" asp-page="./Upload" asp-route-id="@Model.Project.Id">Upload first video</a>
+                }
+            </div>
+        </section>
     }
     else
     {
-                <div class="table-responsive">
-                    <table class="table align-middle">
-                        <colgroup>
-                            <col class="project-video-table__col-title" />
-                            <col class="project-video-table__col-size" />
-                            <col class="project-video-table__col-uploaded" />
-                            <col class="project-video-table__col-actions" />
-                        </colgroup>
-                <thead>
-                    <tr>
-                        <th scope="col">Title</th>
-                        <th scope="col" class="text-nowrap">Size</th>
-                        <th scope="col" class="text-nowrap">Uploaded</th>
-                        <th scope="col" class="text-end">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var video in Model.Videos)
-                {
-                    var isFeatured = Model.Project.FeaturedVideoId == video.Id;
-                    <tr>
-                        <th scope="row">
-                            <div class="d-flex flex-column">
-                                <span class="fw-semibold">@(!string.IsNullOrWhiteSpace(video.Title) ? video.Title : System.IO.Path.GetFileNameWithoutExtension(video.OriginalFileName))</span>
-                                <span class="text-muted small">@video.OriginalFileName</span>
-                                @if (isFeatured)
-                                {
-                                    <span class="badge text-bg-success mt-1">Featured</span>
-                                }
-                            </div>
-                        </th>
-                        <td class="text-nowrap">@(video.FileSize > 0 ? FormatSize(video.FileSize) : "–")</td>
-                        <td class="text-nowrap">@video.CreatedUtc.ToString("g")</td>
-                        <td class="text-end">
-                            <div class="d-flex justify-content-end gap-2">
-                                <form method="post" asp-page-handler="SetFeatured" asp-route-id="@Model.Project.Id" class="d-inline">
-                                    <input type="hidden" name="videoId" value="@video.Id" />
-                                    <input type="hidden" name="rowVersion" value="@Model.ProjectRowVersion" />
-                                    <input type="hidden" name="featured" value="@(!isFeatured)" />
-                                    <button type="submit" class="btn btn-sm @(isFeatured ? "btn-outline-secondary" : "btn-outline-primary")">
-                                        @(isFeatured ? "Unfeature" : "Set as featured")
-                                    </button>
-                                </form>
-                                <form method="post" asp-page-handler="Remove" asp-route-id="@Model.Project.Id" class="d-inline" onsubmit="return confirm('Remove this video?');">
-                                    <input type="hidden" name="videoId" value="@video.Id" />
-                                    <input type="hidden" name="rowVersion" value="@Model.ProjectRowVersion" />
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
+        <ul class="project-video-library__grid" aria-label="Project videos">
+            @foreach (var video in Model.Videos)
+            {
+                var isFeatured = Model.Project.FeaturedVideoId == video.Id || video.IsFeatured;
+                var featureIcon = isFeatured ? "bi-star" : "bi-star-fill";
+                <li class="project-video-card">
+                    <div class="project-video-card__media">
+                        <video controls
+                               preload="metadata"
+                               poster="@Url.Page("/Projects/Videos/Poster", new { id = Model.Project.Id, videoId = video.Id, v = video.Version })"
+                               aria-label="@DisplayTitle(video)">
+                            <source src="@Url.Page("/Projects/Videos/Stream", new { id = Model.Project.Id, videoId = video.Id, v = video.Version })" type="@video.ContentType" />
+                            Your browser cannot play this video. Open it using the download option in your browser.
+                        </video>
+                        @if (isFeatured)
+                        {
+                            <span class="project-video-card__featured"><i class="bi bi-star-fill" aria-hidden="true"></i> Featured</span>
+                        }
+                    </div>
+                    <div class="project-video-card__body">
+                        <h2>@DisplayTitle(video)</h2>
+                        @if (!string.IsNullOrWhiteSpace(video.Description))
+                        {
+                            <p>@video.Description</p>
+                        }
+                        <div class="project-video-card__meta">
+                            <span>@FormatSize(video.FileSize)</span>
+                            <span aria-hidden="true">·</span>
+                            <span>Uploaded @video.CreatedUtc.ToLocalTime().ToString("dd MMM yyyy")</span>
+                        </div>
+                    </div>
+                    @if (Model.CanManage)
+                    {
+                        <div class="project-video-card__actions">
+                            <form method="post" asp-page-handler="SetFeatured" asp-route-id="@Model.Project.Id">
+                                <input type="hidden" name="videoId" value="@video.Id" />
+                                <input type="hidden" name="rowVersion" value="@Model.ProjectRowVersion" />
+                                <input type="hidden" name="featured" value="@(!isFeatured)" />
+                                <button type="submit" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi @featureIcon" aria-hidden="true"></i>
+                                    @(isFeatured ? "Remove featured status" : "Make featured")
+                                </button>
+                            </form>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-danger"
+                                    data-video-remove
+                                    data-video-id="@video.Id"
+                                    data-video-title="@DisplayTitle(video)">
+                                <i class="bi bi-trash" aria-hidden="true"></i> Remove
+                            </button>
+                        </div>
+                    }
+                </li>
+            }
+        </ul>
     }
 </div>
+
+@if (Model.CanManage)
+{
+    <dialog class="project-video-dialog" data-video-remove-dialog>
+        <form method="dialog" class="project-video-dialog__surface">
+            <div class="project-video-dialog__icon" aria-hidden="true"><i class="bi bi-trash"></i></div>
+            <h2>Remove video?</h2>
+            <p><strong data-video-remove-title></strong> will be permanently removed from this project.</p>
+            <div class="project-video-dialog__actions">
+                <button type="submit" value="cancel" class="btn btn-outline-secondary">Cancel</button>
+                <button type="button" class="btn btn-danger" data-video-remove-confirm>Remove video</button>
+            </div>
+        </form>
+    </dialog>
+
+    <form method="post" asp-page-handler="Remove" asp-route-id="@Model.Project.Id" hidden data-video-remove-form>
+        <input type="hidden" name="videoId" value="" />
+        <input type="hidden" name="rowVersion" value="@Model.ProjectRowVersion" />
+    </form>
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/project-videos.css" asp-append-version="true" />
+}
+@section Scripts {
+    <script type="module" src="~/js/pages/project-video-library.js" asp-append-version="true"></script>
+}

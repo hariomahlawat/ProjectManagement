@@ -50,7 +50,7 @@ public class DownloadModel : PageModel
             return NotFound();
         }
 
-        if (!ProjectAccessGuard.CanViewProject(project, _userContext.User, userId))
+        if (!ProjectAccessGuard.CanViewProjectInformation(project, _userContext.User))
         {
             return Forbid();
         }

@@ -18,9 +18,9 @@
     }
     else
     {
-        <p class="text-muted" id="photo-reorder-instructions">Drag and drop the photo cards to update the display order. You can also focus a card and press Space or Enter to pick it up, use the arrow keys to move it, and press Escape to cancel the move. The position numbers are used as a fallback when JavaScript is unavailable.</p>
-        <div data-photo-reorder-root>
-            <div class="pm-photo-grid" data-photo-reorder role="listbox" aria-label="Project photos in display order" aria-describedby="photo-reorder-instructions" aria-expanded="false">
+        <p class="text-muted" id="photo-reorder-instructions">Enter a unique position number for each photo. Position 1 appears first.</p>
+        <div>
+            <ul class="pm-photo-grid" aria-label="Project photos in display order" aria-describedby="photo-reorder-instructions">
         @for (var i = 0; i < Model.Input.Items.Count; i++)
         {
             var item = Model.Input.Items[i];
@@ -28,14 +28,7 @@
             var accessibleCaption = !string.IsNullOrWhiteSpace(photo?.Caption)
                 ? photo.Caption
                 : $"Photo {i + 1} (no caption)";
-            <div class="pm-photo-grid-item"
-                 data-photo-item
-                 data-photo-id="@item.PhotoId"
-                 data-photo-caption="@accessibleCaption"
-                 tabindex="0"
-                 role="option"
-                 aria-grabbed="false"
-                 aria-label="@($"{accessibleCaption} – position {item.Ordinal}")">
+            <li class="pm-photo-grid-item" aria-label="@($"{accessibleCaption} – position {item.Ordinal}")">
                 <div class="pm-photo-frame">
                     <img src="@Url.Page("./View", new { id = Model.Project.Id, photoId = item.PhotoId, size = "sm" })" alt="Photo preview" />
                     @if (photo?.IsCover == true)
@@ -59,10 +52,9 @@
                         <span>No caption provided.</span>
                     }
                 </div>
-            </div>
+            </li>
         }
-            </div>
-            <div class="visually-hidden" role="status" aria-live="polite" data-photo-reorder-status></div>
+            </ul>
         </div>
 
         <button type="submit" class="btn btn-primary mt-3">Save order</button>
@@ -75,6 +67,3 @@
     <link rel="stylesheet" href="~/css/pages/project-photos.css" asp-append-version="true" />
 }
 
-@section Scripts {
-    <script src="~/js/widgets/project-photo-gallery.js" asp-append-version="true"></script>
-}

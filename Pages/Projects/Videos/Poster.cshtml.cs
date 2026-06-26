@@ -50,7 +50,7 @@ public class PosterModel : PageModel
             return NotFound();
         }
 
-        if (!ProjectAccessGuard.CanViewProject(project, _userContext.User, userId))
+        if (!ProjectAccessGuard.CanViewProjectInformation(project, _userContext.User))
         {
             return Forbid();
         }
@@ -71,7 +71,7 @@ public class PosterModel : PageModel
             var headers = Response.GetTypedHeaders();
             headers.CacheControl = new CacheControlHeaderValue
             {
-                Public = true,
+                Private = true,
                 MaxAge = TimeSpan.FromDays(7)
             };
             headers.ETag = etag;
@@ -98,6 +98,12 @@ public class PosterModel : PageModel
         {
             return NotFound();
         }
+
+        Response.GetTypedHeaders().CacheControl = new CacheControlHeaderValue
+        {
+            Private = true,
+            MaxAge = TimeSpan.FromHours(1)
+        };
 
         var stream = System.IO.File.OpenRead(placeholderPath);
         return File(stream, "image/svg+xml");

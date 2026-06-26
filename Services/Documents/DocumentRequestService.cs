@@ -1,11 +1,13 @@
 using System;
 using System.Linq;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.Services.Documents;
 
@@ -82,6 +84,89 @@ public sealed class DocumentRequestService : IDocumentRequestService
             .WriteAsync(_audit);
 
         return request;
+    }
+
+    public async Task<IReadOnlyList<ProjectDocumentRequest>> CreateUploadRequestsAsync(
+        int projectId,
+        int? stageId,
+        int? totId,
+        IReadOnlyList<DocumentUploadRequestItem> items,
+        string requestedByUserId,
+        CancellationToken cancellationToken)
+    {
+        if (items is null || items.Count == 0)
+        {
+            throw new ArgumentException("At least one document is required.", nameof(items));
+        }
+
+        if (string.IsNullOrWhiteSpace(requestedByUserId))
+        {
+            throw new ArgumentException("Requested by user id is required.", nameof(requestedByUserId));
+        }
+
+        if (items.Any(item => item.File is null || string.IsNullOrWhiteSpace(item.Title)))
+        {
+            throw new InvalidOperationException("Each selected file must have a title.");
+        }
+
+        if (stageId.HasValue)
+        {
+            var stageExists = await _db.ProjectStages
+                .AnyAsync(stage => stage.Id == stageId.Value && stage.ProjectId == projectId, cancellationToken);
+            if (!stageExists)
+            {
+                throw new InvalidOperationException("The selected project stage is no longer available.");
+            }
+        }
+
+        ProjectTot? tot = null;
+        if (totId.HasValue)
+        {
+            tot = await _db.ProjectTots
+                .FirstOrDefaultAsync(t => t.Id == totId.Value && t.ProjectId == projectId, cancellationToken);
+            if (tot is null || tot.Status == ProjectTotStatus.NotRequired)
+            {
+                throw new InvalidOperationException("Transfer of Technology is not available for this project.");
+            }
+        }
+
+        var requestedAt = _clock.UtcNow;
+        var requests = items.Select(item => new ProjectDocumentRequest
+        {
+            ProjectId = projectId,
+            StageId = stageId,
+            DocumentId = null,
+            Title = item.Title.Trim(),
+            TotId = tot?.Id,
+            RequestType = ProjectDocumentRequestType.Upload,
+            Status = ProjectDocumentRequestStatus.Submitted,
+            TempStorageKey = item.File.StorageKey,
+            OriginalFileName = item.File.OriginalFileName,
+            ContentType = item.File.ContentType,
+            FileSize = item.File.Length,
+            RequestedByUserId = requestedByUserId,
+            RequestedAtUtc = requestedAt
+        }).ToList();
+
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        _db.ProjectDocumentRequests.AddRange(requests);
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        foreach (var request in requests)
+        {
+            try
+            {
+                await Audit.Events.ProjectDocumentRequested(projectId, request.Id, requestedByUserId, request.RequestType, request.DocumentId)
+                    .WriteAsync(_audit);
+            }
+            catch
+            {
+                // The request batch is already committed. Audit failure must not orphan the staged files.
+            }
+        }
+
+        return requests;
     }
 
     public async Task<ProjectDocumentRequest> CreateReplaceRequestAsync(

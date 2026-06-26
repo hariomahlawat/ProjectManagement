@@ -86,7 +86,7 @@ public sealed class ProjectPhotoPageTests
     }
 
     [Fact]
-    public async Task Index_ForbidsUnassignedUser()
+    public async Task Index_AllowsUnassignedAuthenticatedUserReadOnly()
     {
         await using var db = CreateContext();
         await SeedProjectAsync(db, 4, hodUserId: "hod-owner", leadPoUserId: "po-owner");
@@ -94,7 +94,8 @@ public sealed class ProjectPhotoPageTests
         var page = CreateIndexPage(db, new FakeUserContext("po-guest", isProjectOfficer: true));
         var result = await page.OnGetAsync(4, CancellationToken.None);
 
-        Assert.IsType<ForbidResult>(result);
+        Assert.IsType<PageResult>(result);
+        Assert.False(page.CanManage);
     }
 
     [Fact]
@@ -108,7 +109,7 @@ public sealed class ProjectPhotoPageTests
         ConfigurePageContext(page);
 
         var rowVersion = Convert.ToBase64String(project.RowVersion);
-        var result = await page.OnPostRemoveAsync(5, photoId: 10, rowVersion, CancellationToken.None);
+        var result = await page.OnPostRemoveAsync(5, photoId: 10, photoVersion: 1, rowVersion: rowVersion, cancellationToken: CancellationToken.None);
 
         Assert.IsType<ForbidResult>(result);
     }
@@ -187,7 +188,7 @@ public sealed class ProjectPhotoPageTests
         {
             DerivativeToReturn = (new MemoryStream(new byte[] { 1, 2, 3 }), "image/webp")
         };
-        var page = new PhotoViewModel(db, userContext, photoService);
+        var page = new PhotoViewModel(db, userContext, photoService, NullLogger<PhotoViewModel>.Instance);
         ConfigurePageContext(page, userContext.User);
         page.Request.Headers[HeaderNames.Accept] = "image/webp";
 
@@ -195,6 +196,7 @@ public sealed class ProjectPhotoPageTests
 
         Assert.IsType<FileStreamResult>(result);
         var headers = page.Response.GetTypedHeaders();
+        Assert.True(headers.CacheControl?.Private == true);
         Assert.Equal(TimeSpan.FromDays(7), headers.CacheControl?.MaxAge);
         Assert.Equal("Accept", page.Response.Headers[HeaderNames.Vary]);
         Assert.NotNull(headers.ETag);
@@ -204,22 +206,20 @@ public sealed class ProjectPhotoPageTests
     }
 
     [Fact]
-    public async Task View_SetsExtendedCacheHeaders_ForPlaceholder()
+    public async Task View_ReturnsNotFound_WhenPhotoDoesNotExist()
     {
         await using var db = CreateContext();
         await SeedProjectAsync(db, 9, leadPoUserId: "viewer");
 
         var userContext = new FakeUserContext("viewer", isProjectOfficer: true);
         var photoService = new StubPhotoService();
-        var page = new PhotoViewModel(db, userContext, photoService);
+        var page = new PhotoViewModel(db, userContext, photoService, NullLogger<PhotoViewModel>.Instance);
         ConfigurePageContext(page, userContext.User);
 
         var result = await page.OnGetAsync(9, 999, "sm", CancellationToken.None);
 
-        Assert.IsType<FileContentResult>(result);
-        var headers = page.Response.GetTypedHeaders();
-        Assert.Equal(TimeSpan.FromDays(7), headers.CacheControl?.MaxAge);
-        Assert.Equal("Accept", page.Response.Headers[HeaderNames.Vary]);
+        Assert.IsType<NotFoundResult>(result);
+        Assert.False(photoService.OpenDerivativeCalled);
     }
 
     [Fact]
@@ -244,48 +244,63 @@ public sealed class ProjectPhotoPageTests
         await db.SaveChangesAsync();
 
         var userContext = new FakeUserContext("viewer", isProjectOfficer: true);
-        var photoService = new StubPhotoService();
-        var page = new PhotoViewModel(db, userContext, photoService);
+        var photoService = new StubPhotoService
+        {
+            DerivativeToReturn = (new MemoryStream(new byte[] { 1, 2, 3 }), "image/webp")
+        };
+        var page = new PhotoViewModel(db, userContext, photoService, NullLogger<PhotoViewModel>.Instance);
         ConfigurePageContext(page, userContext.User);
+        page.Request.Headers[HeaderNames.Accept] = "image/webp";
 
-        var etag = $"\"pp-{photo.ProjectId}-{photo.Id}-v{photo.Version}-sm\"";
+        var etag = $"\"pp-{photo.ProjectId}-{photo.Id}-v{photo.Version}-sm-webp\"";
         page.Request.Headers["If-None-Match"] = etag;
 
         var result = await page.OnGetAsync(11, 12, "sm", CancellationToken.None);
 
         var status = Assert.IsType<StatusCodeResult>(result);
         Assert.Equal(StatusCodes.Status304NotModified, status.StatusCode);
-        Assert.False(photoService.OpenDerivativeCalled);
+        Assert.True(photoService.OpenDerivativeCalled);
 
         var headers = page.Response.GetTypedHeaders();
+        Assert.True(headers.CacheControl?.Private == true);
         Assert.Equal(TimeSpan.FromDays(7), headers.CacheControl?.MaxAge);
         Assert.Equal(etag, headers.ETag?.Tag);
         Assert.Equal(DateTime.SpecifyKind(photo.UpdatedUtc, DateTimeKind.Utc), headers.LastModified?.UtcDateTime);
     }
 
     [Fact]
-    public async Task View_ReturnsNotModified_ForPlaceholderWhenIfNoneMatchMatches()
+    public async Task View_AllowsAnyAuthenticatedUser()
     {
         await using var db = CreateContext();
-        await SeedProjectAsync(db, 13, leadPoUserId: "viewer");
+        await SeedProjectAsync(db, 13, hodUserId: "hod-owner", leadPoUserId: "po-owner");
+        var photo = new ProjectPhoto
+        {
+            Id = 14,
+            ProjectId = 13,
+            StorageKey = "photos/13/14.png",
+            OriginalFileName = "photo.png",
+            ContentType = "image/png",
+            Width = 800,
+            Height = 600,
+            Ordinal = 1,
+            Version = 1,
+            UpdatedUtc = DateTime.UtcNow
+        };
+        db.ProjectPhotos.Add(photo);
+        await db.SaveChangesAsync();
 
-        var userContext = new FakeUserContext("viewer", isProjectOfficer: true);
-        var photoService = new StubPhotoService();
-        var page = new PhotoViewModel(db, userContext, photoService);
+        var userContext = new FakeUserContext("viewer-without-project-role");
+        var photoService = new StubPhotoService
+        {
+            DerivativeToReturn = (new MemoryStream(new byte[] { 1, 2, 3 }), "image/png")
+        };
+        var page = new PhotoViewModel(db, userContext, photoService, NullLogger<PhotoViewModel>.Instance);
         ConfigurePageContext(page, userContext.User);
 
-        const string etag = "\"pp-placeholder-sm\"";
-        page.Request.Headers["If-None-Match"] = etag;
+        var result = await page.OnGetAsync(13, 14, "sm", CancellationToken.None);
 
-        var result = await page.OnGetAsync(13, 999, "sm", CancellationToken.None);
-
-        var status = Assert.IsType<StatusCodeResult>(result);
-        Assert.Equal(StatusCodes.Status304NotModified, status.StatusCode);
-        Assert.False(photoService.OpenDerivativeCalled);
-
-        var headers = page.Response.GetTypedHeaders();
-        Assert.Equal(TimeSpan.FromDays(7), headers.CacheControl?.MaxAge);
-        Assert.Equal(etag, headers.ETag?.Tag);
+        Assert.IsType<FileStreamResult>(result);
+        Assert.True(page.Response.GetTypedHeaders().CacheControl?.Private == true);
     }
 
     [Fact]

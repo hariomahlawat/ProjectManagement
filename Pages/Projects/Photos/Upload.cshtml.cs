@@ -73,7 +73,7 @@ public class UploadModel : PageModel
             return NotFound();
         }
 
-        if (!UserCanManageProject(project, userId))
+        if (!ProjectAccessGuard.CanManageProjectMedia(project, _userContext.User, userId))
         {
             return Forbid();
         }
@@ -129,7 +129,7 @@ public class UploadModel : PageModel
             return NotFound();
         }
 
-        if (!UserCanManageProject(project, userId))
+        if (!ProjectAccessGuard.CanManageProjectMedia(project, _userContext.User, userId))
         {
             return Forbid();
         }
@@ -192,10 +192,8 @@ public class UploadModel : PageModel
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Invalid crop selection while uploading photo for project {ProjectId}", id);
-            // SECTION: Crop validation messaging without aspect-ratio constraints.
-            ModelState.AddModelError(string.Empty,
-                "We couldn't process that crop. Keep the crop selection within the image bounds and try again.");
+            _logger.LogWarning(ex, "Photo validation failed while uploading to project {ProjectId}", id);
+            ModelState.AddModelError(string.Empty, FriendlyPhotoError(ex.Message));
             return Page();
         }
         catch (Exception ex)
@@ -205,6 +203,28 @@ public class UploadModel : PageModel
             ModelState.AddModelError(string.Empty, "There was a problem uploading the photo. Please try again, or contact the Project Office if the problem persists.");
             return Page();
         }
+    }
+
+    private static string FriendlyPhotoError(string? message)
+    {
+        var text = message ?? string.Empty;
+        if (text.Contains("maximum size", StringComparison.OrdinalIgnoreCase))
+        {
+            return "The photo is too large. Choose a smaller file and try again.";
+        }
+        if (text.Contains("dimensions are too large", StringComparison.OrdinalIgnoreCase))
+        {
+            return "The photo dimensions are too large. Choose a smaller image and try again.";
+        }
+        if (text.Contains("crop", StringComparison.OrdinalIgnoreCase) || text.Contains("bounds", StringComparison.OrdinalIgnoreCase))
+        {
+            return "The selected crop could not be applied. Adjust it and try again.";
+        }
+        if (text.Contains("Transfer of Technology", StringComparison.OrdinalIgnoreCase))
+        {
+            return text;
+        }
+        return "Choose a valid JPEG, PNG or WebP image and try again.";
     }
 
     private static ProjectPhoto? ResolveCoverPhoto(Project project)
@@ -240,24 +260,6 @@ public class UploadModel : PageModel
         {
             return null;
         }
-    }
-
-    private bool UserCanManageProject(Project project, string userId)
-    {
-        var principal = _userContext.User;
-        var isAdmin = principal.IsInRole("Admin");
-        if (isAdmin)
-        {
-            return true;
-        }
-
-        var isHoD = principal.IsInRole("HoD");
-        if (isHoD && string.Equals(project.HodUserId, userId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase);
     }
 
     private static ProjectPhotoCrop? BuildCrop(UploadInput input)

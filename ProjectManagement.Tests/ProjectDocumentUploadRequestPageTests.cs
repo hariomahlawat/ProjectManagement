@@ -56,7 +56,7 @@ public sealed class ProjectDocumentUploadRequestPageTests
         var result = await page.OnPostAsync(1, CancellationToken.None);
 
         var redirect = Assert.IsType<RedirectToPageResult>(result);
-        Assert.Equal("../Overview", redirect.PageName);
+        Assert.Equal("./Index", redirect.PageName);
         Assert.False(page.HasStageOptions);
         Assert.All(requestService.Requests, request => Assert.Null(request.StageId));
     }
@@ -188,13 +188,13 @@ public sealed class ProjectDocumentUploadRequestPageTests
         var result = await page.OnPostAsync(1, CancellationToken.None);
 
         Assert.IsType<RedirectToPageResult>(result);
-        Assert.Equal("Submitted 2 file(s) for moderation.", page.TempData["Flash"]);
+        Assert.Equal("2 documents submitted for approval.", page.TempData["Flash"]);
         Assert.Equal(2, requestService.Requests.Count);
         Assert.All(requestService.Requests, request => Assert.Equal(10, request.StageId));
         Assert.Collection(
             requestService.Requests,
-            first => Assert.Equal("Batch Upload - alpha", first.Title),
-            second => Assert.Equal("Batch Upload - beta", second.Title));
+            first => Assert.Equal("Batch Upload – alpha", first.Title),
+            second => Assert.Equal("Batch Upload – beta", second.Title));
     }
 
     [Fact]

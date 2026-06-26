@@ -59,7 +59,7 @@ public class ReorderModel : PageModel
             return NotFound();
         }
 
-        if (!UserCanManageProject(project, userId))
+        if (!ProjectAccessGuard.CanManageProjectMedia(project, _userContext.User, userId))
         {
             return Forbid();
         }
@@ -114,7 +114,7 @@ public class ReorderModel : PageModel
             return NotFound();
         }
 
-        if (!UserCanManageProject(project, userId))
+        if (!ProjectAccessGuard.CanManageProjectMedia(project, _userContext.User, userId))
         {
             return Forbid();
         }
@@ -171,27 +171,9 @@ public class ReorderModel : PageModel
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error reordering photos for project {ProjectId}", id);
-            ModelState.AddModelError(string.Empty, ex.Message);
+            ModelState.AddModelError(string.Empty, "The photo order could not be saved. Reload the gallery and try again.");
             return Page();
         }
-    }
-
-    private bool UserCanManageProject(Project project, string userId)
-    {
-        var principal = _userContext.User;
-        var isAdmin = principal.IsInRole("Admin");
-        if (isAdmin)
-        {
-            return true;
-        }
-
-        var isHoD = principal.IsInRole("HoD");
-        if (isHoD && string.Equals(project.HodUserId, userId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase);
     }
 
     private static byte[]? ParseRowVersion(string rowVersion)

@@ -1,0 +1,236 @@
+.project-video-library {
+    max-width: 1240px;
+    padding-top: 1.5rem;
+    padding-bottom: 3rem;
+}
+
+.project-video-library__header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.project-video-library__header h1 {
+    color: var(--pm-text-strong, #0f172a);
+    font-size: clamp(1.8rem, 3vw, 2.4rem);
+    font-weight: 700;
+    letter-spacing: -.03em;
+}
+
+.project-video-library__back {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.project-video-library__count {
+    display: inline-grid;
+    min-width: 2rem;
+    height: 2rem;
+    place-items: center;
+    padding-inline: .55rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    background: #fff;
+    color: #334155;
+    font-weight: 700;
+}
+
+.project-video-library__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr));
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.project-video-card {
+    display: flex;
+    overflow: hidden;
+    flex-direction: column;
+    min-width: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .045);
+}
+
+.project-video-card__media {
+    position: relative;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+    background: #0f172a;
+}
+
+.project-video-card__media video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.project-video-card__featured {
+    position: absolute;
+    top: .75rem;
+    left: .75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .28rem .55rem;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, .82);
+    color: #fff;
+    font-size: .72rem;
+    font-weight: 700;
+    backdrop-filter: blur(6px);
+}
+
+.project-video-card__body {
+    display: grid;
+    flex: 1;
+    gap: .45rem;
+    padding: 1rem;
+}
+
+.project-video-card__body h2 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.project-video-card__body p {
+    display: -webkit-box;
+    overflow: hidden;
+    margin: 0;
+    color: #475569;
+    font-size: .85rem;
+    line-height: 1.45;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+}
+
+.project-video-card__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem;
+    align-self: end;
+    color: #64748b;
+    font-size: .76rem;
+}
+
+.project-video-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: .5rem;
+    padding: .8rem 1rem;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.project-video-card__actions form {
+    margin: 0;
+}
+
+.project-video-library__empty .card-body {
+    display: grid;
+    justify-items: center;
+    gap: .65rem;
+    padding: 3.5rem 1.25rem;
+    text-align: center;
+}
+
+.project-video-library__empty .card-body > span {
+    display: grid;
+    width: 3.5rem;
+    height: 3.5rem;
+    place-items: center;
+    border-radius: 1rem;
+    background: rgba(55, 105, 229, .1);
+    color: #3769e5;
+    font-size: 1.4rem;
+}
+
+.project-video-library__empty h2 {
+    margin: 0;
+    font-size: 1.15rem;
+}
+
+.project-video-library__empty p {
+    max-width: 34rem;
+    margin: 0;
+    color: #64748b;
+}
+
+.project-video-dialog {
+    width: min(92vw, 430px);
+    padding: 0;
+    border: 0;
+    border-radius: 1rem;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, .24);
+}
+
+.project-video-dialog::backdrop {
+    background: rgba(15, 23, 42, .48);
+    backdrop-filter: blur(2px);
+}
+
+.project-video-dialog__surface {
+    display: grid;
+    justify-items: center;
+    gap: .75rem;
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.project-video-dialog__icon {
+    display: grid;
+    width: 3rem;
+    height: 3rem;
+    place-items: center;
+    border-radius: 999px;
+    background: #fee2e2;
+    color: #dc2626;
+    font-size: 1.2rem;
+}
+
+.project-video-dialog h2,
+.project-video-dialog p {
+    margin: 0;
+}
+
+.project-video-dialog p {
+    color: #475569;
+}
+
+.project-video-dialog__actions {
+    display: flex;
+    width: 100%;
+    justify-content: flex-end;
+    gap: .6rem;
+    margin-top: .5rem;
+}
+
+@media (max-width: 767.98px) {
+    .project-video-library__header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .project-video-library__header > .btn {
+        align-self: flex-start;
+    }
+
+    .project-video-card__actions .btn {
+        flex: 1 1 auto;
+    }
+}

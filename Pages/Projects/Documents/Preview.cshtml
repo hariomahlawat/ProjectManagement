@@ -17,9 +17,9 @@
     <div class="container-fluid py-2 px-3 px-lg-4 d-flex flex-column min-vh-100 doc-preview-layout">
         @* SECTION: Header *@
         <div class="d-flex align-items-center gap-3 flex-wrap mb-1">
-            <a asp-page="/Projects/Overview" asp-route-id="@Model.Document.ProjectId" class="btn btn-link px-0 d-inline-flex align-items-center gap-1">
+            <a asp-page="/Projects/Documents/Index" asp-route-id="@Model.Document.ProjectId" class="btn btn-link px-0 d-inline-flex align-items-center gap-1">
                 <i class="bi bi-arrow-left"></i>
-                <span>Back to project</span>
+                <span>Back to documents</span>
             </a>
             <div class="d-flex align-items-baseline flex-wrap gap-2">
                 <h6 class="h4 mb-0">@Model.Document.Title</h6>

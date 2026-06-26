@@ -210,7 +210,7 @@
         <section class="card pm-card project-photo-section project-photo-crop-section" data-photo-crop-section hidden>
             <div class="card-header project-photo-section__header">
                 <div>
-                    <h2>Crop and preview</h2>
+                    <h2>Check how it looks</h2>
                     <p>Adjust how the current or replacement image will appear across PRISM.</p>
                 </div>
                 <span class="project-photo-step">3</span>
@@ -230,7 +230,7 @@
                                 aria-expanded="false"
                                 aria-controls="project-photo-editor-canvas">
                             <span class="project-photo-editor__toggle-icon" aria-hidden="true"></span>
-                            <span data-photo-editor-toggle-label>Expand editor</span>
+                            <span data-photo-editor-toggle-label>Adjust photo</span>
                         </button>
                     </div>
                     <div class="project-photo-editor__canvas" id="project-photo-editor-canvas">
@@ -244,22 +244,22 @@
                                     <img alt="Cover preview" />
                                     <span class="pm-photo-cover-badge">Cover</span>
                                 </div>
-                                <div class="project-photo-preview-label">Project cover · up to @coverOptions.Width × @coverOptions.Height</div>
+                                <div class="project-photo-preview-label">Project cover</div>
                             </div>
                             <div class="project-photo-preview-item">
                                 <div class="project-photo-preview-frame" data-photo-editor-preview="md" data-width="@largeOptions.Width" data-height="@largeOptions.Height">
                                     <img alt="Gallery preview" />
                                 </div>
-                                <div class="project-photo-preview-label">Gallery · up to @largeOptions.Width × @largeOptions.Height</div>
+                                <div class="project-photo-preview-label">Gallery</div>
                             </div>
                             <div class="project-photo-preview-item">
                                 <div class="project-photo-preview-frame" data-photo-editor-preview="sm" data-width="@thumbOptions.Width" data-height="@thumbOptions.Height">
                                     <img alt="Thumbnail preview" />
                                 </div>
-                                <div class="project-photo-preview-label">Thumbnail · up to @thumbOptions.Width × @thumbOptions.Height</div>
+                                <div class="project-photo-preview-label">Thumbnail</div>
                             </div>
                         </div>
-                        <p class="text-muted small mb-0" id="project-photo-preview-helper">Keep the crop within the image bounds. Saving a revised crop regenerates every display size from the largest stored image.</p>
+                        <p class="text-muted small mb-0" id="project-photo-preview-helper">Move or resize the box to keep the important part visible. The original photo is kept for future edits.</p>
                     </div>
                     <input asp-for="Input.ApplyCrop" type="hidden" data-photo-editor-dirty />
                     <input asp-for="Input.CropX" type="hidden" data-photo-editor-field="x" />
@@ -293,6 +293,6 @@
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script src="~/lib/cropperjs/dist/cropper.js" asp-append-version="true"></script>
-    <script src="~/js/widgets/project-photo-gallery.js" asp-append-version="true"></script>
+    <script src="~/js/widgets/project-photo-editor.js" asp-append-version="true"></script>
     <script src="~/js/pages/project-photo-upload.js" asp-append-version="true"></script>
 }

@@ -1,166 +1,160 @@
 @page
 @model ProjectManagement.Pages.Projects.Documents.UploadRequestModel
 @using System
-@using System.Collections.Generic
 @using System.Linq
 @{
-    ViewData["Title"] = $"Upload document – {Model.Project?.Name}";
-
-    string FormatFileSize(long bytes)
-    {
-        if (bytes <= 0)
-        {
-            return "0 bytes";
-        }
-
-        string[] suffixes = { "bytes", "KB", "MB", "GB", "TB" };
-        double size = bytes;
-        var suffixIndex = 0;
-
-        while (size >= 1024 && suffixIndex < suffixes.Length - 1)
-        {
-            size /= 1024;
-            suffixIndex++;
-        }
-
-        return suffixIndex == 0
-            ? FormattableString.Invariant($"{bytes} {suffixes[suffixIndex]}")
-            : FormattableString.Invariant($"{size:0.#} {suffixes[suffixIndex]}");
-    }
-
-    string ToReadableList(IReadOnlyList<string> values) => values.Count switch
-    {
-        0 => string.Empty,
-        1 => values[0],
-        2 => $"{values[0]} or {values[1]}",
-        _ => $"{string.Join(", ", values.Take(values.Count - 1))}, or {values[^1]}"
-    };
-
-    var allowedTypes = (Model.AllowedContentTypes ?? Array.Empty<string>())
-        .Where(type => !string.IsNullOrWhiteSpace(type))
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .OrderBy(type => type, StringComparer.OrdinalIgnoreCase)
-        .ToList();
-
-    var allowedExtensions = (Model.AllowedExtensions ?? Array.Empty<string>())
-        .Where(type => !string.IsNullOrWhiteSpace(type))
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .OrderBy(type => type, StringComparer.OrdinalIgnoreCase)
-        .ToList();
-
-    var allowedExtensionsDisplay = allowedExtensions.Select(extension => $".{extension}").ToList();
-    var allowedTypesText = ToReadableList(allowedExtensionsDisplay);
-    var maxFileSizeText = FormatFileSize(Model.MaxFileSizeBytes);
-    var allowedTypesAttribute = allowedTypes.Count > 0 ? string.Join(',', allowedTypes) : string.Empty;
-    var allowedExtensionsAttribute = allowedExtensions.Count > 0 ? string.Join(',', allowedExtensions) : string.Empty;
+    ViewData["Title"] = $"Upload documents – {Model.Project?.Name}";
+    var maxSizeMb = Math.Max(1, Model.MaxFileSizeBytes / (1024 * 1024));
+    const string friendlyTypes = "Word, PDF, PowerPoint and Excel files";
+    var allowedTypesAttribute = string.Join(',', Model.AllowedContentTypes);
+    var allowedExtensionsAttribute = string.Join(',', Model.AllowedExtensions);
+    var showOptionalDetails = Model.Input.StageId.HasValue ||
+                              Model.Input.LinkToTot ||
+                              ViewData.ModelState.Keys.Any(key => key is "Input.StageId" or "Input.LinkToTot");
 }
 
-<div class="row justify-content-between gy-4">
-    <div class="col-lg-8 col-xl-6">
-        <a class="btn btn-link px-0" asp-page="../Overview" asp-route-id="@Model.Input.ProjectId">&larr; Back to documents</a>
-        <h1 class="h2 mt-2">Request document upload</h1>
-        <p class="text-muted">Submitted files go to moderation. Documents publish after review.</p>
+<div class="container-xl project-document-upload-page">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-page="/Projects/Index">Projects</a></li>
+            <li class="breadcrumb-item"><a asp-page="/Projects/Overview" asp-route-id="@Model.Input.ProjectId">@Model.Project?.Name</a></li>
+            <li class="breadcrumb-item"><a asp-page="./Index" asp-route-id="@Model.Input.ProjectId">Documents</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Upload</li>
+        </ol>
+    </nav>
 
-        <form method="post" enctype="multipart/form-data" novalidate data-doc-request>
-            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
-            <input type="hidden" asp-for="Input.ProjectId" />
+    <header class="project-document-upload-header">
+        <a asp-page="./Index" asp-route-id="@Model.Input.ProjectId" class="project-document-upload-back">
+            <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to documents
+        </a>
+        <h1>Upload project documents</h1>
+        <p class="project-document-upload-project">@Model.Project?.Name</p>
+        <p class="text-muted mb-0">Choose one or more files. They will appear in the project after approval.</p>
+    </header>
 
-            <!-- SECTION: Stage selection (optional) -->
-            <div class="mb-3">
-                <label asp-for="Input.StageId" class="form-label">Stage</label>
-                @if (Model.HasStageOptions)
-                {
-                    <select asp-for="Input.StageId" asp-items="Model.StageOptions" class="form-select" data-doc-stage-select>
-                        <option value="">No stage (general)</option>
-                    </select>
-                }
-                else
-                {
-                    <select asp-for="Input.StageId" class="form-select" disabled>
-                        <option value="">General</option>
-                    </select>
-                }
-                <span asp-validation-for="Input.StageId" class="text-danger"></span>
-                <div id="doc-stage-help" class="form-text">
-                    @if (Model.HasStageOptions)
-                    {
-                        <text>Stage selection is optional. Choose one when relevant.</text>
-                    }
-                    else
-                    {
-                        <text>This project has no defined stages. The document will be stored under the &ldquo;General&rdquo; category.</text>
-                    }
+    <form method="post"
+          enctype="multipart/form-data"
+          novalidate
+          data-document-upload-form
+          data-max-file-size="@Model.MaxFileSizeBytes"
+          data-allowed-types="@allowedTypesAttribute"
+          data-allowed-extensions="@allowedExtensionsAttribute">
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+        <input type="hidden" asp-for="Input.ProjectId" />
+
+        <section class="card pm-card project-document-upload-section">
+            <div class="card-header project-document-upload-section__header">
+                <div>
+                    <h2>Choose files</h2>
+                    <p>Select all related documents together. You can remove or rename them before submitting.</p>
                 </div>
+                <span class="project-document-upload-step">1</span>
             </div>
-
-            <!-- SECTION: Transfer of Technology -->
-            @if (Model.Project?.Tot is not null)
-            {
-                <div class="mb-3">
-                    <label class="form-label">Transfer of Technology</label>
-                    @if (Model.AllowTotLinking)
-                    {
-                        <div class="form-check">
-                            <input asp-for="Input.LinkToTot" class="form-check-input" />
-                            <label asp-for="Input.LinkToTot" class="form-check-label">Link this document to Transfer of Technology work</label>
-                        </div>
-                        <div class="form-text">Current status: @Model.TotStatusDisplay.</div>
-                        <span asp-validation-for="Input.LinkToTot" class="text-danger"></span>
-                    }
-                    else
-                    {
-                        <p class="form-text mb-0">Transfer of Technology is @Model.TotStatusDisplay for this project.</p>
-                    }
-                </div>
-            }
-
-            <!-- SECTION: Nomenclature -->
-            <div class="mb-3">
-                <label asp-for="Input.Nomenclature" class="form-label">Nomenclature</label>
-                <input asp-for="Input.Nomenclature" class="form-control" autocomplete="off" />
-                <div class="form-text">Optional. When uploading multiple files, each file will be named using this value plus the filename.</div>
-                <span asp-validation-for="Input.Nomenclature" class="text-danger"></span>
-            </div>
-
-            <!-- SECTION: Multi-file upload -->
-            <div class="mb-3" data-doc-dropzone>
-                <label class="form-label" for="fileInput">Upload files</label>
-                <div class="doc-request-drop border border-2 border-secondary-subtle rounded-3 p-4 text-center" data-doc-drop-target tabindex="0" role="button" aria-describedby="doc-upload-help doc-stage-help">
-                    <div class="fw-semibold" data-doc-drop-label>Drag &amp; drop files or browse</div>
-                    <div class="text-muted small" data-doc-drop-filename></div>
-                </div>
-                <input asp-for="Input.Files" class="form-control visually-hidden" id="fileInput" data-doc-file data-max-size="@Model.MaxFileSizeBytes" data-allowed="@allowedTypesAttribute" data-extensions="@allowedExtensionsAttribute" multiple />
-                <span asp-validation-for="Input.Files" class="text-danger"></span>
-                <div id="doc-upload-help" class="form-text">
-                    @if (!string.IsNullOrEmpty(allowedTypesText))
-                    {
-                        <text>Allowed types: @allowedTypesText. </text>
-                    }
-                    <text>Maximum size: @maxFileSizeText per file.</text>
-                </div>
-            </div>
-
-            <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary">Submit request</button>
-                <a asp-page="../Overview" asp-route-id="@Model.Input.ProjectId" class="btn btn-link">Cancel</a>
-            </div>
-        </form>
-    </div>
-
-    <div class="col-lg-4">
-        <div class="card bg-light border-0 shadow-sm">
             <div class="card-body">
-                <h2 class="h6 text-uppercase text-muted">Project</h2>
-                <p class="mb-1 fw-semibold">@Model.Project?.Name</p>
-                <p class="mb-0 text-muted">
-                    Case file number: @(string.IsNullOrWhiteSpace(Model.Project?.CaseFileNumber) ? "—" : Model.Project!.CaseFileNumber)
-                </p>
+                <div class="project-document-dropzone"
+                     data-document-dropzone
+                     role="button"
+                     tabindex="0"
+                     aria-controls="Input_Files"
+                     aria-describedby="document-file-help">
+                    <span class="project-document-dropzone__icon" aria-hidden="true"><i class="bi bi-cloud-arrow-up"></i></span>
+                    <strong>Drag and drop files here</strong>
+                    <span>or choose files from this device</span>
+                    <small id="document-file-help">@friendlyTypes · up to @maxSizeMb MB each</small>
+                </div>
+                <input asp-for="Input.Files"
+                       id="Input_Files"
+                       class="visually-hidden"
+                       type="file"
+                       multiple
+                       accept="@allowedExtensionsAttribute"
+                       data-document-file-input />
+                <span asp-validation-for="Input.Files" class="text-danger d-block mt-2"></span>
+                <div class="alert alert-danger mt-3 mb-0" data-document-file-error hidden></div>
+
+                <div class="project-document-selected" data-document-selected hidden>
+                    <div class="project-document-selected__heading">
+                        <strong data-document-selected-count>Selected files</strong>
+                        <button type="button" class="btn btn-sm btn-link" data-document-add-more>Add more</button>
+                    </div>
+                    <div class="project-document-selected__list" data-document-selected-list></div>
+                </div>
+
+                <noscript>
+                    <style>
+                        #Input_Files { position: static !important; width: 100% !important; height: auto !important; clip: auto !important; white-space: normal !important; overflow: visible !important; }
+                        [data-document-dropzone] { display: none !important; }
+                    </style>
+                    <p class="form-text">Select the files above. Their file names will be used as document titles.</p>
+                </noscript>
             </div>
+        </section>
+
+        <section class="card pm-card project-document-upload-section project-document-upload-section--optional">
+            <details class="project-document-optional" open="@showOptionalDetails">
+                <summary>
+                    <span>
+                        <strong>Optional details</strong>
+                        <small>Add a project stage or Transfer of Technology link only when useful.</small>
+                    </span>
+                    <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                </summary>
+                <div class="card-body project-document-upload-fields">
+                    <div>
+                        <label asp-for="Input.StageId" class="form-label">Project stage</label>
+                        @if (Model.HasStageOptions)
+                        {
+                            <select asp-for="Input.StageId" asp-items="Model.StageOptions" class="form-select">
+                                <option value="">Not linked to a specific stage</option>
+                            </select>
+                        }
+                        else
+                        {
+                            <select asp-for="Input.StageId" class="form-select" disabled>
+                                <option value="">No stages available</option>
+                            </select>
+                        }
+                        <span asp-validation-for="Input.StageId" class="text-danger"></span>
+                    </div>
+
+                    @if (Model.Project?.Tot is not null)
+                    {
+                        <div class="project-document-use-option @(Model.AllowTotLinking ? string.Empty : "is-disabled")">
+                            @if (Model.AllowTotLinking)
+                            {
+                                <div class="form-check form-switch">
+                                    <input asp-for="Input.LinkToTot" class="form-check-input" />
+                                    <label asp-for="Input.LinkToTot" class="form-check-label">
+                                        <strong>Also show with Transfer of Technology records</strong>
+                                        <span>Turn this on only when the files support the project's ToT work.</span>
+                                    </label>
+                                </div>
+                                <span asp-validation-for="Input.LinkToTot" class="text-danger"></span>
+                            }
+                            else
+                            {
+                                <div class="text-muted">Transfer of Technology is @Model.TotStatusDisplay.ToLowerInvariant() for this project.</div>
+                            }
+                        </div>
+                    }
+                </div>
+            </details>
+        </section>
+
+        <div class="project-document-upload-actions">
+            <a asp-page="./Index" asp-route-id="@Model.Input.ProjectId" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary" data-document-submit>
+                <i class="bi bi-send" aria-hidden="true"></i> Submit for approval
+            </button>
         </div>
-    </div>
+    </form>
 </div>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/project-document-upload.css" asp-append-version="true" />
+}
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-    <script src="~/js/projects/document-requests.js" asp-append-version="true"></script>
+    <script src="~/js/pages/project-document-upload.js" asp-append-version="true"></script>
 }

@@ -103,7 +103,6 @@
                                     }
                                 </span>
                             </span>
-                            <span class="project-document-preview__status badge rounded-pill text-bg-light">@document.StatusLabel</span>
                             <i class="bi bi-chevron-right project-document-preview__chevron" aria-hidden="true"></i>
                         </a>
                     }
@@ -114,15 +113,15 @@
                 <div class="project-media-empty project-media-empty--compact">
                     <span class="project-media-empty__icon" aria-hidden="true"><i class="bi bi-file-earmark-plus"></i></span>
                     <span>
-                        <strong>No project documents uploaded</strong>
-                        <small>Upload approved records, reports and lifecycle documents when available.</small>
+                        <strong>No published project documents yet</strong>
+                        <small>Published records, reports and lifecycle documents will appear here.</small>
                     </span>
                 </div>
             }
 
             <div class="project-media-footer">
                 <div class="project-media-context">
-                    @if (media.PendingDocumentCount > 0)
+                    @if (Model.CanUploadDocuments && media.PendingDocumentCount > 0)
                     {
                         <span class="badge text-bg-warning">@media.PendingDocumentCount awaiting approval</span>
                     }
@@ -133,10 +132,8 @@
                 </div>
                 <div class="project-media-actions">
                     <a class="btn btn-sm btn-outline-primary"
-                       asp-page="/Projects/Overview"
-                       asp-route-id="@projectId"
-                       asp-route-mediaTab="documents"
-                       asp-fragment="media">View all documents</a>
+                       asp-page="/Projects/Documents/Index"
+                       asp-route-id="@projectId">View all documents</a>
                     @if (Model.CanUploadDocuments)
                     {
                         <a class="btn btn-sm btn-primary" asp-page="/Projects/Documents/UploadRequest" asp-route-id="@projectId">
@@ -171,7 +168,7 @@
                         <a class="project-photo-grid__item"
                            asp-page="/Projects/Photos/Index"
                            asp-route-id="@projectId"
-                           aria-label="Open project photo gallery">
+                           aria-label="View photo @(index + 1) of @media.PhotoCount in the project gallery">
                             <img src="@photo.Url" alt="@photo.Alt" loading="lazy" />
                             @if (photo.IsCover)
                             {

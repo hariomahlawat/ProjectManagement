@@ -692,3 +692,107 @@
 .project-photo-use-option__disabled--active > i {
   color: #b7791f;
 }
+
+/* Gallery refinements: adaptive width, touch ordering and safe confirmation */
+.project-photo-management-grid {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.project-photo-management-grid--readonly .project-photo-management-card {
+  max-width: 360px;
+}
+
+.project-photo-mobile-order {
+  position: absolute;
+  right: .6rem;
+  bottom: .6rem;
+  display: none;
+  gap: .35rem;
+}
+
+.project-photo-mobile-order .btn {
+  width: 2.15rem;
+  height: 2.15rem;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border-color: rgba(255, 255, 255, .7);
+  background: rgba(255, 255, 255, .92);
+}
+
+.project-photo-actions--library[hidden] {
+  display: none !important;
+}
+
+.project-photo-actions--library {
+  z-index: 1020;
+}
+
+.project-photo-order-form.has-order-changes {
+  padding-bottom: 5.5rem;
+}
+
+.project-photo-confirm-dialog {
+  width: min(92vw, 430px);
+  padding: 0;
+  border: 0;
+  border-radius: 1rem;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .28);
+}
+
+.project-photo-confirm-dialog::backdrop {
+  background: rgba(15, 23, 42, .48);
+  backdrop-filter: blur(2px);
+}
+
+.project-photo-confirm-dialog form {
+  padding: 1.4rem;
+}
+
+.project-photo-confirm-dialog__icon {
+  width: 2.7rem;
+  height: 2.7rem;
+  display: grid;
+  place-items: center;
+  margin-bottom: .85rem;
+  border-radius: .8rem;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 1.15rem;
+}
+
+.project-photo-confirm-dialog h2 {
+  margin: 0 0 .45rem;
+  font-size: 1.15rem;
+}
+
+.project-photo-confirm-dialog p {
+  margin: 0;
+  color: var(--pm-muted, #64748b);
+  line-height: 1.5;
+}
+
+.project-photo-confirm-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: .6rem;
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 767.98px) {
+  .project-photo-drag-handle {
+    display: none;
+  }
+
+  .project-photo-mobile-order {
+    display: flex;
+  }
+
+  .project-photo-position {
+    right: auto;
+    max-width: calc(100% - 6rem);
+  }
+}

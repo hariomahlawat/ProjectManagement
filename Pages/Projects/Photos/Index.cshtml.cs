@@ -17,7 +17,7 @@ using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Pages.Projects.Photos;
 
-[Authorize(Roles = "Admin,Project Officer,HoD")]
+[Authorize]
 [AutoValidateAntiforgeryToken]
 public class IndexModel : PageModel
 {
@@ -41,12 +41,10 @@ public class IndexModel : PageModel
     public GalleryOrderInput Input { get; set; } = new();
 
     public Project Project { get; private set; } = null!;
-
     public IReadOnlyList<ProjectPhoto> Photos { get; private set; } = Array.Empty<ProjectPhoto>();
-
     public string ProjectRowVersion { get; private set; } = string.Empty;
-
-    public bool CanReorder => Photos.Count > 1;
+    public bool CanManage { get; private set; }
+    public bool CanReorder => CanManage && Photos.Count > 1;
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
@@ -75,6 +73,11 @@ public class IndexModel : PageModel
         if (result is not null)
         {
             return result;
+        }
+
+        if (!CanManage)
+        {
+            return Forbid();
         }
 
         if (submittedRowVersion is null)
@@ -174,6 +177,11 @@ public class IndexModel : PageModel
             return result;
         }
 
+        if (!CanManage)
+        {
+            return Forbid();
+        }
+
         if (!Project.RowVersion.SequenceEqual(rowVersionBytes))
         {
             TempData["Error"] = "The project was updated by someone else. Please reload and try again.";
@@ -196,13 +204,7 @@ public class IndexModel : PageModel
         try
         {
             var removed = await _photoService.RemoveAsync(Project.Id, photoId, _userContext.UserId!, cancellationToken);
-            if (!removed)
-            {
-                TempData["Error"] = "Photo could not be removed.";
-                return RedirectToPage(new { id });
-            }
-
-            TempData["Flash"] = "Photo removed.";
+            TempData[removed ? "Flash" : "Error"] = removed ? "Photo removed." : "Photo could not be removed.";
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -212,7 +214,7 @@ public class IndexModel : PageModel
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error removing photo {PhotoId} from project {ProjectId}", photoId, id);
-            TempData["Error"] = "An unexpected error occurred while removing the photo.";
+            TempData["Error"] = "The photo could not be removed. Please try again.";
         }
 
         return RedirectToPage(new { id });
@@ -220,10 +222,9 @@ public class IndexModel : PageModel
 
     private async Task<IActionResult?> LoadProjectAsync(int id, CancellationToken cancellationToken)
     {
-        var userId = _userContext.UserId;
-        if (string.IsNullOrEmpty(userId))
+        if (_userContext.User.Identity?.IsAuthenticated != true)
         {
-            return Forbid();
+            return Challenge();
         }
 
         var project = await _db.Projects
@@ -235,17 +236,13 @@ public class IndexModel : PageModel
             return NotFound();
         }
 
-        if (!UserCanManageProject(project, userId))
-        {
-            return Forbid();
-        }
-
         Project = project;
         Photos = project.Photos
             .OrderBy(photo => photo.Ordinal)
             .ThenBy(photo => photo.Id)
             .ToList();
         ProjectRowVersion = Convert.ToBase64String(project.RowVersion);
+        CanManage = ProjectAccessGuard.CanManageProjectMedia(project, _userContext.User, _userContext.UserId);
         return null;
     }
 
@@ -256,13 +253,11 @@ public class IndexModel : PageModel
             ProjectId = Project.Id,
             RowVersion = ProjectRowVersion,
             GalleryVersion = ComputeGalleryVersion(Photos),
-            Items = Photos
-                .Select(photo => new GalleryOrderItem
-                {
-                    PhotoId = photo.Id,
-                    Ordinal = photo.Ordinal
-                })
-                .ToList()
+            Items = Photos.Select(photo => new GalleryOrderItem
+            {
+                PhotoId = photo.Id,
+                Ordinal = photo.Ordinal
+            }).ToList()
         };
     }
 
@@ -281,22 +276,6 @@ public class IndexModel : PageModel
         ModelState.Clear();
         ModelState.AddModelError(string.Empty, message);
         PopulateOrderInput();
-    }
-
-    private bool UserCanManageProject(Project project, string userId)
-    {
-        var principal = _userContext.User;
-        if (principal.IsInRole("Admin"))
-        {
-            return true;
-        }
-
-        if (principal.IsInRole("HoD") && string.Equals(project.HodUserId, userId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase);
     }
 
     private static byte[]? ParseRowVersion(string rowVersion)
@@ -319,18 +298,14 @@ public class IndexModel : PageModel
     public sealed class GalleryOrderInput
     {
         public int ProjectId { get; set; }
-
         public string RowVersion { get; set; } = string.Empty;
-
         public string GalleryVersion { get; set; } = string.Empty;
-
         public List<GalleryOrderItem> Items { get; set; } = new();
     }
 
     public sealed class GalleryOrderItem
     {
         public int PhotoId { get; set; }
-
         public int Ordinal { get; set; }
     }
 }

@@ -82,7 +82,7 @@ public class PreviewModel : PageModel
             return NotFound();
         }
 
-        if (!ProjectAccessGuard.CanViewProject(document.Project, _userContext.User, userId))
+        if (!ProjectAccessGuard.CanViewProjectInformation(document.Project, _userContext.User))
         {
             return Forbid();
         }

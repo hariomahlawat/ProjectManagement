@@ -6,7 +6,7 @@ namespace ProjectManagement.Services.Projects;
 
 public static class ProjectAccessGuard
 {
-    // SECTION: Project information visibility
+    // All authenticated users may view project information and published media.
     public static bool CanViewProjectInformation(Project project, ClaimsPrincipal principal)
     {
         if (project is null)
@@ -22,7 +22,7 @@ public static class ProjectAccessGuard
         return principal.Identity?.IsAuthenticated == true;
     }
 
-    // SECTION: Restricted project asset visibility and management roles
+    // Retains the existing restricted access policy for non-media project assets.
     public static bool CanViewProject(Project project, ClaimsPrincipal principal, string? userId)
     {
         if (project is null)
@@ -40,22 +40,10 @@ public static class ProjectAccessGuard
             return false;
         }
 
-        if (principal.IsInRole("Admin"))
-        {
-            return true;
-        }
-
-        if (principal.IsInRole("Project Officer"))
-        {
-            return true;
-        }
-
-        if (principal.IsInRole("Comdt"))
-        {
-            return true;
-        }
-
-        if (principal.IsInRole("MCO"))
+        if (principal.IsInRole("Admin") ||
+            principal.IsInRole("Project Officer") ||
+            principal.IsInRole("Comdt") ||
+            principal.IsInRole("MCO"))
         {
             return true;
         }
@@ -66,11 +54,34 @@ public static class ProjectAccessGuard
             return true;
         }
 
-        if (string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase))
+        return string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Media changes remain limited to Admin, the assigned HoD and the assigned Project Officer.
+    public static bool CanManageProjectMedia(Project project, ClaimsPrincipal principal, string? userId)
+    {
+        if (project is null)
+        {
+            throw new ArgumentNullException(nameof(project));
+        }
+
+        if (principal is null || principal.Identity?.IsAuthenticated != true || string.IsNullOrWhiteSpace(userId))
+        {
+            return false;
+        }
+
+        if (principal.IsInRole("Admin"))
         {
             return true;
         }
 
-        return false;
+        if (principal.IsInRole("HoD") &&
+            string.Equals(project.HodUserId, userId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return principal.IsInRole("Project Officer") &&
+               string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase);
     }
 }
