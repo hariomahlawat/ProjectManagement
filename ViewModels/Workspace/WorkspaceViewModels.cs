@@ -319,7 +319,10 @@ public sealed class WorkspaceRecordHealthVm
 
     public IReadOnlyList<WorkspaceRecordComponentScoreVm> Components { get; set; } = Array.Empty<WorkspaceRecordComponentScoreVm>();
 
-    public int PendingFieldCount => GapDetails.Count;
+    public int RecordGapCount => GapDetails.Count;
+
+    // Backward-compatible alias for older consumers.
+    public int PendingFieldCount => RecordGapCount;
 
     public string OpenUrl { get; set; } = string.Empty;
 }

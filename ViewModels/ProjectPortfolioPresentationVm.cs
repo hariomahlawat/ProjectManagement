@@ -25,6 +25,8 @@ public sealed class ProjectPortfolioPresentationVm
     public int? CurrentStageOverdueDays { get; init; }
     public int BackfillStageCount { get; init; }
     public int CompletenessPercent { get; init; }
+    public int ProfileCompletedCount { get; init; }
+    public int ProfileTotalCount { get; init; }
     public IReadOnlyList<string> MissingProfileFacts { get; init; } = Array.Empty<string>();
     public string PlanStatus { get; init; } = "Not approved";
     public string PlanHealth { get; init; } = "Current-stage plan not approved";
@@ -111,6 +113,8 @@ public sealed class ProjectPortfolioPresentationVm
             CurrentStageOverdueDays = currentOverdueDays,
             BackfillStageCount = backfillCount,
             CompletenessPercent = (int)Math.Round(profileChecks.Count(item => item.IsPresent) * 100d / profileChecks.Length),
+            ProfileCompletedCount = profileChecks.Count(item => item.IsPresent),
+            ProfileTotalCount = profileChecks.Length,
             MissingProfileFacts = missingProfileFacts,
             PlanStatus = project?.PlanApprovedAt.HasValue == true ? "Approved" : timeline.PlanPendingApproval ? "Pending" : "Not approved",
             PlanHealth = project?.PlanApprovedAt.HasValue == true
@@ -253,7 +257,6 @@ public sealed class ProjectOverviewAccessVm
     public bool IsAdmin { get; init; }
     public bool IsHoD { get; init; }
     public bool IsAssignedProjectOfficer { get; init; }
-    public bool IsAssignedHoD { get; init; }
     public bool CanAssignRoles => IsAdmin || IsHoD;
     public bool CanEditTimeline { get; init; }
     public bool CanReviewPlan => IsAdmin || IsHoD;

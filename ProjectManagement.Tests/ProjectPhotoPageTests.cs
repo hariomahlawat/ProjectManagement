@@ -62,12 +62,12 @@ public sealed class ProjectPhotoPageTests
     }
 
     [Fact]
-    public async Task Index_AllowsAssignedHod()
+    public async Task Index_AllowsAnyHod()
     {
         await using var db = CreateContext();
-        await SeedProjectAsync(db, 2, hodUserId: "hod-2");
+        await SeedProjectAsync(db, 2, hodUserId: "hod-assigned");
 
-        var page = CreateIndexPage(db, new FakeUserContext("hod-2", isHoD: true));
+        var page = CreateIndexPage(db, new FakeUserContext("hod-other", isHoD: true));
         var result = await page.OnGetAsync(2, CancellationToken.None);
 
         Assert.IsType<PageResult>(result);
@@ -136,7 +136,7 @@ public sealed class ProjectPhotoPageTests
             var photoService = new ProjectPhotoService(db, clock, new RecordingAudit(), optionsWrapper, uploadRoot, NullLogger<ProjectPhotoService>.Instance);
 
             await using var stream = await CreateImageStreamAsync(1600, 1200);
-            var added = await photoService.AddAsync(6, stream, "cover.png", "image/png", "creator", true, "Cover", totId: null, cancellationToken: CancellationToken.None);
+            var added = await photoService.AddAsync(6, stream, "cover.png", "image/png", "creator", true, "Cover", cancellationToken: CancellationToken.None);
 
             var overview = CreateOverviewPage(db, clock);
             ConfigurePageContext(overview);
@@ -429,8 +429,8 @@ public sealed class ProjectPhotoPageTests
         var userManager = CreateUserManager(db);
         var remarksPanel = new ProjectRemarksPanelService(userManager, clock, workflowMetadata);
         var lifecycle = new ProjectLifecycleService(db, new NoOpAuditService(), clock);
-        var mediaAggregator = new ProjectMediaAggregator();
-        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, mediaAggregator, new PassThroughMarkdownRenderer());
+        var recordHealth = new ProjectManagement.Services.Workspace.ProjectRecordHealthService(db, procure);
+        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth);
     }
 
     private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext db)
@@ -570,10 +570,10 @@ public sealed class ProjectPhotoPageTests
 
     private sealed class ThrowingPhotoService : IProjectPhotoService
     {
-        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, int? totId, CancellationToken cancellationToken)
+        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, CancellationToken cancellationToken)
             => throw new NotImplementedException();
 
-        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, ProjectPhotoCrop crop, int? totId, CancellationToken cancellationToken)
+        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, ProjectPhotoCrop crop, CancellationToken cancellationToken)
             => throw new NotImplementedException();
 
         public Task<ProjectPhoto?> ReplaceAsync(int projectId, int photoId, Stream content, string originalFileName, string? contentType, string userId, CancellationToken cancellationToken)
@@ -586,9 +586,6 @@ public sealed class ProjectPhotoPageTests
             => throw new NotImplementedException();
 
         public Task<ProjectPhoto?> UpdateCropAsync(int projectId, int photoId, ProjectPhotoCrop crop, string userId, CancellationToken cancellationToken)
-            => throw new NotImplementedException();
-
-        public Task<ProjectPhoto?> UpdateTotAsync(int projectId, int photoId, int? totId, string userId, CancellationToken cancellationToken)
             => throw new NotImplementedException();
 
         public Task<bool> RemoveAsync(int projectId, int photoId, string userId, CancellationToken cancellationToken)
@@ -623,10 +620,10 @@ public sealed class ProjectPhotoPageTests
 
         public bool? PreferWebpRequested { get; private set; }
 
-        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, int? totId, CancellationToken cancellationToken)
+        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, CancellationToken cancellationToken)
             => throw new NotImplementedException();
 
-        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, ProjectPhotoCrop crop, int? totId, CancellationToken cancellationToken)
+        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, ProjectPhotoCrop crop, CancellationToken cancellationToken)
             => throw new NotImplementedException();
 
         public Task<ProjectPhoto?> ReplaceAsync(int projectId, int photoId, Stream content, string originalFileName, string? contentType, string userId, CancellationToken cancellationToken)
@@ -639,9 +636,6 @@ public sealed class ProjectPhotoPageTests
             => throw new NotImplementedException();
 
         public Task<ProjectPhoto?> UpdateCropAsync(int projectId, int photoId, ProjectPhotoCrop crop, string userId, CancellationToken cancellationToken)
-            => throw new NotImplementedException();
-
-        public Task<ProjectPhoto?> UpdateTotAsync(int projectId, int photoId, int? totId, string userId, CancellationToken cancellationToken)
             => throw new NotImplementedException();
 
         public Task<bool> RemoveAsync(int projectId, int photoId, string userId, CancellationToken cancellationToken)

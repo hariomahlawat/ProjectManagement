@@ -63,7 +63,7 @@ public sealed class ProjectMediaAggregatorTests
     }
 
     [Fact]
-    public void Build_FiltersPhotosByTotSelection()
+    public void Build_DoesNotFilterPhotosByTotSelection()
     {
         // Arrange
         var documentRows = new List<ProjectDocumentRowViewModel>
@@ -108,8 +108,7 @@ public sealed class ProjectMediaAggregatorTests
 
         // Assert
         var photoTab = result.Tabs.Single(t => t.Key == ProjectMediaTabViewModel.PhotosKey).Photos!;
-        Assert.Single(photoTab.PreviewTiles);
-        Assert.Equal(21, photoTab.PreviewTiles[0].Photo.Id);
+        Assert.Equal(new[] { 20, 21 }, photoTab.PreviewTiles.Select(tile => tile.Photo.Id));
     }
 
     [Fact]
@@ -163,9 +162,8 @@ public sealed class ProjectMediaAggregatorTests
         Assert.True(result.Tabs.Single(t => t.Key == ProjectMediaTabViewModel.DocumentsKey).HasTotItems);
 
         var photoTab = result.Tabs.Single(t => t.Key == ProjectMediaTabViewModel.PhotosKey).Photos!;
-        Assert.False(photoTab.PreviewTiles[0].ShowTotBadge);
-        Assert.True(photoTab.PreviewTiles[1].ShowTotBadge);
-        Assert.True(result.Tabs.Single(t => t.Key == ProjectMediaTabViewModel.PhotosKey).HasTotItems);
+        Assert.All(photoTab.PreviewTiles, tile => Assert.False(tile.ShowTotBadge));
+        Assert.False(result.Tabs.Single(t => t.Key == ProjectMediaTabViewModel.PhotosKey).HasTotItems);
     }
 
     [Fact]

@@ -47,7 +47,7 @@ public class ViewModel : PageModel
         }
 
         // SECTION: Photo visibility follows project information visibility
-        if (!ProjectAccessGuard.CanViewProjectInformation(project, _userContext.User))
+        if (!ProjectAccessGuard.CanViewProjectMedia(project, _userContext.User))
         {
             return Forbid();
         }

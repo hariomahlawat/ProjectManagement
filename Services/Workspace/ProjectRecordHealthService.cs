@@ -28,15 +28,14 @@ public sealed class ProjectRecordHealthService
         _procurementRead = procurementRead;
     }
 
-    // The score answers one question only: of the information that should exist at the
-    // project's present stage, how much has actually been recorded?
+    // The score combines fixed project-record requirements (description, documents,
+    // photographs and video) with procurement and timeline fields that become applicable
+    // as the project progresses. The weights and thresholds are intentionally stable.
     public async Task<IReadOnlyDictionary<int, WorkspaceRecordHealthVm>> CalculateForProjectsAsync(
         IReadOnlyList<Project> projects,
         string userId,
         CancellationToken ct)
     {
-        _ = userId; // Freshness is assessed separately and never changes completeness.
-
         var projectIds = projects.Select(p => p.Id).Distinct().ToArray();
         var mediaCounts = await LoadMediaCountsAsync(projectIds, ct);
         var procurement = await _procurementRead.GetManyAsync(projectIds, ct);
@@ -47,7 +46,7 @@ public sealed class ProjectRecordHealthService
         {
             var components = new List<WorkspaceRecordComponentScoreVm>
             {
-                ScoreCoreProfile(project),
+                ScoreCoreProfile(project, userId),
                 ScoreProcurement(project, procurement, pncApplicability),
                 ScoreHistoricalTimeline(project),
                 ScoreCurrentStageTimeline(project),
@@ -149,7 +148,7 @@ public sealed class ProjectRecordHealthService
                 videoCounts.GetValueOrDefault(id)));
     }
 
-    private static WorkspaceRecordComponentScoreVm ScoreCoreProfile(Project project)
+    private static WorkspaceRecordComponentScoreVm ScoreCoreProfile(Project project, string userId)
     {
         var gaps = new List<WorkspaceRecordGapVm>();
         var descriptionComplete = !string.IsNullOrWhiteSpace(project.Description) &&
@@ -157,6 +156,17 @@ public sealed class ProjectRecordHealthService
 
         if (!descriptionComplete)
         {
+            var isAssignedProjectOfficer = string.Equals(
+                project.LeadPoUserId,
+                userId,
+                StringComparison.OrdinalIgnoreCase);
+            var actionUrl = isAssignedProjectOfficer
+                ? WorkspaceRouteHelper.ProjectMetaRequest(project.Id)
+                : WorkspaceRouteHelper.ProjectMetaEdit(project.Id);
+            var actionText = isAssignedProjectOfficer
+                ? "Update project details"
+                : "Edit project details";
+
             gaps.Add(Gap(
                 code: "PROJECT_DESCRIPTION",
                 component: "Core project profile",
@@ -164,8 +174,8 @@ public sealed class ProjectRecordHealthService
                 reason: "Required for every project and must contain a meaningful description.",
                 earned: 0m,
                 maximum: CoreProfileWeight,
-                actionText: "Edit project details",
-                actionUrl: WorkspaceRouteHelper.ProjectMetaEdit(project.Id),
+                actionText: actionText,
+                actionUrl: actionUrl,
                 icon: "bi-card-text",
                 priority: 40));
         }
@@ -244,14 +254,19 @@ public sealed class ProjectRecordHealthService
     // Historical stages are completion-driven. Actual start is optional and may be inferred.
     private static WorkspaceRecordComponentScoreVm ScoreHistoricalTimeline(Project project)
     {
-        var current = PresentStageHelper.Resolve(project.ProjectStages);
+        var current = PresentStageHelper.Resolve(project);
         var hasActiveOrFutureCurrent = current is not null && current.Status != StageStatus.Completed;
+
+        var currentOrder = current is null
+            ? int.MaxValue
+            : ProcurementWorkflow.OrderOf(project.WorkflowVersion, current.StageCode);
 
         var historicalStages = project.ProjectStages
             .Where(stage => stage.Status == StageStatus.Completed)
-            .Where(stage => !hasActiveOrFutureCurrent || stage.SortOrder < current!.SortOrder)
-            .OrderBy(stage => stage.SortOrder)
-            .ThenBy(stage => stage.StageCode)
+            .Where(stage => !hasActiveOrFutureCurrent ||
+                ProcurementWorkflow.OrderOf(project.WorkflowVersion, stage.StageCode) < currentOrder)
+            .OrderBy(stage => ProcurementWorkflow.OrderOf(project.WorkflowVersion, stage.StageCode))
+            .ThenBy(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         var fields = new List<ApplicableField>(historicalStages.Count);
@@ -281,7 +296,7 @@ public sealed class ProjectRecordHealthService
 
     private static WorkspaceRecordComponentScoreVm ScoreCurrentStageTimeline(Project project)
     {
-        var current = PresentStageHelper.Resolve(project.ProjectStages);
+        var current = PresentStageHelper.Resolve(project);
         if (current is null || current.Status is StageStatus.Completed or StageStatus.Skipped)
         {
             return Component("CURRENT_STAGE_PDC", "Current-stage timeline (PDC)",

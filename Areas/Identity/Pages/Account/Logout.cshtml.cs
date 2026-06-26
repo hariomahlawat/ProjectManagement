@@ -22,10 +22,17 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
         {
         }
 
-        public async Task<IActionResult> OnPost()
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> OnPostAsync(string? returnUrl = null)
         {
             await _signInManager.SignOutAsync();
             _logger.LogInformation("User logged out.");
+
+            if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+            {
+                return LocalRedirect(returnUrl);
+            }
+
             return RedirectToPage("/Account/Login", new { area = "Identity" });
         }
     }

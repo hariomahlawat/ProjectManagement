@@ -26,7 +26,7 @@ public sealed class ProjectMediaAccessGuardTests
     }
 
     [Fact]
-    public void CanManageProjectMedia_AllowsOnlyAssignedProjectOfficerOrHodAndAdmin()
+    public void CanManageProjectMedia_AllowsAssignedProjectOfficerAnyHodAndAdmin()
     {
         var project = new Project
         {
@@ -40,6 +40,7 @@ public sealed class ProjectMediaAccessGuardTests
         Assert.True(ProjectAccessGuard.CanManageProjectMedia(project, CreatePrincipal("admin", "Admin"), "admin"));
         Assert.True(ProjectAccessGuard.CanManageProjectMedia(project, CreatePrincipal("po-owner", "Project Officer"), "po-owner"));
         Assert.True(ProjectAccessGuard.CanManageProjectMedia(project, CreatePrincipal("hod-owner", "HoD"), "hod-owner"));
+        Assert.True(ProjectAccessGuard.CanManageProjectMedia(project, CreatePrincipal("hod-other", "HoD"), "hod-other"));
         Assert.False(ProjectAccessGuard.CanManageProjectMedia(project, CreatePrincipal("po-other", "Project Officer"), "po-other"));
         Assert.False(ProjectAccessGuard.CanManageProjectMedia(project, CreatePrincipal("viewer"), "viewer"));
     }

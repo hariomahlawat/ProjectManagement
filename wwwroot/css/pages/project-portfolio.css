@@ -1755,3 +1755,183 @@ button.project-intelligence-card:hover {
     .project-profile-flow .project-facts { min-width: 0; }
     .remarks-deleted-toggle { margin-left: 0; }
 }
+
+/* SECTION: Canonical record completeness summary shared with My Workspace semantics. */
+.project-record-health__score {
+    display: flex;
+    align-items: baseline;
+    gap: .55rem;
+    white-space: nowrap;
+}
+
+.project-record-health__score strong {
+    font-size: 1.35rem;
+    line-height: 1;
+    color: var(--bs-body-color);
+}
+
+.project-record-health__score span {
+    color: var(--bs-secondary-color);
+    font-size: .82rem;
+    font-weight: 600;
+}
+
+.project-record-health__progress {
+    height: .5rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--bs-tertiary-bg);
+}
+
+.project-record-health__progress > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--bs-primary);
+}
+
+.project-record-health__components {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .75rem;
+    margin-top: 1rem;
+}
+
+.project-record-health__component {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .2rem .75rem;
+    align-items: baseline;
+    min-width: 0;
+    padding: .8rem .9rem;
+    border: 1px solid var(--bs-border-color-translucent);
+    border-radius: .8rem;
+    background: var(--bs-tertiary-bg);
+}
+
+.project-record-health__component > span {
+    overflow: hidden;
+    color: var(--bs-secondary-color);
+    font-size: .78rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.project-record-health__component > strong {
+    font-size: .85rem;
+}
+
+.project-record-health__component > small {
+    grid-column: 1 / -1;
+    color: var(--bs-secondary-color);
+    font-size: .72rem;
+}
+
+.project-record-health__complete {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    margin-top: 1rem;
+    padding: .8rem .95rem;
+    border: 1px solid rgba(var(--bs-success-rgb), .24);
+    border-radius: .75rem;
+    color: var(--bs-success-text-emphasis);
+    background: rgba(var(--bs-success-rgb), .08);
+    font-weight: 600;
+}
+
+.project-record-health__gaps {
+    display: grid;
+    grid-template-columns: minmax(170px, .42fr) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--bs-border-color-translucent);
+}
+
+.project-record-health__gaps-heading {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+}
+
+.project-record-health__gaps-heading span {
+    color: var(--bs-secondary-color);
+    font-size: .78rem;
+}
+
+.project-record-health__gap-list {
+    display: grid;
+    gap: .45rem;
+}
+
+.project-record-health__gap {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: .7rem;
+    align-items: center;
+    padding: .65rem .75rem;
+    border: 1px solid var(--bs-border-color-translucent);
+    border-radius: .65rem;
+    color: inherit;
+    text-decoration: none;
+    transition: border-color .15s ease, background-color .15s ease, transform .15s ease;
+}
+
+.project-record-health__gap:hover,
+.project-record-health__gap:focus-visible {
+    border-color: rgba(var(--bs-primary-rgb), .45);
+    background: rgba(var(--bs-primary-rgb), .045);
+    transform: translateY(-1px);
+}
+
+
+.project-record-health__gap--readonly {
+    grid-template-columns: auto minmax(0, 1fr);
+    cursor: default;
+}
+
+.project-record-health__gap--readonly:hover {
+    border-color: var(--bs-border-color-translucent);
+    background: transparent;
+    transform: none;
+}
+
+.project-record-health__gap > span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.project-record-health__gap strong,
+.project-record-health__gap small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.project-record-health__gap small,
+.project-record-health__more {
+    color: var(--bs-secondary-color);
+    font-size: .74rem;
+}
+
+.project-record-health__more {
+    padding-inline: .2rem;
+}
+
+@media (max-width: 1180px) {
+    .project-record-health__components {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 700px) {
+    .project-record-health__components,
+    .project-record-health__gaps {
+        grid-template-columns: 1fr;
+    }
+}

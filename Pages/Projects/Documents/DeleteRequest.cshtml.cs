@@ -13,6 +13,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Documents;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Pages.Projects.Documents;
 
@@ -150,7 +151,7 @@ public class DeleteRequestModel : PageModel
             return NotFound();
         }
 
-        if (!UserCanSubmitRequests(project, userId))
+        if (!ProjectAccessGuard.CanManageProjectDocuments(project, _userContext.User, userId))
         {
             return Forbid();
         }
@@ -182,24 +183,6 @@ public class DeleteRequestModel : PageModel
         DocumentFileName = document.OriginalFileName;
 
         return null;
-    }
-
-    private bool UserCanSubmitRequests(Project project, string userId)
-    {
-        var principal = _userContext.User;
-        if (principal.IsInRole("Admin"))
-        {
-            return true;
-        }
-
-        if (principal.IsInRole("Project Officer") &&
-            string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return principal.IsInRole("HoD") &&
-            string.Equals(project.HodUserId, userId, StringComparison.OrdinalIgnoreCase);
     }
 
     public sealed class DeleteInputModel

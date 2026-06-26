@@ -17,7 +17,7 @@ namespace ProjectManagement.Tests;
 public sealed class ProjectMetaChangeDecisionServiceTests
 {
     [Fact]
-    public async Task DecideAsync_UnrelatedHod_ReturnsForbidden()
+    public async Task DecideAsync_AnyHod_Succeeds()
     {
         await using var db = CreateContext();
         await SeedProjectAsync(db, "hod-owner");
@@ -31,10 +31,11 @@ public sealed class ProjectMetaChangeDecisionServiceTests
             new ProjectMetaDecisionInput(1, ProjectMetaDecisionAction.Approve, null),
             new ProjectMetaDecisionUser("hod-stranger", IsAdmin: false, IsHoD: true));
 
-        Assert.Equal(ProjectMetaDecisionOutcome.Forbidden, result.Outcome);
+        Assert.Equal(ProjectMetaDecisionOutcome.Success, result.Outcome);
 
         var request = await db.ProjectMetaChangeRequests.SingleAsync();
-        Assert.Equal(ProjectMetaDecisionStatuses.Pending, request.DecisionStatus);
+        Assert.Equal(ProjectMetaDecisionStatuses.Approved, request.DecisionStatus);
+        Assert.Equal("hod-stranger", request.DecidedByUserId);
     }
 
     [Fact]

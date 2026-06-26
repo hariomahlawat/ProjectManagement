@@ -24,7 +24,7 @@ namespace ProjectManagement.Tests;
 public sealed class ProjectMetaEditPageTests
 {
     [Fact]
-    public async Task OnPostAsync_UnrelatedHod_ReturnsForbid()
+    public async Task OnPostAsync_AnyHod_UpdatesProject()
     {
         await using var db = CreateContext();
         await db.Projects.AddAsync(new Project
@@ -48,7 +48,11 @@ public sealed class ProjectMetaEditPageTests
 
         var result = await page.OnPostAsync(1, CancellationToken.None);
 
-        Assert.IsType<ForbidResult>(result);
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal("/Projects/Overview", redirect.PageName);
+
+        project = await db.Projects.SingleAsync(p => p.Id == 1);
+        Assert.Equal("Updated", project.Name);
     }
 
     [Fact]

@@ -122,10 +122,12 @@
                 <span>@(portfolio.IsWorkflowConcluded ? "Workflow sequence concluded" : "No next stage available")</span>
             }
         </button>
-        <button class="project-intelligence-card" type="button" data-scroll-target="#project-profile-details">
-            <span class="project-intelligence-card__label">Profile completeness</span>
-            <strong>@portfolio.CompletenessPercent%</strong>
-            <span>@portfolio.ProfileCompletenessDetail</span>
+        <button class="project-intelligence-card" type="button" data-scroll-target="#record-completeness">
+            <span class="project-intelligence-card__label">Record completeness</span>
+            <strong>@Model.RecordHealth.HealthPercent%</strong>
+            <span>@(Model.RecordHealth.GapDetails.Count == 0
+                ? "Project record complete"
+                : $"{Model.RecordHealth.GapDetails.Count} record gap{(Model.RecordHealth.GapDetails.Count == 1 ? string.Empty : "s")}")</span>
         </button>
     </div>
 </section>

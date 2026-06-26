@@ -147,7 +147,6 @@ public class UploadModel : PageModel
                     Input.SetAsCover,
                     Input.Caption,
                     crop.Value,
-                    null,
                     cancellationToken);
             }
             else
@@ -159,7 +158,6 @@ public class UploadModel : PageModel
                     userId,
                     Input.SetAsCover,
                     Input.Caption,
-                    null,
                     cancellationToken);
             }
 

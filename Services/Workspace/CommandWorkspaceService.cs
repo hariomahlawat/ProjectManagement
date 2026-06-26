@@ -111,7 +111,7 @@ public sealed class CommandWorkspaceService
         var result = new List<CommandOfficerWorkloadVm>();
         foreach (var user in users)
         {
-            var officerProjects = allProjects.Where(p => string.Equals(p.LeadPoUserId, user.Id, StringComparison.Ordinal)).ToList();
+            var officerProjects = allProjects.Where(p => string.Equals(p.LeadPoUserId, user.Id, StringComparison.OrdinalIgnoreCase)).ToList();
             var officerIdeas = ideas.Where(i => i.UserId == user.Id).ToList();
             var officerTasks = tasks.Where(t => t.UserId == user.Id).ToList();
             if (officerProjects.Count + officerIdeas.Count + officerTasks.Count == 0) continue;

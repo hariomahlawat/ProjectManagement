@@ -91,8 +91,8 @@ public class EditPlanModel : PageModel
 
         var workflowVersion = project.WorkflowVersion;
 
-        var isProjectsHod = isHoD && string.Equals(project.HodUserId, userId, StringComparison.Ordinal);
-        var isProjectsPo = string.Equals(project.LeadPoUserId, userId, StringComparison.Ordinal);
+        var isProjectsHod = isHoD;
+        var isProjectsPo = string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase);
 
         if (!isAdmin && !isProjectsPo && !isProjectsHod)
         {
@@ -128,8 +128,8 @@ public class EditPlanModel : PageModel
         var principal = _userContext.User;
         var isAdmin = principal.IsInRole("Admin");
         var isHoD = principal.IsInRole("HoD");
-        var isProjectsHod = isHoD && string.Equals(project.HodUserId, userId, StringComparison.Ordinal);
-        var isProjectsPo = string.Equals(project.LeadPoUserId, userId, StringComparison.Ordinal);
+        var isProjectsHod = isHoD;
+        var isProjectsPo = string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase);
 
         if (!isAdmin && !isProjectsPo && !isProjectsHod)
         {
@@ -166,8 +166,8 @@ public class EditPlanModel : PageModel
         var principal = _userContext.User;
         var isAdmin = principal.IsInRole("Admin");
         var isHoD = principal.IsInRole("HoD");
-        var isProjectsHod = isHoD && string.Equals(project.HodUserId, userId, StringComparison.Ordinal);
-        var isProjectsPo = string.Equals(project.LeadPoUserId, userId, StringComparison.Ordinal);
+        var isProjectsHod = isHoD;
+        var isProjectsPo = string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase);
 
         if (!isAdmin && !isProjectsPo && !isProjectsHod)
         {

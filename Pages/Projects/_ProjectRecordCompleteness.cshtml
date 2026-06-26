@@ -1,0 +1,88 @@
+@model ProjectManagement.Pages.Projects.OverviewModel
+@{
+    var health = Model.RecordHealth;
+    var gaps = health.GapDetails.Take(3).ToList();
+    var hiddenGapCount = Math.Max(0, health.GapDetails.Count - gaps.Count);
+    var canCorrectRecord = Model.Roles.IsAdmin || Model.Roles.IsHoD || Model.Roles.IsAssignedProjectOfficer;
+}
+<section class="card pm-card project-record-health" id="record-completeness" aria-labelledby="record-completeness-title">
+    <div class="card-header pm-card-header">
+        <div class="pm-card-heading">
+            <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-clipboard2-pulse"></i></span>
+            <div>
+                <h3 id="record-completeness-title" class="pm-card-title h5 mb-0">Record completeness</h3>
+                <p class="pm-card-subtitle mb-0">The same readiness score used in My Workspace.</p>
+            </div>
+        </div>
+        <div class="project-record-health__score" aria-label="@health.HealthPercent percent complete">
+            <strong>@health.HealthPercent%</strong>
+            <span>@health.HealthLabel</span>
+        </div>
+    </div>
+    <div class="card-body pm-card-body">
+        <div class="project-record-health__progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@health.HealthPercent">
+            <span style="width:@health.HealthPercent%"></span>
+        </div>
+
+        <div class="project-record-health__components" aria-label="Completeness score breakdown">
+            @foreach (var component in health.Components)
+            {
+                var componentPercent = component.MaximumPoints <= 0
+                    ? 100
+                    : (int)Math.Round(component.EarnedPoints * 100m / component.MaximumPoints);
+                <div class="project-record-health__component">
+                    <span>@component.Label</span>
+                    <strong>@component.EarnedPoints.ToString("0.#") / @component.MaximumPoints.ToString("0.#")</strong>
+                    <small>@componentPercent%</small>
+                </div>
+            }
+        </div>
+
+        @if (gaps.Count == 0)
+        {
+            <div class="project-record-health__complete" role="status">
+                <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                <span>No record gaps remain.</span>
+            </div>
+        }
+        else
+        {
+            <div class="project-record-health__gaps">
+                <div class="project-record-health__gaps-heading">
+                    <strong>@health.GapDetails.Count record gap@(health.GapDetails.Count == 1 ? string.Empty : "s")</strong>
+                    <span>Complete the items below to improve the score.</span>
+                </div>
+                <div class="project-record-health__gap-list">
+                    @foreach (var gap in gaps)
+                    {
+                        @if (canCorrectRecord)
+                        {
+                            <a class="project-record-health__gap" href="@gap.ActionUrl">
+                                <i class="bi @gap.Icon" aria-hidden="true"></i>
+                                <span>
+                                    <strong>@gap.FieldLabel</strong>
+                                    <small>@gap.Component</small>
+                                </span>
+                                <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                            </a>
+                        }
+                        else
+                        {
+                            <div class="project-record-health__gap project-record-health__gap--readonly">
+                                <i class="bi @gap.Icon" aria-hidden="true"></i>
+                                <span>
+                                    <strong>@gap.FieldLabel</strong>
+                                    <small>@gap.Component</small>
+                                </span>
+                            </div>
+                        }
+                    }
+                    @if (hiddenGapCount > 0)
+                    {
+                        <span class="project-record-health__more">+@hiddenGapCount more record gap@(hiddenGapCount == 1 ? string.Empty : "s")</span>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</section>

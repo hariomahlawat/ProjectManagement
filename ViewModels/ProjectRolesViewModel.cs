@@ -10,5 +10,4 @@ public sealed class ProjectRolesViewModel
     public bool IsHoD { get; init; }
     public bool IsProjectOfficer { get; init; }
     public bool IsAssignedProjectOfficer { get; init; }
-    public bool IsAssignedHoD { get; init; }
 }

@@ -557,7 +557,7 @@ public sealed class RemarkService : IRemarkService
 
         foreach (var userId in desired)
         {
-            if (!remark.Mentions.Any(m => string.Equals(m.UserId, userId, StringComparison.Ordinal)))
+            if (!remark.Mentions.Any(m => string.Equals(m.UserId, userId, StringComparison.OrdinalIgnoreCase)))
             {
                 remark.Mentions.Add(new RemarkMention { UserId = userId });
             }
@@ -632,7 +632,7 @@ public sealed class RemarkService : IRemarkService
             return (true, null, null);
         }
 
-        var isAuthor = string.Equals(remark.AuthorUserId, actor.UserId, StringComparison.Ordinal);
+        var isAuthor = string.Equals(remark.AuthorUserId, actor.UserId, StringComparison.OrdinalIgnoreCase);
         if (!isAuthor)
         {
             return (false, PermissionDeniedMessage, "NotAuthor");

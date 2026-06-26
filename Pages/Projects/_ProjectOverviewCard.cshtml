@@ -8,8 +8,7 @@
     var isAdmin = roles.IsAdmin;
     var isHoD = roles.IsHoD;
     var isThisProjectsPo = roles.IsAssignedProjectOfficer;
-    var isThisProjectsHod = roles.IsAssignedHoD;
-    var canManagePhotos = isAdmin || isThisProjectsPo || isThisProjectsHod;
+    var canManagePhotos = isAdmin || isThisProjectsPo || isHoD;
     var canEditDetails = isAdmin || isHoD;
     var canRequestDetails = isThisProjectsPo;
     var projectTypeName = project?.ProjectType?.Name;
@@ -184,8 +183,8 @@
             {
                 <div class="project-profile-missing project-profile-missing--clear" role="status">
                     <div>
-                        <strong>@missingDetails.Count recommended detail@(missingDetails.Count == 1 ? string.Empty : "s") missing</strong>
-                        <span>@string.Join(", ", missingDetails)</span>
+                        <strong>Project profile: @Model.Portfolio.ProfileCompletedCount of @Model.Portfolio.ProfileTotalCount details complete</strong>
+                        <span>Missing: @string.Join(", ", missingDetails)</span>
                     </div>
                     @if (canEditDetails)
                     {

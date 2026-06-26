@@ -797,22 +797,25 @@ public sealed class IndexModel : PageModel
             return (null, null, "Project not found.");
         }
 
-        var roleNames = await _userManager.GetRolesAsync(user);
-        var remarkRoles = roleNames
+        var persistedRoles = await _userManager.GetRolesAsync(user);
+        var principalRoles = User
+            .FindAll(ClaimTypes.Role)
+            .Select(claim => claim.Value);
+
+        var remarkRoles = persistedRoles
+            .Concat(principalRoles)
             .Select(name => RemarkActorRoleExtensions.TryParse(name, out var parsed) ? parsed : RemarkActorRole.Unknown)
             .Where(role => role != RemarkActorRole.Unknown)
             .ToHashSet();
 
         if (!string.IsNullOrEmpty(project.LeadProjectOfficerUserId)
-            && string.Equals(project.LeadProjectOfficerUserId, user.Id, StringComparison.Ordinal))
+            && string.Equals(project.LeadProjectOfficerUserId, user.Id, StringComparison.OrdinalIgnoreCase))
         {
             remarkRoles.Add(RemarkActorRole.ProjectOfficer);
         }
-
-        if (!string.IsNullOrEmpty(project.HodUserId)
-            && string.Equals(project.HodUserId, user.Id, StringComparison.Ordinal))
+        else
         {
-            remarkRoles.Add(RemarkActorRole.HeadOfDepartment);
+            remarkRoles.Remove(RemarkActorRole.ProjectOfficer);
         }
 
         if (remarkRoles.Count == 0)
@@ -830,7 +833,7 @@ public sealed class IndexModel : PageModel
         => await _db.Projects
             .AsNoTracking()
             .Where(p => p.Id == projectId)
-            .Select(p => new ProjectAssignmentInfo(p.Id, p.LeadPoUserId, p.HodUserId))
+            .Select(p => new ProjectAssignmentInfo(p.Id, p.LeadPoUserId))
             .FirstOrDefaultAsync(cancellationToken);
 
     private static string? NormalizeRemarkBody(string? value)
@@ -980,5 +983,5 @@ public sealed class IndexModel : PageModel
             ? RemarkType.External
             : RemarkType.Internal;
 
-    private sealed record ProjectAssignmentInfo(int ProjectId, string? LeadProjectOfficerUserId, string? HodUserId);
+    private sealed record ProjectAssignmentInfo(int ProjectId, string? LeadProjectOfficerUserId);
 }

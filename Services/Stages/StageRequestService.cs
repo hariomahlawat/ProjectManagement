@@ -167,7 +167,7 @@ public class StageRequestService
             return BatchStageRequestResult.StageNotFoundResult();
         }
 
-        if (!string.Equals(project.LeadPoUserId, userId, StringComparison.Ordinal))
+        if (!string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase))
         {
             return BatchStageRequestResult.NotProjectOfficerResult();
         }

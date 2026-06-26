@@ -602,7 +602,7 @@ namespace ProjectManagement.Services.Projects
                 items.Add(new SelectListItem(
                     o.Name ?? o.LeadPoUserId!,
                     o.LeadPoUserId!,
-                    string.Equals(o.LeadPoUserId, selectedOfficerId, StringComparison.Ordinal)));
+                    string.Equals(o.LeadPoUserId, selectedOfficerId, StringComparison.OrdinalIgnoreCase)));
             }
 
             return items;

@@ -129,7 +129,7 @@ public sealed class ProjectOfficerWorkspaceService
             .Take(8)
             .ToList();
         var engagement = await BuildEngagementAsync(userId, user, monthStartUtc, ct);
-        var avgHealth = health.Count == 0 ? 100 : (int)Math.Round(health.Values.Average(h => h.HealthPercent));
+        var avgHealth = health.Count == 0 ? 0 : (int)Math.Round(health.Values.Average(h => h.HealthPercent));
         var improveProjectsResult = BuildImproveProjects(health.Values, maxProjects: 3);
 
         var vm = new ProjectOfficerWorkspaceVm
@@ -138,8 +138,8 @@ public sealed class ProjectOfficerWorkspaceService
                 ? principal.Identity?.Name ?? "Project Officer"
                 : user.FullName,
             PortfolioHealthPercent = avgHealth,
-            PortfolioHealthLabel = avgHealth >= 80 ? "Good" : avgHealth >= 60 ? "Attention" : "Needs Work",
-            RecordHealthSummaryLabel = avgHealth >= 80 ? "Good" : avgHealth >= 60 ? "Attention" : "Needs Work",
+            PortfolioHealthLabel = health.Count == 0 ? "Not applicable" : avgHealth >= 80 ? "Good" : avgHealth >= 60 ? "Attention" : "Needs Work",
+            RecordHealthSummaryLabel = health.Count == 0 ? "Not applicable" : avgHealth >= 80 ? "Good" : avgHealth >= 60 ? "Attention" : "Needs Work",
             AssignedProjectCount = projects.Count,
             PendingWithMeCount = pending.Count,
             DailyActionCount = dailyActionCount,
@@ -200,9 +200,9 @@ public sealed class ProjectOfficerWorkspaceService
             .Where(p =>
                 p.LeadPoUserId == userId &&
                 !p.IsDeleted &&
-                p.LifecycleStatus != ProjectLifecycleStatus.Completed)
+                !p.IsArchived &&
+                p.LifecycleStatus == ProjectLifecycleStatus.Active)
             .OrderBy(p => p.Name)
-            .Take(50)
             .ToListAsync(ct);
     }
 
@@ -1019,7 +1019,7 @@ public sealed class ProjectOfficerWorkspaceService
             new() { Label = "Today", Icon = "bi-calendar-check", Anchor = "#today", Count = vm.DailyActionCount, IsPrimary = true },
             new() { Label = "Action Queue", Icon = "bi-list-check", Anchor = "#action-queue", Count = vm.ActionQueueTotalCount },
             new() { Label = "Assigned Projects", Icon = "bi-kanban", Anchor = "#assigned-projects", Count = vm.AssignedProjectCount },
-            new() { Label = "Project Data Gaps", Icon = "bi-folder-x", Anchor = "#project-data-gaps", Count = vm.ImproveProjectsTotalCount },
+            new() { Label = "Record Gaps", Icon = "bi-folder-x", Anchor = "#record-gaps", Count = vm.RecordGapCount },
             new() { Label = "My Ideas", Icon = "bi-lightbulb", Anchor = "#my-ideas-reminders", Count = vm.AssignedIdeaCount },
             new() { Label = "Reminders", Icon = "bi-bell", Anchor = "#reminders", Count = vm.PersonalReminders.Count }
         };

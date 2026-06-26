@@ -325,7 +325,7 @@ public class UploadRequestModel : PageModel
             return NotFound();
         }
 
-        if (!ProjectAccessGuard.CanManageProjectMedia(project, _userContext.User, userId))
+        if (!ProjectAccessGuard.CanManageProjectDocuments(project, _userContext.User, userId))
         {
             return Forbid();
         }

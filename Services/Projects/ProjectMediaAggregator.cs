@@ -17,7 +17,7 @@ public sealed class ProjectMediaAggregator
             throw new ArgumentNullException(nameof(request));
         }
 
-        var photos = FilterPhotos(request.Photos, request.SelectedTotId);
+        var photos = request.Photos;
         var photoTab = BuildPhotosTab(
             photos,
             request.CoverPhoto,
@@ -61,7 +61,7 @@ public sealed class ProjectMediaAggregator
             null,
             photoTab,
             null,
-            photoTab.LightboxPhotos.Any(p => p.TotId.HasValue)));
+            false));
 
         if (videoTab is not null)
         {
@@ -160,18 +160,6 @@ public sealed class ProjectMediaAggregator
             request.DocumentList.StatusHeading);
     }
 
-    private static IReadOnlyList<ProjectPhoto> FilterPhotos(IReadOnlyList<ProjectPhoto> photos, int? totId)
-    {
-        if (!totId.HasValue)
-        {
-            return photos;
-        }
-
-        return photos
-            .Where(p => p.TotId.HasValue && p.TotId.Value == totId.Value)
-            .ToList();
-    }
-
     private static ProjectMediaPhotosTabViewModel BuildPhotosTab(
         IReadOnlyList<ProjectPhoto> photos,
         ProjectPhoto? coverPhoto,
@@ -190,14 +178,14 @@ public sealed class ProjectMediaAggregator
 
         var previewTiles = previewSource
             .Take(ProjectMediaSummaryViewModel.DefaultPreviewCount)
-            .Select(p => new ProjectMediaPhotoTileViewModel(p, p.TotId.HasValue))
+            .Select(p => new ProjectMediaPhotoTileViewModel(p, false))
             .ToList();
 
         var remaining = Math.Max(0, previewSource.Count - previewTiles.Count);
 
         if (previewTiles.Count == 0 && orderedPhotos.Count > 0 && coverPhoto is not null && orderedPhotos.Any(p => p.Id == coverPhoto.Id))
         {
-            previewTiles.Add(new ProjectMediaPhotoTileViewModel(coverPhoto, coverPhoto.TotId.HasValue));
+            previewTiles.Add(new ProjectMediaPhotoTileViewModel(coverPhoto, false));
         }
 
         return new ProjectMediaPhotosTabViewModel(

@@ -173,7 +173,6 @@ public class EditModel : PageModel
                 crop,
                 Input.Caption,
                 Input.SetAsCover,
-                null,
                 Input.PhotoVersion,
                 userId,
                 cancellationToken);

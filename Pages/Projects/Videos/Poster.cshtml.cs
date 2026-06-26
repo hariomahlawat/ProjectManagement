@@ -50,7 +50,7 @@ public class PosterModel : PageModel
             return NotFound();
         }
 
-        if (!ProjectAccessGuard.CanViewProjectInformation(project, _userContext.User))
+        if (!ProjectAccessGuard.CanViewProjectMedia(project, _userContext.User))
         {
             return Forbid();
         }

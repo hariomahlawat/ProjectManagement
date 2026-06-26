@@ -191,12 +191,12 @@ public class RemarkApiTests
     }
 
     [Fact]
-    public async Task HeadOfDepartmentAssignedWithoutIdentityRole_CanCreateAndListRemarks()
+    public async Task AnyHodClaim_CanCreateAndListRemarks()
     {
         using var factory = new RemarkApiFactory();
         var projectId = 9601;
         var client = await CreateClientForUserAsync(factory, "hod-fallback", "HoD Fallback", false, "HoD");
-        await SeedProjectAsync(factory, projectId, leadPoUserId: "po-owner", hodUserId: "hod-fallback");
+        await SeedProjectAsync(factory, projectId, leadPoUserId: "po-owner", hodUserId: "hod-assigned-other");
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 

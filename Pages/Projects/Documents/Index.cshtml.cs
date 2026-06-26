@@ -54,8 +54,13 @@ public sealed class IndexModel : PageModel
             return NotFound();
         }
 
+        if (!ProjectAccessGuard.CanViewProjectDocuments(project, _userContext.User))
+        {
+            return Forbid();
+        }
+
         Project = project;
-        CanManage = ProjectAccessGuard.CanManageProjectMedia(project, _userContext.User, _userContext.UserId);
+        CanManage = ProjectAccessGuard.CanManageProjectDocuments(project, _userContext.User, _userContext.UserId);
 
         Stages = await _db.ProjectStages
             .AsNoTracking()

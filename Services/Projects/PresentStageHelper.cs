@@ -1,57 +1,106 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Services.Projects;
 
-    /// <summary>
-    /// Shared helper that determines the present stage snapshot for a project and its age.
-    /// </summary>
-    public static class PresentStageHelper
+/// <summary>
+/// Shared helper that determines the present stage snapshot for a project and its age.
+/// </summary>
+public static class PresentStageHelper
+{
+    // SECTION: Canonical lifecycle resolution includes workflow stages that do not yet have database rows.
+    public static ProjectStage? Resolve(Project project)
     {
-        // SECTION: Entity-stage resolution shared by project overview, ongoing projects, and workspace modules.
-        public static ProjectStage? Resolve(IEnumerable<ProjectStage>? stages)
+        ArgumentNullException.ThrowIfNull(project);
+        return ResolveOrdered(BuildWorkflowStages(project));
+    }
+
+    public static IReadOnlyList<ProjectStage> BuildWorkflowStages(Project project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+
+        var persisted = (project.ProjectStages ?? Array.Empty<ProjectStage>())
+            .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
+            .GroupBy(stage => stage.StageCode!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderBy(stage => stage.SortOrder).First(),
+                StringComparer.OrdinalIgnoreCase);
+
+        var result = new List<ProjectStage>();
+        var workflowCodes = ProcurementWorkflow.StageCodesFor(project.WorkflowVersion);
+        foreach (var code in workflowCodes)
         {
-            if (stages is null)
+            if (persisted.Remove(code, out var stage))
             {
-                return null;
+                result.Add(stage);
+                continue;
             }
 
-            var orderedStages = stages
-                .OrderBy(stage => stage.SortOrder)
-                .ThenBy(stage => stage.StageCode)
-                .ToList();
-
-            if (orderedStages.Count == 0)
+            result.Add(new ProjectStage
             {
-                return null;
-            }
-
-            return orderedStages.FirstOrDefault(stage => stage.Status == StageStatus.InProgress)
-                ?? orderedStages.FirstOrDefault(stage => stage.Status != StageStatus.Completed && stage.Status != StageStatus.Skipped)
-                ?? orderedStages.LastOrDefault();
+                ProjectId = project.Id,
+                StageCode = code,
+                SortOrder = ProcurementWorkflow.OrderOf(project.WorkflowVersion, code),
+                Status = StageStatus.NotStarted
+            });
         }
 
-        public static PresentStageSnapshot ComputePresentStageAndAge(
-            IReadOnlyList<ProjectStageStatusSnapshot> stages,
-            IWorkflowStageMetadataProvider workflowStageMetadataProvider,
-            string? workflowVersion,
-            DateOnly? referenceDate = null)
+        result.AddRange(persisted.Values);
+        return result
+            .OrderBy(stage => ProcurementWorkflow.OrderOf(project.WorkflowVersion, stage.StageCode))
+            .ThenBy(stage => stage.SortOrder)
+            .ThenBy(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    // SECTION: Entity-stage resolution retained for callers that already supply a complete ordered sequence.
+    public static ProjectStage? Resolve(IEnumerable<ProjectStage>? stages)
+    {
+        if (stages is null)
         {
-            if (stages is null || stages.Count == 0)
-            {
-                return PresentStageSnapshot.Empty;
-            }
+            return null;
+        }
 
         var orderedStages = stages
             .OrderBy(stage => stage.SortOrder)
+            .ThenBy(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        // -----------------------------------------------------------------------------
-        // Determine the current stage in a null-safe way for the struct snapshot.
-        // -----------------------------------------------------------------------------
+        return ResolveOrdered(orderedStages);
+    }
+
+    private static ProjectStage? ResolveOrdered(IReadOnlyList<ProjectStage> orderedStages)
+    {
+        if (orderedStages.Count == 0)
+        {
+            return null;
+        }
+
+        return orderedStages.FirstOrDefault(stage => stage.Status == StageStatus.InProgress)
+            ?? orderedStages.FirstOrDefault(stage => stage.Status != StageStatus.Completed && stage.Status != StageStatus.Skipped)
+            ?? orderedStages[^1];
+    }
+
+    public static PresentStageSnapshot ComputePresentStageAndAge(
+        IReadOnlyList<ProjectStageStatusSnapshot> stages,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+        string? workflowVersion,
+        DateOnly? referenceDate = null)
+    {
+        ArgumentNullException.ThrowIfNull(stages);
+        ArgumentNullException.ThrowIfNull(workflowStageMetadataProvider);
+
+        var orderedStages = BuildWorkflowSnapshots(stages, workflowStageMetadataProvider, workflowVersion);
+        if (orderedStages.Count == 0)
+        {
+            return PresentStageSnapshot.Empty;
+        }
+
         var current = orderedStages.FirstOrDefault(stage => stage.Status == StageStatus.InProgress);
         if (current == default)
         {
@@ -60,12 +109,9 @@ namespace ProjectManagement.Services.Projects;
 
         if (current == default)
         {
-            current = orderedStages.Last();
+            current = orderedStages[^1];
         }
 
-        // -----------------------------------------------------------------------------
-        // Capture the last completed stage as a nullable struct to allow null checks.
-        // -----------------------------------------------------------------------------
         ProjectStageStatusSnapshot? lastCompleted = orderedStages
             .Where(stage => stage.Status == StageStatus.Completed && stage.CompletedOn.HasValue)
             .OrderByDescending(stage => stage.CompletedOn)
@@ -100,14 +146,66 @@ namespace ProjectManagement.Services.Projects;
         IReadOnlyDictionary<int, string?> workflowVersions,
         DateOnly? referenceDate = null)
     {
-        if (stagesLookup is null || !stagesLookup.TryGetValue(projectId, out var stages))
-        {
-            return PresentStageSnapshot.Empty;
-        }
+        ArgumentNullException.ThrowIfNull(stagesLookup);
+        ArgumentNullException.ThrowIfNull(workflowStageMetadataProvider);
+        ArgumentNullException.ThrowIfNull(workflowVersions);
+
+        var stages = stagesLookup.TryGetValue(projectId, out var foundStages)
+            ? foundStages
+            : Array.Empty<ProjectStageStatusSnapshot>();
 
         workflowVersions.TryGetValue(projectId, out var workflowVersion);
 
-        return ComputePresentStageAndAge(stages, workflowStageMetadataProvider, workflowVersion, referenceDate);
+        return ComputePresentStageAndAge(
+            stages,
+            workflowStageMetadataProvider,
+            workflowVersion,
+            referenceDate);
+    }
+
+    private static IReadOnlyList<ProjectStageStatusSnapshot> BuildWorkflowSnapshots(
+        IReadOnlyList<ProjectStageStatusSnapshot> stages,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+        string? workflowVersion)
+    {
+        var persisted = stages
+            .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
+            .GroupBy(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderBy(stage => stage.SortOrder).First(),
+                StringComparer.OrdinalIgnoreCase);
+
+        var definitions = workflowStageMetadataProvider.GetStages(workflowVersion);
+        var result = new List<ProjectStageStatusSnapshot>(Math.Max(stages.Count, definitions.Count));
+
+        for (var index = 0; index < definitions.Count; index++)
+        {
+            var code = definitions[index].Code;
+            if (persisted.Remove(code, out var stage))
+            {
+                result.Add(stage with { SortOrder = index });
+            }
+            else
+            {
+                result.Add(new ProjectStageStatusSnapshot(
+                    code,
+                    StageStatus.NotStarted,
+                    index,
+                    null,
+                    null));
+            }
+        }
+
+        var nextOrder = definitions.Count;
+        foreach (var stage in persisted.Values
+                     .OrderBy(stage => stage.SortOrder)
+                     .ThenBy(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase))
+        {
+            result.Add(stage with { SortOrder = nextOrder++ });
+        }
+
+        return result;
     }
 }
 

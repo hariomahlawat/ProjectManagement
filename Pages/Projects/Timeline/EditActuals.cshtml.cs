@@ -75,8 +75,8 @@ public class EditActualsModel : PageModel
             return NotFound();
         }
 
-        var isProjectsHod = isHoD && string.Equals(project.HodUserId, userId, StringComparison.Ordinal);
-        var isProjectsPo = string.Equals(project.LeadPoUserId, userId, StringComparison.Ordinal);
+        var isProjectsHod = isHoD;
+        var isProjectsPo = string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase);
 
         if (!isAdmin && !isProjectsHod && !isProjectsPo)
         {

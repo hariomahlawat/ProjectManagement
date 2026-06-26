@@ -232,6 +232,21 @@ builder.Services.AddAuthorization(options =>
 
 });
 
+builder.Services.AddAntiforgery(options =>
+{
+    // SECTION: App-specific antiforgery cookie prevents collisions with other localhost apps.
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.Name = builder.Environment.IsDevelopment()
+        ? "PMAntiforgery"
+        : "__Host-PMAntiforgery";
+    options.Cookie.Path = "/";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+    options.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Strict;
+});
+
 builder.Services.ConfigureApplicationCookie(options =>
 {
     // SECTION: Environment-aware authentication cookie and API redirect behaviour.
@@ -507,7 +522,6 @@ builder.Services.AddScoped<ProjectTotTrackerReadService>();
 builder.Services.AddScoped<ProliferationTrackerReadService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<ProjectRemarksPanelService>();
-builder.Services.AddScoped<ProjectMediaAggregator>();
 builder.Services.AddSingleton<IMarkdownRenderer, MarkdownRenderer>();
 builder.Services.AddScoped<ProjectModerationService>();
 builder.Services.AddScoped<IRemarkService, RemarkService>();

@@ -6,7 +6,6 @@
     var isAdmin = access.IsAdmin;
     var isHoD = access.IsHoD;
     var isThisProjectsPo = access.IsAssignedProjectOfficer;
-    var isThisProjectsHod = access.IsAssignedHoD;
 }
 @functions {
     private static string StageStatusLabel(string? status) => status switch
@@ -274,7 +273,7 @@
                     </div>
                 }
             }
-            @if (isThisProjectsHod)
+            @if (isHoD)
             {
                 if (Model.Timeline.PendingRequests.Any())
                 {

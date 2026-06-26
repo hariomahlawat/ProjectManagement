@@ -12,10 +12,7 @@
         .Take(3)
         .ToList();
 
-    var videoTab = Model.MediaCollections.Tabs
-        .FirstOrDefault(tab => tab.Key == ProjectMediaTabViewModel.VideosKey)
-        ?.Videos;
-    var videoPreview = videoTab?.Items.Take(2).ToList() ?? new List<ProjectMediaVideoViewModel>();
+    var videoPreview = Model.VideoPreviewItems.Take(2).ToList();
 
     const int maxPhotoPreviewCount = 8;
     var photoPreview = new List<(string Url, string Alt, bool IsCover)>();
