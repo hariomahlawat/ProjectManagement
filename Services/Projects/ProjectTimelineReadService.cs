@@ -250,6 +250,11 @@ public sealed class ProjectTimelineReadService
                 HasPendingRequest = pendingRequest is not null,
                 PendingStatus = pendingRequest?.RequestedStatus,
                 PendingDate = pendingRequest?.RequestedDate,
+                PendingNote = pendingRequest?.Note,
+                PendingRequestedBy = pendingRequest is not null && userLookup.TryGetValue(pendingRequest.RequestedByUserId, out var pendingRequester)
+                    ? pendingRequester
+                    : pendingRequest?.RequestedByUserId,
+                PendingRequestedOn = pendingRequest?.RequestedOn,
                 StartVarianceDays = startVarianceDays,
                 FinishVarianceDays = finishVarianceDays,
                 PendingRequestId = pendingRequest?.Id

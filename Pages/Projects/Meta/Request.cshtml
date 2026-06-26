@@ -1,12 +1,12 @@
 @page "{id:int}"
 @model ProjectManagement.Pages.Projects.Meta.RequestModel
 @{
-    ViewData["Title"] = "Request Project Change";
+    ViewData["Title"] = "Update Project Details";
     const int descriptionMaxLength = ProjectManagement.Models.ProjectFieldLimits.DescriptionMaxLength;
 }
 
-<h1 class="mb-4">Request change for @Model.ProjectName</h1>
-<p class="text-muted">Submit updates for Head of Department approval. Fields left blank will keep their current values.</p>
+<h1 class="mb-4">Update project details for @Model.ProjectName</h1>
+<p class="text-muted">Your proposed updates will be visible in the workflow and submitted to the Head of Department for approval. Fields left blank will keep their current values.</p>
 
 <form method="post" class="mt-4">
     <input asp-for="Input.ProjectId" type="hidden" />
@@ -67,7 +67,7 @@
         <textarea asp-for="Input.Reason" rows="3" class="form-control"></textarea>
         <span asp-validation-for="Input.Reason" class="text-danger"></span>
     </div>
-    <button type="submit" class="btn btn-primary">Send request</button>
+    <button type="submit" class="btn btn-primary">Submit update</button>
     <a asp-page="/Projects/Overview" asp-route-id="@Model.Input.ProjectId" class="btn btn-link">Cancel</a>
 </form>
 

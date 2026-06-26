@@ -15,7 +15,7 @@ This module summarises the UI components exposed to end users.
 
 ## Change Password
 * `Areas/Identity/Pages/Account/Manage/ChangePassword.cshtml` – form for updating the current user's password.
-* `Areas/Identity/Pages/Account/Manage/ChangePassword.cshtml.cs` – validates the old password, updates it, clears the `MustChangePassword` flag and refreshes the sign-in cookie.
+* `Areas/Identity/Pages/Account/Manage/ChangePassword.cshtml.cs` – validates the old password, updates it, clears the `MustChangePassword` flag and refreshes the sign-in cookie. After a successful mandatory password change, the role-based landing resolver redirects Project Officers to the canonical `/Workspace` route and command roles to the dashboard.
 
 ## Dashboard
 * `Pages/Dashboard/Index.cshtml` – landing page after sign-in. It shows an attention band when tasks are overdue or due today, renders the **My Tasks** widget inline, and pins a floating **Upcoming events** launcher in the right margin that opens the drawer on the page edge alongside placeholder content for future widgets.

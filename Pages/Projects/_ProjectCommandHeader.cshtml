@@ -95,7 +95,15 @@
             {
                 <span class="project-intelligence-card__label">Next stage</span>
                 <strong>@portfolio.NextStage.Name</strong>
-                <span>@portfolio.NextStage.Code</span>
+                @if (portfolio.CurrentStage?.HasPendingRequest == true
+                    && string.Equals(portfolio.CurrentStage.PendingStatus, "Completed", StringComparison.OrdinalIgnoreCase))
+                {
+                    <span>Becomes current after HoD approval</span>
+                }
+                else
+                {
+                    <span>@portfolio.NextStage.Code</span>
+                }
             }
             else if (portfolio.BackfillStageCount > 0)
             {

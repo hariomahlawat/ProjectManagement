@@ -7,9 +7,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
+using ProjectManagement.Configuration;
+using ProjectManagement.Data;
 using ProjectManagement.Services.Stages;
 
 namespace ProjectManagement.Pages.Projects.Stages;
@@ -19,11 +22,16 @@ namespace ProjectManagement.Pages.Projects.Stages;
 public class BackfillApplyModel : PageModel
 {
     private readonly StageBackfillService _backfillService;
+    private readonly ApplicationDbContext _db;
     private readonly ILogger<BackfillApplyModel> _logger;
 
-    public BackfillApplyModel(StageBackfillService backfillService, ILogger<BackfillApplyModel> logger)
+    public BackfillApplyModel(
+        StageBackfillService backfillService,
+        ApplicationDbContext db,
+        ILogger<BackfillApplyModel> logger)
     {
         _backfillService = backfillService ?? throw new ArgumentNullException(nameof(backfillService));
+        _db = db ?? throw new ArgumentNullException(nameof(db));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -85,6 +93,19 @@ public class BackfillApplyModel : PageModel
         if (string.IsNullOrWhiteSpace(userId))
         {
             return Forbid();
+        }
+
+        var isAdminOrHod = User.IsInRole(RoleNames.Admin) || User.IsInRole(RoleNames.HoD);
+        if (!isAdminOrHod)
+        {
+            var isAssignedProjectOfficer = await _db.Projects
+                .AsNoTracking()
+                .AnyAsync(project => project.Id == input.ProjectId && project.LeadPoUserId == userId, ct);
+
+            if (!isAssignedProjectOfficer)
+            {
+                return Forbid();
+            }
         }
 
         try

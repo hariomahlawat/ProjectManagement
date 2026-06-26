@@ -344,7 +344,7 @@
     const pendingFlag = row.querySelector('[data-stage-pending]');
     if (pendingFlag && pendingFlag.classList.contains('pm-flag')) {
       if (updated?.pendingStatus) {
-        const textParts = [`Pending: ${statusLabel(updated.pendingStatus)}`];
+        const textParts = ['Awaiting HoD approval'];
         if (updated.pendingDate) {
           textParts.push(`· ${formatDate(updated.pendingDate)}`);
         }
@@ -405,7 +405,7 @@
       return;
     }
 
-    const parts = [`Pending: ${statusLabel(status)}`];
+    const parts = ['Awaiting HoD approval'];
     if (dateIso) {
       const formatted = formatDate(dateIso);
       if (formatted && formatted !== '—') {
@@ -847,58 +847,141 @@
     const conflictContainer = modalEl.querySelector('[data-stage-request-conflict]');
     const summaryList = modalEl.querySelector('[data-stage-request-summary]');
     const submitButton = modalEl.querySelector('[data-stage-request-submit]');
+    const titleElement = modalEl.querySelector('[data-stage-update-title]');
+    const subtitleElement = modalEl.querySelector('[data-stage-update-subtitle]');
 
-    const stageOptions = Array.from(document.querySelectorAll('[data-stage-request-button]'))
-      .map((button) => ({
-        code: button.getAttribute('data-stage') || '',
-        name: button.getAttribute('data-stage-name') || '',
-        currentStatus: button.getAttribute('data-current-status') || ''
-      }))
-      .filter((opt) => Boolean(opt.code));
-
-    function renderSummary() {
-      if (!summaryList) return;
-      summaryList.innerHTML = '';
-      const rows = rowsContainer ? rowsContainer.querySelectorAll('[data-stage-request-row]') : [];
-      const items = [];
-      rows.forEach((row) => {
-        const stageSelect = row.querySelector('[data-stage-request-stage]');
-        const statusSelect = row.querySelector('[data-stage-request-target]');
-        const dateInput = row.querySelector('[data-stage-request-date]');
-        if (!stageSelect || !statusSelect || !stageSelect.value) return;
-        const code = stageSelect.value;
-        const stageName = stageSelect.options[stageSelect.selectedIndex]?.textContent || code;
-        const label = statusLabel(statusSelect.value) || statusSelect.value || 'Target';
-        const dateText = dateInput?.value ? formatDate(dateInput.value) : '—';
-        const item = document.createElement('li');
-        item.textContent = `${stageName} (${code}) → ${label}${dateText ? ` · ${dateText}` : ''}`;
-        items.push(item);
+    const optionsByCode = new Map();
+    document.querySelectorAll('[data-stage-request-button]').forEach((button) => {
+      const code = button.getAttribute('data-stage') || '';
+      if (!code || optionsByCode.has(code)) return;
+      optionsByCode.set(code, {
+        code,
+        name: button.getAttribute('data-stage-name') || code,
+        currentStatus: button.getAttribute('data-current-status') || 'NotStarted',
+        pendingStatus: button.getAttribute('data-pending-status') || '',
+        pendingDate: button.getAttribute('data-pending-date') || '',
+        pendingNote: button.getAttribute('data-pending-note') || ''
       });
+    });
+    const stageOptions = Array.from(optionsByCode.values());
 
-      if (items.length === 0) {
-        const empty = document.createElement('li');
-        empty.textContent = 'No stages selected yet.';
-        summaryList.appendChild(empty);
-        return;
+    function transitionOptions(currentStatus) {
+      switch (currentStatus) {
+        case 'NotStarted':
+          return [
+            { value: 'InProgress', label: 'Start stage' },
+            { value: 'Blocked', label: 'Mark blocked' },
+            { value: 'Skipped', label: 'Skip stage' }
+          ];
+        case 'InProgress':
+          return [
+            { value: 'Completed', label: 'Complete stage' },
+            { value: 'Blocked', label: 'Mark blocked' },
+            { value: 'Skipped', label: 'Skip stage' }
+          ];
+        case 'Blocked':
+          return [
+            { value: 'InProgress', label: 'Resume stage' },
+            { value: 'Skipped', label: 'Skip stage' }
+          ];
+        case 'Completed':
+        case 'Skipped':
+          return [{ value: 'InProgress', label: 'Reopen stage' }];
+        default:
+          return [{ value: 'InProgress', label: 'Start stage' }];
       }
-
-      items.forEach((item) => summaryList.appendChild(item));
     }
 
-    function setDateState(row, status, { resetValue = false } = {}) {
+    function transitionLabel(currentStatus, targetStatus) {
+      if (targetStatus === 'Completed') return 'Complete';
+      if (targetStatus === 'Blocked') return 'Mark blocked';
+      if (targetStatus === 'Skipped') return 'Skip';
+      if (targetStatus === 'InProgress') {
+        if (currentStatus === 'NotStarted') return 'Start';
+        if (currentStatus === 'Blocked') return 'Resume';
+        return 'Reopen';
+      }
+      return statusLabel(targetStatus) || 'Update';
+    }
+
+    function dateConfiguration(status) {
+      switch (status) {
+        case 'InProgress':
+          return { label: 'Started on', required: true, hint: 'Required' };
+        case 'Completed':
+          return { label: 'Completed on', required: true, hint: 'Required' };
+        case 'Blocked':
+          return { label: 'Blocked on', required: false, hint: 'Optional' };
+        case 'Skipped':
+          return { label: 'Effective date', required: false, hint: 'Optional' };
+        default:
+          return { label: 'Effective date', required: false, hint: 'Optional' };
+      }
+    }
+
+    function requiresNote(currentStatus, targetStatus, rowCount) {
+      return rowCount > 1
+        || targetStatus === 'Blocked'
+        || targetStatus === 'Skipped'
+        || (targetStatus === 'InProgress' && ['Blocked', 'Completed', 'Skipped'].includes(currentStatus));
+    }
+
+    function stageOptionFor(code) {
+      return optionsByCode.get(code) || null;
+    }
+
+    function configureTargetSelect(row, currentStatus, preferredTarget) {
+      const select = row.querySelector('[data-stage-request-target]');
+      if (!select) return '';
+      const allowed = transitionOptions(currentStatus);
+      select.innerHTML = '';
+      allowed.forEach((target) => {
+        const option = document.createElement('option');
+        option.value = target.value;
+        option.textContent = target.label;
+        select.appendChild(option);
+      });
+      const targetExists = allowed.some((target) => target.value === preferredTarget);
+      select.value = targetExists ? preferredTarget : (allowed[0]?.value || '');
+      return select.value;
+    }
+
+    function setDateState(row, status, { resetValue = false, preferredValue = '' } = {}) {
       const dateInput = row.querySelector('[data-stage-request-date]');
+      const label = row.querySelector('[data-stage-request-date-label]');
       const hint = row.querySelector('[data-stage-request-date-hint]');
-      const requiresDate = REQUEST_DATE_REQUIRED_STATUSES.has(status);
+      const config = dateConfiguration(status);
+      if (label) label.textContent = config.label;
+      if (hint) hint.textContent = config.hint;
       if (dateInput) {
-        dateInput.required = requiresDate;
-        if (resetValue) {
-          dateInput.value = requiresDate ? todayIso() : '';
+        dateInput.required = config.required;
+        if (preferredValue) {
+          dateInput.value = preferredValue;
+        } else if (resetValue) {
+          dateInput.value = config.required ? todayIso() : '';
         }
       }
-      if (hint) {
-        const hintText = requiresDate ? 'Required' : 'Optional';
-        hint.textContent = hintText;
-      }
+    }
+
+    function refreshNoteState() {
+      if (!rowsContainer) return;
+      const rows = Array.from(rowsContainer.querySelectorAll('[data-stage-request-row]'));
+      rows.forEach((row) => {
+        const stageSelect = row.querySelector('[data-stage-request-stage]');
+        const targetSelect = row.querySelector('[data-stage-request-target]');
+        const noteInput = row.querySelector('[data-stage-request-note]');
+        const qualifier = row.querySelector('[data-stage-request-note-qualifier]');
+        const hint = row.querySelector('[data-stage-request-note-hint]');
+        const currentStatus = row.dataset.currentStatus || stageOptionFor(stageSelect?.value || '')?.currentStatus || 'NotStarted';
+        const required = requiresNote(currentStatus, targetSelect?.value || '', rows.length);
+        if (noteInput) noteInput.required = required;
+        if (qualifier) qualifier.textContent = required ? '(required)' : '(optional)';
+        if (hint) {
+          hint.textContent = required
+            ? 'Explain this exceptional or coordinated update for the HoD.'
+            : 'Add context for the HoD where useful.';
+        }
+      });
     }
 
     function setRemoveButtonsState() {
@@ -907,179 +990,206 @@
       rows.forEach((row) => {
         const removeButton = row.querySelector('[data-stage-request-remove]');
         if (removeButton) {
-          removeButton.disabled = rows.length === 1;
+          removeButton.disabled = rows.length === 1 || row.dataset.locked === 'true';
+          removeButton.classList.toggle('d-none', rows.length === 1 || row.dataset.locked === 'true');
         }
       });
+      refreshNoteState();
     }
 
     function populateStageSelect(select, selectedCode) {
       if (!select) return;
       select.innerHTML = '';
-      const placeholder = document.createElement('option');
-      placeholder.value = '';
-      placeholder.textContent = 'Select a stage';
-      select.appendChild(placeholder);
       stageOptions.forEach((opt) => {
         const option = document.createElement('option');
         option.value = opt.code;
-        option.textContent = `${opt.code} — ${opt.name}`.trim();
+        option.textContent = `${opt.code} — ${opt.name}`;
         option.selected = selectedCode === opt.code;
         select.appendChild(option);
       });
     }
 
-    function createRow(initialStageCode = '', initialStatus = '') {
+    function updateRowFromStage(row, preferredTarget = '', preferredDate = '', preferredNote = '') {
+      const stageSelect = row.querySelector('[data-stage-request-stage]');
+      const stageCode = stageSelect?.value || '';
+      const stage = stageOptionFor(stageCode);
+      const currentStatus = stage?.currentStatus || 'NotStarted';
+      row.dataset.currentStatus = currentStatus;
+
+      const rowTitle = row.querySelector('[data-stage-request-row-title]');
+      const currentState = row.querySelector('[data-stage-request-current-state]');
+      if (rowTitle) rowTitle.textContent = stage?.name || 'Stage';
+      if (currentState) currentState.textContent = `Current official status: ${statusLabel(currentStatus)}`;
+
+      const selectedTarget = configureTargetSelect(row, currentStatus, preferredTarget);
+      setDateState(row, selectedTarget, { resetValue: !preferredDate, preferredValue: preferredDate });
+
+      const noteInput = row.querySelector('[data-stage-request-note]');
+      if (noteInput && preferredNote) noteInput.value = preferredNote;
+      refreshNoteState();
+      renderSummary();
+    }
+
+    function renderSummary() {
+      if (!summaryList || !rowsContainer) return;
+      summaryList.innerHTML = '';
+      const rows = Array.from(rowsContainer.querySelectorAll('[data-stage-request-row]'));
+      if (rows.length === 0) {
+        const empty = document.createElement('li');
+        empty.textContent = 'No stages selected yet.';
+        summaryList.appendChild(empty);
+        return;
+      }
+
+      rows.forEach((row) => {
+        const stageSelect = row.querySelector('[data-stage-request-stage]');
+        const targetSelect = row.querySelector('[data-stage-request-target]');
+        const dateInput = row.querySelector('[data-stage-request-date]');
+        if (!stageSelect?.value || !targetSelect?.value) return;
+        const stage = stageOptionFor(stageSelect.value);
+        const action = transitionLabel(row.dataset.currentStatus || stage?.currentStatus || 'NotStarted', targetSelect.value);
+        const config = dateConfiguration(targetSelect.value);
+        const dateText = dateInput?.value ? formatDate(dateInput.value) : null;
+        const item = document.createElement('li');
+        item.textContent = `${stage?.name || stageSelect.value} — ${action}${dateText ? ` · ${config.label} ${dateText}` : ''}`;
+        summaryList.appendChild(item);
+      });
+    }
+
+    function createRow({ stageCode = '', targetStatus = '', requestedDate = '', note = '', locked = false } = {}) {
       if (!rowsContainer || !rowTemplate) return null;
       const fragment = rowTemplate.content.cloneNode(true);
       const row = fragment.querySelector('[data-stage-request-row]');
       if (!row) return null;
+      row.dataset.locked = locked ? 'true' : 'false';
 
       const stageSelect = row.querySelector('[data-stage-request-stage]');
-      const statusSelect = row.querySelector('[data-stage-request-target]');
-      const dateInput = row.querySelector('[data-stage-request-date]');
-      populateStageSelect(stageSelect, initialStageCode);
-      const normalizedStatus = initialStatus || 'NotStarted';
-      if (statusSelect) {
-        statusSelect.value = normalizedStatus;
-        if (statusSelect.value !== normalizedStatus) {
-          statusSelect.value = 'NotStarted';
-        }
-      }
-
-      setDateState(row, statusSelect ? statusSelect.value : '', { resetValue: true });
-      if (statusSelect && statusSelect.value && REQUEST_DATE_REQUIRED_STATUSES.has(statusSelect.value) && dateInput && !dateInput.value) {
-        dateInput.value = todayIso();
+      const selectedCodes = rowsContainer
+        ? new Set(Array.from(rowsContainer.querySelectorAll('[data-stage-request-stage]')).map((select) => select.value).filter(Boolean))
+        : new Set();
+      const defaultStageCode = stageCode || stageOptions.find((option) => !selectedCodes.has(option.code))?.code || stageOptions[0]?.code || '';
+      populateStageSelect(stageSelect, defaultStageCode);
+      if (stageSelect && locked) {
+        stageSelect.disabled = true;
+        stageSelect.setAttribute('aria-readonly', 'true');
       }
 
       rowsContainer.appendChild(fragment);
-      setRemoveButtonsState();
-      renderSummary();
+      updateRowFromStage(row, targetStatus, requestedDate, note);
 
       const removeButton = row.querySelector('[data-stage-request-remove]');
-      if (removeButton) {
-        removeButton.addEventListener('click', () => {
-          row.remove();
-          setRemoveButtonsState();
-          renderSummary();
-        });
-      }
+      removeButton?.addEventListener('click', () => {
+        row.remove();
+        setRemoveButtonsState();
+        renderSummary();
+      });
 
-      if (stageSelect) {
-        stageSelect.addEventListener('change', () => {
-          renderSummary();
-        });
-      }
+      stageSelect?.addEventListener('change', () => updateRowFromStage(row));
 
-      if (statusSelect) {
-        statusSelect.addEventListener('change', () => {
-          setDateState(row, statusSelect.value);
-          if (REQUEST_DATE_REQUIRED_STATUSES.has(statusSelect.value) && dateInput && !dateInput.value) {
-            dateInput.value = todayIso();
-          }
-          if (!REQUEST_DATE_REQUIRED_STATUSES.has(statusSelect.value) && dateInput) {
-            dateInput.value = '';
-          }
-          renderSummary();
-        });
-      }
+      const targetSelect = row.querySelector('[data-stage-request-target]');
+      targetSelect?.addEventListener('change', () => {
+        setDateState(row, targetSelect.value, { resetValue: true });
+        refreshNoteState();
+        renderSummary();
+      });
 
-      if (dateInput) {
-        dateInput.addEventListener('input', renderSummary);
-      }
+      row.querySelector('[data-stage-request-date]')?.addEventListener('input', renderSummary);
+      row.querySelector('[data-stage-request-note]')?.addEventListener('input', renderSummary);
 
-      const noteInput = row.querySelector('[data-stage-request-note]');
-      if (noteInput) {
-        noteInput.addEventListener('input', renderSummary);
-      }
-
+      setRemoveButtonsState();
+      renderSummary();
       return row;
     }
 
     document.addEventListener('click', (event) => {
       const trigger = event.target.closest('[data-stage-request]');
-      if (!trigger) {
-        return;
-      }
-
-      if (trigger.disabled) {
-        return;
-      }
-
+      if (!trigger || trigger.disabled) return;
       event.preventDefault();
 
       const projectId = trigger.getAttribute('data-project') || '';
       const stageCode = trigger.getAttribute('data-stage') || '';
-      const currentStatus = trigger.getAttribute('data-current-status') || '';
+      const stageName = trigger.getAttribute('data-stage-name') || stageCode || 'stage';
+      const pendingStatus = trigger.getAttribute('data-pending-status') || '';
+      const pendingDate = trigger.getAttribute('data-pending-date') || '';
+      const pendingNote = trigger.getAttribute('data-pending-note') || '';
+      const isEditingPending = Boolean(pendingStatus);
 
       if (projectInput) projectInput.value = projectId;
       if (rowsContainer) {
         rowsContainer.innerHTML = '';
-        createRow(stageCode, currentStatus || 'NotStarted');
+        createRow({
+          stageCode,
+          targetStatus: pendingStatus,
+          requestedDate: pendingDate,
+          note: pendingNote,
+          locked: true
+        });
       }
 
+      if (titleElement) titleElement.textContent = isEditingPending ? `Edit ${stageName} stage update` : `Update ${stageName} stage`;
+      if (subtitleElement) {
+        subtitleElement.textContent = isEditingPending
+          ? 'Revise the update currently awaiting HoD approval.'
+          : 'Submit the proposed status and date for HoD approval.';
+      }
+      conflictContainer?.classList.toggle('d-none', !isEditingPending);
       if (errorContainer) {
         errorContainer.classList.add('d-none');
         errorContainer.textContent = '';
-      }
-      if (conflictContainer) {
-        conflictContainer.classList.add('d-none');
       }
       if (submitButton) {
         submitButton.disabled = false;
+        submitButton.textContent = isEditingPending ? 'Update submission' : 'Submit update';
       }
-      renderSummary();
       modal.show();
     });
 
-    if (addButton) {
-      addButton.addEventListener('click', () => {
-        createRow();
-      });
-    }
+    addButton?.addEventListener('click', () => createRow());
 
-    if (!form) {
-      return;
-    }
+    if (!form) return;
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      if (!projectInput || !rowsContainer || !tokenInput) {
+      if (!projectInput || !rowsContainer || !tokenInput) return;
+
+      refreshNoteState();
+      const invalidControl = form.querySelector(':invalid');
+      if (invalidControl) {
+        invalidControl.reportValidity();
         return;
       }
 
-      if (submitButton) {
-        submitButton.disabled = true;
-      }
-
+      if (submitButton) submitButton.disabled = true;
       if (errorContainer) {
         errorContainer.classList.add('d-none');
         errorContainer.textContent = '';
       }
-      if (conflictContainer) {
-        conflictContainer.classList.add('d-none');
-      }
 
       const stagesPayload = [];
-      const rows = rowsContainer.querySelectorAll('[data-stage-request-row]');
-      rows.forEach((row) => {
+      rowsContainer.querySelectorAll('[data-stage-request-row]').forEach((row) => {
         const stageSelect = row.querySelector('[data-stage-request-stage]');
-        const statusSelect = row.querySelector('[data-stage-request-target]');
+        const targetSelect = row.querySelector('[data-stage-request-target]');
         const dateInput = row.querySelector('[data-stage-request-date]');
         const noteInput = row.querySelector('[data-stage-request-note]');
-        if (!stageSelect || !statusSelect) return;
-        const stageCode = stageSelect.value;
-        const requestedStatus = statusSelect.value;
-        if (!stageCode || !requestedStatus) return;
+        if (!stageSelect?.value || !targetSelect?.value) return;
         stagesPayload.push({
-          stageCode,
-          requestedStatus,
-          requestedDate: dateInput && dateInput.value ? dateInput.value : null,
-          note: noteInput && noteInput.value ? noteInput.value.trim() : null
+          stageCode: stageSelect.value,
+          requestedStatus: targetSelect.value,
+          requestedDate: dateInput?.value || null,
+          note: noteInput?.value?.trim() || null
         });
       });
 
       if (stagesPayload.length === 0) {
-        renderErrors(errorContainer, ['Select at least one stage to request.']);
+        renderErrors(errorContainer, ['Select at least one stage to update.']);
+        if (submitButton) submitButton.disabled = false;
+        return;
+      }
+
+      const stageCodes = stagesPayload.map((stage) => stage.stageCode.toLowerCase());
+      const duplicateStage = stageCodes.find((code, index) => stageCodes.indexOf(code) !== index);
+      if (duplicateStage) {
+        renderErrors(errorContainer, ['Each stage can be included only once in an update.']);
         if (submitButton) submitButton.disabled = false;
         return;
       }
@@ -1091,68 +1201,46 @@
 
       try {
         const response = await postJson('/Projects/Stages/RequestChange', payload, tokenInput.value);
-
+        if (response.status === 403) {
+          renderErrors(errorContainer, ['Only the Project Officer assigned to this project can submit stage updates.']);
+          if (submitButton) submitButton.disabled = false;
+          return;
+        }
         if (response.status === 422) {
           const data = await response.json().catch(() => null);
           const details = Array.isArray(data?.details) ? data.details : [];
           const messages = details.length > 0
             ? details.flatMap((item) => {
               const stageCode = item?.stageCode || 'Stage';
-              const errs = Array.isArray(item?.errors) && item.errors.length > 0
-                ? item.errors
-                : ['Validation failed.'];
+              const errs = Array.isArray(item?.errors) && item.errors.length > 0 ? item.errors : ['Validation failed.'];
               const missing = Array.isArray(item?.missingPredecessors) ? item.missingPredecessors : [];
               const combined = errs.map((err) => `${stageCode}: ${err}`);
-              if (missing.length > 0) {
-                combined.push(`${stageCode}: Complete required predecessor stages first (${missing.join(', ')})`);
-              }
+              if (missing.length > 0) combined.push(`${stageCode}: Complete required predecessor stages first (${missing.join(', ')})`);
               return combined;
             })
-            : ['Validation failed.'];
-          const extraErrors = Array.isArray(data?.errors) ? data.errors : [];
-          if (extraErrors.length > 0) {
-            messages.push(...extraErrors);
-          }
+            : ['The stage update could not be submitted.'];
+          if (Array.isArray(data?.errors)) messages.push(...data.errors);
           renderErrors(errorContainer, messages);
           if (submitButton) submitButton.disabled = false;
           return;
         }
-
-        if (response.status === 409) {
-          if (conflictContainer) {
-            conflictContainer.classList.remove('d-none');
-          }
-          if (submitButton) submitButton.disabled = false;
-          return;
-        }
-
         if (!response.ok) {
-          renderErrors(errorContainer, ['Unable to submit the request right now.']);
+          renderErrors(errorContainer, ['Unable to submit the stage update right now.']);
           if (submitButton) submitButton.disabled = false;
           return;
         }
-
         const data = await response.json().catch(() => null);
         if (!data?.ok) {
-          renderErrors(errorContainer, ['Unable to submit the request right now.']);
+          renderErrors(errorContainer, ['Unable to submit the stage update right now.']);
           if (submitButton) submitButton.disabled = false;
           return;
         }
 
-        const created = Array.isArray(data.items) ? data.items : [];
-        created.forEach((item) => {
-          const stageCode = item?.stageCode || '';
-          const source = stagesPayload.find((s) => s.stageCode === stageCode);
-          updatePendingBadge(stageCode, source?.requestedStatus || null, source?.requestedDate || null);
-          disableRequestButton(stageCode);
-        });
-
         modal.hide();
-        showToast('Request submitted.', 'success');
+        queueStageRefresh('Stage update submitted. It is now visible and awaiting HoD approval.', 'success');
       } catch (error) {
         console.error(error);
-        renderErrors(errorContainer, ['Unable to submit the request right now.']);
-      } finally {
+        renderErrors(errorContainer, ['Unable to submit the stage update right now.']);
         if (submitButton) submitButton.disabled = false;
       }
     });

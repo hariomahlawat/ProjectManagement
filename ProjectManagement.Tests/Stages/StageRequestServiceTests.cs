@@ -186,6 +186,30 @@ public class StageRequestServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_ExceptionalUpdateWithoutNote_IsRejected()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2025, 2, 5, 6, 30, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.FS, StageStatus.InProgress));
+
+        var validator = new StubStageValidationService();
+        var service = new StageRequestService(db, clock, validator);
+
+        var result = await service.CreateAsync(
+            new StageChangeRequestInput
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.FS,
+                RequestedStatus = StageStatus.Blocked.ToString()
+            },
+            "po-1");
+
+        Assert.Equal(StageRequestOutcome.ValidationFailed, result.Outcome);
+        Assert.Contains(result.Errors, error => error.Contains("note is required", StringComparison.OrdinalIgnoreCase));
+        Assert.Empty(await db.StageChangeRequests.ToListAsync());
+    }
+
+    [Fact]
     public async Task CreateBatchAsync_AllValid_CreatesRequestsForEachStage()
     {
         var clock = FakeClock.AtUtc(new DateTimeOffset(2025, 2, 5, 6, 30, 0, TimeSpan.Zero));
@@ -206,13 +230,15 @@ public class StageRequestServiceTests
                 {
                     StageCode = StageCodes.FS,
                     RequestedStatus = StageStatus.InProgress.ToString(),
-                    RequestedDate = new DateOnly(2025, 2, 4)
+                    RequestedDate = new DateOnly(2025, 2, 4),
+                    Note = "Start feasibility work."
                 },
                 new StageChangeRequestItemInput
                 {
                     StageCode = StageCodes.IPA,
                     RequestedStatus = StageStatus.Completed.ToString(),
-                    RequestedDate = new DateOnly(2025, 2, 5)
+                    RequestedDate = new DateOnly(2025, 2, 5),
+                    Note = "Complete IPA in the coordinated update."
                 }
             }
         };
@@ -274,13 +300,15 @@ public class StageRequestServiceTests
                 {
                     StageCode = StageCodes.FS,
                     RequestedStatus = StageStatus.Completed.ToString(),
-                    RequestedDate = new DateOnly(2025, 2, 4)
+                    RequestedDate = new DateOnly(2025, 2, 4),
+                    Note = "Complete feasibility study."
                 },
                 new StageChangeRequestItemInput
                 {
                     StageCode = StageCodes.IPA,
                     RequestedStatus = StageStatus.Completed.ToString(),
-                    RequestedDate = new DateOnly(2025, 2, 5)
+                    RequestedDate = new DateOnly(2025, 2, 5),
+                    Note = "Complete IPA."
                 }
             }
         };

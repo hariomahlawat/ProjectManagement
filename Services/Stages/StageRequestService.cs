@@ -69,6 +69,29 @@ public class StageRequestService
             return BatchStageRequestResult.Invalid(new[] { "At least one stage must be included." });
         }
 
+        var duplicateStageCodes = stages
+            .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
+            .GroupBy(stage => stage.StageCode.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToArray();
+
+        if (duplicateStageCodes.Length > 0)
+        {
+            return BatchStageRequestResult.Invalid(new[]
+            {
+                $"Each stage may be included only once. Remove duplicate stage{(duplicateStageCodes.Length == 1 ? string.Empty : "s")}: {string.Join(", ", duplicateStageCodes)}."
+            });
+        }
+
+        if (stages.Length > 1 && stages.Any(stage => string.IsNullOrWhiteSpace(stage.Note)))
+        {
+            return BatchStageRequestResult.Invalid(new[]
+            {
+                "Add a note for each stage when submitting a coordinated multi-stage update."
+            });
+        }
+
         var responses = new List<StageRequestItemResult>();
         var operations = new List<StageRequestOperationResult>();
 
@@ -192,6 +215,17 @@ public class StageRequestService
         var requestedStatus = Enum.Parse<StageStatus>(input.RequestedStatus, ignoreCase: true);
 
         var trimmedNote = string.IsNullOrWhiteSpace(input.Note) ? null : input.Note.Trim();
+        var requiresDecisionContext = requestedStatus is StageStatus.Blocked or StageStatus.Skipped
+            || (requestedStatus == StageStatus.InProgress
+                && stage.Status is StageStatus.Blocked or StageStatus.Completed or StageStatus.Skipped);
+
+        if (requiresDecisionContext && trimmedNote is null)
+        {
+            return StageRequestOperationResult.From(StageRequestResult.ValidationFailed(new[]
+            {
+                "A note is required for blocked, skipped, resumed or reopened stage updates."
+            }));
+        }
 
         // SECTION: Supersede existing pending requests
         var pendingRequests = await _db.StageChangeRequests

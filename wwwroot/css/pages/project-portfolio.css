@@ -1109,3 +1109,135 @@ button.project-intelligence-card:hover {
         grid-template-columns: 1fr;
     }
 }
+
+/* Project Officer stage updates ------------------------------------------- */
+.project-lifecycle-panel .pm-stage-update-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.pm-stage-pending-update {
+    display: grid;
+    gap: .38rem;
+    margin-top: .62rem;
+    padding: .72rem .78rem;
+    border: 1px solid color-mix(in srgb, var(--bs-warning) 38%, var(--portfolio-border));
+    border-radius: .72rem;
+    background: color-mix(in srgb, var(--bs-warning-bg-subtle, #fff3cd) 58%, #fff);
+}
+
+.pm-stage-pending-update__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .65rem;
+}
+
+.pm-stage-pending-update__header > div {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .45rem;
+}
+
+.pm-stage-pending-update__header strong {
+    color: var(--pm-text-strong, #0f172a);
+    font-size: .82rem;
+}
+
+.pm-stage-pending-update__proposal {
+    color: var(--pm-text-strong, #0f172a);
+    font-size: .78rem;
+    font-weight: 600;
+}
+
+.pm-stage-pending-update__meta,
+.pm-stage-pending-update__note {
+    color: var(--portfolio-muted);
+    font-size: .7rem;
+    line-height: 1.4;
+}
+
+.pm-stage-pending-update__note span {
+    font-weight: 600;
+}
+
+.pm-stage-pending-update__edit {
+    padding: 0;
+    font-size: .72rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.stage-update-approval-note {
+    display: flex;
+    gap: .7rem;
+    align-items: flex-start;
+    padding: .72rem .8rem;
+    border: 1px solid color-mix(in srgb, var(--bs-primary) 26%, var(--portfolio-border));
+    border-radius: .72rem;
+    background: color-mix(in srgb, var(--bs-primary-bg-subtle, #cfe2ff) 38%, #fff);
+}
+
+.stage-update-approval-note > i {
+    color: var(--bs-primary);
+    font-size: 1rem;
+    margin-top: .05rem;
+}
+
+.stage-update-approval-note > div {
+    display: grid;
+    gap: .12rem;
+}
+
+.stage-update-approval-note strong {
+    color: var(--pm-text-strong, #0f172a);
+    font-size: .8rem;
+}
+
+.stage-update-approval-note span {
+    color: var(--portfolio-muted);
+    font-size: .73rem;
+    line-height: 1.4;
+}
+
+.stage-update-row {
+    padding: .9rem;
+    border: 1px solid var(--portfolio-border);
+    border-radius: .78rem;
+    background: #fff;
+}
+
+.stage-update-row__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: .75rem;
+    margin-bottom: .75rem;
+}
+
+.stage-update-summary {
+    padding: .75rem .85rem;
+    border: 1px solid var(--portfolio-border);
+    border-radius: .72rem;
+    background: var(--pm-surface-subtle, #f8fafc);
+}
+
+.stage-update-summary li + li {
+    margin-top: .3rem;
+}
+
+@media (max-width: 575.98px) {
+    .project-lifecycle-panel .pm-stage-update-primary {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .pm-stage-pending-update__header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}

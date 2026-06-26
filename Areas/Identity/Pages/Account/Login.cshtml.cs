@@ -91,12 +91,13 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
                 }
                 if (user is not null && (string.IsNullOrWhiteSpace(returnUrl) || !Url.IsLocalUrl(returnUrl)))
                 {
-                    returnUrl = Url.Content(await _landingPageResolver.ResolveAsync(user));
+                    var landingPage = await _landingPageResolver.ResolveAsync(user);
+                    returnUrl = Url.Page(landingPage) ?? Url.Content("~/Dashboard");
                 }
 
                 if (string.IsNullOrWhiteSpace(returnUrl) || !Url.IsLocalUrl(returnUrl))
                 {
-                    returnUrl = Url.Content("~/Dashboard/Index");
+                    returnUrl = Url.Page("/Dashboard/Index") ?? Url.Content("~/Dashboard");
                 }
 
                 _logger.LogInformation("User logged in.");

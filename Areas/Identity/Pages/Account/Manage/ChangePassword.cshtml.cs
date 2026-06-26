@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Navigation;
 
 namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
 {
@@ -15,12 +16,18 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly ILogger<ChangePasswordModel> _logger;
+        private readonly DefaultLandingPageResolver _landingPageResolver;
 
-        public ChangePasswordModel(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, ILogger<ChangePasswordModel> logger)
+        public ChangePasswordModel(
+            UserManager<ApplicationUser> userManager,
+            SignInManager<ApplicationUser> signInManager,
+            ILogger<ChangePasswordModel> logger,
+            DefaultLandingPageResolver landingPageResolver)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _logger = logger;
+            _landingPageResolver = landingPageResolver;
         }
 
         [BindProperty]
@@ -70,17 +77,27 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
                 return Page();
             }
 
-            await _signInManager.RefreshSignInAsync(user);
-            _logger.LogInformation("User changed their password successfully.");
-
             if (user.MustChangePassword)
             {
                 user.MustChangePassword = false;
-                await _userManager.UpdateAsync(user);
+                var updateResult = await _userManager.UpdateAsync(user);
+                if (!updateResult.Succeeded)
+                {
+                    foreach (var error in updateResult.Errors)
+                    {
+                        ModelState.AddModelError(string.Empty, error.Description);
+                    }
+
+                    return Page();
+                }
             }
 
+            await _signInManager.RefreshSignInAsync(user);
+            _logger.LogInformation("User changed their password successfully.");
+
             TempData["ok"] = "Password changed.";
-            return LocalRedirect(Url.Content("~/Dashboard"));
+            var landingPage = await _landingPageResolver.ResolveAsync(user);
+            return RedirectToPage(landingPage);
         }
     }
 }

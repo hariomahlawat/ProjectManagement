@@ -76,14 +76,48 @@ public class ProjectTimelineUiTests
         Assert.Contains("Skip stage", hodHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Start stage", hodHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Reopen stage", hodHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Request change", hodHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Update stage", hodHtml, StringComparison.Ordinal);
 
         var dualRoleHtml = await RenderAsync(timeline, isHoD: true, isAssignedProjectOfficer: true);
-        Assert.DoesNotContain("Request change", dualRoleHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Update stage", dualRoleHtml, StringComparison.Ordinal);
 
         var poHtml = await RenderAsync(timeline, isHoD: false, isAssignedProjectOfficer: true);
-        Assert.Contains("Request change", poHtml, StringComparison.Ordinal);
+        Assert.Contains("Update stage", poHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Request change", poHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("data-direct-apply", poHtml, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public async Task PendingProjectOfficerUpdate_IsImmediatelyVisibleAsAwaitingApproval()
+    {
+        var timeline = new TimelineVm
+        {
+            ProjectId = 1,
+            Items = new[]
+            {
+                new TimelineItemVm
+                {
+                    Code = "DEVP",
+                    Name = "Development",
+                    Status = StageStatus.InProgress,
+                    SortOrder = 1,
+                    HasPendingRequest = true,
+                    PendingStatus = StageStatus.Completed.ToString(),
+                    PendingDate = new DateOnly(2026, 6, 26),
+                    PendingNote = "Development completed.",
+                    PendingRequestedBy = "Project Officer",
+                    PendingRequestedOn = new DateTimeOffset(2026, 6, 26, 8, 30, 0, TimeSpan.Zero)
+                }
+            }
+        };
+
+        var html = await RenderAsync(timeline, isHoD: false, isAssignedProjectOfficer: true);
+
+        Assert.Contains("Awaiting HoD approval", html, StringComparison.Ordinal);
+        Assert.Contains("Completion submitted", html, StringComparison.Ordinal);
+        Assert.Contains("Proposed completion", html, StringComparison.Ordinal);
+        Assert.Contains("Edit pending update", html, StringComparison.Ordinal);
     }
 
     private static async Task<string> RenderAsync(

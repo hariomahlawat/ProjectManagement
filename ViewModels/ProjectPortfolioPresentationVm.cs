@@ -31,7 +31,11 @@ public sealed class ProjectPortfolioPresentationVm
     public string ScheduleStatus { get; init; } = "Not assessed";
     public string ScheduleDetail { get; init; } = "Set the current-stage planned completion date";
     public string CurrentStageDisplay => IsWorkflowConcluded ? "Lifecycle concluded" : CurrentStage?.Name ?? "Not started";
-    public string CurrentStageDetail => IsWorkflowConcluded ? "All applicable stages are complete or skipped" : CurrentStage?.Code ?? "No active stage";
+    public string CurrentStageDetail => IsWorkflowConcluded
+        ? "All applicable stages are complete or skipped"
+        : CurrentStage?.HasPendingRequest == true
+            ? $"{PendingActionLabel(CurrentStage.PendingStatus)} · Awaiting HoD approval"
+            : CurrentStage?.Code ?? "No active stage";
     public string NextAction { get; init; } = "Review project status";
     public string NextActionDetail { get; init; } = "Operational follow-up";
     public string ProfileCompletenessDetail => CompletenessPercent == 100
@@ -135,6 +139,13 @@ public sealed class ProjectPortfolioPresentationVm
                 "Completion dates or mandatory stage facts require attention");
         }
 
+        if (current?.HasPendingRequest == true)
+        {
+            return (
+                "Await HoD approval",
+                $"{PendingActionLabel(current.PendingStatus)} and visible on the timeline");
+        }
+
         if (current is null)
         {
             return isWorkflowConcluded
@@ -174,6 +185,15 @@ public sealed class ProjectPortfolioPresentationVm
         TimelineItemVm? current,
         int completedLateCount)
     {
+        if (current?.HasPendingRequest == true)
+        {
+            return (
+                current.PendingStatus?.Equals("Completed", StringComparison.OrdinalIgnoreCase) == true
+                    ? "Completion awaiting approval"
+                    : "Stage update awaiting approval",
+                "Official lifecycle status will change after the HoD decision");
+        }
+
         if (current is { IsOverdue: true, DaysRemaining: int overdue })
         {
             var days = Math.Abs(overdue);
@@ -205,6 +225,16 @@ public sealed class ProjectPortfolioPresentationVm
         return ("No variance", "No current overdue stage or recorded late completion");
     }
 
+    public static string PendingActionLabel(string? pendingStatus) => pendingStatus?.Trim().ToLowerInvariant() switch
+    {
+        "completed" => "Completion submitted",
+        "inprogress" => "Start submitted",
+        "blocked" => "Blocked status submitted",
+        "skipped" => "Skip submitted",
+        "notstarted" => "Reopen submitted",
+        _ => "Stage update submitted"
+    };
+
     public static string StageStatusLabel(StageStatus status) => status switch
     {
         StageStatus.Completed => "Completed",
@@ -225,7 +255,7 @@ public sealed class ProjectOverviewAccessVm
     public bool CanAssignRoles => IsAdmin || IsHoD;
     public bool CanEditTimeline { get; init; }
     public bool CanReviewPlan => IsAdmin || IsHoD;
-    public bool CanRequestStageChange => IsAssignedProjectOfficer && !IsHoD;
+    public bool CanSubmitStageUpdate => IsAssignedProjectOfficer && !IsHoD;
     public bool CanApplyStageChangeDirectly => IsHoD;
 }
 

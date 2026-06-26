@@ -6,9 +6,15 @@
     var timeline = Model.Timeline;
     var access = Model.Access;
     var isHod = access.CanApplyStageChangeDirectly;
-    var canRequestChange = access.CanRequestStageChange;
+    var canSubmitStageUpdate = access.CanSubmitStageUpdate;
     var canEditTimeline = access.CanEditTimeline;
     var futureSectionStarted = false;
+    var currentStageCode = timeline.Items
+        .OrderBy(item => item.SortOrder)
+        .FirstOrDefault(item => item.Status == StageStatus.InProgress)?.Code
+        ?? timeline.Items
+            .OrderBy(item => item.SortOrder)
+            .FirstOrDefault(item => item.Status is not StageStatus.Completed and not StageStatus.Skipped)?.Code;
 }
 @functions {
     string D(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
@@ -32,6 +38,29 @@
         StageStatus.NotStarted => "Not started",
         _                      => "Unknown"
     };
+
+    string PendingActionTitle(string? status) => ProjectManagement.ViewModels.ProjectPortfolioPresentationVm.PendingActionLabel(status);
+
+    string PendingProposal(ProjectManagement.ViewModels.TimelineItemVm stage)
+    {
+        var date = stage.PendingDate.HasValue ? D(stage.PendingDate) : null;
+        return stage.PendingStatus?.Trim().ToLowerInvariant() switch
+        {
+            "completed" => date is null ? "Proposed status: Completed" : $"Proposed completion: {date}",
+            "inprogress" => date is null ? "Proposed status: In progress" : $"Proposed start: {date}",
+            "blocked" => date is null ? "Proposed status: Blocked" : $"Proposed blocked date: {date}",
+            "skipped" => date is null ? "Proposed status: Skipped" : $"Proposed effective date: {date}",
+            "notstarted" => date is null ? "Proposed status: Reopened" : $"Proposed reopen date: {date}",
+            _ => date is null ? "Proposed stage update" : $"Proposed date: {date}"
+        };
+    }
+
+    string PendingTimestamp(DateTimeOffset? value)
+    {
+        if (!value.HasValue) return string.Empty;
+        var ist = TimeZoneInfo.ConvertTime(value.Value, ProjectManagement.Utilities.TimeZoneHelper.GetIst());
+        return ist.ToString("dd MMM yyyy, h:mm tt", CultureInfo.CurrentCulture);
+    }
 
     (string text, string description, string cssClass) VarianceToken(string name, int value)
     {
@@ -145,6 +174,23 @@
               }
             </div>
             <div class="pm-item-actions">
+              @if (canSubmitStageUpdate && string.Equals(s.Code, currentStageCode, StringComparison.OrdinalIgnoreCase))
+              {
+                <button class="btn btn-sm @(s.HasPendingRequest ? "btn-warning" : "btn-outline-primary") pm-stage-update-primary"
+                        type="button"
+                        data-stage-request
+                        data-stage-request-button
+                        data-project="@timeline.ProjectId"
+                        data-stage="@s.Code"
+                        data-stage-name="@s.Name"
+                        data-current-status="@s.Status"
+                        data-pending-status="@s.PendingStatus"
+                        data-pending-date="@s.PendingDate?.ToString("yyyy-MM-dd")"
+                        data-pending-note="@s.PendingNote">
+                  <i class="bi @(s.HasPendingRequest ? "bi-pencil-square" : "bi-arrow-repeat")" aria-hidden="true"></i>
+                  @(s.HasPendingRequest ? "Edit pending update" : "Update stage")
+                </button>
+              }
               <div class="dropdown">
                 <button class="btn pm-kebab" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Stage actions for @s.Name">
                   <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
@@ -282,12 +328,12 @@
                         </button>
                       </li>
                     }
-                    @if (canRequestChange)
+                    @if (canSubmitStageUpdate)
                     {
                       <li><hr class="dropdown-divider" /></li>
                     }
                   }
-                  @if (canRequestChange)
+                  @if (canSubmitStageUpdate)
                   {
                     <li>
                       <button class="dropdown-item"
@@ -298,8 +344,10 @@
                               data-stage="@s.Code"
                               data-stage-name="@s.Name"
                               data-current-status="@s.Status"
-                              @(s.HasPendingRequest ? "disabled" : null)>
-                        Request change
+                              data-pending-status="@s.PendingStatus"
+                              data-pending-date="@s.PendingDate?.ToString("yyyy-MM-dd")"
+                              data-pending-note="@s.PendingNote">
+                        @(s.HasPendingRequest ? "Edit pending update" : "Update stage")
                       </button>
                     </li>
                   }
@@ -316,14 +364,48 @@
             <span class="pm-flag pm-flag-warning@(s.HasPendingRequest ? string.Empty : " d-none")" data-stage-pending>
               @if (s.HasPendingRequest)
               {
-                  <text>Pending: @s.PendingStatus</text>
-                  @if (s.PendingDate.HasValue)
-                  {
-                      <text> · @D(s.PendingDate)</text>
-                  }
+                  <text>Awaiting HoD approval</text>
               }
             </span>
           </div>
+          @if (s.HasPendingRequest)
+          {
+            <section class="pm-stage-pending-update" aria-label="Stage update awaiting HoD approval">
+              <div class="pm-stage-pending-update__header">
+                <div>
+                  <span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle">Awaiting HoD approval</span>
+                  <strong>@PendingActionTitle(s.PendingStatus)</strong>
+                </div>
+                @if (canSubmitStageUpdate)
+                {
+                  <button class="btn btn-sm btn-link pm-stage-pending-update__edit"
+                          type="button"
+                          data-stage-request
+                          data-stage-request-button
+                          data-project="@timeline.ProjectId"
+                          data-stage="@s.Code"
+                          data-stage-name="@s.Name"
+                          data-current-status="@s.Status"
+                          data-pending-status="@s.PendingStatus"
+                          data-pending-date="@s.PendingDate?.ToString("yyyy-MM-dd")"
+                          data-pending-note="@s.PendingNote">
+                    Edit update
+                  </button>
+                }
+              </div>
+              <div class="pm-stage-pending-update__proposal">@PendingProposal(s)</div>
+              @if (!string.IsNullOrWhiteSpace(s.PendingRequestedBy) || s.PendingRequestedOn.HasValue)
+              {
+                <div class="pm-stage-pending-update__meta">
+                  Submitted@(string.IsNullOrWhiteSpace(s.PendingRequestedBy) ? string.Empty : $" by {s.PendingRequestedBy}")@(s.PendingRequestedOn.HasValue ? $" · {PendingTimestamp(s.PendingRequestedOn)}" : string.Empty)
+                </div>
+              }
+              @if (!string.IsNullOrWhiteSpace(s.PendingNote))
+              {
+                <div class="pm-stage-pending-update__note"><span>Note:</span> @s.PendingNote</div>
+              }
+            </section>
+          }
           @if (s.Status == StageStatus.Completed)
           {
             <div class="pm-stage-outcome">
