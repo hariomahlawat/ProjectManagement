@@ -68,6 +68,13 @@ public class ApplyChangeModel : PageModel
 
     public async Task<IActionResult> OnPostAsync([FromBody] ApplyChangeInput input, CancellationToken ct)
     {
+        // Defence in depth: the page is HoD-only and every HoD may apply a direct
+        // stage change irrespective of which HoD is assigned to the project.
+        if (!User.IsInRole("HoD"))
+        {
+            return Forbid();
+        }
+
         _logger.LogInformation(
             "ApplyChange POST ConnHash={ConnHash}",
             ConnectionStringHasher.Hash(_db.Database.GetConnectionString()));
@@ -165,10 +172,6 @@ public class ApplyChangeModel : PageModel
             }
 
             return NotFound(new { ok = false, error = "Project or stage not found." });
-        }
-        catch (StageDirectApplyNotHeadOfDepartmentException)
-        {
-            return Forbid();
         }
         catch (StageDirectApplyValidationException ex)
         {

@@ -225,7 +225,7 @@ public sealed class ProjectOverviewAccessVm
     public bool CanEditTimeline { get; init; }
     public bool CanReviewPlan => IsAdmin || IsHoD;
     public bool CanRequestStageChange => IsAssignedProjectOfficer || IsHoD || IsAdmin;
-    public bool CanApplyStageChangeDirectly => IsAdmin || IsHoD;
+    public bool CanApplyStageChangeDirectly => IsHoD;
 }
 
 public sealed class ProjectTimelinePanelVm

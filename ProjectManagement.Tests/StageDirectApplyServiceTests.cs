@@ -194,14 +194,14 @@ public class StageDirectApplyServiceTests
     }
 
     [Fact]
-    public async Task ApplyAsync_AllowsCaseInsensitiveHodMatch()
+    public async Task ApplyAsync_AllowsAnyHodActor_WhenAnotherHodIsAssignedToProject()
     {
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 9, 1, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.NotStarted);
 
         var project = await db.Projects.SingleAsync();
-        project.HodUserId = "HOD-1";
+        project.HodUserId = "assigned-hod";
         await db.SaveChangesAsync();
 
         var validation = new StageValidationService(db, clock);
@@ -213,7 +213,7 @@ public class StageDirectApplyServiceTests
             status: StageStatus.InProgress.ToString(),
             date: new DateOnly(2024, 9, 5),
             note: null,
-            hodUserId: "hod-1",
+            hodUserId: "another-hod",
             forceBackfillPredecessors: false,
             CancellationToken.None);
 

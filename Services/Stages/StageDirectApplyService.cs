@@ -87,10 +87,9 @@ public sealed class StageDirectApplyService
             throw new StageDirectApplyNotFoundException();
         }
 
-        if (!string.Equals(project.HodUserId, hodUserId, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new StageDirectApplyNotHeadOfDepartmentException();
-        }
+        // Role authorisation is enforced by the HoD-only Razor Page endpoint.
+        // Any user holding the HoD role may apply a direct stage change to any project;
+        // project assignment is deliberately not used as an additional restriction.
 
         var stageLookup = project.ProjectStages
             .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
@@ -539,10 +538,6 @@ public sealed record DirectApplyResult(
     string[] Warnings);
 
 public sealed class StageDirectApplyNotFoundException : Exception
-{
-}
-
-public sealed class StageDirectApplyNotHeadOfDepartmentException : Exception
 {
 }
 
