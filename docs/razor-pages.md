@@ -83,3 +83,5 @@ This module summarises the UI components exposed to end users.
 
 ## Settings
 * `Pages/Settings/Holidays/Index.cshtml` – Admin and HoD roles can review the holiday calendar that seeds scheduling calculations. Entries are ordered chronologically and stored in `Models/Scheduling/Holiday` for use by the plan generator and snooze presets. (see Pages/Settings/Holidays/Index.cshtml.cs lines 13-25) (see Models/Scheduling/Holiday.cs lines 1-8)
+
+* `Pages/Projects/Stages/RequestChange.cshtml` – assigned Project Officers use the **Update stage** workflow to submit one or many stage proposals. Existing pending proposals on predecessor stages are included in projected validation, so later-stage work is not blocked merely because an earlier update is awaiting HoD approval. Re-submitting a stage supersedes only that stage's previous pending proposal; other pending updates remain active and visible.

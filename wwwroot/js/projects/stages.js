@@ -870,6 +870,7 @@
         case 'NotStarted':
           return [
             { value: 'InProgress', label: 'Start stage' },
+            { value: 'Completed', label: 'Record completion' },
             { value: 'Blocked', label: 'Mark blocked' },
             { value: 'Skipped', label: 'Skip stage' }
           ];
@@ -919,9 +920,8 @@
       }
     }
 
-    function requiresNote(currentStatus, targetStatus, rowCount) {
-      return rowCount > 1
-        || targetStatus === 'Blocked'
+    function requiresNote(currentStatus, targetStatus) {
+      return targetStatus === 'Blocked'
         || targetStatus === 'Skipped'
         || (targetStatus === 'InProgress' && ['Blocked', 'Completed', 'Skipped'].includes(currentStatus));
     }
@@ -973,7 +973,7 @@
         const qualifier = row.querySelector('[data-stage-request-note-qualifier]');
         const hint = row.querySelector('[data-stage-request-note-hint]');
         const currentStatus = row.dataset.currentStatus || stageOptionFor(stageSelect?.value || '')?.currentStatus || 'NotStarted';
-        const required = requiresNote(currentStatus, targetSelect?.value || '', rows.length);
+        const required = requiresNote(currentStatus, targetSelect?.value || '');
         if (noteInput) noteInput.required = required;
         if (qualifier) qualifier.textContent = required ? '(required)' : '(optional)';
         if (hint) {
@@ -982,6 +982,25 @@
             : 'Add context for the HoD where useful.';
         }
       });
+    }
+
+    function refreshStageSelectAvailability() {
+      if (!rowsContainer) return;
+      const selects = Array.from(rowsContainer.querySelectorAll('[data-stage-request-stage]'));
+      const selectedValues = selects.map((select) => select.value).filter(Boolean);
+
+      selects.forEach((select) => {
+        Array.from(select.options).forEach((option) => {
+          const selectedElsewhere = option.value !== select.value
+            && selectedValues.includes(option.value);
+          option.disabled = selectedElsewhere;
+        });
+      });
+
+      if (addButton) {
+        addButton.disabled = selects.length >= stageOptions.length;
+        addButton.title = addButton.disabled ? 'All project stages are already included.' : '';
+      }
     }
 
     function setRemoveButtonsState() {
@@ -994,6 +1013,7 @@
           removeButton.classList.toggle('d-none', rows.length === 1 || row.dataset.locked === 'true');
         }
       });
+      refreshStageSelectAvailability();
       refreshNoteState();
     }
 
@@ -1019,13 +1039,21 @@
       const rowTitle = row.querySelector('[data-stage-request-row-title]');
       const currentState = row.querySelector('[data-stage-request-current-state]');
       if (rowTitle) rowTitle.textContent = stage?.name || 'Stage';
-      if (currentState) currentState.textContent = `Current official status: ${statusLabel(currentStatus)}`;
+      if (currentState) {
+        const pendingText = stage?.pendingStatus
+          ? ` · Pending: ${statusLabel(stage.pendingStatus)}`
+          : '';
+        currentState.textContent = `Current official status: ${statusLabel(currentStatus)}${pendingText}`;
+      }
 
-      const selectedTarget = configureTargetSelect(row, currentStatus, preferredTarget);
-      setDateState(row, selectedTarget, { resetValue: !preferredDate, preferredValue: preferredDate });
+      const effectiveTarget = preferredTarget || stage?.pendingStatus || '';
+      const effectiveDate = preferredDate || stage?.pendingDate || '';
+      const effectiveNote = preferredNote || stage?.pendingNote || '';
+      const selectedTarget = configureTargetSelect(row, currentStatus, effectiveTarget);
+      setDateState(row, selectedTarget, { resetValue: !effectiveDate, preferredValue: effectiveDate });
 
       const noteInput = row.querySelector('[data-stage-request-note]');
-      if (noteInput && preferredNote) noteInput.value = preferredNote;
+      if (noteInput) noteInput.value = effectiveNote;
       refreshNoteState();
       renderSummary();
     }
@@ -1084,7 +1112,10 @@
         renderSummary();
       });
 
-      stageSelect?.addEventListener('change', () => updateRowFromStage(row));
+      stageSelect?.addEventListener('change', () => {
+        updateRowFromStage(row);
+        refreshStageSelectAvailability();
+      });
 
       const targetSelect = row.querySelector('[data-stage-request-target]');
       targetSelect?.addEventListener('change', () => {
@@ -1189,7 +1220,7 @@
       const stageCodes = stagesPayload.map((stage) => stage.stageCode.toLowerCase());
       const duplicateStage = stageCodes.find((code, index) => stageCodes.indexOf(code) !== index);
       if (duplicateStage) {
-        renderErrors(errorContainer, ['Each stage can be included only once in an update.']);
+        renderErrors(errorContainer, ['Include each stage once in this submission. You can revise the same stage again at any time through a later update.']);
         if (submitButton) submitButton.disabled = false;
         return;
       }
@@ -1209,18 +1240,21 @@
         if (response.status === 422) {
           const data = await response.json().catch(() => null);
           const details = Array.isArray(data?.details) ? data.details : [];
-          const messages = details.length > 0
+          const rawMessages = details.length > 0
             ? details.flatMap((item) => {
-              const stageCode = item?.stageCode || 'Stage';
-              const errs = Array.isArray(item?.errors) && item.errors.length > 0 ? item.errors : ['Validation failed.'];
-              const missing = Array.isArray(item?.missingPredecessors) ? item.missingPredecessors : [];
-              const combined = errs.map((err) => `${stageCode}: ${err}`);
-              if (missing.length > 0) combined.push(`${stageCode}: Complete required predecessor stages first (${missing.join(', ')})`);
-              return combined;
+              const errs = Array.isArray(item?.errors) && item.errors.length > 0
+                ? item.errors
+                : [];
+              return errs;
             })
-            : ['The stage update could not be submitted.'];
-          if (Array.isArray(data?.errors)) messages.push(...data.errors);
-          renderErrors(errorContainer, messages);
+            : [];
+          if (Array.isArray(data?.errors)) rawMessages.push(...data.errors);
+          const messages = Array.from(new Set(
+            rawMessages
+              .filter((message) => typeof message === 'string' && message.trim())
+              .map((message) => message.trim())
+          ));
+          renderErrors(errorContainer, messages.length > 0 ? messages : ['The stage update could not be submitted.']);
           if (submitButton) submitButton.disabled = false;
           return;
         }
@@ -1237,7 +1271,7 @@
         }
 
         modal.hide();
-        queueStageRefresh('Stage update submitted. It is now visible and awaiting HoD approval.', 'success');
+        queueStageRefresh(`${stagesPayload.length} stage update${stagesPayload.length === 1 ? '' : 's'} submitted. ${stagesPayload.length === 1 ? 'It is' : 'They are'} now visible and awaiting HoD approval.`, 'success');
       } catch (error) {
         console.error(error);
         renderErrors(errorContainer, ['Unable to submit the stage update right now.']);

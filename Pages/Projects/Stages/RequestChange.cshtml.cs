@@ -68,6 +68,7 @@ public class RequestChangeModel : PageModel
                     ok = false,
                     error = "validation",
                     details = result.Items
+                        .Where(item => item.Result.Outcome == StageRequestOutcome.ValidationFailed)
                         .Select(item => new
                         {
                             stageCode = item.StageCode,
@@ -79,7 +80,9 @@ public class RequestChangeModel : PageModel
                                 : Array.Empty<string>()
                         })
                         .ToArray(),
-                    errors = result.Errors.ToArray()
+                    errors = result.Errors
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray()
                 }),
             _ => HttpContext.SetInternalServerError()
         };

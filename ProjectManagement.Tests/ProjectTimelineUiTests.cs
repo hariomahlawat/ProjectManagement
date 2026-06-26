@@ -83,6 +83,7 @@ public class ProjectTimelineUiTests
 
         var poHtml = await RenderAsync(timeline, isHoD: false, isAssignedProjectOfficer: true);
         Assert.Contains("Update stage", poHtml, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(poHtml, "Update stage"));
         Assert.DoesNotContain("Request change", poHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("data-direct-apply", poHtml, StringComparison.Ordinal);
     }
@@ -117,7 +118,23 @@ public class ProjectTimelineUiTests
         Assert.Contains("Awaiting HoD approval", html, StringComparison.Ordinal);
         Assert.Contains("Completion submitted", html, StringComparison.Ordinal);
         Assert.Contains("Proposed completion", html, StringComparison.Ordinal);
-        Assert.Contains("Edit pending update", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Planned completion missing", html, StringComparison.Ordinal);
+        Assert.Contains("Review update", html, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(html, "Review update"));
+    }
+
+
+    private static int CountOccurrences(string value, string search)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = value.IndexOf(search, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += search.Length;
+        }
+
+        return count;
     }
 
     private static async Task<string> RenderAsync(

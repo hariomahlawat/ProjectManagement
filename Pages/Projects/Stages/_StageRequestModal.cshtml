@@ -19,7 +19,7 @@
 
                     <div class="alert alert-danger d-none" role="alert" data-stage-request-errors></div>
                     <div class="alert alert-warning d-none" role="alert" data-stage-request-conflict>
-                        An update is already awaiting approval. Submitting again will replace the pending update.
+                        This stage already has an update awaiting approval. Saving will replace only that stage's pending update; pending updates for other stages remain unchanged.
                     </div>
 
                     <div class="stage-update-approval-note mb-3">
@@ -34,7 +34,7 @@
                         <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 mb-3">
                             <div>
                                 <div class="fw-semibold">Stage update</div>
-                                <div class="text-muted small">Update one stage at a time. Add another stage only when a coordinated multi-stage submission is necessary.</div>
+                                <div class="text-muted small">Add every stage that needs an update. Existing pending updates do not block later stages. Include each stage once here; you may revise it again at any time through a later submission.</div>
                             </div>
                             <button class="btn btn-sm btn-outline-secondary" type="button" data-stage-request-add>
                                 <i class="bi bi-plus-lg" aria-hidden="true"></i>
@@ -85,7 +85,10 @@
                     </div>
 
                     <div class="stage-update-summary" data-stage-request-preview>
-                        <div class="fw-semibold mb-2">Update summary</div>
+                        <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+                            <div class="fw-semibold">Projected update sequence</div>
+                            <div class="small text-muted">Official lifecycle progress changes only after HoD approval.</div>
+                        </div>
                         <ul class="mb-0 small" data-stage-request-summary></ul>
                     </div>
                 </div>

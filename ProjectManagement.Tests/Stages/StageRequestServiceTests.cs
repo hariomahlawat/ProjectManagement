@@ -47,11 +47,12 @@ public class StageRequestServiceTests
             "po-1");
 
         Assert.Equal(StageRequestOutcome.ValidationFailed, result.Outcome);
-        Assert.Equal("Complete required predecessor stages first.", result.Error);
+        Assert.Contains("cannot be completed", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(StageCodes.FS, result.Error, StringComparison.OrdinalIgnoreCase);
         var missing = Assert.IsAssignableFrom<IReadOnlyList<string>>(result.MissingPredecessors);
         Assert.Single(missing);
         Assert.Equal(StageCodes.FS, missing[0]);
-        Assert.Contains("Complete required predecessor stages first.", result.Errors);
+        Assert.Contains(result.Errors, error => error.Contains("cannot be completed", StringComparison.OrdinalIgnoreCase));
 
         var call = Assert.Single(validator.Calls);
         Assert.Equal(1, call.ProjectId);
@@ -164,7 +165,7 @@ public class StageRequestServiceTests
         Assert.Equal("Superseded", superseded.DecisionStatus);
         Assert.Equal("po-1", superseded.DecidedByUserId);
         Assert.Equal(clock.UtcNow, superseded.DecidedOn);
-        Assert.Equal("Superseded by newer request", superseded.DecisionNote);
+        Assert.Equal("Superseded by newer stage update", superseded.DecisionNote);
 
         var latest = requests.Last();
         Assert.Equal(StageStatus.InProgress.ToString(), latest.RequestedStatus);
@@ -182,7 +183,7 @@ public class StageRequestServiceTests
         Assert.Equal(StageStatus.NotStarted.ToString(), supersededLog.FromStatus);
         Assert.Equal(StageStatus.Completed.ToString(), supersededLog.ToStatus);
         Assert.Equal(clock.UtcNow, supersededLog.At);
-        Assert.Equal("Superseded by newer request", supersededLog.Note);
+        Assert.Equal("Superseded by newer stage update", supersededLog.Note);
     }
 
     [Fact]
@@ -274,7 +275,7 @@ public class StageRequestServiceTests
     }
 
     [Fact]
-    public async Task CreateBatchAsync_InvalidStage_RollsBackPendingChanges()
+    public async Task CreateBatchAsync_ProjectedPredecessorCompletion_AllowsLaterStage()
     {
         var clock = FakeClock.AtUtc(new DateTimeOffset(2025, 2, 5, 6, 30, 0, TimeSpan.Zero));
         await using var db = CreateContext();
@@ -300,29 +301,300 @@ public class StageRequestServiceTests
                 {
                     StageCode = StageCodes.FS,
                     RequestedStatus = StageStatus.Completed.ToString(),
-                    RequestedDate = new DateOnly(2025, 2, 4),
-                    Note = "Complete feasibility study."
+                    RequestedDate = new DateOnly(2025, 2, 4)
                 },
                 new StageChangeRequestItemInput
                 {
                     StageCode = StageCodes.IPA,
                     RequestedStatus = StageStatus.Completed.ToString(),
-                    RequestedDate = new DateOnly(2025, 2, 5),
-                    Note = "Complete IPA."
+                    RequestedDate = new DateOnly(2025, 2, 5)
                 }
             }
         };
 
         var result = await service.CreateBatchAsync(batch, "po-1");
 
-        Assert.Equal(BatchStageRequestOutcome.ValidationFailed, result.Outcome);
-        Assert.NotEmpty(result.Items);
-        Assert.Equal(0, await db.StageChangeRequests.CountAsync());
-        Assert.Equal(0, await db.StageChangeLogs.CountAsync());
+        Assert.Equal(BatchStageRequestOutcome.Success, result.Outcome);
+        Assert.Equal(2, await db.StageChangeRequests.CountAsync());
+        Assert.Equal(2, await db.StageChangeLogs.CountAsync());
+    }
 
-        var blocking = Assert.Single(result.Items.Where(i => i.Result.Outcome != StageRequestOutcome.Success));
-        Assert.Equal(StageCodes.IPA, blocking.StageCode);
-        Assert.Contains("Complete required predecessor stages first.", blocking.Result.Errors);
+    [Fact]
+    public async Task CreateAsync_ExistingPendingPredecessor_AllowsNextStageUpdate()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2025, 2, 5, 6, 30, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(db,
+            (StageCodes.AON, StageStatus.InProgress),
+            (StageCodes.BID, StageStatus.NotStarted));
+
+        db.StageChangeRequests.Add(new StageChangeRequest
+        {
+            ProjectId = 1,
+            StageCode = StageCodes.AON,
+            RequestedStatus = StageStatus.Completed.ToString(),
+            RequestedDate = new DateOnly(2025, 2, 3),
+            RequestedByUserId = "po-1",
+            RequestedOn = clock.UtcNow.AddMinutes(-5),
+            DecisionStatus = "Pending"
+        });
+        await db.SaveChangesAsync();
+
+        var validator = new StubStageValidationService
+        {
+            Result = new StageValidationResult(
+                false,
+                new[] { "Complete required predecessor stages first." },
+                Array.Empty<string>(),
+                new[] { StageCodes.AON },
+                null)
+        };
+
+        var service = new StageRequestService(db, clock, validator);
+        var result = await service.CreateAsync(
+            new StageChangeRequestInput
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.BID,
+                RequestedStatus = StageStatus.InProgress.ToString(),
+                RequestedDate = new DateOnly(2025, 2, 4)
+            },
+            "po-1");
+
+        Assert.Equal(StageRequestOutcome.Success, result.Outcome);
+        Assert.Equal(2, await db.StageChangeRequests.CountAsync(r => r.DecisionStatus == "Pending"));
+    }
+
+    [Fact]
+    public async Task CreateAsync_UnresolvedProjectedPredecessor_ReturnsSingleHumanReadableError()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2025, 2, 5, 6, 30, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(db,
+            (StageCodes.AON, StageStatus.InProgress),
+            (StageCodes.BID, StageStatus.NotStarted));
+
+        var validator = new StubStageValidationService
+        {
+            Result = new StageValidationResult(
+                false,
+                new[] { "Complete required predecessor stages first." },
+                Array.Empty<string>(),
+                new[] { StageCodes.AON },
+                null)
+        };
+
+        var service = new StageRequestService(db, clock, validator);
+        var result = await service.CreateAsync(
+            new StageChangeRequestInput
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.BID,
+                RequestedStatus = StageStatus.InProgress.ToString(),
+                RequestedDate = new DateOnly(2025, 2, 4)
+            },
+            "po-1");
+
+        Assert.Equal(StageRequestOutcome.ValidationFailed, result.Outcome);
+        var error = Assert.Single(result.Errors);
+        Assert.Contains(StageCodes.BID, error, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(StageCodes.AON, error, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(await db.StageChangeRequests.ToListAsync());
+    }
+
+    [Fact]
+    public async Task CreateAsync_ResubmittingOneStage_DoesNotDisturbOtherPendingStages()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2025, 2, 5, 6, 30, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(db,
+            (StageCodes.AON, StageStatus.InProgress),
+            (StageCodes.BID, StageStatus.NotStarted));
+
+        db.StageChangeRequests.AddRange(
+            new StageChangeRequest
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.AON,
+                RequestedStatus = StageStatus.Completed.ToString(),
+                RequestedDate = new DateOnly(2025, 2, 3),
+                RequestedByUserId = "po-1",
+                RequestedOn = clock.UtcNow.AddMinutes(-10),
+                DecisionStatus = "Pending"
+            },
+            new StageChangeRequest
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.BID,
+                RequestedStatus = StageStatus.InProgress.ToString(),
+                RequestedDate = new DateOnly(2025, 2, 4),
+                RequestedByUserId = "po-1",
+                RequestedOn = clock.UtcNow.AddMinutes(-5),
+                DecisionStatus = "Pending"
+            });
+        await db.SaveChangesAsync();
+
+        var validator = new StubStageValidationService();
+        var service = new StageRequestService(db, clock, validator);
+
+        var result = await service.CreateAsync(
+            new StageChangeRequestInput
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.AON,
+                RequestedStatus = StageStatus.Completed.ToString(),
+                RequestedDate = new DateOnly(2025, 2, 5)
+            },
+            "po-1");
+
+        Assert.Equal(StageRequestOutcome.Success, result.Outcome);
+
+        var aonRequests = await db.StageChangeRequests
+            .Where(r => r.StageCode == StageCodes.AON)
+            .OrderBy(r => r.RequestedOn)
+            .ToListAsync();
+        Assert.Equal("Superseded", aonRequests[0].DecisionStatus);
+        Assert.Equal("Pending", aonRequests[1].DecisionStatus);
+
+        var bid = await db.StageChangeRequests.SingleAsync(r => r.StageCode == StageCodes.BID);
+        Assert.Equal("Pending", bid.DecisionStatus);
+    }
+
+    [Fact]
+    public async Task CreateAsync_RevisingPredecessorCannotInvalidateUntouchedPendingDownstreamUpdate()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2025, 2, 10, 6, 30, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(db,
+            (StageCodes.FS, StageStatus.Completed),
+            (StageCodes.SOW, StageStatus.Completed),
+            (StageCodes.IPA, StageStatus.Completed),
+            (StageCodes.AON, StageStatus.InProgress),
+            (StageCodes.BID, StageStatus.NotStarted));
+
+        db.StageChangeRequests.AddRange(
+            new StageChangeRequest
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.AON,
+                RequestedStatus = StageStatus.Completed.ToString(),
+                RequestedDate = new DateOnly(2025, 2, 3),
+                RequestedByUserId = "po-1",
+                RequestedOn = clock.UtcNow.AddMinutes(-10),
+                DecisionStatus = "Pending"
+            },
+            new StageChangeRequest
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.BID,
+                RequestedStatus = StageStatus.InProgress.ToString(),
+                RequestedDate = new DateOnly(2025, 2, 4),
+                RequestedByUserId = "po-1",
+                RequestedOn = clock.UtcNow.AddMinutes(-5),
+                DecisionStatus = "Pending"
+            });
+        await db.SaveChangesAsync();
+
+        var service = new StageRequestService(
+            db,
+            clock,
+            new StubStageValidationService(),
+            StageWorkflowTestFactory.CreatePolicy(db));
+
+        var result = await service.CreateAsync(
+            new StageChangeRequestInput
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.AON,
+                RequestedStatus = StageStatus.Completed.ToString(),
+                RequestedDate = new DateOnly(2025, 2, 5)
+            },
+            "po-1");
+
+        Assert.Equal(StageRequestOutcome.ValidationFailed, result.Outcome);
+        Assert.Contains(result.Errors, error =>
+            error.Contains("pending Bidding/Tendering", StringComparison.OrdinalIgnoreCase)
+            && error.Contains("06 Feb 2025", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(2, await db.StageChangeRequests.CountAsync(request => request.DecisionStatus == "Pending"));
+        Assert.Empty(await db.StageChangeRequests.Where(request => request.DecisionStatus == "Superseded").ToListAsync());
+    }
+
+    [Fact]
+    public async Task CreateBatchAsync_RevisingPredecessorAndDownstreamTogetherKeepsProjectedSequenceValid()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2025, 2, 10, 6, 30, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(db,
+            (StageCodes.FS, StageStatus.Completed),
+            (StageCodes.SOW, StageStatus.Completed),
+            (StageCodes.IPA, StageStatus.Completed),
+            (StageCodes.AON, StageStatus.InProgress),
+            (StageCodes.BID, StageStatus.NotStarted));
+
+        db.StageChangeRequests.AddRange(
+            new StageChangeRequest
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.AON,
+                RequestedStatus = StageStatus.Completed.ToString(),
+                RequestedDate = new DateOnly(2025, 2, 3),
+                RequestedByUserId = "po-1",
+                RequestedOn = clock.UtcNow.AddMinutes(-10),
+                DecisionStatus = "Pending"
+            },
+            new StageChangeRequest
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.BID,
+                RequestedStatus = StageStatus.InProgress.ToString(),
+                RequestedDate = new DateOnly(2025, 2, 4),
+                RequestedByUserId = "po-1",
+                RequestedOn = clock.UtcNow.AddMinutes(-5),
+                DecisionStatus = "Pending"
+            });
+        await db.SaveChangesAsync();
+
+        var service = new StageRequestService(
+            db,
+            clock,
+            new StubStageValidationService(),
+            StageWorkflowTestFactory.CreatePolicy(db));
+
+        var result = await service.CreateBatchAsync(
+            new BatchStageChangeRequestInput
+            {
+                ProjectId = 1,
+                Stages = new[]
+                {
+                    new StageChangeRequestItemInput
+                    {
+                        StageCode = StageCodes.AON,
+                        RequestedStatus = StageStatus.Completed.ToString(),
+                        RequestedDate = new DateOnly(2025, 2, 5)
+                    },
+                    new StageChangeRequestItemInput
+                    {
+                        StageCode = StageCodes.BID,
+                        RequestedStatus = StageStatus.InProgress.ToString(),
+                        RequestedDate = new DateOnly(2025, 2, 6)
+                    }
+                }
+            },
+            "po-1");
+
+        Assert.Equal(BatchStageRequestOutcome.Success, result.Outcome);
+        Assert.Equal(2, await db.StageChangeRequests.CountAsync(request => request.DecisionStatus == "Superseded"));
+        Assert.Equal(2, await db.StageChangeRequests.CountAsync(request => request.DecisionStatus == "Pending"));
+
+        var latestAon = await db.StageChangeRequests
+            .Where(request => request.StageCode == StageCodes.AON && request.DecisionStatus == "Pending")
+            .SingleAsync();
+        var latestBid = await db.StageChangeRequests
+            .Where(request => request.StageCode == StageCodes.BID && request.DecisionStatus == "Pending")
+            .SingleAsync();
+
+        Assert.Equal(new DateOnly(2025, 2, 5), latestAon.RequestedDate);
+        Assert.Equal(new DateOnly(2025, 2, 6), latestBid.RequestedDate);
     }
 
     private static async Task SeedStageAsync(ApplicationDbContext db, StageStatus status)

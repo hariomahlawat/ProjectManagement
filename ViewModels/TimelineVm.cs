@@ -79,7 +79,8 @@ public sealed class TimelineItemVm
 
     public bool HasPlanDates => PlannedStart.HasValue || PlannedEnd.HasValue;
     public bool HasActualDates => ActualStart.HasValue || CompletedOn.HasValue;
-    public bool ShowPlanWarning => Status == StageStatus.InProgress && PlannedEnd is null;
+    public bool HasPendingCompletion => HasPendingRequest && string.Equals(PendingStatus, StageStatus.Completed.ToString(), StringComparison.OrdinalIgnoreCase);
+    public bool ShowPlanWarning => Status == StageStatus.InProgress && PlannedEnd is null && !HasPendingCompletion;
     public bool ShowFinishVariance => CompletedOn.HasValue && PlannedEnd.HasValue;
     public int? DaysRemaining => Status == StageStatus.InProgress && PlannedEnd.HasValue
         ? PlannedEnd.Value.DayNumber - Today.DayNumber

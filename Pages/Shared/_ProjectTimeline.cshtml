@@ -110,6 +110,8 @@
         StageStatus.InProgress => "pm-item is-active",
         _                      => "pm-item"
       };
+      var isCurrentStage = string.Equals(s.Code, currentStageCode, StringComparison.OrdinalIgnoreCase);
+      var hasStageMenuActions = isHod || (canSubmitStageUpdate && !isCurrentStage);
       <div id="timeline-stage-@s.Code" class="@itemClass" data-stage-row="@s.Code" data-timeline-stage data-stage-status-value="@s.Status" data-requires-backfill="@(s.RequiresBackfill ? "true" : "false")">
         <div class="pm-item-card" data-timeline-stage-card>
           <div class="pm-item-header">
@@ -174,7 +176,7 @@
               }
             </div>
             <div class="pm-item-actions">
-              @if (canSubmitStageUpdate && string.Equals(s.Code, currentStageCode, StringComparison.OrdinalIgnoreCase))
+              @if (canSubmitStageUpdate && isCurrentStage)
               {
                 <button class="btn btn-sm @(s.HasPendingRequest ? "btn-warning" : "btn-outline-primary") pm-stage-update-primary"
                         type="button"
@@ -188,11 +190,13 @@
                         data-pending-date="@s.PendingDate?.ToString("yyyy-MM-dd")"
                         data-pending-note="@s.PendingNote">
                   <i class="bi @(s.HasPendingRequest ? "bi-pencil-square" : "bi-arrow-repeat")" aria-hidden="true"></i>
-                  @(s.HasPendingRequest ? "Edit pending update" : "Update stage")
+                  @(s.HasPendingRequest ? "Review update" : "Update stage")
                 </button>
               }
-              <div class="dropdown">
-                <button class="btn pm-kebab" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Stage actions for @s.Name">
+              @if (hasStageMenuActions)
+              {
+                <div class="dropdown">
+                  <button class="btn pm-kebab" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Stage actions for @s.Name">
                   <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end" data-stage-action-menu>
@@ -333,7 +337,7 @@
                       <li><hr class="dropdown-divider" /></li>
                     }
                   }
-                  @if (canSubmitStageUpdate)
+                  @if (canSubmitStageUpdate && !isCurrentStage)
                   {
                     <li>
                       <button class="dropdown-item"
@@ -347,12 +351,13 @@
                               data-pending-status="@s.PendingStatus"
                               data-pending-date="@s.PendingDate?.ToString("yyyy-MM-dd")"
                               data-pending-note="@s.PendingNote">
-                        @(s.HasPendingRequest ? "Edit pending update" : "Update stage")
+                        @(s.HasPendingRequest ? "Review pending update" : "Update stage")
                       </button>
                     </li>
                   }
-                </ul>
-              </div>
+                  </ul>
+                </div>
+              }
             </div>
           </div>
           <div class="pm-item-flags">
@@ -361,10 +366,10 @@
               <span class="pm-flag" title="Auto-completed when a later stage finished." data-stage-autocomplete>Inferred</span>
             }
             <span class="pm-flag pm-flag-danger@(s.IsOverdue ? string.Empty : " d-none")" data-stage-overdue>Overdue</span>
-            <span class="pm-flag pm-flag-warning@(s.HasPendingRequest ? string.Empty : " d-none")" data-stage-pending>
+            <span class="visually-hidden@(s.HasPendingRequest ? string.Empty : " d-none")" data-stage-pending>
               @if (s.HasPendingRequest)
               {
-                  <text>Awaiting HoD approval</text>
+                  <text>Stage update awaiting HoD approval</text>
               }
             </span>
           </div>
@@ -376,22 +381,6 @@
                   <span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle">Awaiting HoD approval</span>
                   <strong>@PendingActionTitle(s.PendingStatus)</strong>
                 </div>
-                @if (canSubmitStageUpdate)
-                {
-                  <button class="btn btn-sm btn-link pm-stage-pending-update__edit"
-                          type="button"
-                          data-stage-request
-                          data-stage-request-button
-                          data-project="@timeline.ProjectId"
-                          data-stage="@s.Code"
-                          data-stage-name="@s.Name"
-                          data-current-status="@s.Status"
-                          data-pending-status="@s.PendingStatus"
-                          data-pending-date="@s.PendingDate?.ToString("yyyy-MM-dd")"
-                          data-pending-note="@s.PendingNote">
-                    Edit update
-                  </button>
-                }
               </div>
               <div class="pm-stage-pending-update__proposal">@PendingProposal(s)</div>
               @if (!string.IsNullOrWhiteSpace(s.PendingRequestedBy) || s.PendingRequestedOn.HasValue)
