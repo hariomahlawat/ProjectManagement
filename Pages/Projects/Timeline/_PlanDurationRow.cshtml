@@ -1,0 +1,40 @@
+@model ProjectManagement.ViewModels.PlanDurationRowRenderVm
+@{
+    var row = Model.Row;
+    var i = Model.Index;
+    var disableAttr = Model.IsDisabled ? "disabled" : null;
+}
+<div class="col-12 plan-editor-stage-row" data-plan-stage-status="@row.Status">
+    <div class="d-flex justify-content-between gap-2">
+        <strong>@row.Name</strong>
+        <div>
+            <span class="text-muted small">@row.Code</span>
+            @if (row.IsOptional)
+            {
+                <span class="badge text-bg-info ms-2">Optional</span>
+            }
+        </div>
+    </div>
+    <div class="input-group">
+        <span class="input-group-text">Duration (days)</span>
+        <input class="form-control" type="number" min="0" step="1"
+               name="Input.Rows[@i].DurationDays"
+               value="@(row.DurationDays?.ToString() ?? "")"
+               @(disableAttr) />
+    </div>
+    @if (row.IsOptional)
+    {
+        <div class="form-text">Leave blank if this optional stage is not applicable.</div>
+    }
+    @if (row.PreviewStart.HasValue || row.PreviewDue.HasValue)
+    {
+        <div class="form-text text-muted">
+            Preview:
+            @((row.PreviewStart.HasValue ? row.PreviewStart.Value.ToString("dd MMM yyyy") : "—"))
+            →
+            @((row.PreviewDue.HasValue ? row.PreviewDue.Value.ToString("dd MMM yyyy") : "—"))
+        </div>
+    }
+    <input type="hidden" name="Input.Rows[@i].Code" value="@row.Code" />
+    <input type="hidden" name="Input.Rows[@i].Name" value="@row.Name" />
+</div>

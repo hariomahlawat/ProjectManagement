@@ -31,6 +31,8 @@ public sealed class PlanReadService
             .Select(project => project.WorkflowVersion)
             .FirstOrDefaultAsync(cancellationToken) ?? PlanConstants.DefaultStageTemplateVersion;
 
+        var workflowStages = ProcurementWorkflow.StageDefinitionsFor(workflowVersion);
+
         var stageTemplates = await _db.StageTemplates
             .AsNoTracking()
             .Where(template => template.Version == workflowVersion)
@@ -116,7 +118,7 @@ public sealed class PlanReadService
             .ToDictionary(sp => sp.StageCode!, sp => sp, StringComparer.OrdinalIgnoreCase)
             ?? new Dictionary<string, StagePlan>(StringComparer.OrdinalIgnoreCase);
 
-        var knownCodes = new HashSet<string>(StageCodes.All, StringComparer.OrdinalIgnoreCase);
+        var knownCodes = new HashSet<string>(workflowStages.Select(item => item.Code), StringComparer.OrdinalIgnoreCase);
         var extraCodes = new List<(string Code, int Sort)>();
         var seenExtras = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -129,32 +131,36 @@ public sealed class PlanReadService
 
             var sort = durationMap.TryGetValue(code, out var duration)
                 ? duration.SortOrder
-                : StageCodes.All.Length + extraCodes.Count;
+                : workflowStages.Length + extraCodes.Count;
             extraCodes.Add((code, sort));
         }
 
-        foreach (var code in StageCodes.All)
+        foreach (var definition in workflowStages)
         {
+            var code = definition.Code;
             stageMap.TryGetValue(code, out var stage);
             durationMap.TryGetValue(code, out var duration);
             draftMap.TryGetValue(code, out var draftStage);
+            var status = stage?.Status ?? StageStatus.NotStarted;
 
             exactVm.Rows.Add(new PlanEditVm.PlanEditRow
             {
                 Code = code,
-                Name = StageCodes.DisplayNameOf(code),
+                Name = definition.Name,
                 PlannedStart = draftStage?.PlannedStart ?? stage?.PlannedStart,
                 PlannedDue = draftStage?.PlannedDue ?? stage?.PlannedDue,
+                Status = status
             });
 
             durationVm.Rows.Add(new PlanDurationRowVm
             {
                 Code = code,
-                Name = StageCodes.DisplayNameOf(code),
+                Name = definition.Name,
                 DurationDays = duration?.DurationDays,
                 PreviewStart = draftStage?.PlannedStart,
                 PreviewDue = draftStage?.PlannedDue,
-                IsOptional = optionalStages.Contains(code)
+                IsOptional = optionalStages.Contains(code),
+                Status = status
             });
         }
 
@@ -180,6 +186,7 @@ public sealed class PlanReadService
                 Name = StageCodes.DisplayNameOf(code),
                 PlannedStart = draftStage?.PlannedStart ?? stage?.PlannedStart,
                 PlannedDue = draftStage?.PlannedDue ?? stage?.PlannedDue,
+                Status = stage?.Status ?? StageStatus.NotStarted
             });
 
             durationVm.Rows.Add(new PlanDurationRowVm
@@ -189,7 +196,8 @@ public sealed class PlanReadService
                 DurationDays = duration?.DurationDays,
                 PreviewStart = draftStage?.PlannedStart,
                 PreviewDue = draftStage?.PlannedDue,
-                IsOptional = optionalStages.Contains(code)
+                IsOptional = optionalStages.Contains(code),
+                Status = stage?.Status ?? StageStatus.NotStarted
             });
         }
 

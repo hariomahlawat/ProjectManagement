@@ -480,6 +480,7 @@ builder.Services.AddScoped<ProliferationManageService>();
 builder.Services.AddScoped<ProliferationReportsService>();
 builder.Services.AddSingleton<IWorkflowStageMetadataProvider, WorkflowStageMetadataProvider>();
 builder.Services.AddSingleton<IWorkflowChecklistProvider, WorkflowChecklistProvider>();
+builder.Services.AddScoped<IProjectStageWorkflowPolicy, ProjectStageWorkflowPolicy>();
 builder.Services.AddScoped<StageRulesService>();
 builder.Services.AddScoped<StageProgressService>();
 builder.Services.AddScoped<IStageValidationService, StageValidationService>();

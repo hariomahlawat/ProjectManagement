@@ -4,8 +4,11 @@ using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Services;
 
+[Obsolete("Use IProjectStageWorkflowPolicy so dependencies follow the project workflow version.")]
 public static class StageDependencies
 {
+    // Legacy SDD-1.0 compatibility only. New code must resolve dependencies
+    // through IProjectStageWorkflowPolicy.
     private static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> Required =
         new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
         {

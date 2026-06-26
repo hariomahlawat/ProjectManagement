@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Stages;
@@ -23,8 +24,10 @@ public class StageDirectApplyServiceTests
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.InProgress, new DateOnly(2024, 5, 1));
 
-        var validation = new StageValidationService(db, clock);
-        var service = new StageDirectApplyService(db, clock, validation);
+        var workflowPolicy = StageWorkflowTestFactory.CreatePolicy(db);
+        var validation = new StageValidationService(db, clock, workflowPolicy);
+        var stageRules = new StageRulesService(db, workflowPolicy);
+        var service = new StageDirectApplyService(db, clock, validation, stageRules, workflowPolicy);
 
         var result = await service.ApplyAsync(
             projectId: 1,
@@ -37,16 +40,16 @@ public class StageDirectApplyServiceTests
             CancellationToken.None);
 
         Assert.Equal(StageStatus.Completed.ToString(), result.UpdatedStatus);
-        Assert.Null(result.ActualStart);
+        Assert.Equal(new DateOnly(2024, 5, 1), result.ActualStart);
         Assert.Null(result.CompletedOn);
         Assert.True(result.RequiresBackfill);
         Assert.Equal(0, result.BackfilledCount);
         Assert.Empty(result.BackfilledStages);
         Assert.Contains(result.Warnings, warning => warning.Contains("authorised override", StringComparison.OrdinalIgnoreCase));
 
-        var stage = await db.ProjectStages.SingleAsync();
+        var stage = await db.ProjectStages.SingleAsync(item => item.StageCode == StageCodes.IPA);
         Assert.Equal(StageStatus.Completed, stage.Status);
-        Assert.Null(stage.ActualStart);
+        Assert.Equal(new DateOnly(2024, 5, 1), stage.ActualStart);
         Assert.Null(stage.CompletedOn);
         Assert.True(stage.RequiresBackfill);
 
@@ -60,7 +63,7 @@ public class StageDirectApplyServiceTests
     {
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 7, 1, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
-        await SeedStageAsync(db, StageStatus.InProgress, new DateOnly(2024, 6, 15));
+        await SeedStageAsync(db, StageStatus.InProgress, new DateOnly(2024, 6, 15), includeCompletedPredecessor: false);
 
         db.ProjectStages.Add(new ProjectStage
         {
@@ -71,8 +74,10 @@ public class StageDirectApplyServiceTests
         });
         await db.SaveChangesAsync();
 
-        var validation = new StageValidationService(db, clock);
-        var service = new StageDirectApplyService(db, clock, validation);
+        var workflowPolicy = StageWorkflowTestFactory.CreatePolicy(db);
+        var validation = new StageValidationService(db, clock, workflowPolicy);
+        var stageRules = new StageRulesService(db, workflowPolicy);
+        var service = new StageDirectApplyService(db, clock, validation, stageRules, workflowPolicy);
 
         var ex = await Assert.ThrowsAsync<StageDirectApplyValidationException>(() => service.ApplyAsync(
             projectId: 1,
@@ -100,7 +105,8 @@ public class StageDirectApplyServiceTests
             Name = "Project",
             CreatedByUserId = "creator",
             HodUserId = "hod-1",
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            WorkflowVersion = ProcurementWorkflow.VersionV1
         });
 
         db.ProjectStages.AddRange(
@@ -121,8 +127,10 @@ public class StageDirectApplyServiceTests
             });
         await db.SaveChangesAsync();
 
-        var validation = new StageValidationService(db, clock);
-        var service = new StageDirectApplyService(db, clock, validation);
+        var workflowPolicy = StageWorkflowTestFactory.CreatePolicy(db);
+        var validation = new StageValidationService(db, clock, workflowPolicy);
+        var stageRules = new StageRulesService(db, workflowPolicy);
+        var service = new StageDirectApplyService(db, clock, validation, stageRules, workflowPolicy);
 
         var result = await service.ApplyAsync(
             projectId: 1,
@@ -136,7 +144,8 @@ public class StageDirectApplyServiceTests
 
         Assert.Equal(StageStatus.Completed.ToString(), result.UpdatedStatus);
         Assert.False(result.RequiresBackfill);
-        Assert.Equal(1, result.BackfilledCount);
+        Assert.Equal(2, result.BackfilledCount);
+        Assert.Contains(StageCodes.FS, result.BackfilledStages);
         Assert.Contains(StageCodes.IPA, result.BackfilledStages);
 
         var predecessor = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA);
@@ -146,6 +155,12 @@ public class StageDirectApplyServiceTests
         Assert.True(predecessor.RequiresBackfill);
         Assert.True(predecessor.IsAutoCompleted);
         Assert.Equal(StageCodes.SOW, predecessor.AutoCompletedFromCode);
+
+        var earliestPredecessor = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.FS);
+        Assert.Equal(StageStatus.Completed, earliestPredecessor.Status);
+        Assert.True(earliestPredecessor.RequiresBackfill);
+        Assert.True(earliestPredecessor.IsAutoCompleted);
+        Assert.Equal(StageCodes.SOW, earliestPredecessor.AutoCompletedFromCode);
 
         var stage = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.SOW);
         Assert.Equal(StageStatus.Completed, stage.Status);
@@ -171,8 +186,10 @@ public class StageDirectApplyServiceTests
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.InProgress, new DateOnly(2024, 10, 10));
 
-        var validation = new StageValidationService(db, clock);
-        var service = new StageDirectApplyService(db, clock, validation);
+        var workflowPolicy = StageWorkflowTestFactory.CreatePolicy(db);
+        var validation = new StageValidationService(db, clock, workflowPolicy);
+        var stageRules = new StageRulesService(db, workflowPolicy);
+        var service = new StageDirectApplyService(db, clock, validation, stageRules, workflowPolicy);
 
         var result = await service.ApplyAsync(
             projectId: 1,
@@ -188,7 +205,7 @@ public class StageDirectApplyServiceTests
         Assert.False(result.RequiresBackfill);
         Assert.Contains(result.Warnings, w => w.Contains("clamped", StringComparison.OrdinalIgnoreCase));
 
-        var stage = await db.ProjectStages.SingleAsync();
+        var stage = await db.ProjectStages.SingleAsync(item => item.StageCode == StageCodes.IPA);
         Assert.Equal(new DateOnly(2024, 10, 10), stage.CompletedOn);
         Assert.False(stage.RequiresBackfill);
     }
@@ -204,8 +221,10 @@ public class StageDirectApplyServiceTests
         project.HodUserId = "assigned-hod";
         await db.SaveChangesAsync();
 
-        var validation = new StageValidationService(db, clock);
-        var service = new StageDirectApplyService(db, clock, validation);
+        var workflowPolicy = StageWorkflowTestFactory.CreatePolicy(db);
+        var validation = new StageValidationService(db, clock, workflowPolicy);
+        var stageRules = new StageRulesService(db, workflowPolicy);
+        var service = new StageDirectApplyService(db, clock, validation, stageRules, workflowPolicy);
 
         var result = await service.ApplyAsync(
             projectId: 1,
@@ -233,12 +252,15 @@ public class StageDirectApplyServiceTests
             Name = "Project",
             CreatedByUserId = "creator",
             HodUserId = "hod-1",
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            WorkflowVersion = ProcurementWorkflow.VersionV1
         });
         await db.SaveChangesAsync();
 
-        var validation = new StageValidationService(db, clock);
-        var service = new StageDirectApplyService(db, clock, validation);
+        var workflowPolicy = StageWorkflowTestFactory.CreatePolicy(db);
+        var validation = new StageValidationService(db, clock, workflowPolicy);
+        var stageRules = new StageRulesService(db, workflowPolicy);
+        var service = new StageDirectApplyService(db, clock, validation, stageRules, workflowPolicy);
 
         var completionDate = new DateOnly(2024, 11, 20);
 
@@ -254,7 +276,7 @@ public class StageDirectApplyServiceTests
 
         Assert.Equal(StageStatus.Completed.ToString(), result.UpdatedStatus);
         Assert.Equal(completionDate, result.CompletedOn);
-        Assert.True(result.RequiresBackfill);
+        Assert.False(result.RequiresBackfill);
 
         var stages = await db.ProjectStages.OrderBy(s => s.SortOrder).ToListAsync();
         Assert.Equal(StageCodes.All.Length, stages.Count);
@@ -267,7 +289,47 @@ public class StageDirectApplyServiceTests
         Assert.Equal(completionDate, stage.CompletedOn);
     }
 
-    private static async Task SeedStageAsync(ApplicationDbContext db, StageStatus status, DateOnly? actualStart = null)
+    [Fact]
+    public async Task ApplyAsync_WhenV2StageRowsAreMissing_MaterialisesV2Order()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2025, 1, 10, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "V2 Project",
+            CreatedByUserId = "creator",
+            HodUserId = "hod-1",
+            CreatedAt = DateTime.UtcNow,
+            WorkflowVersion = ProcurementWorkflow.VersionV2
+        });
+        await db.SaveChangesAsync();
+
+        var workflowPolicy = StageWorkflowTestFactory.CreatePolicy(db);
+        var validation = new StageValidationService(db, clock, workflowPolicy);
+        var stageRules = new StageRulesService(db, workflowPolicy);
+        var service = new StageDirectApplyService(db, clock, validation, stageRules, workflowPolicy);
+
+        await service.ApplyAsync(
+            1,
+            StageCodes.FS,
+            StageStatus.Completed.ToString(),
+            new DateOnly(2025, 1, 9),
+            null,
+            "hod-1",
+            false,
+            CancellationToken.None);
+
+        var sow = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.SOW);
+        var ipa = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.IPA);
+        Assert.True(sow.SortOrder < ipa.SortOrder);
+    }
+
+    private static async Task SeedStageAsync(
+        ApplicationDbContext db,
+        StageStatus status,
+        DateOnly? actualStart = null,
+        bool includeCompletedPredecessor = true)
     {
         db.Projects.Add(new Project
         {
@@ -275,8 +337,22 @@ public class StageDirectApplyServiceTests
             Name = "Project",
             CreatedByUserId = "creator",
             HodUserId = "hod-1",
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            WorkflowVersion = ProcurementWorkflow.VersionV1
         });
+
+        if (includeCompletedPredecessor)
+        {
+            db.ProjectStages.Add(new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.FS,
+                SortOrder = 0,
+                Status = StageStatus.Completed,
+                ActualStart = new DateOnly(2024, 1, 1),
+                CompletedOn = new DateOnly(2024, 1, 1)
+            });
+        }
 
         db.ProjectStages.Add(new ProjectStage
         {

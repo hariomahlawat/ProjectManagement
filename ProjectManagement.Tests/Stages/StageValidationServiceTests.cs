@@ -7,6 +7,7 @@ using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Tests;
 using ProjectManagement.Tests.Fakes;
 using Xunit;
 
@@ -24,7 +25,7 @@ public class StageValidationServiceTests
             db,
             new StageSeed(StageCodes.FS, StageStatus.InProgress, null, null));
 
-        var service = new StageValidationService(db, clock);
+        var service = new StageValidationService(db, clock, StageWorkflowTestFactory.CreatePolicy(db));
 
         var result = await service.ValidateAsync(
             1,
@@ -47,7 +48,7 @@ public class StageValidationServiceTests
             db,
             new StageSeed(StageCodes.FS, StageStatus.InProgress, new DateOnly(2025, 5, 1), null));
 
-        var service = new StageValidationService(db, clock);
+        var service = new StageValidationService(db, clock, StageWorkflowTestFactory.CreatePolicy(db));
 
         var result = await service.ValidateAsync(
             1,
@@ -71,7 +72,7 @@ public class StageValidationServiceTests
             new StageSeed(StageCodes.FS, StageStatus.NotStarted, null, null),
             new StageSeed(StageCodes.IPA, StageStatus.NotStarted, null, null));
 
-        var service = new StageValidationService(db, clock);
+        var service = new StageValidationService(db, clock, StageWorkflowTestFactory.CreatePolicy(db));
 
         var result = await service.ValidateAsync(
             1,
@@ -94,7 +95,7 @@ public class StageValidationServiceTests
             new StageSeed(StageCodes.FS, StageStatus.Completed, new DateOnly(2025, 9, 1), new DateOnly(2025, 9, 10)),
             new StageSeed(StageCodes.IPA, StageStatus.InProgress, new DateOnly(2025, 9, 11), null));
 
-        var service = new StageValidationService(db, clock);
+        var service = new StageValidationService(db, clock, StageWorkflowTestFactory.CreatePolicy(db));
 
         var result = await service.ValidateAsync(
             1,
@@ -106,8 +107,8 @@ public class StageValidationServiceTests
         Assert.False(result.IsValid);
         Assert.Contains(
             result.Errors,
-            e => e.Contains("2025-09-10", StringComparison.Ordinal));
-        Assert.Equal(new DateOnly(2025, 9, 10), result.SuggestedAutoStart);
+            e => e.Contains("2025-09-11", StringComparison.Ordinal));
+        Assert.Equal(new DateOnly(2025, 9, 11), result.SuggestedAutoStart);
     }
 
     private static async Task SeedAsync(ApplicationDbContext db, params StageSeed[] stages)
@@ -117,7 +118,8 @@ public class StageValidationServiceTests
             Id = 1,
             Name = "Project",
             CreatedByUserId = "seed",
-            ActivePlanVersionNo = 1
+            ActivePlanVersionNo = 1,
+            WorkflowVersion = ProcurementWorkflow.VersionV1
         };
 
         db.Projects.Add(project);

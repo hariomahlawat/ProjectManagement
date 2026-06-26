@@ -71,14 +71,15 @@ public sealed class ProjectPortfolioPresentationVm
 
         var profileChecks = new (string Label, bool IsPresent)[]
         {
-            ("Project name", !string.IsNullOrWhiteSpace(project?.Name)),
-            ("Category", project?.CategoryId is not null),
-            ("Technical category", project?.TechnicalCategoryId is not null),
+            ("project name", !string.IsNullOrWhiteSpace(project?.Name)),
+            ("category", project?.CategoryId is not null),
+            ("technical category", project?.TechnicalCategoryId is not null),
+            ("project type", project?.ProjectTypeId is not null),
             ("Head of Department", project?.HodUserId is not null),
             ("Project Officer", project?.LeadPoUserId is not null),
-            ("Sponsoring unit", project?.SponsoringUnitId is not null),
-            ("Sponsoring line directorate", project?.SponsoringLineDirectorateId is not null),
-            ("Project description", !string.IsNullOrWhiteSpace(project?.Description))
+            ("sponsoring unit", project?.SponsoringUnitId is not null),
+            ("sponsoring line directorate", project?.SponsoringLineDirectorateId is not null),
+            ("project description", !string.IsNullOrWhiteSpace(project?.Description))
         };
         var missingProfileFacts = profileChecks
             .Where(item => !item.IsPresent)
@@ -224,7 +225,7 @@ public sealed class ProjectOverviewAccessVm
     public bool CanAssignRoles => IsAdmin || IsHoD;
     public bool CanEditTimeline { get; init; }
     public bool CanReviewPlan => IsAdmin || IsHoD;
-    public bool CanRequestStageChange => IsAssignedProjectOfficer || IsHoD || IsAdmin;
+    public bool CanRequestStageChange => IsAssignedProjectOfficer && !IsHoD;
     public bool CanApplyStageChangeDirectly => IsHoD;
 }
 

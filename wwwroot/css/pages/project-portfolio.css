@@ -1030,3 +1030,82 @@ button.project-intelligence-card:hover {
         min-height: 0;
     }
 }
+
+/* Project timeline editors -------------------------------------------------- */
+#offcanvasActualDates,
+#offcanvasPlanEdit {
+    --bs-offcanvas-width: min(34rem, 100vw);
+}
+
+#offcanvasActualDates .offcanvas-body,
+#offcanvasPlanEdit .offcanvas-body {
+    overflow-x: hidden;
+}
+
+.actuals-editor,
+.actuals-editor__list,
+.actuals-editor__stage,
+.actuals-editor__fields {
+    min-width: 0;
+}
+
+.actuals-editor__list {
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: .25rem;
+}
+
+.actuals-editor__fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.actuals-editor__fields > div,
+.actuals-editor__fields .form-control {
+    min-width: 0;
+    width: 100%;
+}
+
+.plan-editor-guidance {
+    padding: .65rem .75rem;
+    border: 1px solid var(--portfolio-border);
+    border-radius: .65rem;
+    background: var(--pm-surface-subtle, #f8fafc);
+    color: var(--portfolio-muted);
+    font-size: .78rem;
+    line-height: 1.45;
+}
+
+.plan-editor-history {
+    border: 1px solid var(--portfolio-border);
+    border-radius: .7rem;
+    background: var(--pm-surface-subtle, #f8fafc);
+}
+
+.plan-editor-history > summary {
+    padding: .72rem .8rem;
+    color: var(--pm-text-strong, #0f172a);
+    font-size: .78rem;
+    font-weight: 600;
+    cursor: pointer;
+    list-style-position: inside;
+}
+
+.plan-editor-history[open] > summary {
+    border-bottom: 1px solid var(--portfolio-border);
+}
+
+.plan-editor-history > .row {
+    padding: .15rem .8rem .8rem;
+}
+
+.plan-editor-stage-row {
+    min-width: 0;
+}
+
+@media (max-width: 575.98px) {
+    .actuals-editor__fields {
+        grid-template-columns: 1fr;
+    }
+}

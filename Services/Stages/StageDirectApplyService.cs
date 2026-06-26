@@ -31,17 +31,23 @@ public sealed class StageDirectApplyService
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly IStageValidationService _validator;
+    private readonly StageRulesService _stageRules;
+    private readonly IProjectStageWorkflowPolicy _workflowPolicy;
     private readonly IPlanRealignment _planRealignment;
 
     public StageDirectApplyService(
         ApplicationDbContext db,
         IClock clock,
         IStageValidationService validator,
+        StageRulesService stageRules,
+        IProjectStageWorkflowPolicy workflowPolicy,
         IPlanRealignment? planRealignment = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
+        _stageRules = stageRules ?? throw new ArgumentNullException(nameof(stageRules));
+        _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
         _planRealignment = planRealignment ?? new NullPlanRealignment();
     }
 
@@ -91,14 +97,20 @@ public sealed class StageDirectApplyService
         // Any user holding the HoD role may apply a direct stage change to any project;
         // project assignment is deliberately not used as an additional restriction.
 
+        var workflow = await _workflowPolicy.GetAsync(projectId, ct);
+        if (!workflow.ContainsStage(normalizedStageCode))
+        {
+            throw new StageDirectApplyNotFoundException();
+        }
+
         var stageLookup = project.ProjectStages
             .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
             .ToDictionary(s => s.StageCode!, s => s, StringComparer.OrdinalIgnoreCase);
 
         var createdStage = false;
-        foreach (var code in StageCodes.All)
+        foreach (var definition in workflow.Stages)
         {
-            if (stageLookup.ContainsKey(code))
+            if (stageLookup.ContainsKey(definition.Code))
             {
                 continue;
             }
@@ -106,14 +118,14 @@ public sealed class StageDirectApplyService
             var newStage = new ProjectStage
             {
                 ProjectId = projectId,
-                StageCode = code,
-                SortOrder = ResolveSortOrder(code),
+                StageCode = definition.Code,
+                SortOrder = workflow.OrderOf(definition.Code),
                 Status = StageStatus.NotStarted,
                 Project = project
             };
 
             project.ProjectStages.Add(newStage);
-            stageLookup[code] = newStage;
+            stageLookup[definition.Code] = newStage;
             createdStage = true;
         }
 
@@ -177,29 +189,28 @@ public sealed class StageDirectApplyService
 
             if (stageForWarnings is not null)
             {
-                var rulesService = new StageRulesService(_db);
                 StageGuardResult guard = StageGuardResult.Allow();
 
                 if (targetStatus == StageStatus.InProgress)
                 {
                     var previousStatus = stageForWarnings.Status;
                     stageForWarnings.Status = StageStatus.NotStarted;
-                    var context = await rulesService.BuildContextAsync(projectId, projectStages, ct);
+                    var context = await _stageRules.BuildContextAsync(projectId, projectStages, ct);
                     stageForWarnings.Status = previousStatus;
-                    guard = rulesService.CanStart(context, stageForWarnings.StageCode);
+                    guard = _stageRules.CanStart(context, stageForWarnings.StageCode);
                 }
                 else if (targetStatus == StageStatus.Completed)
                 {
                     var previousStatus = stageForWarnings.Status;
                     stageForWarnings.Status = StageStatus.InProgress;
-                    var context = await rulesService.BuildContextAsync(projectId, projectStages, ct);
+                    var context = await _stageRules.BuildContextAsync(projectId, projectStages, ct);
                     stageForWarnings.Status = previousStatus;
-                    guard = rulesService.CanComplete(context, stageForWarnings.StageCode);
+                    guard = _stageRules.CanComplete(context, stageForWarnings.StageCode);
                 }
                 else if (targetStatus == StageStatus.Skipped)
                 {
-                    var context = await rulesService.BuildContextAsync(projectId, projectStages, ct);
-                    guard = rulesService.CanSkip(context, stageForWarnings.StageCode);
+                    var context = await _stageRules.BuildContextAsync(projectId, projectStages, ct);
+                    guard = _stageRules.CanSkip(context, stageForWarnings.StageCode);
                 }
 
                 if (!guard.Allowed && guard.Reason is not null)
@@ -360,7 +371,9 @@ public sealed class StageDirectApplyService
                         stage.Status = StageStatus.Completed;
                         if (!date.HasValue)
                         {
-                            stage.ActualStart = null;
+                            // Preserve any known actual start. The authorised
+                            // override omits only the authoritative completion
+                            // date and therefore creates mandatory backfill.
                             stage.CompletedOn = null;
                             authorisedCompletion = true;
                             stage.RequiresBackfill = true;
@@ -486,17 +499,6 @@ public sealed class StageDirectApplyService
             backfilledStages.Count,
             backfilledStages.ToArray(),
             warnings.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
-    }
-
-    private static int ResolveSortOrder(string stageCode)
-    {
-        if (string.IsNullOrWhiteSpace(stageCode))
-        {
-            return int.MaxValue;
-        }
-
-        var index = Array.IndexOf(StageCodes.All, stageCode);
-        return index >= 0 ? index : int.MaxValue;
     }
 
     private static string? CombineNotes(string? primary, string? secondary)

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
@@ -273,7 +274,8 @@ public sealed class StageDecisionServiceTests
             Id = 1,
             Name = "Project",
             CreatedByUserId = "seed",
-            HodUserId = hodUserId
+            HodUserId = hodUserId,
+            WorkflowVersion = ProcurementWorkflow.VersionV1
         });
 
         foreach (var (code, status, actualStart, completedOn) in stages)
@@ -331,8 +333,20 @@ public sealed class StageDecisionServiceTests
 
     private static StageDecisionService CreateService(ApplicationDbContext db, TestClock clock)
     {
-        var progress = new StageProgressService(db, clock, new FakeAudit(), new ProjectFactsReadService(db), new NullStageNotificationService());
-        return new StageDecisionService(db, clock, progress, NullLogger<StageDecisionService>.Instance);
+        var workflowPolicy = StageWorkflowTestFactory.CreatePolicy(db);
+        var progress = new StageProgressService(
+            db,
+            clock,
+            new FakeAudit(),
+            new ProjectFactsReadService(db),
+            new NullStageNotificationService(),
+            workflowPolicy);
+        return new StageDecisionService(
+            db,
+            clock,
+            progress,
+            NullLogger<StageDecisionService>.Instance,
+            workflowPolicy);
     }
 
     private static ApplicationDbContext CreateContext()

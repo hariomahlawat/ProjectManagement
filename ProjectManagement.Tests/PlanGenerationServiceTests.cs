@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Plans;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Stages;
@@ -162,4 +163,49 @@ public class PlanGenerationServiceTests
         Assert.NotNull(tec.PlannedDue);
         Assert.Equal(bid.PlannedDue, tec.PlannedStart);
     }
+    [Fact]
+    public async Task GenerateAsync_UsesWorkflowV2Order_WhenLegacyDurationOrderDiffers()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "V2 Project",
+            CreatedByUserId = "seed",
+            WorkflowVersion = ProcurementWorkflow.VersionV2
+        });
+        db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
+        {
+            ProjectId = 1,
+            AnchorStart = new DateOnly(2025, 1, 1),
+            IncludeWeekends = true,
+            SkipHolidays = false,
+            NextStageStartPolicy = NextStageStartPolicies.NextWorkingDay
+        });
+        db.ProjectStages.AddRange(
+            new ProjectStage { ProjectId = 1, StageCode = StageCodes.FS, SortOrder = 0, Status = StageStatus.NotStarted },
+            new ProjectStage { ProjectId = 1, StageCode = StageCodes.IPA, SortOrder = 1, Status = StageStatus.NotStarted },
+            new ProjectStage { ProjectId = 1, StageCode = StageCodes.SOW, SortOrder = 2, Status = StageStatus.NotStarted });
+        db.ProjectPlanDurations.AddRange(
+            new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.FS, DurationDays = 1, SortOrder = 0 },
+            new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.IPA, DurationDays = 1, SortOrder = 1 },
+            new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.SOW, DurationDays = 1, SortOrder = 2 });
+        await db.SaveChangesAsync();
+
+        var service = new PlanGenerationService(db);
+        await service.GenerateAsync(1);
+
+        var sow = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.SOW);
+        var ipa = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.IPA);
+
+        Assert.True(sow.SortOrder < ipa.SortOrder);
+        Assert.NotNull(sow.PlannedStart);
+        Assert.NotNull(ipa.PlannedStart);
+        Assert.True(sow.PlannedStart!.Value < ipa.PlannedStart!.Value);
+    }
+
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ProjectManagement.Models.Scheduling;
+using ProjectManagement.Models.Execution;
 
 namespace ProjectManagement.ViewModels;
 
@@ -22,4 +23,5 @@ public sealed class PlanDurationRowVm
     public DateOnly? PreviewStart { get; set; }
     public DateOnly? PreviewDue { get; set; }
     public bool IsOptional { get; set; }
+    public StageStatus Status { get; set; } = StageStatus.NotStarted;
 }

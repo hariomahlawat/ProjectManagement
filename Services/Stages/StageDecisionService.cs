@@ -35,6 +35,7 @@ public sealed class StageDecisionService
     private readonly IClock _clock;
     private readonly StageProgressService _stageProgressService;
     private readonly ILogger<StageDecisionService> _logger;
+    private readonly IProjectStageWorkflowPolicy _workflowPolicy;
     private readonly IPlanRealignment _planRealignment;
 
     public StageDecisionService(
@@ -42,12 +43,14 @@ public sealed class StageDecisionService
         IClock clock,
         StageProgressService stageProgressService,
         ILogger<StageDecisionService> logger,
+        IProjectStageWorkflowPolicy workflowPolicy,
         IPlanRealignment? planRealignment = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _stageProgressService = stageProgressService ?? throw new ArgumentNullException(nameof(stageProgressService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
         _planRealignment = planRealignment ?? new NullPlanRealignment();
     }
 
@@ -323,7 +326,8 @@ public sealed class StageDecisionService
         string stageCode,
         CancellationToken cancellationToken)
     {
-        var required = StageDependencies.RequiredPredecessors(stageCode);
+        var workflow = await _workflowPolicy.GetAsync(projectId, cancellationToken);
+        var required = workflow.RequiredPredecessorClosure(stageCode);
 
         if (required.Count == 0)
         {

@@ -1,6 +1,7 @@
 @model ProjectManagement.ViewModels.PlanEditorVm
 @using ProjectManagement.Configuration
 @using ProjectManagement.Models.Plans
+@using ProjectManagement.Models.Execution
 @using ProjectManagement.Models.Stages
 @using ProjectManagement.ViewModels
 @{ 
@@ -14,6 +15,8 @@
     var canSubmit = state.CanSubmit && !isLocked;
     var submitDisabledAttr = canSubmit ? null : "disabled";
     var disableAttr = isLocked ? "disabled" : null;
+    var exactHistoricalCount = Model.Exact.Rows.Count(row => row.Status is StageStatus.Completed or StageStatus.Skipped);
+    var durationHistoricalCount = Model.Durations.Rows.Count(row => row.Status is StageStatus.Completed or StageStatus.Skipped);
 }
 
 <div class="d-flex flex-column h-100">
@@ -119,38 +122,42 @@
                 <input type="hidden" name="Input.ProjectId" value="@Model.Exact.ProjectId" />
 
                 <div class="flex-grow-1 overflow-auto pe-1">
+                    <div class="plan-editor-guidance mb-3">
+                        Plan the current and future stages. Historical completed or skipped stages are available below when reference or correction is required.
+                    </div>
                     <div class="row gy-3">
                         @for (var i = 0; i < Model.Exact.Rows.Count; i++)
                         {
                             var row = Model.Exact.Rows[i];
-                            <div class="col-12 border-bottom pb-3">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <strong>@row.Name</strong>
-                                    <span class="text-muted small">@row.Code</span>
-                                </div>
-                                <div class="row g-2">
-                                    <div class="col-sm-6">
-                                        <label for="ExactRows_@(i)__PlannedStart" class="form-label">Planned start</label>
-                                        <input class="form-control" type="date"
-                                               id="ExactRows_@(i)__PlannedStart"
-                                               name="Input.Rows[@(i)].PlannedStart"
-                                               value="@(row.PlannedStart.HasValue ? row.PlannedStart.Value.ToString("yyyy-MM-dd") : null)"
-                                               @(disableAttr) />
-                                    </div>
-                                    <div class="col-sm-6">
-                                        <label for="ExactRows_@(i)__PlannedDue" class="form-label">Planned due</label>
-                                        <input class="form-control" type="date"
-                                               id="ExactRows_@(i)__PlannedDue"
-                                               name="Input.Rows[@(i)].PlannedDue"
-                                               value="@(row.PlannedDue.HasValue ? row.PlannedDue.Value.ToString("yyyy-MM-dd") : null)"
-                                               @(disableAttr) />
-                                    </div>
-                                </div>
-                                <input type="hidden" name="Input.Rows[@(i)].Code" value="@row.Code" />
-                                <input type="hidden" name="Input.Rows[@(i)].Name" value="@row.Name" />
-                            </div>
+                            if (row.Status is StageStatus.Completed or StageStatus.Skipped)
+                            {
+                                continue;
+                            }
+
+                            <partial name="Projects/Timeline/_PlanExactRow"
+                                     model="@(new PlanExactRowRenderVm { Row = row, Index = i, IsDisabled = isLocked })" />
                         }
                     </div>
+
+                    @if (exactHistoricalCount > 0)
+                    {
+                        <details class="plan-editor-history mt-3">
+                            <summary>Show completed and skipped stages (@exactHistoricalCount)</summary>
+                            <div class="row gy-3 mt-1">
+                                @for (var i = 0; i < Model.Exact.Rows.Count; i++)
+                                {
+                                    var row = Model.Exact.Rows[i];
+                                    if (row.Status is not StageStatus.Completed and not StageStatus.Skipped)
+                                    {
+                                        continue;
+                                    }
+
+                                    <partial name="Projects/Timeline/_PlanExactRow"
+                                             model="@(new PlanExactRowRenderVm { Row = row, Index = i, IsDisabled = isLocked })" />
+                                }
+                            </div>
+                        </details>
+                    }
                 </div>
 
                 <div class="pt-3 mt-3 border-top d-flex justify-content-end gap-2">
@@ -208,48 +215,42 @@
 
                     <hr class="my-3" />
 
+                    <div class="plan-editor-guidance mb-3">
+                        Enter durations for the current and future stages. Historical stages remain available for reference or correction.
+                    </div>
                     <div class="row gy-3">
-                        @for (int i = 0; i < Model.Durations.Rows.Count; i++)
+                        @for (var i = 0; i < Model.Durations.Rows.Count; i++)
                         {
-                            var r = Model.Durations.Rows[i];
-                            <div class="col-12">
-                                <div class="d-flex justify-content-between">
-                                    <strong>@r.Name</strong>
-                                    <div>
-                                        <span class="text-muted small">@r.Code</span>
-                                        @if (r.IsOptional)
-                                        {
-                                            <span class="badge text-bg-info ms-2">Optional</span>
-                                        }
-                                    </div>
-                                </div>
-                                <div class="input-group">
-                                    <span class="input-group-text">Duration (days)</span>
-                                    <input class="form-control" type="number" min="0" step="1"
-                                           name="Input.Rows[@i].DurationDays"
-                                           value="@(r.DurationDays?.ToString() ?? "")"
-                                           @(disableAttr) />
-                                </div>
-                                @if (r.IsOptional)
-                                {
-                                    <div class="form-text">Leave blank if this optional stage is not applicable.</div>
-                                }
-                                @if (r.PreviewStart.HasValue || r.PreviewDue.HasValue)
-                                {
-                                    var previewStart = r.PreviewStart;
-                                    var previewDue = r.PreviewDue;
-                                    <div class="form-text text-muted">
-                                        Preview:
-                                        @((previewStart.HasValue ? previewStart.Value.ToString("dd MMM yyyy") : "—"))
-                                        →
-                                        @((previewDue.HasValue ? previewDue.Value.ToString("dd MMM yyyy") : "—"))
-                                    </div>
-                                }
-                                <input type="hidden" name="Input.Rows[@i].Code" value="@r.Code" />
-                                <input type="hidden" name="Input.Rows[@i].Name" value="@r.Name" />
-                            </div>
+                            var row = Model.Durations.Rows[i];
+                            if (row.Status is StageStatus.Completed or StageStatus.Skipped)
+                            {
+                                continue;
+                            }
+
+                            <partial name="Projects/Timeline/_PlanDurationRow"
+                                     model="@(new PlanDurationRowRenderVm { Row = row, Index = i, IsDisabled = isLocked })" />
                         }
                     </div>
+
+                    @if (durationHistoricalCount > 0)
+                    {
+                        <details class="plan-editor-history mt-3">
+                            <summary>Show completed and skipped stages (@durationHistoricalCount)</summary>
+                            <div class="row gy-3 mt-1">
+                                @for (var i = 0; i < Model.Durations.Rows.Count; i++)
+                                {
+                                    var row = Model.Durations.Rows[i];
+                                    if (row.Status is not StageStatus.Completed and not StageStatus.Skipped)
+                                    {
+                                        continue;
+                                    }
+
+                                    <partial name="Projects/Timeline/_PlanDurationRow"
+                                             model="@(new PlanDurationRowRenderVm { Row = row, Index = i, IsDisabled = isLocked })" />
+                                }
+                            </div>
+                        </details>
+                    }
                 </div>
 
                 <div class="d-flex gap-2 justify-content-end mt-3 pt-3 border-top">

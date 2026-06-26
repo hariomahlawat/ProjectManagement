@@ -38,12 +38,17 @@ public sealed class PlanGenerationService
             .Where(p => p.Id == projectId)
             .Select(p => p.WorkflowVersion)
             .SingleAsync(ct);
-        workflowVersion ??= PlanConstants.StageTemplateVersionV1;
+        workflowVersion ??= PlanConstants.DefaultStageTemplateVersion;
 
-        var templateSequence = await _db.StageTemplates
+        var templateSequence = ProcurementWorkflow.BuildOrderLookup(workflowVersion);
+        var configuredSequence = await _db.StageTemplates
             .AsNoTracking()
             .Where(t => t.Version == workflowVersion)
             .ToDictionaryAsync(t => t.Code, t => t.Sequence, StringComparer.OrdinalIgnoreCase, ct);
+        foreach (var (code, sequence) in configuredSequence)
+        {
+            templateSequence[code] = sequence;
+        }
 
         var stages = await _db.ProjectStages
             .Where(s => s.ProjectId == projectId)
@@ -125,7 +130,7 @@ public sealed class PlanGenerationService
             .Where(p => p.Id == projectId)
             .Select(p => p.WorkflowVersion)
             .SingleAsync(ct);
-        workflowVersion ??= PlanConstants.StageTemplateVersionV1;
+        workflowVersion ??= PlanConstants.DefaultStageTemplateVersion;
 
         var templates = await _db.StageTemplates
             .AsNoTracking()
@@ -133,6 +138,11 @@ public sealed class PlanGenerationService
             .OrderBy(t => t.Sequence)
             .Select(t => t.Code)
             .ToListAsync(ct);
+        var workflowCodes = ProcurementWorkflow.StageCodesFor(workflowVersion);
+        if (templates.Count == 0)
+        {
+            templates.AddRange(workflowCodes);
+        }
 
         var holidays = await _db.Holidays
             .AsNoTracking()
@@ -158,7 +168,7 @@ public sealed class PlanGenerationService
             .Where(sp => !string.IsNullOrWhiteSpace(sp.StageCode))
             .ToDictionary(sp => sp.StageCode!, sp => sp, StringComparer.OrdinalIgnoreCase);
 
-        var orderedCodes = BuildOrderedCodes(templates, durationMap, stagePlans.Keys);
+        var orderedCodes = BuildOrderedCodes(templates, durationMap, stagePlans.Keys, workflowCodes);
 
         var cursor = settings.AnchorStart.Value;
         var isFirstStage = true;
@@ -206,7 +216,11 @@ public sealed class PlanGenerationService
         await _db.SaveChangesAsync(ct);
     }
 
-    private static IReadOnlyList<string> BuildOrderedCodes(IEnumerable<string> templates, IReadOnlyDictionary<string, ProjectPlanDuration> durationMap, IEnumerable<string> stagePlanKeys)
+    private static IReadOnlyList<string> BuildOrderedCodes(
+        IEnumerable<string> templates,
+        IReadOnlyDictionary<string, ProjectPlanDuration> durationMap,
+        IEnumerable<string> stagePlanKeys,
+        IEnumerable<string> workflowCodes)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var ordered = new List<string>();
@@ -234,7 +248,7 @@ public sealed class PlanGenerationService
             .Select(d => d.StageCode!)
             .ToList();
         AddRange(durationOrdered);
-        AddRange(StageCodes.All);
+        AddRange(workflowCodes);
         AddRange(stagePlanKeys);
 
         return ordered;
@@ -242,22 +256,24 @@ public sealed class PlanGenerationService
 
     private static int ResolveSortOrder(string? stageCode, IReadOnlyDictionary<string, ProjectPlanDuration>? durationMap, IReadOnlyDictionary<string, int>? templateSequence = null)
     {
-        if (stageCode is not null && durationMap is not null && durationMap.TryGetValue(stageCode, out var duration))
-        {
-            return duration.SortOrder;
-        }
-
         if (stageCode is null)
         {
             return int.MaxValue;
         }
 
+        // Workflow metadata is authoritative for known stages. Duration rows are
+        // used only as a fallback for legacy or extension stages outside the
+        // configured workflow.
         if (templateSequence is not null && templateSequence.TryGetValue(stageCode, out var templateOrder))
         {
             return templateOrder;
         }
 
-        var index = Array.IndexOf(StageCodes.All, stageCode);
-        return index >= 0 ? index : int.MaxValue;
+        if (durationMap is not null && durationMap.TryGetValue(stageCode, out var duration))
+        {
+            return duration.SortOrder;
+        }
+
+        return int.MaxValue;
     }
 }

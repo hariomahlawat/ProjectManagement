@@ -9,7 +9,7 @@
 <form method="post"
       asp-page="/Projects/Timeline/EditActuals"
       asp-route-id="@Model?.ProjectId"
-      class="d-flex flex-column h-100 gap-3"
+      class="actuals-editor d-flex flex-column h-100 gap-3"
       data-actuals-form
       data-today="@todayIso">
     @Html.AntiForgeryToken()
@@ -21,8 +21,8 @@
     </div>
 
     <!-- SECTION: Actuals list -->
-    <div class="flex-grow-1 overflow-auto" data-actuals-list>
-        <div class="row gy-3">
+    <div class="actuals-editor__list flex-grow-1" data-actuals-list>
+        <div class="d-grid gap-3">
             @for (var i = 0; i < rows.Count; i++)
             {
                 var row = rows[i];
@@ -32,7 +32,7 @@
                 var completedValue = row.CompletedOn?.ToString("yyyy-MM-dd");
                 var canEdit = row.IsEditable && !row.HasPendingDecision;
                 var disableAttr = canEdit ? null : "disabled";
-                <section class="col-12 border rounded p-3" data-actuals-row data-stage-code="@row.StageCode" data-stage-status="@row.Status">
+                <section class="actuals-editor__stage border rounded p-3" data-actuals-row data-stage-code="@row.StageCode" data-stage-status="@row.Status">
                     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
                         <div class="d-flex flex-column">
                             <div class="fw-semibold">@row.StageName</div>
@@ -55,8 +55,8 @@
                         </div>
                     </div>
 
-                    <div class="row g-3">
-                        <div class="col-md-6">
+                    <div class="actuals-editor__fields">
+                        <div>
                             <label class="form-label" for="@startId">Actual start date @(row.Status == StageStatus.Completed ? "(optional)" : string.Empty)</label>
                             <input type="date"
                                    class="form-control"
@@ -69,7 +69,7 @@
                                    @(disableAttr) />
                             <div class="form-text" id="@startId-help">@(row.Status == StageStatus.Completed ? "Optional. If omitted, duration is inferred from the preceding completion date." : "Enter when work began for the current stage.")</div>
                         </div>
-                        <div class="col-md-6">
+                        <div>
                             <label class="form-label" for="@completedId">Completed on</label>
                             <input type="date"
                                    class="form-control"

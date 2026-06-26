@@ -2,7 +2,7 @@
 
 ## Roles
 - **Project Officer (PO)**: may edit only assigned projects; maintains their own private Draft; **Save** keeps their personal draft; **Save & request approval** → PendingApproval (if none already pending).
-- **HoD**: can also create a private Draft, review their own submissions and approve another user’s submission; **Approve** publishes to live + snapshots + stamps; **Reject** returns to Draft with note.
+- **HoD**: can create a private Draft, review plan submissions, approve or reject plans, and directly apply a stage transition to any project. Direct completion without a completion date is an authorised override that advances the workflow and creates mandatory backfill.
 - **Admin**: read-only for approvals; can view all.
 - **Viewer**: read-only.
 
@@ -17,9 +17,10 @@
   - **HoD**: “Review & approve” (always available when anything is pending)
   - **Admin/assigned PO/HoD**: “Edit timeline”; if a personal draft exists a “Your draft saved → Continue editing” chip opens the editor directly.
 - Stage rows display planned/actual dates, auto-completion badges and backfill flags sourced from `ProjectTimelineReadService`.
-- **Edit timeline** (PO):
-  - **Durations**: Calculate → writes to Draft StagePlans and shows a preview of the resulting exact dates beneath each input
-  - **Exact**: direct edits to Draft StagePlans
+- **Edit timeline**:
+  - The default view focuses on the current and future stages. Completed and skipped stages are collapsed under **Show completed and skipped stages** because historical planned dates do not affect record completeness.
+  - **Durations**: Calculate → writes to Draft StagePlans and shows a preview of the resulting exact dates beneath each input.
+  - **Exact**: direct edits to Draft StagePlans. The current-stage planned completion is operationally important; future-stage dates are optional.
   - **Save** keeps your private draft; **Save & request** is blocked with a warning while another submission is PendingApproval
   - Durations honour `ProjectScheduleSettings` (anchor date, weekend/holiday policy, next-stage start rules) and populate `ProjectPlanDuration` rows for future reuse.
 - **Review** (HoD):
@@ -33,21 +34,21 @@
 - Server-side role checks on all POSTs.
 - Antiforgery tokens on forms.
 
-## Correcting HoD Stage Start Dates
+## Workflow-version consistency
 
-The stage transition services (`StageRequestService`, `StageDirectApplyService`, and
-`StageProgressService`) all invoke `StageValidationService` before a state change is
-committed. The validator rejects any request that leaves a stage in the same status,
-so a HoD cannot submit another "start" action while the stage is already
-`InProgress`. Because `ActualStart` is only set the first time a stage enters
-`InProgress`, there is no direct edit path to correct a mistakenly entered start
-date while the stage remains active.
+Every stage service resolves order and dependencies through `IProjectStageWorkflowPolicy` using the project’s `WorkflowVersion`:
 
-To replace an incorrect start date, the HoD must temporarily move the stage to a
-status that allows reopening—typically `Completed`, using the admin completion flow
-if necessary—and then immediately submit a `status: "Reopen"` transition with the
-corrected date. Reopening returns the stage to `InProgress` and overwrites
-`ActualStart`. If needed, the HoD can then transition the stage back to the desired
-status (for example, leaving it `InProgress` or completing it again with the proper
-finish details). Every intermediate transition is recorded in the audit trail, but
-this sequence is the supported approach given the current validation rules.
+- **SDD-1.0:** FS → IPA → SOW → AON → …
+- **SDD-2.0:** FS → SOW → IPA → AON → …
+
+The same policy controls validation, direct application, approval decisions, predecessor cascade, auto-start and stage materialisation. Plan generation uses the same workflow metadata and does not fall back to the static SDD-1.0 order for known stages.
+
+## Actual-date and backfill rules
+
+- **Completed stage:** completion date is authoritative. Actual start is optional; when absent, duration is inferred from the preceding applicable stage’s completion date plus one day.
+- **Current in-progress stage:** actual start and planned completion are operationally important.
+- **Future stage:** planned dates are optional.
+- **Skipped stage:** dates are not required.
+- **Authorised completion override:** any HoD may complete a stage without a completion date. The workflow advances, the stage counts as operationally completed, and mandatory backfill remains until the completion date and any mandatory stage facts are recorded.
+
+Actual dates can be corrected directly from **Timeline → Edit actual dates**. The editor avoids artificial status transitions and preserves the stage audit trail through the actuals-update workflow.

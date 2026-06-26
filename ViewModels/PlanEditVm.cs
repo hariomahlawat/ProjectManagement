@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ProjectManagement.Models.Execution;
 
 namespace ProjectManagement.ViewModels;
 
@@ -13,5 +14,6 @@ public sealed class PlanEditVm
         public string Name { get; set; } = string.Empty;
         public DateOnly? PlannedStart { get; set; }
         public DateOnly? PlannedDue { get; set; }
+        public StageStatus Status { get; set; } = StageStatus.NotStarted;
     }
 }

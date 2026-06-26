@@ -65,6 +65,42 @@ public class StageProgressServiceTests
     }
 
     [Fact]
+    public async Task UpdateStageStatusAsync_CompletingStageInfersStartFromPredecessorCompletion()
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 2, 15, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(
+            db,
+            (StageCodes.FS, StageStatus.Completed),
+            (StageCodes.IPA, StageStatus.InProgress));
+
+        var fs = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.FS);
+        fs.CompletedOn = new DateOnly(2024, 1, 31);
+        var ipa = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.IPA);
+        ipa.ActualStart = null;
+        db.ProjectIpaFacts.Add(new ProjectIpaFact
+        {
+            ProjectId = 1,
+            IpaCost = 123m,
+            CreatedByUserId = "seed",
+            CreatedOnUtc = clock.UtcNow.UtcDateTime
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, clock);
+        await service.UpdateStageStatusAsync(
+            1,
+            StageCodes.IPA,
+            StageStatus.Completed,
+            new DateOnly(2024, 2, 15),
+            "tester");
+
+        await db.Entry(ipa).ReloadAsync();
+        Assert.Equal(new DateOnly(2024, 2, 1), ipa.ActualStart);
+        Assert.Equal(new DateOnly(2024, 2, 15), ipa.CompletedOn);
+    }
+
+    [Fact]
     public async Task UpdateStageStatusAsync_CompletingStageCascadesPredecessors()
     {
         var clock = new TestClock(new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero));
@@ -211,7 +247,16 @@ public class StageProgressServiceTests
     }
 
     private static StageProgressService CreateService(ApplicationDbContext db, TestClock clock)
-        => new StageProgressService(db, clock, new FakeAudit(), new ProjectFactsReadService(db), new NullStageNotificationService());
+    {
+        var workflowPolicy = StageWorkflowTestFactory.CreatePolicy(db);
+        return new StageProgressService(
+            db,
+            clock,
+            new FakeAudit(),
+            new ProjectFactsReadService(db),
+            new NullStageNotificationService(),
+            workflowPolicy);
+    }
 
     private static ApplicationDbContext CreateContext()
     {
@@ -228,7 +273,8 @@ public class StageProgressServiceTests
         {
             Id = 1,
             Name = "Project",
-            CreatedByUserId = "seed"
+            CreatedByUserId = "seed",
+            WorkflowVersion = ProcurementWorkflow.VersionV1
         });
 
         foreach (var (code, status) in stages)

@@ -1,5 +1,4 @@
 @using System
-@using System.Collections.Generic
 @using ProjectManagement.Models
 @model ProjectManagement.Pages.Projects.OverviewModel
 
@@ -34,11 +33,7 @@
         })
         : null;
 
-    var missingDetails = new List<string>();
-    if (string.IsNullOrWhiteSpace(projectTypeName)) missingDetails.Add("project type");
-    if (string.IsNullOrWhiteSpace(sponsoringUnitName)) missingDetails.Add("sponsoring unit");
-    if (string.IsNullOrWhiteSpace(sponsoringDirectorateName)) missingDetails.Add("sponsoring line directorate");
-    if (string.IsNullOrWhiteSpace(project?.Description)) missingDetails.Add("project description");
+    var missingDetails = Model.Portfolio.MissingProfileFacts;
 }
 
 <div class="card pm-card project-profile-card" id="project-profile-details">

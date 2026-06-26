@@ -178,64 +178,110 @@
                   }
                   @if (isHod)
                   {
-                    <li class="dropdown-header">Mark as…</li>
-                    <li>
-                      <button class="dropdown-item"
-                              type="button"
-                              data-direct-apply
-                              data-project="@timeline.ProjectId"
-                              data-stage="@s.Code"
-                              data-stage-name="@s.Name"
-                              data-status="InProgress"
-                              data-default-date="@s.ActualStart?.ToString("yyyy-MM-dd")">
-                        In progress
-                      </button>
-                    </li>
-                    <li>
-                      <button class="dropdown-item"
-                              type="button"
-                              data-direct-apply
-                              data-project="@timeline.ProjectId"
-                              data-stage="@s.Code"
-                              data-stage-name="@s.Name"
-                              data-status="Completed"
-                              data-default-date="@s.CompletedOn?.ToString("yyyy-MM-dd")">
-                        Completed
-                      </button>
-                    </li>
-                    <li>
-                      <button class="dropdown-item"
-                              type="button"
-                              data-direct-apply
-                              data-project="@timeline.ProjectId"
-                              data-stage="@s.Code"
-                              data-stage-name="@s.Name"
-                              data-status="Blocked">
-                        Blocked
-                      </button>
-                    </li>
-                    <li>
-                      <button class="dropdown-item"
-                              type="button"
-                              data-direct-apply
-                              data-project="@timeline.ProjectId"
-                              data-stage="@s.Code"
-                              data-stage-name="@s.Name"
-                              data-status="Skipped">
-                        Skipped
-                      </button>
-                    </li>
-                    <li>
-                      <button class="dropdown-item"
-                              type="button"
-                              data-direct-apply
-                              data-project="@timeline.ProjectId"
-                              data-stage="@s.Code"
-                              data-stage-name="@s.Name"
-                              data-status="Reopen">
-                        Reopen
-                      </button>
-                    </li>
+                    <li class="dropdown-header">Change stage</li>
+                    @if (s.Status == StageStatus.NotStarted)
+                    {
+                      <li>
+                        <button class="dropdown-item" type="button"
+                                data-direct-apply
+                                data-project="@timeline.ProjectId"
+                                data-stage="@s.Code"
+                                data-stage-name="@s.Name"
+                                data-status="InProgress">
+                          Start stage
+                        </button>
+                      </li>
+                      <li>
+                        <button class="dropdown-item" type="button"
+                                data-direct-apply
+                                data-project="@timeline.ProjectId"
+                                data-stage="@s.Code"
+                                data-stage-name="@s.Name"
+                                data-status="Blocked">
+                          Mark blocked
+                        </button>
+                      </li>
+                      <li>
+                        <button class="dropdown-item" type="button"
+                                data-direct-apply
+                                data-project="@timeline.ProjectId"
+                                data-stage="@s.Code"
+                                data-stage-name="@s.Name"
+                                data-status="Skipped">
+                          Skip stage
+                        </button>
+                      </li>
+                    }
+                    else if (s.Status == StageStatus.InProgress)
+                    {
+                      <li>
+                        <button class="dropdown-item" type="button"
+                                data-direct-apply
+                                data-project="@timeline.ProjectId"
+                                data-stage="@s.Code"
+                                data-stage-name="@s.Name"
+                                data-status="Completed"
+                                data-default-date="@s.CompletedOn?.ToString("yyyy-MM-dd")">
+                          Complete stage
+                        </button>
+                      </li>
+                      <li>
+                        <button class="dropdown-item" type="button"
+                                data-direct-apply
+                                data-project="@timeline.ProjectId"
+                                data-stage="@s.Code"
+                                data-stage-name="@s.Name"
+                                data-status="Blocked">
+                          Mark blocked
+                        </button>
+                      </li>
+                      <li>
+                        <button class="dropdown-item" type="button"
+                                data-direct-apply
+                                data-project="@timeline.ProjectId"
+                                data-stage="@s.Code"
+                                data-stage-name="@s.Name"
+                                data-status="Skipped">
+                          Skip stage
+                        </button>
+                      </li>
+                    }
+                    else if (s.Status == StageStatus.Blocked)
+                    {
+                      <li>
+                        <button class="dropdown-item" type="button"
+                                data-direct-apply
+                                data-project="@timeline.ProjectId"
+                                data-stage="@s.Code"
+                                data-stage-name="@s.Name"
+                                data-status="Reopen">
+                          Reopen stage
+                        </button>
+                      </li>
+                      <li>
+                        <button class="dropdown-item" type="button"
+                                data-direct-apply
+                                data-project="@timeline.ProjectId"
+                                data-stage="@s.Code"
+                                data-stage-name="@s.Name"
+                                data-status="Skipped">
+                          Skip stage
+                        </button>
+                      </li>
+                    }
+                    else if (s.Status is StageStatus.Completed or StageStatus.Skipped)
+                    {
+                      <li>
+                        <button class="dropdown-item" type="button"
+                                data-direct-apply
+                                data-project="@timeline.ProjectId"
+                                data-stage="@s.Code"
+                                data-stage-name="@s.Name"
+                                data-status="Reopen">
+                          Reopen stage
+                        </button>
+                      </li>
+                    }
                     @if (canRequestChange)
                     {
                       <li><hr class="dropdown-divider" /></li>

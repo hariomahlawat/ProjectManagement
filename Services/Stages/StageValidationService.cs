@@ -35,11 +35,16 @@ public sealed class StageValidationService : IStageValidationService
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
+    private readonly IProjectStageWorkflowPolicy _workflowPolicy;
 
-    public StageValidationService(ApplicationDbContext db, IClock clock)
+    public StageValidationService(
+        ApplicationDbContext db,
+        IClock clock,
+        IProjectStageWorkflowPolicy workflowPolicy)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
     }
 
     public async Task<StageValidationResult> ValidateAsync(
@@ -117,10 +122,8 @@ public sealed class StageValidationService : IStageValidationService
 
         if (desiredStatus is StageStatus.InProgress or StageStatus.Completed)
         {
-            var pncApplicable = await ResolvePncApplicabilityAsync(projectId, ct);
-            var predecessors = StageDependencies.RequiredPredecessors(stage.StageCode)
-                .Where(code => pncApplicable || !string.Equals(code, StageCodes.PNC, StringComparison.OrdinalIgnoreCase))
-                .ToList();
+            var workflow = await _workflowPolicy.GetAsync(projectId, ct);
+            var predecessors = workflow.RequiredPredecessorClosure(stage.StageCode);
 
             if (predecessors.Count > 0)
             {
@@ -130,14 +133,16 @@ public sealed class StageValidationService : IStageValidationService
 
                 foreach (var predecessorCode in predecessors)
                 {
-                    if (!stageLookup.TryGetValue(predecessorCode, out var predecessor) ||
-                        predecessor.Status != StageStatus.Completed)
+                    if (!stageLookup.TryGetValue(predecessorCode, out var predecessor)
+                        || predecessor.Status is not StageStatus.Completed and not StageStatus.Skipped)
                     {
                         missingPredecessors.Add(predecessorCode);
                         continue;
                     }
 
-                    if (desiredStatus == StageStatus.Completed && predecessor.CompletedOn.HasValue)
+                    if (desiredStatus == StageStatus.Completed
+                        && predecessor.Status == StageStatus.Completed
+                        && predecessor.CompletedOn.HasValue)
                     {
                         predecessorCompletionDates!.Add(predecessor.CompletedOn.Value);
                     }
@@ -145,7 +150,7 @@ public sealed class StageValidationService : IStageValidationService
 
                 if (desiredStatus == StageStatus.Completed && predecessorCompletionDates is { Count: > 0 })
                 {
-                    suggestedAutoStart = predecessorCompletionDates.Max();
+                    suggestedAutoStart = predecessorCompletionDates.Max().AddDays(1);
                 }
             }
         }
@@ -155,11 +160,11 @@ public sealed class StageValidationService : IStageValidationService
             suggestedAutoStart.HasValue &&
             targetDate.Value < suggestedAutoStart.Value)
         {
-            errors.Add($"Completion cannot be before latest predecessor completion ({suggestedAutoStart.Value:yyyy-MM-dd}).");
+            errors.Add($"Completion cannot be before the inferred stage start ({suggestedAutoStart.Value:yyyy-MM-dd}).");
 
             if (isHoD)
             {
-                warnings.Add("Completion before the latest predecessor requires a force override.");
+                warnings.Add("Completion before the inferred stage start requires correction.");
             }
         }
 
@@ -177,26 +182,5 @@ public sealed class StageValidationService : IStageValidationService
         }
     }
 
-    private async Task<bool> ResolvePncApplicabilityAsync(int projectId, CancellationToken ct)
-    {
-        var project = await _db.Projects
-            .AsNoTracking()
-            .Where(p => p.Id == projectId)
-            .Select(p => new { p.ActivePlanVersionNo })
-            .SingleOrDefaultAsync(ct);
-
-        if (project is null || !project.ActivePlanVersionNo.HasValue)
-        {
-            return true;
-        }
-
-        var plan = await _db.PlanVersions
-            .AsNoTracking()
-            .Where(p => p.ProjectId == projectId && p.VersionNo == project.ActivePlanVersionNo.Value)
-            .Select(p => new { p.PncApplicable })
-            .SingleOrDefaultAsync(ct);
-
-        return plan?.PncApplicable ?? true;
-    }
 
 }

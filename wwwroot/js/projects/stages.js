@@ -2,6 +2,8 @@
   const DIRECT_DATE_REQUIRED_STATUSES = new Set(['InProgress']);
   const REQUEST_DATE_REQUIRED_STATUSES = new Set(['InProgress', 'Completed']);
 
+  const STAGE_FLASH_KEY = 'prism.stage.flash';
+
   function escapeSelector(value) {
     if (typeof value !== 'string') {
       return '';
@@ -156,6 +158,39 @@
       toastEl.remove();
     });
     toast.show();
+  }
+
+  function queueStageRefresh(message, variant = 'success') {
+    try {
+      window.sessionStorage.setItem(STAGE_FLASH_KEY, JSON.stringify({ message, variant }));
+    } catch (error) {
+      console.warn('Unable to persist stage update message.', error);
+    }
+
+    window.location.reload();
+  }
+
+  function showQueuedStageMessage() {
+    let stored = null;
+    try {
+      stored = window.sessionStorage.getItem(STAGE_FLASH_KEY);
+      if (stored) {
+        window.sessionStorage.removeItem(STAGE_FLASH_KEY);
+      }
+    } catch (error) {
+      console.warn('Unable to restore stage update message.', error);
+    }
+
+    if (!stored) return;
+
+    try {
+      const payload = JSON.parse(stored);
+      if (payload?.message) {
+        showToast(payload.message, payload.variant || 'success');
+      }
+    } catch (error) {
+      console.warn('Invalid stage update message.', error);
+    }
   }
 
   function todayIso() {
@@ -728,7 +763,7 @@
         }
 
         if (response.status === 403) {
-          showToast('Not authorised for this project (HoD mismatch).', 'danger');
+          showToast('You are not authorised to update project stages.', 'danger');
           resetControls();
           return;
         }
@@ -752,21 +787,34 @@
           return;
         }
 
-        updateStageRow(stageInput.value, statusInput.value, data.updated);
         modal.hide();
-        showToast('Stage updated.', 'success');
-        handleWarnings(data.warnings);
-        if (data.backfilled?.count > 0) {
-          const stages = Array.isArray(data.backfilled.stages) && data.backfilled.stages.length > 0
-            ? ` (${data.backfilled.stages.join(', ')})`
-            : '';
-          showToast(`Backfilled ${data.backfilled.count} predecessor stage(s)${stages}.`, 'info');
+
+        const warnings = Array.isArray(data.warnings)
+          ? data.warnings.filter((warning) => typeof warning === 'string' && warning.trim())
+          : [];
+        const authorisedOverride = warnings.some((warning) =>
+          warning.toLowerCase().includes('authorised override'));
+        const backfilledCount = Number(data.backfilled?.count || 0);
+        const backfilledStages = Array.isArray(data.backfilled?.stages)
+          ? data.backfilled.stages.filter(Boolean)
+          : [];
+
+        let message = 'Stage updated.';
+        let variant = 'success';
+
+        if (authorisedOverride) {
+          message = 'Stage completed through an authorised override. Mandatory completion-date backfill has been created.';
+          variant = 'warning';
+        } else if (backfilledCount > 0) {
+          const stageList = backfilledStages.length > 0 ? `: ${backfilledStages.join(', ')}` : '';
+          message = `Stage updated. ${backfilledCount} predecessor stage${backfilledCount === 1 ? '' : 's'} completed with mandatory backfill${stageList}.`;
+          variant = 'info';
+        } else if (warnings.length > 0) {
+          message = `Stage updated. ${warnings.join(' ')}`;
+          variant = 'warning';
         }
-        renderMissingPredecessors(missingPredecessorsContainer, []);
-        setForceHintHighlighted(false);
-        if (forceCheckbox) {
-          forceCheckbox.checked = false;
-        }
+
+        queueStageRefresh(message, variant);
       } catch (error) {
         console.error(error);
         showToast('Unable to update the stage right now.', 'danger');
@@ -1392,6 +1440,7 @@
       return;
     }
 
+    showQueuedStageMessage();
     bootDirectApply();
     bootStageRequest();
     bootInlineStageDecisions();

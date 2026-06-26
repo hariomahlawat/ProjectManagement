@@ -22,19 +22,22 @@ public class StageProgressService
     private readonly IAuditService _audit;
     private readonly ProjectFactsReadService _factsRead;
     private readonly IStageNotificationService _stageNotifications;
+    private readonly IProjectStageWorkflowPolicy _workflowPolicy;
 
     public StageProgressService(
         ApplicationDbContext db,
         IClock clock,
         IAuditService audit,
         ProjectFactsReadService factsRead,
-        IStageNotificationService stageNotifications)
+        IStageNotificationService stageNotifications,
+        IProjectStageWorkflowPolicy workflowPolicy)
     {
-        _db = db;
-        _clock = clock;
-        _audit = audit;
-        _factsRead = factsRead;
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+        _factsRead = factsRead ?? throw new ArgumentNullException(nameof(factsRead));
         _stageNotifications = stageNotifications ?? throw new ArgumentNullException(nameof(stageNotifications));
+        _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
     }
 
     public async Task UpdateStageStatusAsync(
@@ -132,19 +135,43 @@ public class StageProgressService
             throw new InvalidOperationException($"Required information for stage {stage.StageCode} is missing and must be captured before completion.");
         }
 
+        var workflow = await _workflowPolicy.GetAsync(projectId, ct);
+        var completionDate = explicitDate ?? stage.CompletedOn ?? resolvedDate;
+
         stage.Status = StageStatus.Completed;
-        stage.ActualStart ??= resolvedDate;
-        stage.CompletedOn = explicitDate ?? stage.CompletedOn ?? resolvedDate;
+        if (!stage.ActualStart.HasValue)
+        {
+            var predecessorCodes = workflow.RequiredPredecessors(stage.StageCode);
+            var predecessorCompletions = predecessorCodes.Count == 0
+                ? Array.Empty<DateOnly>()
+                : await _db.ProjectStages
+                    .AsNoTracking()
+                    .Where(item =>
+                        item.ProjectId == projectId
+                        && predecessorCodes.Contains(item.StageCode)
+                        && item.Status == StageStatus.Completed
+                        && item.CompletedOn.HasValue)
+                    .Select(item => item.CompletedOn!.Value)
+                    .ToArrayAsync(ct);
+
+            var inferredStart = predecessorCompletions.Length == 0
+                ? completionDate
+                : predecessorCompletions.Max().AddDays(1);
+
+            stage.ActualStart = inferredStart <= completionDate
+                ? inferredStart
+                : completionDate;
+        }
+
+        stage.CompletedOn = completionDate;
         stage.IsAutoCompleted = false;
         stage.AutoCompletedFromCode = null;
         stage.RequiresBackfill = false;
-
         var autoCompleted = new List<ProjectStage>();
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var cascadeDate = stage.CompletedOn ?? resolvedDate;
-        var optionalStages = await ResolveOptionalStagesAsync(projectId, stage.Project?.WorkflowVersion, ct);
 
-        foreach (var predecessorCode in StageDependencies.RequiredPredecessors(stage.StageCode))
+        foreach (var predecessorCode in workflow.RequiredPredecessors(stage.StageCode))
         {
             await AutoCompleteStageAndDependenciesAsync(
                 projectId,
@@ -153,12 +180,12 @@ public class StageProgressService
                 stage.StageCode,
                 visited,
                 autoCompleted,
-                optionalStages,
+                workflow,
                 ct);
         }
 
         var completedOnDate = stage.CompletedOn ?? resolvedDate;
-        var autoStart = await AutoStartNextStageAsync(projectId, stage, completedOnDate, ct);
+        var autoStart = await AutoStartNextStageAsync(projectId, stage, completedOnDate, workflow, ct);
 
         await _db.SaveChangesAsync(ct);
 
@@ -220,7 +247,7 @@ public class StageProgressService
         string triggeredBy,
         ISet<string> visited,
         ICollection<ProjectStage> autoCompleted,
-        ISet<string> optionalStages,
+        ProjectStageWorkflowSnapshot workflow,
         CancellationToken ct)
     {
         if (!visited.Add(stageCode))
@@ -236,7 +263,7 @@ public class StageProgressService
             return;
         }
 
-        var isOptional = optionalStages.Contains(stage.StageCode);
+        var isOptional = workflow.OptionalStageCodes.Contains(stage.StageCode);
 
         if (isOptional && stage.Status == StageStatus.NotStarted)
         {
@@ -264,7 +291,7 @@ public class StageProgressService
             stage.CompletedOn = resolvedDate;
         }
 
-        foreach (var predecessorCode in StageDependencies.RequiredPredecessors(stage.StageCode))
+        foreach (var predecessorCode in workflow.RequiredPredecessors(stage.StageCode))
         {
             await AutoCompleteStageAndDependenciesAsync(
                 projectId,
@@ -273,7 +300,7 @@ public class StageProgressService
                 triggeredBy,
                 visited,
                 autoCompleted,
-                optionalStages,
+                workflow,
                 ct);
         }
     }
@@ -282,6 +309,7 @@ public class StageProgressService
         int projectId,
         ProjectStage completedStage,
         DateOnly completedOn,
+        ProjectStageWorkflowSnapshot workflow,
         CancellationToken ct)
     {
         var settings = await _db.ProjectScheduleSettings.SingleOrDefaultAsync(s => s.ProjectId == projectId, ct);
@@ -294,10 +322,10 @@ public class StageProgressService
             .Where(s => s.ProjectId == projectId)
             .ToListAsync(ct);
 
-        var workflowVersion = completedStage.Project?.WorkflowVersion;
-
         var ordered = stages
-            .OrderBy(s => StageOrderValue(s.StageCode, workflowVersion))
+            .Where(s => workflow.PncApplicable
+                || !string.Equals(s.StageCode, StageCodes.PNC, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(s => workflow.OrderOf(s.StageCode))
             .ThenBy(s => s.StageCode, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -317,7 +345,7 @@ public class StageProgressService
             return null;
         }
 
-        foreach (var dependency in StageDependencies.RequiredPredecessors(nextStage.StageCode))
+        foreach (var dependency in workflow.RequiredPredecessors(nextStage.StageCode))
         {
             var depStage = stages.FirstOrDefault(s => string.Equals(s.StageCode, dependency, StringComparison.OrdinalIgnoreCase));
             if (depStage?.Status is not StageStatus.Completed and not StageStatus.Skipped)
@@ -355,33 +383,5 @@ public class StageProgressService
         return calendar.NextWorkingDay(completedOn);
     }
 
-    // SECTION: Stage ordering helpers
-    private static int StageOrderValue(string? stageCode, string? workflowVersion) =>
-        ProcurementWorkflow.OrderOf(workflowVersion, stageCode);
 
-    // SECTION: Optional stage resolution
-    private async Task<HashSet<string>> ResolveOptionalStagesAsync(
-        int projectId,
-        string? workflowVersion,
-        CancellationToken ct)
-    {
-        var version = workflowVersion;
-
-        if (string.IsNullOrWhiteSpace(version))
-        {
-            version = await _db.Projects
-                .Where(p => p.Id == projectId)
-                .Select(p => p.WorkflowVersion)
-                .SingleOrDefaultAsync(ct)
-                ?? PlanConstants.DefaultStageTemplateVersion;
-        }
-
-        var optionalCodes = await _db.StageTemplates
-            .AsNoTracking()
-            .Where(t => t.Version == version && t.Optional)
-            .Select(t => t.Code)
-            .ToListAsync(ct);
-
-        return optionalCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
-    }
 }

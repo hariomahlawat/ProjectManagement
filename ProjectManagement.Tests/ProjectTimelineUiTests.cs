@@ -45,14 +45,51 @@ public class ProjectTimelineUiTests
             }
         };
 
-        var hodHtml = await RenderAsync(model, new[] { "HoD" });
+        var hodHtml = await RenderAsync(model, isHoD: true, isAssignedProjectOfficer: false);
         Assert.Contains("data-direct-apply", hodHtml, StringComparison.Ordinal);
 
-        var otherHtml = await RenderAsync(model, Array.Empty<string>());
+        var otherHtml = await RenderAsync(model, isHoD: false, isAssignedProjectOfficer: false);
         Assert.DoesNotContain("data-direct-apply", otherHtml, StringComparison.Ordinal);
     }
 
-    private static async Task<string> RenderAsync(TimelineVm model, string[] roles)
+    [Fact]
+    public async Task ActionsDropdown_FiltersActionsByCurrentStatusAndAuthority()
+    {
+        var timeline = new TimelineVm
+        {
+            ProjectId = 1,
+            Items = new[]
+            {
+                new TimelineItemVm
+                {
+                    Code = "IPA",
+                    Name = "In-Principle Approval",
+                    Status = StageStatus.InProgress,
+                    SortOrder = 1
+                }
+            }
+        };
+
+        var hodHtml = await RenderAsync(timeline, isHoD: true, isAssignedProjectOfficer: false);
+        Assert.Contains("Complete stage", hodHtml, StringComparison.Ordinal);
+        Assert.Contains("Mark blocked", hodHtml, StringComparison.Ordinal);
+        Assert.Contains("Skip stage", hodHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Start stage", hodHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Reopen stage", hodHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Request change", hodHtml, StringComparison.Ordinal);
+
+        var dualRoleHtml = await RenderAsync(timeline, isHoD: true, isAssignedProjectOfficer: true);
+        Assert.DoesNotContain("Request change", dualRoleHtml, StringComparison.Ordinal);
+
+        var poHtml = await RenderAsync(timeline, isHoD: false, isAssignedProjectOfficer: true);
+        Assert.Contains("Request change", poHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-direct-apply", poHtml, StringComparison.Ordinal);
+    }
+
+    private static async Task<string> RenderAsync(
+        TimelineVm model,
+        bool isHoD,
+        bool isAssignedProjectOfficer)
     {
         using var scope = Services.CreateScope();
         var provider = scope.ServiceProvider;
@@ -62,7 +99,7 @@ public class ProjectTimelineUiTests
         var httpContext = new DefaultHttpContext
         {
             RequestServices = provider,
-            User = BuildPrincipal(roles)
+            User = BuildPrincipal(isHoD ? new[] { "HoD" } : Array.Empty<string>())
         };
 
         var actionContext = new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
@@ -74,9 +111,18 @@ public class ProjectTimelineUiTests
         }
 
         await using var writer = new StringWriter();
-        var viewData = new ViewDataDictionary<TimelineVm>(new EmptyModelMetadataProvider(), new ModelStateDictionary())
+        var panel = new ProjectTimelinePanelVm
         {
-            Model = model
+            Timeline = model,
+            Access = new ProjectOverviewAccessVm
+            {
+                IsHoD = isHoD,
+                IsAssignedProjectOfficer = isAssignedProjectOfficer
+            }
+        };
+        var viewData = new ViewDataDictionary<ProjectTimelinePanelVm>(new EmptyModelMetadataProvider(), new ModelStateDictionary())
+        {
+            Model = panel
         };
         var tempData = new TempDataDictionary(httpContext, tempDataProvider);
         var viewContext = new ViewContext(actionContext, viewResult.View, viewData, tempData, writer, new HtmlHelperOptions());

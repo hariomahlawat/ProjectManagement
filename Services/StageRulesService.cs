@@ -6,20 +6,22 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
-using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Stages;
 
 namespace ProjectManagement.Services;
 
 public class StageRulesService
 {
     private readonly ApplicationDbContext _db;
-    private readonly SemaphoreSlim _dependencyLock = new(1, 1);
-    private readonly Dictionary<string, IReadOnlyDictionary<string, IReadOnlyList<string>>> _dependencyCacheByVersion = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IProjectStageWorkflowPolicy _workflowPolicy;
 
-    public StageRulesService(ApplicationDbContext db)
+    public StageRulesService(
+        ApplicationDbContext db,
+        IProjectStageWorkflowPolicy workflowPolicy)
     {
-        _db = db;
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
     }
 
     public async Task<StageRulesContext> GetContextAsync(int projectId, CancellationToken cancellationToken)
@@ -43,9 +45,13 @@ public class StageRulesService
             .Select(ps => new StageSnapshot(ps.StageCode, ps.Status, ps.ActualStart, ps.CompletedOn))
             .ToList();
 
-        // SECTION: Workflow Resolution
-        var workflowVersion = await ResolveWorkflowVersionAsync(projectId, cancellationToken);
-        var dependencies = await GetDependencyMapAsync(workflowVersion, cancellationToken);
+        // SECTION: Workflow resolution
+        var workflow = await _workflowPolicy.GetAsync(projectId, cancellationToken);
+        var dependencies = workflow.Dependencies.ToDictionary(
+            item => item.Key,
+            item => workflow.RequiredPredecessors(item.Key),
+            StringComparer.OrdinalIgnoreCase);
+
         return new StageRulesContext(stageSnapshots, dependencies);
     }
 
@@ -174,52 +180,6 @@ public class StageRulesService
         return StageGuardResult.Allow();
     }
 
-    private async Task<string> ResolveWorkflowVersionAsync(int projectId, CancellationToken cancellationToken)
-    {
-        var workflowVersion = await _db.Projects
-            .Where(p => p.Id == projectId)
-            .Select(p => p.WorkflowVersion)
-            .SingleAsync(cancellationToken);
-
-        return string.IsNullOrWhiteSpace(workflowVersion)
-            ? PlanConstants.StageTemplateVersionV1
-            : workflowVersion;
-    }
-
-    private async Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetDependencyMapAsync(string workflowVersion, CancellationToken cancellationToken)
-    {
-        if (_dependencyCacheByVersion.TryGetValue(workflowVersion, out var cached))
-        {
-            return cached;
-        }
-
-        await _dependencyLock.WaitAsync(cancellationToken);
-        try
-        {
-            if (!_dependencyCacheByVersion.TryGetValue(workflowVersion, out cached))
-            {
-                var dependencies = await _db.StageDependencyTemplates
-                    .AsNoTracking()
-                    .Where(d => d.Version == workflowVersion)
-                    .ToListAsync(cancellationToken);
-
-                cached = dependencies
-                    .GroupBy(d => d.FromStageCode, StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(
-                        g => g.Key,
-                        g => (IReadOnlyList<string>)g.Select(x => x.DependsOnStageCode).ToList(),
-                        StringComparer.OrdinalIgnoreCase);
-
-                _dependencyCacheByVersion[workflowVersion] = cached;
-            }
-        }
-        finally
-        {
-            _dependencyLock.Release();
-        }
-
-        return cached;
-    }
 }
 
 public sealed class StageRulesContext
