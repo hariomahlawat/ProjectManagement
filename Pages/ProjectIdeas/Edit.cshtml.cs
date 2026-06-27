@@ -19,7 +19,11 @@ public class EditModel : PageModel
     private readonly ProjectIdeaPermissionService _permissions;
     private readonly UserManager<ApplicationUser> _users;
 
-    public EditModel(ProjectIdeaReadService read, ProjectIdeaCommandService commands, ProjectIdeaPermissionService permissions, UserManager<ApplicationUser> users)
+    public EditModel(
+        ProjectIdeaReadService read,
+        ProjectIdeaCommandService commands,
+        ProjectIdeaPermissionService permissions,
+        UserManager<ApplicationUser> users)
     {
         _read = read;
         _commands = commands;
@@ -27,14 +31,26 @@ public class EditModel : PageModel
         _users = users;
     }
 
-    // SECTION: Bound form state
     [BindProperty]
     public InputModel Input { get; set; } = new();
+
+    public bool CanManageCore { get; private set; }
+    public string CurrentTitle { get; private set; } = string.Empty;
+    public string CurrentStatus { get; private set; } = string.Empty;
+    public string? CurrentProjectOfficerName { get; private set; }
+    public string? CurrentHodName { get; private set; }
 
     public SelectList ProjectOfficerOptions { get; private set; } = default!;
     public SelectList HodOptions { get; private set; } = default!;
 
-    public SelectList EditableStatusOptions { get; } = new(new[] { new { Value = ProjectIdeaStatuses.Active, Text = "Active" }, new { Value = ProjectIdeaStatuses.OnHold, Text = "On Hold" } }, "Value", "Text");
+    public SelectList EditableStatusOptions { get; } = new(
+        new[]
+        {
+            new { Value = ProjectIdeaStatuses.Active, Text = "Active" },
+            new { Value = ProjectIdeaStatuses.OnHold, Text = "On Hold" }
+        },
+        "Value",
+        "Text");
 
     [TempData] public string? StatusMessage { get; set; }
     [TempData] public string? ErrorMessage { get; set; }
@@ -43,28 +59,25 @@ public class EditModel : PageModel
     {
         public int Id { get; set; }
 
-        [Required, MaxLength(200)]
-        public string Title { get; set; } = string.Empty;
+        [MaxLength(200)]
+        public string? Title { get; set; }
 
         [Required, MaxLength(2000)]
         public string Description { get; set; } = string.Empty;
 
         public string? AssignedProjectOfficerUserId { get; set; }
-
         public string? AssignedHodUserId { get; set; }
-
-        [Required]
-        public string Status { get; set; } = ProjectIdeaStatuses.Active;
+        public string? Status { get; set; }
     }
 
-    // SECTION: Page handlers
     public async Task<IActionResult> OnGetAsync(int id)
     {
         var idea = await _read.GetDetailsAsync(id);
         if (idea is null) return NotFound();
-        if (!_permissions.CanEditIdeaCore(User, idea)) return Forbid();
+        if (!_permissions.CanEditDescription(User, idea)) return Forbid();
 
-        Input = new()
+        SetPageState(idea);
+        Input = new InputModel
         {
             Id = idea.Id,
             Title = idea.Title,
@@ -74,7 +87,7 @@ public class EditModel : PageModel
             Status = idea.Status
         };
 
-        await LoadUsersAsync();
+        await LoadUsersIfRequiredAsync();
         return Page();
     }
 
@@ -82,43 +95,98 @@ public class EditModel : PageModel
     {
         var idea = await _read.GetDetailsAsync(Input.Id);
         if (idea is null) return NotFound();
-        if (!_permissions.CanEditIdeaCore(User, idea)) return Forbid();
+        if (!_permissions.CanEditDescription(User, idea)) return Forbid();
 
-        var requestedStatus = Input.Status;
-        if (!IsEditableStatus(requestedStatus))
+        SetPageState(idea);
+
+        if (CanManageCore)
         {
-            ModelState.AddModelError("Input.Status", "Select Active or On Hold. Use the archive action to archive an idea.");
+            ValidateCoreFields();
+        }
+        else
+        {
+            // Project Officers may update only the description. Never trust posted
+            // values for title, ownership or status from a restricted editor.
+            ModelState.Remove("Input.Title");
+            ModelState.Remove("Input.AssignedProjectOfficerUserId");
+            ModelState.Remove("Input.AssignedHodUserId");
+            ModelState.Remove("Input.Status");
         }
 
         if (!ModelState.IsValid)
         {
-            await LoadUsersAsync();
+            await LoadUsersIfRequiredAsync();
             return Page();
         }
 
-        idea.Title = Input.Title.Trim();
         idea.Description = Input.Description.Trim();
-        idea.AssignedProjectOfficerUserId = Input.AssignedProjectOfficerUserId;
-        idea.AssignedHodUserId = Input.AssignedHodUserId;
-        idea.Status = requestedStatus;
+
+        if (CanManageCore)
+        {
+            idea.Title = Input.Title!.Trim();
+            idea.AssignedProjectOfficerUserId = Input.AssignedProjectOfficerUserId;
+            idea.AssignedHodUserId = Input.AssignedHodUserId;
+            idea.Status = Input.Status!;
+        }
 
         await _commands.UpdateAsync(idea);
-        StatusMessage = "Idea updated.";
+        StatusMessage = CanManageCore ? "Idea updated." : "Idea description updated.";
         return RedirectToPage("Details", new { id = idea.Id });
     }
 
-    // SECTION: Lookup loading
-    private async Task LoadUsersAsync()
+    private void ValidateCoreFields()
     {
+        if (string.IsNullOrWhiteSpace(Input.Title))
+        {
+            ModelState.AddModelError("Input.Title", "Title is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(Input.Status) || !IsEditableStatus(Input.Status))
+        {
+            ModelState.AddModelError(
+                "Input.Status",
+                "Select Active or On Hold. Use the archive action to archive an idea.");
+        }
+    }
+
+    private void SetPageState(ProjectIdea idea)
+    {
+        CanManageCore = _permissions.CanEditIdeaCore(User, idea);
+        CurrentTitle = idea.Title;
+        CurrentStatus = ProjectIdeaStatuses.ToDisplay(idea.Status);
+        CurrentProjectOfficerName = DisplayNameOrNull(idea.AssignedProjectOfficerUser);
+        CurrentHodName = DisplayNameOrNull(idea.AssignedHodUser);
+    }
+
+    private async Task LoadUsersIfRequiredAsync()
+    {
+        if (!CanManageCore)
+        {
+            ProjectOfficerOptions = new SelectList(Array.Empty<object>());
+            HodOptions = new SelectList(Array.Empty<object>());
+            return;
+        }
+
         ProjectOfficerOptions = BuildSelectList(await _users.GetUsersInRoleAsync(RoleNames.ProjectOfficer));
         HodOptions = BuildSelectList(await _users.GetUsersInRoleAsync(RoleNames.HoD));
     }
 
     private static SelectList BuildSelectList(IEnumerable<ApplicationUser> users)
     {
-        return new SelectList(users.OrderBy(DisplayName).Select(u => new { u.Id, Name = DisplayName(u) }), "Id", "Name");
+        return new SelectList(
+            users.OrderBy(DisplayName).Select(u => new { u.Id, Name = DisplayName(u) }),
+            "Id",
+            "Name");
     }
 
-    private static string DisplayName(ApplicationUser user) => string.IsNullOrWhiteSpace(user.FullName) ? user.UserName ?? user.Email ?? user.Id : user.FullName;
-    private static bool IsEditableStatus(string status) => status == ProjectIdeaStatuses.Active || status == ProjectIdeaStatuses.OnHold;
+    private static string DisplayName(ApplicationUser user) =>
+        string.IsNullOrWhiteSpace(user.FullName)
+            ? user.UserName ?? user.Email ?? user.Id
+            : user.FullName;
+
+    private static string? DisplayNameOrNull(ApplicationUser? user) =>
+        user is null ? null : DisplayName(user);
+
+    private static bool IsEditableStatus(string status) =>
+        status == ProjectIdeaStatuses.Active || status == ProjectIdeaStatuses.OnHold;
 }

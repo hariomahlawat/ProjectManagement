@@ -31,7 +31,10 @@
         <div class="pi-detail-title">
             <h1>@Model.Idea.Title</h1>
             <p>@Model.Idea.Description</p>
-            <span class="pi-notice"><span class="bi bi-info-circle"></span> Idea creation is restricted to HoD, Admin, and Comdt roles.</span>
+            @if (Model.CanEdit)
+            {
+                <span class="pi-notice"><span class="bi bi-info-circle"></span> Assigned Project Officers may update the idea description; ownership and status remain controlled by HoD/Admin/Comdt.</span>
+            }
         </div>
         <div class="pi-detail-meta">
             <span>Status</span><b class="pi-status pi-status-@Model.Idea.Status.ToLowerInvariant()">@ProjectIdeaStatuses.ToDisplay(Model.Idea.Status)</b>
@@ -43,7 +46,7 @@
         <div class="pi-actions">
             @if (Model.CanEdit)
             {
-                <a class="pi-btn" asp-page="Edit" asp-route-id="@Model.Idea.Id"><span class="bi bi-pencil"></span> Edit</a>
+                <a class="pi-btn" asp-page="Edit" asp-route-id="@Model.Idea.Id"><span class="bi bi-pencil"></span> Edit idea</a>
             }
             @* SECTION: Archive action *@
             @if (Model.CanArchive && !Model.IsArchived)
