@@ -40,6 +40,22 @@ public sealed record MediaLibraryProjectOption(int Id, string Name);
 
 public sealed record MediaLibraryStatistics(int Total, int Photos, int Videos, int Collections);
 
+public enum MediaLibraryQueryOperation
+{
+    CatalogueDisabled,
+    PrimaryTimeline,
+    Statistics,
+    Years,
+    Projects,
+    PrismSourceStatus
+}
+
+public sealed record MediaLibraryQueryWarning(
+    MediaLibraryQueryOperation Operation,
+    string Reference,
+    string Message,
+    DateTimeOffset OccurredAtUtc);
+
 public sealed record MediaLibraryQueryResult(
     IReadOnlyList<MediaLibraryQueryItem> Items,
     IReadOnlyList<MediaLibraryProjectOption> Projects,
@@ -50,10 +66,18 @@ public sealed record MediaLibraryQueryResult(
     bool HasPreviousPage,
     bool HasNextPage,
     bool IsAvailable,
+    bool IsPrimaryQuerySuccessful,
     bool HasPrismCatalogue,
+    IReadOnlyList<MediaLibraryQueryWarning> Warnings,
     string? Warning)
 {
-    public static MediaLibraryQueryResult Unavailable(int pageNumber, int pageSize, string warning)
+    public bool IsDegraded => IsAvailable && Warnings.Count > 0;
+
+    public static MediaLibraryQueryResult Unavailable(
+        int pageNumber,
+        int pageSize,
+        string warning,
+        MediaLibraryQueryWarning? diagnostic = null)
         => new(
             Array.Empty<MediaLibraryQueryItem>(),
             Array.Empty<MediaLibraryProjectOption>(),
@@ -65,6 +89,8 @@ public sealed record MediaLibraryQueryResult(
             false,
             false,
             false,
+            false,
+            diagnostic is null ? Array.Empty<MediaLibraryQueryWarning>() : new[] { diagnostic },
             warning);
 }
 

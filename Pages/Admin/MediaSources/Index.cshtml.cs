@@ -21,19 +21,31 @@ public sealed class IndexModel : PageModel
     private readonly IFileSystemSourceHealthService _healthService;
     private readonly IFileSystemPathResolver _pathResolver;
     private readonly IMediaLibrarySchemaService _schemaService;
+    private readonly IMediaLibraryHealthService _catalogueHealthService;
+    private readonly IMediaLibraryDiagnostics _catalogueDiagnostics;
+    private readonly IMediaCatalogueConsistencyService _consistencyService;
+    private readonly IPrismMediaCatalogueSynchronizer _prismSynchronizer;
 
     public IndexModel(
         MediaLibraryDbContext db,
         IOptions<MediaLibraryOptions> options,
         IFileSystemSourceHealthService healthService,
         IFileSystemPathResolver pathResolver,
-        IMediaLibrarySchemaService schemaService)
+        IMediaLibrarySchemaService schemaService,
+        IMediaLibraryHealthService catalogueHealthService,
+        IMediaLibraryDiagnostics catalogueDiagnostics,
+        IMediaCatalogueConsistencyService consistencyService,
+        IPrismMediaCatalogueSynchronizer prismSynchronizer)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _healthService = healthService ?? throw new ArgumentNullException(nameof(healthService));
         _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
         _schemaService = schemaService ?? throw new ArgumentNullException(nameof(schemaService));
+        _catalogueHealthService = catalogueHealthService ?? throw new ArgumentNullException(nameof(catalogueHealthService));
+        _catalogueDiagnostics = catalogueDiagnostics ?? throw new ArgumentNullException(nameof(catalogueDiagnostics));
+        _consistencyService = consistencyService ?? throw new ArgumentNullException(nameof(consistencyService));
+        _prismSynchronizer = prismSynchronizer ?? throw new ArgumentNullException(nameof(prismSynchronizer));
     }
 
     [BindProperty]
@@ -47,6 +59,10 @@ public sealed class IndexModel : PageModel
     public bool IsEditing => Input.Id.HasValue;
     public IReadOnlyList<string> PendingMigrations { get; private set; } = Array.Empty<string>();
     public string? CatalogueError { get; private set; }
+    public MediaLibraryHealthReport? CatalogueHealth { get; private set; }
+    public IReadOnlyList<MediaLibraryDiagnosticEvent> CatalogueDiagnostics { get; private set; } = Array.Empty<MediaLibraryDiagnosticEvent>();
+    public int ExternalSourceCount => Sources.Count(source => source.Type == MediaLibrarySourceType.FileSystem);
+    public long PrismAssetCount => Sources.Where(source => source.Type == MediaLibrarySourceType.Prism).Sum(source => source.AssetCount);
 
     [TempData]
     public string? StatusMessage { get; set; }
@@ -87,6 +103,47 @@ public sealed class IndexModel : PageModel
         return RedirectToPage();
     }
 
+    public async Task<IActionResult> OnPostTestCatalogueAsync(CancellationToken cancellationToken)
+    {
+        var report = await _catalogueHealthService.CheckAsync(cancellationToken);
+        if (report.IsOperational && report.FacetsHealthy)
+        {
+            StatusMessage = $"Catalogue test passed. Timeline and facets are healthy; {report.IndexedAssets:N0} assets are indexed.";
+        }
+        else if (report.TimelineQueryHealthy)
+        {
+            WarningMessage = "The catalogue timeline is operational, but one or more optional facets are degraded. Review the diagnostics panel.";
+        }
+        else
+        {
+            WarningMessage = "The unified catalogue timeline test failed. Review the diagnostics panel and application logs before enabling further media-intelligence features.";
+        }
+
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostSynchronizePrismAsync(CancellationToken cancellationToken)
+    {
+        await _prismSynchronizer.SynchronizeAsync(cancellationToken);
+        StatusMessage = "PRISM media catalogue synchronization completed.";
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostCheckConsistencyAsync(CancellationToken cancellationToken)
+    {
+        var report = await _consistencyService.CheckAsync(cancellationToken);
+        if (report.IsConsistent)
+        {
+            StatusMessage = $"Catalogue consistency check passed: {report.PrismSourceRecords:N0} PRISM source records and {report.CatalogueRecords:N0} available catalogue records.";
+        }
+        else
+        {
+            WarningMessage = $"Catalogue consistency check found {report.MissingFromCatalogue:N0} missing and {report.OrphanedCatalogueRecords:N0} orphaned record(s). Run Synchronize PRISM now, then check again.";
+        }
+
+        return RedirectToPage();
+    }
+
     public async Task<IActionResult> OnPostSaveAsync(CancellationToken cancellationToken)
     {
         if (!ExternalSourcesEnabled)
@@ -117,7 +174,7 @@ public sealed class IndexModel : PageModel
 
         var existingRoots = await _db.Sources
             .AsNoTracking()
-            .Where(source => source.SourceType == MediaLibrarySourceType.FileSystem
+            .Where(source => source.Type == MediaLibrarySourceType.FileSystem
                              && !source.IsDeleted
                              && source.RootPath != null
                              && (!Input.Id.HasValue || source.Id != Input.Id.Value))
@@ -385,6 +442,7 @@ public sealed class IndexModel : PageModel
             Sources = Array.Empty<SourceRow>();
             PendingJobs = 0;
             FailedJobs = 0;
+            CatalogueDiagnostics = _catalogueDiagnostics.GetLatest();
             return;
         }
 
@@ -408,7 +466,7 @@ public sealed class IndexModel : PageModel
                     source.ScanStatus,
                     source.HealthStatus,
                     source.HealthMessage,
-                    source.IndexedAssetCount,
+                    source.AssetCount,
                     source.LastSuccessfulScanAtUtc,
                     source.LastHealthCheckedAtUtc,
                     source.LastError))
@@ -422,6 +480,9 @@ public sealed class IndexModel : PageModel
                 job => job.Status == MediaProcessingJobStatus.Failed
                        || job.Status == MediaProcessingJobStatus.DeadLetter,
                 cancellationToken);
+
+            CatalogueHealth = await _catalogueHealthService.CheckAsync(cancellationToken);
+            CatalogueDiagnostics = _catalogueDiagnostics.GetLatest();
         }
         catch (Exception ex) when (ex is NpgsqlException or DbUpdateException or InvalidOperationException or TimeoutException)
         {

@@ -36,6 +36,9 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IPrismMediaCatalogueSynchronizer, PrismMediaCatalogueSynchronizer>();
         services.AddScoped<IExternalMediaSourceScanner, FileSystemMediaSourceScanner>();
         services.AddScoped<IExternalMediaLibraryReader, ExternalMediaLibraryReader>();
+        services.AddSingleton<IMediaLibraryDiagnostics, MediaLibraryDiagnostics>();
+        services.AddScoped<IMediaLibraryHealthService, MediaLibraryHealthService>();
+        services.AddScoped<IMediaCatalogueConsistencyService, MediaCatalogueConsistencyService>();
         services.AddScoped<IMediaLibraryQueryService, MediaLibraryQueryService>();
         services.AddScoped<IMediaMetadataReader, MediaMetadataReader>();
         services.AddScoped<IMediaClassifier, MediaClassifier>();

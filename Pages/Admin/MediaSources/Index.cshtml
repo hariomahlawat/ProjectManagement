@@ -73,30 +73,124 @@
         <div class="row g-3 mb-4">
             <div class="col-sm-6 col-xl-3">
                 <div class="border rounded-3 p-3 h-100 bg-body">
-                    <div class="text-muted small">Connected sources</div>
-                    <div class="fs-3 fw-semibold">@Model.Sources.Count(source => source.Type == MediaLibrarySourceType.FileSystem)</div>
+                    <div class="text-muted small">PRISM catalogue</div>
+                    <div class="fs-3 fw-semibold">@Model.PrismAssetCount.ToString("N0")</div>
+                    <div class="small text-muted">indexed assets</div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="border rounded-3 p-3 h-100 bg-body">
+                    <div class="text-muted small">External sources</div>
+                    <div class="fs-3 fw-semibold">@Model.ExternalSourceCount</div>
+                    <div class="small text-muted">connected folders</div>
                 </div>
             </div>
             <div class="col-sm-6 col-xl-3">
                 <div class="border rounded-3 p-3 h-100 bg-body">
                     <div class="text-muted small">Queued / processing</div>
                     <div class="fs-3 fw-semibold">@Model.PendingJobs</div>
+                    <div class="small text-muted">background jobs</div>
                 </div>
             </div>
             <div class="col-sm-6 col-xl-3">
                 <div class="border rounded-3 p-3 h-100 bg-body">
                     <div class="text-muted small">Failed jobs</div>
                     <div class="fs-3 fw-semibold @(Model.FailedJobs > 0 ? "text-danger" : null)">@Model.FailedJobs</div>
+                    <div class="small text-muted">requiring attention</div>
                 </div>
             </div>
-            <div class="col-sm-6 col-xl-3 d-flex align-items-stretch">
-                <form method="post" asp-page-handler="RetryFailed" class="w-100">
-                    <button type="submit" class="btn btn-outline-danger w-100 h-100" disabled="@(Model.FailedJobs == 0)">
-                        <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i> Retry failed jobs
-                    </button>
-                </form>
-            </div>
         </div>
+
+        <section class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-body border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3 py-3">
+                <div>
+                    <h2 class="h5 mb-1">Catalogue operations</h2>
+                    <p class="small text-muted mb-0">Verify the unified timeline independently from optional filters and aggregates.</p>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <form method="post" asp-page-handler="TestCatalogue">
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="bi bi-activity me-1" aria-hidden="true"></i> Test catalogue
+                        </button>
+                    </form>
+                    <form method="post" asp-page-handler="SynchronizePrism">
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i> Synchronize PRISM
+                        </button>
+                    </form>
+                    <form method="post" asp-page-handler="CheckConsistency">
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-check2-square me-1" aria-hidden="true"></i> Consistency check
+                        </button>
+                    </form>
+                    @if (Model.FailedJobs > 0)
+                    {
+                        <form method="post" asp-page-handler="RetryFailed">
+                            <button type="submit" class="btn btn-outline-danger">
+                                <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i> Retry failed jobs
+                            </button>
+                        </form>
+                    }
+                </div>
+            </div>
+            <div class="card-body">
+                @if (Model.CatalogueHealth is null)
+                {
+                    <p class="text-muted mb-0">Run a catalogue test to verify the timeline and optional facets.</p>
+                }
+                else
+                {
+                    <div class="row g-3">
+                        <div class="col-sm-6 col-xl-3">
+                            <div class="small text-muted">Database</div>
+                            <div class="fw-semibold @(Model.CatalogueHealth.DatabaseReachable ? "text-success" : "text-danger")">
+                                @(Model.CatalogueHealth.DatabaseReachable ? "Reachable" : "Unavailable")
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-xl-3">
+                            <div class="small text-muted">Schema</div>
+                            <div class="fw-semibold @(Model.CatalogueHealth.SchemaCurrent ? "text-success" : "text-danger")">
+                                @(Model.CatalogueHealth.SchemaCurrent ? "Current" : "Requires migration")
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-xl-3">
+                            <div class="small text-muted">Timeline query</div>
+                            <div class="fw-semibold @(Model.CatalogueHealth.TimelineQueryHealthy ? "text-success" : "text-danger")">
+                                @(Model.CatalogueHealth.TimelineQueryHealthy ? "Healthy" : "Failed")
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-xl-3">
+                            <div class="small text-muted">Optional facets</div>
+                            <div class="fw-semibold @(Model.CatalogueHealth.FacetsHealthy ? "text-success" : "text-warning")">
+                                @(Model.CatalogueHealth.FacetsHealthy ? "Healthy" : "Degraded")
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (Model.CatalogueHealth.Checks.Any(check => !check.Healthy))
+                    {
+                        <div class="table-responsive mt-3">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead>
+                                    <tr><th>Operation</th><th>Status</th><th>Reference</th><th>Duration</th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var check in Model.CatalogueHealth.Checks)
+                                    {
+                                        <tr>
+                                            <td>@check.Operation</td>
+                                            <td><span class="badge @(check.Healthy ? "text-bg-success" : "text-bg-danger")">@(check.Healthy ? "Healthy" : "Failed")</span></td>
+                                            <td><code>@check.Reference</code></td>
+                                            <td>@check.DurationMilliseconds ms</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                }
+            </div>
+        </section>
 
         <div class="row g-4">
             <div class="col-12 col-xl-8">
@@ -142,9 +236,14 @@
                                                 }
                                             </div>
                                             <div class="small text-muted mt-1">
-                                                @(source.Type == MediaLibrarySourceType.Prism ? "Internal PRISM catalogue" : "File-system folder")
-                                                · @(source.IsEnabled ? "Scanning enabled" : "Scanning paused")
-                                                · @(source.IsVisibleInLibrary ? "Visible" : "Hidden")
+                                                @if (source.Type == MediaLibrarySourceType.Prism)
+                                                {
+                                                    <text>System managed · Always included in Photos</text>
+                                                }
+                                                else
+                                                {
+                                                    <text>File-system folder · @(source.IsEnabled ? "Scanning enabled" : "Scanning paused") · @(source.IsVisibleInLibrary ? "Visible" : "Hidden")</text>
+                                                }
                                             </div>
                                             @if (!string.IsNullOrWhiteSpace(source.RootPath))
                                             {
