@@ -375,6 +375,8 @@
                         ? data.message
                         : 'Some stages no longer require backfill. Refresh the page and try again.';
                     renderErrors([message]);
+                } else if (response.status === 400) {
+                    renderErrors(['The security token is no longer valid. Refresh the page and try again.']);
                 } else if (response.status === 404) {
                     renderErrors(['Project or stages were not found. Refresh the page and try again.']);
                 } else if (response.status === 403) {

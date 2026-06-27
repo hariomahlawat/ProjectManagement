@@ -86,14 +86,9 @@ public class BackfillApplyModel : PageModel
             return ValidationFailure(new[] { "At least one stage update must be provided." });
         }
 
-        var principal = HttpContext?.User;
-        if (principal?.Identity?.IsAuthenticated != true)
-        {
-            return Forbid();
-        }
-
+        var principal = User;
         var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? principal.Identity.Name
+            ?? principal.Identity?.Name
             ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(userId))
@@ -158,6 +153,19 @@ public class BackfillApplyModel : PageModel
             {
                 ok = false,
                 error = "not-found"
+            });
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(ex,
+                "Database rejected stage backfill for project {ProjectId}. Ensure the latest ProjectStages constraint migration has been applied.",
+                input.ProjectId);
+
+            return StatusCode(StatusCodes.Status409Conflict, new
+            {
+                ok = false,
+                error = "database-rule-conflict",
+                message = "The stage dates could not be saved because the database rules are out of date. Apply the latest database migration and try again."
             });
         }
         catch (OperationCanceledException)
