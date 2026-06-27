@@ -1,83 +1,82 @@
 @page "{id:guid}"
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.SocialMedia.DetailsModel
+@using ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels
 @{
     ViewData["Title"] = Model.Event?.Title ?? "Social media activity";
-    var toastMessages = new List<ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels.SocialMediaToastMessage>();
-    if (TempData.TryGetValue("ToastMessage", out var toastValue) && toastValue is string toast && !string.IsNullOrWhiteSpace(toast))
+
+    var toastMessages = new List<SocialMediaToastMessage>();
+    if (TempData.TryGetValue("ToastMessage", out var toastMsg) && toastMsg is string okMsg && !string.IsNullOrWhiteSpace(okMsg))
     {
-        toastMessages.Add(new ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels.SocialMediaToastMessage(toast, "success"));
+        toastMessages.Add(new SocialMediaToastMessage(okMsg, "success"));
     }
-    if (TempData.TryGetValue("ToastError", out var toastErrorValue) && toastErrorValue is string toastError && !string.IsNullOrWhiteSpace(toastError))
+    if (TempData.TryGetValue("ToastError", out var toastErr) && toastErr is string errMsg && !string.IsNullOrWhiteSpace(errMsg))
     {
-        toastMessages.Add(new ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels.SocialMediaToastMessage(toastError, "danger"));
+        toastMessages.Add(new SocialMediaToastMessage(errMsg, "danger"));
     }
+
+    string PlatformLabel(string? name) =>
+        !string.IsNullOrWhiteSpace(name) && name.Contains("formerly twitter", StringComparison.OrdinalIgnoreCase)
+            ? "X"
+            : (string.IsNullOrWhiteSpace(name) ? "Unspecified" : name);
 }
 
 <partial name="_ToastMessages" model="toastMessages" />
 
-<div class="social-page-shell social-details-page">
-    <nav aria-label="Breadcrumb" class="social-breadcrumb">
-        <ol class="breadcrumb mb-0">
-            <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-            <li class="breadcrumb-item"><a asp-page="Index">Social media</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Activity</li>
-        </ol>
-    </nav>
+@if (Model.Event is not null)
+{
+    <div class="social-page-shell social-detail-page">
+        <nav aria-label="Breadcrumb" class="social-breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+                <li class="breadcrumb-item"><a asp-page="Index">Social media</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Activity</li>
+            </ol>
+        </nav>
 
-    <article class="social-detail-header">
-        <div class="social-detail-header__main">
-            <span class="social-page-kicker">Social media activity</span>
-            <h1>@Model.Event?.Title</h1>
-            <div class="social-detail-meta">
-                <span><i class="bi bi-calendar-event" aria-hidden="true"></i>@Model.Event?.DateOfEvent.ToString("dd MMM yyyy")</span>
-                <span><i class="bi bi-megaphone" aria-hidden="true"></i>@Model.EventType?.Name</span>
-                @if (!string.IsNullOrWhiteSpace(Model.Event?.SocialMediaPlatform?.Name))
-                {
-                    <span><i class="bi bi-share" aria-hidden="true"></i>@Model.Event?.SocialMediaPlatform?.Name</span>
-                }
-                <span><i class="bi bi-images" aria-hidden="true"></i>@Model.PhotoGallery.Photos.Count photo@(Model.PhotoGallery.Photos.Count == 1 ? string.Empty : "s")</span>
-            </div>
-        </div>
-        <div class="social-page-actions">
-            <a asp-page="Index" class="btn btn-outline-secondary">Back to activities</a>
-            @if (Model.CanManage && Model.Event is not null)
-            {
-                <a asp-page="Edit" asp-route-id="@Model.Event.Id" class="btn btn-primary"><i class="bi bi-pencil" aria-hidden="true"></i>Edit</a>
-                <div class="dropdown">
-                    <button class="btn btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-label="More actions"><i class="bi bi-three-dots"></i></button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item text-danger" asp-page="Delete" asp-route-id="@Model.Event.Id"><i class="bi bi-trash" aria-hidden="true"></i>Delete activity</a></li>
-                    </ul>
+        <header class="social-detail-compact">
+            <div class="social-detail-compact__main">
+                <span class="social-page-kicker">Social media activity</span>
+                <h1>@Model.Event.Title</h1>
+                <div class="social-detail-meta">
+                    <span><i class="bi bi-calendar3" aria-hidden="true"></i>@Model.Event.DateOfEvent.ToString("dd MMM yyyy")</span>
+                    <span><i class="bi bi-megaphone" aria-hidden="true"></i>@(Model.EventType?.Name ?? "Unspecified")</span>
+                    <span><i class="bi bi-share" aria-hidden="true"></i>@PlatformLabel(Model.Event.SocialMediaPlatform?.Name)</span>
+                    <span><i class="bi bi-images" aria-hidden="true"></i>@Model.PhotoGallery.Photos.Count photograph@(Model.PhotoGallery.Photos.Count == 1 ? string.Empty : "s")</span>
                 </div>
-            }
-        </div>
-    </article>
-
-    <section class="social-detail-grid">
-        <article class="social-content-card">
-            <header><h2>Description</h2></header>
-            @if (string.IsNullOrWhiteSpace(Model.Event?.Description))
-            {
-                <p class="social-muted-copy">No description has been recorded.</p>
-            }
-            else
-            {
-                <div class="social-description">@Model.Event.Description</div>
-            }
-        </article>
-
-        <article class="social-content-card social-gallery-section">
-            <header class="social-content-card__header">
-                <div><h2>Photo gallery</h2><p>Images associated with this activity.</p></div>
-                @if (Model.CanManage && Model.Event is not null)
+            </div>
+            <div class="social-detail-actions">
+                <a asp-page="Index" class="btn btn-outline-secondary">Back</a>
+                @if (Model.CanManage)
                 {
-                    <a asp-page="Edit" asp-route-id="@Model.Event.Id" class="btn btn-outline-primary btn-sm">Manage photos</a>
+                    <a asp-page="Edit" asp-route-id="@Model.Event.Id" class="btn btn-primary"><i class="bi bi-pencil" aria-hidden="true"></i>Edit</a>
+                    <a asp-page="Delete" asp-route-id="@Model.Event.Id" class="btn btn-outline-danger"><i class="bi bi-trash" aria-hidden="true"></i>Delete</a>
                 }
-            </header>
+            </div>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(Model.Event.Description))
+        {
+            <section class="social-detail-section">
+                <h2>Description</h2>
+                <div class="social-description-text">@Model.Event.Description</div>
+            </section>
+        }
+
+        <section class="social-detail-section social-detail-gallery-section">
+            <div class="social-section-heading">
+                <div>
+                    <h2>Photographs</h2>
+                    <p>Images associated with this activity.</p>
+                </div>
+                @if (Model.CanManage)
+                {
+                    <a asp-page="Edit" asp-route-id="@Model.Event.Id" asp-fragment="edit-photos-heading" class="btn btn-sm btn-outline-primary">Edit photographs</a>
+                }
+            </div>
             <partial name="_PhotoGallery" model="Model.PhotoGallery" />
-        </article>
-    </section>
-</div>
+        </section>
+    </div>
+}
 
 @section Scripts {
     <script type="module" src="~/js/pages/project-office-reports/social-media.js" asp-append-version="true"></script>

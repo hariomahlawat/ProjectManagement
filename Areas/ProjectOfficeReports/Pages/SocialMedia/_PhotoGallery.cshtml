@@ -28,10 +28,11 @@ else
                 <a href="@versionedFull" target="_blank" rel="noopener" class="social-gallery-card__image">
                     <span class="visually-hidden">Open full-size photograph in a new tab</span>
                     <div class="social-gallery-card__frame">
-                        <img src="@versionedThumbnail" alt="@altText" data-social-photo />
+                        <img src="@versionedThumbnail" alt="" loading="lazy" data-social-photo />
                         <div class="social-photo-fallback" hidden data-social-photo-fallback>
                             <i class="bi bi-image" aria-hidden="true"></i>
-                            <span>Image unavailable</span>
+                            <strong>Photograph unavailable</strong>
+                            <span>The stored image could not be loaded.</span>
                         </div>
                         @if (photo.IsCover)
                         {

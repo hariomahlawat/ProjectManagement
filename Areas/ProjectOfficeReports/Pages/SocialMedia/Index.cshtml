@@ -4,7 +4,7 @@
 @{
     ViewData["Title"] = "Social media activities";
 
-    string GetPlatformIcon(string? platformName)
+    string PlatformIcon(string? platformName)
     {
         var value = platformName?.Trim().ToLowerInvariant() ?? string.Empty;
         if (value.Contains("twitter") || value == "x" || value.StartsWith("x ")) return "bi-twitter";
@@ -15,18 +15,20 @@
         return "bi-share";
     }
 
-    string GetPlatformLabel(string? platformName)
+    string PlatformLabel(string? platformName)
     {
         var value = platformName?.Trim() ?? string.Empty;
-        return value.Contains("formerly twitter", StringComparison.OrdinalIgnoreCase) ? "X" : (string.IsNullOrWhiteSpace(value) ? "Unspecified" : value);
+        return value.Contains("formerly twitter", StringComparison.OrdinalIgnoreCase)
+            ? "X"
+            : (string.IsNullOrWhiteSpace(value) ? "Unspecified" : value);
     }
 
-    var hasFilters = Model.Filter.EventTypeId.HasValue
-        || Model.Filter.PlatformId.HasValue
-        || !string.IsNullOrWhiteSpace(Model.Filter.SearchQuery)
-        || Model.Filter.StartDate.HasValue
-        || Model.Filter.EndDate.HasValue
-        || Model.Filter.OnlyActiveEventTypes;
+    var hasFilters = Model.EventTypeId.HasValue
+        || Model.PlatformId.HasValue
+        || !string.IsNullOrWhiteSpace(Model.Q)
+        || !string.IsNullOrWhiteSpace(Model.From)
+        || !string.IsNullOrWhiteSpace(Model.To)
+        || Model.OnlyActiveEventTypes;
 
     var toastMessages = new List<SocialMediaToastMessage>();
     if (TempData.TryGetValue("ToastMessage", out var toastMsg) && toastMsg is string okMsg && !string.IsNullOrWhiteSpace(okMsg))
@@ -49,76 +51,42 @@
         </ol>
     </nav>
 
-    <header class="social-page-header">
+    <header class="social-index-header">
         <div>
-            <span class="social-page-kicker">Project office reports</span>
             <h1>Social media activities</h1>
-            <p>Maintain a clear record of institutional posts, news coverage and communication activities.</p>
+            <p>Institutional posts, news coverage and communication activities.</p>
+            <div class="social-index-summary" aria-label="Register summary">
+                <span><strong>@Model.TotalCount</strong> activities</span>
+                <span><strong>@Model.TotalPhotos</strong> photographs</span>
+                @if (Model.LatestEvent is not null)
+                {
+                    <span>Latest <strong>@Model.LatestEvent.DateOfEvent.ToString("dd MMM yyyy")</strong></span>
+                }
+                @foreach (var platform in Model.PlatformBreakdown)
+                {
+                    <span class="social-platform-inline"><i class="bi @PlatformIcon(platform.Name)" aria-hidden="true"></i>@PlatformLabel(platform.Name) @platform.Count</span>
+                }
+            </div>
         </div>
         <div class="social-page-actions">
             @if (Model.TotalCount > 0)
             {
                 <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#exportSocialModal">
-                    <i class="bi bi-download" aria-hidden="true"></i>
-                    Export
+                    <i class="bi bi-download" aria-hidden="true"></i>Export
                 </button>
             }
             @if (Model.CanManage)
             {
-                <a asp-page="Create" class="btn btn-primary">
-                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
-                    Add activity
-                </a>
+                <a asp-page="Create" class="btn btn-primary"><i class="bi bi-plus-lg" aria-hidden="true"></i>Add activity</a>
             }
         </div>
     </header>
 
-    <section class="social-summary-grid" aria-label="Social media summary">
-        <article class="social-summary-card">
-            <div class="social-summary-card__icon"><i class="bi bi-megaphone" aria-hidden="true"></i></div>
-            <div><span>Activities</span><strong>@Model.TotalCount</strong></div>
-        </article>
-        <article class="social-summary-card">
-            <div class="social-summary-card__icon"><i class="bi bi-images" aria-hidden="true"></i></div>
-            <div><span>Photographs</span><strong>@Model.TotalPhotos</strong></div>
-        </article>
-        <article class="social-summary-card social-summary-card--wide">
-            <div class="social-summary-card__icon"><i class="bi bi-clock-history" aria-hidden="true"></i></div>
-            <div>
-                <span>Latest activity</span>
-                @if (Model.LatestEvent is null)
-                {
-                    <strong>None recorded</strong>
-                }
-                else
-                {
-                    <strong>@Model.LatestEvent.DateOfEvent.ToString("dd MMM yyyy")</strong>
-                    <small>@Model.LatestEvent.Title</small>
-                }
-            </div>
-        </article>
-    </section>
-
-    @if (Model.PlatformBreakdown.Count > 0)
-    {
-        <div class="social-platform-strip" aria-label="Platform distribution">
-            <span class="social-platform-strip__label">Platforms</span>
-            @foreach (var platform in Model.PlatformBreakdown)
-            {
-                <span class="social-platform-chip">
-                    <i class="bi @GetPlatformIcon(platform.Name)" aria-hidden="true"></i>
-                    @GetPlatformLabel(platform.Name)
-                    <strong>@platform.Count</strong>
-                </span>
-            }
-        </div>
-    }
-
-    <form method="get" class="social-filter-bar" data-social-filter-form>
+    <form method="get" class="social-filter-bar social-filter-bar--compact" data-social-filter-form>
         <div class="social-filter-search">
             <i class="bi bi-search" aria-hidden="true"></i>
             <label class="visually-hidden" for="social-search">Search activities</label>
-            <input id="social-search" name="Q" value="@Model.Filter.SearchQuery" class="form-control" placeholder="Search title or description" />
+            <input id="social-search" name="Q" value="@Model.Q" class="form-control" placeholder="Search activities" />
         </div>
         <div>
             <label class="visually-hidden" for="social-event-type">Event type</label>
@@ -129,10 +97,8 @@
             <select id="social-platform" asp-for="PlatformId" asp-items="Model.Filter.PlatformOptions" class="form-select" data-social-auto-submit></select>
         </div>
         <button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#social-date-filters" aria-expanded="@(Model.Filter.StartDate.HasValue || Model.Filter.EndDate.HasValue ? "true" : "false")" aria-controls="social-date-filters">
-            <i class="bi bi-calendar3" aria-hidden="true"></i>
-            Date
+            <i class="bi bi-calendar3" aria-hidden="true"></i><span class="d-none d-xl-inline">Date</span>
         </button>
-        <button class="btn btn-primary" type="submit">Apply</button>
         @if (hasFilters)
         {
             <a asp-page="Index" class="btn btn-link">Clear</a>
@@ -140,14 +106,14 @@
         <div id="social-date-filters" class="collapse social-date-filters @(Model.Filter.StartDate.HasValue || Model.Filter.EndDate.HasValue ? "show" : string.Empty)">
             <div>
                 <label for="social-from">From</label>
-                <input id="social-from" name="From" type="date" value="@Model.Filter.StartDateValue" class="form-control" />
+                <input id="social-from" name="From" type="date" value="@Model.Filter.StartDateValue" class="form-control" data-social-auto-submit />
             </div>
             <div>
                 <label for="social-to">To</label>
-                <input id="social-to" name="To" type="date" value="@Model.Filter.EndDateValue" class="form-control" />
+                <input id="social-to" name="To" type="date" value="@Model.Filter.EndDateValue" class="form-control" data-social-auto-submit />
             </div>
             <label class="form-check social-active-toggle">
-                <input class="form-check-input" type="checkbox" value="true" name="OnlyActiveEventTypes" @(Model.Filter.OnlyActiveEventTypes ? "checked" : string.Empty) />
+                <input class="form-check-input" type="checkbox" value="true" name="OnlyActiveEventTypes" @(Model.OnlyActiveEventTypes ? "checked" : string.Empty) data-social-auto-submit />
                 <span class="form-check-label">Active event types only</span>
             </label>
         </div>
@@ -163,10 +129,10 @@
 
         @if (Model.TotalCount == 0)
         {
-            <div class="social-empty-state">
+            <div class="social-empty-state social-empty-state--compact">
                 <div class="social-empty-state__icon"><i class="bi bi-journal-text" aria-hidden="true"></i></div>
                 <h2>No activities found</h2>
-                <p>Adjust the filters or add the first social media activity.</p>
+                <p>Adjust the filters or add the first activity.</p>
                 @if (Model.CanManage)
                 {
                     <a asp-page="Create" class="btn btn-primary">Add activity</a>
@@ -175,55 +141,69 @@
         }
         else
         {
-            <div class="social-table-card d-none d-lg-block">
-                <div class="table-responsive">
-                    <table class="table social-activity-table mb-0">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Activity</th>
-                                <th>Type</th>
-                                <th>Platform</th>
-                                <th class="text-center">Photos</th>
-                                <th class="text-end"><span class="visually-hidden">Actions</span></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var item in Model.Events)
-                            {
-                                <tr data-social-row-url="@Url.Page("Details", new { id = item.Id })">
-                                    <td class="social-date-cell"><strong>@item.DateOfEvent.ToString("dd MMM")</strong><span>@item.DateOfEvent.Year</span></td>
-                                    <td>
-                                        <a asp-page="Details" asp-route-id="@item.Id" class="social-activity-title">@item.Title</a>
-                                        <div class="social-row-meta">Updated @((item.LastModifiedAtUtc ?? item.CreatedAtUtc).ToLocalTime().ToString("dd MMM yyyy"))</div>
-                                    </td>
-                                    <td><span class="social-type-badge">@item.EventTypeName</span></td>
-                                    <td><span class="social-platform-value"><i class="bi @GetPlatformIcon(item.PlatformName)" aria-hidden="true"></i>@GetPlatformLabel(item.PlatformName)</span></td>
-                                    <td class="text-center"><span class="social-photo-count"><i class="bi bi-image" aria-hidden="true"></i>@item.PhotoCount</span></td>
-                                    <td class="text-end">
-                                        <div class="dropdown">
-                                            <button class="btn btn-sm btn-light social-row-menu" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @item.Title">
-                                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                <li><a class="dropdown-item" asp-page="Details" asp-route-id="@item.Id"><i class="bi bi-eye" aria-hidden="true"></i>View</a></li>
-                                                @if (Model.CanManage)
-                                                {
-                                                    <li><a class="dropdown-item" asp-page="Edit" asp-route-id="@item.Id"><i class="bi bi-pencil" aria-hidden="true"></i>Edit</a></li>
-                                                    <li><hr class="dropdown-divider" /></li>
-                                                    <li><a class="dropdown-item text-danger" asp-page="Delete" asp-route-id="@item.Id"><i class="bi bi-trash" aria-hidden="true"></i>Delete</a></li>
-                                                }
-                                            </ul>
+            <div class="social-table-card d-none d-md-block">
+                <table class="table social-activity-table social-activity-table--compact mb-0">
+                    <thead>
+                        <tr>
+                            <th>Activity</th>
+                            <th class="social-col-type">Type</th>
+                            <th class="social-col-updated">Updated</th>
+                            <th class="text-end"><span class="visually-hidden">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.Events)
+                        {
+                            var photoUrl = item.CoverPhotoId.HasValue
+                                ? Url.Page("./ViewPhoto", new { id = item.Id, photoId = item.CoverPhotoId.Value, size = "thumb" })
+                                : null;
+                            <tr data-social-row-url="@Url.Page("Details", new { id = item.Id })">
+                                <td>
+                                    <div class="social-register-activity">
+                                        <div class="social-register-thumb">
+                                            @if (!string.IsNullOrWhiteSpace(photoUrl))
+                                            {
+                                                <img src="@photoUrl" alt="" data-social-photo />
+                                                <span class="social-register-thumb__fallback" hidden data-social-photo-fallback><i class="bi bi-image"></i></span>
+                                            }
+                                            else
+                                            {
+                                                <span class="social-register-thumb__fallback"><i class="bi bi-image"></i></span>
+                                            }
                                         </div>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
+                                        <div class="social-register-copy">
+                                            <a asp-page="Details" asp-route-id="@item.Id" class="social-activity-title">@item.Title</a>
+                                            <div class="social-register-meta">
+                                                <span><i class="bi bi-calendar3" aria-hidden="true"></i>@item.DateOfEvent.ToString("dd MMM yyyy")</span>
+                                                <span><i class="bi @PlatformIcon(item.PlatformName)" aria-hidden="true"></i>@PlatformLabel(item.PlatformName)</span>
+                                                <span><i class="bi bi-images" aria-hidden="true"></i>@item.PhotoCount</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="social-col-type"><span class="social-type-badge">@item.EventTypeName</span></td>
+                                <td class="social-col-updated">@((item.LastModifiedAtUtc ?? item.CreatedAtUtc).ToLocalTime().ToString("dd MMM yyyy"))</td>
+                                <td class="text-end">
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-light social-row-menu" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @item.Title"><i class="bi bi-three-dots-vertical"></i></button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li><a class="dropdown-item" asp-page="Details" asp-route-id="@item.Id"><i class="bi bi-eye"></i>View</a></li>
+                                            @if (Model.CanManage)
+                                            {
+                                                <li><a class="dropdown-item" asp-page="Edit" asp-route-id="@item.Id"><i class="bi bi-pencil"></i>Edit</a></li>
+                                                <li><hr class="dropdown-divider" /></li>
+                                                <li><a class="dropdown-item text-danger" asp-page="Delete" asp-route-id="@item.Id"><i class="bi bi-trash"></i>Delete</a></li>
+                                            }
+                                        </ul>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             </div>
 
-            <div class="social-mobile-list d-lg-none">
+            <div class="social-mobile-list d-md-none">
                 @foreach (var item in Model.Events)
                 {
                     <article class="social-mobile-card">
@@ -244,7 +224,7 @@
                         <a asp-page="Details" asp-route-id="@item.Id" class="social-mobile-card__title">@item.Title</a>
                         <div class="social-mobile-card__meta">
                             <span>@item.EventTypeName</span>
-                            <span><i class="bi @GetPlatformIcon(item.PlatformName)"></i>@GetPlatformLabel(item.PlatformName)</span>
+                            <span><i class="bi @PlatformIcon(item.PlatformName)"></i>@PlatformLabel(item.PlatformName)</span>
                             <span><i class="bi bi-image"></i>@item.PhotoCount</span>
                         </div>
                     </article>
@@ -277,22 +257,13 @@
                 <input type="hidden" name="To" value="@Model.To" />
                 <input type="hidden" name="OnlyActiveEventTypes" value="@Model.OnlyActiveEventTypes" />
                 <div class="modal-header">
-                    <div>
-                        <h2 class="modal-title fs-5" id="exportSocialModalLabel">Export activities</h2>
-                        <p class="text-muted small mb-0">The current filters will be applied.</p>
-                    </div>
+                    <div><h2 class="modal-title fs-5" id="exportSocialModalLabel">Export activities</h2><p class="text-muted small mb-0">The current filters will be applied.</p></div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="social-export-options">
-                        <button type="submit" class="social-export-option" asp-page-handler="ExportPdf">
-                            <i class="bi bi-filetype-pdf" aria-hidden="true"></i>
-                            <span><strong>PDF report</strong><small>Presentation-ready summary</small></span>
-                        </button>
-                        <button type="submit" class="social-export-option" asp-page-handler="Export">
-                            <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
-                            <span><strong>Excel workbook</strong><small>Structured data for analysis</small></span>
-                        </button>
+                        <button type="submit" class="social-export-option" asp-page-handler="ExportPdf"><i class="bi bi-filetype-pdf"></i><span><strong>PDF report</strong><small>Presentation-ready summary</small></span></button>
+                        <button type="submit" class="social-export-option" asp-page-handler="Export"><i class="bi bi-file-earmark-spreadsheet"></i><span><strong>Excel workbook</strong><small>Structured data for analysis</small></span></button>
                     </div>
                 </div>
             </form>

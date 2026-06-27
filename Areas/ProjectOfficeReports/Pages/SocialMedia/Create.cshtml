@@ -4,7 +4,7 @@
     ViewData["Title"] = "Add social media activity";
 }
 
-<div class="social-page-shell social-form-page">
+<div class="social-page-shell social-editor-page">
     <nav aria-label="Breadcrumb" class="social-breadcrumb">
         <ol class="breadcrumb mb-0">
             <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
@@ -13,18 +13,24 @@
         </ol>
     </nav>
 
-    <header class="social-compact-header">
+    <header class="social-editor-header">
         <div>
-            <span class="social-page-kicker">Social media register</span>
             <h1>Add social media activity</h1>
-            <p>Record an institutional post, news item or communication activity. Photographs can be added after saving.</p>
+            <p>Record the activity and add its photographs in one step.</p>
         </div>
         <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
     </header>
 
-    <section class="social-form-card">
-        <form method="post" novalidate data-social-disable-on-submit>
-            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+    <form method="post" enctype="multipart/form-data" class="social-editor-surface" novalidate data-social-disable-on-submit>
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+        <section class="social-editor-section" aria-labelledby="activity-details-heading">
+            <div class="social-section-heading">
+                <div>
+                    <h2 id="activity-details-heading">Activity details</h2>
+                    <p>Enter the information that will appear in the activity register.</p>
+                </div>
+            </div>
 
             <div class="social-form-grid">
                 <div class="social-field">
@@ -49,26 +55,54 @@
                 </div>
                 <div class="social-field social-field--full">
                     <label asp-for="Input.Description" class="form-label"></label>
-                    <textarea asp-for="Input.Description" class="form-control" rows="5" placeholder="Add the key message, context or outcome of the activity"></textarea>
-                    <div class="form-text">Keep this brief and suitable for later reference.</div>
+                    <textarea asp-for="Input.Description" class="form-control" rows="4" placeholder="Add the key message, context or outcome"></textarea>
                     <span asp-validation-for="Input.Description" class="text-danger"></span>
                 </div>
             </div>
+        </section>
 
-            <div class="social-form-note">
-                <i class="bi bi-images" aria-hidden="true"></i>
-                <div><strong>Add photographs next</strong><span>After saving, you can upload images, choose a cover photo and manage the gallery.</span></div>
+        <section class="social-editor-section social-editor-section--media" aria-labelledby="activity-photos-heading">
+            <div class="social-section-heading">
+                <div>
+                    <h2 id="activity-photos-heading">Photographs <span class="social-optional-label">Optional</span></h2>
+                    <p>@Model.SocialPhotoHelpText The first photograph becomes the cover.</p>
+                </div>
             </div>
 
-            <div class="social-form-actions">
-                <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
-                <button type="submit" class="btn btn-primary" data-social-busy-label="Saving…">
-                    <i class="bi bi-check2" aria-hidden="true"></i>
-                    Save and add photos
-                </button>
+            <label class="social-dropzone" for="Uploads">
+                <input asp-for="Uploads"
+                       type="file"
+                       accept="image/jpeg,image/png,image/webp"
+                       multiple
+                       data-photo-upload-input
+                       data-photo-preview-target="create-photo-preview"
+                       data-max-files="@Model.SocialPhotoMaxFiles"
+                       data-max-bytes="@Model.SocialPhotoMaxBytes"
+                       aria-describedby="create-photo-help create-photo-summary" />
+                <span class="social-dropzone__icon"><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i></span>
+                <strong>Drop photographs here or choose files</strong>
+                <span id="create-photo-help">JPEG, PNG or WebP · Up to @Model.SocialPhotoMaxMb MB each</span>
+            </label>
+            <span asp-validation-for="Uploads" class="text-danger"></span>
+            <div id="create-photo-summary" class="social-selected-files" aria-live="polite"></div>
+            <div id="create-photo-preview" class="social-upload-preview" hidden></div>
+
+            <div class="social-upload-caption">
+                <label asp-for="UploadCaption" class="form-label">Caption for selected photographs</label>
+                <input asp-for="UploadCaption" class="form-control" placeholder="Optional caption applied to all selected photographs" />
+                <div class="form-text">You can leave this blank.</div>
+                <span asp-validation-for="UploadCaption" class="text-danger"></span>
             </div>
-        </form>
-    </section>
+        </section>
+
+        <div class="social-editor-actions">
+            <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary" data-social-busy-label="Creating activity…">
+                <i class="bi bi-check2" aria-hidden="true"></i>
+                Create activity
+            </button>
+        </div>
+    </form>
 </div>
 
 @section Scripts {

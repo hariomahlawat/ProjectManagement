@@ -106,6 +106,12 @@ function disableFormOnSubmit(form) {
       return;
     }
 
+    if (typeof form.checkValidity === 'function' && !form.checkValidity()) {
+      event.preventDefault();
+      form.reportValidity();
+      return;
+    }
+
     const submitter = event.submitter || form.querySelector('[type="submit"]');
     if (!submitter || submitter.disabled) {
       return;
@@ -312,32 +318,65 @@ function initPhotoUploadInputs() {
 
     input.addEventListener('change', () => {
       const files = Array.from(input.files || []);
-      if (!summaryEl) {
-        return;
+      const previewId = input.getAttribute('data-photo-preview-target');
+      const previewEl = previewId ? document.getElementById(previewId) : null;
+
+      if (summaryEl) {
+        const totalBytes = files.reduce((sum, file) => sum + (file.size || 0), 0);
+        summaryEl.textContent = files.length === 0
+          ? ''
+          : `${files.length} photograph${files.length === 1 ? '' : 's'} selected · ${formatMb(totalBytes)} MB`;
       }
 
-      // SECTION: Count guardrail
       if (maxFiles > 0 && files.length > maxFiles) {
-        showToast(`You can upload up to ${maxFiles} photos at a time.`, 'danger');
+        input.setCustomValidity(`Select no more than ${maxFiles} photographs.`);
+        showToast(`You can add up to ${maxFiles} photographs at a time.`, 'danger');
+      } else {
+        input.setCustomValidity('');
       }
 
-      // SECTION: Summary rendering
-      const totalBytes = files.reduce((sum, file) => sum + (file.size || 0), 0);
-      summaryEl.textContent = files.length === 0
-        ? ''
-        : `Selected: ${files.length} file(s), total ${formatMb(totalBytes)} MB.`;
-
-      // SECTION: Size guardrail
       if (maxBytes > 0) {
         const oversized = files.find(file => (file.size || 0) > maxBytes);
         if (oversized) {
-          showToast(`\"${oversized.name}\" exceeds the per-photo limit. Please choose a smaller file.`, 'danger');
+          input.setCustomValidity(`\"${oversized.name}\" exceeds the permitted size.`);
+          showToast(`\"${oversized.name}\" exceeds the per-photo limit.`, 'danger');
         }
       }
+
+      renderPhotoPreviews(previewEl, files);
     });
   });
 }
 
+
+
+function renderPhotoPreviews(container, files) {
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (!files.length) {
+    container.hidden = true;
+    return;
+  }
+
+  container.hidden = false;
+  files.slice(0, 12).forEach(file => {
+    const item = document.createElement('div');
+    item.className = 'social-upload-preview__item';
+
+    const image = document.createElement('img');
+    image.alt = '';
+    image.src = URL.createObjectURL(file);
+    image.addEventListener('load', () => URL.revokeObjectURL(image.src), { once: true });
+
+    const name = document.createElement('span');
+    name.className = 'social-upload-preview__name';
+    name.textContent = file.name;
+
+    item.append(image, name);
+    container.appendChild(item);
+  });
+}
 
 function initSocialFilterBar() {
   const form = document.querySelector('[data-social-filter-form]');

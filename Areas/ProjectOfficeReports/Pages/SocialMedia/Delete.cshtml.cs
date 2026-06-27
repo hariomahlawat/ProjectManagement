@@ -76,10 +76,10 @@ public sealed class DeleteModel : PageModel
         switch (result.Outcome)
         {
             case SocialMediaEventDeletionOutcome.Success:
-                TempData["ToastMessage"] = "Social media event deleted.";
+                TempData["ToastMessage"] = "Social media activity deleted.";
                 return RedirectToPage("Index");
             case SocialMediaEventDeletionOutcome.ConcurrencyConflict:
-                TempData["ToastError"] = "The event was modified by someone else. Please reload and try again.";
+                TempData["ToastError"] = "The activity was modified by someone else. Please reload and try again.";
                 return RedirectToPage(new { id });
             default:
                 return NotFound();
