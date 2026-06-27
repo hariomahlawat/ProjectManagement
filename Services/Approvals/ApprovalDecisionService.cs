@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,6 +9,8 @@ using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 using ProjectManagement.Helpers;
+using ProjectManagement.Models.Plans;
+using ProjectManagement.Services.Activities;
 using ProjectManagement.Services.Authorization;
 using ProjectManagement.Services.Documents;
 using ProjectManagement.Services.Plans;
@@ -17,9 +20,13 @@ using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Services.Approvals;
 
+/// <summary>
+/// Routes central approval decisions to the owning domain service. Expected business
+/// validation and concurrency failures are translated into controlled outcomes so the
+/// Decision Centre never exposes an exception page for a normal decision conflict.
+/// </summary>
 public sealed class ApprovalDecisionService
 {
-    // SECTION: Dependencies
     private readonly ApplicationDbContext _db;
     private readonly StageDecisionService _stageDecisionService;
     private readonly ProjectMetaChangeDecisionService _metaDecisionService;
@@ -27,6 +34,9 @@ public sealed class ApprovalDecisionService
     private readonly IDocumentDecisionService _documentDecisionService;
     private readonly ProjectTotService _totService;
     private readonly ProliferationSubmissionService _proliferationService;
+    private readonly IActivityDeleteRequestService _activityDeleteService;
+    private readonly TrainingWriteService _trainingWriteService;
+    private readonly RepositoryDocumentDeleteApprovalService _repositoryDeleteService;
     private readonly ILogger<ApprovalDecisionService> _logger;
 
     public ApprovalDecisionService(
@@ -37,6 +47,9 @@ public sealed class ApprovalDecisionService
         IDocumentDecisionService documentDecisionService,
         ProjectTotService totService,
         ProliferationSubmissionService proliferationService,
+        IActivityDeleteRequestService activityDeleteService,
+        TrainingWriteService trainingWriteService,
+        RepositoryDocumentDeleteApprovalService repositoryDeleteService,
         ILogger<ApprovalDecisionService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
@@ -46,31 +59,31 @@ public sealed class ApprovalDecisionService
         _documentDecisionService = documentDecisionService ?? throw new ArgumentNullException(nameof(documentDecisionService));
         _totService = totService ?? throw new ArgumentNullException(nameof(totService));
         _proliferationService = proliferationService ?? throw new ArgumentNullException(nameof(proliferationService));
+        _activityDeleteService = activityDeleteService ?? throw new ArgumentNullException(nameof(activityDeleteService));
+        _trainingWriteService = trainingWriteService ?? throw new ArgumentNullException(nameof(trainingWriteService));
+        _repositoryDeleteService = repositoryDeleteService ?? throw new ArgumentNullException(nameof(repositoryDeleteService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    // SECTION: Approval decision routing
     public async Task<ApprovalDecisionResult> DecideAsync(
         ApprovalDecisionRequest request,
         ClaimsPrincipal user,
-        CancellationToken ct = default)
+        CancellationToken cancellationToken = default)
     {
-        if (request is null)
-        {
-            throw new ArgumentNullException(nameof(request));
-        }
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(user);
 
         var userId = user.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(userId))
         {
-            return ApprovalDecisionResult.Forbidden("User context is required.");
+            return ApprovalDecisionResult.Forbidden("A signed-in user context is required.");
         }
 
         var isAdmin = user.IsInRole("Admin");
         var isHoD = user.IsInRole("HoD");
         if (!ApprovalAuthorization.CanApproveProjectChanges(isAdmin, isHoD))
         {
-            return ApprovalDecisionResult.Forbidden("Only Admin or HoD users can approve pending requests.");
+            return ApprovalDecisionResult.Forbidden("Only Admin or HoD users can decide approval requests.");
         }
 
         if (request.Decision == ApprovalDecisionAction.Reject && string.IsNullOrWhiteSpace(request.Remarks))
@@ -78,218 +91,246 @@ public sealed class ApprovalDecisionService
             return ApprovalDecisionResult.ValidationFailed("A rejection reason is required.");
         }
 
-        return request.ApprovalType switch
+        try
         {
-            ApprovalQueueType.StageChange => await DecideStageChangeAsync(request, userId, isAdmin, isHoD, ct),
-            ApprovalQueueType.ProjectMeta => await DecideMetaChangeAsync(request, userId, isAdmin, isHoD, ct),
-            ApprovalQueueType.PlanApproval => await DecidePlanApprovalAsync(request, userId, isAdmin, isHoD, ct),
-            ApprovalQueueType.DocRequest => await DecideDocumentRequestAsync(request, userId, isAdmin, isHoD, ct),
-            ApprovalQueueType.TotRequest => await DecideTotRequestAsync(request, userId, isAdmin, isHoD, ct),
-            ApprovalQueueType.ProliferationYearly => await DecideProliferationYearlyAsync(request, user, ct),
-            ApprovalQueueType.ProliferationGranular => await DecideProliferationGranularAsync(request, user, ct),
-            _ => ApprovalDecisionResult.ValidationFailed("Unsupported approval type.")
-        };
+            return request.ApprovalType switch
+            {
+                ApprovalQueueType.StageChange => await DecideStageChangeAsync(request, userId, isAdmin, isHoD, cancellationToken),
+                ApprovalQueueType.ProjectMeta => await DecideMetaChangeAsync(request, userId, isAdmin, isHoD, cancellationToken),
+                ApprovalQueueType.PlanApproval => await DecidePlanApprovalAsync(request, userId, isAdmin, isHoD, cancellationToken),
+                ApprovalQueueType.DocRequest => await DecideDocumentRequestAsync(request, userId, isAdmin, isHoD, cancellationToken),
+                ApprovalQueueType.TotRequest => await DecideTotRequestAsync(request, userId, isAdmin, isHoD, cancellationToken),
+                ApprovalQueueType.ProliferationYearly => await DecideProliferationYearlyAsync(request, user, cancellationToken),
+                ApprovalQueueType.ProliferationGranular => await DecideProliferationGranularAsync(request, user, cancellationToken),
+                ApprovalQueueType.ActivityDelete => await DecideActivityDeleteAsync(request, cancellationToken),
+                ApprovalQueueType.TrainingDelete => await DecideTrainingDeleteAsync(request, userId, cancellationToken),
+                ApprovalQueueType.RepositoryDocumentDelete => await DecideRepositoryDocumentDeleteAsync(request, userId, cancellationToken),
+                _ => ApprovalDecisionResult.ValidationFailed("Unsupported approval type.")
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogWarning(ex, "Concurrent approval decision detected. Type={ApprovalType}, RequestId={RequestId}", request.ApprovalType, request.RequestId);
+            return ApprovalDecisionResult.AlreadyDecided("This request changed while you were reviewing it. Refresh the Decision Centre and try again.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected approval decision failure. Type={ApprovalType}, RequestId={RequestId}", request.ApprovalType, request.RequestId);
+            return ApprovalDecisionResult.Error("The request could not be processed. No decision was recorded. Refresh and try again.");
+        }
     }
 
-    // SECTION: Stage change decision
     private async Task<ApprovalDecisionResult> DecideStageChangeAsync(
         ApprovalDecisionRequest request,
         string userId,
         bool isAdmin,
         bool isHoD,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
         if (!int.TryParse(request.RequestId, out var id))
         {
-            return ApprovalDecisionResult.ValidationFailed("Invalid stage change request id.");
+            return ApprovalDecisionResult.ValidationFailed("Invalid stage change request identifier.");
         }
 
-        var input = new StageDecisionInput(id, request.Decision == ApprovalDecisionAction.Approve
-            ? StageDecisionAction.Approve
-            : StageDecisionAction.Reject, request.Remarks);
+        var input = new StageDecisionInput(
+            id,
+            request.Decision == ApprovalDecisionAction.Approve ? StageDecisionAction.Approve : StageDecisionAction.Reject,
+            request.Remarks);
 
-        var result = await _stageDecisionService.DecideAsync(input, userId, isAdmin, isHoD, ct);
-
+        var result = await _stageDecisionService.DecideAsync(input, userId, isAdmin, isHoD, cancellationToken);
         return result.Outcome switch
         {
-            StageDecisionOutcome.Success => ApprovalDecisionResult.Success(),
-            StageDecisionOutcome.NotHeadOfDepartment => ApprovalDecisionResult.Forbidden("Only Admin or HoD users can approve stage changes."),
-            StageDecisionOutcome.RequestNotFound => ApprovalDecisionResult.NotFound("Request not found."),
-            StageDecisionOutcome.StageNotFound => ApprovalDecisionResult.NotFound("Stage not found."),
-            StageDecisionOutcome.AlreadyDecided => ApprovalDecisionResult.AlreadyDecided("This request has already been decided."),
-            StageDecisionOutcome.ValidationFailed => ApprovalDecisionResult.ValidationFailed(result.Error ?? "Unable to process the stage change."),
-            _ => ApprovalDecisionResult.Error("Unable to process the stage change.")
+            StageDecisionOutcome.Success => ApprovalDecisionResult.Success(request.Decision == ApprovalDecisionAction.Approve
+                ? "Stage request approved. Dependent requests have been re-evaluated."
+                : "Stage request rejected. Dependent requests have been re-evaluated."),
+            StageDecisionOutcome.NotHeadOfDepartment => ApprovalDecisionResult.Forbidden("Only Admin or HoD users can decide stage changes."),
+            StageDecisionOutcome.RequestNotFound => ApprovalDecisionResult.NotFound("Stage request not found."),
+            StageDecisionOutcome.StageNotFound => ApprovalDecisionResult.NotFound("The requested project stage no longer exists."),
+            StageDecisionOutcome.AlreadyDecided => ApprovalDecisionResult.AlreadyDecided("This request is no longer pending."),
+            StageDecisionOutcome.ValidationFailed => ApprovalDecisionResult.ValidationFailed(result.Error ?? "The stage request is not ready for approval."),
+            _ => ApprovalDecisionResult.Error("The stage request could not be processed.")
         };
     }
 
-    // SECTION: Meta change decision
     private async Task<ApprovalDecisionResult> DecideMetaChangeAsync(
         ApprovalDecisionRequest request,
         string userId,
         bool isAdmin,
         bool isHoD,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
         if (!int.TryParse(request.RequestId, out var id))
         {
-            return ApprovalDecisionResult.ValidationFailed("Invalid metadata change request id.");
+            return ApprovalDecisionResult.ValidationFailed("Invalid project information request identifier.");
         }
 
-        var decisionUser = new ProjectMetaDecisionUser(userId, isAdmin, isHoD);
-        var decisionInput = new ProjectMetaDecisionInput(
-            id,
-            request.Decision == ApprovalDecisionAction.Approve ? ProjectMetaDecisionAction.Approve : ProjectMetaDecisionAction.Reject,
-            request.Remarks);
-
-        var result = await _metaDecisionService.DecideAsync(decisionInput, decisionUser, ct);
+        var result = await _metaDecisionService.DecideAsync(
+            new ProjectMetaDecisionInput(
+                id,
+                request.Decision == ApprovalDecisionAction.Approve ? ProjectMetaDecisionAction.Approve : ProjectMetaDecisionAction.Reject,
+                request.Remarks),
+            new ProjectMetaDecisionUser(userId, isAdmin, isHoD),
+            cancellationToken);
 
         return result.Outcome switch
         {
             ProjectMetaDecisionOutcome.Success => ApprovalDecisionResult.Success(),
-            ProjectMetaDecisionOutcome.Forbidden => ApprovalDecisionResult.Forbidden("Only Admin or HoD users can approve metadata changes."),
-            ProjectMetaDecisionOutcome.RequestNotFound => ApprovalDecisionResult.NotFound("Request not found."),
-            ProjectMetaDecisionOutcome.AlreadyDecided => ApprovalDecisionResult.AlreadyDecided("This request has already been decided."),
-            ProjectMetaDecisionOutcome.ValidationFailed => ApprovalDecisionResult.ValidationFailed(result.Error ?? "Unable to process the metadata change."),
-            _ => ApprovalDecisionResult.Error("Unable to process the metadata change.")
+            ProjectMetaDecisionOutcome.Forbidden => ApprovalDecisionResult.Forbidden("You are not authorised to decide this request."),
+            ProjectMetaDecisionOutcome.RequestNotFound => ApprovalDecisionResult.NotFound("Project information request not found."),
+            ProjectMetaDecisionOutcome.AlreadyDecided => ApprovalDecisionResult.AlreadyDecided("This request is no longer pending."),
+            ProjectMetaDecisionOutcome.ValidationFailed => ApprovalDecisionResult.ValidationFailed(result.Error ?? "The requested project changes are no longer valid."),
+            _ => ApprovalDecisionResult.Error("The project information request could not be processed.")
         };
     }
 
-    // SECTION: Plan approval decision
     private async Task<ApprovalDecisionResult> DecidePlanApprovalAsync(
         ApprovalDecisionRequest request,
         string userId,
         bool isAdmin,
         bool isHoD,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
         if (!int.TryParse(request.RequestId, out var id))
         {
-            return ApprovalDecisionResult.ValidationFailed("Invalid plan approval request id.");
+            return ApprovalDecisionResult.ValidationFailed("Invalid timeline approval identifier.");
         }
 
-        var plan = await _db.PlanVersions
+        var selectedPlan = await _db.PlanVersions
             .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.Id == id, ct);
+            .Where(plan => plan.Id == id)
+            .Select(plan => new { plan.Id, plan.ProjectId, plan.Status })
+            .SingleOrDefaultAsync(cancellationToken);
 
-        if (plan is null)
+        if (selectedPlan is null)
         {
-            return ApprovalDecisionResult.NotFound("Plan request not found.");
+            return ApprovalDecisionResult.NotFound("Timeline request not found.");
         }
 
-        if (plan.Status != Models.Plans.PlanVersionStatus.PendingApproval)
+        if (selectedPlan.Status != PlanVersionStatus.PendingApproval)
         {
-            return ApprovalDecisionResult.AlreadyDecided("This plan approval has already been decided.");
+            return ApprovalDecisionResult.AlreadyDecided("This timeline request is no longer pending.");
+        }
+
+        // The legacy domain service acts on the latest pending version. Verify that the
+        // exact version reviewed in the Decision Centre is still that version before use.
+        var currentPendingId = await _db.PlanVersions
+            .AsNoTracking()
+            .Where(plan => plan.ProjectId == selectedPlan.ProjectId && plan.Status == PlanVersionStatus.PendingApproval)
+            .OrderByDescending(plan => plan.SubmittedOn)
+            .ThenByDescending(plan => plan.VersionNo)
+            .Select(plan => (int?)plan.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (currentPendingId != selectedPlan.Id)
+        {
+            return ApprovalDecisionResult.ValidationFailed("A newer timeline submission exists. Open the latest request before deciding.");
         }
 
         try
         {
             if (request.Decision == ApprovalDecisionAction.Approve)
             {
-                var approved = await _planApprovalService.ApproveLatestDraftAsync(plan.ProjectId, userId, isAdmin, isHoD, ct);
+                var approved = await _planApprovalService.ApproveVersionAsync(selectedPlan.Id, userId, isAdmin, isHoD, cancellationToken);
                 return approved
-                    ? ApprovalDecisionResult.Success()
-                    : ApprovalDecisionResult.AlreadyDecided("No pending plan was available to approve.");
+                    ? ApprovalDecisionResult.Success("Timeline approved and activated.")
+                    : ApprovalDecisionResult.AlreadyDecided("The timeline request is no longer pending.");
             }
 
-            var rejected = await _planApprovalService.RejectLatestPendingAsync(plan.ProjectId, userId, isAdmin, isHoD, request.Remarks, ct);
+            var rejected = await _planApprovalService.RejectVersionAsync(
+                selectedPlan.Id,
+                userId,
+                isAdmin,
+                isHoD,
+                request.Remarks,
+                cancellationToken);
+
             return rejected
-                ? ApprovalDecisionResult.Success()
-                : ApprovalDecisionResult.AlreadyDecided("No pending plan was available to reject.");
+                ? ApprovalDecisionResult.Success("Timeline returned to the Project Officer.")
+                : ApprovalDecisionResult.AlreadyDecided("The timeline request is no longer pending.");
         }
         catch (PlanApprovalValidationException ex)
         {
-            var message = ex.Errors.Count > 0 ? string.Join(" ", ex.Errors) : ex.Message;
-            return ApprovalDecisionResult.ValidationFailed(message);
+            return ApprovalDecisionResult.ValidationFailed(ex.Errors.Count > 0 ? string.Join(" ", ex.Errors) : ex.Message);
         }
         catch (ForbiddenException ex)
         {
             return ApprovalDecisionResult.Forbidden(ex.Message);
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Plan approval decision failed for request {RequestId}.", request.RequestId);
-            return ApprovalDecisionResult.Error("Unable to process the plan approval.");
+            return ApprovalDecisionResult.ValidationFailed(ex.Message);
         }
     }
 
-    // SECTION: Document moderation decision
     private async Task<ApprovalDecisionResult> DecideDocumentRequestAsync(
         ApprovalDecisionRequest request,
         string userId,
         bool isAdmin,
         bool isHoD,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
         if (!int.TryParse(request.RequestId, out var id))
         {
-            return ApprovalDecisionResult.ValidationFailed("Invalid document request id.");
+            return ApprovalDecisionResult.ValidationFailed("Invalid project document request identifier.");
         }
 
         try
         {
             if (request.Decision == ApprovalDecisionAction.Approve)
             {
-                await _documentDecisionService.ApproveAsync(id, userId, isAdmin, isHoD, request.Remarks, ct);
+                await _documentDecisionService.ApproveAsync(id, userId, isAdmin, isHoD, request.Remarks, cancellationToken);
             }
             else
             {
-                await _documentDecisionService.RejectAsync(id, userId, isAdmin, isHoD, request.Remarks, ct);
+                await _documentDecisionService.RejectAsync(id, userId, isAdmin, isHoD, request.Remarks, cancellationToken);
             }
 
             return ApprovalDecisionResult.Success();
-        }
-        catch (InvalidOperationException ex)
-        {
-            var message = ex.Message;
-            if (message.Contains("not found", StringComparison.OrdinalIgnoreCase))
-            {
-                return ApprovalDecisionResult.NotFound("Document request not found.");
-            }
-
-            if (message.Contains("Only submitted", StringComparison.OrdinalIgnoreCase))
-            {
-                return ApprovalDecisionResult.AlreadyDecided("This request has already been decided.");
-            }
-
-            return ApprovalDecisionResult.ValidationFailed(message);
         }
         catch (ForbiddenException ex)
         {
             return ApprovalDecisionResult.Forbidden(ex.Message);
         }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase))
+        {
+            return ApprovalDecisionResult.NotFound("Project document request not found.");
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("submitted", StringComparison.OrdinalIgnoreCase))
+        {
+            return ApprovalDecisionResult.AlreadyDecided("This document request is no longer pending.");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ApprovalDecisionResult.ValidationFailed(ex.Message);
+        }
     }
 
-    // SECTION: ToT decision
     private async Task<ApprovalDecisionResult> DecideTotRequestAsync(
         ApprovalDecisionRequest request,
         string userId,
         bool isAdmin,
         bool isHoD,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
         if (!int.TryParse(request.RequestId, out var id))
         {
-            return ApprovalDecisionResult.ValidationFailed("Invalid Transfer of Technology request id.");
+            return ApprovalDecisionResult.ValidationFailed("Invalid Transfer of Technology request identifier.");
         }
 
-        byte[]? rowVersion = null;
-        if (!string.IsNullOrWhiteSpace(request.RowVersion))
+        if (!TryDecodeRowVersion(request.RowVersion, out var rowVersion))
         {
-            try
-            {
-                rowVersion = Convert.FromBase64String(request.RowVersion);
-            }
-            catch (FormatException)
-            {
-                return ApprovalDecisionResult.ValidationFailed("The request token is invalid. Refresh and try again.");
-            }
+            return ApprovalDecisionResult.ValidationFailed("The request changed or the concurrency token is invalid. Refresh and try again.");
         }
 
         var projectId = await _db.ProjectTotRequests
             .AsNoTracking()
-            .Where(r => r.Id == id)
-            .Select(r => r.ProjectId)
-            .FirstOrDefaultAsync(ct);
+            .Where(item => item.Id == id)
+            .Select(item => item.ProjectId)
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (projectId == 0)
         {
@@ -303,44 +344,43 @@ public sealed class ApprovalDecisionService
             isAdmin,
             isHoD,
             rowVersion,
-            ct);
+            cancellationToken);
 
         return result.Status switch
         {
             ProjectTotRequestActionStatus.Success => ApprovalDecisionResult.Success(),
             ProjectTotRequestActionStatus.NotFound => ApprovalDecisionResult.NotFound("Transfer of Technology request not found."),
-            ProjectTotRequestActionStatus.Forbidden => ApprovalDecisionResult.Forbidden(result.ErrorMessage ?? "You are not authorised to approve Transfer of Technology updates."),
-            ProjectTotRequestActionStatus.Conflict => ApprovalDecisionResult.AlreadyDecided(result.ErrorMessage ?? "The request has already been decided."),
-            ProjectTotRequestActionStatus.ValidationFailed => ApprovalDecisionResult.ValidationFailed(result.ErrorMessage ?? "Unable to approve the request."),
-            _ => ApprovalDecisionResult.Error("Unable to process the Transfer of Technology request.")
+            ProjectTotRequestActionStatus.Forbidden => ApprovalDecisionResult.Forbidden(result.ErrorMessage ?? "You are not authorised to decide this request."),
+            ProjectTotRequestActionStatus.Conflict => ApprovalDecisionResult.AlreadyDecided(result.ErrorMessage ?? "This request changed while you were reviewing it."),
+            ProjectTotRequestActionStatus.ValidationFailed => ApprovalDecisionResult.ValidationFailed(result.ErrorMessage ?? "The Transfer of Technology request is not valid."),
+            _ => ApprovalDecisionResult.Error("The Transfer of Technology request could not be processed.")
         };
     }
 
-    // SECTION: Proliferation yearly decision
     private async Task<ApprovalDecisionResult> DecideProliferationYearlyAsync(
         ApprovalDecisionRequest request,
         ClaimsPrincipal user,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
         if (!Guid.TryParse(request.RequestId, out var id))
         {
-            return ApprovalDecisionResult.ValidationFailed("Invalid proliferation yearly request id.");
+            return ApprovalDecisionResult.ValidationFailed("Invalid yearly proliferation request identifier.");
         }
 
         var status = await _db.ProliferationYearlies
             .AsNoTracking()
-            .Where(y => y.Id == id)
-            .Select(y => (int?)y.ApprovalStatus)
-            .FirstOrDefaultAsync(ct);
+            .Where(item => item.Id == id)
+            .Select(item => (int?)item.ApprovalStatus)
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (!status.HasValue)
         {
-            return ApprovalDecisionResult.NotFound("Proliferation record not found.");
+            return ApprovalDecisionResult.NotFound("Yearly proliferation request not found.");
         }
 
         if (status.Value != (int)ApprovalStatus.Pending)
         {
-            return ApprovalDecisionResult.AlreadyDecided("This proliferation request has already been decided.");
+            return ApprovalDecisionResult.AlreadyDecided("This proliferation request is no longer pending.");
         }
 
         var result = await _proliferationService.DecideYearlyAsync(
@@ -348,38 +388,37 @@ public sealed class ApprovalDecisionService
             request.Decision == ApprovalDecisionAction.Approve,
             request.RowVersion,
             user,
-            ct);
+            cancellationToken);
 
         return result.Success
             ? ApprovalDecisionResult.Success()
-            : ApprovalDecisionResult.ValidationFailed(result.Error ?? "Unable to process the proliferation approval.");
+            : ApprovalDecisionResult.ValidationFailed(result.Error ?? "The proliferation request could not be processed.");
     }
 
-    // SECTION: Proliferation granular decision
     private async Task<ApprovalDecisionResult> DecideProliferationGranularAsync(
         ApprovalDecisionRequest request,
         ClaimsPrincipal user,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
         if (!Guid.TryParse(request.RequestId, out var id))
         {
-            return ApprovalDecisionResult.ValidationFailed("Invalid proliferation granular request id.");
+            return ApprovalDecisionResult.ValidationFailed("Invalid unit-wise proliferation request identifier.");
         }
 
         var status = await _db.ProliferationGranularEntries
             .AsNoTracking()
-            .Where(g => g.Id == id)
-            .Select(g => (int?)g.ApprovalStatus)
-            .FirstOrDefaultAsync(ct);
+            .Where(item => item.Id == id)
+            .Select(item => (int?)item.ApprovalStatus)
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (!status.HasValue)
         {
-            return ApprovalDecisionResult.NotFound("Proliferation record not found.");
+            return ApprovalDecisionResult.NotFound("Unit-wise proliferation request not found.");
         }
 
         if (status.Value != (int)ApprovalStatus.Pending)
         {
-            return ApprovalDecisionResult.AlreadyDecided("This proliferation request has already been decided.");
+            return ApprovalDecisionResult.AlreadyDecided("This proliferation request is no longer pending.");
         }
 
         var result = await _proliferationService.DecideGranularAsync(
@@ -387,10 +426,116 @@ public sealed class ApprovalDecisionService
             request.Decision == ApprovalDecisionAction.Approve,
             request.RowVersion,
             user,
-            ct);
+            cancellationToken);
 
         return result.Success
             ? ApprovalDecisionResult.Success()
-            : ApprovalDecisionResult.ValidationFailed(result.Error ?? "Unable to process the proliferation approval.");
+            : ApprovalDecisionResult.ValidationFailed(result.Error ?? "The proliferation request could not be processed.");
+    }
+
+    private async Task<ApprovalDecisionResult> DecideActivityDeleteAsync(
+        ApprovalDecisionRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(request.RequestId, out var id))
+        {
+            return ApprovalDecisionResult.ValidationFailed("Invalid activity deletion request identifier.");
+        }
+
+        try
+        {
+            if (request.Decision == ApprovalDecisionAction.Approve)
+            {
+                await _activityDeleteService.ApproveAsync(id, cancellationToken);
+                return ApprovalDecisionResult.Success("Activity deleted.");
+            }
+
+            await _activityDeleteService.RejectAsync(id, request.Remarks, cancellationToken);
+            return ApprovalDecisionResult.Success("Activity deletion request rejected.");
+        }
+        catch (ActivityAuthorizationException ex)
+        {
+            return ApprovalDecisionResult.Forbidden(ex.Message);
+        }
+        catch (KeyNotFoundException)
+        {
+            return ApprovalDecisionResult.NotFound("Activity deletion request not found.");
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("no longer pending", StringComparison.OrdinalIgnoreCase))
+        {
+            return ApprovalDecisionResult.AlreadyDecided("This activity deletion request is no longer pending.");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ApprovalDecisionResult.ValidationFailed(ex.Message);
+        }
+    }
+
+    private async Task<ApprovalDecisionResult> DecideTrainingDeleteAsync(
+        ApprovalDecisionRequest request,
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(request.RequestId, out var id))
+        {
+            return ApprovalDecisionResult.ValidationFailed("Invalid training deletion request identifier.");
+        }
+
+        var result = request.Decision == ApprovalDecisionAction.Approve
+            ? await _trainingWriteService.ApproveDeleteAsync(id, userId, cancellationToken)
+            : await _trainingWriteService.RejectDeleteAsync(id, request.Remarks ?? string.Empty, userId, cancellationToken);
+
+        if (result.IsSuccess)
+        {
+            return ApprovalDecisionResult.Success(request.Decision == ApprovalDecisionAction.Approve
+                ? "Training record deleted."
+                : "Training deletion request rejected.");
+        }
+
+        return result.FailureCode switch
+        {
+            TrainingDeleteFailureCode.RequestNotFound => ApprovalDecisionResult.NotFound(result.ErrorMessage ?? "Training deletion request not found."),
+            TrainingDeleteFailureCode.RequestNotPending => ApprovalDecisionResult.AlreadyDecided(result.ErrorMessage ?? "This training deletion request is no longer pending."),
+            TrainingDeleteFailureCode.MissingUserId => ApprovalDecisionResult.Forbidden(result.ErrorMessage ?? "A signed-in approver is required."),
+            TrainingDeleteFailureCode.ConcurrencyConflict => ApprovalDecisionResult.AlreadyDecided(result.ErrorMessage ?? "This request changed while you were reviewing it."),
+            _ => ApprovalDecisionResult.ValidationFailed(result.ErrorMessage ?? "The training deletion request could not be processed.")
+        };
+    }
+
+    private Task<ApprovalDecisionResult> DecideRepositoryDocumentDeleteAsync(
+        ApprovalDecisionRequest request,
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        if (!long.TryParse(request.RequestId, out var id))
+        {
+            return Task.FromResult(ApprovalDecisionResult.ValidationFailed("Invalid repository document request identifier."));
+        }
+
+        return _repositoryDeleteService.DecideAsync(
+            id,
+            request.Decision,
+            userId,
+            request.Remarks,
+            cancellationToken);
+    }
+
+    private static bool TryDecodeRowVersion(string? encoded, out byte[]? rowVersion)
+    {
+        rowVersion = null;
+        if (string.IsNullOrWhiteSpace(encoded))
+        {
+            return true;
+        }
+
+        try
+        {
+            rowVersion = Convert.FromBase64String(encoded);
+            return true;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
     }
 }

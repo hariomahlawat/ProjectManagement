@@ -8,6 +8,7 @@ using ProjectManagement.Contracts.Stages;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Services.Stages;
 
@@ -29,18 +30,21 @@ public class StageRequestService
     private readonly IClock _clock;
     private readonly IStageValidationService _validationService;
     private readonly IProjectStageWorkflowPolicy? _workflowPolicy;
+    private readonly ProjectFactsReadService? _factsRead;
 
     public StageRequestService(
         ApplicationDbContext db,
         IClock clock,
         IStageValidationService validationService,
-        IProjectStageWorkflowPolicy? workflowPolicy = null)
+        IProjectStageWorkflowPolicy? workflowPolicy = null,
+        ProjectFactsReadService? factsRead = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _validationService = validationService
             ?? throw new ArgumentNullException(nameof(validationService));
         _workflowPolicy = workflowPolicy;
+        _factsRead = factsRead;
     }
 
     public async Task<StageRequestResult> CreateAsync(
@@ -294,6 +298,14 @@ public class StageRequestService
                 errors.Add(
                     $"{DisplayName(stageNames, item.StageCode)} cannot be {RequestedActionPhrase(item.RequestedStatus)} yet. " +
                     $"Complete or skip the required predecessor stage{(predecessorNames.Length == 1 ? string.Empty : "s")}: {string.Join(", ", predecessorNames)}.");
+            }
+
+            if (item.RequestedStatus == StageStatus.Completed
+                && _factsRead is not null
+                && !await _factsRead.HasRequiredFactsAsync(input.ProjectId, item.StageCode, cancellationToken))
+            {
+                errors.Add(
+                    $"Record the required {DisplayName(stageNames, item.StageCode)} information before submitting completion.");
             }
 
             var requiresDecisionContext = item.RequestedStatus is StageStatus.Blocked or StageStatus.Skipped

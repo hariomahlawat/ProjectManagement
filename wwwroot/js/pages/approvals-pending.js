@@ -1,54 +1,25 @@
-/* ---------- SECTION: Pending approvals row navigation ---------- */
+const form = document.querySelector('[data-decision-filter-form]');
 
-const INTERACTIVE_SELECTOR = 'a, button, input, select, textarea, label';
+if (form) {
+  let searchTimer = null;
+  const search = form.querySelector('input[type="search"]');
 
-function isInteractiveElement(target) {
-  return target.closest(INTERACTIVE_SELECTOR) !== null;
-}
-
-function getRowTarget(row) {
-  const url = row?.dataset?.approvalsUrl;
-  return url && url.trim().length > 0 ? url : null;
-}
-
-function handleRowClick(event) {
-  const row = event.currentTarget;
-  if (isInteractiveElement(event.target)) {
-    return;
-  }
-
-  const target = getRowTarget(row);
-  if (target) {
-    window.location.assign(target);
-  }
-}
-
-function handleRowKeydown(event) {
-  if (event.key !== 'Enter' && event.key !== ' ') {
-    return;
-  }
-
-  if (isInteractiveElement(event.target)) {
-    return;
-  }
-
-  event.preventDefault();
-  const row = event.currentTarget;
-  const target = getRowTarget(row);
-  if (target) {
-    window.location.assign(target);
-  }
-}
-
-export function initPendingApprovalsRows() {
-  /* ---------- SECTION: DOM bindings ---------- */
-  const rows = document.querySelectorAll('[data-approvals-row="true"]');
-  if (!rows.length) {
-    return;
-  }
-
-  rows.forEach((row) => {
-    row.addEventListener('click', handleRowClick);
-    row.addEventListener('keydown', handleRowKeydown);
+  form.querySelectorAll('[data-auto-submit]').forEach((control) => {
+    control.addEventListener('change', () => {
+      const pageField = form.querySelector('[name="PageNumber"]');
+      if (pageField) pageField.value = '1';
+      form.requestSubmit();
+    });
   });
+
+  if (search) {
+    search.addEventListener('input', () => {
+      window.clearTimeout(searchTimer);
+      searchTimer = window.setTimeout(() => {
+        if (search.value.trim().length === 0 || search.value.trim().length >= 2) {
+          form.requestSubmit();
+        }
+      }, 450);
+    });
+  }
 }
