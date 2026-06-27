@@ -1,65 +1,73 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.SocialMedia.CreateModel
 @{
-    ViewData["Title"] = "Create social media event";
+    ViewData["Title"] = "Add social media activity";
 }
 
-<div class="social-shell">
-    <nav aria-label="Breadcrumb" class="mb-3">
+<div class="social-page-shell social-form-page">
+    <nav aria-label="Breadcrumb" class="social-breadcrumb">
         <ol class="breadcrumb mb-0">
             <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
             <li class="breadcrumb-item"><a asp-page="Index">Social media</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Create</li>
+            <li class="breadcrumb-item active" aria-current="page">Add activity</li>
         </ol>
     </nav>
 
-    <section class="social-hero">
-        <div class="social-hero__content">
-            <h2 class="social-hero__title">Capture a new social media story</h2>
-            <p class="social-hero__subtitle">Log the event, highlight the platform, and upload photos later to keep the story fresh.</p>
+    <header class="social-compact-header">
+        <div>
+            <span class="social-page-kicker">Social media register</span>
+            <h1>Add social media activity</h1>
+            <p>Record an institutional post, news item or communication activity. Photographs can be added after saving.</p>
         </div>
-    </section>
+        <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
+    </header>
 
-    <section class="social-section">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <form method="post" novalidate class="row g-4" data-social-disable-on-submit>
-                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-                    <div class="col-12 col-md-6">
-                        <label asp-for="Input.EventTypeId" class="form-label"></label>
-                        <select asp-for="Input.EventTypeId" asp-items="Model.EventTypeOptions" class="form-select"></select>
-                        <span asp-validation-for="Input.EventTypeId" class="text-danger"></span>
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label asp-for="Input.DateOfEvent" class="form-label"></label>
-                        <input asp-for="Input.DateOfEvent" class="form-control" type="date" />
-                        <span asp-validation-for="Input.DateOfEvent" class="text-danger"></span>
-                    </div>
-                    <div class="col-12">
-                        <label asp-for="Input.Title" class="form-label"></label>
-                        <input asp-for="Input.Title" class="form-control" />
-                        <span asp-validation-for="Input.Title" class="text-danger"></span>
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label asp-for="Input.PlatformId" class="form-label"></label>
-                        <select asp-for="Input.PlatformId" asp-items="Model.PlatformOptions" class="form-select"></select>
-                        <span asp-validation-for="Input.PlatformId" class="text-danger"></span>
-                    </div>
-                    <div class="col-12">
-                        <label asp-for="Input.Description" class="form-label"></label>
-                        <textarea asp-for="Input.Description" class="form-control" rows="4" placeholder="Key talking points, outcomes, hashtags…"></textarea>
-                        <span asp-validation-for="Input.Description" class="text-danger"></span>
-                    </div>
-                    <div class="col-12 d-flex gap-3">
-                        <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2" data-social-busy-label="Saving…">
-                            <i class="bi bi-check-circle" aria-hidden="true"></i>
-                            <span>Save event</span>
-                        </button>
-                        <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
-                    </div>
-                </form>
+    <section class="social-form-card">
+        <form method="post" novalidate data-social-disable-on-submit>
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+            <div class="social-form-grid">
+                <div class="social-field">
+                    <label asp-for="Input.EventTypeId" class="form-label"></label>
+                    <select asp-for="Input.EventTypeId" asp-items="Model.EventTypeOptions" class="form-select"></select>
+                    <span asp-validation-for="Input.EventTypeId" class="text-danger"></span>
+                </div>
+                <div class="social-field">
+                    <label asp-for="Input.DateOfEvent" class="form-label"></label>
+                    <input asp-for="Input.DateOfEvent" class="form-control" type="date" />
+                    <span asp-validation-for="Input.DateOfEvent" class="text-danger"></span>
+                </div>
+                <div class="social-field social-field--full">
+                    <label asp-for="Input.Title" class="form-label"></label>
+                    <input asp-for="Input.Title" class="form-control" placeholder="Enter a clear, concise activity title" />
+                    <span asp-validation-for="Input.Title" class="text-danger"></span>
+                </div>
+                <div class="social-field">
+                    <label asp-for="Input.PlatformId" class="form-label"></label>
+                    <select asp-for="Input.PlatformId" asp-items="Model.PlatformOptions" class="form-select"></select>
+                    <span asp-validation-for="Input.PlatformId" class="text-danger"></span>
+                </div>
+                <div class="social-field social-field--full">
+                    <label asp-for="Input.Description" class="form-label"></label>
+                    <textarea asp-for="Input.Description" class="form-control" rows="5" placeholder="Add the key message, context or outcome of the activity"></textarea>
+                    <div class="form-text">Keep this brief and suitable for later reference.</div>
+                    <span asp-validation-for="Input.Description" class="text-danger"></span>
+                </div>
             </div>
-        </div>
+
+            <div class="social-form-note">
+                <i class="bi bi-images" aria-hidden="true"></i>
+                <div><strong>Add photographs next</strong><span>After saving, you can upload images, choose a cover photo and manage the gallery.</span></div>
+            </div>
+
+            <div class="social-form-actions">
+                <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary" data-social-busy-label="Saving…">
+                    <i class="bi bi-check2" aria-hidden="true"></i>
+                    Save and add photos
+                </button>
+            </div>
+        </form>
     </section>
 </div>
 

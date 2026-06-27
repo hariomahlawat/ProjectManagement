@@ -164,14 +164,14 @@ function ensureConfirmModalElement() {
           <div class="d-flex align-items-start gap-3">
             <div class="social-confirm-modal__icon" aria-hidden="true">!</div>
             <div class="flex-grow-1">
-              <h5 class="social-confirm-modal__title mb-1">Review before deleting</h5>
+              <h5 class="social-confirm-modal__title mb-1">Delete photograph?</h5>
               <p class="social-confirm-modal__message mb-3" data-social-confirm-message></p>
               <p class="social-confirm-modal__subtitle mb-0">This action can't be undone.</p>
             </div>
           </div>
         </div>
         <div class="modal-footer border-0 pt-0">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-social-confirm-cancel>Keep</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-social-confirm-cancel>Cancel</button>
           <button type="button" class="btn btn-danger" data-social-confirm-accept>Delete</button>
         </div>
       </div>
@@ -338,12 +338,65 @@ function initPhotoUploadInputs() {
   });
 }
 
+
+function initSocialFilterBar() {
+  const form = document.querySelector('[data-social-filter-form]');
+  if (!form) return;
+
+  form.querySelectorAll('[data-social-auto-submit]').forEach(control => {
+    control.addEventListener('change', () => form.requestSubmit());
+  });
+
+  const search = form.querySelector('input[name="Q"]');
+  if (search) {
+    let timer;
+    search.addEventListener('input', () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => form.requestSubmit(), 450);
+    });
+  }
+}
+
+function initSocialRows() {
+  document.querySelectorAll('[data-social-row-url]').forEach(row => {
+    row.addEventListener('click', event => {
+      if (event.target.closest('a, button, input, select, form, .dropdown-menu')) return;
+      const url = row.getAttribute('data-social-row-url');
+      if (url) window.location.assign(url);
+    });
+  });
+}
+
+function initPhotoFallbacks() {
+  document.querySelectorAll('[data-social-photo]').forEach(image => {
+    image.addEventListener('error', () => {
+      image.hidden = true;
+      const fallback = image.parentElement?.querySelector('[data-social-photo-fallback]');
+      if (fallback) fallback.hidden = false;
+    }, { once: true });
+  });
+}
+
+function initSocialDropzones() {
+  document.querySelectorAll('.social-dropzone').forEach(zone => {
+    ['dragenter', 'dragover'].forEach(name => zone.addEventListener(name, event => {
+      event.preventDefault();
+      zone.classList.add('is-dragover');
+    }));
+    ['dragleave', 'drop'].forEach(name => zone.addEventListener(name, () => zone.classList.remove('is-dragover')));
+  });
+}
+
 function init() {
   initToasts();
   initConfirmations();
   initDisableOnSubmit();
   initAutoShowModals();
   initPhotoUploadInputs();
+  initSocialFilterBar();
+  initSocialRows();
+  initPhotoFallbacks();
+  initSocialDropzones();
 }
 
 if (document.readyState === 'loading') {
