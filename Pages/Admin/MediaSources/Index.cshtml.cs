@@ -20,17 +20,20 @@ public sealed class IndexModel : PageModel
     private readonly MediaLibraryOptions _options;
     private readonly IFileSystemSourceHealthService _healthService;
     private readonly IFileSystemPathResolver _pathResolver;
+    private readonly IMediaLibrarySchemaService _schemaService;
 
     public IndexModel(
         MediaLibraryDbContext db,
         IOptions<MediaLibraryOptions> options,
         IFileSystemSourceHealthService healthService,
-        IFileSystemPathResolver pathResolver)
+        IFileSystemPathResolver pathResolver,
+        IMediaLibrarySchemaService schemaService)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _healthService = healthService ?? throw new ArgumentNullException(nameof(healthService));
         _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
+        _schemaService = schemaService ?? throw new ArgumentNullException(nameof(schemaService));
     }
 
     [BindProperty]
@@ -42,6 +45,8 @@ public sealed class IndexModel : PageModel
     public bool CatalogueAvailable { get; private set; } = true;
     public bool ExternalSourcesEnabled => _options.IsExternalSourceFeatureEnabled;
     public bool IsEditing => Input.Id.HasValue;
+    public IReadOnlyList<string> PendingMigrations { get; private set; } = Array.Empty<string>();
+    public string? CatalogueError { get; private set; }
 
     [TempData]
     public string? StatusMessage { get; set; }
@@ -66,6 +71,20 @@ public sealed class IndexModel : PageModel
         }
 
         Input = SourceInput.FromEntity(source);
+    }
+
+
+    public async Task<IActionResult> OnPostInitializeCatalogueAsync(CancellationToken cancellationToken)
+    {
+        var result = await _schemaService.MigrateAsync(cancellationToken);
+        if (!result.IsCurrent)
+        {
+            WarningMessage = $"The media catalogue could not be initialized. {result.Error}";
+            return RedirectToPage();
+        }
+
+        StatusMessage = "The media catalogue schema is ready. PRISM media reconciliation and optional folder scanning can now run.";
+        return RedirectToPage();
     }
 
     public async Task<IActionResult> OnPostSaveAsync(CancellationToken cancellationToken)
@@ -357,6 +376,18 @@ public sealed class IndexModel : PageModel
 
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
+        var schema = await _schemaService.GetStatusAsync(cancellationToken);
+        PendingMigrations = schema.PendingMigrations;
+        CatalogueError = schema.Error;
+        CatalogueAvailable = schema.IsAvailable && schema.IsCurrent;
+        if (!CatalogueAvailable)
+        {
+            Sources = Array.Empty<SourceRow>();
+            PendingJobs = 0;
+            FailedJobs = 0;
+            return;
+        }
+
         try
         {
             Sources = await _db.Sources
@@ -396,7 +427,7 @@ public sealed class IndexModel : PageModel
         {
             CatalogueAvailable = false;
             Sources = Array.Empty<SourceRow>();
-            WarningMessage = "The optional media catalogue is not available. Core PRISM Photos is unaffected.";
+            CatalogueError = ex.GetBaseException().Message;
         }
     }
 

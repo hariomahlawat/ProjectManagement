@@ -41,9 +41,15 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaClassifier, MediaClassifier>();
         services.AddScoped<IMediaDerivativeService, MediaDerivativeService>();
         services.AddScoped<IMediaAssetProcessor, MediaAssetProcessor>();
+        services.AddScoped<IMediaLibrarySchemaService, MediaLibrarySchemaService>();
 
         var options = configuration.GetSection(MediaLibraryOptions.SectionName).Get<MediaLibraryOptions>()
             ?? new MediaLibraryOptions();
+
+        if (options.Enabled && options.AutoMigrate)
+        {
+            services.AddHostedService<MediaLibrarySchemaInitializerWorker>();
+        }
 
         // The workers are optional. Pages and PRISM-owned media remain available even
         // when the catalogue, external folders, or their schema are unavailable.

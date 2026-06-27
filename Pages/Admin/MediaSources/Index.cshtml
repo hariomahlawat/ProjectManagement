@@ -29,10 +29,31 @@
 
     @if (!Model.CatalogueAvailable)
     {
-        <div class="alert alert-secondary">
-            <strong>Optional catalogue unavailable.</strong>
-            Normal project, visit and event photos continue to work. Apply the media catalogue migration before configuring external folders.
-        </div>
+        <section class="card border-0 shadow-sm mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+                    <div>
+                        <h2 class="h5 mb-2">Initialize the optional media catalogue</h2>
+                        <p class="text-muted mb-2">
+                            Core project, visit and event photos remain available. Initialize this separate catalogue before connecting external folders or enabling background media processing.
+                        </p>
+                        @if (Model.PendingMigrations.Count > 0)
+                        {
+                            <div class="small text-muted">Pending migrations: @string.Join(", ", Model.PendingMigrations)</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.CatalogueError))
+                        {
+                            <div class="small text-danger mt-2">@Model.CatalogueError</div>
+                        }
+                    </div>
+                    <form method="post">
+                        <button type="submit" asp-page-handler="InitializeCatalogue" class="btn btn-primary">
+                            <i class="bi bi-database-check me-1" aria-hidden="true"></i> Initialize catalogue
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </section>
     }
     else
     {
