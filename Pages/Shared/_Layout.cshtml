@@ -2,7 +2,6 @@
 @using ProjectManagement.Models
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
-@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,8 +9,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#10213f" />
     <meta name="color-scheme" content="light" />
-    @{ var layoutAntiforgeryToken = Antiforgery.GetAndStoreTokens(Context).RequestToken; }
-    <meta name="csrf-token" content="@layoutAntiforgeryToken" />
     @{
         var pageTitle = ViewData["Title"]?.ToString();
         var documentTitle = string.Equals(pageTitle, "PRISM ERP", StringComparison.OrdinalIgnoreCase)
@@ -42,6 +39,7 @@
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
         var currentArea = ViewContext.RouteData.Values["area"]?.ToString();
         var isOngoingProjectsPage = string.Equals(currentPage, "/Projects/Ongoing/Index", StringComparison.OrdinalIgnoreCase);
+        var isPhotosPage = !string.IsNullOrWhiteSpace(currentPage) && currentPage.StartsWith("/Photos/", StringComparison.OrdinalIgnoreCase);
         var isDocumentRepositoryPage = string.Equals(currentArea, "DocumentRepository", StringComparison.OrdinalIgnoreCase);
         var isFfcPage = string.Equals(currentArea, "ProjectOfficeReports", StringComparison.OrdinalIgnoreCase)
             && !string.IsNullOrWhiteSpace(currentPage)
@@ -61,6 +59,7 @@
             _ when string.Equals(currentPage, "/ActionTasks/Index", StringComparison.OrdinalIgnoreCase) => "wide",
             _ when string.Equals(currentPage, "/Workspace/Index", StringComparison.OrdinalIgnoreCase) => "wide",
             _ when string.Equals(currentPage, "/Projects/Ongoing/Index", StringComparison.OrdinalIgnoreCase) => "analytics",
+            _ when isPhotosPage => "wide",
             _ when string.Equals(currentArea, "DocumentRepository", StringComparison.OrdinalIgnoreCase) => "analytics",
             _ when useFullWidth => "wide",
             _ => "standard"
@@ -103,6 +102,10 @@
                         <a asp-page="/Notebook/Index"
                            class="pm-top-tabs__item @(string.Equals(currentPage, "/Notebook/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
                             Notebook
+                        </a>
+                        <a asp-page="/Photos/Index"
+                           class="pm-top-tabs__item @(isPhotosPage ? "is-active" : string.Empty)">
+                            Photos
                         </a>
                         <a asp-page="/Projects/Ongoing/Index"
                            class="pm-top-tabs__item @(isOngoingProjectsPage ? "is-active" : string.Empty)">

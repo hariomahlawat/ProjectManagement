@@ -65,6 +65,12 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
+                Text = "Photos",
+                Page = "/Photos/Index",
+                Icon = "bi-images"
+            },
+            new()
+            {
                 Text = "Miscellaneous activities",
                 Page = "/Activities/Index",
                 Icon = "bi-stars"
