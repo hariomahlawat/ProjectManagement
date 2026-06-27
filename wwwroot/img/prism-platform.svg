@@ -46,7 +46,7 @@
     <rect x="108" y="112" width="42" height="42" rx="12" fill="#E9F2FF"/>
     <path d="M118 140H140M118 132H134M118 124H128" stroke="#3568E8" stroke-width="3" stroke-linecap="round"/>
     <text x="165" y="133" fill="#132A4A" font-size="21" font-family="Mulish, Arial, sans-serif" font-weight="800">Projects</text>
-    <text x="165" y="158" fill="#66758C" font-size="14" font-family="Mulish, Arial, sans-serif">Stages, ownership and delivery</text>
+    <text x="165" y="158" fill="#66758C" font-size="12.5" font-family="Mulish, Arial, sans-serif">Stages, owners and delivery</text>
     <rect x="108" y="177" width="165" height="8" rx="4" fill="#ECF1F8"/>
     <rect x="108" y="177" width="112" height="8" rx="4" fill="#4B76E6"/>
   </g>
@@ -56,7 +56,7 @@
     <rect x="480" y="112" width="42" height="42" rx="12" fill="#F1EBFF"/>
     <path d="M491 122H510V145H491V122ZM496 128H505M496 134H505M496 140H503" stroke="#7759D7" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
     <text x="537" y="133" fill="#132A4A" font-size="21" font-family="Mulish, Arial, sans-serif" font-weight="800">Documents</text>
-    <text x="537" y="158" fill="#66758C" font-size="14" font-family="Mulish, Arial, sans-serif">Records, OCR and search</text>
+    <text x="537" y="158" fill="#66758C" font-size="12.5" font-family="Mulish, Arial, sans-serif">Records, OCR and search</text>
     <rect x="480" y="177" width="165" height="8" rx="4" fill="#ECF1F8"/>
     <rect x="480" y="177" width="126" height="8" rx="4" fill="#7B5ADC"/>
   </g>
@@ -66,7 +66,7 @@
     <rect x="108" y="526" width="42" height="42" rx="12" fill="#E7F8F7"/>
     <path d="M119 548L127 540L134 547L141 536M141 536V546M141 536H131" stroke="#258E9C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
     <text x="165" y="547" fill="#132A4A" font-size="21" font-family="Mulish, Arial, sans-serif" font-weight="800">Analytics</text>
-    <text x="165" y="572" fill="#66758C" font-size="14" font-family="Mulish, Arial, sans-serif">Insights and command visibility</text>
+    <text x="165" y="572" fill="#66758C" font-size="12.5" font-family="Mulish, Arial, sans-serif">Insights and visibility</text>
     <rect x="108" y="591" width="165" height="8" rx="4" fill="#ECF1F8"/>
     <rect x="108" y="591" width="101" height="8" rx="4" fill="#2C9BA0"/>
   </g>
@@ -76,7 +76,7 @@
     <rect x="480" y="526" width="42" height="42" rx="12" fill="#EEF0FF"/>
     <path d="M489 547H511M500 536V558M493 540L507 554M507 540L493 554" stroke="#5A63D8" stroke-width="2.6" stroke-linecap="round"/>
     <text x="537" y="547" fill="#132A4A" font-size="21" font-family="Mulish, Arial, sans-serif" font-weight="800">Workflows</text>
-    <text x="537" y="572" fill="#66758C" font-size="14" font-family="Mulish, Arial, sans-serif">Approvals, tasks and actions</text>
+    <text x="537" y="572" fill="#66758C" font-size="12.5" font-family="Mulish, Arial, sans-serif">Approvals and actions</text>
     <rect x="480" y="591" width="165" height="8" rx="4" fill="#ECF1F8"/>
     <rect x="480" y="591" width="118" height="8" rx="4" fill="#5E66D9"/>
   </g>
