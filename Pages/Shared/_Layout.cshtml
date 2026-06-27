@@ -7,11 +7,13 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10213f" />
+    <meta name="color-scheme" content="light" />
     @{
         var pageTitle = ViewData["Title"]?.ToString();
         var documentTitle = string.Equals(pageTitle, "PRISM ERP", StringComparison.OrdinalIgnoreCase)
             ? "PRISM ERP | Simulator Development Division"
-            : $"{pageTitle} - PRISM ERP";
+            : $"{pageTitle} | PRISM ERP";
     }
     <title>@documentTitle</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
@@ -22,7 +24,11 @@
     <link rel="stylesheet" href="~/css/print.css" asp-append-version="true" media="print" />
     <link rel="stylesheet" href="~/css/fonts/mulish.css" asp-append-version="true" />
 
-    <link rel="icon" href="~/favicon.ico" />
+    <link rel="icon" type="image/x-icon" href="~/favicon.ico" asp-append-version="true" />
+    <link rel="icon" type="image/png" sizes="32x32" href="~/icons/favicon-32x32.png" asp-append-version="true" />
+    <link rel="icon" type="image/png" sizes="16x16" href="~/icons/favicon-16x16.png" asp-append-version="true" />
+    <link rel="apple-touch-icon" sizes="180x180" href="~/icons/apple-touch-icon.png" asp-append-version="true" />
+    <link rel="manifest" href="~/site.webmanifest" asp-append-version="true" />
 </head>
 <body class="d-flex flex-column min-vh-100">
     @{
@@ -155,9 +161,22 @@
                 else
                 {
                     <nav class="public-topbar__nav" aria-label="Public navigation">
-                        <a href="/#capabilities">Capabilities</a>
-                        <a href="/#roles-title">Role-based experience</a>
+                        <a class="public-topbar__desktop-link" href="/#capabilities">Capabilities</a>
+                        <a class="public-topbar__desktop-link" href="/#roles-title">Role-based experience</a>
                         <a class="public-topbar__signin" asp-area="Identity" asp-page="/Account/Login">Sign in</a>
+                        <div class="dropdown public-topbar__mobile-menu">
+                            <button class="public-topbar__menu-button"
+                                    type="button"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false"
+                                    aria-label="Open public navigation">
+                                <i class="bi bi-list" aria-hidden="true"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end public-topbar__menu">
+                                <li><a class="dropdown-item" href="/#capabilities">Capabilities</a></li>
+                                <li><a class="dropdown-item" href="/#roles-title">Role-based experience</a></li>
+                            </ul>
+                        </div>
                     </nav>
                 }
             </div>
@@ -247,7 +266,7 @@
     <script type="module" src="~/js/site.js" asp-append-version="true"></script>
     <script src="~/js/comments.js" asp-append-version="true" defer></script>
     <script src="~/js/notifications.js" asp-append-version="true" defer></script>
-    <script src="~/js/form-auto-submit.js" asp-append-version="true" defer></script>
+    <script src="~/js/project-media-tabs.js" asp-append-version="true" defer></script>
     @await RenderSectionAsync("Scripts", required: false)
     <script src="~/js/init.js" data-todo-src="@Url.Content("~/js/todo.js")" asp-append-version="true" defer></script>
 </body>
