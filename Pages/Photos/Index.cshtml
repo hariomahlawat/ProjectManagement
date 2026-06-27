@@ -4,11 +4,19 @@
 @{
     ViewData["Title"] = "Photos";
     ViewData["PageShell"] = "wide";
+
     var hasFilters = !string.IsNullOrWhiteSpace(Model.Q)
         || Model.Source != "all"
         || Model.Kind != "all"
         || Model.ProjectId.HasValue
         || Model.Year.HasValue;
+
+    var activeFilterCount = 0;
+    if (!string.IsNullOrWhiteSpace(Model.Q)) activeFilterCount++;
+    if (Model.Source != "all") activeFilterCount++;
+    if (Model.Kind != "all") activeFilterCount++;
+    if (Model.ProjectId.HasValue) activeFilterCount++;
+    if (Model.Year.HasValue) activeFilterCount++;
 }
 
 @section Styles {
@@ -17,17 +25,25 @@
 
 <div class="photos-library" data-photos-library>
     <header class="photos-library__header">
-        <div>
+        <div class="photos-library__title-block">
             <span class="photos-library__eyebrow">Unified organisational media</span>
-            <h1>Photos</h1>
-            <p>Browse project photographs, videos, visits and events in one professional media library.</p>
+            <div class="photos-library__title-row">
+                <h1>Photos</h1>
+                <span class="photos-library__summary">@Model.Stats.Total items · @Model.Stats.Collections collections</span>
+            </div>
+            <p>Project photographs, videos, visits and events in one library.</p>
         </div>
-        <button class="btn btn-primary photos-library__filter-toggle" type="button" data-bs-toggle="offcanvas" data-bs-target="#photosFilters" aria-controls="photosFilters">
+
+        <button class="btn btn-primary photos-library__filter-toggle"
+                type="button"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#photosFilters"
+                aria-controls="photosFilters">
             <i class="bi bi-sliders2" aria-hidden="true"></i>
             Filters
-            @if (hasFilters)
+            @if (activeFilterCount > 0)
             {
-                <span class="photos-library__filter-dot" aria-label="Filters are active"></span>
+                <span class="photos-library__filter-count" aria-label="@activeFilterCount active filters">@activeFilterCount</span>
             }
         </button>
     </header>
@@ -35,7 +51,11 @@
     <section class="photos-library__toolbar" aria-label="Media library controls">
         <form method="get" class="photos-search" role="search">
             <i class="bi bi-search" aria-hidden="true"></i>
-            <input type="search" name="Q" value="@Model.Q" placeholder="Search projects, visits, events and captions" autocomplete="off" />
+            <input type="search"
+                   name="Q"
+                   value="@Model.Q"
+                   placeholder="Search photos, videos, projects, visits and events"
+                   autocomplete="off" />
             <input type="hidden" name="Source" value="@Model.Source" />
             <input type="hidden" name="Kind" value="@Model.Kind" />
             @if (Model.ProjectId.HasValue)
@@ -48,24 +68,47 @@
             }
             @if (!string.IsNullOrWhiteSpace(Model.Q))
             {
-                <a asp-page="./Index" asp-route-Source="@Model.Source" asp-route-Kind="@Model.Kind" asp-route-ProjectId="@Model.ProjectId" asp-route-Year="@Model.Year" class="photos-search__clear" aria-label="Clear search">
+                <a asp-page="./Index"
+                   asp-route-Source="@Model.Source"
+                   asp-route-Kind="@Model.Kind"
+                   asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-Year="@Model.Year"
+                   class="photos-search__clear"
+                   aria-label="Clear search">
                     <i class="bi bi-x-lg" aria-hidden="true"></i>
                 </a>
             }
         </form>
 
         <nav class="photos-segments" aria-label="Media type">
-            <a class="@(Model.Kind == "all" ? "is-active" : null)" asp-page="./Index" asp-route-Q="@Model.Q" asp-route-Source="@Model.Source" asp-route-Kind="all" asp-route-ProjectId="@Model.ProjectId" asp-route-Year="@Model.Year">All</a>
-            <a class="@(Model.Kind == "photo" ? "is-active" : null)" asp-page="./Index" asp-route-Q="@Model.Q" asp-route-Source="@Model.Source" asp-route-Kind="photo" asp-route-ProjectId="@Model.ProjectId" asp-route-Year="@Model.Year">Photos</a>
-            <a class="@(Model.Kind == "video" ? "is-active" : null)" asp-page="./Index" asp-route-Q="@Model.Q" asp-route-Source="@Model.Source" asp-route-Kind="video" asp-route-ProjectId="@Model.ProjectId" asp-route-Year="@Model.Year">Videos</a>
+            <a class="@(Model.Kind == "all" ? "is-active" : null)"
+               asp-page="./Index"
+               asp-route-Q="@Model.Q"
+               asp-route-Source="@Model.Source"
+               asp-route-Kind="all"
+               asp-route-ProjectId="@Model.ProjectId"
+               asp-route-Year="@Model.Year">All</a>
+            <a class="@(Model.Kind == "photo" ? "is-active" : null)"
+               asp-page="./Index"
+               asp-route-Q="@Model.Q"
+               asp-route-Source="@Model.Source"
+               asp-route-Kind="photo"
+               asp-route-ProjectId="@Model.ProjectId"
+               asp-route-Year="@Model.Year">Photos</a>
+            <a class="@(Model.Kind == "video" ? "is-active" : null)"
+               asp-page="./Index"
+               asp-route-Q="@Model.Q"
+               asp-route-Source="@Model.Source"
+               asp-route-Kind="video"
+               asp-route-ProjectId="@Model.ProjectId"
+               asp-route-Year="@Model.Year">Videos</a>
         </nav>
     </section>
 
     <section class="photos-library__stats" aria-label="Library summary">
-        <div><strong>@Model.Stats.Total</strong><span>items</span></div>
-        <div><strong>@Model.Stats.Collections</strong><span>collections</span></div>
         <div><strong>@Model.Stats.Photos</strong><span>photos</span></div>
         <div><strong>@Model.Stats.Videos</strong><span>videos</span></div>
+        <div><strong>@Model.Stats.Collections</strong><span>collections</span></div>
     </section>
 
     @if (hasFilters)
@@ -73,26 +116,73 @@
         <div class="photos-active-filters" aria-label="Active filters">
             @if (!string.IsNullOrWhiteSpace(Model.Q))
             {
-                <span><i class="bi bi-search"></i>@Model.Q</span>
+                <a asp-page="./Index"
+                   asp-route-Source="@Model.Source"
+                   asp-route-Kind="@Model.Kind"
+                   asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-Year="@Model.Year"
+                   class="photos-filter-chip">
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <span>@Model.Q</span>
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </a>
             }
             @if (Model.Source != "all")
             {
-                <span><i class="bi bi-folder2"></i>@Model.Source</span>
+                <a asp-page="./Index"
+                   asp-route-Q="@Model.Q"
+                   asp-route-Source="all"
+                   asp-route-Kind="@Model.Kind"
+                   asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-Year="@Model.Year"
+                   class="photos-filter-chip">
+                    <i class="bi bi-folder2" aria-hidden="true"></i>
+                    <span>@Model.Source</span>
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </a>
             }
             @if (Model.Kind != "all")
             {
-                <span><i class="bi bi-images"></i>@Model.Kind</span>
+                <a asp-page="./Index"
+                   asp-route-Q="@Model.Q"
+                   asp-route-Source="@Model.Source"
+                   asp-route-Kind="all"
+                   asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-Year="@Model.Year"
+                   class="photos-filter-chip">
+                    <i class="bi bi-images" aria-hidden="true"></i>
+                    <span>@Model.Kind</span>
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </a>
             }
             @if (Model.ProjectId.HasValue)
             {
                 var projectName = Model.Projects.FirstOrDefault(project => project.Id == Model.ProjectId.Value)?.Name ?? "Project";
-                <span><i class="bi bi-kanban"></i>@projectName</span>
+                <a asp-page="./Index"
+                   asp-route-Q="@Model.Q"
+                   asp-route-Source="@Model.Source"
+                   asp-route-Kind="@Model.Kind"
+                   asp-route-Year="@Model.Year"
+                   class="photos-filter-chip">
+                    <i class="bi bi-kanban" aria-hidden="true"></i>
+                    <span>@projectName</span>
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </a>
             }
             @if (Model.Year.HasValue)
             {
-                <span><i class="bi bi-calendar3"></i>@Model.Year</span>
+                <a asp-page="./Index"
+                   asp-route-Q="@Model.Q"
+                   asp-route-Source="@Model.Source"
+                   asp-route-Kind="@Model.Kind"
+                   asp-route-ProjectId="@Model.ProjectId"
+                   class="photos-filter-chip">
+                    <i class="bi bi-calendar3" aria-hidden="true"></i>
+                    <span>@Model.Year</span>
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </a>
             }
-            <a asp-page="./Index">Clear all</a>
+            <a asp-page="./Index" class="photos-active-filters__clear">Clear all</a>
         </div>
     }
 
@@ -110,61 +200,83 @@
     }
     else
     {
+        var collectionIndex = 0;
+
         <div class="photos-timeline">
-            @foreach (var group in Model.Groups)
+            @foreach (var dateGroup in Model.Groups.GroupBy(group => group.Date.Date).OrderByDescending(group => group.Key))
             {
-                <section class="photos-group" aria-labelledby="group-@group.Key.Replace(':', '-')">
-                    <header class="photos-group__header">
-                        <div>
-                            <div class="photos-group__date">@group.Date.ToString("dd MMMM yyyy")</div>
-                            <h2 id="group-@group.Key.Replace(':', '-')">@group.Title</h2>
-                            <p>@group.Subtitle · @group.Items.Count item@(group.Items.Count == 1 ? string.Empty : "s")</p>
-                        </div>
-                        @if (!string.IsNullOrWhiteSpace(group.Items[0].SourceUrl))
-                        {
-                            <a href="@group.Items[0].SourceUrl" class="photos-group__source">Open source <i class="bi bi-arrow-up-right"></i></a>
-                        }
+                <section class="photos-day" aria-labelledby="day-@dateGroup.Key.ToString("yyyyMMdd")">
+                    <header class="photos-day__header">
+                        <h2 id="day-@dateGroup.Key.ToString("yyyyMMdd")">@dateGroup.Key.ToString("dd MMMM yyyy")</h2>
+                        <span>@dateGroup.Sum(group => group.Items.Count) item@(dateGroup.Sum(group => group.Items.Count) == 1 ? string.Empty : "s")</span>
                     </header>
 
-                    <div class="photos-grid" role="list">
-                        @foreach (var item in group.Items)
+                    <div class="photos-day__collections">
+                        @foreach (var group in dateGroup)
                         {
-                            <button type="button"
-                                    class="photos-tile"
-                                    role="listitem"
-                                    style="--media-ratio:@item.AspectRatio.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
-                                    data-media-item
-                                    data-kind="@item.Kind.ToString().ToLowerInvariant()"
-                                    data-title="@item.Title"
-                                    data-caption="@item.Caption"
-                                    data-context="@item.ContextTitle"
-                                    data-subtitle="@item.ContextSubtitle"
-                                    data-date="@item.MediaDate.ToString("dd MMMM yyyy")"
-                                    data-source-label="@item.SourceLabel"
-                                    data-display-url="@item.DisplayUrl"
-                                    data-original-url="@item.OriginalUrl"
-                                    data-download-url="@item.DownloadUrl"
-                                    data-source-url="@item.SourceUrl"
-                                    data-duration="@IndexModel.FormatDuration(item.DurationSeconds)"
-                                    data-width="@item.Width"
-                                    data-height="@item.Height"
-                                    aria-label="Open @item.Title">
-                                <img src="@item.ThumbnailUrl" alt="" loading="lazy" decoding="async" />
-                                <span class="photos-tile__shade"></span>
-                                @if (item.Kind == IndexModel.MediaKind.Video)
-                                {
-                                    <span class="photos-tile__play"><i class="bi bi-play-fill" aria-hidden="true"></i></span>
-                                    <span class="photos-tile__duration">@IndexModel.FormatDuration(item.DurationSeconds)</span>
-                                }
-                                @if (item.IsCover)
-                                {
-                                    <span class="photos-tile__cover" title="Cover media"><i class="bi bi-star-fill" aria-hidden="true"></i></span>
-                                }
-                                <span class="photos-tile__meta">
-                                    <strong>@item.Title</strong>
-                                    <span>@item.SourceLabel</span>
-                                </span>
-                            </button>
+                            collectionIndex++;
+                            var groupId = $"photos-group-{collectionIndex}";
+                            var itemCountClass = group.Items.Count >= 6 ? "photos-grid--many" : $"photos-grid--count-{group.Items.Count}";
+
+                            <section class="photos-group" aria-labelledby="@groupId">
+                                <header class="photos-group__header">
+                                    <div class="photos-group__identity">
+                                        <h3 id="@groupId">@group.Title</h3>
+                                        <p>@group.Subtitle · @group.Items.Count item@(group.Items.Count == 1 ? string.Empty : "s")</p>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(group.Items[0].SourceUrl))
+                                    {
+                                        <a href="@group.Items[0].SourceUrl" class="photos-group__source">
+                                            Open source <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                                        </a>
+                                    }
+                                </header>
+
+                                <div class="photos-grid @itemCountClass" role="list">
+                                    @foreach (var item in group.Items)
+                                    {
+                                        <button type="button"
+                                                class="photos-tile"
+                                                role="listitem"
+                                                style="--media-ratio:@item.AspectRatio.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
+                                                data-media-item
+                                                data-kind="@item.Kind.ToString().ToLowerInvariant()"
+                                                data-title="@item.Title"
+                                                data-caption="@item.Caption"
+                                                data-context="@item.ContextTitle"
+                                                data-subtitle="@item.ContextSubtitle"
+                                                data-date="@item.MediaDate.ToString("dd MMMM yyyy")"
+                                                data-source-label="@item.SourceLabel"
+                                                data-display-url="@item.DisplayUrl"
+                                                data-original-url="@item.OriginalUrl"
+                                                data-download-url="@item.DownloadUrl"
+                                                data-source-url="@item.SourceUrl"
+                                                data-duration="@IndexModel.FormatDuration(item.DurationSeconds)"
+                                                data-width="@item.Width"
+                                                data-height="@item.Height"
+                                                aria-label="Open @item.Title">
+                                            <img src="@item.ThumbnailUrl" alt="" loading="lazy" decoding="async" />
+                                            <span class="photos-tile__shade"></span>
+                                            @if (item.Kind == IndexModel.MediaKind.Video)
+                                            {
+                                                <span class="photos-tile__play"><i class="bi bi-play-fill" aria-hidden="true"></i></span>
+                                                <span class="photos-tile__duration">@IndexModel.FormatDuration(item.DurationSeconds)</span>
+                                            }
+                                            @if (item.IsCover)
+                                            {
+                                                <span class="photos-tile__cover" title="Cover media">
+                                                    <i class="bi bi-bookmark-star-fill" aria-hidden="true"></i>
+                                                    Cover
+                                                </span>
+                                            }
+                                            <span class="photos-tile__meta">
+                                                <strong>@item.Title</strong>
+                                                <span>@item.SourceLabel</span>
+                                            </span>
+                                        </button>
+                                    }
+                                </div>
+                            </section>
                         }
                     </div>
                 </section>
@@ -174,15 +286,29 @@
         <nav class="photos-pagination" aria-label="Photos pages">
             @if (Model.HasPreviousPage)
             {
-                <a class="btn btn-outline-secondary" asp-page="./Index" asp-route-Q="@Model.Q" asp-route-Source="@Model.Source" asp-route-Kind="@Model.Kind" asp-route-ProjectId="@Model.ProjectId" asp-route-Year="@Model.Year" asp-route-PageNumber="@(Model.CurrentPage - 1)">
-                    <i class="bi bi-arrow-left"></i> Previous
+                <a class="btn btn-outline-secondary"
+                   asp-page="./Index"
+                   asp-route-Q="@Model.Q"
+                   asp-route-Source="@Model.Source"
+                   asp-route-Kind="@Model.Kind"
+                   asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-Year="@Model.Year"
+                   asp-route-PageNumber="@(Model.CurrentPage - 1)">
+                    <i class="bi bi-arrow-left" aria-hidden="true"></i> Previous
                 </a>
             }
             <span>Page @Model.CurrentPage</span>
             @if (Model.HasNextPage)
             {
-                <a class="btn btn-outline-secondary" asp-page="./Index" asp-route-Q="@Model.Q" asp-route-Source="@Model.Source" asp-route-Kind="@Model.Kind" asp-route-ProjectId="@Model.ProjectId" asp-route-Year="@Model.Year" asp-route-PageNumber="@(Model.CurrentPage + 1)">
-                    Next <i class="bi bi-arrow-right"></i>
+                <a class="btn btn-outline-secondary"
+                   asp-page="./Index"
+                   asp-route-Q="@Model.Q"
+                   asp-route-Source="@Model.Source"
+                   asp-route-Kind="@Model.Kind"
+                   asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-Year="@Model.Year"
+                   asp-route-PageNumber="@(Model.CurrentPage + 1)">
+                    Next <i class="bi bi-arrow-right" aria-hidden="true"></i>
                 </a>
             }
         </nav>
@@ -198,7 +324,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
     <div class="offcanvas-body">
-        <form method="get" class="photos-filter-form">
+        <form method="get" class="photos-filter-form" data-photos-filter-form>
             <input type="hidden" name="Q" value="@Model.Q" />
             <div>
                 <label for="sourceFilter">Source</label>
@@ -240,7 +366,7 @@
             </div>
             <div class="photos-filter-form__actions">
                 <a asp-page="./Index" class="btn btn-outline-secondary">Reset</a>
-                <button type="submit" class="btn btn-primary">Apply filters</button>
+                <button type="submit" class="btn btn-primary" data-photos-filter-submit>Apply filters</button>
             </div>
         </form>
     </div>
@@ -252,13 +378,19 @@
         <header class="photos-viewer__header">
             <div class="photos-viewer__heading">
                 <span data-viewer-context></span>
-                <strong id="photosViewerTitle" data-viewer-title></strong>
+                <div class="photos-viewer__title-line">
+                    <strong id="photosViewerTitle" data-viewer-title></strong>
+                    <span class="photos-viewer__position" data-viewer-position></span>
+                </div>
             </div>
             <div class="photos-viewer__actions">
-                <a href="#" data-viewer-original target="_blank" rel="noopener" title="Open original"><i class="bi bi-arrows-fullscreen"></i></a>
-                <a href="#" data-viewer-download title="Download"><i class="bi bi-download"></i></a>
-                <button type="button" data-viewer-info aria-pressed="false" title="Show information"><i class="bi bi-info-circle"></i></button>
-                <button type="button" data-viewer-close title="Close"><i class="bi bi-x-lg"></i></button>
+                <button type="button" data-viewer-zoom-out title="Zoom out" aria-label="Zoom out"><i class="bi bi-dash-lg"></i></button>
+                <button type="button" data-viewer-zoom-reset title="Reset zoom" aria-label="Reset zoom"><span data-viewer-zoom-label>100%</span></button>
+                <button type="button" data-viewer-zoom-in title="Zoom in" aria-label="Zoom in"><i class="bi bi-plus-lg"></i></button>
+                <a href="#" data-viewer-original target="_blank" rel="noopener" title="Open original" aria-label="Open original"><i class="bi bi-arrows-fullscreen"></i></a>
+                <a href="#" data-viewer-download title="Download" aria-label="Download"><i class="bi bi-download"></i></a>
+                <button type="button" data-viewer-info aria-pressed="false" title="Show information" aria-label="Show information"><i class="bi bi-info-circle"></i></button>
+                <button type="button" data-viewer-close title="Close" aria-label="Close"><i class="bi bi-x-lg"></i></button>
             </div>
         </header>
         <main class="photos-viewer__stage">
