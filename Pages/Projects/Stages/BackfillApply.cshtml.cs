@@ -86,8 +86,9 @@ public class BackfillApplyModel : PageModel
             return ValidationFailure(new[] { "At least one stage update must be provided." });
         }
 
-        var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? User?.Identity?.Name
+        var principal = User;
+        var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? principal.Identity?.Name
             ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(userId))
@@ -95,7 +96,7 @@ public class BackfillApplyModel : PageModel
             return Forbid();
         }
 
-        var isAdminOrHod = User.IsInRole(RoleNames.Admin) || User.IsInRole(RoleNames.HoD);
+        var isAdminOrHod = principal.IsInRole(RoleNames.Admin) || principal.IsInRole(RoleNames.HoD);
         if (!isAdminOrHod)
         {
             var isAssignedProjectOfficer = await _db.Projects

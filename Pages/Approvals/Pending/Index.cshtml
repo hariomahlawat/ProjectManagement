@@ -124,9 +124,18 @@
                                 </div>
                             </div>
                             <div class="decision-project-counts">
-                                @if (group.ReadyCount > 0)<span class="count-ready">@group.ReadyCount ready</span>
-                                @if (group.WaitingCount > 0)<span class="count-waiting">@group.WaitingCount waiting</span>
-                                @if (group.BlockedCount > 0)<span class="count-blocked">@group.BlockedCount blocked</span>
+                                @if (group.ReadyCount > 0)
+                                {
+                                    <span class="count-ready">@group.ReadyCount ready</span>
+                                }
+                                @if (group.WaitingCount > 0)
+                                {
+                                    <span class="count-waiting">@group.WaitingCount waiting</span>
+                                }
+                                @if (group.BlockedCount > 0)
+                                {
+                                    <span class="count-blocked">@group.BlockedCount blocked</span>
+                                }
                             </div>
                         </header>
                         <div class="decision-request-list">

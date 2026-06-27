@@ -22,7 +22,6 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
         {
         }
 
-        [ValidateAntiForgeryToken]
         public async Task<IActionResult> OnPostAsync(string? returnUrl = null)
         {
             await _signInManager.SignOutAsync();
