@@ -7,6 +7,7 @@ using ProjectManagement.Models;
 namespace ProjectManagement.Areas.Identity.Pages.Account
 {
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+    [AutoValidateAntiforgeryToken]
     public class LogoutModel : PageModel
     {
         private readonly SignInManager<ApplicationUser> _signInManager;

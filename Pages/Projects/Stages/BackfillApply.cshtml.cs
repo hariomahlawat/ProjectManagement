@@ -86,9 +86,14 @@ public class BackfillApplyModel : PageModel
             return ValidationFailure(new[] { "At least one stage update must be provided." });
         }
 
-        var principal = User;
+        var principal = HttpContext?.User;
+        if (principal?.Identity?.IsAuthenticated != true)
+        {
+            return Forbid();
+        }
+
         var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? principal.Identity?.Name
+            ?? principal.Identity.Name
             ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(userId))
