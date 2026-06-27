@@ -14,6 +14,19 @@ body:has(.landing-page) {
     background: #f7f9fd;
 }
 
+html:has(.landing-page),
+body:has(.landing-page) {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: clip;
+}
+
+body:has(.landing-page) *,
+body:has(.landing-page) *::before,
+body:has(.landing-page) *::after {
+    box-sizing: border-box;
+}
+
 body:has(.landing-page) main {
     padding-bottom: 0 !important;
 }
@@ -928,8 +941,8 @@ body:has(.landing-page) main > .pm-page-shell--landing {
 }
 
 .landing-hero {
-    min-height: 610px;
-    padding: 50px 0 46px;
+    min-height: 570px;
+    padding: 42px 0 38px;
 }
 
 .landing-hero__grid {
@@ -950,7 +963,7 @@ body:has(.landing-page) main > .pm-page-shell--landing {
     max-width: 680px;
     font-size: clamp(1.05rem, 1.35vw, 1.2rem);
     line-height: 1.58;
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .landing-hero__supporting {
@@ -974,21 +987,21 @@ body:has(.landing-page) main > .pm-page-shell--landing {
 
 .landing-visual-card {
     width: min(100%, 500px);
-    min-height: 470px;
+    min-height: 440px;
     padding: 2px;
 }
 
 .landing-visual-card__halo {
     inset: 12% 2% 5%;
-    opacity: 0.82;
+    opacity: 0.68;
 }
 
 .landing-visual-card img {
     width: 100%;
     height: auto;
-    max-height: 490px;
+    max-height: 460px;
     object-fit: contain;
-    filter: drop-shadow(0 24px 34px rgba(43, 68, 113, 0.14));
+    filter: drop-shadow(0 20px 28px rgba(43, 68, 113, 0.11));
 }
 
 .landing-section {
@@ -1107,7 +1120,7 @@ body:has(.landing-page) main > .pm-page-shell--landing {
 
     .landing-hero {
         min-height: auto;
-        padding: 50px 0 60px;
+        padding: 44px 0 54px;
     }
 
     .landing-hero__grid {
@@ -1172,7 +1185,7 @@ body:has(.landing-page) main > .pm-page-shell--landing {
     }
 
     .landing-hero {
-        padding-top: 36px;
+        padding-top: 32px;
     }
 
     .landing-identity {
@@ -1257,9 +1270,9 @@ body:has(.landing-page) main > .pm-page-shell--landing {
 
 .landing-visual-card picture img {
     width: 100%;
-    max-height: 490px;
+    max-height: 460px;
     object-fit: contain;
-    filter: drop-shadow(0 24px 34px rgba(43, 68, 113, 0.14));
+    filter: drop-shadow(0 20px 28px rgba(43, 68, 113, 0.11));
 }
 
 @media (max-width: 1199.98px) {

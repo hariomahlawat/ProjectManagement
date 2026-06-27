@@ -11,6 +11,20 @@ body:has(.auth-page) {
     background: #f5f8fd;
 }
 
+/* Keep the authentication shell inside the viewport at every zoom level. */
+html:has(.auth-page),
+body:has(.auth-page) {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: clip;
+}
+
+body:has(.auth-page) *,
+body:has(.auth-page) *::before,
+body:has(.auth-page) *::after {
+    box-sizing: border-box;
+}
+
 body:has(.auth-page) main {
     display: flex;
     flex: 1 0 auto;
@@ -27,11 +41,13 @@ body:has(.auth-page) main > .container-fluid {
     position: relative;
     isolation: isolate;
     width: 100%;
-    min-height: calc(100vh - 134px);
-    display: grid;
-    place-items: center;
-    overflow: hidden;
-    padding: 44px 24px;
+    max-width: 100%;
+    min-height: calc(100dvh - 134px);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    overflow: clip;
+    padding: clamp(28px, 5vh, 44px) 24px;
     background:
         linear-gradient(120deg, rgba(240, 246, 255, 0.98), rgba(249, 251, 255, 0.98) 52%, rgba(248, 247, 255, 0.96));
 }
@@ -62,6 +78,7 @@ body:has(.auth-page) main > .container-fluid {
 
 .auth-shell {
     width: min(1080px, 100%);
+    max-width: 100%;
     margin-inline: auto;
 }
 
@@ -273,7 +290,7 @@ body:has(.auth-page) main > .container-fluid {
     padding-left: 43px;
     border-color: #ccd7e7;
     border-radius: 11px;
-    background: #fbfcff;
+    background: #f8fafc;
     color: #162640;
     font-size: 0.94rem;
     transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
@@ -386,25 +403,10 @@ body:has(.auth-page) main > .container-fluid {
 .auth-form-panel__footer {
     display: flex;
     flex-direction: column;
-    gap: 11px;
-    margin-top: 30px;
-    padding-top: 22px;
+    gap: 0;
+    margin-top: 24px;
+    padding-top: 18px;
     border-top: 1px solid #e2e8f2;
-}
-
-.auth-form-panel__footer a {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    width: fit-content;
-    color: #365fae;
-    font-size: 0.86rem;
-    font-weight: 750;
-    text-decoration: none;
-}
-
-.auth-form-panel__footer a:hover {
-    color: #214caa;
 }
 
 .auth-form-panel__footer span {
@@ -499,6 +501,44 @@ body:has(.auth-page) main > .container-fluid {
     }
 }
 
+
+@media (max-height: 820px) and (min-width: 900px) {
+    .auth-page {
+        padding-block: 24px 30px;
+    }
+
+    .auth-panel {
+        min-height: 520px;
+    }
+
+    .auth-brand-panel {
+        padding-block: 30px 28px;
+    }
+
+    .auth-brand-panel__content {
+        margin-block: 28px;
+    }
+
+    .auth-brand-panel__summary {
+        margin-top: 18px;
+        line-height: 1.6;
+    }
+
+    .auth-form-panel {
+        justify-content: flex-start;
+        padding-top: 36px;
+        padding-bottom: 30px;
+    }
+
+    .auth-form-panel__header {
+        margin-bottom: 24px;
+    }
+
+    .auth-form {
+        gap: 18px;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .auth-input,
     .auth-submit {
@@ -539,13 +579,15 @@ body:has(.auth-page) main > .pm-page-shell--focused {
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    overflow: visible;
+    overflow: clip;
     padding: clamp(28px, 5vh, 48px) 24px;
 }
 
 .auth-shell {
     width: min(1040px, 100%);
-    margin: auto;
+    max-width: 100%;
+    margin-inline: auto;
+    margin-block: 0;
 }
 
 .auth-panel {
@@ -604,6 +646,10 @@ body:has(.auth-page) main > .pm-page-shell--focused {
 
 .auth-input {
     min-height: 48px;
+    background: #f8fafc;
+}
+
+.auth-input:focus {
     background: #fff;
 }
 
