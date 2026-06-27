@@ -29,7 +29,6 @@
             <span class="photos-library__eyebrow">Unified organisational media</span>
             <div class="photos-library__title-row">
                 <h1>Photos</h1>
-                <span class="photos-library__summary">@Model.Stats.Total items · @Model.Stats.Collections collections</span>
             </div>
             <p>Project photographs, videos, visits and events in one library.</p>
         </div>
@@ -206,9 +205,14 @@
             @foreach (var dateGroup in Model.Groups.GroupBy(group => group.Date.Date).OrderByDescending(group => group.Key))
             {
                 <section class="photos-day" aria-labelledby="day-@dateGroup.Key.ToString("yyyyMMdd")">
+                    @{
+                        var dayItemCount = dateGroup.Sum(group => group.Items.Count);
+                    }
                     <header class="photos-day__header">
-                        <h2 id="day-@dateGroup.Key.ToString("yyyyMMdd")">@dateGroup.Key.ToString("dd MMMM yyyy")</h2>
-                        <span>@dateGroup.Sum(group => group.Items.Count) item@(dateGroup.Sum(group => group.Items.Count) == 1 ? string.Empty : "s")</span>
+                        <h2 id="day-@dateGroup.Key.ToString("yyyyMMdd")">
+                            @dateGroup.Key.ToString("dd MMMM yyyy")
+                            <span>· @dayItemCount item@(dayItemCount == 1 ? string.Empty : "s")</span>
+                        </h2>
                     </header>
 
                     <div class="photos-day__collections">
@@ -217,6 +221,26 @@
                             collectionIndex++;
                             var groupId = $"photos-group-{collectionIndex}";
                             var itemCountClass = group.Items.Count >= 6 ? "photos-grid--many" : $"photos-grid--count-{group.Items.Count}";
+                            if (group.Items.Count == 1)
+                            {
+                                itemCountClass += group.Items[0].AspectRatio >= 1.15
+                                    ? " photos-grid--single-landscape"
+                                    : group.Items[0].AspectRatio <= 0.85
+                                        ? " photos-grid--single-portrait"
+                                        : " photos-grid--single-square";
+                            }
+
+                            var sourceLabel = group.Items[0].SourceLabel ?? string.Empty;
+                            var sourceAction = sourceLabel.Contains("project", StringComparison.OrdinalIgnoreCase)
+                                ? "Open project"
+                                : sourceLabel.Contains("visit", StringComparison.OrdinalIgnoreCase)
+                                    ? "Open visit"
+                                    : sourceLabel.Contains("event", StringComparison.OrdinalIgnoreCase)
+                                        ? "Open event"
+                                        : sourceLabel.Contains("activ", StringComparison.OrdinalIgnoreCase)
+                                            || sourceLabel.Contains("misc", StringComparison.OrdinalIgnoreCase)
+                                                ? "Open activity"
+                                                : "Open source";
 
                             <section class="photos-group" aria-labelledby="@groupId">
                                 <header class="photos-group__header">
@@ -227,7 +251,7 @@
                                     @if (!string.IsNullOrWhiteSpace(group.Items[0].SourceUrl))
                                     {
                                         <a href="@group.Items[0].SourceUrl" class="photos-group__source">
-                                            Open source <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                                            @sourceAction <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
                                         </a>
                                     }
                                 </header>
@@ -366,7 +390,7 @@
             </div>
             <div class="photos-filter-form__actions">
                 <a asp-page="./Index" class="btn btn-outline-secondary">Reset</a>
-                <button type="submit" class="btn btn-primary" data-photos-filter-submit>Apply filters</button>
+                <button type="submit" class="btn btn-primary" data-photos-filter-submit disabled>Apply filters</button>
             </div>
         </form>
     </div>

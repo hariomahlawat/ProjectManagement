@@ -10,14 +10,20 @@
     const filterSubmit = document.querySelector('[data-photos-filter-submit]');
 
     if (filterForm && filterSubmit) {
-        const initialState = new FormData(filterForm);
-        const initial = new URLSearchParams(initialState).toString();
-        filterSubmit.disabled = true;
+        const serialize = () => new URLSearchParams(new FormData(filterForm)).toString();
+        const initial = serialize();
 
-        filterForm.addEventListener('change', () => {
-            const current = new URLSearchParams(new FormData(filterForm)).toString();
-            filterSubmit.disabled = current === initial;
-        });
+        const syncFilterSubmit = () => {
+            filterSubmit.disabled = serialize() === initial;
+        };
+
+        filterSubmit.disabled = true;
+        filterForm.addEventListener('change', syncFilterSubmit);
+        filterForm.addEventListener('input', syncFilterSubmit);
+        filterForm.addEventListener('reset', () => window.setTimeout(syncFilterSubmit, 0));
+
+        const filterCanvas = document.getElementById('photosFilters');
+        filterCanvas?.addEventListener('shown.bs.offcanvas', syncFilterSubmit);
     }
 
     if (tiles.length === 0) return;
