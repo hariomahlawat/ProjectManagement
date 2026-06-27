@@ -66,6 +66,12 @@ public static class MediaLibraryModelConfiguration
             entity.Property(x => x.ProcessingFailureReason).HasMaxLength(2048);
             entity.HasIndex(x => new { x.SourceId, x.SourceEntityId }).IsUnique();
             entity.HasIndex(x => new { x.IsAvailable, x.IsDeleted, x.MediaDateUtc });
+            entity.HasIndex(x => new { x.IsAvailable, x.IsDeleted, x.IsArchived, x.MediaDateUtc, x.Id })
+                .HasDatabaseName("IX_MediaAssets_LibraryTimeline");
+            entity.HasIndex(x => new { x.Origin, x.IsAvailable, x.IsDeleted, x.IsArchived, x.MediaDateUtc })
+                .HasDatabaseName("IX_MediaAssets_OriginTimeline");
+            entity.HasIndex(x => new { x.ProjectId, x.IsAvailable, x.IsDeleted, x.IsArchived, x.MediaDateUtc })
+                .HasDatabaseName("IX_MediaAssets_ProjectTimeline");
             entity.HasIndex(x => new { x.Kind, x.Classification });
             entity.HasIndex(x => x.ProjectId);
             entity.HasIndex(x => x.CollectionKey);

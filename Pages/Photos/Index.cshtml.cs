@@ -16,16 +16,16 @@ public sealed class IndexModel : PageModel
 {
     private const int PageSize = 120;
     private readonly ApplicationDbContext _db;
-    private readonly IExternalMediaLibraryReader _externalMedia;
+    private readonly IMediaLibraryQueryService _library;
     private readonly MediaLibraryOptions _mediaOptions;
 
     public IndexModel(
         ApplicationDbContext db,
-        IExternalMediaLibraryReader externalMedia,
+        IMediaLibraryQueryService library,
         IOptions<MediaLibraryOptions> mediaOptions)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
-        _externalMedia = externalMedia ?? throw new ArgumentNullException(nameof(externalMedia));
+        _library = library ?? throw new ArgumentNullException(nameof(library));
         _mediaOptions = mediaOptions?.Value ?? throw new ArgumentNullException(nameof(mediaOptions));
     }
 
@@ -42,14 +42,37 @@ public sealed class IndexModel : PageModel
     public IReadOnlyList<ProjectOption> Projects { get; private set; } = Array.Empty<ProjectOption>();
     public IReadOnlyList<int> Years { get; private set; } = Array.Empty<int>();
     public LibraryStats Stats { get; private set; } = new();
-    public bool HasPreviousPage => PageNumber > 1;
+    public bool HasPreviousPage { get; private set; }
     public bool HasNextPage { get; private set; }
     public int CurrentPage => Math.Max(1, PageNumber);
     public bool ExternalSourcesEnabled => _mediaOptions.IsExternalSourceFeatureEnabled;
     public bool ExternalLibraryAvailable { get; private set; } = true;
     public string? ExternalLibraryWarning { get; private set; }
+    public bool IsUsingCatalogue { get; private set; }
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
+    {
+        NormalizeRequest();
+
+        var result = await _library.SearchAsync(
+            new MediaLibraryQuery(Q, Source, Kind, Classification, ProjectId, Year, PageNumber, PageSize),
+            cancellationToken);
+
+        if (result.IsAvailable && result.HasPrismCatalogue)
+        {
+            ApplyCatalogueResult(result);
+            return;
+        }
+
+        // Fail-safe path: the media catalogue is optional. Core PRISM media remains
+        // browsable if migrations are pending, PostgreSQL is unavailable, or the worker
+        // has not completed its first synchronisation.
+        await LoadPrismFallbackAsync(cancellationToken);
+        ExternalLibraryAvailable = result.IsAvailable;
+        ExternalLibraryWarning = result.Warning;
+    }
+
+    private void NormalizeRequest()
     {
         PageNumber = Math.Max(1, PageNumber);
         Source = NormalizeSource(Source);
@@ -61,108 +84,182 @@ public sealed class IndexModel : PageModel
         Kind = NormalizeKind(Kind);
         Classification = NormalizeClassification(Classification);
         Q = string.IsNullOrWhiteSpace(Q) ? null : Q.Trim();
+    }
 
-        Projects = await _db.Projects
-            .AsNoTracking()
-            .Where(project => !project.IsDeleted)
-            .Where(project => _db.ProjectPhotos.Any(photo => photo.ProjectId == project.Id)
-                           || _db.ProjectVideos.Any(video => video.ProjectId == project.Id))
-            .OrderBy(project => project.Name)
-            .Select(project => new ProjectOption(project.Id, project.Name))
-            .ToListAsync(cancellationToken);
+    private void ApplyCatalogueResult(MediaLibraryQueryResult result)
+    {
+        IsUsingCatalogue = true;
+        PageNumber = result.PageNumber;
+        HasPreviousPage = result.HasPreviousPage;
+        HasNextPage = result.HasNextPage;
+        ExternalLibraryAvailable = true;
+        ExternalLibraryWarning = result.Warning;
+        Projects = result.Projects.Select(project => new ProjectOption(project.Id, project.Name)).ToList();
+        Years = result.Years;
+        Stats = new LibraryStats
+        {
+            Total = result.Statistics.Total,
+            Photos = result.Statistics.Photos,
+            Videos = result.Statistics.Videos,
+            Collections = result.Statistics.Collections
+        };
+        Items = result.Items.Select(MapCatalogueItem).ToList();
+        BuildGroups();
+    }
 
-        var internalItems = new List<MediaItem>(512);
+    private MediaItem MapCatalogueItem(MediaLibraryQueryItem row)
+    {
+        var source = row.Origin switch
+        {
+            MediaAssetOrigin.ProjectPhoto or MediaAssetOrigin.ProjectVideo => MediaSource.Project,
+            MediaAssetOrigin.VisitPhoto => MediaSource.Visit,
+            MediaAssetOrigin.SocialMediaEventPhoto => MediaSource.Event,
+            _ => MediaSource.ExternalFolder
+        };
+
+        var id = ExtractEntityId(row.SourceEntityId);
+        var parentId = row.ParentEntityId ?? ExtractParentId(row.ContextKey);
+        var version = row.VersionToken;
+
+        string thumbnail;
+        string display;
+        string original;
+        string? download = null;
+        string? sourceUrl;
+
+        switch (row.Origin)
+        {
+            case MediaAssetOrigin.ProjectPhoto:
+                display = Url.Page("/Projects/Photos/View", new { id = parentId, photoId = id, size = "xl", v = version }) ?? string.Empty;
+                thumbnail = Url.Page("/Projects/Photos/View", new { id = parentId, photoId = id, size = "md", v = version }) ?? display;
+                original = Url.Page("/Projects/Photos/View", new { id = parentId, photoId = id, size = "original", v = version }) ?? display;
+                download = Url.Page("/Projects/Photos/Download", new { id = parentId, photoId = id, size = "original" });
+                sourceUrl = Url.Page("/Projects/Photos/Index", new { id = parentId });
+                break;
+
+            case MediaAssetOrigin.ProjectVideo:
+                thumbnail = Url.Page("/Projects/Videos/Poster", new { id = parentId, videoId = id, v = version })
+                            ?? Url.Content("~/img/placeholders/project-video-placeholder.svg");
+                display = Url.Page("/Projects/Videos/Stream", new { id = parentId, videoId = id, v = version }) ?? string.Empty;
+                original = display;
+                sourceUrl = Url.Page("/Projects/Videos/Index", new { id = parentId });
+                break;
+
+            case MediaAssetOrigin.VisitPhoto:
+                display = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "xl", v = version }) ?? string.Empty;
+                thumbnail = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "md", v = version }) ?? display;
+                original = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "original", v = version }) ?? display;
+                sourceUrl = Url.Page("/Visits/Details", new { area = "ProjectOfficeReports", id = parentId });
+                break;
+
+            case MediaAssetOrigin.SocialMediaEventPhoto:
+                display = Url.Page("/SocialMedia/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "story", v = version }) ?? string.Empty;
+                thumbnail = Url.Page("/SocialMedia/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "feed", v = version }) ?? display;
+                original = Url.Page("/SocialMedia/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "original", v = version }) ?? display;
+                sourceUrl = Url.Page("/SocialMedia/Details", new { area = "ProjectOfficeReports", id = parentId });
+                break;
+
+            default:
+                display = Url.Page("/Photos/Media", new
+                {
+                    id = row.Id,
+                    variant = row.Kind == MediaAssetKind.Photo ? "preview" : "original",
+                    v = row.CacheVersion
+                }) ?? string.Empty;
+                thumbnail = row.Kind == MediaAssetKind.Photo
+                    ? Url.Page("/Photos/Media", new { id = row.Id, variant = "thumb", v = row.CacheVersion }) ?? display
+                    : Url.Content("~/img/placeholders/project-video-placeholder.svg");
+                original = Url.Page("/Photos/Media", new { id = row.Id, variant = "original", v = row.CacheVersion }) ?? display;
+                download = Url.Page("/Photos/Media", new { id = row.Id, variant = "original", download = true, v = row.CacheVersion });
+                sourceUrl = Url.Page("/Photos/Index", new { Source = "external", Q = row.ParentEntityId });
+                break;
+        }
+
+        return new MediaItem
+        {
+            Id = $"catalogue:{row.Id}",
+            Kind = row.Kind == MediaAssetKind.Video ? MediaKind.Video : MediaKind.Photo,
+            Source = source,
+            SourceLabel = row.SourceLabel,
+            ContextKey = row.ContextKey,
+            CollectionKey = row.CollectionKey,
+            ContextTitle = row.ContextTitle,
+            ContextSubtitle = row.ContextSubtitle,
+            Title = row.Title,
+            Caption = row.Caption,
+            OriginalFileName = row.OriginalFileName,
+            MediaDate = row.MediaDateUtc.ToLocalTime().DateTime,
+            ThumbnailUrl = thumbnail,
+            DisplayUrl = display,
+            OriginalUrl = original,
+            DownloadUrl = download,
+            SourceUrl = sourceUrl,
+            Width = row.Width,
+            Height = row.Height,
+            DurationSeconds = row.DurationSeconds,
+            IsCover = row.IsCover,
+            SortOrder = row.SortOrder
+        };
+    }
+
+    private async Task LoadPrismFallbackAsync(CancellationToken cancellationToken)
+    {
+        IsUsingCatalogue = false;
+        var items = new List<MediaItem>(512);
+
         if (Source is "all" or "projects")
         {
-            if (Kind is "all" or "photo") internalItems.AddRange(await LoadProjectPhotosAsync(cancellationToken));
-            if (Kind is "all" or "video") internalItems.AddRange(await LoadProjectVideosAsync(cancellationToken));
+            if (Kind is "all" or "photo") items.AddRange(await LoadProjectPhotosAsync(cancellationToken));
+            if (Kind is "all" or "video") items.AddRange(await LoadProjectVideosAsync(cancellationToken));
         }
 
         if (Kind is "all" or "photo")
         {
-            if (Source is "all" or "visits") internalItems.AddRange(await LoadVisitPhotosAsync(cancellationToken));
-            if (Source is "all" or "events") internalItems.AddRange(await LoadSocialMediaPhotosAsync(cancellationToken));
+            if (Source is "all" or "visits") items.AddRange(await LoadVisitPhotosAsync(cancellationToken));
+            if (Source is "all" or "events") items.AddRange(await LoadSocialMediaPhotosAsync(cancellationToken));
         }
 
-        var filteredInternal = internalItems
+        var filtered = items
             .Where(MatchesSearch)
             .Where(MatchesClassification)
             .Where(item => !Year.HasValue || item.MediaDate.Year == Year.Value)
-            .ToList();
-
-        var requestExternal = ExternalSourcesEnabled
-                              && (Source is "all" or "external")
-                              && !ProjectId.HasValue;
-
-        var requestedGlobalSkip = GetPageSkip(PageNumber);
-        var externalWindowSkip = Math.Max(0, requestedGlobalSkip - filteredInternal.Count);
-        var externalWindowTake = GetExternalWindowSize(filteredInternal.Count);
-        var externalResult = requestExternal
-            ? await SearchExternalAsync(externalWindowSkip, externalWindowTake, cancellationToken)
-            : ExternalMediaSearchResult.Empty();
-
-        var totalCount = filteredInternal.Count + externalResult.Total;
-        var maxPage = Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
-        PageNumber = Math.Min(PageNumber, maxPage);
-        var globalSkip = GetPageSkip(PageNumber);
-        var requiredExternalSkip = Math.Max(0, globalSkip - filteredInternal.Count);
-
-        // An out-of-range page can be clamped after the first count query. Re-read only
-        // the correct external window instead of returning a blank last page.
-        if (requestExternal && requiredExternalSkip != externalWindowSkip)
-        {
-            externalWindowSkip = requiredExternalSkip;
-            externalResult = await SearchExternalAsync(
-                externalWindowSkip,
-                externalWindowTake,
-                cancellationToken);
-        }
-
-        ExternalLibraryAvailable = externalResult.IsAvailable;
-        ExternalLibraryWarning = externalResult.Warning;
-        var externalItems = MapExternalItems(externalResult.Items);
-
-        var merged = filteredInternal
-            .Concat(externalItems)
             .OrderByDescending(item => item.MediaDate)
             .ThenBy(item => item.ContextTitle, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.SortOrder)
             .ThenBy(item => item.Id, StringComparer.Ordinal)
             .ToList();
 
-        // Rows before externalWindowSkip are deliberately absent from the local merge.
-        // Subtract that known prefix to obtain the page offset within the bounded window.
-        var localSkip = Math.Max(0, globalSkip - externalWindowSkip);
-        HasNextPage = totalCount > globalSkip + PageSize;
-        Items = merged.Skip(localSkip).Take(PageSize).ToList();
+        var total = filtered.Count;
+        var pageCount = Math.Max(1, (int)Math.Ceiling(total / (double)PageSize));
+        PageNumber = Math.Clamp(PageNumber, 1, pageCount);
+        var skip = (PageNumber - 1) * PageSize;
+        HasPreviousPage = PageNumber > 1;
+        HasNextPage = total > skip + PageSize;
+        Items = filtered.Skip(skip).Take(PageSize).ToList();
 
-        var internalYears = internalItems
-            .Where(MatchesSearch)
-            .Where(MatchesClassification)
-            .Select(item => item.MediaDate.Year);
-        Years = internalYears
-            .Concat(externalResult.Years)
-            .Distinct()
-            .OrderByDescending(year => year)
-            .ToList();
-
+        Years = items.Where(MatchesSearch).Where(MatchesClassification)
+            .Select(item => item.MediaDate.Year).Distinct().OrderByDescending(year => year).ToList();
+        Projects = await _db.Projects.AsNoTracking()
+            .Where(project => !project.IsDeleted)
+            .Where(project => _db.ProjectPhotos.Any(photo => photo.ProjectId == project.Id)
+                              || _db.ProjectVideos.Any(video => video.ProjectId == project.Id))
+            .OrderBy(project => project.Name)
+            .Select(project => new ProjectOption(project.Id, project.Name))
+            .ToListAsync(cancellationToken);
         Stats = new LibraryStats
         {
-            Total = totalCount,
-            Photos = filteredInternal.Count(item => item.Kind == MediaKind.Photo) + externalResult.Photos,
-            Videos = filteredInternal.Count(item => item.Kind == MediaKind.Video) + externalResult.Videos,
-            Collections = filteredInternal.Select(item => item.CollectionKey).Distinct(StringComparer.Ordinal).Count()
-                          + externalResult.Collections
+            Total = total,
+            Photos = filtered.Count(item => item.Kind == MediaKind.Photo),
+            Videos = filtered.Count(item => item.Kind == MediaKind.Video),
+            Collections = filtered.Select(item => item.CollectionKey).Distinct(StringComparer.Ordinal).Count()
         };
+        BuildGroups();
+    }
 
+    private void BuildGroups()
+    {
         Groups = Items
-            .GroupBy(item => new
-            {
-                item.ContextKey,
-                item.ContextTitle,
-                item.ContextSubtitle,
-                Date = item.MediaDate.Date
-            })
+            .GroupBy(item => new { item.ContextKey, item.ContextTitle, item.ContextSubtitle, Date = item.MediaDate.Date })
             .Select(group => new MediaGroup(
                 group.Key.ContextKey,
                 group.Key.ContextTitle,
@@ -174,76 +271,10 @@ public sealed class IndexModel : PageModel
             .ToList();
     }
 
-
-    private Task<ExternalMediaSearchResult> SearchExternalAsync(
-        int skip,
-        int take,
-        CancellationToken cancellationToken)
-        => _externalMedia.SearchAsync(
-            new ExternalMediaSearchRequest(
-                Q,
-                Kind,
-                Classification,
-                Year,
-                skip,
-                take),
-            cancellationToken);
-
-    private static int GetPageSkip(int pageNumber)
-    {
-        var skip = ((long)Math.Max(1, pageNumber) - 1L) * PageSize;
-        return skip >= int.MaxValue ? int.MaxValue - PageSize : (int)skip;
-    }
-
-    private static int GetExternalWindowSize(int internalItemCount)
-    {
-        var size = (long)PageSize + Math.Max(0, internalItemCount) + 1L;
-        return size >= int.MaxValue ? int.MaxValue : (int)size;
-    }
-
-    private List<MediaItem> MapExternalItems(IReadOnlyList<ExternalMediaSearchItem> rows)
-        => rows.Select(row =>
-        {
-            var preview = Url.Page("/Photos/Media", new
-            {
-                id = row.Id,
-                variant = row.Kind == MediaAssetKind.Photo ? "preview" : "original",
-                v = row.CacheVersion
-            }) ?? string.Empty;
-
-            return new MediaItem
-            {
-                Id = $"external:{row.Id}",
-                Kind = row.Kind == MediaAssetKind.Video ? MediaKind.Video : MediaKind.Photo,
-                Source = MediaSource.ExternalFolder,
-                SourceLabel = row.SourceLabel,
-                ContextKey = row.ContextKey,
-                CollectionKey = row.CollectionKey,
-                ContextTitle = row.ContextTitle,
-                ContextSubtitle = row.ContextSubtitle,
-                Title = row.Title,
-                Caption = row.Caption,
-                OriginalFileName = row.OriginalFileName,
-                MediaDate = row.MediaDateUtc.ToLocalTime().DateTime,
-                ThumbnailUrl = row.Kind == MediaAssetKind.Photo
-                    ? Url.Page("/Photos/Media", new { id = row.Id, variant = "thumb", v = row.CacheVersion }) ?? preview
-                    : Url.Content("~/img/placeholders/project-video-placeholder.svg"),
-                DisplayUrl = preview,
-                OriginalUrl = Url.Page("/Photos/Media", new { id = row.Id, variant = "original", v = row.CacheVersion }) ?? preview,
-                DownloadUrl = Url.Page("/Photos/Media", new { id = row.Id, variant = "original", download = true, v = row.CacheVersion }),
-                SourceUrl = Url.Page("/Photos/Index", new { Source = "external", Q = row.ParentEntityId }),
-                Width = row.Width,
-                Height = row.Height,
-                DurationSeconds = row.DurationSeconds,
-                SortOrder = row.SortOrder
-            };
-        }).ToList();
-
     private async Task<List<MediaItem>> LoadProjectPhotosAsync(CancellationToken cancellationToken)
     {
         var query = _db.ProjectPhotos.AsNoTracking().Where(photo => !photo.Project.IsDeleted);
         if (ProjectId.HasValue) query = query.Where(photo => photo.ProjectId == ProjectId.Value);
-
         var rows = await query.Select(photo => new
         {
             photo.Id, photo.ProjectId, ProjectName = photo.Project.Name, photo.Caption,
@@ -253,7 +284,7 @@ public sealed class IndexModel : PageModel
 
         return rows.Select(row =>
         {
-            var displayUrl = Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.Id, size = "xl", v = row.Version }) ?? string.Empty;
+            var display = Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.Id, size = "xl", v = row.Version }) ?? string.Empty;
             return new MediaItem
             {
                 Id = $"project-photo:{row.Id}", Kind = MediaKind.Photo, Source = MediaSource.Project,
@@ -262,9 +293,9 @@ public sealed class IndexModel : PageModel
                 Title = string.IsNullOrWhiteSpace(row.Caption) ? row.OriginalFileName : row.Caption,
                 Caption = row.Caption, OriginalFileName = row.OriginalFileName,
                 MediaDate = DateTime.SpecifyKind(row.CreatedUtc, DateTimeKind.Utc),
-                ThumbnailUrl = Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.Id, size = "md", v = row.Version }) ?? displayUrl,
-                DisplayUrl = displayUrl,
-                OriginalUrl = Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.Id, size = "original", v = row.Version }) ?? displayUrl,
+                ThumbnailUrl = Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.Id, size = "md", v = row.Version }) ?? display,
+                DisplayUrl = display,
+                OriginalUrl = Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.Id, size = "original", v = row.Version }) ?? display,
                 DownloadUrl = Url.Page("/Projects/Photos/Download", new { id = row.ProjectId, photoId = row.Id, size = "original" }),
                 SourceUrl = Url.Page("/Projects/Photos/Index", new { id = row.ProjectId }),
                 Width = row.Width, Height = row.Height, IsCover = row.IsCover, SortOrder = row.Ordinal
@@ -276,13 +307,11 @@ public sealed class IndexModel : PageModel
     {
         var query = _db.ProjectVideos.AsNoTracking().Where(video => !video.Project.IsDeleted);
         if (ProjectId.HasValue) query = query.Where(video => video.ProjectId == ProjectId.Value);
-
         var rows = await query.Select(video => new
         {
             video.Id, video.ProjectId, ProjectName = video.Project.Name, video.Title, video.Description,
             video.OriginalFileName, video.DurationSeconds, video.Ordinal, video.IsFeatured, video.Version, video.CreatedUtc
         }).ToListAsync(cancellationToken);
-
         return rows.Select(row => new MediaItem
         {
             Id = $"project-video:{row.Id}", Kind = MediaKind.Video, Source = MediaSource.Project,
@@ -301,28 +330,26 @@ public sealed class IndexModel : PageModel
 
     private async Task<List<MediaItem>> LoadVisitPhotosAsync(CancellationToken cancellationToken)
     {
-        if (ProjectId.HasValue) return new List<MediaItem>();
+        if (ProjectId.HasValue) return new();
         var rows = await _db.VisitPhotos.AsNoTracking().Select(photo => new
         {
             photo.Id, photo.VisitId, VisitorName = photo.Visit!.VisitorName,
             VisitType = photo.Visit.VisitType != null ? photo.Visit.VisitType.Name : null,
             photo.Visit.DateOfVisit, photo.Caption, photo.Width, photo.Height, photo.VersionStamp, photo.CreatedAtUtc
         }).ToListAsync(cancellationToken);
-
         return rows.Select(row =>
         {
-            var date = row.DateOfVisit.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local);
-            var displayUrl = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = row.VisitId, photoId = row.Id, size = "xl", v = row.VersionStamp }) ?? string.Empty;
+            var display = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = row.VisitId, photoId = row.Id, size = "xl", v = row.VersionStamp }) ?? string.Empty;
             return new MediaItem
             {
                 Id = $"visit-photo:{row.Id}", Kind = MediaKind.Photo, Source = MediaSource.Visit, SourceLabel = "Visit",
                 ContextKey = $"visit:{row.VisitId}", CollectionKey = $"visit:{row.VisitId}", ContextTitle = $"Visit of {row.VisitorName}",
                 ContextSubtitle = string.IsNullOrWhiteSpace(row.VisitType) ? "Visit to SDD" : row.VisitType,
                 Title = string.IsNullOrWhiteSpace(row.Caption) ? $"Visit of {row.VisitorName}" : row.Caption,
-                Caption = row.Caption, MediaDate = date,
-                ThumbnailUrl = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = row.VisitId, photoId = row.Id, size = "md", v = row.VersionStamp }) ?? displayUrl,
-                DisplayUrl = displayUrl,
-                OriginalUrl = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = row.VisitId, photoId = row.Id, size = "original", v = row.VersionStamp }) ?? displayUrl,
+                Caption = row.Caption, MediaDate = row.DateOfVisit.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local),
+                ThumbnailUrl = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = row.VisitId, photoId = row.Id, size = "md", v = row.VersionStamp }) ?? display,
+                DisplayUrl = display,
+                OriginalUrl = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = row.VisitId, photoId = row.Id, size = "original", v = row.VersionStamp }) ?? display,
                 SourceUrl = Url.Page("/Visits/Details", new { area = "ProjectOfficeReports", id = row.VisitId }),
                 Width = row.Width, Height = row.Height, SortOrder = row.CreatedAtUtc.UtcDateTime.Ticks
             };
@@ -331,28 +358,26 @@ public sealed class IndexModel : PageModel
 
     private async Task<List<MediaItem>> LoadSocialMediaPhotosAsync(CancellationToken cancellationToken)
     {
-        if (ProjectId.HasValue) return new List<MediaItem>();
+        if (ProjectId.HasValue) return new();
         var rows = await _db.SocialMediaEventPhotos.AsNoTracking().Select(photo => new
         {
             photo.Id, EventId = photo.SocialMediaEventId, EventTitle = photo.SocialMediaEvent!.Title,
             EventType = photo.SocialMediaEvent.SocialMediaEventType != null ? photo.SocialMediaEvent.SocialMediaEventType.Name : null,
             photo.SocialMediaEvent.DateOfEvent, photo.Caption, photo.Width, photo.Height, photo.IsCover, photo.VersionStamp, photo.CreatedAtUtc
         }).ToListAsync(cancellationToken);
-
         return rows.Select(row =>
         {
-            var date = row.DateOfEvent.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local);
-            var displayUrl = Url.Page("/SocialMedia/ViewPhoto", new { area = "ProjectOfficeReports", id = row.EventId, photoId = row.Id, size = "story", v = row.VersionStamp }) ?? string.Empty;
+            var display = Url.Page("/SocialMedia/ViewPhoto", new { area = "ProjectOfficeReports", id = row.EventId, photoId = row.Id, size = "story", v = row.VersionStamp }) ?? string.Empty;
             return new MediaItem
             {
                 Id = $"event-photo:{row.Id}", Kind = MediaKind.Photo, Source = MediaSource.Event, SourceLabel = "Event",
                 ContextKey = $"event:{row.EventId}", CollectionKey = $"event:{row.EventId}", ContextTitle = row.EventTitle,
                 ContextSubtitle = string.IsNullOrWhiteSpace(row.EventType) ? "Social media event" : row.EventType,
                 Title = string.IsNullOrWhiteSpace(row.Caption) ? row.EventTitle : row.Caption,
-                Caption = row.Caption, MediaDate = date,
-                ThumbnailUrl = Url.Page("/SocialMedia/ViewPhoto", new { area = "ProjectOfficeReports", id = row.EventId, photoId = row.Id, size = "feed", v = row.VersionStamp }) ?? displayUrl,
-                DisplayUrl = displayUrl,
-                OriginalUrl = Url.Page("/SocialMedia/ViewPhoto", new { area = "ProjectOfficeReports", id = row.EventId, photoId = row.Id, size = "original", v = row.VersionStamp }) ?? displayUrl,
+                Caption = row.Caption, MediaDate = row.DateOfEvent.ToDateTime(TimeOnly.MinValue, DateTimeKind.Local),
+                ThumbnailUrl = Url.Page("/SocialMedia/ViewPhoto", new { area = "ProjectOfficeReports", id = row.EventId, photoId = row.Id, size = "feed", v = row.VersionStamp }) ?? display,
+                DisplayUrl = display,
+                OriginalUrl = Url.Page("/SocialMedia/ViewPhoto", new { area = "ProjectOfficeReports", id = row.EventId, photoId = row.Id, size = "original", v = row.VersionStamp }) ?? display,
                 SourceUrl = Url.Page("/SocialMedia/Details", new { area = "ProjectOfficeReports", id = row.EventId }),
                 Width = row.Width, Height = row.Height, IsCover = row.IsCover, SortOrder = row.CreatedAtUtc.UtcDateTime.Ticks
             };
@@ -360,13 +385,9 @@ public sealed class IndexModel : PageModel
     }
 
     private bool MatchesSearch(MediaItem item)
-        => Q is null
-           || Contains(item.Title, Q)
-           || Contains(item.Caption, Q)
-           || Contains(item.ContextTitle, Q)
-           || Contains(item.ContextSubtitle, Q)
-           || Contains(item.OriginalFileName, Q)
-           || Contains(item.SourceLabel, Q);
+        => Q is null || Contains(item.Title, Q) || Contains(item.Caption, Q)
+           || Contains(item.ContextTitle, Q) || Contains(item.ContextSubtitle, Q)
+           || Contains(item.OriginalFileName, Q) || Contains(item.SourceLabel, Q);
 
     private bool MatchesClassification(MediaItem item)
         => Classification switch
@@ -377,17 +398,30 @@ public sealed class IndexModel : PageModel
             _ => true
         };
 
+    private static string ExtractEntityId(string sourceEntityId)
+    {
+        var separator = sourceEntityId.IndexOf(':');
+        return separator >= 0 && separator + 1 < sourceEntityId.Length
+            ? sourceEntityId[(separator + 1)..]
+            : sourceEntityId;
+    }
+
+    private static string ExtractParentId(string contextKey)
+    {
+        var separator = contextKey.IndexOf(':');
+        return separator >= 0 && separator + 1 < contextKey.Length
+            ? contextKey[(separator + 1)..]
+            : contextKey;
+    }
+
     private static bool Contains(string? value, string query)
         => !string.IsNullOrWhiteSpace(value) && value.Contains(query, StringComparison.CurrentCultureIgnoreCase);
 
     private static string NormalizeSource(string? value)
         => value?.Trim().ToLowerInvariant() switch
         {
-            "projects" => "projects",
-            "visits" => "visits",
-            "events" => "events",
-            "external" or "nas" => "external",
-            _ => "all"
+            "projects" => "projects", "visits" => "visits", "events" => "events",
+            "external" or "nas" => "external", _ => "all"
         };
 
     private static string NormalizeKind(string? value)

@@ -115,8 +115,14 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
             entity.HasIndex("CollectionKey");
             entity.HasIndex("ProjectId");
             entity.HasIndex("SourceId");
+            entity.HasIndex("IsAvailable", "IsDeleted", "IsArchived", "MediaDateUtc", "Id")
+                .HasDatabaseName("IX_MediaAssets_LibraryTimeline");
             entity.HasIndex("IsAvailable", "IsDeleted", "MediaDateUtc");
             entity.HasIndex("Kind", "Classification");
+            entity.HasIndex("Origin", "IsAvailable", "IsDeleted", "IsArchived", "MediaDateUtc")
+                .HasDatabaseName("IX_MediaAssets_OriginTimeline");
+            entity.HasIndex("ProjectId", "IsAvailable", "IsDeleted", "IsArchived", "MediaDateUtc")
+                .HasDatabaseName("IX_MediaAssets_ProjectTimeline");
             entity.HasIndex("SourceId", "SourceEntityId").IsUnique();
             entity.ToTable("MediaAssets");
         });
