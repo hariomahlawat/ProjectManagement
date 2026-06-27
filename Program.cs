@@ -980,6 +980,26 @@ app.UseStaticFiles(new StaticFileOptions
 });
 app.UseRouting();
 
+// SECTION: Antiforgery header compatibility
+// The application standard is X-CSRF-TOKEN. Older JavaScript modules still send
+// RequestVerificationToken; copy that value only when the canonical header is absent.
+// This preserves existing AJAX workflows while clients are migrated incrementally.
+app.Use(async (context, next) =>
+{
+    const string canonicalHeader = "X-CSRF-TOKEN";
+    const string legacyHeader = "RequestVerificationToken";
+
+    if (!context.Request.Headers.ContainsKey(canonicalHeader)
+        && context.Request.Headers.TryGetValue(legacyHeader, out var legacyToken)
+        && legacyToken.Count > 0
+        && !string.IsNullOrWhiteSpace(legacyToken[0]))
+    {
+        context.Request.Headers[canonicalHeader] = legacyToken;
+    }
+
+    await next();
+});
+
 app.UseRateLimiter();
 
 app.UseAuthentication();
