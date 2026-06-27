@@ -68,7 +68,7 @@
             let payload = {};
             const headers = {
                 'Content-Type': 'application/json',
-                'RequestVerificationToken': tokenInput.value
+                'X-CSRF-TOKEN': tokenInput.value
             };
 
             if (action === 'trash' && modalEl) {
@@ -352,7 +352,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        RequestVerificationToken: tokenInput.value
+                        'X-CSRF-TOKEN': tokenInput.value
                     },
                     body: JSON.stringify(payload),
                     credentials: 'same-origin'

@@ -12,6 +12,14 @@
     }
   }
 
+  function getCsrfToken() {
+    const value = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')?.trim();
+    if (!value) {
+      throw new Error('Security token is unavailable. Refresh the page and try again.');
+    }
+    return value;
+  }
+
   function parseJsonAttribute(value) {
     if (!value) {
       return [];
@@ -242,6 +250,7 @@
 
       const requests = uniqueIds.map(id => fetch(`${this.apiBase}/${id}/read`, {
         method: 'POST',
+        headers: { 'X-CSRF-TOKEN': getCsrfToken() },
         credentials: 'same-origin',
       }));
 
@@ -279,6 +288,7 @@
 
       const requests = uniqueIds.map(id => fetch(`${this.apiBase}/${id}/read`, {
         method: 'DELETE',
+        headers: { 'X-CSRF-TOKEN': getCsrfToken() },
         credentials: 'same-origin',
       }));
 

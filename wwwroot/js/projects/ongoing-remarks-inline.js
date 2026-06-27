@@ -299,7 +299,7 @@
 
     const token = getToken();
     if (token) {
-      headers.RequestVerificationToken = token;
+      headers['X-CSRF-TOKEN'] = token;
     }
 
     const response = await fetch(endpoint, {

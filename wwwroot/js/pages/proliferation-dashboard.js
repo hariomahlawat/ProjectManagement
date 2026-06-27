@@ -17,6 +17,12 @@
   const pageHost = document.querySelector('[data-page="proliferation"]');
   const canManageRecords = ((pageHost?.dataset?.canManageRecords ?? "").toLowerCase() === "true");
 
+  function getCsrfToken() {
+    const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content")?.trim();
+    if (!token) throw new Error("Security token is unavailable. Refresh the page and try again.");
+    return token;
+  }
+
   function formatSourceLabel(value) {
     if (value === null || value === undefined) return "";
     if (typeof value === "number") {
@@ -1764,7 +1770,7 @@
       try {
         const response = await fetch(api.setPref, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": getCsrfToken() },
           body: JSON.stringify(payload)
         });
         if (!response.ok) {

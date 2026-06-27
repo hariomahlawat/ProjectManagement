@@ -37,7 +37,7 @@ function logNotebookRequest(url, method, headers, body) {
     url,
     method,
     contentType: headers.get("Content-Type"),
-    hasAntiForgeryToken: headers.has(NOTEBOOK_ANTIFORGERY_HEADER),
+    hasAntiForgeryToken: headers.has("X-CSRF-TOKEN"),
     hasBody: body !== void 0 && body !== null
   });
 }
@@ -176,9 +176,7 @@ async function request(url, options = {}) {
   if (hasBody && !isFormData && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json; charset=utf-8");
   }
-  if (isUnsafeMethod(method)) {
-    headers.set(NOTEBOOK_ANTIFORGERY_HEADER, getAntiForgeryToken());
-  }
+  if (isUnsafeMethod(method)) headers.set("X-CSRF-TOKEN", getAntiForgeryToken());
   logNotebookRequest(url, method, headers, options.body);
   let response;
   try {
@@ -210,11 +208,10 @@ async function request(url, options = {}) {
     throw error;
   }
 }
-var NOTEBOOK_ANTIFORGERY_HEADER, NotebookApiError, NotebookApi;
+var NotebookApiError, NotebookApi;
 var init_notebook_api = __esm({
   "wwwroot/js/notebook/notebook-api.js"() {
     init_session_auth();
-    NOTEBOOK_ANTIFORGERY_HEADER = "X-CSRF-TOKEN";
     NotebookApiError = class extends Error {
       constructor(message, { status = 0, code = null, errors = null, responseText = null, url = null, method = null, cause = null, currentVersion = null, currentItem = null } = {}) {
         super(message);

@@ -2,6 +2,7 @@
 @using ProjectManagement.Models
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,6 +10,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#10213f" />
     <meta name="color-scheme" content="light" />
+    @{ var layoutAntiforgeryToken = Antiforgery.GetAndStoreTokens(Context).RequestToken; }
+    <meta name="csrf-token" content="@layoutAntiforgeryToken" />
     @{
         var pageTitle = ViewData["Title"]?.ToString();
         var documentTitle = string.Equals(pageTitle, "PRISM ERP", StringComparison.OrdinalIgnoreCase)

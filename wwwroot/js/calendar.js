@@ -568,7 +568,7 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(antiforgeryInput?.value ? { 'RequestVerificationToken': antiforgeryInput.value } : {})
+          ...(antiforgeryInput?.value ? { 'X-CSRF-TOKEN': antiforgeryInput.value } : {})
         },
         body: JSON.stringify({ showCelebrations: value })
       });

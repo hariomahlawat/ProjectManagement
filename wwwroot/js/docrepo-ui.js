@@ -674,7 +674,7 @@ function initFavouriteToggles() {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "RequestVerificationToken": tokenInput.value
+                    "X-CSRF-TOKEN": tokenInput.value
                 }
             });
 

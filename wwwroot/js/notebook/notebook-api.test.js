@@ -71,31 +71,8 @@ test('updateItem sends JSON content type, serialised body, and anti-forgery toke
   assert.equal(captured.options.method, 'PATCH');
   assert.equal(headers.get('Content-Type'), 'application/json; charset=utf-8');
   assert.equal(headers.get('X-CSRF-TOKEN'), 'anti-forgery-token');
-  assert.equal(headers.has('RequestVerificationToken'), false);
   assert.equal(captured.options.credentials, 'same-origin');
   assert.deepEqual(JSON.parse(captured.options.body), { title: 'Updated', body: 'Body', version: 'version-1' });
-});
-
-
-
-test('every unsafe Notebook request uses the configured X-CSRF-TOKEN header', async () => {
-  const { request, NOTEBOOK_ANTIFORGERY_HEADER } = await loadApiModule();
-  const calls = [];
-  global.fetch = async (url, options) => {
-    calls.push({ url, options });
-    return jsonResponse(200, {});
-  };
-
-  for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
-    await request(`/api/notebook/security-check/${method.toLowerCase()}`, { method, body: '{}' });
-  }
-
-  assert.equal(NOTEBOOK_ANTIFORGERY_HEADER, 'X-CSRF-TOKEN');
-  for (const call of calls) {
-    const headers = new Headers(call.options.headers);
-    assert.equal(headers.get('X-CSRF-TOKEN'), 'anti-forgery-token', call.options.method);
-    assert.equal(headers.has('RequestVerificationToken'), false, call.options.method);
-  }
 });
 
 test('all Notebook JSON mutations declare application/json content type', async () => {

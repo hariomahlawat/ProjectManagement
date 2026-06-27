@@ -186,7 +186,7 @@
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "RequestVerificationToken": token
+                "X-CSRF-TOKEN": token
             },
             body: JSON.stringify(
                 kind === "overall"

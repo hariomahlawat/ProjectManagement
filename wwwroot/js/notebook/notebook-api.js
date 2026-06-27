@@ -1,8 +1,5 @@
 import { notifySessionExpired } from '../core/session-auth.js';
 
-// Must match AntiforgeryOptions.HeaderName in Program.cs.
-export const NOTEBOOK_ANTIFORGERY_HEADER = 'X-CSRF-TOKEN';
-
 // SECTION: Notebook API error type and fetch wrapper
 export class NotebookApiError extends Error {
   constructor(message, { status = 0, code = null, errors = null, responseText = null, url = null, method = null, cause = null, currentVersion = null, currentItem = null } = {}) {
@@ -31,7 +28,7 @@ function logNotebookRequest(url, method, headers, body) {
     url,
     method,
     contentType: headers.get('Content-Type'),
-    hasAntiForgeryToken: headers.has(NOTEBOOK_ANTIFORGERY_HEADER),
+    hasAntiForgeryToken: headers.has('X-CSRF-TOKEN'),
     hasBody: body !== undefined && body !== null
   });
 }
@@ -185,9 +182,7 @@ export async function request(url, options = {}) {
     headers.set('Content-Type', 'application/json; charset=utf-8');
   }
 
-  if (isUnsafeMethod(method)) {
-    headers.set(NOTEBOOK_ANTIFORGERY_HEADER, getAntiForgeryToken());
-  }
+  if (isUnsafeMethod(method)) headers.set('X-CSRF-TOKEN', getAntiForgeryToken());
   logNotebookRequest(url, method, headers, options.body);
 
   let response;
