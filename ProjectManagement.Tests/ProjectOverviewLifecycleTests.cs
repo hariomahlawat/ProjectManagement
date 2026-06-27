@@ -358,8 +358,8 @@ public sealed class ProjectOverviewLifecycleTests
         var userManager = CreateUserManager(db);
         var remarksPanel = new ProjectRemarksPanelService(userManager, clock, workflowMetadata);
         var lifecycle = new ProjectLifecycleService(db, new NoOpAuditService(), clock);
-        var mediaAggregator = new ProjectMediaAggregator();
-        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, mediaAggregator, new PassThroughMarkdownRenderer());
+        var recordHealth = new ProjectManagement.Services.Workspace.ProjectRecordHealthService(db, procure);
+        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth);
     }
 
     private sealed class PassThroughMarkdownRenderer : IMarkdownRenderer

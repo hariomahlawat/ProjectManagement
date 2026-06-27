@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -42,16 +43,11 @@ public class EditModel : PageModel
 
     public ProjectPhoto Photo { get; private set; } = null!;
 
-    public bool AllowTotLinking => Project?.Tot is { Status: not ProjectTotStatus.NotRequired };
+    public ProjectPhoto? CurrentCoverPhoto { get; private set; }
 
-    public string TotStatusDisplay => Project?.Tot?.Status switch
-    {
-        ProjectTotStatus.NotRequired => "Not required",
-        ProjectTotStatus.NotStarted => "Not started",
-        ProjectTotStatus.InProgress => "In progress",
-        ProjectTotStatus.Completed => "Completed",
-        _ => "Unknown"
-    };
+    public bool IsCurrentCover => CurrentCoverPhoto is not null && CurrentCoverPhoto.Id == Photo.Id;
+
+    public bool WillReplaceAnotherCover => CurrentCoverPhoto is not null && CurrentCoverPhoto.Id != Photo.Id;
 
     public async Task<IActionResult> OnGetAsync(int id, int photoId, CancellationToken cancellationToken)
     {
@@ -62,7 +58,6 @@ public class EditModel : PageModel
         }
 
         var project = await _db.Projects
-            .Include(p => p.Tot)
             .Include(p => p.Photos)
             .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
 
@@ -71,7 +66,7 @@ public class EditModel : PageModel
             return NotFound();
         }
 
-        if (!UserCanManageProject(project, userId))
+        if (!ProjectAccessGuard.CanManageProjectMedia(project, _userContext.User, userId))
         {
             return Forbid();
         }
@@ -84,14 +79,15 @@ public class EditModel : PageModel
 
         Project = project;
         Photo = photo;
+        CurrentCoverPhoto = ResolveCoverPhoto(project);
         Input = new EditInput
         {
             ProjectId = project.Id,
             PhotoId = photo.Id,
             RowVersion = Convert.ToBase64String(project.RowVersion),
+            PhotoVersion = photo.Version,
             Caption = photo.Caption,
-            SetAsCover = photo.IsCover,
-            LinkToTot = photo.TotId.HasValue
+            SetAsCover = CurrentCoverPhoto?.Id == photo.Id
         };
 
         return Page();
@@ -110,8 +106,8 @@ public class EditModel : PageModel
             ModelState.AddModelError(string.Empty, "The form has expired. Please reload and try again.");
         }
 
-        var crop = BuildCrop(Input);
-        if (crop is null && HasPartialCrop(Input))
+        var crop = Input.ApplyCrop ? BuildCrop(Input) : null;
+        if (Input.ApplyCrop && crop is null && HasPartialCrop(Input))
         {
             ModelState.AddModelError(string.Empty, "Crop requires X, Y, Width, and Height values.");
         }
@@ -123,7 +119,6 @@ public class EditModel : PageModel
         }
 
         var project = await _db.Projects
-            .Include(p => p.Tot)
             .Include(p => p.Photos)
             .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
 
@@ -132,7 +127,7 @@ public class EditModel : PageModel
             return NotFound();
         }
 
-        if (!UserCanManageProject(project, userId))
+        if (!ProjectAccessGuard.CanManageProjectMedia(project, _userContext.User, userId))
         {
             return Forbid();
         }
@@ -150,17 +145,12 @@ public class EditModel : PageModel
 
         Project = project;
         Photo = photo;
+        CurrentCoverPhoto = ResolveCoverPhoto(project);
         Input.RowVersion = Convert.ToBase64String(project.RowVersion);
 
-        var tot = project.Tot;
-        var canLinkTot = tot is not null && tot.Status != ProjectTotStatus.NotRequired;
-        if (Input.LinkToTot && !canLinkTot)
+        if (Input.PhotoVersion <= 0 || Input.PhotoVersion != photo.Version)
         {
-            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology is not required for this project.");
-        }
-        else if (Input.LinkToTot && tot is null)
-        {
-            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology details have not been set up for this project yet.");
+            ModelState.AddModelError(string.Empty, "This photo was updated by someone else. Reload the page before making further changes.");
         }
 
         if (!ModelState.IsValid)
@@ -168,107 +158,91 @@ public class EditModel : PageModel
             return Page();
         }
 
-        var hasChanges = false;
-
         try
         {
-            if (Input.File is not null && Input.File.Length > 0)
+            await using var replacementStream = Input.File is not null && Input.File.Length > 0
+                ? Input.File.OpenReadStream()
+                : null;
+
+            var updated = await _photoService.UpdateAsync(
+                project.Id,
+                photo.Id,
+                replacementStream,
+                Input.File?.FileName,
+                Input.File?.ContentType,
+                crop,
+                Input.Caption,
+                Input.SetAsCover,
+                Input.PhotoVersion,
+                userId,
+                cancellationToken);
+
+            if (updated is null)
             {
-                await using var stream = Input.File.OpenReadStream();
-                if (crop.HasValue)
-                {
-                    var replaced = await _photoService.ReplaceAsync(project.Id,
-                        photo.Id,
-                        stream,
-                        Input.File.FileName,
-                        Input.File.ContentType,
-                        userId,
-                        crop.Value,
-                        cancellationToken);
-                    hasChanges = hasChanges || replaced is not null;
-                }
-                else
-                {
-                    var replaced = await _photoService.ReplaceAsync(project.Id,
-                        photo.Id,
-                        stream,
-                        Input.File.FileName,
-                        Input.File.ContentType,
-                        userId,
-                        cancellationToken);
-                    hasChanges = hasChanges || replaced is not null;
-                }
-            }
-            else if (crop.HasValue)
-            {
-                var updated = await _photoService.UpdateCropAsync(project.Id, photo.Id, crop.Value, userId, cancellationToken);
-                hasChanges = hasChanges || updated is not null;
+                return NotFound();
             }
 
-            if (!string.Equals(photo.Caption ?? string.Empty, Input.Caption ?? string.Empty, StringComparison.Ordinal))
-            {
-                var updated = await _photoService.UpdateCaptionAsync(project.Id, photo.Id, Input.Caption, userId, cancellationToken);
-                hasChanges = hasChanges || updated is not null;
-            }
-
-            if (Input.SetAsCover && !photo.IsCover)
-            {
-                foreach (var other in project.Photos.Where(p => p.IsCover && p.Id != photo.Id))
-                {
-                    other.IsCover = false;
-                }
-
-                photo.IsCover = true;
-                project.CoverPhotoId = photo.Id;
-                project.CoverPhotoVersion = photo.Version;
-                await _db.SaveChangesAsync(cancellationToken);
-                hasChanges = true;
-            }
-
-            var desiredTotId = Input.LinkToTot ? project.Tot?.Id : null;
-            if (photo.TotId != desiredTotId)
-            {
-                var updated = await _photoService.UpdateTotAsync(project.Id, photo.Id, desiredTotId, userId, cancellationToken);
-                if (updated is not null)
-                {
-                    photo = updated;
-                    hasChanges = true;
-                }
-            }
+            TempData["Flash"] = "Photo updated.";
+            return RedirectToPage("./Index", new { id });
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogWarning(ex, "Photo {PhotoId} changed while being edited for project {ProjectId}", photoId, id);
+            ModelState.AddModelError(string.Empty, "This photo was updated by someone else. Reload the page and try again.");
+            return Page();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Photo validation failed for photo {PhotoId}, project {ProjectId}", photoId, id);
+            ModelState.AddModelError(string.Empty, FriendlyPhotoError(ex.Message));
+            return Page();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error editing photo {PhotoId} for project {ProjectId}", photoId, id);
-            ModelState.AddModelError(string.Empty, ex.Message);
+            ModelState.AddModelError(string.Empty, "The photo could not be saved. Please try again.");
             return Page();
         }
-
-        if (!hasChanges)
-        {
-            TempData["Flash"] = "No changes were made.";
-            return RedirectToPage("./Index", new { id });
-        }
-
-        TempData["Flash"] = "Photo updated.";
-        return RedirectToPage("./Index", new { id });
     }
 
-    private bool UserCanManageProject(Project project, string userId)
+    private static ProjectPhoto? ResolveCoverPhoto(Project project)
     {
-        var principal = _userContext.User;
-        var isAdmin = principal.IsInRole("Admin");
-        if (isAdmin)
+        if (project.CoverPhotoId.HasValue)
         {
-            return true;
+            var explicitCover = project.Photos.FirstOrDefault(candidate => candidate.Id == project.CoverPhotoId.Value);
+            if (explicitCover is not null)
+            {
+                return explicitCover;
+            }
         }
 
-        var isHoD = principal.IsInRole("HoD");
-        if (isHoD && string.Equals(project.HodUserId, userId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
+        return project.Photos
+            .Where(candidate => candidate.IsCover)
+            .OrderBy(candidate => candidate.Ordinal)
+            .ThenBy(candidate => candidate.Id)
+            .FirstOrDefault();
+    }
 
-        return string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase);
+    private static string FriendlyPhotoError(string? message)
+    {
+        var text = message ?? string.Empty;
+        if (text.Contains("maximum size", StringComparison.OrdinalIgnoreCase))
+        {
+            return "The photo is too large. Choose a smaller file and try again.";
+        }
+        if (text.Contains("dimensions are too large", StringComparison.OrdinalIgnoreCase))
+        {
+            return "The photo dimensions are too large. Choose a smaller image and try again.";
+        }
+        if (text.Contains("crop", StringComparison.OrdinalIgnoreCase) || text.Contains("bounds", StringComparison.OrdinalIgnoreCase))
+        {
+            return "The selected crop could not be applied. Adjust the crop and try again.";
+        }
+        if (text.Contains("JPEG", StringComparison.OrdinalIgnoreCase) || text.Contains("supported image", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Choose a JPEG, PNG or WebP image.";
+        }
+        return "The photo could not be processed. Choose another image or try again.";
     }
 
     private static byte[]? ParseRowVersion(string rowVersion)
@@ -312,13 +286,17 @@ public class EditModel : PageModel
 
         public string RowVersion { get; set; } = string.Empty;
 
+        public int PhotoVersion { get; set; }
+
+        [StringLength(512)]
         public string? Caption { get; set; }
 
         public bool SetAsCover { get; set; }
 
-        public bool LinkToTot { get; set; }
 
         public IFormFile? File { get; set; }
+
+        public bool ApplyCrop { get; set; }
 
         public int? CropX { get; set; }
 

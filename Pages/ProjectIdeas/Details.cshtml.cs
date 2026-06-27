@@ -263,7 +263,7 @@ public class DetailsModel : PageModel
         var idea = await _read.GetDetailsAsync(id);
         if (idea is null) return false;
         Idea = idea;
-        CanEdit = _permissions.CanEditIdeaCore(User, idea);
+        CanEdit = _permissions.CanEditIdea(User, idea);
         CanArchive = _permissions.CanArchiveIdea(User);
         CanRestore = _permissions.CanRestoreIdea(User);
         CanAddComment = _permissions.CanAddComment(User, idea);

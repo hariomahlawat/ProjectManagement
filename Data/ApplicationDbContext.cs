@@ -2291,7 +2291,7 @@ namespace ProjectManagement.Data
             e.ToTable("ProjectStages", tb =>
                 tb.HasCheckConstraint(
                     "CK_ProjectStages_CompletedHasDate",
-                    "\"Status\" <> 'Completed' OR (\"CompletedOn\" IS NOT NULL AND \"ActualStart\" IS NOT NULL) OR \"RequiresBackfill\" IS TRUE"));
+                    "\"Status\" <> 'Completed' OR \"CompletedOn\" IS NOT NULL OR \"RequiresBackfill\" IS TRUE"));
         });
 
             builder.Entity<StageShiftLog>(e =>

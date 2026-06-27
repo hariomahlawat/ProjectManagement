@@ -15,7 +15,6 @@ namespace ProjectManagement.Services.Projects
                                     string userId,
                                     bool setAsCover,
                                     string? caption,
-                                    int? totId,
                                     CancellationToken cancellationToken);
 
         Task<ProjectPhoto> AddAsync(int projectId,
@@ -26,7 +25,6 @@ namespace ProjectManagement.Services.Projects
                                     bool setAsCover,
                                     string? caption,
                                     ProjectPhotoCrop crop,
-                                    int? totId,
                                     CancellationToken cancellationToken);
 
         Task<ProjectPhoto?> ReplaceAsync(int projectId,
@@ -46,11 +44,22 @@ namespace ProjectManagement.Services.Projects
                                          ProjectPhotoCrop crop,
                                          CancellationToken cancellationToken);
 
+        Task<ProjectPhoto?> UpdateAsync(int projectId,
+                                        int photoId,
+                                        Stream? replacementContent,
+                                        string? originalFileName,
+                                        string? contentType,
+                                        ProjectPhotoCrop? crop,
+                                        string? caption,
+                                        bool setAsCover,
+                                        int expectedVersion,
+                                        string userId,
+                                        CancellationToken cancellationToken)
+            => throw new System.NotSupportedException("Atomic photo updates are not supported by this implementation.");
+
         Task<ProjectPhoto?> UpdateCaptionAsync(int projectId, int photoId, string? caption, string userId, CancellationToken cancellationToken);
 
         Task<ProjectPhoto?> UpdateCropAsync(int projectId, int photoId, ProjectPhotoCrop crop, string userId, CancellationToken cancellationToken);
-
-        Task<ProjectPhoto?> UpdateTotAsync(int projectId, int photoId, int? totId, string userId, CancellationToken cancellationToken);
 
         Task<bool> RemoveAsync(int projectId, int photoId, string userId, CancellationToken cancellationToken);
 

@@ -70,7 +70,7 @@
             </a>
             <a class="po-metric @(Model.Workspace.RecordGapCount > 0 ? "po-metric--danger" : "po-metric--clear")" href="#record-gaps">
                 <span class="po-metric__icon"><i class="bi bi-clipboard2-pulse-fill"></i></span>
-                <span><strong>@Model.Workspace.RecordGapCount</strong><small>Pending fields</small></span>
+                <span><strong>@Model.Workspace.RecordGapCount</strong><small>Record gaps</small></span>
                 <i class="bi bi-arrow-down-right po-metric__arrow"></i>
             </a>
         </div>
@@ -79,7 +79,7 @@
     <nav class="po-section-nav" aria-label="Workspace sections">
         <a href="#action-queue" class="active"><i class="bi bi-list-check"></i><span>Action queue</span><b>@actionCount</b></a>
         <a href="#assigned-projects"><i class="bi bi-kanban"></i><span>Assigned projects</span><b>@Model.Workspace.AssignedProjectCount</b></a>
-        <a href="#record-gaps"><i class="bi bi-clipboard2-pulse"></i><span>Pending fields</span><b>@Model.Workspace.RecordGapCount</b></a>
+        <a href="#record-gaps"><i class="bi bi-clipboard2-pulse"></i><span>Record gaps</span><b>@Model.Workspace.RecordGapCount</b></a>
         <a href="#follow-ups"><i class="bi bi-bell"></i><span>Follow-ups</span><b>@followUpCount</b></a>
     </nav>
 
@@ -200,7 +200,7 @@
                                                 <span class="po-project-indicator" aria-hidden="true"></span>
                                                 <div>
                                                     <a class="po-project-name" href="@row.OpenUrl" title="@row.ProjectName">@row.ProjectName</a>
-                                                    <small>@row.RecordGapCount pending field@(row.RecordGapCount == 1 ? "" : "s")</small>
+                                                    <small>@row.RecordGapCount record gap@(row.RecordGapCount == 1 ? "" : "s")</small>
                                                 </div>
                                             </div>
                                         </td>
@@ -212,8 +212,8 @@
                                                     class="po-record po-record--@WorkspaceDisplayHelpers.HealthCss(row.RecordHealthPercent)"
                                                     data-bs-toggle="modal"
                                                     data-bs-target="#recordHealth-@row.ProjectId"
-                                                    title="View exact pending fields for @row.ProjectName">
-                                                <span class="po-record__top"><strong>@row.RecordHealthPercent% record completeness</strong><small>@row.RecordGapCount pending field@(row.RecordGapCount == 1 ? "" : "s")</small></span>
+                                                    title="View exact record gaps for @row.ProjectName">
+                                                <span class="po-record__top"><strong>@row.RecordHealthPercent% record completeness</strong><small>@row.RecordGapCount record gap@(row.RecordGapCount == 1 ? "" : "s")</small></span>
                                                 <span class="po-record__bar"><i style="width:@row.RecordHealthPercent%"></i></span>
                                                 <span class="po-record__view">View breakdown</span>
                                             </button>
@@ -311,15 +311,19 @@
                 <div class="po-readiness__head">
                     <div>
                         <span class="po-panel__kicker">Project readiness</span>
-                        <h2>Pending Fields</h2>
-                        <p>Fields that need to be completed in assigned projects.</p>
+                        <h2>Record gaps</h2>
+                        <p>Missing or incomplete records that currently reduce project completeness.</p>
                     </div>
                     <span class="po-readiness__count">@Model.Workspace.RecordGapCount</span>
                 </div>
 
-                @if (!Model.Workspace.ImproveProjects.Any())
+                @if (Model.Workspace.AssignedProjectCount == 0)
                 {
-                    <div class="po-readiness__empty"><i class="bi bi-check2-circle"></i><strong>Records complete</strong><span>No applicable project fields are pending.</span></div>
+                    <div class="po-readiness__empty"><i class="bi bi-folder2-open"></i><strong>No assigned projects</strong><span>Record completeness will appear when a project is assigned.</span></div>
+                }
+                else if (!Model.Workspace.ImproveProjects.Any())
+                {
+                    <div class="po-readiness__empty"><i class="bi bi-check2-circle"></i><strong>Records complete</strong><span>No applicable record gaps remain.</span></div>
                 }
                 else
                 {
@@ -343,7 +347,7 @@
                                     }
                                 </div>
                                 <button type="button" class="po-text-action po-text-action--button" data-bs-toggle="modal" data-bs-target="#recordHealth-@item.ProjectId">
-                                    View pending fields<i class="bi bi-arrow-right"></i>
+                                    View record gaps<i class="bi bi-arrow-right"></i>
                                 </button>
                             </article>
                         }
@@ -365,7 +369,7 @@
                     <div>
                         <span class="po-record-modal__eyebrow">Project record completeness</span>
                         <h2 class="modal-title" id="recordHealthLabel-@health.ProjectId">@health.ProjectName</h2>
-                        <p>Only information applicable to the project’s current stage is assessed.</p>
+                        <p>The score covers required project records, supporting media, and fields applicable to the current stage.</p>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
@@ -379,8 +383,8 @@
                             <i style="width:@health.HealthPercent%"></i>
                         </div>
                         <div class="po-record-summary__meta">
-                            <strong>@health.PendingFieldCount pending field@(health.PendingFieldCount == 1 ? "" : "s")</strong>
-                            <span>Every deduction below maps to a specific field and correction action.</span>
+                            <strong>@health.RecordGapCount record gap@(health.RecordGapCount == 1 ? "" : "s")</strong>
+                            <span>Every deduction below maps to a specific record gap and correction action.</span>
                         </div>
                     </div>
 
@@ -417,7 +421,7 @@
                     <section class="po-pending-section" aria-labelledby="pendingFields-@health.ProjectId">
                         <div class="po-record-modal__section-head">
                             <div>
-                                <h3 id="pendingFields-@health.ProjectId">Exact pending fields</h3>
+                                <h3 id="pendingFields-@health.ProjectId">Exact record gaps</h3>
                                 <p>Complete these items to improve the score.</p>
                             </div>
                         </div>
@@ -425,7 +429,7 @@
                         {
                             <div class="po-record-complete-state">
                                 <i class="bi bi-check2-circle"></i>
-                                <div><strong>Record complete</strong><span>No applicable fields are pending.</span></div>
+                                <div><strong>Record complete</strong><span>No record gaps remain.</span></div>
                             </div>
                         }
                         else
@@ -481,9 +485,9 @@
             <div class="modal-body po-record-help">
                 <p class="po-record-help__lead">The score measures how much of the project information that should exist at the present stage has actually been recorded.</p>
                 <div class="po-record-help__principles">
-                    <div><i class="bi bi-diagram-3"></i><strong>Stage-aware</strong><span>Only fields enabled by completed or current stages are assessed.</span></div>
+                    <div><i class="bi bi-diagram-3"></i><strong>Stage-aware</strong><span>Procurement and timeline fields are stage-aware; documents and supporting media are assessed for every active project.</span></div>
                     <div><i class="bi bi-percent"></i><strong>Proportional</strong><span>Partially completed categories receive proportionate marks.</span></div>
-                    <div><i class="bi bi-clock-history"></i><strong>Historical dates</strong><span>Completed historical stages assess Actual Start and Actual Completion only.</span></div>
+                    <div><i class="bi bi-clock-history"></i><strong>Historical dates</strong><span>Completed historical stages assess Actual Completion. Actual Start may be inferred and does not reduce the score.</span></div>
                     <div><i class="bi bi-calendar2-week"></i><strong>Current-stage PDC</strong><span>The active stage assesses its start date and PDC. An overdue date affects schedule health, not completeness.</span></div>
                 </div>
                 <div class="po-record-help__weights">
@@ -494,7 +498,7 @@
                     <div><span>Published project documents</span><strong>15</strong></div>
                     <div><span>Supporting media</span><strong>10</strong></div>
                 </div>
-                <p class="po-record-help__note"><i class="bi bi-info-circle"></i>Not-applicable and not-yet-applicable fields are excluded. Select any project percentage to see its exact pending fields and direct correction links.</p>
+                <p class="po-record-help__note"><i class="bi bi-info-circle"></i>Not-applicable and not-yet-applicable fields are excluded. Select any project percentage to see its exact record gaps and direct correction links.</p>
             </div>
             <div class="modal-footer"><button type="button" class="po-btn po-btn--primary" data-bs-dismiss="modal">Understood</button></div>
         </div>

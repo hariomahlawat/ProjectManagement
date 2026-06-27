@@ -28,6 +28,8 @@ using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Services.Text;
+using ProjectManagement.Services.Workspace;
+using ProjectManagement.ViewModels.Workspace;
 using ProjectManagement.Utilities;
 using ProjectManagement.ViewModels;
 
@@ -45,12 +47,12 @@ namespace ProjectManagement.Pages.Projects
         private readonly IClock _clock;
         private readonly ProjectRemarksPanelService _remarksPanelService;
         private readonly ProjectLifecycleService _lifecycleService;
-        private readonly ProjectMediaAggregator _mediaAggregator;
         private readonly IMarkdownRenderer _markdownRenderer;
+        private readonly ProjectRecordHealthService _recordHealthService;
 
         public PlanCompareService PlanCompare { get; }
 
-        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService, ProjectMediaAggregator mediaAggregator, IMarkdownRenderer markdownRenderer)
+        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService, IMarkdownRenderer markdownRenderer, ProjectRecordHealthService recordHealthService)
         {
             _db = db;
             _procureRead = procureRead;
@@ -62,8 +64,8 @@ namespace ProjectManagement.Pages.Projects
             _clock = clock;
             _remarksPanelService = remarksPanelService;
             _lifecycleService = lifecycleService;
-            _mediaAggregator = mediaAggregator;
             _markdownRenderer = markdownRenderer;
+            _recordHealthService = recordHealthService;
         }
 
         public Project Project { get; private set; } = default!;
@@ -83,7 +85,10 @@ namespace ProjectManagement.Pages.Projects
         public string? CurrentUserId { get; private set; }
         public ProjectMetaChangeRequestVm? MetaChangeRequest { get; private set; }
         public IReadOnlyList<ProjectPhoto> Photos { get; private set; } = Array.Empty<ProjectPhoto>();
+        public int PhotoCount { get; private set; }
         public IReadOnlyList<ProjectVideo> Videos { get; private set; } = Array.Empty<ProjectVideo>();
+        public int VideoCount { get; private set; }
+        public IReadOnlyList<ProjectMediaVideoViewModel> VideoPreviewItems { get; private set; } = Array.Empty<ProjectMediaVideoViewModel>();
         public ProjectPhoto? CoverPhoto { get; private set; }
         public int? CoverPhotoVersion { get; private set; }
         public string? CoverPhotoUrl { get; private set; }
@@ -91,6 +96,7 @@ namespace ProjectManagement.Pages.Projects
         public int? FeaturedVideoVersion { get; private set; }
         public string? FeaturedVideoUrl { get; private set; }
         public string? DescriptionHtml { get; private set; }
+        public WorkspaceRecordHealthVm RecordHealth { get; private set; } = new();
 
         public ProjectRolesViewModel Roles { get; private set; } = ProjectRolesViewModel.Empty;
         public ProjectLifecycleSummaryViewModel LifecycleSummary { get; private set; } = ProjectLifecycleSummaryViewModel.Empty;
@@ -103,8 +109,6 @@ namespace ProjectManagement.Pages.Projects
         public IReadOnlyList<JdpPartnerLinkVm> JdpPartners { get; private set; } = Array.Empty<JdpPartnerLinkVm>();
         public bool CanManageTot { get; private set; }
         public bool CanManageIndustryPartners { get; private set; }
-        public ProjectMediaCollectionViewModel MediaCollections { get; private set; } = ProjectMediaCollectionViewModel.Empty;
-        public IReadOnlyCollection<int> AvailableMediaTotIds { get; private set; } = Array.Empty<int>();
         public bool CanUploadDocuments { get; private set; }
         public bool CanViewDocumentRecycleBin { get; private set; }
         public bool CanManagePhotos { get; private set; }
@@ -118,11 +122,6 @@ namespace ProjectManagement.Pages.Projects
         [BindProperty(SupportsGet = true)]
         public int DocumentPage { get; set; } = 1;
 
-        [BindProperty(SupportsGet = true)]
-        public int? MediaTotId { get; set; }
-
-        [BindProperty(SupportsGet = true)]
-        public string? MediaTab { get; set; }
 
         public ProjectDocumentListViewModel DocumentList { get; private set; } = ProjectDocumentListViewModel.Empty;
 
@@ -192,8 +191,6 @@ namespace ProjectManagement.Pages.Projects
                 .Include(p => p.SponsoringLineDirectorate)
                 .Include(p => p.TechnicalCategory)
                 .Include(p => p.ProjectType)
-                .Include(p => p.Photos)
-                .Include(p => p.Videos)
                 .FirstOrDefaultAsync(p => p.Id == id, ct);
 
             if (project is null)
@@ -206,25 +203,29 @@ namespace ProjectManagement.Pages.Projects
             Project = project;
             DescriptionHtml = _markdownRenderer.ToSafeHtml(project.Description);
 
-            Photos = project.Photos
-                .OrderBy(p => p.Ordinal)
-                .ThenBy(p => p.Id)
-                .ToList();
+            // SECTION: Load only the media needed by the overview. Full libraries are
+            // available from the dedicated Documents, Photos and Videos pages.
+            PhotoCount = await _db.ProjectPhotos
+                .AsNoTracking()
+                .CountAsync(photo => photo.ProjectId == project.Id, ct);
 
-            Videos = project.Videos
-                .OrderBy(v => v.Ordinal)
-                .ThenBy(v => v.Id)
-                .ToList();
-
-            var availableTotIds = Photos
-                .Select(p => p.TotId)
-                .Where(id => id.HasValue)
-                .Select(id => id!.Value)
-                .ToHashSet();
+            var photoPreview = await _db.ProjectPhotos
+                .AsNoTracking()
+                .Where(photo => photo.ProjectId == project.Id)
+                .OrderBy(photo => photo.Ordinal)
+                .ThenBy(photo => photo.Id)
+                .Take(8)
+                .ToListAsync(ct);
 
             if (project.CoverPhotoId.HasValue)
             {
-                CoverPhoto = Photos.FirstOrDefault(p => p.Id == project.CoverPhotoId.Value);
+                CoverPhoto = photoPreview.FirstOrDefault(photo => photo.Id == project.CoverPhotoId.Value)
+                    ?? await _db.ProjectPhotos
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(photo =>
+                            photo.ProjectId == project.Id &&
+                            photo.Id == project.CoverPhotoId.Value, ct);
+
                 CoverPhotoVersion = CoverPhoto?.Version ?? project.CoverPhotoVersion;
                 if (CoverPhoto is not null)
                 {
@@ -238,9 +239,40 @@ namespace ProjectManagement.Pages.Projects
                 }
             }
 
+            var overviewPhotos = new List<ProjectPhoto>();
+            if (CoverPhoto is not null)
+            {
+                overviewPhotos.Add(CoverPhoto);
+            }
+
+            overviewPhotos.AddRange(photoPreview);
+            Photos = overviewPhotos
+                .GroupBy(photo => photo.Id)
+                .Select(group => group.First())
+                .Take(8)
+                .ToList();
+
+            VideoCount = await _db.ProjectVideos
+                .AsNoTracking()
+                .CountAsync(video => video.ProjectId == project.Id, ct);
+
+            var videoPreview = await _db.ProjectVideos
+                .AsNoTracking()
+                .Where(video => video.ProjectId == project.Id)
+                .OrderBy(video => video.Ordinal)
+                .ThenBy(video => video.Id)
+                .Take(2)
+                .ToListAsync(ct);
+
             if (project.FeaturedVideoId.HasValue)
             {
-                FeaturedVideo = Videos.FirstOrDefault(v => v.Id == project.FeaturedVideoId.Value);
+                FeaturedVideo = videoPreview.FirstOrDefault(video => video.Id == project.FeaturedVideoId.Value)
+                    ?? await _db.ProjectVideos
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(video =>
+                            video.ProjectId == project.Id &&
+                            video.Id == project.FeaturedVideoId.Value, ct);
+
                 FeaturedVideoVersion = FeaturedVideo?.Version ?? project.FeaturedVideoVersion;
                 if (FeaturedVideo is not null)
                 {
@@ -252,6 +284,19 @@ namespace ProjectManagement.Pages.Projects
                     });
                 }
             }
+
+            var overviewVideos = new List<ProjectVideo>();
+            if (FeaturedVideo is not null)
+            {
+                overviewVideos.Add(FeaturedVideo);
+            }
+
+            overviewVideos.AddRange(videoPreview);
+            Videos = overviewVideos
+                .GroupBy(video => video.Id)
+                .Select(group => group.First())
+                .Take(2)
+                .ToList();
 
             var connectionHash = ConnectionStringHasher.Hash(_db.Database.GetConnectionString());
 
@@ -267,6 +312,18 @@ namespace ProjectManagement.Pages.Projects
                 .OrderBy(s => ProcurementWorkflow.OrderOf(workflowVersion, s.StageCode))
                 .ThenBy(s => s.StageCode, StringComparer.OrdinalIgnoreCase)
                 .ToList();
+
+            project.ProjectStages = projectStages;
+            var recordHealth = await _recordHealthService.CalculateForProjectsAsync(
+                new[] { project },
+                CurrentUserId ?? string.Empty,
+                ct);
+            RecordHealth = recordHealth.GetValueOrDefault(project.Id) ?? new WorkspaceRecordHealthVm
+            {
+                ProjectId = project.Id,
+                ProjectName = project.Name,
+                OpenUrl = $"/Projects/Overview/{project.Id}"
+            };
 
             var knownStageCodes = new HashSet<string>(
                 Stages.Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
@@ -323,12 +380,10 @@ namespace ProjectManagement.Pages.Projects
             var isAdmin = User.IsInRole("Admin");
             var isHoD = User.IsInRole("HoD");
             var isProjectOfficer = User.IsInRole("Project Officer");
-            var isThisProjectsPo = isProjectOfficer && string.Equals(project.LeadPoUserId, CurrentUserId, StringComparison.Ordinal);
-            var isThisProjectsHod = isHoD && string.Equals(project.HodUserId, CurrentUserId, StringComparison.Ordinal);
-
-            CanManagePhotos = isAdmin || isThisProjectsPo || isThisProjectsHod;
+            var isThisProjectsPo = isProjectOfficer && string.Equals(project.LeadPoUserId, CurrentUserId, StringComparison.OrdinalIgnoreCase);
+            CanManagePhotos = isAdmin || isHoD || isThisProjectsPo;
             CanManageVideos = CanManagePhotos;
-            CanUploadDocuments = isAdmin || isThisProjectsPo || isThisProjectsHod;
+            CanUploadDocuments = isAdmin || isHoD || isThisProjectsPo;
             CanViewDocumentRecycleBin = isAdmin;
 
             Roles = new ProjectRolesViewModel
@@ -336,11 +391,10 @@ namespace ProjectManagement.Pages.Projects
                 IsAdmin = isAdmin,
                 IsHoD = isHoD,
                 IsProjectOfficer = isProjectOfficer,
-                IsAssignedProjectOfficer = isThisProjectsPo,
-                IsAssignedHoD = isThisProjectsHod
+                IsAssignedProjectOfficer = isThisProjectsPo
             };
 
-            CanManageTot = isAdmin || isHoD || isThisProjectsPo || isThisProjectsHod;
+            CanManageTot = isAdmin || isHoD || isThisProjectsPo;
             CanManageIndustryPartners = Policies.IndustryPartners.ManageAllowedRoles.Any(User.IsInRole);
 
             var todayLocalDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst()));
@@ -362,7 +416,7 @@ namespace ProjectManagement.Pages.Projects
             ReactivateProjectInput ??= new ReactivateLifecycleInput();
             ReactivateProjectInput.ProjectId = project.Id;
 
-            LifecycleActions = BuildLifecycleActions(project, isAdmin, isHoD, isThisProjectsHod);
+            LifecycleActions = BuildLifecycleActions(project, isAdmin, isHoD);
 
             if (project.CategoryId.HasValue)
             {
@@ -455,7 +509,7 @@ namespace ProjectManagement.Pages.Projects
                 MetaChangeRequest = await BuildMetaChangeRequestVmAsync(project, pendingMetaRequest, ct);
             }
 
-            await LoadDocumentOverviewAsync(project, isAdmin, isHoD, availableTotIds, ct);
+            await LoadDocumentOverviewAsync(project, isAdmin, isHoD, ct);
 
             RemarksPanel = await _remarksPanelService.BuildAsync(project, Stages, User, ct);
 
@@ -464,33 +518,9 @@ namespace ProjectManagement.Pages.Projects
             TotSummary = await BuildTotSummaryAsync(project.Id, totSnapshot, totRequestSnapshot, ct);
             MediaSummary = BuildMediaSummary();
 
-            AvailableMediaTotIds = availableTotIds.ToArray();
-
-            var totFilterLabel = TotSummary.HasTotRecord
-                ? string.Format(CultureInfo.InvariantCulture, "Transfer of Technology ({0})", TotSummary.StatusLabel)
-                : "Transfer of Technology";
-
-            var videoViewModels = BuildVideoViewModels(project);
-
-            MediaCollections = _mediaAggregator.Build(new ProjectMediaAggregationRequest(
-                DocumentList,
-                DocumentSummary,
-                DocumentPendingRequests,
-                IsDocumentApprover,
-                CanUploadDocuments,
-                CanViewDocumentRecycleBin,
-                DocumentPendingRequestCount,
-                Photos,
-                CoverPhoto,
-                CoverPhotoVersion,
-                CoverPhotoUrl,
-                CanManagePhotos,
-                CanManageVideos,
-                videoViewModels,
-                AvailableMediaTotIds,
-                MediaTotId,
-                MediaTab,
-                totFilterLabel));
+            VideoPreviewItems = BuildVideoViewModels(project)
+                .Take(2)
+                .ToList();
 
             return Page();
         }
@@ -514,9 +544,7 @@ namespace ProjectManagement.Pages.Projects
                 {
                     p.Id,
                     p.LifecycleStatus,
-                    p.CompletedOn,
-                    p.LeadPoUserId,
-                    p.HodUserId
+                    p.CompletedOn
                 })
                 .FirstOrDefaultAsync(p => p.Id == id, ct);
 
@@ -525,7 +553,7 @@ namespace ProjectManagement.Pages.Projects
                 return NotFound();
             }
 
-            if (!CanManageLifecycle(userId, projectInfo.HodUserId))
+            if (!CanManageLifecycle(userId))
             {
                 return Forbid();
             }
@@ -575,9 +603,7 @@ namespace ProjectManagement.Pages.Projects
                 .AsNoTracking()
                 .Select(p => new
                 {
-                    p.Id,
-                    p.LeadPoUserId,
-                    p.HodUserId
+                    p.Id
                 })
                 .FirstOrDefaultAsync(p => p.Id == id, ct);
 
@@ -586,7 +612,7 @@ namespace ProjectManagement.Pages.Projects
                 return NotFound();
             }
 
-            if (!CanManageLifecycle(userId, projectInfo.HodUserId))
+            if (!CanManageLifecycle(userId))
             {
                 return Forbid();
             }
@@ -634,9 +660,7 @@ namespace ProjectManagement.Pages.Projects
                 .Select(p => new
                 {
                     p.Id,
-                    p.LifecycleStatus,
-                    p.LeadPoUserId,
-                    p.HodUserId
+                    p.LifecycleStatus
                 })
                 .FirstOrDefaultAsync(p => p.Id == id, ct);
 
@@ -645,7 +669,7 @@ namespace ProjectManagement.Pages.Projects
                 return NotFound();
             }
 
-            if (!CanManageLifecycle(userId, projectInfo.HodUserId))
+            if (!CanManageLifecycle(userId))
             {
                 return Forbid();
             }
@@ -708,7 +732,7 @@ namespace ProjectManagement.Pages.Projects
             return RedirectToPage(new { id });
         }
 
-        private async Task LoadDocumentOverviewAsync(Project project, bool isAdmin, bool isHoD, HashSet<int> availableTotIds, CancellationToken ct)
+        private async Task LoadDocumentOverviewAsync(Project project, bool isAdmin, bool isHoD, CancellationToken ct)
         {
             // SECTION: Document workflow context
             var workflowVersion = project.WorkflowVersion;
@@ -751,14 +775,6 @@ namespace ProjectManagement.Pages.Projects
                 documents = documents
                     .Where(d => d.Status == ProjectDocumentStatus.Published)
                     .ToList();
-            }
-
-            foreach (var document in documents)
-            {
-                if (document.TotId.HasValue)
-                {
-                    availableTotIds.Add(document.TotId.Value);
-                }
             }
 
             var pendingRequests = await _db.ProjectDocumentRequests
@@ -899,26 +915,8 @@ namespace ProjectManagement.Pages.Projects
                     .ToList();
             }
 
-            foreach (var request in pendingRequests)
-            {
-                var requestTotId = request.TotId ?? request.DocumentTotId;
-                if (requestTotId.HasValue)
-                {
-                    availableTotIds.Add(requestTotId.Value);
-                }
-            }
-
-            MediaTotId = NormalizeMediaTotFilter(MediaTotId, availableTotIds);
-
-            var selectedTotId = MediaTotId;
-
-            var documentsForDisplay = selectedTotId.HasValue
-                ? documents.Where(d => d.TotId == selectedTotId.Value).ToList()
-                : documents;
-
-            var requestsForDisplay = selectedTotId.HasValue
-                ? pendingRequests.Where(r => (r.TotId ?? r.DocumentTotId) == selectedTotId.Value).ToList()
-                : pendingRequests;
+            var documentsForDisplay = documents;
+            var requestsForDisplay = pendingRequests;
 
             DocumentPendingRequestCount = requestsForDisplay.Count;
 
@@ -1071,16 +1069,17 @@ namespace ProjectManagement.Pages.Projects
                 .Where(p => coverPhoto is null || p.Id != coverPhoto.Id)
                 .ToList();
 
+            const int overviewAdditionalPhotoPreviewCount = 7;
             var previewPhotos = additionalPhotos
-                .Take(ProjectMediaSummaryViewModel.DefaultPreviewCount)
+                .Take(overviewAdditionalPhotoPreviewCount)
                 .ToList();
 
-            var remaining = Math.Max(0, additionalPhotos.Count - previewPhotos.Count);
+            var remaining = Math.Max(0, PhotoCount - (coverPhoto is null ? 0 : 1) - previewPhotos.Count);
 
             return new ProjectMediaSummaryViewModel
             {
-                PhotoCount = orderedPhotos.Count,
-                AdditionalPhotoCount = additionalPhotos.Count,
+                PhotoCount = PhotoCount,
+                AdditionalPhotoCount = Math.Max(0, PhotoCount - (coverPhoto is null ? 0 : 1)),
                 PreviewPhotos = previewPhotos,
                 RemainingPhotoCount = remaining,
                 CoverPhoto = coverPhoto,
@@ -1088,16 +1087,16 @@ namespace ProjectManagement.Pages.Projects
                 CoverPhotoUrl = CoverPhotoUrl,
                 DocumentCount = DocumentSummary.PublishedCount,
                 PendingDocumentCount = DocumentSummary.PendingCount,
-                VideoCount = Videos.Count,
+                VideoCount = VideoCount,
                 FeaturedVideo = FeaturedVideo,
                 FeaturedVideoVersion = FeaturedVideoVersion,
                 FeaturedVideoUrl = FeaturedVideoUrl
             };
         }
 
-        private ProjectLifecycleActionsViewModel BuildLifecycleActions(Project project, bool isAdmin, bool isHoD, bool isAssignedHoD)
+        private ProjectLifecycleActionsViewModel BuildLifecycleActions(Project project, bool isAdmin, bool isHoD)
         {
-            var canManage = isAdmin || isHoD || isAssignedHoD;
+            var canManage = isAdmin || isHoD;
             var canReactivate = (isAdmin || isHoD) &&
                 (project.LifecycleStatus == ProjectLifecycleStatus.Completed ||
                  project.LifecycleStatus == ProjectLifecycleStatus.Cancelled);
@@ -1128,7 +1127,7 @@ namespace ProjectManagement.Pages.Projects
             };
         }
 
-        private bool CanManageLifecycle(string? userId, string? projectHodId)
+        private bool CanManageLifecycle(string? userId)
         {
             if (string.IsNullOrEmpty(userId))
             {
@@ -1136,11 +1135,6 @@ namespace ProjectManagement.Pages.Projects
             }
 
             if (User.IsInRole("Admin") || User.IsInRole("HoD"))
-            {
-                return true;
-            }
-
-            if (!string.IsNullOrEmpty(projectHodId) && string.Equals(projectHodId, userId, StringComparison.Ordinal))
             {
                 return true;
             }
@@ -1920,16 +1914,6 @@ namespace ProjectManagement.Pages.Projects
             }
 
             return ProjectDocumentListViewModel.PublishedStatusValue;
-        }
-
-        private static int? NormalizeMediaTotFilter(int? value, IReadOnlyCollection<int> availableTotIds)
-        {
-            if (!value.HasValue || availableTotIds.Count == 0)
-            {
-                return null;
-            }
-
-            return availableTotIds.Contains(value.Value) ? value : null;
         }
 
         private static bool StageMatches(string? stageCode, string? filter)

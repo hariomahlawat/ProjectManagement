@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Net.Http.Headers;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
@@ -18,17 +19,17 @@ namespace ProjectManagement.Pages.Projects.Photos;
 [Authorize]
 public class ViewModel : PageModel
 {
-    private static readonly byte[] PlaceholderImage = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAucB9VHq7eAAAAAASUVORK5CYII=");
-
     private readonly ApplicationDbContext _db;
     private readonly IUserContext _userContext;
     private readonly IProjectPhotoService _photoService;
+    private readonly ILogger<ViewModel> _logger;
 
-    public ViewModel(ApplicationDbContext db, IUserContext userContext, IProjectPhotoService photoService)
+    public ViewModel(ApplicationDbContext db, IUserContext userContext, IProjectPhotoService photoService, ILogger<ViewModel> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
         _photoService = photoService ?? throw new ArgumentNullException(nameof(photoService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<IActionResult> OnGetAsync(int id, int photoId, string? size, CancellationToken cancellationToken)
@@ -46,7 +47,7 @@ public class ViewModel : PageModel
         }
 
         // SECTION: Photo visibility follows project information visibility
-        if (!ProjectAccessGuard.CanViewProjectInformation(project, _userContext.User))
+        if (!ProjectAccessGuard.CanViewProjectMedia(project, _userContext.User))
         {
             return Forbid();
         }
@@ -57,7 +58,7 @@ public class ViewModel : PageModel
 
         if (photo is null)
         {
-            return PlaceholderResult(requestedSize);
+            return NotFound();
         }
 
         try
@@ -71,7 +72,8 @@ public class ViewModel : PageModel
             var derivative = await _photoService.OpenDerivativeAsync(id, photoId, requestedSize, preferWebp, cancellationToken);
             if (derivative is null)
             {
-                return PlaceholderResult(requestedSize);
+                _logger.LogWarning("Photo derivative missing for project {ProjectId}, photo {PhotoId}, size {Size}", id, photoId, requestedSize);
+                return NotFound();
             }
 
             var formatTag = GetFormatToken(derivative.Value.ContentType);
@@ -79,7 +81,7 @@ public class ViewModel : PageModel
             var cacheHeaders = Response.GetTypedHeaders();
             cacheHeaders.CacheControl = new CacheControlHeaderValue
             {
-                Public = true,
+                Private = true,
                 MaxAge = TimeSpan.FromDays(7)
             };
             cacheHeaders.ETag = etag;
@@ -99,32 +101,16 @@ public class ViewModel : PageModel
 
             return result;
         }
-        catch (Exception)
+        catch (FileNotFoundException ex)
         {
-            return PlaceholderResult(requestedSize);
+            _logger.LogWarning(ex, "Photo derivative missing for project {ProjectId}, photo {PhotoId}, size {Size}", id, photoId, requestedSize);
+            return NotFound();
         }
-    }
-
-    private IActionResult PlaceholderResult(string size)
-    {
-        Response.Headers[HeaderNames.Vary] = HeaderNames.Accept;
-
-        var etag = new EntityTagHeaderValue($"\"pp-placeholder-{size}\"");
-        var headers = Response.GetTypedHeaders();
-        headers.CacheControl = new CacheControlHeaderValue
+        catch (Exception ex)
         {
-            Public = true,
-            MaxAge = TimeSpan.FromDays(7)
-        };
-        headers.ETag = etag;
-
-        var ifNoneMatch = Request.GetTypedHeaders().IfNoneMatch;
-        if (ifNoneMatch != null && ifNoneMatch.Any(tag => tag.Equals(etag)))
-        {
-            return StatusCode(StatusCodes.Status304NotModified);
+            _logger.LogError(ex, "Unable to stream photo derivative for project {ProjectId}, photo {PhotoId}, size {Size}", id, photoId, requestedSize);
+            return StatusCode(StatusCodes.Status500InternalServerError);
         }
-
-        return File(PlaceholderImage, "image/png");
     }
 
     private string? NormalizeSize(string? size)

@@ -84,6 +84,13 @@ if (root) {
       Accept: 'application/json',
       'X-Requested-With': 'XMLHttpRequest'
     };
+    const normalizedMethod = String(method || 'GET').toUpperCase();
+    if (!['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(normalizedMethod)) {
+      const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')?.trim();
+      if (!token) throw new Error('Security token is unavailable. Refresh the page and try again.');
+      headers['X-CSRF-TOKEN'] = token;
+    }
+
     let payload;
     if (body !== undefined) {
       headers['Content-Type'] = 'application/json';

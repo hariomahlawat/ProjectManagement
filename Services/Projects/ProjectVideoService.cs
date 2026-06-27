@@ -90,17 +90,28 @@ namespace ProjectManagement.Services.Projects
 
             Directory.CreateDirectory(destinationDirectory);
 
-            long totalBytes = 0;
-            await using (var destination = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
+            var stagedPath = destinationPath + ".uploading";
+            long totalBytes;
+            try
             {
-                totalBytes = await CopyStreamAsync(content, destination, cancellationToken).ConfigureAwait(false);
-            }
+                await using (var destination = new FileStream(stagedPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true))
+                {
+                    totalBytes = await CopyStreamAsync(content, destination, _options.MaxFileSizeBytes, cancellationToken).ConfigureAwait(false);
+                }
 
-            await ScanIfRequiredAsync(destinationPath, sanitizedName, cancellationToken).ConfigureAwait(false);
-            if (_options.MaxFileSizeBytes > 0 && totalBytes > _options.MaxFileSizeBytes)
+                if (_options.MaxFileSizeBytes > 0 && totalBytes > _options.MaxFileSizeBytes)
+                {
+                    throw new InvalidOperationException($"The uploaded video exceeds the maximum allowed size of {_options.MaxFileSizeBytes / (1024 * 1024)} MB.");
+                }
+
+                await ScanIfRequiredAsync(stagedPath, sanitizedName, cancellationToken).ConfigureAwait(false);
+                File.Move(stagedPath, destinationPath, overwrite: false);
+            }
+            catch
             {
+                SafeDelete(stagedPath);
                 SafeDelete(destinationPath);
-                throw new InvalidOperationException($"The uploaded video exceeds the maximum allowed size of {_options.MaxFileSizeBytes / (1024 * 1024)} MB.");
+                throw;
             }
 
             var now = _clock.UtcNow.UtcDateTime;
@@ -171,17 +182,21 @@ namespace ProjectManagement.Services.Projects
                 }
             }
 
-            await _audit.LogAsync(
-                "project.video.upload",
-                $"Video '{video.Title ?? video.OriginalFileName}' uploaded to project {projectId}",
-                userId: userId,
-                data: new Dictionary<string, string?>
-                {
-                    ["projectId"] = projectId.ToString(CultureInfo.InvariantCulture),
-                    ["videoId"] = video.Id.ToString(CultureInfo.InvariantCulture),
-                    ["storageKey"] = video.StorageKey,
-                    ["featured"] = shouldFeature.ToString(CultureInfo.InvariantCulture)
-                });
+            await TryWriteAuditAsync(
+                () => _audit.LogAsync(
+                    "project.video.upload",
+                    $"Video '{video.Title ?? video.OriginalFileName}' uploaded to project {projectId}",
+                    userId: userId,
+                    data: new Dictionary<string, string?>
+                    {
+                        ["projectId"] = projectId.ToString(CultureInfo.InvariantCulture),
+                        ["videoId"] = video.Id.ToString(CultureInfo.InvariantCulture),
+                        ["storageKey"] = video.StorageKey,
+                        ["featured"] = shouldFeature.ToString(CultureInfo.InvariantCulture)
+                    }),
+                "upload",
+                projectId,
+                video.Id);
 
             return video;
         }
@@ -234,15 +249,19 @@ namespace ProjectManagement.Services.Projects
 
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            await _audit.LogAsync(
-                "project.video.update",
-                $"Video '{video.Title ?? video.OriginalFileName}' metadata updated for project {projectId}",
-                userId: userId,
-                data: new Dictionary<string, string?>
-                {
-                    ["projectId"] = projectId.ToString(CultureInfo.InvariantCulture),
-                    ["videoId"] = video.Id.ToString(CultureInfo.InvariantCulture)
-                });
+            await TryWriteAuditAsync(
+                () => _audit.LogAsync(
+                    "project.video.update",
+                    $"Video '{video.Title ?? video.OriginalFileName}' metadata updated for project {projectId}",
+                    userId: userId,
+                    data: new Dictionary<string, string?>
+                    {
+                        ["projectId"] = projectId.ToString(CultureInfo.InvariantCulture),
+                        ["videoId"] = video.Id.ToString(CultureInfo.InvariantCulture)
+                    }),
+                "metadata update",
+                projectId,
+                video.Id);
 
             return video;
         }
@@ -298,16 +317,20 @@ namespace ProjectManagement.Services.Projects
 
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            await _audit.LogAsync(
-                "project.video.feature",
-                $"Video '{target.Title ?? target.OriginalFileName}' featured state changed for project {projectId}",
-                userId: userId,
-                data: new Dictionary<string, string?>
-                {
-                    ["projectId"] = projectId.ToString(CultureInfo.InvariantCulture),
-                    ["videoId"] = videoId.ToString(CultureInfo.InvariantCulture),
-                    ["featured"] = isFeatured.ToString(CultureInfo.InvariantCulture)
-                });
+            await TryWriteAuditAsync(
+                () => _audit.LogAsync(
+                    "project.video.feature",
+                    $"Video '{target.Title ?? target.OriginalFileName}' featured state changed for project {projectId}",
+                    userId: userId,
+                    data: new Dictionary<string, string?>
+                    {
+                        ["projectId"] = projectId.ToString(CultureInfo.InvariantCulture),
+                        ["videoId"] = videoId.ToString(CultureInfo.InvariantCulture),
+                        ["featured"] = isFeatured.ToString(CultureInfo.InvariantCulture)
+                    }),
+                "featured-state update",
+                projectId,
+                videoId);
 
             return target;
         }
@@ -337,15 +360,19 @@ namespace ProjectManagement.Services.Projects
 
             DeleteVideoFiles(video);
 
-            await _audit.LogAsync(
-                "project.video.remove",
-                $"Video '{video.Title ?? video.OriginalFileName}' removed from project {projectId}",
-                userId: userId,
-                data: new Dictionary<string, string?>
-                {
-                    ["projectId"] = projectId.ToString(CultureInfo.InvariantCulture),
-                    ["videoId"] = videoId.ToString(CultureInfo.InvariantCulture)
-                });
+            await TryWriteAuditAsync(
+                () => _audit.LogAsync(
+                    "project.video.remove",
+                    $"Video '{video.Title ?? video.OriginalFileName}' removed from project {projectId}",
+                    userId: userId,
+                    data: new Dictionary<string, string?>
+                    {
+                        ["projectId"] = projectId.ToString(CultureInfo.InvariantCulture),
+                        ["videoId"] = videoId.ToString(CultureInfo.InvariantCulture)
+                    }),
+                "remove",
+                projectId,
+                videoId);
 
             return true;
         }
@@ -392,14 +419,17 @@ namespace ProjectManagement.Services.Projects
 
             await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            await _audit.LogAsync(
-                "project.video.reorder",
-                $"Videos reordered for project {projectId}",
-                userId: userId,
-                data: new Dictionary<string, string?>
-                {
-                    ["projectId"] = projectId.ToString(CultureInfo.InvariantCulture)
-                });
+            await TryWriteAuditAsync(
+                () => _audit.LogAsync(
+                    "project.video.reorder",
+                    $"Videos reordered for project {projectId}",
+                    userId: userId,
+                    data: new Dictionary<string, string?>
+                    {
+                        ["projectId"] = projectId.ToString(CultureInfo.InvariantCulture)
+                    }),
+                "reorder",
+                projectId);
         }
 
         public async Task<(Stream Stream, string ContentType)?> OpenOriginalAsync(int projectId,
@@ -451,7 +481,7 @@ namespace ProjectManagement.Services.Projects
             return (stream, contentType);
         }
 
-        private static async Task<long> CopyStreamAsync(Stream source, Stream destination, CancellationToken cancellationToken)
+        private static async Task<long> CopyStreamAsync(Stream source, Stream destination, long maxBytes, CancellationToken cancellationToken)
         {
             if (source.CanSeek)
             {
@@ -468,8 +498,13 @@ namespace ProjectManagement.Services.Projects
                     break;
                 }
 
-                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
                 total += read;
+                if (maxBytes > 0 && total > maxBytes)
+                {
+                    throw new InvalidOperationException($"The uploaded video exceeds the maximum allowed size of {maxBytes / (1024 * 1024)} MB.");
+                }
+
+                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
             }
 
             await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
@@ -491,16 +526,13 @@ namespace ProjectManagement.Services.Projects
 
         private string NormalizeContentType(string? contentType, string extension)
         {
-            if (!string.IsNullOrWhiteSpace(contentType))
-            {
-                return contentType.Trim();
-            }
-
+            _ = contentType;
             return extension.ToLowerInvariant() switch
             {
+                ".mp4" => "video/mp4",
                 ".webm" => "video/webm",
-                ".ogg" => "video/ogg",
-                _ => "video/mp4"
+                ".ogg" or ".ogv" => "video/ogg",
+                _ => throw new InvalidOperationException("Choose an MP4, WebM or OGG video.")
             };
         }
 
@@ -520,6 +552,23 @@ namespace ProjectManagement.Services.Projects
             {
                 SafeDelete(path);
                 throw;
+            }
+        }
+
+
+        private async Task TryWriteAuditAsync(Func<Task> writeAudit, string operation, int projectId, int? videoId = null)
+        {
+            try
+            {
+                await writeAudit().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Video {Operation} completed but audit logging failed for project {ProjectId}, video {VideoId}",
+                    operation,
+                    projectId,
+                    videoId);
             }
         }
 

@@ -7,6 +7,7 @@ using ProjectManagement.Models;
 namespace ProjectManagement.Areas.Identity.Pages.Account
 {
     [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+    [AutoValidateAntiforgeryToken]
     public class LogoutModel : PageModel
     {
         private readonly SignInManager<ApplicationUser> _signInManager;
@@ -22,10 +23,16 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
         {
         }
 
-        public async Task<IActionResult> OnPost()
+        public async Task<IActionResult> OnPostAsync(string? returnUrl = null)
         {
             await _signInManager.SignOutAsync();
             _logger.LogInformation("User logged out.");
+
+            if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
+            {
+                return LocalRedirect(returnUrl);
+            }
+
             return RedirectToPage("/Account/Login", new { area = "Identity" });
         }
     }

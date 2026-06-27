@@ -7,11 +7,13 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10213f" />
+    <meta name="color-scheme" content="light" />
     @{
         var pageTitle = ViewData["Title"]?.ToString();
         var documentTitle = string.Equals(pageTitle, "PRISM ERP", StringComparison.OrdinalIgnoreCase)
             ? "PRISM ERP | Simulator Development Division"
-            : $"{pageTitle} - PRISM ERP";
+            : $"{pageTitle} | PRISM ERP";
     }
     <title>@documentTitle</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
@@ -22,7 +24,14 @@
     <link rel="stylesheet" href="~/css/print.css" asp-append-version="true" media="print" />
     <link rel="stylesheet" href="~/css/fonts/mulish.css" asp-append-version="true" />
 
-    <link rel="icon" href="~/favicon.ico" />
+    <link rel="icon" type="image/x-icon" href="~/favicon.ico" asp-append-version="true" />
+    <link rel="icon" type="image/png" sizes="32x32" href="~/icons/favicon-32x32.png" asp-append-version="true" />
+    <link rel="icon" type="image/png" sizes="16x16" href="~/icons/favicon-16x16.png" asp-append-version="true" />
+    <link rel="apple-touch-icon" sizes="180x180" href="~/icons/apple-touch-icon.png" asp-append-version="true" />
+    <link rel="mask-icon" href="~/icons/safari-pinned-tab.svg" color="#10213f" />
+    <link rel="manifest" href="~/site.webmanifest" asp-append-version="true" />
+    <meta name="msapplication-TileColor" content="#10213f" />
+    <meta name="msapplication-config" content="@Url.Content("~/browserconfig.xml")" />
 </head>
 <body class="d-flex flex-column min-vh-100">
     @{
@@ -30,6 +39,7 @@
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
         var currentArea = ViewContext.RouteData.Values["area"]?.ToString();
         var isOngoingProjectsPage = string.Equals(currentPage, "/Projects/Ongoing/Index", StringComparison.OrdinalIgnoreCase);
+        var isPhotosPage = !string.IsNullOrWhiteSpace(currentPage) && currentPage.StartsWith("/Photos/", StringComparison.OrdinalIgnoreCase);
         var isDocumentRepositoryPage = string.Equals(currentArea, "DocumentRepository", StringComparison.OrdinalIgnoreCase);
         var isFfcPage = string.Equals(currentArea, "ProjectOfficeReports", StringComparison.OrdinalIgnoreCase)
             && !string.IsNullOrWhiteSpace(currentPage)
@@ -49,6 +59,7 @@
             _ when string.Equals(currentPage, "/ActionTasks/Index", StringComparison.OrdinalIgnoreCase) => "wide",
             _ when string.Equals(currentPage, "/Workspace/Index", StringComparison.OrdinalIgnoreCase) => "wide",
             _ when string.Equals(currentPage, "/Projects/Ongoing/Index", StringComparison.OrdinalIgnoreCase) => "analytics",
+            _ when isPhotosPage => "wide",
             _ when string.Equals(currentArea, "DocumentRepository", StringComparison.OrdinalIgnoreCase) => "analytics",
             _ when useFullWidth => "wide",
             _ => "standard"
@@ -91,6 +102,10 @@
                         <a asp-page="/Notebook/Index"
                            class="pm-top-tabs__item @(string.Equals(currentPage, "/Notebook/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
                             Notebook
+                        </a>
+                        <a asp-page="/Photos/Index"
+                           class="pm-top-tabs__item @(isPhotosPage ? "is-active" : string.Empty)">
+                            Photos
                         </a>
                         <a asp-page="/Projects/Ongoing/Index"
                            class="pm-top-tabs__item @(isOngoingProjectsPage ? "is-active" : string.Empty)">
@@ -155,9 +170,22 @@
                 else
                 {
                     <nav class="public-topbar__nav" aria-label="Public navigation">
-                        <a href="/#capabilities">Capabilities</a>
-                        <a href="/#roles-title">Role-based experience</a>
+                        <a class="public-topbar__desktop-link" href="/#capabilities">Capabilities</a>
+                        <a class="public-topbar__desktop-link" href="/#roles-title">Role-based experience</a>
                         <a class="public-topbar__signin" asp-area="Identity" asp-page="/Account/Login">Sign in</a>
+                        <div class="dropdown public-topbar__mobile-menu">
+                            <button class="public-topbar__menu-button"
+                                    type="button"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false"
+                                    aria-label="Open public navigation">
+                                <i class="bi bi-list" aria-hidden="true"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end public-topbar__menu">
+                                <li><a class="dropdown-item" href="/#capabilities">Capabilities</a></li>
+                                <li><a class="dropdown-item" href="/#roles-title">Role-based experience</a></li>
+                            </ul>
+                        </div>
                     </nav>
                 }
             </div>

@@ -33,7 +33,14 @@ public class ProjectIdeaPermissionService
     }
 
     public bool CanEditIdeaCore(ClaimsPrincipal user, ProjectIdea idea) => !IsArchived(idea) && IsPrivileged(user);
-    public bool CanEditIdea(ClaimsPrincipal user, ProjectIdea idea) => CanEditIdeaCore(user, idea);
+
+    public bool CanEditDescription(ClaimsPrincipal user, ProjectIdea idea)
+    {
+        return !IsArchived(idea)
+            && (IsPrivileged(user) || IsAssignedProjectOfficer(user, idea));
+    }
+
+    public bool CanEditIdea(ClaimsPrincipal user, ProjectIdea idea) => CanEditDescription(user, idea);
     public bool CanArchiveIdea(ClaimsPrincipal user) => IsPrivileged(user);
     public bool CanRestoreIdea(ClaimsPrincipal user) => IsPrivileged(user);
 

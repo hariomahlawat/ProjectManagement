@@ -1,107 +1,243 @@
 @page "/Approvals/Pending"
 @model ProjectManagement.Pages.Approvals.Pending.IndexModel
 @{
-    ViewData["Title"] = "Pending approvals";
+    ViewData["Title"] = "Decision Centre";
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/approvals.css" asp-append-version="true" />
 }
 
-<div class="approvals-shell">
-    <header class="approvals-page-header">
+<main class="decision-centre">
+    <header class="decision-header">
         <div>
-            <div class="approvals-eyebrow">Decision workspace</div>
-            <h1>Pending approvals</h1>
-            <p>Review and decide approval-gated requests across Projects and Project Office Reports.</p>
+            <div class="decision-eyebrow">Command decision workspace</div>
+            <h1>Decision Centre</h1>
+            <p>One place to review and decide project, document and institutional requests.</p>
         </div>
     </header>
 
     @if (!string.IsNullOrWhiteSpace(Model.SuccessMessage))
     {
-        <div class="approvals-feedback approvals-feedback--success" role="status"><i class="bi bi-check-circle"></i>@Model.SuccessMessage</div>
+        <div class="decision-feedback decision-feedback--success" role="status">
+            <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+            <span>@Model.SuccessMessage</span>
+        </div>
     }
 
-    @if (Model.TotalPendingCount == 0 && !Model.HasActiveFilters)
-    {
-        <section class="approvals-clear-state">
-            <div class="approvals-clear-icon"><i class="bi bi-check2"></i></div>
-            <div><h2>All caught up</h2><p>There are no pending approvals across Projects or Project Office Reports.</p></div>
-        </section>
-    }
-    else
-    {
-        <section class="approvals-metrics" aria-label="Approval queue summary">
-            <a class="approval-metric approval-metric--primary" asp-page="/Approvals/Pending/Index">
-                <span>Total pending</span><strong>@Model.TotalPendingCount</strong><small>Requests in current view</small>
-            </a>
-            <div class="approval-metric"><span>Oldest request</span><strong>@Model.OldestPendingDisplay</strong><small>Age of oldest pending item</small></div>
-            <a class="approval-metric" asp-page="/Approvals/Pending/Index" asp-route-Module="Projects">
-                <span>Projects</span><strong>@Model.ProjectsPendingCount</strong><small>Project approvals</small>
-            </a>
-            <a class="approval-metric" asp-page="/Approvals/Pending/Index" asp-route-Module="ProjectOfficeReports">
-                <span>Project Office</span><strong>@Model.ProjectOfficePendingCount</strong><small>Report approvals</small>
-            </a>
-            <a class="approval-metric @(Model.OverdueCount > 0 ? "approval-metric--alert" : "")" asp-page="/Approvals/Pending/Index" asp-route-Age="over7">
-                <span>Over 7 days</span><strong>@Model.OverdueCount</strong><small>Requires attention</small>
-            </a>
-        </section>
-    }
+    <section class="decision-summary" aria-label="Current approval workload">
+        <a class="decision-stat @(string.IsNullOrWhiteSpace(Model.Readiness) ? "is-active" : null)"
+           asp-page="/Approvals/Pending/Index"
+           asp-route-Type="@Model.Type" asp-route-Module="@Model.Module" asp-route-Age="@Model.Age" asp-route-Search="@Model.Search">
+            <span>Pending</span><strong>@Model.TotalPendingCount</strong>
+        </a>
+        <a class="decision-stat decision-stat--ready @(Model.Readiness == "Ready" ? "is-active" : null)"
+           asp-page="/Approvals/Pending/Index" asp-route-Readiness="Ready"
+           asp-route-Type="@Model.Type" asp-route-Module="@Model.Module" asp-route-Age="@Model.Age" asp-route-Search="@Model.Search">
+            <span>Ready</span><strong>@Model.ReadyCount</strong>
+        </a>
+        <a class="decision-stat decision-stat--waiting @(Model.Readiness == "Waiting" ? "is-active" : null)"
+           asp-page="/Approvals/Pending/Index" asp-route-Readiness="Waiting"
+           asp-route-Type="@Model.Type" asp-route-Module="@Model.Module" asp-route-Age="@Model.Age" asp-route-Search="@Model.Search">
+            <span>Waiting</span><strong>@Model.WaitingCount</strong>
+        </a>
+        <a class="decision-stat decision-stat--blocked @(Model.Readiness is "Blocked" or "Stale" or "Superseded" ? "is-active" : null)"
+           asp-page="/Approvals/Pending/Index" asp-route-Readiness="Blocked"
+           asp-route-Type="@Model.Type" asp-route-Module="@Model.Module" asp-route-Age="@Model.Age" asp-route-Search="@Model.Search">
+            <span>Blocked</span><strong>@Model.BlockedCount</strong>
+        </a>
+        <a class="decision-stat decision-stat--attention @(Model.Age == "over7" ? "is-active" : null)"
+           asp-page="/Approvals/Pending/Index" asp-route-Age="over7"
+           asp-route-Type="@Model.Type" asp-route-Module="@Model.Module" asp-route-Readiness="@Model.Readiness" asp-route-Search="@Model.Search">
+            <span>Needs attention</span><strong>@Model.AttentionCount</strong>
+        </a>
+    </section>
 
-    <section class="approvals-filter-panel">
-        <form method="get" class="approvals-filter-form" data-approvals-filter-form>
-            <div class="approvals-filter-field approvals-filter-field--search">
-                <label asp-for="Search">Search</label>
-                <div class="approvals-search-control"><i class="bi bi-search"></i><input asp-for="Search" type="search" placeholder="Project, requester, request ID or summary" /></div>
+    <section class="decision-toolbar" aria-label="Approval filters">
+        <form method="get" class="decision-filter-form" data-decision-filter-form>
+            <div class="decision-search">
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <label class="visually-hidden" asp-for="Search">Search approvals</label>
+                <input asp-for="Search" type="search" autocomplete="off"
+                       placeholder="Search project, activity, document or requester" />
             </div>
-            <div class="approvals-filter-field"><label asp-for="Type">Request type</label><select asp-for="Type" asp-items="Model.TypeOptions"></select></div>
-            <div class="approvals-filter-field"><label asp-for="Module">Module</label><select asp-for="Module" asp-items="Model.ModuleOptions"></select></div>
-            <div class="approvals-filter-field"><label asp-for="Age">Age</label><select asp-for="Age" asp-items="Model.AgeOptions"></select></div>
-            <button type="submit" class="btn btn-primary approvals-apply-button">Apply</button>
+            <label class="visually-hidden" asp-for="Type">Request type</label>
+            <select asp-for="Type" asp-items="Model.TypeOptions" data-auto-submit></select>
+            <label class="visually-hidden" asp-for="Module">Module</label>
+            <select asp-for="Module" asp-items="Model.ModuleOptions" data-auto-submit></select>
+            <label class="visually-hidden" asp-for="Age">Request age</label>
+            <select asp-for="Age" asp-items="Model.AgeOptions" data-auto-submit></select>
+            <input type="hidden" asp-for="Readiness" />
+            <button type="submit" class="btn btn-primary decision-filter-button">Search</button>
             @if (Model.HasActiveFilters)
             {
-                <a class="btn btn-link approvals-clear-button" asp-page="/Approvals/Pending/Index">Clear</a>
+                <a class="btn btn-link decision-clear-filter" asp-page="/Approvals/Pending/Index">Clear</a>
             }
         </form>
     </section>
 
-    <section class="approvals-results-panel">
-        @if (Model.Items.Count == 0)
-        {
-            <div class="approvals-empty-filtered">
-                <i class="bi bi-inbox"></i><h2>No matching approvals</h2><p>Adjust or clear the filters to view other pending requests.</p>
-                <a class="btn btn-outline-primary" asp-page="/Approvals/Pending/Index">Clear filters</a>
-            </div>
-        }
-        else
-        {
-            <div class="approvals-results-header">
-                <div><h2>Approval queue</h2><p>Showing @Model.PageStart–@Model.PageEnd of @Model.FilteredCount requests · oldest first</p></div>
-                @if (!string.IsNullOrWhiteSpace(Model.TopTypeDisplay) && Model.TopTypeDisplay != "—")
-                { <div class="approvals-top-type"><span>Most common</span><strong>@Model.TopTypeDisplay</strong><small>@Model.TopTypeMeta</small></div> }
-            </div>
-
-            <div class="approvals-list" role="list">
-                @foreach (var item in Model.Items)
-                {
-                    <a class="approval-request" href="@item.DetailsUrl" role="listitem">
-                        <div class="approval-request__type"><span class="approval-type-icon"><i class="bi bi-check2-square"></i></span><div><span>@Model.GetTypeLabel(item.ApprovalType)</span><small>@Model.GetModuleLabel(item.Module)</small></div></div>
-                        <div class="approval-request__project"><strong>@(item.ProjectName ?? "Project Office report")</strong>@if (item.ProjectId.HasValue){<small>Project #@item.ProjectId</small>}</div>
-                        <div class="approval-request__summary">@item.Summary</div>
-                        <div class="approval-request__requester"><span>Requested by</span><strong>@item.RequestedByName</strong></div>
-                        <div class="approval-request__age"><span class="approval-age @Model.GetAgeClass(item.RequestedAtUtc)">@Model.GetAgeLabel(item.RequestedAtUtc)</span><small>@item.RequestedAtUtc.ToLocalTime().ToString("dd MMM yyyy, h:mm tt")</small></div>
-                        <span class="approval-request__arrow"><i class="bi bi-chevron-right"></i></span>
-                    </a>
-                }
-            </div>
-
-            @if (Model.TotalPages > 1)
+    @if (!Model.HasResults)
+    {
+        <section class="decision-empty">
+            <div class="decision-empty__icon"><i class="bi bi-check2" aria-hidden="true"></i></div>
+            <h2>@(Model.HasActiveFilters ? "No matching requests" : "All caught up")</h2>
+            <p>@(Model.HasActiveFilters
+                ? "No pending request matches the selected filters."
+                : "There are no approval-gated requests awaiting a decision.")</p>
+            @if (Model.HasActiveFilters)
             {
-                <nav class="approvals-pagination" aria-label="Approval queue pages">
-                    <a class="btn btn-outline-secondary @(Model.HasPreviousPage ? "" : "disabled")" asp-route-Type="@Model.Type" asp-route-Module="@Model.Module" asp-route-Age="@Model.Age" asp-route-Search="@Model.Search" asp-route-PageNumber="@(Model.PageNumber - 1)">Previous</a>
-                    <span>Page @Model.PageNumber of @Model.TotalPages</span>
-                    <a class="btn btn-outline-secondary @(Model.HasNextPage ? "" : "disabled")" asp-route-Type="@Model.Type" asp-route-Module="@Model.Module" asp-route-Age="@Model.Age" asp-route-Search="@Model.Search" asp-route-PageNumber="@(Model.PageNumber + 1)">Next</a>
-                </nav>
+                <a class="btn btn-outline-primary" asp-page="/Approvals/Pending/Index">Clear filters</a>
             }
+        </section>
+    }
+    else
+    {
+        <div class="decision-results-heading">
+            <div>
+                <h2>Approval queue</h2>
+                <p>Showing @Model.PageStart–@Model.PageEnd of @Model.FilteredCount pending requests</p>
+            </div>
+            <div class="decision-legend" aria-label="Readiness legend">
+                <span><i class="decision-dot decision-dot--ready"></i>Ready</span>
+                <span><i class="decision-dot decision-dot--waiting"></i>Waiting</span>
+                <span><i class="decision-dot decision-dot--blocked"></i>Blocked</span>
+            </div>
+        </div>
+
+        @if (Model.ProjectGroups.Count > 0)
+        {
+            <section class="decision-group-list" aria-label="Project approvals">
+                @foreach (var group in Model.ProjectGroups)
+                {
+                    <article class="decision-project-group">
+                        <header class="decision-project-header">
+                            <div class="decision-project-title">
+                                <span class="decision-project-icon"><i class="bi bi-kanban" aria-hidden="true"></i></span>
+                                <div>
+                                    <h3>@group.Title</h3>
+                                    <p>
+                                        @group.Subtitle
+                                        @if (!string.IsNullOrWhiteSpace(group.WorkflowVersion))
+                                        {
+                                            <span class="decision-workflow">Workflow @group.WorkflowVersion</span>
+                                        }
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="decision-project-counts">
+                                @if (group.ReadyCount > 0)
+                                {
+                                    <span class="count-ready">@group.ReadyCount ready</span>
+                                }
+                                @if (group.WaitingCount > 0)
+                                {
+                                    <span class="count-waiting">@group.WaitingCount waiting</span>
+                                }
+                                @if (group.BlockedCount > 0)
+                                {
+                                    <span class="count-blocked">@group.BlockedCount blocked</span>
+                                }
+                            </div>
+                        </header>
+                        <div class="decision-request-list">
+                            @foreach (var item in group.Items)
+                            {
+                                <a class="decision-request decision-request--@item.Readiness.ToString().ToLowerInvariant()"
+                                   href="@item.DetailsUrl">
+                                    <span class="decision-request__sequence" aria-hidden="true">
+                                        @if (item.ApprovalType == ProjectManagement.ViewModels.ApprovalQueueType.StageChange && item.WorkflowOrder.HasValue)
+                                        {
+                                            @(item.WorkflowOrder.Value + 1)
+                                        }
+                                        else
+                                        {
+                                            <i class="bi @Model.GetTypeIcon(item.ApprovalType)"></i>
+                                        }
+                                    </span>
+                                    <span class="decision-request__body">
+                                        <span class="decision-request__topline">
+                                            <strong>@Model.GetTypeLabel(item.ApprovalType)</strong>
+                                            @if (item.RevisionNumber > 1)
+                                            {
+                                                <span class="decision-revision">Revision @item.RevisionNumber</span>
+                                            }
+                                        </span>
+                                        <span class="decision-request__summary">@item.Summary</span>
+                                        @if (!string.IsNullOrWhiteSpace(item.ReadinessMessage))
+                                        {
+                                            <span class="decision-request__reason">@item.ReadinessMessage</span>
+                                        }
+                                    </span>
+                                    <span class="decision-request__meta">
+                                        <span class="decision-readiness decision-readiness--@item.Readiness.ToString().ToLowerInvariant()">
+                                            <i class="bi @Model.GetReadinessIcon(item.Readiness)" aria-hidden="true"></i>
+                                            @Model.GetReadinessLabel(item.Readiness)
+                                        </span>
+                                        <span class="decision-request__requester">@item.RequestedByName</span>
+                                        <span class="decision-request__time">@Model.GetAgeLabel(item.RequestedAtUtc) · @Model.FormatRequestedAt(item.RequestedAtUtc)</span>
+                                    </span>
+                                    <i class="bi bi-chevron-right decision-request__arrow" aria-hidden="true"></i>
+                                </a>
+                            }
+                        </div>
+                    </article>
+                }
+            </section>
         }
-    </section>
-</div>
+
+        @if (Model.StandaloneGroups.Count > 0)
+        {
+            <section class="decision-standalone">
+                <div class="decision-section-label">
+                    <h2>Institutional and standalone requests</h2>
+                    <p>Requests not tied to an individual project.</p>
+                </div>
+                @foreach (var group in Model.StandaloneGroups)
+                {
+                    <article class="decision-project-group">
+                        <header class="decision-project-header decision-project-header--compact">
+                            <div><h3>@group.Title</h3><p>@group.Subtitle</p></div>
+                        </header>
+                        <div class="decision-request-list">
+                            @foreach (var item in group.Items)
+                            {
+                                <a class="decision-request decision-request--@item.Readiness.ToString().ToLowerInvariant()"
+                                   href="@item.DetailsUrl">
+                                    <span class="decision-request__sequence"><i class="bi @Model.GetTypeIcon(item.ApprovalType)"></i></span>
+                                    <span class="decision-request__body">
+                                        <span class="decision-request__topline"><strong>@Model.GetTypeLabel(item.ApprovalType)</strong></span>
+                                        <span class="decision-request__summary">@item.Summary</span>
+                                    </span>
+                                    <span class="decision-request__meta">
+                                        <span class="decision-readiness decision-readiness--@item.Readiness.ToString().ToLowerInvariant()">
+                                            <i class="bi @Model.GetReadinessIcon(item.Readiness)"></i>@Model.GetReadinessLabel(item.Readiness)
+                                        </span>
+                                        <span class="decision-request__requester">@item.RequestedByName</span>
+                                        <span class="decision-request__time">@Model.GetAgeLabel(item.RequestedAtUtc)</span>
+                                    </span>
+                                    <i class="bi bi-chevron-right decision-request__arrow"></i>
+                                </a>
+                            }
+                        </div>
+                    </article>
+                }
+            </section>
+        }
+
+        @if (Model.TotalPages > 1)
+        {
+            <nav class="decision-pagination" aria-label="Decision Centre pages">
+                <a class="btn btn-outline-secondary @(Model.HasPreviousPage ? null : "disabled")"
+                   asp-route-Type="@Model.Type" asp-route-Module="@Model.Module" asp-route-Readiness="@Model.Readiness"
+                   asp-route-Age="@Model.Age" asp-route-Search="@Model.Search" asp-route-PageNumber="@(Model.PageNumber - 1)">Previous</a>
+                <span>Page @Model.PageNumber of @Model.TotalPages</span>
+                <a class="btn btn-outline-secondary @(Model.HasNextPage ? null : "disabled")"
+                   asp-route-Type="@Model.Type" asp-route-Module="@Model.Module" asp-route-Readiness="@Model.Readiness"
+                   asp-route-Age="@Model.Age" asp-route-Search="@Model.Search" asp-route-PageNumber="@(Model.PageNumber + 1)">Next</a>
+            </nav>
+        }
+    }
+</main>
+
+@section Scripts {
+    <script src="~/js/pages/approvals-pending.js" asp-append-version="true" type="module"></script>
+}

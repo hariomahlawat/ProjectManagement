@@ -129,7 +129,7 @@
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        "RequestVerificationToken": favouriteToken.value
+                        "X-CSRF-TOKEN": favouriteToken.value
                     }
                 });
 

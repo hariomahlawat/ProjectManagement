@@ -83,14 +83,14 @@ public sealed class PlanReadService
         {
             myDraft = planCandidates
                 .Where(p => p.Status == PlanVersionStatus.Draft &&
-                            string.Equals(p.OwnerUserId, currentUserId, StringComparison.Ordinal))
+                            string.Equals(p.OwnerUserId, currentUserId, StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(p => p.VersionNo)
                 .FirstOrDefault();
         }
 
         var draftPlan = myDraft;
         if (draftPlan is null && pendingPlan is not null && !string.IsNullOrWhiteSpace(currentUserId) &&
-            string.Equals(pendingPlan.OwnerUserId ?? pendingPlan.SubmittedByUserId, currentUserId, StringComparison.Ordinal))
+            string.Equals(pendingPlan.OwnerUserId ?? pendingPlan.SubmittedByUserId, currentUserId, StringComparison.OrdinalIgnoreCase))
         {
             draftPlan = pendingPlan;
         }
@@ -215,7 +215,7 @@ public sealed class PlanReadService
 
         var pendingOwnerId = pendingPlan?.OwnerUserId ?? pendingPlan?.SubmittedByUserId;
         var isPendingMine = pendingPlan is not null && !string.IsNullOrWhiteSpace(currentUserId) &&
-            string.Equals(pendingOwnerId, currentUserId, StringComparison.Ordinal);
+            string.Equals(pendingOwnerId, currentUserId, StringComparison.OrdinalIgnoreCase);
 
         var state = new PlanEditorStateVm
         {

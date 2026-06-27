@@ -13,7 +13,7 @@ public sealed class WorkspaceNudgeService
 {
     // SECTION: Current-stage helpers
     public static ProjectStage? GetCurrentStage(Project project)
-        => PresentStageHelper.Resolve(project.ProjectStages);
+        => PresentStageHelper.Resolve(project);
 
     public static int? GetCurrentStageAgeDays(Project project, DateOnly today)
     {

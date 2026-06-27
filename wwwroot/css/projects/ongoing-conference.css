@@ -740,3 +740,59 @@ table.ongoing-table td.col-remarks .pm-remark-text {
     line-clamp: unset !important;
     -webkit-box-orient: initial !important;
 }
+
+/* Timeline status refinement: contextual exceptions replace the repeated per-card legend. */
+.briefing-timeline__alerts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .4rem;
+    margin: 0 0 .65rem;
+}
+
+.briefing-timeline__alert {
+    display: inline-flex;
+    align-items: center;
+    gap: .34rem;
+    min-height: 28px;
+    padding: .24rem .58rem;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: .69rem;
+    font-weight: 750;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.briefing-timeline__alert--warning {
+    color: #855700;
+    border-color: #edc975;
+    background: #fff5dd;
+}
+
+.briefing-timeline__alert--neutral {
+    color: #526276;
+    border-color: #d8e0ea;
+    background: #f5f7fa;
+}
+
+.briefing-stage__date--attention {
+    color: #8a5a00;
+    font-weight: 700;
+}
+
+/* Legacy per-card legend is intentionally suppressed if retained by an older partial. */
+.briefing-timeline__legend {
+    display: none !important;
+}
+
+@media (max-width: 640px) {
+    .briefing-timeline__alerts {
+        align-items: stretch;
+    }
+
+    .briefing-timeline__alert {
+        width: 100%;
+        white-space: normal;
+    }
+}

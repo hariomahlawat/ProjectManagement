@@ -21,6 +21,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Documents;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Pages.Projects.Documents;
 
@@ -166,14 +167,17 @@ public class UploadRequestModel : PageModel
             return Challenge();
         }
 
-        // SECTION: Multi-file processing
+        // Stage every selected file first. The database requests are then created as one batch,
+        // so the user never ends up with a partially submitted upload.
         var tempFiles = new List<DocumentFileDescriptor>(files.Count);
-        var createdRequests = 0;
+        var batchCommitted = false;
 
         try
         {
-            foreach (var (file, index) in files.Select((value, i) => (value, i)))
+            var requestItems = new List<DocumentUploadRequestItem>(files.Count);
+            for (var index = 0; index < files.Count; index++)
             {
+                var file = files[index];
                 var token = _documentService.CreateTempRequestToken();
 
                 await using var stream = file.OpenReadStream();
@@ -185,45 +189,44 @@ public class UploadRequestModel : PageModel
                     cancellationToken);
 
                 tempFiles.Add(tempFile);
-
-                var nomenclature = BuildPerFileNomenclature(baseNomenclature, files.Count, tempFile.OriginalFileName);
-
-                await _requestService.CreateUploadRequestAsync(
-                    Input.ProjectId,
-                    Input.StageId,
-                    nomenclature,
-                    Input.LinkToTot ? Project!.Tot!.Id : (int?)null,
-                    tempFile,
-                    userId,
-                    cancellationToken);
-
-                createdRequests = index + 1;
+                var enteredTitle = Input.FileTitles.ElementAtOrDefault(index);
+                var title = BuildPerFileTitle(enteredTitle, baseNomenclature, files.Count, tempFile.OriginalFileName);
+                requestItems.Add(new DocumentUploadRequestItem(title, tempFile));
             }
 
-            TempData["Flash"] = files.Count == 1
-                ? "Submitted 1 file for moderation."
-                : FormattableString.Invariant($"Submitted {files.Count} file(s) for moderation.");
+            await _requestService.CreateUploadRequestsAsync(
+                Input.ProjectId,
+                Input.StageId,
+                Input.LinkToTot ? Project!.Tot!.Id : (int?)null,
+                requestItems,
+                userId,
+                cancellationToken);
 
-            return RedirectToPage("../Overview", new { id = Input.ProjectId });
+            batchCommitted = true;
+            TempData["Flash"] = files.Count == 1
+                ? "Document submitted for approval."
+                : FormattableString.Invariant($"{files.Count} documents submitted for approval.");
+
+            return RedirectToPage("./Index", new { id = Input.ProjectId });
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Validation failed while staging upload request for project {ProjectId}", Input.ProjectId);
-            ModelState.AddModelError(FilesFieldKey, FormatFileErrorMessage(ex.Message, files, createdRequests));
+            _logger.LogWarning(ex, "Validation failed while staging document uploads for project {ProjectId}", Input.ProjectId);
+            ModelState.AddModelError(FilesFieldKey, FriendlyDocumentError(ex.Message));
         }
         catch (IOException ex)
         {
-            _logger.LogError(ex, "File read failed while staging upload request for project {ProjectId}", Input.ProjectId);
-            ModelState.AddModelError(FilesFieldKey, "We couldn't read the uploaded file. Please try again with a fresh upload.");
+            _logger.LogError(ex, "File read failed while staging document uploads for project {ProjectId}", Input.ProjectId);
+            ModelState.AddModelError(FilesFieldKey, "One of the selected files could not be read. Select the files again and retry.");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error while staging upload request for project {ProjectId}", Input.ProjectId);
-            ModelState.AddModelError(string.Empty, "We couldn't process the files. Please try again.");
+            _logger.LogError(ex, "Unexpected error while staging document uploads for project {ProjectId}", Input.ProjectId);
+            ModelState.AddModelError(string.Empty, "The documents could not be submitted. Please try again.");
         }
         finally
         {
-            if (!ModelState.IsValid)
+            if (!batchCommitted)
             {
                 foreach (var tempFile in tempFiles)
                 {
@@ -248,28 +251,33 @@ public class UploadRequestModel : PageModel
         return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
     }
 
-    private static string BuildPerFileNomenclature(string? baseNomenclature, int totalFiles, string originalFileName)
+    private static string BuildPerFileTitle(string? enteredTitle,
+                                                string? commonTitle,
+                                                int totalFiles,
+                                                string originalFileName)
     {
         var fileBaseName = Path.GetFileNameWithoutExtension(originalFileName);
         if (string.IsNullOrWhiteSpace(fileBaseName))
         {
-            fileBaseName = "document";
+            fileBaseName = "Document";
         }
 
-        // SECTION: Single-file behaviour
-        if (totalFiles == 1)
+        if (!string.IsNullOrWhiteSpace(enteredTitle))
         {
-            return TrimToLength(baseNomenclature ?? fileBaseName, MaxNomenclatureLength);
+            return TrimToLength(enteredTitle.Trim(), MaxNomenclatureLength);
         }
 
-        // SECTION: Multi-file behaviour
-        if (string.IsNullOrWhiteSpace(baseNomenclature))
+        if (string.IsNullOrWhiteSpace(commonTitle))
         {
             return TrimToLength(fileBaseName, MaxNomenclatureLength);
         }
 
-        var combined = $"{baseNomenclature} - {fileBaseName}";
-        return TrimToLength(combined, MaxNomenclatureLength);
+        if (totalFiles == 1)
+        {
+            return TrimToLength(commonTitle, MaxNomenclatureLength);
+        }
+
+        return TrimToLength($"{commonTitle} – {fileBaseName}", MaxNomenclatureLength);
     }
 
     private static string TrimToLength(string value, int maxLength)
@@ -282,36 +290,22 @@ public class UploadRequestModel : PageModel
         return value.Substring(0, maxLength);
     }
 
-    private static string FormatFileErrorMessage(string message, IReadOnlyList<IFormFile> files, int createdRequests)
+    private static string FriendlyDocumentError(string? message)
     {
-        if (files.Count <= 1)
+        var text = message ?? string.Empty;
+        if (text.Contains("maximum", StringComparison.OrdinalIgnoreCase) || text.Contains("size", StringComparison.OrdinalIgnoreCase))
         {
-            return message;
+            return "One of the selected files is too large. Remove it or choose a smaller file.";
         }
-
-        var failedIndex = Math.Clamp(createdRequests, 0, files.Count - 1);
-        var failedFileName = files[failedIndex].FileName;
-        var sanitizedMessage = string.IsNullOrWhiteSpace(message) ? "The upload could not be processed." : message.Trim();
-
-        var builder = new StringBuilder();
-        builder.Append("Upload failed for ");
-        builder.Append(failedFileName);
-        builder.Append('.');
-
-        // ======== Section: Format sanitized error message ========
-        if (!sanitizedMessage.EndsWith(".", StringComparison.Ordinal))
+        if (text.Contains("type", StringComparison.OrdinalIgnoreCase) || text.Contains("extension", StringComparison.OrdinalIgnoreCase))
         {
-            builder.Append(' ');
-            builder.Append(sanitizedMessage);
+            return "One of the selected files is not supported. Use Word, PDF, PowerPoint or Excel files.";
         }
-        else
+        if (text.Contains("stage", StringComparison.OrdinalIgnoreCase) || text.Contains("Transfer of Technology", StringComparison.OrdinalIgnoreCase))
         {
-            builder.Append(' ');
-            builder.Append(sanitizedMessage.TrimEnd('.'));
-            builder.Append('.');
+            return text;
         }
-
-        return builder.ToString();
+        return "One of the selected files could not be processed. Review the files and try again.";
     }
 
     // SECTION: Access control
@@ -331,31 +325,13 @@ public class UploadRequestModel : PageModel
             return NotFound();
         }
 
-        if (!UserCanSubmitRequests(project, userId))
+        if (!ProjectAccessGuard.CanManageProjectDocuments(project, _userContext.User, userId))
         {
             return Forbid();
         }
 
         Project = project;
         return null;
-    }
-
-    private bool UserCanSubmitRequests(Project project, string userId)
-    {
-        var principal = _userContext.User;
-        if (principal.IsInRole("Admin"))
-        {
-            return true;
-        }
-
-        if (principal.IsInRole("Project Officer") &&
-            string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return principal.IsInRole("HoD") &&
-            string.Equals(project.HodUserId, userId, StringComparison.OrdinalIgnoreCase);
     }
 
     // SECTION: Stage options
@@ -387,6 +363,8 @@ public class UploadRequestModel : PageModel
         public string? Nomenclature { get; set; }
 
         public List<IFormFile> Files { get; set; } = new();
+
+        public List<string?> FileTitles { get; set; } = new();
 
         public bool LinkToTot { get; set; }
     }

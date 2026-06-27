@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -20,12 +20,10 @@ namespace ProjectManagement.Features.Remarks;
 
 internal static class RemarkApi
 {
-    private const string AllowedRoles = "Admin,HoD,Project Officer,Comdt,MCO,Project Office,Main Office,TA";
-
     public static void MapRemarkApi(this WebApplication app)
     {
         var group = app.MapGroup("/api/projects/{projectId:int}/remarks")
-            .RequireAuthorization(new AuthorizeAttribute { Roles = AllowedRoles });
+            .RequireAuthorization();
 
         group.MapPost("", CreateRemarkAsync);
         group.MapGet("", ListRemarksAsync);
@@ -454,49 +452,51 @@ internal static class RemarkApi
             return (null, Results.Unauthorized());
         }
 
-        var assignedRoles = await userManager.GetRolesAsync(user);
-        var remarkRoleSet = assignedRoles
-            .Select(r => RemarkActorRoleExtensions.TryParse(r, out var parsed) ? parsed : RemarkActorRole.Unknown)
-            .Where(r => r != RemarkActorRole.Unknown)
+        var project = await db.Projects
+            .AsNoTracking()
+            .SingleOrDefaultAsync(p => p.Id == projectId, cancellationToken);
+        if (project is null)
+        {
+            return (null, Results.NotFound(new ProblemDetails
+            {
+                Title = "Project not found.",
+                Detail = "The project no longer exists."
+            }));
+        }
+
+        var persistedRoles = await userManager.GetRolesAsync(user);
+        var principalRoles = httpContext.User
+            .FindAll(ClaimTypes.Role)
+            .Select(claim => claim.Value);
+
+        var remarkRoleSet = persistedRoles
+            .Concat(principalRoles)
+            .Select(role => RemarkActorRoleExtensions.TryParse(role, out var parsed) ? parsed : RemarkActorRole.Unknown)
+            .Where(role => role != RemarkActorRole.Unknown)
             .ToHashSet();
 
-        Project? project = null;
+        // Project Officer remark actions are project-specific. A Project Officer may
+        // read every project, but may post only against the project assigned to them.
+        var isAssignedProjectOfficer = !string.IsNullOrWhiteSpace(project.LeadPoUserId)
+            && string.Equals(project.LeadPoUserId, user.Id, StringComparison.OrdinalIgnoreCase);
+        if (!isAssignedProjectOfficer)
+        {
+            remarkRoleSet.Remove(RemarkActorRole.ProjectOfficer);
+        }
+
         if (remarkRoleSet.Count == 0)
         {
-            project = await db.Projects.AsNoTracking()
-                .SingleOrDefaultAsync(p => p.Id == projectId, cancellationToken);
-
-            if (project is not null)
+            if (allowViewerFallback && ProjectAccessGuard.CanViewProject(project, httpContext.User, user.Id))
             {
-                if (!string.IsNullOrWhiteSpace(project.LeadPoUserId)
-                    && string.Equals(project.LeadPoUserId, user.Id, StringComparison.Ordinal))
-                {
-                    remarkRoleSet.Add(RemarkActorRole.ProjectOfficer);
-                }
-
-                if (!string.IsNullOrWhiteSpace(project.HodUserId)
-                    && string.Equals(project.HodUserId, user.Id, StringComparison.Ordinal))
-                {
-                    remarkRoleSet.Add(RemarkActorRole.HeadOfDepartment);
-                }
+                const RemarkActorRole fallbackRole = RemarkActorRole.ProjectOfficer;
+                return (new RemarkActorContext(
+                    user.Id,
+                    fallbackRole,
+                    new[] { fallbackRole },
+                    true), null);
             }
 
-            if (remarkRoleSet.Count == 0)
-            {
-                if (allowViewerFallback
-                    && project is not null
-                    && ProjectAccessGuard.CanViewProject(project, httpContext.User, user.Id))
-                {
-                    var fallbackRole = RemarkActorRole.ProjectOfficer;
-                    return (new RemarkActorContext(
-                        user.Id,
-                        fallbackRole,
-                        new[] { fallbackRole },
-                        true), null);
-                }
-
-                return (null, ForbiddenProblem(RemarkService.PermissionDeniedMessage));
-            }
+            return (null, ForbiddenProblem(RemarkService.PermissionDeniedMessage));
         }
 
         var remarkRoles = remarkRoleSet.ToArray();
@@ -615,8 +615,8 @@ internal static class RemarkApi
         }
 
         var normalized = trimmed
-            .Replace(" ", string.Empty, StringComparison.Ordinal)
-            .Replace("-", string.Empty, StringComparison.Ordinal);
+            .Replace(" ", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("-", string.Empty, StringComparison.OrdinalIgnoreCase);
 
         if (string.Equals(normalized, "tot", StringComparison.OrdinalIgnoreCase))
         {

@@ -1,0 +1,123 @@
+@page "/Projects/{id:int}/Documents"
+@model ProjectManagement.Pages.Projects.Documents.IndexModel
+@using System
+@{
+    ViewData["Title"] = $"Documents – {Model.Project.Name}";
+
+    string FormatSize(long bytes)
+    {
+        if (bytes <= 0) return "—";
+        string[] units = { "B", "KB", "MB", "GB" };
+        var value = (double)bytes;
+        var index = 0;
+        while (value >= 1024 && index < units.Length - 1)
+        {
+            value /= 1024;
+            index++;
+        }
+        return $"{value:0.#} {units[index]}";
+    }
+}
+
+<div class="container-xl project-document-library">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-page="/Projects/Index">Projects</a></li>
+            <li class="breadcrumb-item"><a asp-page="/Projects/Overview" asp-route-id="@Model.Project.Id">@Model.Project.Name</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Documents</li>
+        </ol>
+    </nav>
+
+    <header class="project-document-library__header">
+        <div>
+            <a asp-page="/Projects/Overview" asp-route-id="@Model.Project.Id" asp-fragment="media" class="project-document-library__back">
+                <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to project
+            </a>
+            <div class="d-flex align-items-center gap-2 mt-2">
+                <h1 class="mb-0">Project documents</h1>
+                <span class="project-document-library__count">@Model.Documents.Count</span>
+            </div>
+            <p class="fw-semibold mb-1">@Model.Project.Name</p>
+            <p class="text-muted mb-0">Published records, reports and lifecycle documents.</p>
+        </div>
+        @if (Model.CanManage)
+        {
+            <a class="btn btn-primary" asp-page="./UploadRequest" asp-route-id="@Model.Project.Id">
+                <i class="bi bi-plus-lg" aria-hidden="true"></i> Upload documents
+            </a>
+        }
+    </header>
+
+    @if (TempData.ContainsKey("Flash"))
+    {
+        <div class="alert alert-success" role="status">@TempData["Flash"]</div>
+    }
+
+    @if (Model.CanManage && Model.PendingCount > 0)
+    {
+        <div class="alert alert-warning d-flex align-items-center gap-2" role="status">
+            <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+            <span>@Model.PendingCount document @(Model.PendingCount == 1 ? "request is" : "requests are") awaiting approval.</span>
+        </div>
+    }
+
+    <form method="get" class="project-document-library__filters">
+        <input type="hidden" name="id" value="@Model.Project.Id" />
+        <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
+            <input asp-for="Q" class="form-control" placeholder="Search documents" aria-label="Search documents" />
+        </div>
+        <select asp-for="StageId" class="form-select" aria-label="Filter by project stage">
+            <option value="">All stages</option>
+            @foreach (var stage in Model.Stages)
+            {
+                <option value="@stage.Id">@stage.Name</option>
+            }
+        </select>
+        <button class="btn btn-outline-primary" type="submit">Apply</button>
+        @if (!string.IsNullOrWhiteSpace(Model.Q) || Model.StageId.HasValue)
+        {
+            <a class="btn btn-link" asp-page="./Index" asp-route-id="@Model.Project.Id">Clear</a>
+        }
+    </form>
+
+    @if (Model.Documents.Count == 0)
+    {
+        <section class="card pm-card project-document-library__empty">
+            <div class="card-body">
+                <span aria-hidden="true"><i class="bi bi-file-earmark-text"></i></span>
+                <h2>No documents found</h2>
+                <p>@(string.IsNullOrWhiteSpace(Model.Q) && !Model.StageId.HasValue ? "Published project documents will appear here." : "Try changing the search or stage filter.")</p>
+                @if (Model.CanManage && string.IsNullOrWhiteSpace(Model.Q) && !Model.StageId.HasValue)
+                {
+                    <a class="btn btn-primary" asp-page="./UploadRequest" asp-route-id="@Model.Project.Id">Upload first documents</a>
+                }
+            </div>
+        </section>
+    }
+    else
+    {
+        <div class="project-document-library__list" role="list">
+            @foreach (var document in Model.Documents)
+            {
+                <a class="project-document-library__item"
+                   asp-page="./Preview"
+                   asp-route-documentId="@document.Id"
+                   role="listitem">
+                    <span class="project-document-library__icon" aria-hidden="true"><i class="bi bi-file-earmark-text"></i></span>
+                    <span class="project-document-library__content">
+                        <strong>@document.Title</strong>
+                        <span>@document.StageName · @document.UploadedAtUtc.ToLocalTime().ToString("dd MMM yyyy") · @document.UploadedBy</span>
+                        <small>@document.OriginalFileName</small>
+                    </span>
+                    <span class="project-document-library__size">@FormatSize(document.FileSize)</span>
+                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                </a>
+            }
+        </div>
+    }
+</div>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/project-documents.css" asp-append-version="true" />
+}

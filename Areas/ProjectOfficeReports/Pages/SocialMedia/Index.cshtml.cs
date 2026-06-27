@@ -56,7 +56,22 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public bool OnlyActiveEventTypes { get; set; }
 
+    [BindProperty(SupportsGet = true)]
+    public int PageNumber { get; set; } = 1;
+
+    public const int PageSize = 20;
+
     public IReadOnlyList<SocialMediaEventListItem> Events { get; private set; } = Array.Empty<SocialMediaEventListItem>();
+
+    public int TotalCount { get; private set; }
+
+    public int TotalPages => Math.Max(1, (int)Math.Ceiling(TotalCount / (double)PageSize));
+
+    public int TotalPhotos { get; private set; }
+
+    public SocialMediaEventListItem? LatestEvent { get; private set; }
+
+    public IReadOnlyList<SocialMediaPlatformBreakdownItem> PlatformBreakdown { get; private set; } = Array.Empty<SocialMediaPlatformBreakdownItem>();
 
     public SocialMediaEventListFilter Filter { get; private set; } = new();
 
@@ -72,7 +87,8 @@ public sealed class IndexModel : PageModel
         await PopulatePermissionsAsync();
 
         await PopulateFilterAsync(cancellationToken);
-        Events = await _eventService.SearchAsync(BuildQuery(), cancellationToken);
+        var allEvents = await _eventService.SearchAsync(BuildQuery(), cancellationToken);
+        ApplyPresentationState(allEvents);
 
         var userId = _userManager.GetUserId(User);
         if (string.IsNullOrWhiteSpace(userId))
@@ -106,7 +122,8 @@ public sealed class IndexModel : PageModel
         await PopulatePermissionsAsync();
 
         await PopulateFilterAsync(cancellationToken);
-        Events = await _eventService.SearchAsync(BuildQuery(), cancellationToken);
+        var allEvents = await _eventService.SearchAsync(BuildQuery(), cancellationToken);
+        ApplyPresentationState(allEvents);
 
         var userId = _userManager.GetUserId(User);
         if (string.IsNullOrWhiteSpace(userId))
@@ -139,7 +156,33 @@ public sealed class IndexModel : PageModel
     {
         await PopulatePermissionsAsync();
         await PopulateFilterAsync(cancellationToken);
-        Events = await _eventService.SearchAsync(BuildQuery(), cancellationToken);
+        var allEvents = await _eventService.SearchAsync(BuildQuery(), cancellationToken);
+        ApplyPresentationState(allEvents);
+    }
+
+
+    private void ApplyPresentationState(IReadOnlyList<SocialMediaEventListItem> allEvents)
+    {
+        var ordered = allEvents
+            .OrderByDescending(x => x.DateOfEvent)
+            .ThenByDescending(x => x.LastModifiedAtUtc ?? x.CreatedAtUtc)
+            .ToList();
+
+        TotalCount = ordered.Count;
+        TotalPhotos = ordered.Sum(x => x.PhotoCount);
+        LatestEvent = ordered.FirstOrDefault();
+        PlatformBreakdown = ordered
+            .GroupBy(x => string.IsNullOrWhiteSpace(x.PlatformName) ? "Unspecified" : x.PlatformName!.Trim())
+            .Select(group => new SocialMediaPlatformBreakdownItem(group.Key, group.Count()))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Name)
+            .ToList();
+
+        PageNumber = Math.Clamp(PageNumber, 1, TotalPages);
+        Events = ordered
+            .Skip((PageNumber - 1) * PageSize)
+            .Take(PageSize)
+            .ToList();
     }
 
     private async Task PopulatePermissionsAsync()
@@ -238,3 +281,5 @@ public sealed class IndexModel : PageModel
         return null;
     }
 }
+
+public sealed record SocialMediaPlatformBreakdownItem(string Name, int Count);

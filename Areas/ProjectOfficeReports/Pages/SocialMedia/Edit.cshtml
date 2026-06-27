@@ -1,124 +1,132 @@
 @page "{id:guid}"
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.SocialMedia.EditModel
-@using System.Linq
+@using ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels
 @{
-    ViewData["Title"] = "Edit social media event";
+    ViewData["Title"] = "Edit social media activity";
 
-    var toastMessages = new List<ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels.SocialMediaToastMessage>();
-    if (TempData.TryGetValue("ToastMessage", out var toastValue) && toastValue is string toast && !string.IsNullOrWhiteSpace(toast))
+    var toastMessages = new List<SocialMediaToastMessage>();
+    if (TempData.TryGetValue("ToastMessage", out var toastMsg) && toastMsg is string okMsg && !string.IsNullOrWhiteSpace(okMsg))
     {
-        toastMessages.Add(new ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels.SocialMediaToastMessage(toast, "success"));
+        toastMessages.Add(new SocialMediaToastMessage(okMsg, "success"));
     }
-
-    if (TempData.TryGetValue("ToastError", out var toastErrorValue) && toastErrorValue is string toastError && !string.IsNullOrWhiteSpace(toastError))
+    if (TempData.TryGetValue("ToastError", out var toastErr) && toastErr is string errMsg && !string.IsNullOrWhiteSpace(errMsg))
     {
-        toastMessages.Add(new ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels.SocialMediaToastMessage(toastError, "danger"));
+        toastMessages.Add(new SocialMediaToastMessage(errMsg, "danger"));
     }
 }
 
 <partial name="_ToastMessages" model="toastMessages" />
 
-<div class="social-shell">
-    <nav aria-label="Breadcrumb" class="mb-3">
+<div class="social-page-shell social-editor-page">
+    <nav aria-label="Breadcrumb" class="social-breadcrumb">
         <ol class="breadcrumb mb-0">
             <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
             <li class="breadcrumb-item"><a asp-page="Index">Social media</a></li>
+            <li class="breadcrumb-item"><a asp-page="Details" asp-route-id="@Model.Input.Id">Activity</a></li>
             <li class="breadcrumb-item active" aria-current="page">Edit</li>
         </ol>
     </nav>
 
-    <section class="social-hero">
-        <div class="social-hero__content">
-            <span class="social-hero__eyebrow">Project office reports</span>
-            <h1 class="social-hero__title">Refine @Model.Input.Title</h1>
-            <p class="social-hero__subtitle">Update event details, maintain reach metrics, and curate the photo gallery.</p>
+    <header class="social-editor-header">
+        <div>
+            <h1>Edit social media activity</h1>
+            <p class="social-editor-title">@Model.Input.Title</p>
         </div>
-    </section>
+        <a asp-page="Details" asp-route-id="@Model.Input.Id" class="btn btn-outline-secondary">View activity</a>
+    </header>
 
-    <section class="social-section">
-        <div class="card shadow-sm mb-4">
-            <div class="card-body">
-                <form method="post" novalidate class="row g-4" data-social-disable-on-submit>
-                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-                    <input type="hidden" asp-for="Input.Id" />
-                    <input type="hidden" asp-for="Input.RowVersion" />
-                    <div class="col-12 col-md-6">
+    <div class="social-editor-surface">
+        <form method="post" enctype="multipart/form-data" novalidate data-social-disable-on-submit>
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger m-3 mb-0" role="alert"></div>
+            <input type="hidden" asp-for="Input.Id" />
+            <input type="hidden" asp-for="Input.RowVersion" />
+
+            <section class="social-editor-section" aria-labelledby="edit-details-heading">
+                <div class="social-section-heading">
+                    <div>
+                        <h2 id="edit-details-heading">Activity details</h2>
+                        <p>Update the information shown in the register.</p>
+                    </div>
+                </div>
+                <div class="social-form-grid">
+                    <div class="social-field">
                         <label asp-for="Input.EventTypeId" class="form-label"></label>
                         <select asp-for="Input.EventTypeId" asp-items="Model.EventTypeOptions" class="form-select"></select>
                         <span asp-validation-for="Input.EventTypeId" class="text-danger"></span>
                     </div>
-                    <div class="col-12 col-md-6">
+                    <div class="social-field">
                         <label asp-for="Input.DateOfEvent" class="form-label"></label>
                         <input asp-for="Input.DateOfEvent" class="form-control" type="date" />
                         <span asp-validation-for="Input.DateOfEvent" class="text-danger"></span>
                     </div>
-                    <div class="col-12">
+                    <div class="social-field social-field--full">
                         <label asp-for="Input.Title" class="form-label"></label>
                         <input asp-for="Input.Title" class="form-control" />
                         <span asp-validation-for="Input.Title" class="text-danger"></span>
                     </div>
-                    <div class="col-12 col-md-6">
+                    <div class="social-field">
                         <label asp-for="Input.PlatformId" class="form-label"></label>
                         <select asp-for="Input.PlatformId" asp-items="Model.PlatformOptions" class="form-select"></select>
                         <span asp-validation-for="Input.PlatformId" class="text-danger"></span>
                     </div>
-                    <div class="col-12">
+                    <div class="social-field social-field--full">
                         <label asp-for="Input.Description" class="form-label"></label>
                         <textarea asp-for="Input.Description" class="form-control" rows="4"></textarea>
                         <span asp-validation-for="Input.Description" class="text-danger"></span>
                     </div>
-                    <div class="col-12 d-flex gap-3">
-                        <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2" data-social-busy-label="Saving…">
-                            <i class="bi bi-check-circle" aria-hidden="true"></i>
-                            <span>Save changes</span>
-                        </button>
-                        <a asp-page="Details" asp-route-id="@Model.Input.Id" class="btn btn-outline-secondary">Preview event</a>
-                    </div>
-                </form>
-            </div>
-        </div>
+                </div>
+            </section>
 
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <header class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+            <section class="social-editor-section social-editor-section--media" aria-labelledby="add-photos-heading">
+                <div class="social-section-heading">
                     <div>
-                        <h2 class="h4 mb-1">Photo gallery</h2>
-                        <p class="text-muted mb-0">Upload highlights, set a cover, and keep visuals fresh for exports.</p>
+                        <h2 id="add-photos-heading">Add photographs <span class="social-optional-label">Optional</span></h2>
+                        <p>Select new photographs to upload when the activity is saved.</p>
                     </div>
-                </header>
+                </div>
+                <label class="social-dropzone social-dropzone--compact" for="Uploads">
+                    <input asp-for="Uploads"
+                           type="file"
+                           accept="image/jpeg,image/png,image/webp"
+                           multiple
+                           data-photo-upload-input
+                           data-photo-preview-target="edit-photo-preview"
+                           data-max-files="@Model.SocialPhotoMaxFiles"
+                           data-max-bytes="@Model.SocialPhotoMaxBytes"
+                           aria-describedby="edit-photo-help edit-photo-summary" />
+                    <span class="social-dropzone__icon"><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i></span>
+                    <strong>Drop photographs here or choose files</strong>
+                    <span id="edit-photo-help">JPEG, PNG or WebP · Up to @Model.SocialPhotoMaxMb MB each</span>
+                </label>
+                <span asp-validation-for="Uploads" class="text-danger"></span>
+                <div id="edit-photo-summary" class="social-selected-files" aria-live="polite"></div>
+                <div id="edit-photo-preview" class="social-upload-preview" hidden></div>
+                <div class="social-upload-caption">
+                    <label asp-for="UploadCaption" class="form-label">Caption for new photographs</label>
+                    <input asp-for="UploadCaption" class="form-control" placeholder="Optional caption applied to all newly selected photographs" />
+                    <span asp-validation-for="UploadCaption" class="text-danger"></span>
+                </div>
+            </section>
 
-                <partial name="_PhotoGallery" model="Model.PhotoGallery" />
-
-                <hr class="my-4" />
-
-                <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" asp-route-id="@Model.Input.Id" class="row g-3" data-social-disable-on-submit>
-                    <div class="col-12">
-                        <label asp-for="Uploads" class="form-label">Add photos</label>
-                        <input asp-for="Uploads"
-                               class="form-control"
-                               type="file"
-                               accept="image/*"
-                               multiple
-                               data-photo-upload-input
-                               data-max-files="@Model.SocialPhotoMaxFiles"
-                               data-max-bytes="@Model.SocialPhotoMaxBytes"
-                               aria-describedby="social-photo-help social-photo-summary" />
-                        <span asp-validation-for="Uploads" class="text-danger"></span>
-                        <div class="form-text" id="social-photo-help">@Model.SocialPhotoHelpText</div>
-                        <div class="form-text" id="social-photo-summary" data-photo-upload-summary></div>
-                    </div>
-                    <div class="col-12">
-                        <label asp-for="UploadCaption" class="form-label">Caption for uploaded photos</label>
-                        <input asp-for="UploadCaption" class="form-control" placeholder="Optional batch caption" />
-                        <span asp-validation-for="UploadCaption" class="text-danger"></span>
-                    </div>
-                    <div class="col-12">
-                        <button type="submit" class="btn btn-outline-primary" data-social-busy-label="Uploading…">Upload photos</button>
-                    </div>
-                </form>
+            <div class="social-editor-actions">
+                <a asp-page="Details" asp-route-id="@Model.Input.Id" class="btn btn-outline-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary" data-social-busy-label="Saving changes…">
+                    <i class="bi bi-check2" aria-hidden="true"></i>Save changes
+                </button>
             </div>
-        </div>
-    </section>
+        </form>
+
+        <section class="social-editor-section social-existing-gallery" aria-labelledby="existing-photos-heading">
+            <div class="social-section-heading">
+                <div>
+                    <h2 id="existing-photos-heading">Existing photographs</h2>
+                    <p>Choose the cover photograph or remove an image.</p>
+                </div>
+                <span class="social-count-badge">@Model.PhotoGallery.Photos.Count</span>
+            </div>
+            <partial name="_PhotoGallery" model="Model.PhotoGallery" />
+        </section>
+    </div>
 </div>
 
 @section Scripts {

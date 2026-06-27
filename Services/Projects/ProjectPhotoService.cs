@@ -67,11 +67,10 @@ namespace ProjectManagement.Services.Projects
                                                  string userId,
                                                  bool setAsCover,
                                                  string? caption,
-                                                 int? totId,
                                                  CancellationToken cancellationToken)
         {
             _ = contentType;
-            return await AddInternalAsync(projectId, content, originalFileName, userId, setAsCover, caption, null, totId, cancellationToken);
+            return await AddInternalAsync(projectId, content, originalFileName, userId, setAsCover, caption, null, cancellationToken);
         }
 
         public async Task<ProjectPhoto> AddAsync(int projectId,
@@ -82,11 +81,10 @@ namespace ProjectManagement.Services.Projects
                                                  bool setAsCover,
                                                  string? caption,
                                                  ProjectPhotoCrop crop,
-                                                 int? totId,
                                                  CancellationToken cancellationToken)
         {
             _ = contentType;
-            return await AddInternalAsync(projectId, content, originalFileName, userId, setAsCover, caption, crop, totId, cancellationToken);
+            return await AddInternalAsync(projectId, content, originalFileName, userId, setAsCover, caption, crop, cancellationToken);
         }
 
         public async Task<ProjectPhoto?> ReplaceAsync(int projectId,
@@ -114,6 +112,130 @@ namespace ProjectManagement.Services.Projects
             return await ReplaceInternalAsync(projectId, photoId, content, originalFileName, userId, crop, cancellationToken);
         }
 
+        public async Task<ProjectPhoto?> UpdateAsync(int projectId,
+                                                     int photoId,
+                                                     Stream? replacementContent,
+                                                     string? originalFileName,
+                                                     string? contentType,
+                                                     ProjectPhotoCrop? crop,
+                                                     string? caption,
+                                                     bool setAsCover,
+                                                     int expectedVersion,
+                                                     string userId,
+                                                     CancellationToken cancellationToken)
+        {
+            _ = contentType;
+
+            var photo = await _db.ProjectPhotos
+                .Include(p => p.Project)
+                .FirstOrDefaultAsync(p => p.Id == photoId && p.ProjectId == projectId, cancellationToken);
+
+            if (photo is null || photo.Project is null)
+            {
+                return null;
+            }
+
+            if (expectedVersion <= 0 || photo.Version != expectedVersion)
+            {
+                throw new DbUpdateConcurrencyException("The photo was updated by someone else.");
+            }
+
+            var project = photo.Project;
+
+            ImageValidationResult? validation = null;
+            string? replacementStorageKey = null;
+            string? stagedDirectory = null;
+            var previousStorageKey = photo.StorageKey;
+
+            if (replacementContent is not null || crop.HasValue)
+            {
+                await using MemoryStream source = replacementContent is not null
+                    ? await CopyToMemoryStreamAsync(replacementContent, cancellationToken)
+                    : await LoadOriginalAsync(photo, cancellationToken);
+
+                validation = await LoadAndValidateAsync(
+                    source,
+                    originalFileName ?? photo.OriginalFileName,
+                    crop,
+                    cancellationToken);
+
+                replacementStorageKey = Guid.NewGuid().ToString("N");
+                stagedDirectory = await StageImageFilesAsync(projectId, replacementStorageKey, validation, cancellationToken);
+            }
+
+            var normalizedCaption = string.IsNullOrWhiteSpace(caption) ? null : caption.Trim();
+            var coverWillChange = setAsCover && project.CoverPhotoId != photo.Id;
+            var metadataWillChange = !string.Equals(photo.Caption, normalizedCaption, StringComparison.Ordinal) ||
+                                     photo.TotId.HasValue ||
+                                     coverWillChange;
+            var imageWillChange = validation is not null && replacementStorageKey is not null;
+
+            if (!metadataWillChange && !imageWillChange)
+            {
+                DeleteStagingDirectory(stagedDirectory);
+                return photo;
+            }
+
+            try
+            {
+                await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+
+                if (imageWillChange)
+                {
+                    PromoteStagedFiles(projectId, stagedDirectory!);
+                    photo.StorageKey = replacementStorageKey!;
+                    photo.OriginalFileName = SanitizeFileName(originalFileName ?? photo.OriginalFileName);
+                    photo.ContentType = validation!.FallbackContentType;
+                    photo.Width = validation.CroppedWidth;
+                    photo.Height = validation.CroppedHeight;
+                    photo.IsLowResolution = validation.IsLowResolution;
+                }
+
+                photo.Caption = normalizedCaption;
+                // Photo-level ToT linkage is retired; clear any legacy association on edit.
+                photo.TotId = null;
+                photo.Version += 1;
+                photo.UpdatedUtc = _clock.UtcNow.UtcDateTime;
+
+                if (coverWillChange)
+                {
+                    await _db.ProjectPhotos
+                        .Where(p => p.ProjectId == projectId && p.Id != photo.Id && p.IsCover)
+                        .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.IsCover, false), cancellationToken);
+                    photo.IsCover = true;
+                    project.CoverPhotoId = photo.Id;
+                }
+
+                if (project.CoverPhotoId == photo.Id)
+                {
+                    project.CoverPhotoVersion = photo.Version;
+                }
+
+                await _db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                if (replacementStorageKey is not null)
+                {
+                    DeleteFilesByStorageKey(projectId, replacementStorageKey);
+                }
+                throw;
+            }
+            finally
+            {
+                DeleteStagingDirectory(stagedDirectory);
+            }
+
+            if (imageWillChange)
+            {
+                DeleteFilesByStorageKey(projectId, previousStorageKey);
+            }
+
+            await TryWriteAuditAsync(() => Audit.Events.ProjectPhotoUpdated(projectId, photo.Id, userId, "PhotoUpdated").WriteAsync(_audit), "update", projectId, photo.Id);
+            return photo;
+        }
+
         public async Task<ProjectPhoto?> UpdateCaptionAsync(int projectId, int photoId, string? caption, string userId, CancellationToken cancellationToken)
         {
             var photo = await _db.ProjectPhotos.Include(p => p.Project)
@@ -137,7 +259,7 @@ namespace ProjectManagement.Services.Projects
                 await _db.SaveChangesAsync(cancellationToken);
             }
 
-            await Audit.Events.ProjectPhotoUpdated(projectId, photo.Id, userId, "CaptionUpdated").WriteAsync(_audit);
+            await TryWriteAuditAsync(() => Audit.Events.ProjectPhotoUpdated(projectId, photo.Id, userId, "CaptionUpdated").WriteAsync(_audit), "caption update", projectId, photo.Id);
 
             return photo;
         }
@@ -145,57 +267,6 @@ namespace ProjectManagement.Services.Projects
         public async Task<ProjectPhoto?> UpdateCropAsync(int projectId, int photoId, ProjectPhotoCrop crop, string userId, CancellationToken cancellationToken)
         {
             return await ReplaceInternalAsync(projectId, photoId, null, null, userId, crop, cancellationToken, reuseOriginal: true);
-        }
-
-        public async Task<ProjectPhoto?> UpdateTotAsync(int projectId, int photoId, int? totId, string userId, CancellationToken cancellationToken)
-        {
-            var photo = await _db.ProjectPhotos
-                .Include(p => p.Project)
-                .ThenInclude(p => p.Tot)
-                .FirstOrDefaultAsync(p => p.Id == photoId && p.ProjectId == projectId, cancellationToken);
-
-            if (photo == null)
-            {
-                return null;
-            }
-
-            var project = photo.Project;
-            if (project == null)
-            {
-                project = await _db.Projects
-                    .Include(p => p.Tot)
-                    .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
-                    ?? throw new InvalidOperationException("Project not found.");
-            }
-
-            if (totId.HasValue)
-            {
-                if (project.Tot is null || project.Tot.Id != totId.Value)
-                {
-                    throw new InvalidOperationException("Selected Transfer of Technology record was not found for this project.");
-                }
-
-                if (project.Tot.Status == ProjectTotStatus.NotRequired)
-                {
-                    throw new InvalidOperationException("Transfer of Technology is not required for this project.");
-                }
-            }
-
-            if (photo.TotId == totId)
-            {
-                return photo;
-            }
-
-            photo.TotId = totId;
-            photo.Version += 1;
-            photo.UpdatedUtc = _clock.UtcNow.UtcDateTime;
-
-            await _db.SaveChangesAsync(cancellationToken);
-
-            var changeType = totId.HasValue ? "TotLinked" : "TotCleared";
-            await Audit.Events.ProjectPhotoUpdated(projectId, photo.Id, userId, changeType).WriteAsync(_audit);
-
-            return photo;
         }
 
         public async Task<bool> RemoveAsync(int projectId, int photoId, string userId, CancellationToken cancellationToken)
@@ -247,7 +318,7 @@ namespace ProjectManagement.Services.Projects
 
             DeleteAllFiles(photo);
 
-            await Audit.Events.ProjectPhotoRemoved(projectId, photo.Id, userId).WriteAsync(_audit);
+            await TryWriteAuditAsync(() => Audit.Events.ProjectPhotoRemoved(projectId, photo.Id, userId).WriteAsync(_audit), "remove", projectId, photo.Id);
 
             return true;
         }
@@ -274,14 +345,13 @@ namespace ProjectManagement.Services.Projects
             {
                 var photo = photos.Single(p => p.Id == orderedPhotoIds[i]);
                 photo.Ordinal = i + 1;
-                photo.Version += 1;
                 photo.UpdatedUtc = _clock.UtcNow.UtcDateTime;
             }
 
             await _db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
-            await Audit.Events.ProjectPhotoReordered(projectId, userId, orderedPhotoIds).WriteAsync(_audit);
+            await TryWriteAuditAsync(() => Audit.Events.ProjectPhotoReordered(projectId, userId, orderedPhotoIds).WriteAsync(_audit), "reorder", projectId);
         }
 
         public async Task<(Stream Stream, string ContentType)?> OpenDerivativeAsync(int projectId,
@@ -470,26 +540,11 @@ namespace ProjectManagement.Services.Projects
                                                           bool setAsCover,
                                                           string? caption,
                                                           ProjectPhotoCrop? crop,
-                                                          int? totId,
                                                           CancellationToken cancellationToken)
         {
             var project = await _db.Projects
-                .Include(p => p.Tot)
                 .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
                 ?? throw new InvalidOperationException("Project not found.");
-
-            if (totId.HasValue)
-            {
-                if (project.Tot is null || project.Tot.Id != totId.Value)
-                {
-                    throw new InvalidOperationException("Selected Transfer of Technology record was not found for this project.");
-                }
-
-                if (project.Tot.Status == ProjectTotStatus.NotRequired)
-                {
-                    throw new InvalidOperationException("Transfer of Technology is not required for this project.");
-                }
-            }
 
             await using var copy = await CopyToMemoryStreamAsync(content, cancellationToken);
 
@@ -517,7 +572,7 @@ namespace ProjectManagement.Services.Projects
                 Height = validation.CroppedHeight,
                 Ordinal = ordinal + 1,
                 Caption = captionValue,
-                TotId = totId,
+                TotId = null,
                 IsCover = false,
                 IsLowResolution = validation.IsLowResolution,
                 CreatedUtc = now,
@@ -525,34 +580,43 @@ namespace ProjectManagement.Services.Projects
                 Version = 1
             };
 
-            await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
-
-            await WriteImageFilesAsync(projectId, storageKey, validation, cancellationToken);
-
-            _db.ProjectPhotos.Add(photo);
-            await _db.SaveChangesAsync(cancellationToken);
-
-            if (shouldSetCover)
+            var stagedDirectory = await StageImageFilesAsync(projectId, storageKey, validation, cancellationToken);
+            try
             {
-                await _db.ProjectPhotos
-                    .Where(p => p.ProjectId == projectId && p.Id != photo.Id && p.IsCover)
-                    .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.IsCover, false), cancellationToken);
+                await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+                PromoteStagedFiles(projectId, stagedDirectory);
 
-                var coverUpdatedAt = _clock.UtcNow.UtcDateTime;
-
-                photo.IsCover = true;
-                photo.Version += 1;
-                photo.UpdatedUtc = coverUpdatedAt;
-
-                project.CoverPhotoId = photo.Id;
-                project.CoverPhotoVersion = photo.Version;
-
+                _db.ProjectPhotos.Add(photo);
                 await _db.SaveChangesAsync(cancellationToken);
+
+                if (shouldSetCover)
+                {
+                    await _db.ProjectPhotos
+                        .Where(p => p.ProjectId == projectId && p.Id != photo.Id && p.IsCover)
+                        .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.IsCover, false), cancellationToken);
+
+                    var coverUpdatedAt = _clock.UtcNow.UtcDateTime;
+                    photo.IsCover = true;
+                    photo.Version += 1;
+                    photo.UpdatedUtc = coverUpdatedAt;
+                    project.CoverPhotoId = photo.Id;
+                    project.CoverPhotoVersion = photo.Version;
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
+
+                await transaction.CommitAsync(cancellationToken);
             }
-            await transaction.CommitAsync(cancellationToken);
+            catch
+            {
+                DeleteFilesByStorageKey(projectId, storageKey);
+                throw;
+            }
+            finally
+            {
+                DeleteStagingDirectory(stagedDirectory);
+            }
 
-            await Audit.Events.ProjectPhotoAdded(projectId, photo.Id, userId, photo.IsCover).WriteAsync(_audit);
-
+            await TryWriteAuditAsync(() => Audit.Events.ProjectPhotoAdded(projectId, photo.Id, userId, photo.IsCover).WriteAsync(_audit), "add", projectId, photo.Id);
             return photo;
         }
 
@@ -587,32 +651,44 @@ namespace ProjectManagement.Services.Projects
             var validation = await LoadAndValidateAsync(copy, originalFileName ?? photo.OriginalFileName, crop, cancellationToken);
 
             var now = _clock.UtcNow.UtcDateTime;
+            var previousStorageKey = photo.StorageKey;
+            var replacementStorageKey = Guid.NewGuid().ToString("N");
+            var stagedDirectory = await StageImageFilesAsync(projectId, replacementStorageKey, validation, cancellationToken);
 
-            await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
-
-            DeleteAllFiles(photo);
-            await WriteImageFilesAsync(projectId, photo.StorageKey, validation, cancellationToken);
-
-            photo.OriginalFileName = SanitizeFileName(originalFileName ?? photo.OriginalFileName);
-            photo.ContentType = validation.FallbackContentType;
-            photo.Width = validation.CroppedWidth;
-            photo.Height = validation.CroppedHeight;
-            photo.IsLowResolution = validation.IsLowResolution;
-            photo.Version += 1;
-            photo.UpdatedUtc = now;
-
-            await _db.SaveChangesAsync(cancellationToken);
-
-            if (photo.Project?.CoverPhotoId == photo.Id)
+            try
             {
-                photo.Project.CoverPhotoVersion = photo.Version;
+                await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+                PromoteStagedFiles(projectId, stagedDirectory);
+
+                photo.StorageKey = replacementStorageKey;
+                photo.OriginalFileName = SanitizeFileName(originalFileName ?? photo.OriginalFileName);
+                photo.ContentType = validation.FallbackContentType;
+                photo.Width = validation.CroppedWidth;
+                photo.Height = validation.CroppedHeight;
+                photo.IsLowResolution = validation.IsLowResolution;
+                photo.Version += 1;
+                photo.UpdatedUtc = now;
+
+                if (photo.Project?.CoverPhotoId == photo.Id)
+                {
+                    photo.Project.CoverPhotoVersion = photo.Version;
+                }
+
                 await _db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch
+            {
+                DeleteFilesByStorageKey(projectId, replacementStorageKey);
+                throw;
+            }
+            finally
+            {
+                DeleteStagingDirectory(stagedDirectory);
             }
 
-            await transaction.CommitAsync(cancellationToken);
-
-            await Audit.Events.ProjectPhotoUpdated(projectId, photo.Id, userId, reuseOriginal ? "CropUpdated" : "ImageReplaced").WriteAsync(_audit);
-
+            DeleteFilesByStorageKey(projectId, previousStorageKey);
+            await TryWriteAuditAsync(() => Audit.Events.ProjectPhotoUpdated(projectId, photo.Id, userId, reuseOriginal ? "CropUpdated" : "ImageReplaced").WriteAsync(_audit), "image update", projectId, photo.Id);
             return photo;
         }
 
@@ -630,16 +706,30 @@ namespace ProjectManagement.Services.Projects
             IImageFormat? detectedFormat = await Image.DetectFormatAsync(content, cancellationToken);
             if (detectedFormat == null)
             {
-                throw new InvalidOperationException("Unsupported or unrecognised image format.");
+                throw new InvalidOperationException("The selected file is not a supported image.");
             }
 
             if (!_options.AllowedContentTypes.Contains(detectedFormat.DefaultMimeType))
             {
-                throw new InvalidOperationException($"Image format '{detectedFormat.DefaultMimeType}' is not allowed.");
+                throw new InvalidOperationException("Use a JPEG, PNG or WebP image.");
             }
 
             content.Position = 0;
+            var imageInfo = await Image.IdentifyAsync(content, cancellationToken);
+            if (imageInfo is null)
+            {
+                throw new InvalidOperationException("The selected image could not be read.");
+            }
 
+            var pixelCount = (long)imageInfo.Width * imageInfo.Height;
+            if (imageInfo.Width > _options.MaxWidth ||
+                imageInfo.Height > _options.MaxHeight ||
+                pixelCount > _options.MaxPixelCount)
+            {
+                throw new InvalidOperationException("The image dimensions are too large. Choose a smaller image and try again.");
+            }
+
+            content.Position = 0;
             if (_virusScanner != null)
             {
                 await _virusScanner.ScanAsync(content, originalFileName, cancellationToken);
@@ -655,34 +745,60 @@ namespace ProjectManagement.Services.Projects
                 image.Metadata.IptcProfile = null;
                 image.Metadata.XmpProfile = null;
 
+                var masterHasTransparency = DetectTransparency(image);
+                var masterFile = await EncodeMasterAsync(image, masterHasTransparency, cancellationToken);
+
                 var cropRectangle = crop.HasValue
                     ? ValidateCrop(image.Width, image.Height, crop.Value)
                     : CalculateDefaultCrop(image.Width, image.Height);
 
-                image.Mutate(ctx => ctx.Crop(cropRectangle));
+                using var cropped = image.Clone(ctx => ctx.Crop(cropRectangle));
+                cropped.Metadata.ExifProfile = null;
+                cropped.Metadata.IptcProfile = null;
+                cropped.Metadata.XmpProfile = null;
 
-                var hasTransparency = DetectTransparency(image);
-                var fallbackContentType = hasTransparency ? "image/png" : "image/jpeg";
-                var isLowResolution = image.Width < LowResolutionWidthThreshold ||
-                                      image.Height < LowResolutionHeightThreshold;
+                var croppedHasTransparency = DetectTransparency(cropped);
+                var fallbackContentType = croppedHasTransparency ? "image/png" : "image/jpeg";
+                var isLowResolution = cropped.Width < LowResolutionWidthThreshold ||
+                                      cropped.Height < LowResolutionHeightThreshold;
 
-                var derivativeFiles = await GenerateDerivativesAsync(image, hasTransparency, cancellationToken);
+                var derivativeFiles = await GenerateDerivativesAsync(cropped, croppedHasTransparency, cancellationToken);
 
-                var result = new ImageValidationResult
+                return new ImageValidationResult
                 {
                     FallbackContentType = fallbackContentType,
+                    MasterFile = masterFile,
                     DerivativeFiles = derivativeFiles,
-                    CroppedWidth = image.Width,
-                    CroppedHeight = image.Height,
+                    CroppedWidth = cropped.Width,
+                    CroppedHeight = cropped.Height,
                     IsLowResolution = isLowResolution
                 };
-
-                return result;
             }
             finally
             {
                 ProcessingSemaphore.Release();
             }
+        }
+
+        private static async Task<InMemoryFile> EncodeMasterAsync(Image<Rgba32> image,
+                                                                   bool hasTransparency,
+                                                                   CancellationToken cancellationToken)
+        {
+            var stream = new MemoryStream();
+            if (hasTransparency)
+            {
+                await image.SaveAsync(stream, new PngEncoder
+                {
+                    ColorType = PngColorType.RgbWithAlpha,
+                    CompressionLevel = PngCompressionLevel.BestCompression
+                }, cancellationToken);
+                stream.Position = 0;
+                return new InMemoryFile(stream, ".png", "image/png");
+            }
+
+            await image.SaveAsync(stream, new JpegEncoder { Quality = 95 }, cancellationToken);
+            stream.Position = 0;
+            return new InMemoryFile(stream, ".jpg", "image/jpeg");
         }
 
         private async Task<Dictionary<string, DerivativeSet>> GenerateDerivativesAsync(Image<Rgba32> image,
@@ -726,7 +842,7 @@ namespace ProjectManagement.Services.Projects
                     {
                         var pngEncoder = new PngEncoder
                         {
-                            ColorType = PngColorType.Rgb,
+                            ColorType = PngColorType.RgbWithAlpha,
                             CompressionLevel = PngCompressionLevel.BestCompression
                         };
 
@@ -761,62 +877,122 @@ namespace ProjectManagement.Services.Projects
             return map;
         }
 
-        private async Task WriteImageFilesAsync(int projectId,
-                                                string storageKey,
-                                                ImageValidationResult validation,
-                                                CancellationToken cancellationToken)
+        private async Task<string> StageImageFilesAsync(int projectId,
+                                                        string storageKey,
+                                                        ImageValidationResult validation,
+                                                        CancellationToken cancellationToken)
         {
-            var directory = BuildProjectDirectory(projectId);
-            Directory.CreateDirectory(directory);
+            var projectDirectory = BuildProjectDirectory(projectId);
+            var stagingDirectory = Path.Combine(projectDirectory, ".staging", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(stagingDirectory);
 
-            foreach (var kvp in validation.DerivativeFiles)
+            try
             {
-                await WriteDerivativeFileAsync(directory, storageKey, kvp.Key, kvp.Value.Webp, cancellationToken);
-                await WriteDerivativeFileAsync(directory, storageKey, kvp.Key, kvp.Value.Fallback, cancellationToken);
+                await WriteInMemoryFileAsync(
+                    Path.Combine(stagingDirectory, $"{storageKey}-master{validation.MasterFile.Extension}"),
+                    validation.MasterFile,
+                    cancellationToken);
+
+                foreach (var kvp in validation.DerivativeFiles)
+                {
+                    await WriteInMemoryFileAsync(
+                        Path.Combine(stagingDirectory, $"{storageKey}-{kvp.Key}{kvp.Value.Webp.Extension}"),
+                        kvp.Value.Webp,
+                        cancellationToken);
+                    await WriteInMemoryFileAsync(
+                        Path.Combine(stagingDirectory, $"{storageKey}-{kvp.Key}{kvp.Value.Fallback.Extension}"),
+                        kvp.Value.Fallback,
+                        cancellationToken);
+                }
+
+                return stagingDirectory;
+            }
+            catch
+            {
+                DeleteStagingDirectory(stagingDirectory);
+                throw;
             }
         }
 
-        private static async Task WriteDerivativeFileAsync(string directory,
-                                                            string storageKey,
-                                                            string sizeKey,
-                                                            InMemoryFile file,
-                                                            CancellationToken cancellationToken)
+        private void PromoteStagedFiles(int projectId, string stagingDirectory)
         {
-            var path = Path.Combine(directory, $"{storageKey}-{sizeKey}{file.Extension}");
+            var destinationDirectory = BuildProjectDirectory(projectId);
+            Directory.CreateDirectory(destinationDirectory);
+
+            foreach (var sourcePath in Directory.EnumerateFiles(stagingDirectory))
+            {
+                var destinationPath = Path.Combine(destinationDirectory, Path.GetFileName(sourcePath));
+                File.Move(sourcePath, destinationPath, overwrite: false);
+            }
+        }
+
+        private static async Task WriteInMemoryFileAsync(string path,
+                                                         InMemoryFile file,
+                                                         CancellationToken cancellationToken)
+        {
             file.Stream.Position = 0;
-            await using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
+            await using var fs = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true);
             await file.Stream.CopyToAsync(fs, cancellationToken);
+            await fs.FlushAsync(cancellationToken);
             file.Stream.Dispose();
+        }
+
+        private void DeleteFilesByStorageKey(int projectId, string storageKey)
+        {
+            var directory = BuildProjectDirectory(projectId);
+            if (!Directory.Exists(directory))
+            {
+                return;
+            }
+
+            foreach (var path in Directory.EnumerateFiles(directory, $"{storageKey}-*"))
+            {
+                TryDeleteFile(path, null);
+            }
+        }
+
+        private void DeleteStagingDirectory(string? stagingDirectory)
+        {
+            if (string.IsNullOrWhiteSpace(stagingDirectory) || !Directory.Exists(stagingDirectory))
+            {
+                return;
+            }
+
+            try
+            {
+                Directory.Delete(stagingDirectory, recursive: true);
+                var parent = Directory.GetParent(stagingDirectory)?.FullName;
+                if (!string.IsNullOrWhiteSpace(parent) && Directory.Exists(parent) && !Directory.EnumerateFileSystemEntries(parent).Any())
+                {
+                    Directory.Delete(parent);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _logger.LogWarning(ex, "Failed to clean photo staging directory {Directory}", stagingDirectory);
+            }
+        }
+
+        private void TryDeleteFile(string path, int? photoId)
+        {
+            if (!File.Exists(path))
+            {
+                return;
+            }
+
+            try
+            {
+                File.Delete(path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _logger.LogWarning(ex, "Failed to delete photo file {Path} for photo {PhotoId}", path, photoId);
+            }
         }
 
         private void DeleteAllFiles(ProjectPhoto photo)
         {
-            foreach (var key in _options.Derivatives.Keys)
-            {
-                var directory = BuildProjectDirectory(photo.ProjectId);
-                var basePath = Path.Combine(directory, $"{photo.StorageKey}-{key}");
-                foreach (var extension in new[] { ".webp", ".jpg", ".jpeg", ".png" })
-                {
-                    var path = $"{basePath}{extension}";
-                    if (!File.Exists(path))
-                    {
-                        continue;
-                    }
-
-                    try
-                    {
-                        File.Delete(path);
-                    }
-                    catch (IOException ex)
-                    {
-                        _logger.LogWarning(ex, "Failed to delete derivative {Path} for photo {PhotoId}", path, photo.Id);
-                    }
-                    catch (UnauthorizedAccessException ex)
-                    {
-                        _logger.LogWarning(ex, "Access denied deleting derivative {Path} for photo {PhotoId}", path, photo.Id);
-                    }
-                }
-            }
+            DeleteFilesByStorageKey(photo.ProjectId, photo.StorageKey);
         }
 
         private string BuildProjectDirectory(int projectId)
@@ -901,17 +1077,49 @@ namespace ProjectManagement.Services.Projects
 
         private async Task<MemoryStream> LoadOriginalAsync(ProjectPhoto photo, CancellationToken cancellationToken)
         {
-            var path = GetDerivativePath(photo, "xl", preferWebp: true);
+            var directory = BuildProjectDirectory(photo.ProjectId);
+            var masterCandidates = new[]
+            {
+                Path.Combine(directory, $"{photo.StorageKey}-master.png"),
+                Path.Combine(directory, $"{photo.StorageKey}-master.jpg"),
+                Path.Combine(directory, $"{photo.StorageKey}-master.jpeg"),
+                Path.Combine(directory, $"{photo.StorageKey}-master.webp")
+            };
+
+            var path = masterCandidates.FirstOrDefault(File.Exists);
+            if (path is null)
+            {
+                // Backward compatibility for photographs uploaded before master preservation was introduced.
+                path = GetDerivativePath(photo, "xl", preferWebp: true);
+            }
+
             if (!File.Exists(path))
             {
-                throw new FileNotFoundException("Original derivative not found for recropping.", path);
+                throw new FileNotFoundException("The source image is not available for recropping.", path);
             }
 
             var ms = new MemoryStream();
-            await using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            await using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
             await fs.CopyToAsync(ms, cancellationToken);
             ms.Position = 0;
             return ms;
+        }
+
+
+        private async Task TryWriteAuditAsync(Func<Task> writeAudit, string operation, int projectId, int? photoId = null)
+        {
+            try
+            {
+                await writeAudit();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Photo {Operation} completed but audit logging failed for project {ProjectId}, photo {PhotoId}",
+                    operation,
+                    projectId,
+                    photoId);
+            }
         }
 
         private static string SanitizeFileName(string fileName)
@@ -932,6 +1140,8 @@ namespace ProjectManagement.Services.Projects
         private sealed record ImageValidationResult
         {
             public string FallbackContentType { get; init; } = "image/jpeg";
+
+            public InMemoryFile MasterFile { get; init; } = null!;
 
             public Dictionary<string, DerivativeSet> DerivativeFiles { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 

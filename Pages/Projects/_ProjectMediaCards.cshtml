@@ -1,84 +1,278 @@
+@using System.Globalization
 @using System.Linq
+@using ProjectManagement.ViewModels
 @model ProjectManagement.Pages.Projects.OverviewModel
 @{
     var media = Model.MediaSummary;
     var projectId = Model.Project.Id;
+
+    var documentPreview = Model.DocumentList.Groups
+        .SelectMany(group => group.Items)
+        .Where(item => !item.IsRemoved)
+        .Take(3)
+        .ToList();
+
+    var videoPreview = Model.VideoPreviewItems.Take(2).ToList();
+
+    const int maxPhotoPreviewCount = 8;
+    var photoPreview = new List<(string Url, string Alt, bool IsCover)>();
+    var includedPhotoIds = new HashSet<int>();
+    if (media.CoverPhoto is not null && !string.IsNullOrWhiteSpace(media.CoverPhotoUrl))
+    {
+        photoPreview.Add((media.CoverPhotoUrl!, media.CoverPhoto.Caption ?? "Project cover photograph", true));
+        includedPhotoIds.Add(media.CoverPhoto.Id);
+    }
+
+    foreach (var photo in media.PreviewPhotos)
+    {
+        if (photoPreview.Count >= maxPhotoPreviewCount)
+        {
+            break;
+        }
+
+        if (!includedPhotoIds.Add(photo.Id))
+        {
+            continue;
+        }
+
+        var photoUrl = Url.Page("/Projects/Photos/View", new
+        {
+            id = projectId,
+            photoId = photo.Id,
+            size = "sm",
+            v = photo.Version
+        });
+
+        if (!string.IsNullOrWhiteSpace(photoUrl))
+        {
+            photoPreview.Add((photoUrl!, photo.Caption ?? "Project photograph", false));
+        }
+    }
+
+    var remainingPhotos = Math.Max(0, media.PhotoCount - photoPreview.Count);
+
+    string CountLabel(int count, string singular, string plural) => $"{count} {(count == 1 ? singular : plural)}";
+    var documentCountLabel = CountLabel(media.DocumentCount, "document", "documents");
+    var photoCountLabel = CountLabel(media.PhotoCount, "photo", "photos");
+    var videoCountLabel = CountLabel(media.VideoCount, "video", "videos");
+
+    string FormatDuration(TimeSpan duration)
+    {
+        return duration.TotalHours >= 1
+            ? duration.ToString("h\\:mm\\:ss", CultureInfo.InvariantCulture)
+            : duration.ToString("m\\:ss", CultureInfo.InvariantCulture);
+    }
 }
+
 <span id="media" class="page-anchor"></span>
-<div class="row g-3 project-media-cards">
-    <div class="col-md-6">
-        <section class="card pm-card h-100 project-media-card">
-            <div class="card-header pm-card-header">
-                <div class="pm-card-heading">
-                    <span class="pm-card-icon"><i class="bi bi-file-earmark-text"></i></span>
-                    <div><h3 class="pm-card-title h5 mb-0">Documents</h3><p class="pm-card-subtitle mb-0">Approved project records and submissions.</p></div>
-                </div>
-                <span class="project-media-count">@media.DocumentCount</span>
-            </div>
-            <div class="card-body">
-                <div class="project-media-summary">
-                    <strong>@media.DocumentCount document@(media.DocumentCount == 1 ? "" : "s")</strong>
-                    @if (media.PendingDocumentCount > 0)
-                    { <span class="text-warning-emphasis">@media.PendingDocumentCount awaiting approval</span> }
-                    else { <span class="text-muted">No document approvals pending</span> }
-                </div>
-                <div class="project-media-actions">
-                    <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Overview" asp-route-id="@projectId" asp-fragment="media">View documents</a>
-                    @if (Model.CanUploadDocuments)
-                    { <a class="btn btn-sm btn-primary" asp-page="/Projects/Documents/UploadRequest" asp-route-id="@projectId">Upload</a> }
-                </div>
-            </div>
-        </section>
-    </div>
-    <div class="col-md-6">
-        <section class="card pm-card h-100 project-media-card">
-            <div class="card-header pm-card-header">
-                <div class="pm-card-heading">
-                    <span class="pm-card-icon"><i class="bi bi-images"></i></span>
-                    <div><h3 class="pm-card-title h5 mb-0">Photos</h3><p class="pm-card-subtitle mb-0">Cover and project gallery.</p></div>
-                </div>
-                <span class="project-media-count">@media.PhotoCount</span>
-            </div>
-            <div class="card-body">
-                @if (media.PreviewPhotos.Count > 0)
-                {
-                    <div class="project-photo-strip">
-                        @foreach (var photo in media.PreviewPhotos.Take(3))
-                        {
-                            <img src="@Url.Page("/Projects/Photos/View", new { id = projectId, photoId = photo.Id, v = photo.Version })" alt="@(photo.Caption ?? "Project photograph")" loading="lazy" />
-                        }
-                    </div>
-                }
-                else
-                { <div class="project-media-empty"><i class="bi bi-image"></i><span>No photos uploaded</span></div> }
-                <div class="project-media-actions">
-                    <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Photos/Index" asp-route-id="@projectId">View gallery</a>
-                    @if (Model.CanManagePhotos)
-                    { <a class="btn btn-sm btn-primary" asp-page="/Projects/Photos/Upload" asp-route-id="@projectId">Upload</a> }
-                </div>
-            </div>
-        </section>
-    </div>
-    <div class="col-12">
-        <section class="card pm-card project-media-card project-media-card--video">
-            <div class="card-header pm-card-header">
-                <div class="pm-card-heading">
-                    <span class="pm-card-icon"><i class="bi bi-play-btn"></i></span>
-                    <div><h3 class="pm-card-title h5 mb-0">Videos</h3><p class="pm-card-subtitle mb-0">Demonstrations, trials and project highlights.</p></div>
-                </div>
-                <span class="project-media-count">@media.VideoCount</span>
-            </div>
-            <div class="card-body project-video-summary">
+<div class="project-media-stack">
+    <section class="card pm-card project-media-card project-media-card--documents">
+        <div class="card-header pm-card-header">
+            <div class="pm-card-heading">
+                <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-file-earmark-text"></i></span>
                 <div>
-                    <strong>@media.VideoCount video@(media.VideoCount == 1 ? "" : "s")</strong>
-                    <span class="text-muted d-block">Open the video library to view or manage project recordings.</span>
-                </div>
-                <div class="project-media-actions mt-0">
-                    <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Videos/Index" asp-route-id="@projectId">View videos</a>
-                    @if (Model.CanManageVideos)
-                    { <a class="btn btn-sm btn-primary" asp-page="/Projects/Videos/Upload" asp-route-id="@projectId">Upload</a> }
+                    <h3 class="pm-card-title h5 mb-0">Documents</h3>
+                    <p class="pm-card-subtitle mb-0">Approved project records and submissions.</p>
                 </div>
             </div>
-        </section>
-    </div>
+            <span class="project-media-count" aria-label="@documentCountLabel">@media.DocumentCount</span>
+        </div>
+
+        <div class="card-body">
+            @if (documentPreview.Count > 0)
+            {
+                <div class="project-document-preview" role="list" aria-label="Recent project documents">
+                    @foreach (var document in documentPreview)
+                    {
+                        <a class="project-document-preview__row"
+                           href="@(document.PreviewUrl ?? Url.Page("/Projects/Overview", new { id = projectId }))"
+                           role="listitem">
+                            <span class="project-document-preview__icon" aria-hidden="true">
+                                <i class="bi bi-file-earmark-text"></i>
+                            </span>
+                            <span class="project-document-preview__content">
+                                <strong title="@document.Title">@document.Title</strong>
+                                <span>
+                                    @document.StageDisplayName
+                                    @if (!string.IsNullOrWhiteSpace(document.MetadataSummary))
+                                    {
+                                        <span aria-hidden="true"> · </span>@document.MetadataSummary
+                                    }
+                                </span>
+                            </span>
+                            <i class="bi bi-chevron-right project-document-preview__chevron" aria-hidden="true"></i>
+                        </a>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="project-media-empty project-media-empty--compact">
+                    <span class="project-media-empty__icon" aria-hidden="true"><i class="bi bi-file-earmark-plus"></i></span>
+                    <span>
+                        <strong>No published project documents yet</strong>
+                        <small>Published records, reports and lifecycle documents will appear here.</small>
+                    </span>
+                </div>
+            }
+
+            <div class="project-media-footer">
+                <div class="project-media-context">
+                    @if (Model.CanUploadDocuments && media.PendingDocumentCount > 0)
+                    {
+                        <span class="badge text-bg-warning">@media.PendingDocumentCount awaiting approval</span>
+                    }
+                    else if (media.DocumentCount > 0)
+                    {
+                        <span class="text-muted">Showing the latest @documentPreview.Count of @media.DocumentCount</span>
+                    }
+                </div>
+                <div class="project-media-actions">
+                    <a class="btn btn-sm btn-outline-primary"
+                       asp-page="/Projects/Documents/Index"
+                       asp-route-id="@projectId">View all documents</a>
+                    @if (Model.CanUploadDocuments)
+                    {
+                        <a class="btn btn-sm btn-primary" asp-page="/Projects/Documents/UploadRequest" asp-route-id="@projectId">
+                            <i class="bi bi-upload me-1" aria-hidden="true"></i>Upload document
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="card pm-card project-media-card project-media-card--photos">
+        <div class="card-header pm-card-header">
+            <div class="pm-card-heading">
+                <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-images"></i></span>
+                <div>
+                    <h3 class="pm-card-title h5 mb-0">Photos</h3>
+                    <p class="pm-card-subtitle mb-0">Cover image and project gallery.</p>
+                </div>
+            </div>
+            <span class="project-media-count" aria-label="@photoCountLabel">@media.PhotoCount</span>
+        </div>
+
+        <div class="card-body">
+            @if (photoPreview.Count > 0)
+            {
+                <div class="project-photo-grid" aria-label="Project photo preview">
+                    @for (var index = 0; index < photoPreview.Count; index++)
+                    {
+                        var photo = photoPreview[index];
+                        var showRemaining = index == photoPreview.Count - 1 && remainingPhotos > 0;
+                        <a class="project-photo-grid__item"
+                           asp-page="/Projects/Photos/Index"
+                           asp-route-id="@projectId"
+                           aria-label="View photo @(index + 1) of @media.PhotoCount in the project gallery">
+                            <img src="@photo.Url" alt="@photo.Alt" loading="lazy" />
+                            @if (photo.IsCover)
+                            {
+                                <span class="project-photo-grid__cover">Cover</span>
+                            }
+                            @if (showRemaining)
+                            {
+                                <span class="project-photo-grid__more">+@remainingPhotos</span>
+                            }
+                        </a>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="project-media-empty project-media-empty--compact">
+                    <span class="project-media-empty__icon" aria-hidden="true"><i class="bi bi-image"></i></span>
+                    <span>
+                        <strong>No project photos uploaded</strong>
+                        <small>Add a cover image and photographs from development, trials or demonstrations.</small>
+                    </span>
+                </div>
+            }
+
+            <div class="project-media-footer">
+                <div class="project-media-context">
+                    @if (media.PhotoCount > 0)
+                    {
+                        <span class="text-muted">Showing @photoPreview.Count of @photoCountLabel</span>
+                    }
+                </div>
+                <div class="project-media-actions">
+                    <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Photos/Index" asp-route-id="@projectId">View all photos</a>
+                    @if (Model.CanManagePhotos)
+                    {
+                        <a class="btn btn-sm btn-primary" asp-page="/Projects/Photos/Upload" asp-route-id="@projectId">
+                            <i class="bi bi-upload me-1" aria-hidden="true"></i>Upload photo
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="card pm-card project-media-card project-media-card--videos">
+        <div class="card-header pm-card-header">
+            <div class="pm-card-heading">
+                <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-play-btn"></i></span>
+                <div>
+                    <h3 class="pm-card-title h5 mb-0">Videos</h3>
+                    <p class="pm-card-subtitle mb-0">Demonstrations, trials and project highlights.</p>
+                </div>
+            </div>
+            <span class="project-media-count" aria-label="@videoCountLabel">@media.VideoCount</span>
+        </div>
+
+        <div class="card-body">
+            @if (videoPreview.Count > 0)
+            {
+                <div class="project-video-preview" role="list" aria-label="Recent project videos">
+                    @foreach (var video in videoPreview)
+                    {
+                        <a class="project-video-preview__item"
+                           asp-page="/Projects/Videos/Index"
+                           asp-route-id="@projectId"
+                           role="listitem">
+                            <span class="project-video-preview__thumb">
+                                <img src="@video.ThumbnailUrl" alt="" loading="lazy" />
+                                <span class="project-video-preview__play" aria-hidden="true"><i class="bi bi-play-fill"></i></span>
+                                @if (video.Duration.HasValue)
+                                {
+                                    <span class="project-video-preview__duration">@FormatDuration(video.Duration.Value)</span>
+                                }
+                            </span>
+                            <span class="project-video-preview__title" title="@video.Title">@video.Title</span>
+                        </a>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="project-media-empty project-media-empty--compact">
+                    <span class="project-media-empty__icon" aria-hidden="true"><i class="bi bi-camera-video"></i></span>
+                    <span>
+                        <strong>No project videos uploaded</strong>
+                        <small>Add recordings of demonstrations, trials and key project milestones.</small>
+                    </span>
+                </div>
+            }
+
+            <div class="project-media-footer">
+                <div class="project-media-context">
+                    @if (media.VideoCount > 0)
+                    {
+                        <span class="text-muted">Showing @videoPreview.Count of @videoCountLabel</span>
+                    }
+                </div>
+                <div class="project-media-actions">
+                    <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Videos/Index" asp-route-id="@projectId">View all videos</a>
+                    @if (Model.CanManageVideos)
+                    {
+                        <a class="btn btn-sm btn-primary" asp-page="/Projects/Videos/Upload" asp-route-id="@projectId">
+                            <i class="bi bi-upload me-1" aria-hidden="true"></i>Upload video
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+    </section>
 </div>

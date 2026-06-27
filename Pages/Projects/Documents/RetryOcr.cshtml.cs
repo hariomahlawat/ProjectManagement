@@ -10,6 +10,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Documents;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Pages.Projects.Documents;
 
@@ -52,7 +53,7 @@ public class RetryOcrModel : PageModel
             return NotFound();
         }
 
-        if (!UserCanManageDocuments(project, userId))
+        if (!ProjectAccessGuard.CanManageProjectDocuments(project, _userContext.User, userId))
         {
             return Forbid();
         }
@@ -88,26 +89,4 @@ public class RetryOcrModel : PageModel
         return RedirectToPage("../Overview", new { id });
     }
 
-    // SECTION: Helpers
-    private bool UserCanManageDocuments(Project project, string userId)
-    {
-        if (User.IsInRole("Admin"))
-        {
-            return true;
-        }
-
-        if (User.IsInRole("Project Officer") &&
-            string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (User.IsInRole("HoD") &&
-            string.Equals(project.HodUserId, userId, StringComparison.Ordinal))
-        {
-            return true;
-        }
-
-        return false;
-    }
 }

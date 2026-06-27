@@ -1,110 +1,270 @@
 @page "/Projects/{id:int}/Photos"
 @model ProjectManagement.Pages.Projects.Photos.IndexModel
+@using System.Linq
 @{
     ViewData["Title"] = $"Photos – {Model.Project.Name}";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h1 class="mb-0">Project Photos</h1>
-        <p class="text-muted mb-0">Manage the images for this project.</p>
-    </div>
-    <div class="d-flex gap-2">
-        <a class="btn btn-outline-secondary"
-           asp-page="./Reorder"
-           asp-route-id="@Model.Project.Id"
-           aria-label="Reorder photos for @Model.Project.Name">Reorder</a>
-        <a class="btn btn-primary" asp-page="./Upload" asp-route-id="@Model.Project.Id">Upload Photo</a>
-    </div>
-</div>
+<div class="container-xl project-photo-page project-photo-library">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-page="/Projects/Index">Projects</a></li>
+            <li class="breadcrumb-item"><a asp-page="/Projects/Overview" asp-route-id="@Model.Project.Id">@Model.Project.Name</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Photos</li>
+        </ol>
+    </nav>
 
-@if (!Model.Photos.Any())
-{
-    <div class="alert alert-info">No photos have been uploaded for this project yet.</div>
-}
-else
-{
-    <div class="table-responsive">
-        <table class="table align-middle">
-            <thead>
-                <tr>
-                    <th scope="col">Preview</th>
-                    <th scope="col">Caption</th>
-                    <th scope="col">Ordinal</th>
-                    <th scope="col">Cover</th>
-                    <th scope="col" class="text-end">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-            @foreach (var photo in Model.Photos)
-            {
-                var accessibleDescription = !string.IsNullOrWhiteSpace(photo.Caption)
-                    ? $"photo titled {photo.Caption}"
-                    : $"photo in position {photo.Ordinal}";
-                <tr>
-                    <td class="project-photo-list__preview">
-                        @{ 
-                            var previewSm = Url.Page("./View", new { id = Model.Project.Id, photoId = photo.Id, size = "sm" });
-                            var previewMd = Url.Page("./View", new { id = Model.Project.Id, photoId = photo.Id, size = "md" });
-                            var previewSrcSet = string.Join(", ", new[]
+    <header class="project-photo-library__header">
+        <div>
+            <a asp-page="/Projects/Overview" asp-route-id="@Model.Project.Id" asp-fragment="media" class="project-photo-page__back">
+                <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to project
+            </a>
+            <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                <h1 class="mb-0">Project photos</h1>
+                <span class="project-photo-library__count">@Model.Photos.Count</span>
+            </div>
+            <p class="project-photo-page__project mb-1">@Model.Project.Name</p>
+            <p class="text-muted mb-0">
+                @(Model.CanManage
+                    ? "View the gallery, update captions and arrange the display order."
+                    : "Photographs from the project record.")
+            </p>
+        </div>
+        @if (Model.CanManage)
+        {
+            <a class="btn btn-primary" asp-page="./Upload" asp-route-id="@Model.Project.Id">
+                <i class="bi bi-plus-lg" aria-hidden="true"></i> Upload photo
+            </a>
+        }
+    </header>
+
+    @if (TempData.ContainsKey("Flash"))
+    {
+        <div class="alert alert-success" role="status">@TempData["Flash"]</div>
+    }
+    else if (TempData.ContainsKey("Error"))
+    {
+        <div class="alert alert-danger" role="alert">@TempData["Error"]</div>
+    }
+
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+    @if (!Model.Photos.Any())
+    {
+        <section class="card pm-card project-photo-library-empty">
+            <div class="card-body">
+                <span class="project-photo-library-empty__icon" aria-hidden="true"><i class="bi bi-images"></i></span>
+                <h2>No project photos yet</h2>
+                <p>Photos added to this project will appear here.</p>
+                @if (Model.CanManage)
+                {
+                    <a class="btn btn-primary" asp-page="./Upload" asp-route-id="@Model.Project.Id">
+                        <i class="bi bi-upload" aria-hidden="true"></i> Upload first photo
+                    </a>
+                }
+            </div>
+        </section>
+    }
+    else if (Model.CanManage)
+    {
+        <form method="post" asp-page-handler="Reorder" class="project-photo-order-form" data-photo-order-form>
+            <input asp-for="Input.ProjectId" type="hidden" />
+            <input asp-for="Input.RowVersion" type="hidden" />
+            <input asp-for="Input.GalleryVersion" type="hidden" />
+
+            <section class="card pm-card project-photo-gallery-card">
+                <div class="card-header project-photo-gallery-card__header">
+                    <div>
+                        <h2>Photo gallery</h2>
+                        @if (Model.CanReorder)
+                        {
+                            <p id="photo-reorder-instructions">Drag a handle to change the order. On a phone, use the left and right buttons.</p>
+                        }
+                        else
+                        {
+                            <p id="photo-reorder-instructions">Add another photo to arrange the gallery order.</p>
+                        }
+                    </div>
+                    @if (Model.CanReorder)
+                    {
+                        <span class="project-photo-order-status" data-photo-order-indicator>Order unchanged</span>
+                    }
+                </div>
+
+                <div class="card-body">
+                    <div data-photo-reorder-root>
+                        <ul class="pm-photo-grid project-photo-management-grid"
+                            data-photo-reorder
+                            aria-label="Project photos in display order"
+                            aria-describedby="photo-reorder-instructions">
+                            @for (var index = 0; index < Model.Input.Items.Count; index++)
                             {
-                                $"{previewSm} 1x",
-                                $"{previewMd} 2x"
-                            });
-                        }
-                        <picture>
-                            <source type="image/webp" srcset="@previewSrcSet" />
-                            <img src="@previewSm"
-                                 srcset="@previewSrcSet"
-                                 alt="Project photo preview"
-                                 class="img-thumbnail project-photo-list__thumbnail" />
-                        </picture>
-                    </td>
-                    <td>
-                        @if (!string.IsNullOrWhiteSpace(photo.Caption))
-                        {
-                            <div>@photo.Caption</div>
-                        }
-                        else
-                        {
-                            <span class="text-muted">No caption</span>
-                        }
-                        @if (photo.TotId.HasValue)
-                        {
-                            <div class="mt-1">
-                                <span class="badge text-bg-info">Transfer of Technology</span>
-                            </div>
-                        }
-                    </td>
-                    <td>@photo.Ordinal</td>
-                    <td>
-                        @if (photo.IsCover)
-                        {
-                            <span class="badge bg-success">Cover</span>
-                        }
-                        else
-                        {
-                            <span class="text-muted">—</span>
-                        }
-                    </td>
-                    <td class="text-end">
-                        <a class="btn btn-sm btn-outline-primary" asp-page="./Edit" asp-route-id="@Model.Project.Id" asp-route-photoId="@photo.Id">Edit</a>
-                        <form method="post" asp-page-handler="Remove" class="d-inline">
-                            <input type="hidden" name="photoId" value="@photo.Id" />
-                            <input type="hidden" name="rowVersion" value="@Model.ProjectRowVersion" />
-                            <button type="submit"
-                                    class="btn btn-sm btn-outline-danger"
-                                    data-confirm="Are you sure you want to remove this photo?"
-                                    aria-label="Remove @accessibleDescription from @Model.Project.Name">Remove</button>
-                        </form>
-                    </td>
-                </tr>
+                                var item = Model.Input.Items[index];
+                                var photo = Model.Photos.First(candidate => candidate.Id == item.PhotoId);
+                                var caption = string.IsNullOrWhiteSpace(photo.Caption) ? "No caption" : photo.Caption;
+                                var accessibleCaption = string.IsNullOrWhiteSpace(photo.Caption) ? $"Photo {index + 1}" : photo.Caption;
+                                var photoUrl = Url.Page("./View", new { id = Model.Project.Id, photoId = photo.Id, size = "xl", v = photo.Version });
+                                var previewUrl = Url.Page("./View", new { id = Model.Project.Id, photoId = photo.Id, size = "sm", v = photo.Version });
+                                var isCover = photo.IsCover || Model.Project.CoverPhotoId == photo.Id;
+                                var removeTitle = isCover ? "Remove cover photo?" : "Remove photo?";
+                                var removeMessage = isCover
+                                    ? "This is the current project cover. The next photograph will become the cover, or the project will have no cover if this is the only photo."
+                                    : "This photograph will be permanently removed from the project gallery.";
+
+                                <li class="pm-photo-grid-item project-photo-management-card"
+                                    data-photo-item
+                                    data-photo-id="@photo.Id"
+                                    data-photo-caption="@accessibleCaption">
+                                    <div class="project-photo-management-card__media">
+                                        <a href="@photoUrl" target="_blank" rel="noopener" aria-label="Open @accessibleCaption in a new tab">
+                                            <img src="@previewUrl" alt="@accessibleCaption" loading="lazy" />
+                                        </a>
+                                        @if (isCover)
+                                        {
+                                            <span class="pm-photo-cover-badge">Cover</span>
+                                        }
+                                        <span class="project-photo-position" data-photo-position-label>Position @item.Ordinal</span>
+                                        @if (Model.CanReorder)
+                                        {
+                                            <button type="button"
+                                                    class="project-photo-drag-handle"
+                                                    data-photo-drag-handle
+                                                    aria-label="Move @accessibleCaption. Current position @item.Ordinal"
+                                                    aria-describedby="photo-reorder-instructions">
+                                                <i class="bi bi-grip-vertical" aria-hidden="true"></i>
+                                            </button>
+                                            <div class="project-photo-mobile-order" aria-label="Move @accessibleCaption">
+                                                <button type="button" class="btn btn-sm btn-light" data-photo-move="previous" aria-label="Move @accessibleCaption left">
+                                                    <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-light" data-photo-move="next" aria-label="Move @accessibleCaption right">
+                                                    <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                                                </button>
+                                            </div>
+                                        }
+                                    </div>
+
+                                    <input asp-for="Input.Items[index].PhotoId" type="hidden" />
+                                    <input asp-for="Input.Items[index].Ordinal" type="hidden" data-photo-ordinal />
+
+                                    <div class="project-photo-management-card__body">
+                                        <p class="project-photo-management-card__caption" title="@caption">@caption</p>
+                                        <div class="project-photo-management-card__meta">
+                                            <span>@photo.Width × @photo.Height px</span>
+                                            @if (photo.IsLowResolution)
+                                            {
+                                                <span class="badge rounded-pill text-bg-warning">Low resolution</span>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <div class="project-photo-management-card__actions">
+                                        <a class="btn btn-sm btn-outline-primary"
+                                           asp-page="./Edit"
+                                           asp-route-id="@Model.Project.Id"
+                                           asp-route-photoId="@photo.Id">
+                                            <i class="bi bi-pencil" aria-hidden="true"></i> Edit
+                                        </a>
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-danger"
+                                                data-remove-photo
+                                                data-remove-form="remove-photo-@photo.Id"
+                                                data-remove-title="@removeTitle"
+                                                data-remove-message="@removeMessage"
+                                                aria-label="Remove @accessibleCaption from @Model.Project.Name">
+                                            <i class="bi bi-trash" aria-hidden="true"></i> Remove
+                                        </button>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                        <div class="visually-hidden" role="status" aria-live="polite" data-photo-reorder-status></div>
+                    </div>
+
+                    <noscript>
+                        <div class="alert alert-info mt-3 mb-0">
+                            To change the order without JavaScript, use the
+                            <a asp-page="./Reorder" asp-route-id="@Model.Project.Id">numbered reorder page</a>.
+                        </div>
+                    </noscript>
+                </div>
+            </section>
+
+            @if (Model.CanReorder)
+            {
+                <div class="project-photo-actions project-photo-actions--library" data-photo-order-actions hidden>
+                    <button type="button" class="btn btn-outline-secondary" data-photo-order-reset>Discard changes</button>
+                    <button type="submit" class="btn btn-primary" data-photo-order-save disabled>
+                        <i class="bi bi-check2" aria-hidden="true"></i> Save photo order
+                    </button>
+                </div>
             }
-            </tbody>
-        </table>
-    </div>
+        </form>
+
+        @foreach (var photo in Model.Photos)
+        {
+            <form id="remove-photo-@photo.Id" method="post" asp-page-handler="Remove" class="d-none">
+                <input type="hidden" name="photoId" value="@photo.Id" />
+                <input type="hidden" name="photoVersion" value="@photo.Version" />
+                <input type="hidden" name="rowVersion" value="@Model.ProjectRowVersion" />
+            </form>
+        }
+
+        <dialog class="project-photo-confirm-dialog" data-photo-remove-dialog aria-labelledby="remove-photo-title" aria-describedby="remove-photo-message">
+            <form method="dialog">
+                <div class="project-photo-confirm-dialog__icon" aria-hidden="true"><i class="bi bi-trash"></i></div>
+                <h2 id="remove-photo-title" data-photo-remove-title>Remove photo?</h2>
+                <p id="remove-photo-message" data-photo-remove-message>This photograph will be removed.</p>
+                <div class="project-photo-confirm-dialog__actions">
+                    <button value="cancel" class="btn btn-outline-secondary">Cancel</button>
+                    <button value="confirm" class="btn btn-danger" data-photo-remove-confirm>Remove photo</button>
+                </div>
+            </form>
+        </dialog>
+    }
+    else
+    {
+        <section class="card pm-card project-photo-gallery-card">
+            <div class="card-header project-photo-gallery-card__header">
+                <div>
+                    <h2>Photo gallery</h2>
+                    <p>Select a photograph to open the full image.</p>
+                </div>
+            </div>
+            <div class="card-body">
+                <ul class="pm-photo-grid project-photo-management-grid project-photo-management-grid--readonly" aria-label="Project photo gallery">
+                    @for (var index = 0; index < Model.Photos.Count; index++)
+                    {
+                        var photo = Model.Photos[index];
+                        var accessibleCaption = string.IsNullOrWhiteSpace(photo.Caption) ? $"Photo {index + 1}" : photo.Caption;
+                        var photoUrl = Url.Page("./View", new { id = Model.Project.Id, photoId = photo.Id, size = "xl", v = photo.Version });
+                        var previewUrl = Url.Page("./View", new { id = Model.Project.Id, photoId = photo.Id, size = "sm", v = photo.Version });
+                        var isCover = photo.IsCover || Model.Project.CoverPhotoId == photo.Id;
+                        <li class="pm-photo-grid-item project-photo-management-card">
+                            <div class="project-photo-management-card__media">
+                                <a href="@photoUrl" target="_blank" rel="noopener" aria-label="Open @accessibleCaption in a new tab">
+                                    <img src="@previewUrl" alt="@accessibleCaption" loading="lazy" />
+                                </a>
+                                @if (isCover)
+                                {
+                                    <span class="pm-photo-cover-badge">Cover</span>
+                                }
+                            </div>
+                            <div class="project-photo-management-card__body">
+                                <p class="project-photo-management-card__caption">@(string.IsNullOrWhiteSpace(photo.Caption) ? "No caption" : photo.Caption)</p>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </section>
+    }
+</div>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/project-photos.css" asp-append-version="true" />
 }
 
-<div class="mt-4">
-    <a asp-page="/Projects/Overview" asp-route-id="@Model.Project.Id" class="btn btn-link">Back to project overview</a>
-</div>
+@section Scripts {
+    <script src="~/js/widgets/project-photo-reorder.js" asp-append-version="true"></script>
+}

@@ -49,7 +49,6 @@
         string[] suffixes = { "bytes", "KB", "MB", "GB" };
         double value = bytes;
         var suffixIndex = 0;
-
         while (value >= 1024 && suffixIndex < suffixes.Length - 1)
         {
             value /= 1024;
@@ -61,131 +60,233 @@
             : FormattableString.Invariant($"{value:0.#} {suffixes[suffixIndex]}");
     }
 
-    var allowedFormats = (photoOptions.AllowedContentTypes?.AsEnumerable() ?? Enumerable.Empty<string>())
+    var allowedContentTypes = photoOptions.AllowedContentTypes?.ToList() ?? new List<string>();
+    var allowedFormats = allowedContentTypes
         .Select(FormatContentType)
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .OrderBy(format => format)
         .ToList();
     var readableFormats = ToReadableList(allowedFormats);
-    var allowedFormatsText = string.IsNullOrEmpty(readableFormats)
-        ? "No formats configured"
-        : readableFormats;
+    var allowedFormatsText = string.IsNullOrEmpty(readableFormats) ? "configured image formats" : readableFormats;
     var maxFileSizeText = FormatFileSize(photoOptions.MaxFileSizeBytes);
+    var allowedContentTypesValue = string.Join(",", allowedContentTypes);
+    var currentCoverUrl = Model.CurrentCoverPhoto is null
+        ? null
+        : Url.Page("./View", new { id = Model.Project.Id, photoId = Model.CurrentCoverPhoto.Id, size = "sm", v = Model.CurrentCoverPhoto.Version });
 }
 
-<h1 class="mb-4">Upload Project Photo</h1>
+<div class="container-xl project-photo-page">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-page="/Projects/Index">Projects</a></li>
+            <li class="breadcrumb-item"><a asp-page="/Projects/Overview" asp-route-id="@Model.Project.Id">@Model.Project.Name</a></li>
+            <li class="breadcrumb-item"><a asp-page="./Index" asp-route-id="@Model.Project.Id">Photos</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Upload</li>
+        </ol>
+    </nav>
 
-<form method="post" enctype="multipart/form-data">
-    <input asp-for="Input.ProjectId" type="hidden" />
-    <input asp-for="Input.RowVersion" type="hidden" />
-    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+    <header class="project-photo-page__header">
+        <a asp-page="./Index" asp-route-id="@Model.Project.Id" class="project-photo-page__back">
+            <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to photos
+        </a>
+        <h1>Upload project photo</h1>
+        <p class="project-photo-page__project">@Model.Project.Name</p>
+        <p class="text-muted mb-0">Add a project image, choose its use and confirm how it will appear across PRISM.</p>
+    </header>
 
-    <div class="mb-3">
-        <label asp-for="Input.File" class="form-label">Photo</label>
-        <input asp-for="Input.File" class="form-control" type="file" accept="image/*" />
-        <span asp-validation-for="Input.File" class="text-danger"></span>
-        <div class="form-text">
-            Supported formats: @allowedFormatsText.
-            Maximum file size: @maxFileSizeText.
-            For best results, use a clear photo such as one taken on a recent smartphone; very small or blurry images may look soft when enlarged.
-        </div>
-    </div>
+    <form method="post"
+          enctype="multipart/form-data"
+          class="project-photo-form"
+          data-photo-upload-form
+          data-max-file-size="@photoOptions.MaxFileSizeBytes"
+          data-allowed-content-types="@allowedContentTypesValue">
+        <input asp-for="Input.ProjectId" type="hidden" />
+        <input asp-for="Input.RowVersion" type="hidden" />
 
-    <div class="mb-3">
-        <label asp-for="Input.Caption" class="form-label">Caption (optional)</label>
-        <textarea asp-for="Input.Caption" class="form-control" rows="3"></textarea>
-        <span asp-validation-for="Input.Caption" class="text-danger"></span>
-    </div>
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
-    @if (Model.Project.Tot is not null)
-    {
-        <div class="mb-3">
-            <label class="form-label">Transfer of Technology</label>
-            @if (Model.AllowTotLinking)
-            {
-                <div class="form-check">
-                    <input asp-for="Input.LinkToTot" class="form-check-input" />
-                    <label asp-for="Input.LinkToTot" class="form-check-label">Link this photo to Transfer of Technology work</label>
+        <section class="card pm-card project-photo-section">
+            <div class="card-header project-photo-section__header">
+                <div>
+                    <h2>Choose photo</h2>
+                    <p>Select one clear image. You can replace it before uploading.</p>
                 </div>
-                <div class="form-text">Current status: @Model.TotStatusDisplay.</div>
-                <span asp-validation-for="Input.LinkToTot" class="text-danger"></span>
-            }
-            else
-            {
-                <p class="form-text mb-0">Transfer of Technology is @Model.TotStatusDisplay for this project.</p>
-            }
-        </div>
-    }
-
-    <div class="form-check mb-3">
-        <input asp-for="Input.SetAsCover"
-               class="form-check-input"
-               aria-label="Set this uploaded photo as the cover image for @Model.Project.Name" />
-        <label asp-for="Input.SetAsCover" class="form-check-label">Set as cover photo</label>
-    </div>
-
-    <fieldset class="border rounded p-3 mb-3">
-        <legend class="float-none w-auto fs-6 px-2">Crop &amp; preview</legend>
-        @* SECTION: Non-JavaScript fallback guidance. *@
-        <p class="text-muted small project-photo-editor__fallback">JavaScript is disabled, so the photo will be uploaded as-is without interactive cropping.</p>
-        <div class="project-photo-editor"
-             data-photo-editor
-             data-photo-editor-input="#Input_File"
-             aria-describedby="project-photo-editor-placeholder project-photo-preview-helper">
-            <div class="project-photo-editor__canvas">
-                <img data-photo-editor-image alt="Selected photo ready for cropping" />
+                <span class="project-photo-step">1</span>
             </div>
-            <div class="d-flex flex-column gap-3">
-                @* SECTION: Freeform crop guidance. *@
-                <p class="text-muted mb-0 project-photo-editor__placeholder"
-                   id="project-photo-editor-placeholder"
-                   data-photo-editor-placeholder>Select a photo to enable cropping. Keep the crop selection within the photo bounds.</p>
-                <div class="project-photo-preview-grid" data-photo-editor-previews aria-describedby="project-photo-preview-helper">
-                    <div class="project-photo-preview-item">
-                        <div class="project-photo-preview-frame" data-photo-editor-preview="xl" data-width="@coverOptions.Width" data-height="@coverOptions.Height">
-                            <img alt="Cover preview" />
-                            <span class="pm-photo-cover-badge">Cover</span>
-                        </div>
-                        <div class="project-photo-preview-label">Cover (@coverOptions.Width × @coverOptions.Height)</div>
+            <div class="card-body">
+                <input asp-for="Input.File"
+                       class="visually-hidden"
+                       type="file"
+                       accept="@allowedContentTypesValue"
+                       data-photo-file-input />
+
+                <label for="Input_File" class="project-photo-dropzone" data-photo-dropzone tabindex="0">
+                    <span class="project-photo-dropzone__icon" aria-hidden="true"><i class="bi bi-cloud-arrow-up"></i></span>
+                    <strong>Drag and drop a photo here</strong>
+                    <span>or choose a file from this device</span>
+                    <small>@allowedFormatsText · Maximum @maxFileSizeText</small>
+                </label>
+
+                <div class="project-photo-file-summary" data-photo-file-summary hidden>
+                    <span class="project-photo-file-summary__icon" aria-hidden="true"><i class="bi bi-image"></i></span>
+                    <div class="project-photo-file-summary__body">
+                        <strong data-photo-file-name>Selected photo</strong>
+                        <span data-photo-file-meta></span>
                     </div>
-                    <div class="project-photo-preview-item">
-                        <div class="project-photo-preview-frame" data-photo-editor-preview="md" data-width="@largeOptions.Width" data-height="@largeOptions.Height">
-                            <img alt="Large preview" />
-                        </div>
-                        <div class="project-photo-preview-label">Large (@largeOptions.Width × @largeOptions.Height)</div>
-                    </div>
-                    <div class="project-photo-preview-item">
-                        <div class="project-photo-preview-frame" data-photo-editor-preview="sm" data-width="@thumbOptions.Width" data-height="@thumbOptions.Height">
-                            <img alt="Thumbnail preview" />
-                        </div>
-                        <div class="project-photo-preview-label">Thumbnail (@thumbOptions.Width × @thumbOptions.Height)</div>
+                    <div class="project-photo-file-summary__actions">
+                        <label for="Input_File" class="btn btn-sm btn-outline-primary mb-0">Replace</label>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-photo-file-remove>Remove</button>
                     </div>
                 </div>
-                <p class="text-muted small mb-0" id="project-photo-preview-helper">The selection drives the cover, large, and thumbnail previews. Keep the crop within the image bounds so each derived size stays filled.</p>
-            </div>
 
-            <input asp-for="Input.CropX" type="hidden" data-photo-editor-field="x" />
-            <input asp-for="Input.CropY" type="hidden" data-photo-editor-field="y" />
-            <input asp-for="Input.CropWidth" type="hidden" data-photo-editor-field="width" />
-            <input asp-for="Input.CropHeight" type="hidden" data-photo-editor-field="height" />
-        </div>
+                <div class="alert alert-danger mt-3 mb-0" role="alert" data-photo-file-error hidden></div>
+                <span asp-validation-for="Input.File" class="text-danger d-block mt-2"></span>
+            </div>
+        </section>
+
         <noscript>
+            <div class="alert alert-info">
+                Select the photo using the file field below. Cropping will be skipped.
+            </div>
             <style>
-                .project-photo-editor { display: none !important; }
-                .project-photo-editor__fallback { display: block !important; }
+                #Input_File { position: static !important; width: 100% !important; height: auto !important; clip: auto !important; white-space: normal !important; overflow: visible !important; }
+                [data-photo-dropzone], [data-photo-file-summary] { display: none !important; }
             </style>
         </noscript>
-    </fieldset>
 
-    <button type="submit" class="btn btn-primary">Upload</button>
-    <a asp-page="./Index" asp-route-id="@Model.Project.Id" class="btn btn-link">Cancel</a>
-</form>
+        <section class="card pm-card project-photo-section">
+            <div class="card-header project-photo-section__header">
+                <div>
+                    <h2>Add details</h2>
+                    <p>Add a caption and choose whether this should be the project cover.</p>
+                </div>
+                <span class="project-photo-step">2</span>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <label asp-for="Input.Caption" class="form-label">Caption <span class="text-muted fw-normal">(optional)</span></label>
+                    <textarea asp-for="Input.Caption" class="form-control" rows="3" maxlength="512" placeholder="Describe the activity, milestone, trial or equipment shown."></textarea>
+                    <div class="form-text">A concise caption makes the gallery easier to understand and search.</div>
+                    <span asp-validation-for="Input.Caption" class="text-danger"></span>
+                </div>
+
+                <div class="project-photo-use-grid">
+                    <div class="project-photo-use-option">
+                        <div class="form-check form-switch">
+                            <input asp-for="Input.SetAsCover" class="form-check-input" data-photo-cover-toggle />
+                            <label asp-for="Input.SetAsCover" class="form-check-label">
+                                <strong>Use as project cover</strong>
+                                <span>Show this image in the project header, cards and overview.</span>
+                            </label>
+                        </div>
+
+                        @if (Model.HasCurrentCoverPhoto && currentCoverUrl is not null)
+                        {
+                            <div class="project-photo-current-cover">
+                                <img src="@currentCoverUrl" alt="Current project cover photo" />
+                                <div>
+                                    <strong>Current cover</strong>
+                                    <span>@(string.IsNullOrWhiteSpace(Model.CurrentCoverPhoto!.Caption) ? "No caption" : Model.CurrentCoverPhoto.Caption)</span>
+                                </div>
+                            </div>
+                            <div class="alert alert-warning project-photo-cover-warning mb-0" data-photo-cover-warning hidden>
+                                <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                                <span>This upload will replace the current project cover. The existing photo will remain in the gallery.</span>
+                            </div>
+                        }
+                    </div>
+
+
+                </div>
+            </div>
+        </section>
+
+        <section class="card pm-card project-photo-section project-photo-crop-section" data-photo-crop-section hidden>
+            <div class="card-header project-photo-section__header">
+                <div>
+                    <h2>Check how it looks</h2>
+                    <p>PRISM will resize the photo automatically. Adjust it only if an important part is cut off.</p>
+                </div>
+                <span class="project-photo-step">3</span>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small project-photo-editor__fallback">JavaScript is disabled, so the photo will be uploaded without interactive cropping.</p>
+                <div class="project-photo-editor"
+                     data-photo-editor
+                     data-photo-editor-input="#Input_File"
+                     aria-describedby="project-photo-preview-helper">
+                    <div class="project-photo-editor__toolbar">
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-sm project-photo-editor__toggle"
+                                data-photo-editor-toggle
+                                aria-expanded="false"
+                                aria-controls="project-photo-editor-canvas">
+                            <span class="project-photo-editor__toggle-icon" aria-hidden="true"></span>
+                            <span data-photo-editor-toggle-label>Adjust photo</span>
+                        </button>
+                    </div>
+
+                    <div class="project-photo-editor__canvas" id="project-photo-editor-canvas">
+                        <img data-photo-editor-image alt="Selected project photo" />
+                    </div>
+
+                    <div class="project-photo-editor__sidebar">
+                        <p class="text-muted mb-0 project-photo-editor__placeholder" data-photo-editor-placeholder>Preparing the image editor…</p>
+                        <div class="project-photo-preview-grid" data-photo-editor-previews>
+                            <div class="project-photo-preview-item">
+                                <div class="project-photo-preview-frame" data-photo-editor-preview="xl" data-width="@coverOptions.Width" data-height="@coverOptions.Height">
+                                    <img alt="Cover preview" />
+                                    <span class="pm-photo-cover-badge">Cover</span>
+                                </div>
+                                <div class="project-photo-preview-label">Project cover</div>
+                            </div>
+                            <div class="project-photo-preview-item">
+                                <div class="project-photo-preview-frame" data-photo-editor-preview="md" data-width="@largeOptions.Width" data-height="@largeOptions.Height">
+                                    <img alt="Gallery preview" />
+                                </div>
+                                <div class="project-photo-preview-label">Gallery</div>
+                            </div>
+                            <div class="project-photo-preview-item">
+                                <div class="project-photo-preview-frame" data-photo-editor-preview="sm" data-width="@thumbOptions.Width" data-height="@thumbOptions.Height">
+                                    <img alt="Thumbnail preview" />
+                                </div>
+                                <div class="project-photo-preview-label">Thumbnail</div>
+                            </div>
+                        </div>
+                        <p class="text-muted small mb-0" id="project-photo-preview-helper">Move or resize the box to keep the important part visible.</p>
+                    </div>
+
+                    <input asp-for="Input.CropX" type="hidden" data-photo-editor-field="x" />
+                    <input asp-for="Input.CropY" type="hidden" data-photo-editor-field="y" />
+                    <input asp-for="Input.CropWidth" type="hidden" data-photo-editor-field="width" />
+                    <input asp-for="Input.CropHeight" type="hidden" data-photo-editor-field="height" />
+                </div>
+                <noscript>
+                    <style>
+                        .project-photo-editor { display: none !important; }
+                        .project-photo-editor__fallback { display: block !important; }
+                    </style>
+                </noscript>
+            </div>
+        </section>
+
+        <div class="project-photo-actions">
+            <a asp-page="./Index" asp-route-id="@Model.Project.Id" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary" data-photo-submit data-busy-label="Uploading…">
+                <i class="bi bi-upload" aria-hidden="true"></i> Upload photo
+            </button>
+        </div>
+    </form>
+</div>
 
 @section Styles {
     <link rel="stylesheet" href="~/lib/cropperjs/dist/cropper.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/project-photos.css" asp-append-version="true" />
 }
 
 @section Scripts {
+    <partial name="_ValidationScriptsPartial" />
     <script src="~/lib/cropperjs/dist/cropper.js" asp-append-version="true"></script>
-    <script src="~/js/widgets/project-photo-gallery.js" asp-append-version="true"></script>
+    <script src="~/js/widgets/project-photo-editor.js" asp-append-version="true"></script>
+    <script src="~/js/pages/project-photo-upload.js" asp-append-version="true"></script>
 }

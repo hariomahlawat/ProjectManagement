@@ -37,7 +37,7 @@ function logNotebookRequest(url, method, headers, body) {
     url,
     method,
     contentType: headers.get("Content-Type"),
-    hasAntiForgeryToken: headers.has("RequestVerificationToken"),
+    hasAntiForgeryToken: headers.has("X-CSRF-TOKEN"),
     hasBody: body !== void 0 && body !== null
   });
 }
@@ -176,7 +176,7 @@ async function request(url, options = {}) {
   if (hasBody && !isFormData && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json; charset=utf-8");
   }
-  if (isUnsafeMethod(method)) headers.set("RequestVerificationToken", getAntiForgeryToken());
+  if (isUnsafeMethod(method)) headers.set("X-CSRF-TOKEN", getAntiForgeryToken());
   logNotebookRequest(url, method, headers, options.body);
   let response;
   try {

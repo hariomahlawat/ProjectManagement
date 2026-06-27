@@ -2224,7 +2224,7 @@
         buildHeaders() {
             const headers = { 'Content-Type': 'application/json' };
             if (this.tokenInput && this.tokenInput.value) {
-                headers.RequestVerificationToken = this.tokenInput.value;
+                headers['X-CSRF-TOKEN'] = this.tokenInput.value;
             }
 
             return headers;

@@ -43,7 +43,7 @@ public class StreamModel : PageModel
             return NotFound();
         }
 
-        if (!ProjectAccessGuard.CanViewProject(project, _userContext.User, userId))
+        if (!ProjectAccessGuard.CanViewProjectMedia(project, _userContext.User))
         {
             return Forbid();
         }
@@ -61,7 +61,7 @@ public class StreamModel : PageModel
         var headers = Response.GetTypedHeaders();
         headers.CacheControl = new CacheControlHeaderValue
         {
-            Public = true,
+            Private = true,
             MaxAge = TimeSpan.FromDays(7)
         };
         headers.ETag = etagValue;

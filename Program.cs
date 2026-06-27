@@ -232,6 +232,21 @@ builder.Services.AddAuthorization(options =>
 
 });
 
+builder.Services.AddAntiforgery(options =>
+{
+    // SECTION: App-specific antiforgery cookie prevents collisions with other localhost apps.
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.Name = builder.Environment.IsDevelopment()
+        ? "PMAntiforgery"
+        : "__Host-PMAntiforgery";
+    options.Cookie.Path = "/";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
+    options.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Strict;
+});
+
 builder.Services.ConfigureApplicationCookie(options =>
 {
     // SECTION: Environment-aware authentication cookie and API redirect behaviour.
@@ -491,9 +506,11 @@ builder.Services.AddScoped<StageDirectApplyService>();
 builder.Services.AddScoped<StageBackfillService>();
 builder.Services.AddScoped<StageActualsUpdateService>();
 builder.Services.AddScoped<StageDecisionService>();
+builder.Services.AddScoped<StageApprovalSequenceService>();
 builder.Services.AddScoped<PlanSnapshotService>();
 builder.Services.AddScoped<PlanCompareService>();
 builder.Services.AddScoped<IApprovalQueueService, ApprovalQueueService>();
+builder.Services.AddScoped<RepositoryDocumentDeleteApprovalService>();
 builder.Services.AddScoped<ApprovalDecisionService>();
 builder.Services.AddScoped<ProjectFactsService>();
 builder.Services.AddScoped<ProjectFactsReadService>();
@@ -507,7 +524,6 @@ builder.Services.AddScoped<ProjectTotTrackerReadService>();
 builder.Services.AddScoped<ProliferationTrackerReadService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<ProjectRemarksPanelService>();
-builder.Services.AddScoped<ProjectMediaAggregator>();
 builder.Services.AddSingleton<IMarkdownRenderer, MarkdownRenderer>();
 builder.Services.AddScoped<ProjectModerationService>();
 builder.Services.AddScoped<IRemarkService, RemarkService>();
@@ -963,6 +979,26 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 app.UseRouting();
+
+// SECTION: Antiforgery header compatibility
+// The application standard is X-CSRF-TOKEN. Older JavaScript modules still send
+// RequestVerificationToken; copy that value only when the canonical header is absent.
+// This preserves existing AJAX workflows while clients are migrated incrementally.
+app.Use(async (context, next) =>
+{
+    const string canonicalHeader = "X-CSRF-TOKEN";
+    const string legacyHeader = "RequestVerificationToken";
+
+    if (!context.Request.Headers.ContainsKey(canonicalHeader)
+        && context.Request.Headers.TryGetValue(legacyHeader, out var legacyToken)
+        && legacyToken.Count > 0
+        && !string.IsNullOrWhiteSpace(legacyToken[0]))
+    {
+        context.Request.Headers[canonicalHeader] = legacyToken;
+    }
+
+    await next();
+});
 
 app.UseRateLimiter();
 
@@ -2247,7 +2283,7 @@ app.MapGet("/Projects/Documents/View", async (
         return Results.NotFound();
     }
 
-    if (!ProjectAccessGuard.CanViewProject(document.Project, principal, userId))
+    if (!ProjectAccessGuard.CanViewProjectInformation(document.Project, principal))
     {
         return Results.Forbid();
     }
@@ -2368,7 +2404,7 @@ app.MapGet("/Projects/Documents/Download", async (
         return Results.NotFound();
     }
 
-    if (!ProjectAccessGuard.CanViewProject(document.Project, principal, userId))
+    if (!ProjectAccessGuard.CanViewProjectInformation(document.Project, principal))
     {
         return Results.Forbid();
     }

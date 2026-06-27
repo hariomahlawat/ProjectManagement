@@ -28,8 +28,15 @@ public sealed class WorkspaceProjectRecordHealthServiceTests
         });
         project.ProjectStages.Add(new ProjectStage
         {
-            StageCode = StageCodes.IPA,
+            StageCode = StageCodes.SOW,
             SortOrder = 2,
+            Status = StageStatus.Completed,
+            CompletedOn = new DateOnly(2026, 1, 20)
+        });
+        project.ProjectStages.Add(new ProjectStage
+        {
+            StageCode = StageCodes.IPA,
+            SortOrder = 3,
             Status = StageStatus.NotStarted,
             PlannedStart = new DateOnly(2026, 2, 1),
             PlannedDue = new DateOnly(2026, 2, 15)
@@ -56,8 +63,22 @@ public sealed class WorkspaceProjectRecordHealthServiceTests
         var project = NewProject();
         project.ProjectStages.Add(new ProjectStage
         {
-            StageCode = StageCodes.IPA,
+            StageCode = StageCodes.FS,
             SortOrder = 1,
+            Status = StageStatus.Completed,
+            CompletedOn = new DateOnly(2025, 12, 20)
+        });
+        project.ProjectStages.Add(new ProjectStage
+        {
+            StageCode = StageCodes.SOW,
+            SortOrder = 2,
+            Status = StageStatus.Completed,
+            CompletedOn = new DateOnly(2025, 12, 28)
+        });
+        project.ProjectStages.Add(new ProjectStage
+        {
+            StageCode = StageCodes.IPA,
+            SortOrder = 3,
             Status = StageStatus.Completed,
             ActualStart = new DateOnly(2026, 1, 1),
             CompletedOn = new DateOnly(2026, 1, 3)
@@ -65,7 +86,7 @@ public sealed class WorkspaceProjectRecordHealthServiceTests
         project.ProjectStages.Add(new ProjectStage
         {
             StageCode = StageCodes.AON,
-            SortOrder = 2,
+            SortOrder = 4,
             Status = StageStatus.Completed,
             ActualStart = new DateOnly(2026, 1, 4),
             CompletedOn = new DateOnly(2026, 1, 5)
@@ -73,7 +94,7 @@ public sealed class WorkspaceProjectRecordHealthServiceTests
         project.ProjectStages.Add(new ProjectStage
         {
             StageCode = StageCodes.BM,
-            SortOrder = 3,
+            SortOrder = 5,
             Status = StageStatus.NotStarted,
             PlannedStart = new DateOnly(2026, 1, 6),
             PlannedDue = new DateOnly(2026, 1, 20)
@@ -140,6 +161,43 @@ public sealed class WorkspaceProjectRecordHealthServiceTests
         Assert.Equal(66, health.HealthPercent);
         Assert.Contains(health.GapDetails, gap => gap.Code == "CURRENT_STAGE_PDC" && gap.FieldLabel == "FS — PDC");
         Assert.DoesNotContain(health.GapDetails, gap => gap.Code == "CURRENT_STAGE_ACTUAL_START");
+    }
+
+
+    [Fact]
+    public async Task CoreProfileGap_UsesProjectOfficerUpdateRouteForAssignedOfficer()
+    {
+        await using var db = CreateContext();
+        var project = NewProject();
+        project.Description = null;
+        project.LeadPoUserId = "po-1";
+
+        db.Projects.Add(project);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.CalculateForProjectsAsync(new[] { project }, "PO-1", default);
+        var gap = Assert.Single(result[project.Id].GapDetails.Where(item => item.Code == "PROJECT_DESCRIPTION"));
+
+        Assert.Equal($"/Projects/Meta/Request/{project.Id}", gap.ActionUrl);
+    }
+
+    [Fact]
+    public async Task CoreProfileGap_UsesDirectEditRouteForHodOrAdminContext()
+    {
+        await using var db = CreateContext();
+        var project = NewProject();
+        project.Description = null;
+        project.LeadPoUserId = "po-1";
+
+        db.Projects.Add(project);
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.CalculateForProjectsAsync(new[] { project }, "hod-1", default);
+        var gap = Assert.Single(result[project.Id].GapDetails.Where(item => item.Code == "PROJECT_DESCRIPTION"));
+
+        Assert.Equal($"/Projects/Meta/Edit/{project.Id}", gap.ActionUrl);
     }
 
     private static ProjectRecordHealthService CreateService(ApplicationDbContext db)

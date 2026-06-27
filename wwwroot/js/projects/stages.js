@@ -76,7 +76,7 @@
     };
 
     if (token) {
-      headers.RequestVerificationToken = token;
+      headers['X-CSRF-TOKEN'] = token;
     }
 
     let requestUrl = path;
@@ -758,6 +758,12 @@
           } else {
             showToast('Unable to update the stage right now.', 'danger');
           }
+          resetControls();
+          return;
+        }
+
+        if (response.status === 400) {
+          showToast('The security token is no longer valid. Refresh the page and try again.', 'warning');
           resetControls();
           return;
         }

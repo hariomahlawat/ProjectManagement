@@ -6,9 +6,11 @@
 <ul class="navbar-nav ms-auto">
 @if (SignInManager.IsSignedIn(User))
 {
-    var name = User.Identity?.Name ?? "User";
+    var identityName = User.Identity?.Name;
+    var name = string.IsNullOrWhiteSpace(identityName) ? "User" : identityName.Trim();
     var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
     var initials = parts.Length >= 2 ? $"{parts[0][0]}{parts[^1][0]}" : $"{name[0]}";
+    var logoutUrl = Url.Page("/Account/Logout", new { area = "Identity" }) ?? "/Identity/Account/Logout";
     <li class="nav-item dropdown">
         <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             <span class="avatar me-2 text-uppercase">@initials</span>
@@ -22,7 +24,9 @@
             }
             <li><hr class="dropdown-divider" /></li>
             <li>
-                <form asp-area="Identity" asp-page="/Account/Logout" asp-route-returnUrl="~/" method="post">
+                <form method="post" action="@logoutUrl">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="returnUrl" value="/" />
                     <button type="submit" class="dropdown-item">Sign out</button>
                 </form>
             </li>

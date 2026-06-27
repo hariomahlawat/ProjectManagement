@@ -17,8 +17,7 @@ public partial class OverviewModel
                 IsAdmin = Roles.IsAdmin,
                 IsHoD = Roles.IsHoD,
                 IsAssignedProjectOfficer = Roles.IsAssignedProjectOfficer,
-                IsAssignedHoD = Roles.IsAssignedHoD,
-                CanEditTimeline = (Roles.IsAdmin || Roles.IsAssignedProjectOfficer || Roles.IsAssignedHoD) && !planLocked
+                CanEditTimeline = (Roles.IsAdmin || Roles.IsHoD || Roles.IsAssignedProjectOfficer) && !planLocked
             };
         }
     }

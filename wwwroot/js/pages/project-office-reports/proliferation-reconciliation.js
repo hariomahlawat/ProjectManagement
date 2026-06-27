@@ -134,7 +134,7 @@
     const headers = { 'Content-Type': 'application/json' };
     const token = getAntiforgeryToken();
     if (token) {
-      headers.RequestVerificationToken = token;
+      headers['X-CSRF-TOKEN'] = token;
     }
 
     setButtonBusy(button, true);

@@ -167,7 +167,7 @@ namespace ProjectManagement.Pages.Projects
 
             foreach (var item in items)
             {
-                item.Selected = string.Equals(item.Value, selectedValue, StringComparison.Ordinal);
+                item.Selected = string.Equals(item.Value, selectedValue, StringComparison.OrdinalIgnoreCase);
             }
 
             if (items.All(i => !i.Selected))
@@ -198,7 +198,7 @@ namespace ProjectManagement.Pages.Projects
             string? previousPoUserId,
             string? actorUserId)
         {
-            if (string.Equals(previousPoUserId, project.LeadPoUserId, StringComparison.Ordinal))
+            if (string.Equals(previousPoUserId, project.LeadPoUserId, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }

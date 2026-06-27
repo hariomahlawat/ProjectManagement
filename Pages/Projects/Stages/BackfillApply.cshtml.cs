@@ -86,8 +86,9 @@ public class BackfillApplyModel : PageModel
             return ValidationFailure(new[] { "At least one stage update must be provided." });
         }
 
-        var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? User?.Identity?.Name
+        var principal = User;
+        var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? principal.Identity?.Name
             ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(userId))
@@ -95,7 +96,7 @@ public class BackfillApplyModel : PageModel
             return Forbid();
         }
 
-        var isAdminOrHod = User.IsInRole(RoleNames.Admin) || User.IsInRole(RoleNames.HoD);
+        var isAdminOrHod = principal.IsInRole(RoleNames.Admin) || principal.IsInRole(RoleNames.HoD);
         if (!isAdminOrHod)
         {
             var isAssignedProjectOfficer = await _db.Projects
@@ -152,6 +153,19 @@ public class BackfillApplyModel : PageModel
             {
                 ok = false,
                 error = "not-found"
+            });
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(ex,
+                "Database rejected stage backfill for project {ProjectId}. Ensure the latest ProjectStages constraint migration has been applied.",
+                input.ProjectId);
+
+            return StatusCode(StatusCodes.Status409Conflict, new
+            {
+                ok = false,
+                error = "database-rule-conflict",
+                message = "The stage dates could not be saved because the database rules are out of date. Apply the latest database migration and try again."
             });
         }
         catch (OperationCanceledException)

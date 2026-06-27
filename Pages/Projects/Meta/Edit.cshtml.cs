@@ -132,10 +132,6 @@ public class EditModel : PageModel
             return Forbid();
         }
 
-        var principal = _userContext.User;
-        var isAdmin = principal.IsInRole("Admin");
-        var isHoD = principal.IsInRole("HoD");
-
         var project = await _db.Projects
             .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
 
@@ -146,11 +142,6 @@ public class EditModel : PageModel
 
         IsLegacyProject = project.IsLegacy;
 
-        if (isHoD && !isAdmin &&
-            !string.Equals(project.HodUserId, userId, StringComparison.OrdinalIgnoreCase))
-        {
-            return Forbid();
-        }
 
         var trimmedName = Input.Name.Trim();
         var trimmedDescription = string.IsNullOrWhiteSpace(Input.Description) ? null : Input.Description.Trim();

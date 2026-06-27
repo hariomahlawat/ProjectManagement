@@ -107,36 +107,29 @@ public sealed class ProjectRemarksPanelService
             };
         }
 
-        var userRoles = await _users.GetRolesAsync(user);
-        var remarkRoleSet = userRoles
+        var persistedRoles = await _users.GetRolesAsync(user);
+        var principalRoles = userPrincipal
+            .FindAll(ClaimTypes.Role)
+            .Select(claim => claim.Value);
+
+        var remarkRoleSet = persistedRoles
+            .Concat(principalRoles)
             .Select(role => RemarkActorRoleExtensions.TryParse(role, out var parsed) ? parsed : RemarkActorRole.Unknown)
             .Where(role => role != RemarkActorRole.Unknown)
             .ToHashSet();
 
-        var viewerOnly = false;
-
-        if (remarkRoleSet.Count == 0)
+        var isAssignedProjectOfficer = !string.IsNullOrWhiteSpace(project.LeadPoUserId)
+            && string.Equals(project.LeadPoUserId, user.Id, StringComparison.OrdinalIgnoreCase);
+        if (!isAssignedProjectOfficer)
         {
-            const RemarkActorRole fallbackRole = RemarkActorRole.ProjectOfficer;
+            remarkRoleSet.Remove(RemarkActorRole.ProjectOfficer);
+        }
 
-            if (!string.IsNullOrWhiteSpace(project.LeadPoUserId)
-                && string.Equals(project.LeadPoUserId, user.Id, StringComparison.Ordinal))
-            {
-                remarkRoleSet.Add(fallbackRole);
-            }
-
-            if (!string.IsNullOrWhiteSpace(project.HodUserId)
-                && string.Equals(project.HodUserId, user.Id, StringComparison.Ordinal))
-            {
-                remarkRoleSet.Add(RemarkActorRole.HeadOfDepartment);
-            }
-
-            if (remarkRoleSet.Count == 0
-                && ProjectAccessGuard.CanViewProject(project, userPrincipal, user.Id))
-            {
-                remarkRoleSet.Add(fallbackRole);
-                viewerOnly = true;
-            }
+        var viewerOnly = false;
+        if (remarkRoleSet.Count == 0 && ProjectAccessGuard.CanViewProject(project, userPrincipal, user.Id))
+        {
+            remarkRoleSet.Add(RemarkActorRole.ProjectOfficer);
+            viewerOnly = true;
         }
 
         var remarkRoles = remarkRoleSet.ToList();
@@ -150,7 +143,7 @@ public sealed class ProjectRemarksPanelService
         var canPostAsMco = !viewerOnly && remarkRoleSet.Contains(RemarkActorRole.Mco);
         var canPostAsPo = !viewerOnly && remarkRoleSet.Contains(RemarkActorRole.ProjectOfficer)
             && !string.IsNullOrWhiteSpace(project.LeadPoUserId)
-            && string.Equals(project.LeadPoUserId, user.Id, StringComparison.Ordinal);
+            && string.Equals(project.LeadPoUserId, user.Id, StringComparison.OrdinalIgnoreCase);
 
         var showComposer = !viewerOnly && (canPostAsHoDOrAbove || canPostAsMco || canPostAsPo);
         var allowExternal = !viewerOnly && canPostAsHoDOrAbove;

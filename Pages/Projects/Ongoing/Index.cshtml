@@ -543,16 +543,32 @@ else
 
                         <!-- SECTION: Complete lifecycle timeline -->
                         <section class="briefing-timeline" aria-label="Project lifecycle timeline">
-                            <div class="briefing-timeline__legend" aria-label="Timeline legend">
-                                <span><i class="briefing-dot briefing-dot--complete"></i>Completed</span>
-                                <span><i class="briefing-dot briefing-dot--missing"></i>Passed · date missing</span>
-                                <span><i class="briefing-dot briefing-dot--current"></i>Current</span>
-                                <span><i class="briefing-dot briefing-dot--future"></i>Upcoming</span>
-                                @if (presentStage.DaysSinceStartOrLastCompletion.HasValue && presentStage.DaysSinceStartOrLastCompletion.Value >= 90)
-                                {
-                                    <span class="briefing-current-alert">Current stage prolonged</span>
-                                }
-                            </div>
+                            @{
+                                var currentStageIsProlonged = presentStage.DaysSinceStartOrLastCompletion.HasValue
+                                    && presentStage.DaysSinceStartOrLastCompletion.Value >= 90;
+                                var priorStagesMissingCompletion = item.Stages
+                                    .Take(Math.Max(currentIdx, 0))
+                                    .Count(stage => stage.Status != StageStatus.Completed);
+                            }
+                            @if (currentStageIsProlonged || priorStagesMissingCompletion > 0)
+                            {
+                                <div class="briefing-timeline__alerts" aria-label="Timeline attention items">
+                                    @if (currentStageIsProlonged)
+                                    {
+                                        <span class="briefing-timeline__alert briefing-timeline__alert--warning">
+                                            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                                            Current stage prolonged
+                                        </span>
+                                    }
+                                    @if (priorStagesMissingCompletion > 0)
+                                    {
+                                        <span class="briefing-timeline__alert briefing-timeline__alert--neutral">
+                                            <i class="bi bi-calendar-x" aria-hidden="true"></i>
+                                            @priorStagesMissingCompletion earlier @(priorStagesMissingCompletion == 1 ? "stage has" : "stages have") no completion date
+                                        </span>
+                                    }
+                                </div>
+                            }
                             <div class="briefing-timeline__rail" role="list" data-auto-focus-current="true">
                                 @for (var i = 0; i < item.Stages.Count; i++)
                                 {
@@ -583,7 +599,7 @@ else
                                             }
                                             else if (isPastMissing)
                                             {
-                                                <span class="briefing-stage__date">Passed · date missing</span>
+                                                <span class="briefing-stage__date briefing-stage__date--attention">Completion date not recorded</span>
                                             }
                                             else if (isCurrent)
                                             {

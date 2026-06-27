@@ -1,0 +1,76 @@
+@model ProjectManagement.Pages.Projects.OverviewModel
+@{
+    var health = Model.RecordHealth;
+    var canCorrectRecord = Model.Roles.IsAdmin || Model.Roles.IsHoD || Model.Roles.IsAssignedProjectOfficer;
+}
+<div class="modal fade project-record-health-modal" id="recordCompletenessModal" tabindex="-1" aria-labelledby="recordCompletenessModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
+        <div class="modal-content">
+            <div class="modal-header project-record-health-modal__header">
+                <div class="d-flex align-items-center gap-3">
+                    <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-clipboard2-pulse"></i></span>
+                    <div>
+                        <h2 class="modal-title h5 mb-1" id="recordCompletenessModalLabel">Record completeness</h2>
+                        <p class="mb-0 text-muted">The same readiness score used in My Workspace.</p>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body project-record-health-modal__body">
+                <div class="project-record-health-modal__summary">
+                    <div>
+                        <strong>@health.HealthPercent%</strong>
+                        <span>@health.HealthLabel</span>
+                    </div>
+                    <p>@(health.GapDetails.Count == 0 ? "No record gaps remain." : $"{health.GapDetails.Count} record gap{(health.GapDetails.Count == 1 ? string.Empty : "s")} require attention.")</p>
+                </div>
+                <div class="project-record-health__progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@health.HealthPercent">
+                    <span style="width:@health.HealthPercent%"></span>
+                </div>
+                <div class="project-record-health__components" aria-label="Completeness score breakdown">
+                    @foreach (var component in health.Components)
+                    {
+                        var componentPercent = component.MaximumPoints <= 0 ? 100 : (int)Math.Round(component.EarnedPoints * 100m / component.MaximumPoints);
+                        <div class="project-record-health__component">
+                            <span>@component.Label</span>
+                            <strong>@component.EarnedPoints.ToString("0.#") / @component.MaximumPoints.ToString("0.#")</strong>
+                            <small>@componentPercent%</small>
+                        </div>
+                    }
+                </div>
+                @if (health.GapDetails.Count > 0)
+                {
+                    <div class="project-record-health-modal__gaps">
+                        <div class="project-record-health-modal__section-title">
+                            <h3>Items requiring attention</h3>
+                            <span>Complete these records to improve the score.</span>
+                        </div>
+                        <div class="project-record-health__gap-list">
+                            @foreach (var gap in health.GapDetails)
+                            {
+                                @if (canCorrectRecord)
+                                {
+                                    <a class="project-record-health__gap" href="@gap.ActionUrl">
+                                        <i class="bi @gap.Icon" aria-hidden="true"></i>
+                                        <span><strong>@gap.FieldLabel</strong><small>@gap.Component</small></span>
+                                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                                    </a>
+                                }
+                                else
+                                {
+                                    <div class="project-record-health__gap project-record-health__gap--readonly">
+                                        <i class="bi @gap.Icon" aria-hidden="true"></i>
+                                        <span><strong>@gap.FieldLabel</strong><small>@gap.Component</small></span>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>

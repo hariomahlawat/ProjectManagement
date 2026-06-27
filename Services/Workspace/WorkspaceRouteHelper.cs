@@ -13,27 +13,33 @@ internal static class WorkspaceRouteHelper
 
     public static string ProjectMedia(int projectId, string mediaTab)
     {
-        var safeTab = string.IsNullOrWhiteSpace(mediaTab)
-            ? "documents"
-            : mediaTab.Trim().ToLowerInvariant();
-
-        return $"/Projects/Overview/{projectId}?mediaTab={Uri.EscapeDataString(safeTab)}#media";
+        var normalized = mediaTab?.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "photos" => ProjectPhotos(projectId),
+            "videos" => ProjectVideos(projectId),
+            _ => ProjectDocuments(projectId)
+        };
     }
 
     public static string ProjectPhotos(int projectId)
-        => ProjectMedia(projectId, "photos");
+        => $"/Projects/{projectId}/Photos";
 
     public static string ProjectVideos(int projectId)
-        => ProjectMedia(projectId, "videos");
+        => $"/Projects/{projectId}/Videos";
 
+    public static string ProjectDocuments(int projectId)
+        => $"/Projects/{projectId}/Documents";
+
+    // Backward-compatible name used by existing workspace consumers.
     public static string ProjectDocumentsTab(int projectId)
-        => ProjectMedia(projectId, "documents");
+        => ProjectDocuments(projectId);
 
     public static string ProjectRemarks(int projectId)
         => $"/Projects/Overview/{projectId}#remarks";
 
     public static string ProjectMetaRequest(int projectId)
-        => $"/Projects/Overview/{projectId}";
+        => $"/Projects/Meta/Request/{projectId}";
 
     public static string ProjectMetaEdit(int projectId)
         => $"/Projects/Meta/Edit/{projectId}";

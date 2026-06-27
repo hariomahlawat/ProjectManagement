@@ -327,20 +327,16 @@ public class EditModel : PageModel
         var isHoD = User.IsInRole("HoD");
         var isProjectOfficer = User.IsInRole("Project Officer");
         var isAssignedPo = isProjectOfficer && !string.IsNullOrEmpty(project.LeadPoUserId) &&
-            string.Equals(project.LeadPoUserId, currentUserId, StringComparison.Ordinal);
-        var isAssignedHoD = isHoD && !string.IsNullOrEmpty(project.HodUserId) &&
-            string.Equals(project.HodUserId, currentUserId, StringComparison.Ordinal);
-
+            string.Equals(project.LeadPoUserId, currentUserId, StringComparison.OrdinalIgnoreCase);
         Roles = new ProjectRolesViewModel
         {
             IsAdmin = isAdmin,
             IsHoD = isHoD,
             IsProjectOfficer = isProjectOfficer,
-            IsAssignedProjectOfficer = isAssignedPo,
-            IsAssignedHoD = isAssignedHoD
+            IsAssignedProjectOfficer = isAssignedPo
         };
 
-        CanManageTot = isAdmin || isHoD || isAssignedPo || isAssignedHoD;
+        CanManageTot = isAdmin || isHoD || isAssignedPo;
 
         return project;
     }
@@ -481,7 +477,7 @@ public class EditModel : PageModel
             roles.Add(RemarkActorRole.Administrator);
         }
 
-        if (Roles.IsHoD || Roles.IsAssignedHoD)
+        if (Roles.IsHoD)
         {
             roles.Add(RemarkActorRole.HeadOfDepartment);
         }

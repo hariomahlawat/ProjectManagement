@@ -58,7 +58,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            RequestVerificationToken: token || ''
+            'X-CSRF-TOKEN': token || ''
           },
           body: body.toString()
         });
