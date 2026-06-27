@@ -3,6 +3,10 @@ using ProjectManagement.Features.MediaLibrary.Domain;
 
 namespace ProjectManagement.Features.MediaLibrary.Data;
 
+/// <summary>
+/// Core catalogue context. People/face tables are deliberately excluded and will use a
+/// separate opt-in migration when that feature is approved.
+/// </summary>
 public sealed class MediaLibraryDbContext : DbContext
 {
     public const string MigrationsHistoryTable = "__EFMigrationsHistory_MediaLibrary";
@@ -15,10 +19,6 @@ public sealed class MediaLibraryDbContext : DbContext
     public DbSet<MediaLibrarySource> Sources => Set<MediaLibrarySource>();
     public DbSet<MediaAsset> Assets => Set<MediaAsset>();
     public DbSet<MediaProcessingJob> ProcessingJobs => Set<MediaProcessingJob>();
-    public DbSet<MediaPerson> People => Set<MediaPerson>();
-    public DbSet<MediaFaceCluster> FaceClusters => Set<MediaFaceCluster>();
-    public DbSet<MediaFace> Faces => Set<MediaFace>();
-    public DbSet<MediaIdentityAudit> IdentityAudits => Set<MediaIdentityAudit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

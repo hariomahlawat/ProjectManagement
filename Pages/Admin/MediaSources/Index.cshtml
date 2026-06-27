@@ -1,7 +1,9 @@
 @page "/Admin/MediaSources"
 @model ProjectManagement.Pages.Admin.MediaSources.IndexModel
+@using ProjectManagement.Features.MediaLibrary.Domain
 @{
     ViewData["Title"] = "Media Sources";
+    ViewData["PageShell"] = "wide";
 }
 
 <div class="container-xxl py-4">
@@ -9,7 +11,7 @@
         <div>
             <div class="text-uppercase small fw-semibold text-primary mb-1">Photos administration</div>
             <h1 class="h3 mb-1">Media sources</h1>
-            <p class="text-muted mb-0">Monitor PRISM media indexing, NAS connectivity and background processing.</p>
+            <p class="text-muted mb-0">Connect optional local or network folders without affecting PRISM-owned media.</p>
         </div>
         <a asp-page="/Photos/Index" class="btn btn-outline-primary">
             <i class="bi bi-images me-1" aria-hidden="true"></i> Open Photos
@@ -20,78 +22,277 @@
     {
         <div class="alert alert-success" role="status">@Model.StatusMessage</div>
     }
+    @if (!string.IsNullOrWhiteSpace(Model.WarningMessage))
+    {
+        <div class="alert alert-warning" role="alert">@Model.WarningMessage</div>
+    }
 
-    <div class="row g-3 mb-4">
-        <div class="col-sm-6 col-lg-3">
-            <div class="border rounded-3 p-3 h-100">
-                <div class="text-muted small">Configured sources</div>
-                <div class="fs-3 fw-semibold">@Model.Sources.Count</div>
+    @if (!Model.CatalogueAvailable)
+    {
+        <div class="alert alert-secondary">
+            <strong>Optional catalogue unavailable.</strong>
+            Normal project, visit and event photos continue to work. Apply the media catalogue migration before configuring external folders.
+        </div>
+    }
+    else
+    {
+        @if (!Model.ExternalSourcesEnabled)
+        {
+            <div class="alert alert-info d-flex gap-2 align-items-start">
+                <i class="bi bi-info-circle mt-1" aria-hidden="true"></i>
+                <div>
+                    <strong>External folders are disabled.</strong>
+                    Enable <code>MediaLibrary:ExternalSources:Enabled</code> and
+                    <code>ScannerWorkerEnabled</code> in production configuration when this capability is required.
+                    The Photos module continues to use PRISM-owned media normally.
+                </div>
             </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="border rounded-3 p-3 h-100">
-                <div class="text-muted small">Queued / processing</div>
-                <div class="fs-3 fw-semibold">@Model.PendingJobs</div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="border rounded-3 p-3 h-100">
-                <div class="text-muted small">Failed jobs</div>
-                <div class="fs-3 fw-semibold text-danger">@Model.FailedJobs</div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-lg-3 d-flex align-items-stretch">
-            <form method="post" asp-page-handler="RetryFailed" class="w-100">
-                <button type="submit" class="btn btn-outline-danger w-100 h-100" disabled="@(Model.FailedJobs == 0)">
-                    <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i> Retry failed jobs
-                </button>
-            </form>
-        </div>
-    </div>
+        }
 
-    <div class="table-responsive border rounded-3">
-        <table class="table align-middle mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Source</th>
-                    <th>Status</th>
-                    <th class="text-end">Assets</th>
-                    <th>Last successful scan</th>
-                    <th>Location</th>
-                    <th class="text-end">Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var source in Model.Sources)
-                {
-                    var statusClass = source.Status == "Healthy" ? "text-bg-success"
-                        : source.Status is "Scanning" or "Queued" ? "text-bg-primary"
-                        : source.Status == "Failed" ? "text-bg-danger"
-                        : "text-bg-secondary";
-                    <tr>
-                        <td>
-                            <div class="fw-semibold">@source.Name</div>
-                            <div class="small text-muted">@source.Type · @(source.IsReadOnly ? "Read only" : "Managed")</div>
-                            @if (!string.IsNullOrWhiteSpace(source.LastError))
-                            {
-                                <div class="small text-danger mt-1">@source.LastError</div>
-                            }
-                        </td>
-                        <td><span class="badge @statusClass">@source.Status</span></td>
-                        <td class="text-end">@source.AssetCount.ToString("N0")</td>
-                        <td>@(source.LastSuccessfulScanAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "Never")</td>
-                        <td><code class="small">@(source.RootPath ?? "PRISM database")</code></td>
-                        <td class="text-end">
-                            <form method="post" asp-page-handler="Scan">
-                                <input type="hidden" name="id" value="@source.Id" />
-                                <button type="submit" class="btn btn-sm btn-outline-primary" disabled="@(!source.IsEnabled)">
-                                    Scan now
-                                </button>
+        <div class="row g-3 mb-4">
+            <div class="col-sm-6 col-xl-3">
+                <div class="border rounded-3 p-3 h-100 bg-body">
+                    <div class="text-muted small">Connected sources</div>
+                    <div class="fs-3 fw-semibold">@Model.Sources.Count(source => source.Type == MediaLibrarySourceType.FileSystem)</div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="border rounded-3 p-3 h-100 bg-body">
+                    <div class="text-muted small">Queued / processing</div>
+                    <div class="fs-3 fw-semibold">@Model.PendingJobs</div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="border rounded-3 p-3 h-100 bg-body">
+                    <div class="text-muted small">Failed jobs</div>
+                    <div class="fs-3 fw-semibold @(Model.FailedJobs > 0 ? "text-danger" : null)">@Model.FailedJobs</div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3 d-flex align-items-stretch">
+                <form method="post" asp-page-handler="RetryFailed" class="w-100">
+                    <button type="submit" class="btn btn-outline-danger w-100 h-100" disabled="@(Model.FailedJobs == 0)">
+                        <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i> Retry failed jobs
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-12 col-xl-8">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-body border-bottom d-flex align-items-center justify-content-between gap-3 py-3">
+                        <div>
+                            <h2 class="h5 mb-1">Configured sources</h2>
+                            <p class="small text-muted mb-0">Original files are always opened read-only.</p>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Source</th>
+                                    <th>Health</th>
+                                    <th class="text-end">Assets</th>
+                                    <th>Last scan</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.Sources.Count == 0)
+                                {
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted py-5">No catalogue sources are available.</td>
+                                    </tr>
+                                }
+                                @foreach (var source in Model.Sources)
+                                {
+                                    var healthClass = source.HealthStatus == "Reachable" || source.HealthStatus == "Internal"
+                                        ? "text-bg-success"
+                                        : source.HealthStatus is "Checking" or "Unknown"
+                                            ? "text-bg-secondary"
+                                            : "text-bg-warning";
+                                    <tr>
+                                        <td class="min-w-0">
+                                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                                <span class="fw-semibold">@source.Name</span>
+                                                @if (source.IsConfigurationManaged)
+                                                {
+                                                    <span class="badge text-bg-light border">Configuration managed</span>
+                                                }
+                                            </div>
+                                            <div class="small text-muted mt-1">
+                                                @(source.Type == MediaLibrarySourceType.Prism ? "Internal PRISM catalogue" : "File-system folder")
+                                                · @(source.IsEnabled ? "Scanning enabled" : "Scanning paused")
+                                                · @(source.IsVisibleInLibrary ? "Visible" : "Hidden")
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(source.RootPath))
+                                            {
+                                                <code class="small d-block text-break mt-1">@source.RootPath</code>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(source.LastError))
+                                            {
+                                                <div class="small text-danger mt-1">@source.LastError</div>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="badge @healthClass">@source.HealthStatus</span>
+                                            @if (!string.IsNullOrWhiteSpace(source.HealthMessage))
+                                            {
+                                                <div class="small text-muted mt-1" title="@source.HealthMessage">
+                                                    @source.HealthMessage
+                                                </div>
+                                            }
+                                        </td>
+                                        <td class="text-end">@source.AssetCount.ToString("N0")</td>
+                                        <td class="small">
+                                            @(source.LastSuccessfulScanAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "Never")
+                                        </td>
+                                        <td class="text-end">
+                                            @if (source.Type == MediaLibrarySourceType.FileSystem)
+                                            {
+                                                <div class="dropdown">
+                                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                        Manage
+                                                    </button>
+                                                    <ul class="dropdown-menu dropdown-menu-end">
+                                                        <li>
+                                                            <form method="post" asp-page-handler="Test">
+                                                                <input type="hidden" name="id" value="@source.Id" />
+                                                                <button type="submit" class="dropdown-item">
+                                                                    <i class="bi bi-plug me-2" aria-hidden="true"></i>Test connection
+                                                                </button>
+                                                            </form>
+                                                        </li>
+                                                        <li>
+                                                            <form method="post" asp-page-handler="Scan">
+                                                                <input type="hidden" name="id" value="@source.Id" />
+                                                                <button type="submit" class="dropdown-item" disabled="@(!source.IsEnabled)">
+                                                                    <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>Scan now
+                                                                </button>
+                                                            </form>
+                                                        </li>
+                                                        @if (!source.IsConfigurationManaged)
+                                                        {
+                                                            <li><a class="dropdown-item" asp-route-edit="@source.Id"><i class="bi bi-pencil me-2" aria-hidden="true"></i>Edit</a></li>
+                                                            <li><hr class="dropdown-divider" /></li>
+                                                            <li>
+                                                                <form method="post" asp-page-handler="SetState">
+                                                                    <input type="hidden" name="id" value="@source.Id" />
+                                                                    <input type="hidden" name="enabled" value="@(!source.IsEnabled)" />
+                                                                    <input type="hidden" name="visible" value="@source.IsVisibleInLibrary" />
+                                                                    <button type="submit" class="dropdown-item">
+                                                                        <i class="bi @(source.IsEnabled ? "bi-pause-circle" : "bi-play-circle") me-2" aria-hidden="true"></i>
+                                                                        @(source.IsEnabled ? "Pause scanning" : "Resume scanning")
+                                                                    </button>
+                                                                </form>
+                                                            </li>
+                                                            <li>
+                                                                <form method="post" asp-page-handler="SetState">
+                                                                    <input type="hidden" name="id" value="@source.Id" />
+                                                                    <input type="hidden" name="enabled" value="@source.IsEnabled" />
+                                                                    <input type="hidden" name="visible" value="@(!source.IsVisibleInLibrary)" />
+                                                                    <button type="submit" class="dropdown-item">
+                                                                        <i class="bi @(source.IsVisibleInLibrary ? "bi-eye-slash" : "bi-eye") me-2" aria-hidden="true"></i>
+                                                                        @(source.IsVisibleInLibrary ? "Hide indexed media" : "Show indexed media")
+                                                                    </button>
+                                                                </form>
+                                                            </li>
+                                                            <li><hr class="dropdown-divider" /></li>
+                                                            <li>
+                                                                <form method="post" asp-page-handler="Disconnect" onsubmit="return confirm('Disconnect this folder? Indexed records will be hidden, but no original file will be changed or deleted.');">
+                                                                    <input type="hidden" name="id" value="@source.Id" />
+                                                                    <button type="submit" class="dropdown-item text-danger">
+                                                                        <i class="bi bi-x-circle me-2" aria-hidden="true"></i>Disconnect
+                                                                    </button>
+                                                                </form>
+                                                            </li>
+                                                        }
+                                                    </ul>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <span class="small text-muted">Automatic</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-xl-4">
+                <div class="card border-0 shadow-sm position-sticky" style="top: 5.5rem;">
+                    <div class="card-header bg-body border-bottom py-3">
+                        <h2 class="h5 mb-1">@(Model.IsEditing ? "Edit external folder" : "Connect external folder")</h2>
+                        <p class="small text-muted mb-0">Supports a local disk folder or a UNC share on a NAS/another server.</p>
+                    </div>
+                    <div class="card-body">
+                        @if (!Model.ExternalSourcesEnabled)
+                        {
+                            <p class="text-muted mb-0">Enable external sources in production configuration before adding a folder.</p>
+                        }
+                        else
+                        {
+                            <form method="post" class="vstack gap-3">
+                                <input asp-for="Input.Id" type="hidden" />
+                                <div>
+                                    <label asp-for="Input.Name" class="form-label">Display name</label>
+                                    <input asp-for="Input.Name" class="form-control" placeholder="Official photo archive" />
+                                    <span asp-validation-for="Input.Name" class="text-danger small"></span>
+                                </div>
+                                <div>
+                                    <label asp-for="Input.Key" class="form-label">Stable key <span class="text-muted fw-normal">(optional)</span></label>
+                                    <input asp-for="Input.Key" class="form-control" placeholder="official-photo-archive" />
+                                    <span asp-validation-for="Input.Key" class="text-danger small"></span>
+                                </div>
+                                <div>
+                                    <label asp-for="Input.RootPath" class="form-label">Folder path</label>
+                                    <input asp-for="Input.RootPath" class="form-control font-monospace" placeholder="D:\Photos or \\SERVER\Share\Photos" />
+                                    <div class="form-text">Use a local absolute path or UNC path. Do not use a mapped drive letter from another user session.</div>
+                                    <span asp-validation-for="Input.RootPath" class="text-danger small"></span>
+                                </div>
+                                <div>
+                                    <label asp-for="Input.AllowedExtensions" class="form-label">Allowed extensions</label>
+                                    <textarea asp-for="Input.AllowedExtensions" class="form-control font-monospace" rows="3"></textarea>
+                                    <span asp-validation-for="Input.AllowedExtensions" class="text-danger small"></span>
+                                </div>
+                                <div>
+                                    <label asp-for="Input.ScanIntervalMinutes" class="form-label">Scan interval (minutes)</label>
+                                    <input asp-for="Input.ScanIntervalMinutes" class="form-control" min="1" max="10080" />
+                                    <span asp-validation-for="Input.ScanIntervalMinutes" class="text-danger small"></span>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input asp-for="Input.IncludeSubfolders" class="form-check-input" />
+                                    <label asp-for="Input.IncludeSubfolders" class="form-check-label">Include subfolders</label>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input asp-for="Input.IsEnabled" class="form-check-input" />
+                                    <label asp-for="Input.IsEnabled" class="form-check-label">Enable background scanning</label>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input asp-for="Input.IsVisibleInLibrary" class="form-check-input" />
+                                    <label asp-for="Input.IsVisibleInLibrary" class="form-check-label">Show indexed media in Photos</label>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2 pt-2">
+                                    <button type="submit" asp-page-handler="Save" class="btn btn-primary">
+                                        <i class="bi bi-check2 me-1" aria-hidden="true"></i>@(Model.IsEditing ? "Save changes" : "Connect folder")
+                                    </button>
+                                    <button type="submit" asp-page-handler="Test" class="btn btn-outline-secondary" formnovalidate>
+                                        <i class="bi bi-plug me-1" aria-hidden="true"></i>Test
+                                    </button>
+                                    @if (Model.IsEditing)
+                                    {
+                                        <a asp-page="./Index" class="btn btn-link">Cancel</a>
+                                    }
+                                </div>
                             </form>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 </div>

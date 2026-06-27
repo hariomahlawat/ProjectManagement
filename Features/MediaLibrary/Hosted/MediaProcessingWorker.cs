@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
@@ -31,10 +32,11 @@ public sealed class MediaProcessingWorker : BackgroundService
         while (!stoppingToken.IsCancellationRequested)
         {
             var processed = 0;
+            var idleDelaySeconds = _options.Processing.IdleDelaySeconds;
 
             try
             {
-                for (var index = 0; index < _options.ProcessingBatchSize; index++)
+                for (var index = 0; index < _options.Processing.BatchSize; index++)
                 {
                     var job = await ClaimNextAsync(stoppingToken);
                     if (job is null)
@@ -50,6 +52,12 @@ public sealed class MediaProcessingWorker : BackgroundService
             {
                 break;
             }
+            catch (Exception ex) when (IsCatalogueInfrastructureFailure(ex))
+            {
+                idleDelaySeconds = Math.Max(60, idleDelaySeconds);
+                _logger.LogWarning(ex,
+                    "Optional media processing catalogue is unavailable; the worker will retry later");
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Media processing worker cycle failed");
@@ -57,7 +65,7 @@ public sealed class MediaProcessingWorker : BackgroundService
 
             if (processed == 0)
             {
-                await Task.Delay(TimeSpan.FromSeconds(_options.IdleDelaySeconds), stoppingToken);
+                await Task.Delay(TimeSpan.FromSeconds(idleDelaySeconds), stoppingToken);
             }
         }
     }
@@ -156,6 +164,12 @@ public sealed class MediaProcessingWorker : BackgroundService
                 deadLetter);
         }
     }
+
+    private static bool IsCatalogueInfrastructureFailure(Exception exception)
+        => exception is NpgsqlException
+            or DbUpdateException
+            or InvalidOperationException
+            or TimeoutException;
 
     private static TimeSpan GetRetryDelay(int attempt)
         => attempt switch

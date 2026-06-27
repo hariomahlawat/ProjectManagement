@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
-using Pgvector;
 using ProjectManagement.Features.MediaLibrary.Data;
 
 #nullable disable
@@ -15,8 +14,8 @@ public sealed class InitialMediaLibrary : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.Sql("CREATE EXTENSION IF NOT EXISTS vector;");
-
+        // Core catalogue only. Face/People tables and pgvector are intentionally deferred
+        // to a separate opt-in release.
         migrationBuilder.CreateTable(
             name: "MediaLibrarySources",
             columns: table => new
@@ -42,25 +41,6 @@ public sealed class InitialMediaLibrary : Migration
                 UpdatedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
             },
             constraints: table => table.PrimaryKey("PK_MediaLibrarySources", x => x.Id));
-
-        migrationBuilder.CreateTable(
-            name: "MediaPeople",
-            columns: table => new
-            {
-                Id = table.Column<Guid>(type: "uuid", nullable: false),
-                DisplayName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                NormalizedName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                LinkedUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
-                Designation = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
-                Organisation = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
-                RepresentativeFaceId = table.Column<Guid>(type: "uuid", nullable: true),
-                IsHidden = table.Column<bool>(type: "boolean", nullable: false),
-                IsMinor = table.Column<bool>(type: "boolean", nullable: false),
-                CreatedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
-                CreatedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                UpdatedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
-            },
-            constraints: table => table.PrimaryKey("PK_MediaPeople", x => x.Id));
 
         migrationBuilder.CreateTable(
             name: "MediaAssets",
@@ -114,25 +94,12 @@ public sealed class InitialMediaLibrary : Migration
             constraints: table =>
             {
                 table.PrimaryKey("PK_MediaAssets", x => x.Id);
-                table.ForeignKey("FK_MediaAssets_MediaLibrarySources_SourceId", x => x.SourceId, "MediaLibrarySources", "Id", onDelete: ReferentialAction.Cascade);
-            });
-
-        migrationBuilder.CreateTable(
-            name: "MediaFaceClusters",
-            columns: table => new
-            {
-                Id = table.Column<Guid>(type: "uuid", nullable: false),
-                PersonId = table.Column<Guid>(type: "uuid", nullable: true),
-                RepresentativeFaceId = table.Column<Guid>(type: "uuid", nullable: true),
-                FaceCount = table.Column<int>(type: "integer", nullable: false),
-                Status = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                CreatedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                UpdatedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
-            },
-            constraints: table =>
-            {
-                table.PrimaryKey("PK_MediaFaceClusters", x => x.Id);
-                table.ForeignKey("FK_MediaFaceClusters_MediaPeople_PersonId", x => x.PersonId, "MediaPeople", "Id", onDelete: ReferentialAction.SetNull);
+                table.ForeignKey(
+                    name: "FK_MediaAssets_MediaLibrarySources_SourceId",
+                    column: x => x.SourceId,
+                    principalTable: "MediaLibrarySources",
+                    principalColumn: "Id",
+                    onDelete: ReferentialAction.Cascade);
             });
 
         migrationBuilder.CreateTable(
@@ -159,55 +126,13 @@ public sealed class InitialMediaLibrary : Migration
             constraints: table =>
             {
                 table.PrimaryKey("PK_MediaProcessingJobs", x => x.Id);
-                table.ForeignKey("FK_MediaProcessingJobs_MediaAssets_MediaAssetId", x => x.MediaAssetId, "MediaAssets", "Id", onDelete: ReferentialAction.Cascade);
+                table.ForeignKey(
+                    name: "FK_MediaProcessingJobs_MediaAssets_MediaAssetId",
+                    column: x => x.MediaAssetId,
+                    principalTable: "MediaAssets",
+                    principalColumn: "Id",
+                    onDelete: ReferentialAction.Cascade);
             });
-
-        migrationBuilder.CreateTable(
-            name: "MediaFaces",
-            columns: table => new
-            {
-                Id = table.Column<Guid>(type: "uuid", nullable: false),
-                MediaAssetId = table.Column<long>(type: "bigint", nullable: false),
-                Left = table.Column<double>(type: "double precision", nullable: false),
-                Top = table.Column<double>(type: "double precision", nullable: false),
-                Width = table.Column<double>(type: "double precision", nullable: false),
-                Height = table.Column<double>(type: "double precision", nullable: false),
-                DetectionConfidence = table.Column<double>(type: "double precision", nullable: false),
-                QualityScore = table.Column<double>(type: "double precision", nullable: false),
-                Embedding = table.Column<Vector>(type: "vector(512)", nullable: true),
-                PersonId = table.Column<Guid>(type: "uuid", nullable: true),
-                FaceClusterId = table.Column<Guid>(type: "uuid", nullable: true),
-                IdentityStatus = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                MatchConfidence = table.Column<double>(type: "double precision", nullable: true),
-                IsManuallyConfirmed = table.Column<bool>(type: "boolean", nullable: false),
-                DetectorModelVersion = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
-                EmbeddingModelVersion = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
-                CreatedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                UpdatedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
-            },
-            constraints: table =>
-            {
-                table.PrimaryKey("PK_MediaFaces", x => x.Id);
-                table.ForeignKey("FK_MediaFaces_MediaAssets_MediaAssetId", x => x.MediaAssetId, "MediaAssets", "Id", onDelete: ReferentialAction.Cascade);
-                table.ForeignKey("FK_MediaFaces_MediaFaceClusters_FaceClusterId", x => x.FaceClusterId, "MediaFaceClusters", "Id", onDelete: ReferentialAction.SetNull);
-                table.ForeignKey("FK_MediaFaces_MediaPeople_PersonId", x => x.PersonId, "MediaPeople", "Id", onDelete: ReferentialAction.SetNull);
-            });
-
-        migrationBuilder.CreateTable(
-            name: "MediaIdentityAudits",
-            columns: table => new
-            {
-                Id = table.Column<long>(type: "bigint", nullable: false)
-                    .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                FaceId = table.Column<Guid>(type: "uuid", nullable: false),
-                PreviousPersonId = table.Column<Guid>(type: "uuid", nullable: true),
-                NewPersonId = table.Column<Guid>(type: "uuid", nullable: true),
-                Action = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                PerformedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
-                Notes = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: true),
-                PerformedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
-            },
-            constraints: table => table.PrimaryKey("PK_MediaIdentityAudits", x => x.Id));
 
         migrationBuilder.CreateIndex("IX_MediaLibrarySources_Key", "MediaLibrarySources", "Key", unique: true);
         migrationBuilder.CreateIndex("IX_MediaLibrarySources_IsEnabled_SourceType", "MediaLibrarySources", new[] { "IsEnabled", "SourceType" });
@@ -216,37 +141,15 @@ public sealed class InitialMediaLibrary : Migration
         migrationBuilder.CreateIndex("IX_MediaAssets_Kind_Classification", "MediaAssets", new[] { "Kind", "Classification" });
         migrationBuilder.CreateIndex("IX_MediaAssets_ProjectId", "MediaAssets", "ProjectId");
         migrationBuilder.CreateIndex("IX_MediaAssets_CollectionKey", "MediaAssets", "CollectionKey");
+        migrationBuilder.CreateIndex("IX_MediaAssets_SourceId", "MediaAssets", "SourceId");
         migrationBuilder.CreateIndex("IX_MediaProcessingJobs_MediaAssetId_JobType", "MediaProcessingJobs", new[] { "MediaAssetId", "JobType" }, unique: true);
         migrationBuilder.CreateIndex("IX_MediaProcessingJobs_Status_AvailableAfterUtc", "MediaProcessingJobs", new[] { "Status", "AvailableAfterUtc" });
-        migrationBuilder.CreateIndex("IX_MediaPeople_NormalizedName", "MediaPeople", "NormalizedName");
-        migrationBuilder.CreateIndex("IX_MediaPeople_LinkedUserId", "MediaPeople", "LinkedUserId");
-        migrationBuilder.CreateIndex("IX_MediaFaceClusters_PersonId", "MediaFaceClusters", "PersonId");
-        migrationBuilder.CreateIndex("IX_MediaFaces_MediaAssetId", "MediaFaces", "MediaAssetId");
-        migrationBuilder.CreateIndex("IX_MediaFaces_PersonId", "MediaFaces", "PersonId");
-        migrationBuilder.CreateIndex("IX_MediaFaces_FaceClusterId", "MediaFaces", "FaceClusterId");
-        migrationBuilder.CreateIndex("IX_MediaIdentityAudits_FaceId_PerformedAtUtc", "MediaIdentityAudits", new[] { "FaceId", "PerformedAtUtc" });
-
-        migrationBuilder.Sql(@"
-            CREATE INDEX IF NOT EXISTS ""IX_MediaFaces_Embedding_Hnsw""
-            ON ""MediaFaces""
-            USING hnsw (""Embedding"" vector_cosine_ops)
-            WHERE ""Embedding"" IS NOT NULL;");
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.DropTable("MediaIdentityAudits");
         migrationBuilder.DropTable("MediaProcessingJobs");
-        migrationBuilder.DropTable("MediaFaces");
         migrationBuilder.DropTable("MediaAssets");
-        migrationBuilder.DropTable("MediaFaceClusters");
         migrationBuilder.DropTable("MediaLibrarySources");
-        migrationBuilder.DropTable("MediaPeople");
-    }
-
-    protected override void BuildTargetModel(ModelBuilder modelBuilder)
-    {
-        modelBuilder.HasAnnotation("ProductVersion", "8.0.19");
-        MediaLibraryModelConfiguration.Configure(modelBuilder);
     }
 }

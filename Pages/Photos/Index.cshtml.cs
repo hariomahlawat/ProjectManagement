@@ -3,9 +3,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
-using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
+using ProjectManagement.Features.MediaLibrary.Options;
+using ProjectManagement.Features.MediaLibrary.Services;
 
 namespace ProjectManagement.Pages.Photos;
 
@@ -14,12 +16,17 @@ public sealed class IndexModel : PageModel
 {
     private const int PageSize = 120;
     private readonly ApplicationDbContext _db;
-    private readonly MediaLibraryDbContext _mediaDb;
+    private readonly IExternalMediaLibraryReader _externalMedia;
+    private readonly MediaLibraryOptions _mediaOptions;
 
-    public IndexModel(ApplicationDbContext db, MediaLibraryDbContext mediaDb)
+    public IndexModel(
+        ApplicationDbContext db,
+        IExternalMediaLibraryReader externalMedia,
+        IOptions<MediaLibraryOptions> mediaOptions)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
-        _mediaDb = mediaDb ?? throw new ArgumentNullException(nameof(mediaDb));
+        _externalMedia = externalMedia ?? throw new ArgumentNullException(nameof(externalMedia));
+        _mediaOptions = mediaOptions?.Value ?? throw new ArgumentNullException(nameof(mediaOptions));
     }
 
     [BindProperty(SupportsGet = true)] public string? Q { get; set; }
@@ -38,11 +45,19 @@ public sealed class IndexModel : PageModel
     public bool HasPreviousPage => PageNumber > 1;
     public bool HasNextPage { get; private set; }
     public int CurrentPage => Math.Max(1, PageNumber);
+    public bool ExternalSourcesEnabled => _mediaOptions.IsExternalSourceFeatureEnabled;
+    public bool ExternalLibraryAvailable { get; private set; } = true;
+    public string? ExternalLibraryWarning { get; private set; }
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         PageNumber = Math.Max(1, PageNumber);
         Source = NormalizeSource(Source);
+        if (!ExternalSourcesEnabled && Source == "external")
+        {
+            Source = "all";
+        }
+
         Kind = NormalizeKind(Kind);
         Classification = NormalizeClassification(Classification);
         Q = string.IsNullOrWhiteSpace(Q) ? null : Q.Trim();
@@ -75,50 +90,69 @@ public sealed class IndexModel : PageModel
             .Where(item => !Year.HasValue || item.MediaDate.Year == Year.Value)
             .ToList();
 
-        var nasQueryWithoutYear = BuildNasQuery(applyYear: false);
-        var nasQuery = BuildNasQuery(applyYear: true);
-        var nasCount = await nasQuery.CountAsync(cancellationToken);
-        var nasPhotoCount = await nasQuery.CountAsync(asset => asset.Kind == MediaAssetKind.Photo, cancellationToken);
-        var nasVideoCount = await nasQuery.CountAsync(asset => asset.Kind == MediaAssetKind.Video, cancellationToken);
-        var nasCollectionCount = await nasQuery.Select(asset => asset.CollectionKey).Distinct().CountAsync(cancellationToken);
+        var requestExternal = ExternalSourcesEnabled
+                              && (Source is "all" or "external")
+                              && !ProjectId.HasValue;
 
-        var totalCount = filteredInternal.Count + nasCount;
+        var requestedGlobalSkip = GetPageSkip(PageNumber);
+        var externalWindowSkip = Math.Max(0, requestedGlobalSkip - filteredInternal.Count);
+        var externalWindowTake = GetExternalWindowSize(filteredInternal.Count);
+        var externalResult = requestExternal
+            ? await SearchExternalAsync(externalWindowSkip, externalWindowTake, cancellationToken)
+            : ExternalMediaSearchResult.Empty();
+
+        var totalCount = filteredInternal.Count + externalResult.Total;
         var maxPage = Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
         PageNumber = Math.Min(PageNumber, maxPage);
-        var skip = checked((PageNumber - 1) * PageSize);
-        var nasCandidates = await LoadNasItemsAsync(
-            nasQuery.OrderByDescending(asset => asset.MediaDateUtc)
-                .ThenBy(asset => asset.ContextTitle)
-                .ThenBy(asset => asset.SortOrder)
-                .Take(skip + PageSize + 1),
-            cancellationToken);
+        var globalSkip = GetPageSkip(PageNumber);
+        var requiredExternalSkip = Math.Max(0, globalSkip - filteredInternal.Count);
+
+        // An out-of-range page can be clamped after the first count query. Re-read only
+        // the correct external window instead of returning a blank last page.
+        if (requestExternal && requiredExternalSkip != externalWindowSkip)
+        {
+            externalWindowSkip = requiredExternalSkip;
+            externalResult = await SearchExternalAsync(
+                externalWindowSkip,
+                externalWindowTake,
+                cancellationToken);
+        }
+
+        ExternalLibraryAvailable = externalResult.IsAvailable;
+        ExternalLibraryWarning = externalResult.Warning;
+        var externalItems = MapExternalItems(externalResult.Items);
 
         var merged = filteredInternal
-            .Concat(nasCandidates)
+            .Concat(externalItems)
             .OrderByDescending(item => item.MediaDate)
             .ThenBy(item => item.ContextTitle, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.SortOrder)
+            .ThenBy(item => item.Id, StringComparer.Ordinal)
             .ToList();
 
-        HasNextPage = totalCount > skip + PageSize;
-        Items = merged.Skip(skip).Take(PageSize).ToList();
+        // Rows before externalWindowSkip are deliberately absent from the local merge.
+        // Subtract that known prefix to obtain the page offset within the bounded window.
+        var localSkip = Math.Max(0, globalSkip - externalWindowSkip);
+        HasNextPage = totalCount > globalSkip + PageSize;
+        Items = merged.Skip(localSkip).Take(PageSize).ToList();
 
         var internalYears = internalItems
             .Where(MatchesSearch)
             .Where(MatchesClassification)
             .Select(item => item.MediaDate.Year);
-        var nasYears = await nasQueryWithoutYear
-            .Select(asset => asset.MediaDateUtc.Year)
+        Years = internalYears
+            .Concat(externalResult.Years)
             .Distinct()
-            .ToListAsync(cancellationToken);
-        Years = internalYears.Concat(nasYears).Distinct().OrderByDescending(year => year).ToList();
+            .OrderByDescending(year => year)
+            .ToList();
 
         Stats = new LibraryStats
         {
             Total = totalCount,
-            Photos = filteredInternal.Count(item => item.Kind == MediaKind.Photo) + nasPhotoCount,
-            Videos = filteredInternal.Count(item => item.Kind == MediaKind.Video) + nasVideoCount,
-            Collections = filteredInternal.Select(item => item.CollectionKey).Distinct(StringComparer.Ordinal).Count() + nasCollectionCount
+            Photos = filteredInternal.Count(item => item.Kind == MediaKind.Photo) + externalResult.Photos,
+            Videos = filteredInternal.Count(item => item.Kind == MediaKind.Video) + externalResult.Videos,
+            Collections = filteredInternal.Select(item => item.CollectionKey).Distinct(StringComparer.Ordinal).Count()
+                          + externalResult.Collections
         };
 
         Groups = Items
@@ -140,88 +174,48 @@ public sealed class IndexModel : PageModel
             .ToList();
     }
 
-    private IQueryable<MediaAsset> BuildNasQuery(bool applyYear)
+
+    private Task<ExternalMediaSearchResult> SearchExternalAsync(
+        int skip,
+        int take,
+        CancellationToken cancellationToken)
+        => _externalMedia.SearchAsync(
+            new ExternalMediaSearchRequest(
+                Q,
+                Kind,
+                Classification,
+                Year,
+                skip,
+                take),
+            cancellationToken);
+
+    private static int GetPageSkip(int pageNumber)
     {
-        if (Source is not ("all" or "nas") || ProjectId.HasValue)
-        {
-            return _mediaDb.Assets.Where(_ => false);
-        }
-
-        var query = _mediaDb.Assets
-            .AsNoTracking()
-            .Where(asset => asset.Origin == MediaAssetOrigin.NetworkFile
-                            && asset.IsAvailable
-                            && !asset.IsDeleted
-                            && !asset.IsArchived
-                            && asset.Source.IsEnabled);
-
-        query = Kind switch
-        {
-            "photo" => query.Where(asset => asset.Kind == MediaAssetKind.Photo),
-            "video" => query.Where(asset => asset.Kind == MediaAssetKind.Video),
-            _ => query
-        };
-
-        query = Classification switch
-        {
-            "screenshot" => query.Where(asset => asset.Classification == MediaClassification.Screenshot),
-            "photograph" => query.Where(asset => asset.Classification == MediaClassification.Photograph),
-            "unknown" => query.Where(asset => asset.Classification == MediaClassification.Unknown),
-            _ => query
-        };
-
-        if (!string.IsNullOrWhiteSpace(Q))
-        {
-            var pattern = $"%{EscapeLikePattern(Q)}%";
-            query = query.Where(asset =>
-                EF.Functions.ILike(asset.Title, pattern)
-                || (asset.Caption != null && EF.Functions.ILike(asset.Caption, pattern))
-                || EF.Functions.ILike(asset.ContextTitle, pattern)
-                || EF.Functions.ILike(asset.ContextSubtitle, pattern)
-                || EF.Functions.ILike(asset.OriginalFileName, pattern)
-                || (asset.RelativePath != null && EF.Functions.ILike(asset.RelativePath, pattern))
-                || EF.Functions.ILike(asset.Source.Name, pattern));
-        }
-
-        if (applyYear && Year.HasValue)
-        {
-            query = query.Where(asset => asset.MediaDateUtc.Year == Year.Value);
-        }
-
-        return query;
+        var skip = ((long)Math.Max(1, pageNumber) - 1L) * PageSize;
+        return skip >= int.MaxValue ? int.MaxValue - PageSize : (int)skip;
     }
 
-    private async Task<List<MediaItem>> LoadNasItemsAsync(IQueryable<MediaAsset> query, CancellationToken cancellationToken)
+    private static int GetExternalWindowSize(int internalItemCount)
     {
-        var rows = await query.Select(asset => new
-        {
-            asset.Id,
-            asset.Kind,
-            asset.ContextKey,
-            asset.CollectionKey,
-            asset.ContextTitle,
-            asset.ContextSubtitle,
-            asset.SourceLabel,
-            asset.Title,
-            asset.Caption,
-            asset.OriginalFileName,
-            asset.MediaDateUtc,
-            asset.Width,
-            asset.Height,
-            asset.DurationSeconds,
-            asset.SortOrder,
-            asset.CacheVersion,
-            asset.ParentEntityId
-        }).ToListAsync(cancellationToken);
+        var size = (long)PageSize + Math.Max(0, internalItemCount) + 1L;
+        return size >= int.MaxValue ? int.MaxValue : (int)size;
+    }
 
-        return rows.Select(row =>
+    private List<MediaItem> MapExternalItems(IReadOnlyList<ExternalMediaSearchItem> rows)
+        => rows.Select(row =>
         {
-            var preview = Url.Page("/Photos/Media", new { id = row.Id, variant = row.Kind == MediaAssetKind.Photo ? "preview" : "original", v = row.CacheVersion }) ?? string.Empty;
+            var preview = Url.Page("/Photos/Media", new
+            {
+                id = row.Id,
+                variant = row.Kind == MediaAssetKind.Photo ? "preview" : "original",
+                v = row.CacheVersion
+            }) ?? string.Empty;
+
             return new MediaItem
             {
-                Id = $"nas:{row.Id}",
+                Id = $"external:{row.Id}",
                 Kind = row.Kind == MediaAssetKind.Video ? MediaKind.Video : MediaKind.Photo,
-                Source = MediaSource.NetworkArchive,
+                Source = MediaSource.ExternalFolder,
                 SourceLabel = row.SourceLabel,
                 ContextKey = row.ContextKey,
                 CollectionKey = row.CollectionKey,
@@ -237,14 +231,13 @@ public sealed class IndexModel : PageModel
                 DisplayUrl = preview,
                 OriginalUrl = Url.Page("/Photos/Media", new { id = row.Id, variant = "original", v = row.CacheVersion }) ?? preview,
                 DownloadUrl = Url.Page("/Photos/Media", new { id = row.Id, variant = "original", download = true, v = row.CacheVersion }),
-                SourceUrl = Url.Page("/Photos/Index", new { Source = "nas", Q = row.ParentEntityId }),
+                SourceUrl = Url.Page("/Photos/Index", new { Source = "external", Q = row.ParentEntityId }),
                 Width = row.Width,
                 Height = row.Height,
                 DurationSeconds = row.DurationSeconds,
                 SortOrder = row.SortOrder
             };
         }).ToList();
-    }
 
     private async Task<List<MediaItem>> LoadProjectPhotosAsync(CancellationToken cancellationToken)
     {
@@ -387,15 +380,14 @@ public sealed class IndexModel : PageModel
     private static bool Contains(string? value, string query)
         => !string.IsNullOrWhiteSpace(value) && value.Contains(query, StringComparison.CurrentCultureIgnoreCase);
 
-    private static string EscapeLikePattern(string value)
-        => value.Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("%", "\\%", StringComparison.Ordinal)
-            .Replace("_", "\\_", StringComparison.Ordinal);
-
     private static string NormalizeSource(string? value)
         => value?.Trim().ToLowerInvariant() switch
         {
-            "projects" => "projects", "visits" => "visits", "events" => "events", "nas" => "nas", _ => "all"
+            "projects" => "projects",
+            "visits" => "visits",
+            "events" => "events",
+            "external" or "nas" => "external",
+            _ => "all"
         };
 
     private static string NormalizeKind(string? value)
@@ -456,5 +448,5 @@ public sealed class IndexModel : PageModel
     }
 
     public enum MediaKind { Photo, Video }
-    public enum MediaSource { Project, Visit, Event, NetworkArchive }
+    public enum MediaSource { Project, Visit, Event, ExternalFolder }
 }

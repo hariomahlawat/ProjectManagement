@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "peopleFeatureEnabled": false,
+  "models": [],
+  "policy": {
+    "requireApprovedCodeLicense": true,
+    "requireApprovedWeightsLicense": true,
+    "requireTrainingDataProvenanceReview": true,
+    "requireProductionApproval": true,
+    "allowExternalInferenceApi": false
+  },
+  "note": "No AI model is bundled or activated in this release."
+}

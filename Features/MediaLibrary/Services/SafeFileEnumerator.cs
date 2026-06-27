@@ -3,7 +3,7 @@ namespace ProjectManagement.Features.MediaLibrary.Services;
 /// <summary>
 /// Enumerates one directory at a time and fails the scan on an inaccessible subtree.
 /// Failing the scan is deliberate: the caller must not reconcile previously indexed
-/// assets as missing when the NAS was only partially readable.
+/// assets as missing when an external folder was only partially readable.
 /// </summary>
 public sealed class SafeFileEnumerator
 {

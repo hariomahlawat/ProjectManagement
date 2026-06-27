@@ -2,8 +2,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Npgsql;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
+using ProjectManagement.Features.MediaLibrary.Options;
 using ProjectManagement.Features.MediaLibrary.Services;
 
 namespace ProjectManagement.Pages.Photos;
@@ -13,18 +16,21 @@ public sealed class MediaModel : PageModel
 {
     private readonly MediaLibraryDbContext _db;
     private readonly IMediaDerivativeService _derivatives;
-    private readonly INetworkSharePathResolver _pathResolver;
+    private readonly IFileSystemPathResolver _pathResolver;
+    private readonly MediaLibraryOptions _options;
     private readonly ILogger<MediaModel> _logger;
 
     public MediaModel(
         MediaLibraryDbContext db,
         IMediaDerivativeService derivatives,
-        INetworkSharePathResolver pathResolver,
+        IFileSystemPathResolver pathResolver,
+        IOptions<MediaLibraryOptions> options,
         ILogger<MediaModel> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _derivatives = derivatives ?? throw new ArgumentNullException(nameof(derivatives));
         _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
+        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -34,17 +40,35 @@ public sealed class MediaModel : PageModel
         bool download = false,
         CancellationToken cancellationToken = default)
     {
-        var asset = await _db.Assets
-            .AsNoTracking()
-            .Include(item => item.Source)
-            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-
-        if (asset is null || !asset.IsAvailable || asset.IsDeleted || !asset.Source.IsEnabled)
+        if (!_options.IsExternalSourceFeatureEnabled)
         {
             return NotFound();
         }
 
-        if (asset.Source.SourceType != MediaLibrarySourceType.NetworkShare
+        MediaAsset? asset;
+        try
+        {
+            asset = await _db.Assets
+                .AsNoTracking()
+                .Include(item => item.Source)
+                .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        }
+        catch (Exception ex) when (ex is NpgsqlException or InvalidOperationException or TimeoutException)
+        {
+            _logger.LogWarning(ex, "External media catalogue is unavailable while serving asset {AssetId}", id);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+
+        if (asset is null
+            || !asset.IsAvailable
+            || asset.IsDeleted
+            || asset.Source.IsDeleted
+            || !asset.Source.IsVisibleInLibrary)
+        {
+            return NotFound();
+        }
+
+        if (asset.Source.SourceType != MediaLibrarySourceType.FileSystem
             || string.IsNullOrWhiteSpace(asset.Source.RootPath)
             || string.IsNullOrWhiteSpace(asset.RelativePath))
         {
@@ -110,7 +134,7 @@ public sealed class MediaModel : PageModel
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            _logger.LogWarning(ex, "Unable to serve media asset {AssetId}", id);
+            _logger.LogWarning(ex, "Unable to serve external media asset {AssetId}", id);
             return StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
     }

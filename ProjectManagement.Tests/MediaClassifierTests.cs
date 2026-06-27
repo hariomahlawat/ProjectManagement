@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Options;
 using ProjectManagement.Features.MediaLibrary.Domain;
+using ProjectManagement.Features.MediaLibrary.Options;
 using ProjectManagement.Features.MediaLibrary.Services;
 using Xunit;
 
@@ -9,7 +11,7 @@ public sealed class MediaClassifierTests
     [Fact]
     public async Task ClassifyAsync_RecognisesTypicalScreenshot()
     {
-        var classifier = new MediaClassifier();
+        var classifier = CreateClassifier();
         var metadata = new MediaFileMetadata(
             MediaAssetKind.Photo,
             "image/png",
@@ -35,7 +37,7 @@ public sealed class MediaClassifierTests
     [Fact]
     public async Task ClassifyAsync_PrefersPhotographWhenCameraMetadataExists()
     {
-        var classifier = new MediaClassifier();
+        var classifier = CreateClassifier();
         var metadata = new MediaFileMetadata(
             MediaAssetKind.Photo,
             "image/jpeg",
@@ -54,4 +56,37 @@ public sealed class MediaClassifierTests
         Assert.Equal(MediaClassification.Photograph, result.Classification);
         Assert.True(result.Confidence >= 0.90);
     }
+
+    [Fact]
+    public async Task ClassifyAsync_ReturnsUnknownWhenClassificationIsDisabled()
+    {
+        var options = new MediaLibraryOptions
+        {
+            Classification = new MediaClassificationOptions
+            {
+                Enabled = false,
+                ScreenshotDetectionEnabled = false
+            }
+        };
+        var classifier = new MediaClassifier(Options.Create(options));
+        var metadata = new MediaFileMetadata(
+            MediaAssetKind.Photo,
+            "image/png",
+            1000,
+            DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow,
+            1920,
+            1080,
+            null,
+            false,
+            null,
+            null);
+
+        var result = await classifier.ClassifyAsync("Screenshot.png", metadata, CancellationToken.None);
+
+        Assert.Equal(MediaClassification.Unknown, result.Classification);
+    }
+
+    private static MediaClassifier CreateClassifier()
+        => new(Options.Create(new MediaLibraryOptions()));
 }

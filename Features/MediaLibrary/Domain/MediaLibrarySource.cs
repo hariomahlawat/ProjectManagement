@@ -18,8 +18,12 @@ public sealed class MediaLibrarySource
     public string? RootPath { get; set; }
 
     public bool IsEnabled { get; set; }
+    public bool IsVisibleInLibrary { get; set; } = true;
     public bool IsReadOnly { get; set; } = true;
     public bool IncludeSubfolders { get; set; } = true;
+    public bool IsConfigurationManaged { get; set; }
+    public bool IsDeleted { get; set; }
+    public int ScanIntervalMinutes { get; set; } = 30;
 
     public string AllowedExtensionsJson { get; set; } = "[]";
 
@@ -31,11 +35,25 @@ public sealed class MediaLibrarySource
     public DateTimeOffset? LastSuccessfulScanAtUtc { get; set; }
     public DateTimeOffset? ScanRequestedAtUtc { get; set; }
 
+    [MaxLength(128)]
+    public string? ScanLockedBy { get; set; }
+
+    public DateTimeOffset? ScanLockExpiresAtUtc { get; set; }
+
     [MaxLength(64)]
     public string ScanStatus { get; set; } = "Never";
 
     [MaxLength(2048)]
     public string? LastError { get; set; }
+
+    [MaxLength(64)]
+    public string HealthStatus { get; set; } = "Unknown";
+
+    [MaxLength(2048)]
+    public string? HealthMessage { get; set; }
+
+    public DateTimeOffset? LastHealthCheckedAtUtc { get; set; }
+    public DateTimeOffset? DisconnectedAtUtc { get; set; }
 
     public long IndexedAssetCount { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }

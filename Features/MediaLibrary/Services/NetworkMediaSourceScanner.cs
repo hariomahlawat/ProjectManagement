@@ -1,29 +1,34 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
-using SixLabors.ImageSharp;
 
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
-public sealed class NetworkMediaSourceScanner : INetworkMediaSourceScanner
+/// <summary>
+/// Incrementally indexes a local or UNC folder. The historic filename is retained so the
+/// upgrade can overwrite the prototype without requiring a manual file deletion.
+/// </summary>
+public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
 {
     private readonly MediaLibraryDbContext _db;
     private readonly MediaLibraryOptions _options;
-    private readonly INetworkSharePathResolver _pathResolver;
+    private readonly IFileSystemPathResolver _pathResolver;
     private readonly SafeFileEnumerator _enumerator;
     private readonly IMediaMetadataReader _metadataReader;
-    private readonly ILogger<NetworkMediaSourceScanner> _logger;
+    private readonly ILogger<FileSystemMediaSourceScanner> _logger;
 
-    public NetworkMediaSourceScanner(
+    public FileSystemMediaSourceScanner(
         MediaLibraryDbContext db,
         IOptions<MediaLibraryOptions> options,
-        INetworkSharePathResolver pathResolver,
+        IFileSystemPathResolver pathResolver,
         SafeFileEnumerator enumerator,
         IMediaMetadataReader metadataReader,
-        ILogger<NetworkMediaSourceScanner> logger)
+        ILogger<FileSystemMediaSourceScanner> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -33,48 +38,74 @@ public sealed class NetworkMediaSourceScanner : INetworkMediaSourceScanner
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task ScanAsync(Guid sourceId, CancellationToken cancellationToken)
+    public async Task ScanAsync(Guid sourceId, string workerId, CancellationToken cancellationToken)
     {
-        var source = await _db.Sources.SingleAsync(item => item.Id == sourceId, cancellationToken);
-        if (!source.IsEnabled || source.SourceType != MediaLibrarySourceType.NetworkShare)
+        if (!_options.IsExternalSourceFeatureEnabled)
         {
             return;
         }
 
-        var configured = _options.Sources.FirstOrDefault(item =>
-            string.Equals(MediaSourceBootstrapper.NormalizeKey(item.Key), source.Key, StringComparison.OrdinalIgnoreCase));
-
-        if (configured is null || !configured.Enabled)
+        ArgumentException.ThrowIfNullOrWhiteSpace(workerId);
+        var leaseDuration = TimeSpan.FromMinutes(_options.ExternalSources.ScanLeaseMinutes);
+        if (!await TryAcquireLeaseAsync(sourceId, workerId, leaseDuration, cancellationToken))
         {
-            source.ScanStatus = "Disabled";
-            source.LastError = "The source is not enabled in configuration.";
-            source.LastScanCompletedAtUtc = DateTimeOffset.UtcNow;
-            await _db.SaveChangesAsync(cancellationToken);
+            _logger.LogDebug("External media source {SourceId} is already being scanned", sourceId);
             return;
         }
 
-        var scanId = Guid.NewGuid();
-        var started = DateTimeOffset.UtcNow;
-        source.LastScanStartedAtUtc = started;
-        source.ScanStatus = "Scanning";
-        source.LastError = null;
-        await _db.SaveChangesAsync(cancellationToken);
-
+        MediaLibrarySource? source = null;
         try
         {
-            var root = _pathResolver.ResolveRoot(configured.RootPath);
-            if (!Directory.Exists(root))
+            source = await _db.Sources.SingleOrDefaultAsync(item => item.Id == sourceId, cancellationToken);
+            if (source is null
+                || source.IsDeleted
+                || !source.IsEnabled
+                || source.SourceType != MediaLibrarySourceType.FileSystem)
             {
-                throw new DirectoryNotFoundException($"Media source root '{root}' is not reachable by the worker account.");
+                return;
             }
 
-            var allowed = MediaSourceBootstrapper.NormalizeExtensions(configured.AllowedExtensions)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var batch = new List<FileCandidate>(_options.ScanBatchSize);
+            if (string.IsNullOrWhiteSpace(source.RootPath))
+            {
+                throw new InvalidOperationException("The external media source has no folder path.");
+            }
 
-            foreach (var fullPath in _enumerator.EnumerateFiles(root, configured.IncludeSubfolders, cancellationToken))
+            var scanId = Guid.NewGuid();
+            var started = DateTimeOffset.UtcNow;
+            source.LastScanStartedAtUtc = started;
+            source.ScanStatus = "Scanning";
+            source.LastError = null;
+            source.HealthStatus = "Checking";
+            source.HealthMessage = null;
+            await _db.SaveChangesAsync(cancellationToken);
+
+            var root = _pathResolver.ResolveRoot(source.RootPath);
+            if (!Directory.Exists(root))
+            {
+                throw new DirectoryNotFoundException(
+                    $"The folder '{root}' is not reachable by the PRISM worker account.");
+            }
+
+            var allowed = ParseExtensions(source.AllowedExtensionsJson)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (allowed.Count == 0)
+            {
+                throw new InvalidOperationException("The source has no allowed media extensions.");
+            }
+
+            var batchSize = _options.ExternalSources.ScanBatchSize;
+            var batch = new List<FileCandidate>(batchSize);
+            var nextLeaseRenewalUtc = DateTimeOffset.UtcNow.AddTicks(leaseDuration.Ticks / 2);
+
+            foreach (var fullPath in _enumerator.EnumerateFiles(root, source.IncludeSubfolders, cancellationToken))
             {
                 cancellationToken.ThrowIfCancellationRequested();
+
+                if (DateTimeOffset.UtcNow >= nextLeaseRenewalUtc)
+                {
+                    await RenewLeaseAsync(sourceId, workerId, leaseDuration, cancellationToken);
+                    nextLeaseRenewalUtc = DateTimeOffset.UtcNow.AddTicks(leaseDuration.Ticks / 2);
+                }
 
                 var extension = Path.GetExtension(fullPath);
                 if (!allowed.Contains(extension))
@@ -99,29 +130,52 @@ public sealed class NetworkMediaSourceScanner : INetworkMediaSourceScanner
                 }
                 catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
                 {
-                    _logger.LogError(ex, "Unable to inspect NAS media file {Path}", fullPath);
+                    _logger.LogError(ex, "Unable to inspect external media file {Path}", fullPath);
                     throw;
                 }
 
                 var relative = _pathResolver.ToRelativePath(root, fullPath);
-                var normalizedKey = relative.ToUpperInvariant();
-                var fingerprint = $"{file.Length:X}-{file.LastWriteTimeUtc.Ticks:X}";
-                batch.Add(new FileCandidate(fullPath, relative, normalizedKey, fingerprint));
-
-                if (batch.Count >= _options.ScanBatchSize)
+                if (relative.Length > 2048)
                 {
+                    _logger.LogWarning(
+                        "Skipping external media path longer than the catalogue limit ({Length}): {Path}",
+                        relative.Length,
+                        fullPath);
+                    continue;
+                }
+
+                var normalizedPath = OperatingSystem.IsWindows()
+                    ? relative.ToUpperInvariant()
+                    : relative;
+                var sourceEntityId = normalizedPath.Length <= 1024
+                    ? normalizedPath
+                    : Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalizedPath)));
+                var fingerprint = $"{file.Length:X}-{file.LastWriteTimeUtc.Ticks:X}";
+                batch.Add(new FileCandidate(fullPath, relative, sourceEntityId, fingerprint));
+
+                if (batch.Count >= batchSize)
+                {
+                    await RenewLeaseAsync(sourceId, workerId, leaseDuration, cancellationToken);
                     await ProcessBatchAsync(source, scanId, batch, cancellationToken);
                     batch.Clear();
+                    await RenewLeaseAsync(sourceId, workerId, leaseDuration, cancellationToken);
+                    nextLeaseRenewalUtc = DateTimeOffset.UtcNow.AddTicks(leaseDuration.Ticks / 2);
                 }
             }
 
             if (batch.Count > 0)
             {
+                await RenewLeaseAsync(sourceId, workerId, leaseDuration, cancellationToken);
                 await ProcessBatchAsync(source, scanId, batch, cancellationToken);
+                await RenewLeaseAsync(sourceId, workerId, leaseDuration, cancellationToken);
             }
 
+            // Reconcile only after a complete, successful enumeration. A network outage or
+            // inaccessible subtree must never make the catalogue mark the archive missing.
             await _db.Assets
-                .Where(asset => asset.SourceId == source.Id && asset.LastSeenScanId != scanId && asset.IsAvailable)
+                .Where(asset => asset.SourceId == source.Id
+                                && asset.LastSeenScanId != scanId
+                                && asset.IsAvailable)
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(asset => asset.IsAvailable, false)
                     .SetProperty(asset => asset.LastSeenAtUtc, DateTimeOffset.UtcNow), cancellationToken);
@@ -131,19 +185,60 @@ public sealed class NetworkMediaSourceScanner : INetworkMediaSourceScanner
                 cancellationToken);
             source.LastScanCompletedAtUtc = DateTimeOffset.UtcNow;
             source.LastSuccessfulScanAtUtc = source.LastScanCompletedAtUtc;
+            source.LastHealthCheckedAtUtc = source.LastScanCompletedAtUtc;
             source.ScanStatus = "Healthy";
+            source.HealthStatus = "Reachable";
+            source.HealthMessage = $"{source.IndexedAssetCount:N0} media item(s) indexed.";
             source.LastError = null;
             source.ScanRequestedAtUtc = null;
+            source.UpdatedAtUtc = DateTimeOffset.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            source.LastScanCompletedAtUtc = DateTimeOffset.UtcNow;
-            source.ScanStatus = "Failed";
-            source.LastError = Trim(ex.GetBaseException().Message, 2048);
-            await _db.SaveChangesAsync(CancellationToken.None);
-            _logger.LogError(ex, "NAS media scan failed for source {SourceKey}", source.Key);
-            throw;
+            var message = Trim(ex.GetBaseException().Message, 2048);
+            if (source is not null)
+            {
+                source.LastScanCompletedAtUtc = DateTimeOffset.UtcNow;
+                source.LastHealthCheckedAtUtc = source.LastScanCompletedAtUtc;
+                source.ScanStatus = "Failed";
+                source.HealthStatus = "Unavailable";
+                source.HealthMessage = message;
+                source.LastError = message;
+                source.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                try
+                {
+                    await _db.SaveChangesAsync(CancellationToken.None);
+                }
+                catch (Exception saveException)
+                {
+                    _logger.LogError(saveException,
+                        "Unable to persist failed scan state for external media source {SourceId}", sourceId);
+                }
+            }
+
+            // A failed optional source is contained. Other sources and the core Photos page
+            // continue normally.
+            _logger.LogError(ex, "External media scan failed for source {SourceId}", sourceId);
+        }
+        finally
+        {
+            try
+            {
+                await ReleaseLeaseAsync(sourceId, workerId, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                // The lease expires automatically. A release failure must not turn an
+                // optional source outage into a worker or web-host failure.
+                _logger.LogWarning(ex,
+                    "Unable to release external media scan lease for source {SourceId}; it will expire automatically",
+                    sourceId);
+            }
         }
     }
 
@@ -179,7 +274,7 @@ public sealed class NetworkMediaSourceScanner : INetworkMediaSourceScanner
             {
                 metadata = await _metadataReader.ReadAsync(candidate.FullPath, cancellationToken);
             }
-            catch (Exception ex) when (ex is InvalidDataException or UnknownImageFormatException or IOException or UnauthorizedAccessException)
+            catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
             {
                 if (existing.TryGetValue(candidate.SourceEntityId, out var existingAsset))
                 {
@@ -189,7 +284,7 @@ public sealed class NetworkMediaSourceScanner : INetworkMediaSourceScanner
                     existingAsset.ProcessingFailureReason = Trim(ex.GetBaseException().Message, 2048);
                 }
 
-                _logger.LogWarning(ex, "Skipping unsupported or unreadable NAS media file {Path}", candidate.FullPath);
+                _logger.LogWarning(ex, "Skipping unsupported or unreadable external media file {Path}", candidate.FullPath);
                 continue;
             }
 
@@ -198,8 +293,8 @@ public sealed class NetworkMediaSourceScanner : INetworkMediaSourceScanner
                 ? source.Name
                 : Path.GetFileName(folder.Replace('/', Path.DirectorySeparatorChar));
             var collectionKey = string.IsNullOrWhiteSpace(folder)
-                ? $"nas:{source.Key}:root"
-                : $"nas:{source.Key}:{folder.ToUpperInvariant()}";
+                ? $"external:{source.Key}:root"
+                : $"external:{source.Key}:{folder.ToUpperInvariant()}";
 
             var isNew = !existing.TryGetValue(candidate.SourceEntityId, out var asset);
             if (isNew)
@@ -208,7 +303,7 @@ public sealed class NetworkMediaSourceScanner : INetworkMediaSourceScanner
                 {
                     SourceId = source.Id,
                     SourceEntityId = candidate.SourceEntityId,
-                    Origin = MediaAssetOrigin.NetworkFile,
+                    Origin = MediaAssetOrigin.ExternalFile,
                     IndexedAtUtc = now,
                     CacheVersion = 1
                 };
@@ -245,7 +340,7 @@ public sealed class NetworkMediaSourceScanner : INetworkMediaSourceScanner
             asset.DerivativeStatus = metadata.Kind == MediaAssetKind.Photo
                 ? MediaProcessingStatus.Pending
                 : MediaProcessingStatus.Unsupported;
-            asset.AnalysisStatus = metadata.Kind == MediaAssetKind.Photo
+            asset.AnalysisStatus = metadata.Kind == MediaAssetKind.Photo && _options.Classification.Enabled
                 ? MediaProcessingStatus.Pending
                 : MediaProcessingStatus.NotRequested;
             asset.ProcessingFailureReason = null;
@@ -254,7 +349,7 @@ public sealed class NetworkMediaSourceScanner : INetworkMediaSourceScanner
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        if (changedAssets.Count > 0)
+        if (changedAssets.Count > 0 && _options.IsProcessingWorkerEnabled)
         {
             var assetIds = changedAssets.Select(asset => asset.Id).ToArray();
             var jobs = await _db.ProcessingJobs
@@ -277,7 +372,7 @@ public sealed class NetworkMediaSourceScanner : INetworkMediaSourceScanner
 
                 job.Status = MediaProcessingJobStatus.Pending;
                 job.AttemptCount = 0;
-                job.MaxAttempts = _options.MaxAttempts;
+                job.MaxAttempts = _options.Processing.MaxAttempts;
                 job.AvailableAfterUtc = now;
                 job.StartedAtUtc = null;
                 job.CompletedAtUtc = null;
@@ -296,6 +391,69 @@ public sealed class NetworkMediaSourceScanner : INetworkMediaSourceScanner
                      .ToArray())
         {
             entry.State = EntityState.Detached;
+        }
+    }
+
+    private async Task<bool> TryAcquireLeaseAsync(
+        Guid sourceId,
+        string workerId,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var expires = now.Add(leaseDuration);
+        var affected = await _db.Sources
+            .Where(source => source.Id == sourceId
+                             && (source.ScanLockedBy == null
+                                 || source.ScanLockExpiresAtUtc == null
+                                 || source.ScanLockExpiresAtUtc <= now
+                                 || source.ScanLockedBy == workerId))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(source => source.ScanLockedBy, workerId)
+                .SetProperty(source => source.ScanLockExpiresAtUtc, expires), cancellationToken);
+
+        _db.ChangeTracker.Clear();
+        return affected == 1;
+    }
+
+    private async Task RenewLeaseAsync(
+        Guid sourceId,
+        string workerId,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken)
+    {
+        var affected = await _db.Sources
+            .Where(source => source.Id == sourceId && source.ScanLockedBy == workerId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(source => source.ScanLockExpiresAtUtc, DateTimeOffset.UtcNow.Add(leaseDuration)),
+                cancellationToken);
+
+        if (affected != 1)
+        {
+            throw new InvalidOperationException("The external media scan lease was lost.");
+        }
+    }
+
+    private async Task ReleaseLeaseAsync(Guid sourceId, string workerId, CancellationToken cancellationToken)
+    {
+        await _db.Sources
+            .Where(source => source.Id == sourceId && source.ScanLockedBy == workerId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(source => source.ScanLockedBy, (string?)null)
+                .SetProperty(source => source.ScanLockExpiresAtUtc, (DateTimeOffset?)null),
+                cancellationToken);
+    }
+
+    private static string[] ParseExtensions(string json)
+    {
+        try
+        {
+            return MediaSourceBootstrapper.NormalizeExtensions(
+                JsonSerializer.Deserialize<string[]>(json) ?? Array.Empty<string>());
+        }
+        catch (JsonException)
+        {
+            return Array.Empty<string>();
         }
     }
 

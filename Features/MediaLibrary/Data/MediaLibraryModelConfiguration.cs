@@ -9,7 +9,10 @@ public static class MediaLibraryModelConfiguration
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
-        modelBuilder.HasPostgresExtension("vector");
+        modelBuilder.Ignore<MediaPerson>();
+        modelBuilder.Ignore<MediaFaceCluster>();
+        modelBuilder.Ignore<MediaFace>();
+        modelBuilder.Ignore<MediaIdentityAudit>();
 
         modelBuilder.Entity<MediaLibrarySource>(entity =>
         {
@@ -22,9 +25,16 @@ public static class MediaLibraryModelConfiguration
             entity.Property(x => x.AllowedExtensionsJson).HasColumnType("jsonb").HasDefaultValue("[]");
             entity.Property(x => x.ConfigurationFingerprint).HasMaxLength(128);
             entity.Property(x => x.ScanStatus).HasMaxLength(64).HasDefaultValue("Never");
+            entity.Property(x => x.ScanLockedBy).HasMaxLength(128);
             entity.Property(x => x.LastError).HasMaxLength(2048);
+            entity.Property(x => x.HealthStatus).HasMaxLength(64).HasDefaultValue("Unknown");
+            entity.Property(x => x.HealthMessage).HasMaxLength(2048);
+            entity.Property(x => x.ScanIntervalMinutes).HasDefaultValue(30);
+            entity.Property(x => x.IsVisibleInLibrary).HasDefaultValue(true);
             entity.HasIndex(x => x.Key).IsUnique();
-            entity.HasIndex(x => new { x.IsEnabled, x.SourceType });
+            entity.HasIndex(x => new { x.IsEnabled, x.IsDeleted, x.SourceType });
+            entity.HasIndex(x => new { x.IsVisibleInLibrary, x.IsDeleted });
+            entity.HasIndex(x => x.ScanLockExpiresAtUtc);
         });
 
         modelBuilder.Entity<MediaAsset>(entity =>
@@ -80,72 +90,6 @@ public static class MediaLibraryModelConfiguration
                 .WithMany(x => x.ProcessingJobs)
                 .HasForeignKey(x => x.MediaAssetId)
                 .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<MediaPerson>(entity =>
-        {
-            entity.ToTable("MediaPeople");
-            entity.HasKey(x => x.Id);
-            entity.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
-            entity.Property(x => x.NormalizedName).HasMaxLength(200).IsRequired();
-            entity.Property(x => x.LinkedUserId).HasMaxLength(450);
-            entity.Property(x => x.Designation).HasMaxLength(200);
-            entity.Property(x => x.Organisation).HasMaxLength(200);
-            entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
-            entity.HasIndex(x => x.NormalizedName);
-            entity.HasIndex(x => x.LinkedUserId);
-        });
-
-        modelBuilder.Entity<MediaFaceCluster>(entity =>
-        {
-            entity.ToTable("MediaFaceClusters");
-            entity.HasKey(x => x.Id);
-            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
-            entity.HasIndex(x => x.PersonId);
-            entity.HasOne(x => x.Person)
-                .WithMany(x => x.Clusters)
-                .HasForeignKey(x => x.PersonId)
-                .OnDelete(DeleteBehavior.SetNull);
-        });
-
-        modelBuilder.Entity<MediaFace>(entity =>
-        {
-            entity.ToTable("MediaFaces");
-            entity.HasKey(x => x.Id);
-            entity.Property(x => x.Embedding).HasColumnType("vector(512)");
-            entity.Property(x => x.IdentityStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
-            entity.Property(x => x.DetectorModelVersion).HasMaxLength(128).IsRequired();
-            entity.Property(x => x.EmbeddingModelVersion).HasMaxLength(128).IsRequired();
-            entity.HasIndex(x => x.MediaAssetId);
-            entity.HasIndex(x => x.PersonId);
-            entity.HasIndex(x => x.FaceClusterId);
-            entity.HasIndex(x => x.Embedding)
-                .HasDatabaseName("IX_MediaFaces_Embedding_Hnsw")
-                .HasMethod("hnsw")
-                .HasOperators("vector_cosine_ops")
-                .HasFilter("\"Embedding\" IS NOT NULL");
-            entity.HasOne(x => x.MediaAsset)
-                .WithMany(x => x.Faces)
-                .HasForeignKey(x => x.MediaAssetId)
-                .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(x => x.Person)
-                .WithMany(x => x.Faces)
-                .HasForeignKey(x => x.PersonId)
-                .OnDelete(DeleteBehavior.SetNull);
-            entity.HasOne(x => x.FaceCluster)
-                .WithMany(x => x.Faces)
-                .HasForeignKey(x => x.FaceClusterId)
-                .OnDelete(DeleteBehavior.SetNull);
-        });
-
-        modelBuilder.Entity<MediaIdentityAudit>(entity =>
-        {
-            entity.ToTable("MediaIdentityAudits");
-            entity.HasKey(x => x.Id);
-            entity.Property(x => x.Action).HasMaxLength(64).IsRequired();
-            entity.Property(x => x.PerformedByUserId).HasMaxLength(450).IsRequired();
-            entity.Property(x => x.Notes).HasMaxLength(1024);
-            entity.HasIndex(x => new { x.FaceId, x.PerformedAtUtc });
         });
     }
 }

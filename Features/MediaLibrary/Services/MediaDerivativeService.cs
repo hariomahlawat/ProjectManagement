@@ -1,28 +1,29 @@
-using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.Processing;
+using SkiaSharp;
 
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
 public sealed class MediaDerivativeService : IMediaDerivativeService
 {
-    private static readonly ConcurrentDictionary<long, SemaphoreSlim> AssetLocks = new();
+    private const int LockStripeCount = 257;
+    private static readonly SemaphoreSlim[] AssetLocks = Enumerable
+        .Range(0, LockStripeCount)
+        .Select(_ => new SemaphoreSlim(1, 1))
+        .ToArray();
 
     private readonly MediaLibraryDbContext _db;
     private readonly IMediaCachePathResolver _cache;
-    private readonly INetworkSharePathResolver _pathResolver;
+    private readonly IFileSystemPathResolver _pathResolver;
     private readonly MediaLibraryOptions _options;
 
     public MediaDerivativeService(
         MediaLibraryDbContext db,
         IMediaCachePathResolver cache,
-        INetworkSharePathResolver pathResolver,
+        IFileSystemPathResolver pathResolver,
         IOptions<MediaLibraryOptions> options)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
@@ -34,7 +35,7 @@ public sealed class MediaDerivativeService : IMediaDerivativeService
     public async Task<string> EnsureAsync(long assetId, string variant, CancellationToken cancellationToken)
     {
         variant = variant.Equals("thumb", StringComparison.OrdinalIgnoreCase) ? "thumb" : "preview";
-        var gate = AssetLocks.GetOrAdd(assetId, static _ => new SemaphoreSlim(1, 1));
+        var gate = AssetLocks[(int)((ulong)assetId % LockStripeCount)];
         await gate.WaitAsync(cancellationToken);
 
         try
@@ -49,11 +50,12 @@ public sealed class MediaDerivativeService : IMediaDerivativeService
                 throw new FileNotFoundException("The media asset is unavailable.");
             }
 
-            if (asset.Source.SourceType != MediaLibrarySourceType.NetworkShare
+            if (asset.Source.SourceType != MediaLibrarySourceType.FileSystem
+                || asset.Source.IsDeleted
                 || string.IsNullOrWhiteSpace(asset.Source.RootPath)
                 || string.IsNullOrWhiteSpace(asset.RelativePath))
             {
-                throw new InvalidOperationException("Derivatives are generated only for network-share assets.");
+                throw new InvalidOperationException("Derivatives are generated only for external file-system assets.");
             }
 
             var output = variant == "thumb"
@@ -72,32 +74,38 @@ public sealed class MediaDerivativeService : IMediaDerivativeService
                 throw new FileNotFoundException("The original media file is not currently reachable.", input);
             }
 
-            if (file.Length > _options.MaxImageFileSizeBytes)
+            if (file.Length > _options.Processing.MaxImageFileSizeBytes)
             {
                 throw new InvalidDataException("The image exceeds the configured processing size limit.");
             }
 
-            var maxPixels = variant == "thumb" ? _options.ThumbnailMaxPixels : _options.PreviewMaxPixels;
+            var maxPixels = variant == "thumb"
+                ? _options.Processing.ThumbnailMaxPixels
+                : _options.Processing.PreviewMaxPixels;
             var directory = Path.GetDirectoryName(output)!;
             Directory.CreateDirectory(directory);
             var temporary = output + $".{Guid.NewGuid():N}.tmp";
 
             try
             {
-                using var image = await Image.LoadAsync(input, cancellationToken);
-                image.Mutate(context => context
-                    .AutoOrient()
-                    .Resize(new ResizeOptions
-                    {
-                        Mode = ResizeMode.Max,
-                        Size = new Size(maxPixels, maxPixels),
-                        Sampler = KnownResamplers.Lanczos3
-                    }));
+                cancellationToken.ThrowIfCancellationRequested();
+                using var oriented = DecodeOriented(input);
+                using var resized = ResizeToFit(oriented, maxPixels);
+                using var image = SKImage.FromBitmap(resized);
+                using var encoded = image.Encode(SKEncodedImageFormat.Webp, _options.Processing.WebpQuality)
+                    ?? throw new InvalidDataException("The server could not encode the media preview.");
 
-                await image.SaveAsWebpAsync(
-                    temporary,
-                    new WebpEncoder { Quality = _options.WebpQuality },
-                    cancellationToken);
+                await using (var outputStream = new FileStream(
+                                 temporary,
+                                 FileMode.CreateNew,
+                                 FileAccess.Write,
+                                 FileShare.None,
+                                 128 * 1024,
+                                 FileOptions.Asynchronous | FileOptions.SequentialScan))
+                {
+                    encoded.SaveTo(outputStream);
+                    await outputStream.FlushAsync(cancellationToken);
+                }
 
                 File.Move(temporary, output, overwrite: true);
             }
@@ -114,10 +122,96 @@ public sealed class MediaDerivativeService : IMediaDerivativeService
         finally
         {
             gate.Release();
-            if (gate.CurrentCount == 1)
-            {
-                AssetLocks.TryRemove(assetId, out _);
-            }
         }
+    }
+
+    private static SKBitmap DecodeOriented(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+        using var codec = SKCodec.Create(stream)
+            ?? throw new InvalidDataException("The image format is not supported by SkiaSharp.");
+
+        var source = new SKBitmap(codec.Info.Width, codec.Info.Height, codec.Info.ColorType, codec.Info.AlphaType);
+        var result = codec.GetPixels(source.Info, source.GetPixels());
+        if (result is not (SKCodecResult.Success or SKCodecResult.IncompleteInput))
+        {
+            source.Dispose();
+            throw new InvalidDataException($"The image could not be decoded ({result}).");
+        }
+
+        if (codec.EncodedOrigin == SKEncodedOrigin.TopLeft)
+        {
+            return source;
+        }
+
+        var swapsAxes = codec.EncodedOrigin is SKEncodedOrigin.LeftTop
+            or SKEncodedOrigin.RightTop
+            or SKEncodedOrigin.RightBottom
+            or SKEncodedOrigin.LeftBottom;
+        var destination = new SKBitmap(
+            swapsAxes ? source.Height : source.Width,
+            swapsAxes ? source.Width : source.Height,
+            source.ColorType,
+            source.AlphaType);
+
+        using (source)
+        using (var canvas = new SKCanvas(destination))
+        {
+            canvas.Clear(SKColors.Transparent);
+            canvas.SetMatrix(CreateOrientationMatrix(codec.EncodedOrigin, source.Width, source.Height));
+            canvas.DrawBitmap(source, 0, 0);
+            canvas.Flush();
+        }
+
+        return destination;
+    }
+
+    private static SKMatrix CreateOrientationMatrix(SKEncodedOrigin origin, int width, int height)
+        => origin switch
+        {
+            SKEncodedOrigin.TopRight => Matrix(-1, 0, width, 0, 1, 0),
+            SKEncodedOrigin.BottomRight => Matrix(-1, 0, width, 0, -1, height),
+            SKEncodedOrigin.BottomLeft => Matrix(1, 0, 0, 0, -1, height),
+            SKEncodedOrigin.LeftTop => Matrix(0, 1, 0, 1, 0, 0),
+            SKEncodedOrigin.RightTop => Matrix(0, -1, height, 1, 0, 0),
+            SKEncodedOrigin.RightBottom => Matrix(0, -1, height, -1, 0, width),
+            SKEncodedOrigin.LeftBottom => Matrix(0, 1, 0, -1, 0, width),
+            _ => SKMatrix.CreateIdentity()
+        };
+
+    private static SKMatrix Matrix(
+        float scaleX,
+        float skewX,
+        float transX,
+        float skewY,
+        float scaleY,
+        float transY)
+        => new()
+        {
+            ScaleX = scaleX,
+            SkewX = skewX,
+            TransX = transX,
+            SkewY = skewY,
+            ScaleY = scaleY,
+            TransY = transY,
+            Persp0 = 0,
+            Persp1 = 0,
+            Persp2 = 1
+        };
+
+    private static SKBitmap ResizeToFit(SKBitmap source, int maxPixels)
+    {
+        var longest = Math.Max(source.Width, source.Height);
+        if (longest <= maxPixels)
+        {
+            return source.Copy();
+        }
+
+        var scale = maxPixels / (double)longest;
+        var width = Math.Max(1, (int)Math.Round(source.Width * scale));
+        var height = Math.Max(1, (int)Math.Round(source.Height * scale));
+        return source.Resize(new SKImageInfo(width, height), SKFilterQuality.High)
+               ?? throw new InvalidDataException("The image preview could not be resized.");
     }
 }

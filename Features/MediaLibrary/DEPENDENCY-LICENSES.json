@@ -1,0 +1,42 @@
+{
+  "scope": "Dependencies introduced directly by PRISM Media Library external-folder phase",
+  "approvedLicenses": [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "PostgreSQL",
+    "Zlib"
+  ],
+  "dependencies": [
+    {
+      "name": "SkiaSharp",
+      "version": "2.88.8",
+      "license": "MIT",
+      "purpose": "Image decoding, resizing and WebP derivative generation",
+      "approved": true
+    },
+    {
+      "name": "SkiaSharp.NativeAssets.Win32",
+      "version": "2.88.8",
+      "license": "MIT",
+      "purpose": "Windows native runtime assets for SkiaSharp",
+      "approved": true
+    },
+    {
+      "name": "SkiaSharp.NativeAssets.Linux.NoDependencies",
+      "version": "2.88.8",
+      "license": "MIT",
+      "purpose": "Linux native runtime assets for SkiaSharp",
+      "approved": true
+    },
+    {
+      "name": "MetadataExtractor",
+      "version": "2.9.0",
+      "license": "Apache-2.0",
+      "purpose": "EXIF and media metadata extraction",
+      "approved": true
+    }
+  ]
+}

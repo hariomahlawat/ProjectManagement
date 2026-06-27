@@ -1,9 +1,14 @@
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Metadata.Profiles.Exif;
+using MetadataExtractor;
+using MetadataExtractor.Formats.Exif;
 using ProjectManagement.Features.MediaLibrary.Domain;
+using SkiaSharp;
 
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
+/// <summary>
+/// Reads image dimensions with SkiaSharp and camera/creation metadata with
+/// MetadataExtractor. Both dependencies use permissive open-source licences.
+/// </summary>
 public sealed class MediaMetadataReader : IMediaMetadataReader
 {
     private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -11,9 +16,10 @@ public sealed class MediaMetadataReader : IMediaMetadataReader
         ".mp4", ".webm", ".mov", ".m4v", ".ogg"
     };
 
-    public async Task<MediaFileMetadata> ReadAsync(string path, CancellationToken cancellationToken)
+    public Task<MediaFileMetadata> ReadAsync(string path, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        cancellationToken.ThrowIfCancellationRequested();
 
         var file = new FileInfo(path);
         if (!file.Exists)
@@ -28,7 +34,7 @@ public sealed class MediaMetadataReader : IMediaMetadataReader
 
         if (kind == MediaAssetKind.Video)
         {
-            return new MediaFileMetadata(
+            return Task.FromResult(new MediaFileMetadata(
                 kind,
                 contentType,
                 file.Length,
@@ -39,73 +45,72 @@ public sealed class MediaMetadataReader : IMediaMetadataReader
                 null,
                 false,
                 null,
-                null);
+                null));
         }
 
-        var info = await Image.IdentifyAsync(path, cancellationToken);
-        if (info is null)
+        int width;
+        int height;
+        using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                   FileShare.ReadWrite | FileShare.Delete))
+        using (var codec = SKCodec.Create(stream))
         {
-            throw new InvalidDataException("The image format is not supported by the current server decoder.");
+            if (codec is null || codec.Info.Width <= 0 || codec.Info.Height <= 0)
+            {
+                throw new InvalidDataException("The image format is not supported by the current server decoder.");
+            }
+
+            var rotates = codec.EncodedOrigin is SKEncodedOrigin.LeftTop
+                or SKEncodedOrigin.RightTop
+                or SKEncodedOrigin.RightBottom
+                or SKEncodedOrigin.LeftBottom;
+            width = rotates ? codec.Info.Height : codec.Info.Width;
+            height = rotates ? codec.Info.Width : codec.Info.Height;
         }
 
-        var exif = info.Metadata.ExifProfile;
-        var make = ReadExifString(exif, ExifTag.Make);
-        var model = ReadExifString(exif, ExifTag.Model);
-        var taken = TryReadExifDate(exif) ?? modified;
+        cancellationToken.ThrowIfCancellationRequested();
+        string? make = null;
+        string? model = null;
+        DateTimeOffset? taken = null;
 
-        return new MediaFileMetadata(
+        try
+        {
+            var directories = ImageMetadataReader.ReadMetadata(path);
+            var ifd0 = directories.OfType<ExifIfd0Directory>().FirstOrDefault();
+            var subIfd = directories.OfType<ExifSubIfdDirectory>().FirstOrDefault();
+
+            make = ifd0?.GetString(ExifDirectoryBase.TagMake)?.Trim();
+            model = ifd0?.GetString(ExifDirectoryBase.TagModel)?.Trim();
+
+            if (TryGetDate(subIfd, ExifDirectoryBase.TagDateTimeOriginal, out var original)
+                || TryGetDate(subIfd, ExifDirectoryBase.TagDateTimeDigitized, out original)
+                || TryGetDate(ifd0, ExifDirectoryBase.TagDateTime, out original))
+            {
+                taken = new DateTimeOffset(DateTime.SpecifyKind(original, DateTimeKind.Local));
+            }
+        }
+        catch (ImageProcessingException)
+        {
+            // Metadata is optional. A valid image remains indexable without EXIF.
+        }
+
+        return Task.FromResult(new MediaFileMetadata(
             kind,
             contentType,
             file.Length,
             modified,
-            taken,
-            info.Width,
-            info.Height,
+            taken ?? modified,
+            width,
+            height,
             null,
             !string.IsNullOrWhiteSpace(make) || !string.IsNullOrWhiteSpace(model),
             make,
-            model);
+            model));
     }
 
-    private static string? ReadExifString(ExifProfile? profile, ExifTag<string> tag)
+    private static bool TryGetDate(ExifDirectoryBase? directory, int tag, out DateTime value)
     {
-        if (profile is null)
-        {
-            return null;
-        }
-
-        return profile.TryGetValue(tag, out var value)
-            ? value.Value?.Trim()
-            : null;
-    }
-
-    private static DateTimeOffset? TryReadExifDate(ExifProfile? profile)
-    {
-        if (profile is null)
-        {
-            return null;
-        }
-
-        var raw = ReadExifString(profile, ExifTag.DateTimeOriginal)
-            ?? ReadExifString(profile, ExifTag.DateTimeDigitized)
-            ?? ReadExifString(profile, ExifTag.DateTime);
-
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return null;
-        }
-
-        if (DateTime.TryParseExact(
-            raw,
-            "yyyy:MM:dd HH:mm:ss",
-            System.Globalization.CultureInfo.InvariantCulture,
-            System.Globalization.DateTimeStyles.AssumeLocal,
-            out var parsed))
-        {
-            return new DateTimeOffset(parsed);
-        }
-
-        return null;
+        value = default;
+        return directory is not null && directory.TryGetDateTime(tag, out value);
     }
 
     private static string ResolveContentType(string extension)

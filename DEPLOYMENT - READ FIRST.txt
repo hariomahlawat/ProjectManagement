@@ -1,31 +1,73 @@
-PRISM ENTERPRISE MEDIA LIBRARY — DEPLOYMENT
-===========================================
+PRISM MEDIA LIBRARY PHASE 2 — DEPLOYMENT
+========================================
 
-1. Copy this folder's CONTENTS into the ProjectManagement application root.
-   Allow folder merge and replace the included files.
+PURPOSE
+-------
+This overlay hardens the enterprise media catalogue and optional external folders.
+It supports both:
+  • Local absolute folders, e.g. D:\Archives\Photos
+  • UNC folders on a NAS or another server, e.g. \\MEDIA-SERVER\Photos
 
-2. Install pgvector on the PostgreSQL server, then run:
-   ops\media-library\verify-pgvector.sql
+External folders are optional. Core PRISM project, visit, event and video browsing does
+not depend on an external folder being configured or reachable.
 
-3. Edit appsettings.Production.json:
-   - Set MediaLibrary:Sources:0:RootPath to the real UNC share.
-   - Set Enabled to true only after the IIS/service identity has read/list access.
-   - Keep ReadOnly true.
-   - Set CacheRoot to a local path writable by the application identity.
+DEPLOYMENT
+----------
+1. Back up the application and PostgreSQL database.
+2. Copy this overlay into the ProjectManagement root and replace files.
+3. This package deliberately does NOT overwrite appsettings*.json. Review and merge:
 
-4. From the project root run:
-   npm ci
-   dotnet restore
-   dotnet ef database update --context MediaLibraryDbContext
-   dotnet build
-   dotnet test
+      ops/media-library/media-library-settings.example.json
 
-5. Restart PRISM, open /Admin/MediaSources as Admin or HoD, and select Scan now.
+   into the existing environment configuration. Keep external sources disabled until
+   the capability is required.
+4. Run:
 
-IMPORTANT
----------
-- The original NAS files are never copied, renamed, changed, or deleted.
-- PRISM stores catalogue metadata and rebuildable thumbnails/previews locally.
-- The delivered screenshot classifier is active after processing.
-- The People/face/cluster/pgvector schema is included, but no unapproved ONNX
-  face-recognition model is bundled. Face inference is a separate pluggable phase.
+      npm ci
+      dotnet restore
+      dotnet ef database update --context MediaLibraryDbContext
+      dotnet build
+      dotnet test
+
+5. Restart PRISM and hard-refresh the browser.
+
+SAFE DEFAULT
+------------
+Leave these false until an external folder is required:
+
+  MediaLibrary:ExternalSources:Enabled
+  MediaLibrary:ExternalSources:ScannerWorkerEnabled
+
+With no source configured—or with external folders disabled—normal PRISM Photos remains
+fully functional. A failed or offline external source is isolated and does not stop the
+web application or hide PRISM-owned media.
+
+CONNECTING A FOLDER
+-------------------
+1. Set both external-source switches to true and restart PRISM.
+2. Open /Admin/MediaSources.
+3. Add a local absolute path or UNC path.
+4. Use Test before saving/starting a full scan.
+
+For a remote folder, run the IIS application pool / worker under a service identity with
+read-only share and NTFS permissions. Do not use a mapped drive letter and do not store
+SMB credentials in appsettings.
+
+STORAGE AND DATABASE
+--------------------
+• Grant read/write permission to MediaLibrary:CacheRoot.
+• Originals remain read-only and are never moved or deleted by this feature.
+• This phase does not require pgvector.
+• People/face recognition remains disabled and no AI model is bundled.
+
+UPGRADE COMPATIBILITY
+---------------------
+A previously configured legacy NetworkShare source remains readable during transition.
+New source definitions must use the generic FileSystem type.
+
+EARLIER PROTOTYPE DATABASES
+---------------------------
+If the first enterprise-media prototype migration was already applied, its dormant
+People/vector tables may remain in PostgreSQL. This phase does not query or modify them
+and does not drop potentially valuable data automatically. They can be reviewed during
+the later approved People migration.

@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Pgvector.EntityFrameworkCore;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Hosted;
 using ProjectManagement.Features.MediaLibrary.Options;
@@ -27,17 +26,16 @@ public static class MediaLibraryServiceCollectionExtensions
 
         services.AddDbContext<MediaLibraryDbContext>(options =>
             options.UseNpgsql(connectionString, npgsql =>
-            {
-                npgsql.UseVector();
-                npgsql.MigrationsHistoryTable(MediaLibraryDbContext.MigrationsHistoryTable);
-            }));
+                npgsql.MigrationsHistoryTable(MediaLibraryDbContext.MigrationsHistoryTable)));
 
-        services.AddSingleton<INetworkSharePathResolver, NetworkSharePathResolver>();
+        services.AddSingleton<IFileSystemPathResolver, FileSystemPathResolver>();
         services.AddSingleton<IMediaCachePathResolver, MediaCachePathResolver>();
         services.AddScoped<SafeFileEnumerator>();
+        services.AddScoped<IFileSystemSourceHealthService, FileSystemSourceHealthService>();
         services.AddScoped<IMediaSourceBootstrapper, MediaSourceBootstrapper>();
         services.AddScoped<IPrismMediaCatalogueSynchronizer, PrismMediaCatalogueSynchronizer>();
-        services.AddScoped<INetworkMediaSourceScanner, NetworkMediaSourceScanner>();
+        services.AddScoped<IExternalMediaSourceScanner, FileSystemMediaSourceScanner>();
+        services.AddScoped<IExternalMediaLibraryReader, ExternalMediaLibraryReader>();
         services.AddScoped<IMediaMetadataReader, MediaMetadataReader>();
         services.AddScoped<IMediaClassifier, MediaClassifier>();
         services.AddScoped<IMediaDerivativeService, MediaDerivativeService>();
@@ -46,12 +44,15 @@ public static class MediaLibraryServiceCollectionExtensions
         var options = configuration.GetSection(MediaLibraryOptions.SectionName).Get<MediaLibraryOptions>()
             ?? new MediaLibraryOptions();
 
-        if (options.Enabled && options.ScannerWorkerEnabled)
+        // The workers are optional. Pages and PRISM-owned media remain available even
+        // when the catalogue, external folders, or their schema are unavailable.
+        if (options.IsCatalogueEnabled
+            && (options.Catalogue.SynchronizePrismMedia || options.IsScannerWorkerEnabled))
         {
             services.AddHostedService<MediaSourceScannerWorker>();
         }
 
-        if (options.Enabled && options.ProcessingWorkerEnabled)
+        if (options.IsProcessingWorkerEnabled)
         {
             services.AddHostedService<MediaProcessingWorker>();
         }

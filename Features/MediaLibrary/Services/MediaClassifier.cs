@@ -1,16 +1,29 @@
+using Microsoft.Extensions.Options;
 using ProjectManagement.Features.MediaLibrary.Domain;
+using ProjectManagement.Features.MediaLibrary.Options;
 
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
+/// <summary>
+/// Explainable, deterministic screenshot classifier. It intentionally avoids any model
+/// whose weights or training-data licence has not been approved.
+/// </summary>
 public sealed class MediaClassifier : IMediaClassifier
 {
-    public const string ClassifierVersion = "heuristic-screenshot-v1";
+    public const string ClassifierVersion = "heuristic-screenshot-v2";
 
     private static readonly string[] ScreenshotTerms =
     {
         "screenshot", "screen shot", "screen-shot", "screen_capture", "screen capture",
         "snipping", "snip", "capture", "clipboard"
     };
+
+    private readonly MediaLibraryOptions _options;
+
+    public MediaClassifier(IOptions<MediaLibraryOptions> options)
+    {
+        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+    }
 
     public Task<MediaClassificationResult> ClassifyAsync(
         string path,
@@ -19,12 +32,30 @@ public sealed class MediaClassifier : IMediaClassifier
     {
         cancellationToken.ThrowIfCancellationRequested();
 
+        if (!_options.Classification.Enabled)
+        {
+            return Task.FromResult(new MediaClassificationResult(
+                MediaClassification.Unknown,
+                0,
+                new[] { "Media classification is disabled." },
+                ClassifierVersion));
+        }
+
         if (metadata.Kind == MediaAssetKind.Video)
         {
             return Task.FromResult(new MediaClassificationResult(
                 MediaClassification.Unknown,
                 0,
                 new[] { "Video classification is not enabled in this release." },
+                ClassifierVersion));
+        }
+
+        if (!_options.Classification.ScreenshotDetectionEnabled)
+        {
+            return Task.FromResult(new MediaClassificationResult(
+                MediaClassification.Photograph,
+                metadata.HasCameraMetadata ? 0.94 : 0.60,
+                new[] { "Screenshot detection is disabled." },
                 ClassifierVersion));
         }
 

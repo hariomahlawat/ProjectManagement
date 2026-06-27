@@ -63,7 +63,7 @@
             <input type="search"
                    name="Q"
                    value="@Model.Q"
-                   placeholder="Search photos, videos, projects, visits, events and NAS folders"
+                   placeholder="Search photos, videos, projects, visits, events and external folders"
                    autocomplete="off" />
             <input type="hidden" name="Source" value="@Model.Source" />
             <input type="hidden" name="Kind" value="@Model.Kind" />
@@ -125,6 +125,16 @@
         <div><strong>@Model.Stats.Collections</strong><span>collections</span></div>
     </section>
 
+    @if (!Model.ExternalLibraryAvailable
+         && !string.IsNullOrWhiteSpace(Model.ExternalLibraryWarning)
+         && (Model.Source == "external" || User.IsInRole("Admin") || User.IsInRole("HoD")))
+    {
+        <div class="alert alert-warning py-2" role="status">
+            <i class="bi bi-hdd-network me-1" aria-hidden="true"></i>
+            @Model.ExternalLibraryWarning
+        </div>
+    }
+
     @if (hasFilters)
     {
         <div class="photos-active-filters" aria-label="Active filters">
@@ -153,7 +163,7 @@
                    asp-route-Year="@Model.Year"
                    class="photos-filter-chip">
                     <i class="bi bi-folder2" aria-hidden="true"></i>
-                    <span>@Model.Source</span>
+                    <span>@(Model.Source == "external" ? "External folders" : System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(Model.Source))</span>
                     <i class="bi bi-x-lg" aria-hidden="true"></i>
                 </a>
             }
@@ -266,8 +276,8 @@
                             }
 
                             var sourceLabel = group.Items[0].SourceLabel ?? string.Empty;
-                            var sourceAction = group.Items[0].Source == IndexModel.MediaSource.NetworkArchive
-                                ? "Open archive folder"
+                            var sourceAction = group.Items[0].Source == IndexModel.MediaSource.ExternalFolder
+                                ? "Open folder collection"
                                 : sourceLabel.Contains("project", StringComparison.OrdinalIgnoreCase)
                                 ? "Open project"
                                 : sourceLabel.Contains("visit", StringComparison.OrdinalIgnoreCase)
@@ -396,7 +406,10 @@
                     <option value="projects" selected="@(Model.Source == "projects")">Projects</option>
                     <option value="visits" selected="@(Model.Source == "visits")">Visits to SDD</option>
                     <option value="events" selected="@(Model.Source == "events")">Events</option>
-                    <option value="nas" selected="@(Model.Source == "nas")">NAS archive</option>
+                    @if (Model.ExternalSourcesEnabled)
+                    {
+                        <option value="external" selected="@(Model.Source == "external")">External folders</option>
+                    }
                 </select>
             </div>
             <div>
@@ -415,7 +428,7 @@
                     <option value="screenshot" selected="@(Model.Classification == "screenshot")">Screenshots</option>
                     <option value="unknown" selected="@(Model.Classification == "unknown")">Not yet classified</option>
                 </select>
-                <small>Screenshot detection is currently applied to indexed NAS images.</small>
+                <small>Screenshot detection is applied to indexed external-folder images.</small>
             </div>
             <div>
                 <label for="projectFilter">Project</label>

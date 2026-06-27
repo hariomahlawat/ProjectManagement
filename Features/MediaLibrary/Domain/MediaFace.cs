@@ -1,28 +1,27 @@
 using System.ComponentModel.DataAnnotations;
-using Pgvector;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace ProjectManagement.Features.MediaLibrary.Domain;
 
+/// <summary>
+/// Reserved domain shape for the future People module. It is intentionally not mapped by
+/// the catalogue DbContext until People is explicitly enabled and its separate migration
+/// is deployed.
+/// </summary>
+[NotMapped]
 public sealed class MediaFace
 {
     public Guid Id { get; set; }
     public long MediaAssetId { get; set; }
-    public MediaAsset MediaAsset { get; set; } = null!;
-
     public double Left { get; set; }
     public double Top { get; set; }
     public double Width { get; set; }
     public double Height { get; set; }
     public double DetectionConfidence { get; set; }
     public double QualityScore { get; set; }
-
-    public Vector? Embedding { get; set; }
-
+    public float[]? Embedding { get; set; }
     public Guid? PersonId { get; set; }
-    public MediaPerson? Person { get; set; }
     public Guid? FaceClusterId { get; set; }
-    public MediaFaceCluster? FaceCluster { get; set; }
-
     public FaceIdentityStatus IdentityStatus { get; set; }
     public double? MatchConfidence { get; set; }
     public bool IsManuallyConfirmed { get; set; }

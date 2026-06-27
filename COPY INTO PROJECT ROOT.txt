@@ -1,0 +1,9 @@
+Copy every file and folder in this directory into the ProjectManagement application root.
+Allow folder merge and file replacement.
+
+Environment-specific appsettings files are intentionally NOT included. Merge the safe
+configuration example at:
+  ops/media-library/media-library-settings.example.json
+
+Then follow:
+  DEPLOYMENT - READ FIRST.txt

@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
-using Pgvector.EntityFrameworkCore;
 
 namespace ProjectManagement.Features.MediaLibrary.Data;
 
@@ -22,10 +21,7 @@ public sealed class MediaLibraryDbContextFactory : IDesignTimeDbContextFactory<M
 
         var options = new DbContextOptionsBuilder<MediaLibraryDbContext>()
             .UseNpgsql(connectionString, npgsql =>
-            {
-                npgsql.UseVector();
-                npgsql.MigrationsHistoryTable(MediaLibraryDbContext.MigrationsHistoryTable);
-            })
+                npgsql.MigrationsHistoryTable(MediaLibraryDbContext.MigrationsHistoryTable))
             .Options;
 
         return new MediaLibraryDbContext(options);

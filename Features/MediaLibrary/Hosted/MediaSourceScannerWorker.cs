@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
@@ -7,11 +8,17 @@ using ProjectManagement.Features.MediaLibrary.Services;
 
 namespace ProjectManagement.Features.MediaLibrary.Hosted;
 
+/// <summary>
+/// Coordinates PRISM catalogue synchronisation and optional external-folder scans.
+/// Failures are isolated from the web host and from other sources.
+/// </summary>
 public sealed class MediaSourceScannerWorker : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly MediaLibraryOptions _options;
     private readonly ILogger<MediaSourceScannerWorker> _logger;
+    private readonly string _workerId = $"{Environment.MachineName}:{Environment.ProcessId}:{Guid.NewGuid():N}";
+    private bool _bootstrapCompleted;
 
     public MediaSourceScannerWorker(
         IServiceScopeFactory scopeFactory,
@@ -29,7 +36,7 @@ public sealed class MediaSourceScannerWorker : BackgroundService
 
         if (_options.AutoMigrate)
         {
-            await MigrateAsync(stoppingToken);
+            await TryMigrateAsync(stoppingToken);
         }
 
         while (!stoppingToken.IsCancellationRequested)
@@ -42,58 +49,83 @@ public sealed class MediaSourceScannerWorker : BackgroundService
             {
                 break;
             }
+            catch (Exception ex) when (IsCatalogueInfrastructureFailure(ex))
+            {
+                _logger.LogWarning(ex,
+                    "Media catalogue is unavailable. PRISM Photos remains operational without catalogue-backed items.");
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Media source scanner cycle failed");
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(_options.IdleDelaySeconds), stoppingToken);
+            var delay = _options.IsExternalSourceFeatureEnabled
+                ? _options.ExternalSources.IdleDelaySeconds
+                : 60;
+            await Task.Delay(TimeSpan.FromSeconds(Math.Max(1, delay)), stoppingToken);
         }
     }
 
     private async Task RunCycleAsync(CancellationToken cancellationToken)
     {
-        using (var bootstrapScope = _scopeFactory.CreateScope())
+        if (!_bootstrapCompleted)
         {
+            using var bootstrapScope = _scopeFactory.CreateScope();
             var bootstrapper = bootstrapScope.ServiceProvider.GetRequiredService<IMediaSourceBootstrapper>();
             await bootstrapper.EnsureConfiguredSourcesAsync(cancellationToken);
+            _bootstrapCompleted = true;
         }
 
-        MediaLibrarySource prismSource;
-        List<MediaLibrarySource> networkSources;
+        MediaLibrarySource? prismSource = null;
+        List<MediaLibrarySource> externalSources = new();
         using (var queryScope = _scopeFactory.CreateScope())
         {
             var mediaDb = queryScope.ServiceProvider.GetRequiredService<MediaLibraryDbContext>();
-            prismSource = await mediaDb.Sources
-                .AsNoTracking()
-                .SingleAsync(source => source.Key == MediaSourceBootstrapper.PrismSourceKey, cancellationToken);
-            networkSources = await mediaDb.Sources
-                .AsNoTracking()
-                .Where(source => source.IsEnabled && source.SourceType == MediaLibrarySourceType.NetworkShare)
-                .OrderBy(source => source.LastSuccessfulScanAtUtc)
-                .ToListAsync(cancellationToken);
+            if (_options.Catalogue.SynchronizePrismMedia)
+            {
+                prismSource = await mediaDb.Sources
+                    .AsNoTracking()
+                    .SingleOrDefaultAsync(source => source.Key == MediaSourceBootstrapper.PrismSourceKey,
+                        cancellationToken);
+            }
+
+            if (_options.IsScannerWorkerEnabled)
+            {
+                externalSources = await mediaDb.Sources
+                    .AsNoTracking()
+                    .Where(source => source.IsEnabled
+                                     && !source.IsDeleted
+                                     && source.SourceType == MediaLibrarySourceType.FileSystem)
+                    .OrderBy(source => source.LastSuccessfulScanAtUtc)
+                    .ToListAsync(cancellationToken);
+            }
         }
 
-        if (IsDue(prismSource, _options.ScanIntervalMinutes))
+        if (prismSource is not null
+            && IsDue(prismSource, _options.Catalogue.SynchronizeIntervalMinutes))
         {
             using var prismScope = _scopeFactory.CreateScope();
             var synchronizer = prismScope.ServiceProvider.GetRequiredService<IPrismMediaCatalogueSynchronizer>();
-            await synchronizer.SynchronizeAsync(cancellationToken);
+            try
+            {
+                await synchronizer.SynchronizeAsync(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "PRISM media catalogue synchronisation failed");
+            }
         }
 
-        foreach (var source in networkSources)
+        foreach (var source in externalSources)
         {
-            var configured = _options.Sources.FirstOrDefault(item =>
-                string.Equals(MediaSourceBootstrapper.NormalizeKey(item.Key), source.Key, StringComparison.OrdinalIgnoreCase));
-            var interval = configured?.ScanIntervalMinutes ?? _options.ScanIntervalMinutes;
-            if (!IsDue(source, interval))
+            if (!IsDue(source, source.ScanIntervalMinutes))
             {
                 continue;
             }
 
             using var sourceScope = _scopeFactory.CreateScope();
-            var scanner = sourceScope.ServiceProvider.GetRequiredService<INetworkMediaSourceScanner>();
-            await scanner.ScanAsync(source.Id, cancellationToken);
+            var scanner = sourceScope.ServiceProvider.GetRequiredService<IExternalMediaSourceScanner>();
+            await scanner.ScanAsync(source.Id, _workerId, cancellationToken);
         }
     }
 
@@ -105,15 +137,32 @@ public sealed class MediaSourceScannerWorker : BackgroundService
             return true;
         }
 
-        return !source.LastSuccessfulScanAtUtc.HasValue
-            || source.LastSuccessfulScanAtUtc.Value.AddMinutes(Math.Max(1, intervalMinutes)) <= DateTimeOffset.UtcNow;
+        var lastAttempt = source.LastSuccessfulScanAtUtc
+                          ?? source.LastScanCompletedAtUtc
+                          ?? source.LastScanStartedAtUtc;
+        return !lastAttempt.HasValue
+               || lastAttempt.Value.AddMinutes(Math.Max(1, intervalMinutes)) <= DateTimeOffset.UtcNow;
     }
 
-    private async Task MigrateAsync(CancellationToken cancellationToken)
+    private async Task TryMigrateAsync(CancellationToken cancellationToken)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MediaLibraryDbContext>();
-        await db.Database.MigrateAsync(cancellationToken);
-        _logger.LogInformation("Media library database migrations applied");
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<MediaLibraryDbContext>();
+            await db.Database.MigrateAsync(cancellationToken);
+            _logger.LogInformation("Media catalogue database migrations applied");
+        }
+        catch (Exception ex) when (IsCatalogueInfrastructureFailure(ex))
+        {
+            _logger.LogWarning(ex,
+                "Media catalogue migrations could not be applied. Core PRISM Photos will continue without catalogue-backed items.");
+        }
     }
+
+    private static bool IsCatalogueInfrastructureFailure(Exception exception)
+        => exception is NpgsqlException
+            or DbUpdateException
+            or InvalidOperationException
+            or TimeoutException;
 }

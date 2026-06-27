@@ -3,7 +3,10 @@ namespace ProjectManagement.Features.MediaLibrary.Domain;
 public enum MediaLibrarySourceType
 {
     Prism = 0,
-    NetworkShare = 1
+    FileSystem = 1,
+
+    [Obsolete("Use FileSystem. The value is retained for database and configuration compatibility.")]
+    NetworkShare = FileSystem
 }
 
 public enum MediaAssetOrigin
@@ -12,7 +15,10 @@ public enum MediaAssetOrigin
     ProjectVideo = 1,
     VisitPhoto = 2,
     SocialMediaEventPhoto = 3,
-    NetworkFile = 4
+    ExternalFile = 4,
+
+    [Obsolete("Use ExternalFile. The value is retained for database compatibility.")]
+    NetworkFile = ExternalFile
 }
 
 public enum MediaAssetKind

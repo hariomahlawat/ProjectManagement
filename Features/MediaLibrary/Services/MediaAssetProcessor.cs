@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
+using ProjectManagement.Features.MediaLibrary.Options;
 
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
@@ -9,22 +11,25 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
 {
     private readonly MediaLibraryDbContext _db;
     private readonly IMediaDerivativeService _derivatives;
-    private readonly INetworkSharePathResolver _pathResolver;
+    private readonly IFileSystemPathResolver _pathResolver;
     private readonly IMediaMetadataReader _metadataReader;
     private readonly IMediaClassifier _classifier;
+    private readonly MediaLibraryOptions _options;
 
     public MediaAssetProcessor(
         MediaLibraryDbContext db,
         IMediaDerivativeService derivatives,
-        INetworkSharePathResolver pathResolver,
+        IFileSystemPathResolver pathResolver,
         IMediaMetadataReader metadataReader,
-        IMediaClassifier classifier)
+        IMediaClassifier classifier,
+        IOptions<MediaLibraryOptions> options)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _derivatives = derivatives ?? throw new ArgumentNullException(nameof(derivatives));
         _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
         _metadataReader = metadataReader ?? throw new ArgumentNullException(nameof(metadataReader));
         _classifier = classifier ?? throw new ArgumentNullException(nameof(classifier));
+        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
     }
 
     public async Task ProcessAsync(
@@ -45,7 +50,8 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
             return;
         }
 
-        if (asset.Source.SourceType != MediaLibrarySourceType.NetworkShare
+        if (asset.Source.SourceType != MediaLibrarySourceType.FileSystem
+            || asset.Source.IsDeleted
             || string.IsNullOrWhiteSpace(asset.Source.RootPath)
             || string.IsNullOrWhiteSpace(asset.RelativePath))
         {
@@ -55,8 +61,26 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
             return;
         }
 
-        asset.DerivativeStatus = MediaProcessingStatus.Processing;
-        asset.AnalysisStatus = MediaProcessingStatus.Processing;
+        var rebuildDerivatives = jobType is MediaProcessingJobType.AnalyseAsset
+            or MediaProcessingJobType.RebuildDerivatives;
+        var classify = _options.Classification.Enabled
+            && (jobType is MediaProcessingJobType.AnalyseAsset
+                or MediaProcessingJobType.ReclassifyAsset);
+
+        if (rebuildDerivatives)
+        {
+            asset.DerivativeStatus = MediaProcessingStatus.Processing;
+        }
+
+        if (classify)
+        {
+            asset.AnalysisStatus = MediaProcessingStatus.Processing;
+        }
+        else if (!_options.Classification.Enabled)
+        {
+            asset.AnalysisStatus = MediaProcessingStatus.NotRequested;
+        }
+
         asset.ProcessingFailureReason = null;
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -65,14 +89,14 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
             var fullPath = _pathResolver.ResolveAssetPath(asset.Source.RootPath, asset.RelativePath);
             var metadata = await _metadataReader.ReadAsync(fullPath, cancellationToken);
 
-            if (jobType is MediaProcessingJobType.AnalyseAsset or MediaProcessingJobType.RebuildDerivatives)
+            if (rebuildDerivatives)
             {
                 await _derivatives.EnsureAsync(asset.Id, "thumb", cancellationToken);
                 await _derivatives.EnsureAsync(asset.Id, "preview", cancellationToken);
                 asset.DerivativeStatus = MediaProcessingStatus.Ready;
             }
 
-            if (jobType is MediaProcessingJobType.AnalyseAsset or MediaProcessingJobType.ReclassifyAsset)
+            if (classify)
             {
                 var classification = await _classifier.ClassifyAsync(fullPath, metadata, cancellationToken);
                 asset.Classification = classification.Classification;
@@ -91,8 +115,16 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
         }
         catch (Exception ex)
         {
-            asset.DerivativeStatus = MediaProcessingStatus.Failed;
-            asset.AnalysisStatus = MediaProcessingStatus.Failed;
+            if (rebuildDerivatives)
+            {
+                asset.DerivativeStatus = MediaProcessingStatus.Failed;
+            }
+
+            if (classify)
+            {
+                asset.AnalysisStatus = MediaProcessingStatus.Failed;
+            }
+
             asset.ProcessingFailureReason = Trim(ex.GetBaseException().Message, 2048);
             await _db.SaveChangesAsync(CancellationToken.None);
             throw;

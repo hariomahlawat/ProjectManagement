@@ -1,9 +1,8 @@
--- Run as a PostgreSQL administrator before applying the MediaLibraryDbContext migration.
+-- Future People intelligence readiness check only.
+-- This core external-folder release neither requires nor creates pgvector.
 SELECT name, default_version, installed_version
 FROM pg_available_extensions
 WHERE name = 'vector';
-
-CREATE EXTENSION IF NOT EXISTS vector;
 
 SELECT extname, extversion
 FROM pg_extension
