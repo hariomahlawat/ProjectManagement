@@ -8,6 +8,7 @@
     var hasFilters = !string.IsNullOrWhiteSpace(Model.Q)
         || Model.Source != "all"
         || Model.Kind != "all"
+        || Model.Classification != "all"
         || Model.ProjectId.HasValue
         || Model.Year.HasValue;
 
@@ -15,6 +16,7 @@
     if (!string.IsNullOrWhiteSpace(Model.Q)) activeFilterCount++;
     if (Model.Source != "all") activeFilterCount++;
     if (Model.Kind != "all") activeFilterCount++;
+    if (Model.Classification != "all") activeFilterCount++;
     if (Model.ProjectId.HasValue) activeFilterCount++;
     if (Model.Year.HasValue) activeFilterCount++;
 }
@@ -33,18 +35,26 @@
             <p>Project photographs, videos, visits and events in one library.</p>
         </div>
 
-        <button class="btn btn-primary photos-library__filter-toggle"
-                type="button"
-                data-bs-toggle="offcanvas"
-                data-bs-target="#photosFilters"
-                aria-controls="photosFilters">
-            <i class="bi bi-sliders2" aria-hidden="true"></i>
-            Filters
-            @if (activeFilterCount > 0)
+        <div class="d-flex align-items-center gap-2">
+            @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
             {
-                <span class="photos-library__filter-count" aria-label="@activeFilterCount active filters">@activeFilterCount</span>
+                <a asp-page="/Admin/MediaSources/Index" class="btn btn-outline-secondary">
+                    <i class="bi bi-hdd-network" aria-hidden="true"></i> Sources
+                </a>
             }
-        </button>
+            <button class="btn btn-primary photos-library__filter-toggle"
+                    type="button"
+                    data-bs-toggle="offcanvas"
+                    data-bs-target="#photosFilters"
+                    aria-controls="photosFilters">
+                <i class="bi bi-sliders2" aria-hidden="true"></i>
+                Filters
+                @if (activeFilterCount > 0)
+                {
+                    <span class="photos-library__filter-count" aria-label="@activeFilterCount active filters">@activeFilterCount</span>
+                }
+            </button>
+        </div>
     </header>
 
     <section class="photos-library__toolbar" aria-label="Media library controls">
@@ -53,10 +63,11 @@
             <input type="search"
                    name="Q"
                    value="@Model.Q"
-                   placeholder="Search photos, videos, projects, visits and events"
+                   placeholder="Search photos, videos, projects, visits, events and NAS folders"
                    autocomplete="off" />
             <input type="hidden" name="Source" value="@Model.Source" />
             <input type="hidden" name="Kind" value="@Model.Kind" />
+            <input type="hidden" name="Classification" value="@Model.Classification" />
             @if (Model.ProjectId.HasValue)
             {
                 <input type="hidden" name="ProjectId" value="@Model.ProjectId" />
@@ -70,6 +81,7 @@
                 <a asp-page="./Index"
                    asp-route-Source="@Model.Source"
                    asp-route-Kind="@Model.Kind"
+                   asp-route-Classification="@Model.Classification"
                    asp-route-ProjectId="@Model.ProjectId"
                    asp-route-Year="@Model.Year"
                    class="photos-search__clear"
@@ -85,6 +97,7 @@
                asp-route-Q="@Model.Q"
                asp-route-Source="@Model.Source"
                asp-route-Kind="all"
+               asp-route-Classification="@Model.Classification"
                asp-route-ProjectId="@Model.ProjectId"
                asp-route-Year="@Model.Year">All</a>
             <a class="@(Model.Kind == "photo" ? "is-active" : null)"
@@ -92,6 +105,7 @@
                asp-route-Q="@Model.Q"
                asp-route-Source="@Model.Source"
                asp-route-Kind="photo"
+               asp-route-Classification="@Model.Classification"
                asp-route-ProjectId="@Model.ProjectId"
                asp-route-Year="@Model.Year">Photos</a>
             <a class="@(Model.Kind == "video" ? "is-active" : null)"
@@ -99,6 +113,7 @@
                asp-route-Q="@Model.Q"
                asp-route-Source="@Model.Source"
                asp-route-Kind="video"
+               asp-route-Classification="@Model.Classification"
                asp-route-ProjectId="@Model.ProjectId"
                asp-route-Year="@Model.Year">Videos</a>
         </nav>
@@ -118,6 +133,7 @@
                 <a asp-page="./Index"
                    asp-route-Source="@Model.Source"
                    asp-route-Kind="@Model.Kind"
+                   asp-route-Classification="@Model.Classification"
                    asp-route-ProjectId="@Model.ProjectId"
                    asp-route-Year="@Model.Year"
                    class="photos-filter-chip">
@@ -132,6 +148,7 @@
                    asp-route-Q="@Model.Q"
                    asp-route-Source="all"
                    asp-route-Kind="@Model.Kind"
+                   asp-route-Classification="@Model.Classification"
                    asp-route-ProjectId="@Model.ProjectId"
                    asp-route-Year="@Model.Year"
                    class="photos-filter-chip">
@@ -146,11 +163,27 @@
                    asp-route-Q="@Model.Q"
                    asp-route-Source="@Model.Source"
                    asp-route-Kind="all"
+                   asp-route-Classification="@Model.Classification"
                    asp-route-ProjectId="@Model.ProjectId"
                    asp-route-Year="@Model.Year"
                    class="photos-filter-chip">
                     <i class="bi bi-images" aria-hidden="true"></i>
                     <span>@Model.Kind</span>
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </a>
+            }
+            @if (Model.Classification != "all")
+            {
+                <a asp-page="./Index"
+                   asp-route-Q="@Model.Q"
+                   asp-route-Source="@Model.Source"
+                   asp-route-Kind="@Model.Kind"
+                   asp-route-Classification="all"
+                   asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-Year="@Model.Year"
+                   class="photos-filter-chip">
+                    <i class="bi bi-stars" aria-hidden="true"></i>
+                    <span>@Model.Classification</span>
                     <i class="bi bi-x-lg" aria-hidden="true"></i>
                 </a>
             }
@@ -161,6 +194,7 @@
                    asp-route-Q="@Model.Q"
                    asp-route-Source="@Model.Source"
                    asp-route-Kind="@Model.Kind"
+                   asp-route-Classification="@Model.Classification"
                    asp-route-Year="@Model.Year"
                    class="photos-filter-chip">
                     <i class="bi bi-kanban" aria-hidden="true"></i>
@@ -174,6 +208,7 @@
                    asp-route-Q="@Model.Q"
                    asp-route-Source="@Model.Source"
                    asp-route-Kind="@Model.Kind"
+                   asp-route-Classification="@Model.Classification"
                    asp-route-ProjectId="@Model.ProjectId"
                    class="photos-filter-chip">
                     <i class="bi bi-calendar3" aria-hidden="true"></i>
@@ -231,7 +266,9 @@
                             }
 
                             var sourceLabel = group.Items[0].SourceLabel ?? string.Empty;
-                            var sourceAction = sourceLabel.Contains("project", StringComparison.OrdinalIgnoreCase)
+                            var sourceAction = group.Items[0].Source == IndexModel.MediaSource.NetworkArchive
+                                ? "Open archive folder"
+                                : sourceLabel.Contains("project", StringComparison.OrdinalIgnoreCase)
                                 ? "Open project"
                                 : sourceLabel.Contains("visit", StringComparison.OrdinalIgnoreCase)
                                     ? "Open visit"
@@ -315,6 +352,7 @@
                    asp-route-Q="@Model.Q"
                    asp-route-Source="@Model.Source"
                    asp-route-Kind="@Model.Kind"
+                   asp-route-Classification="@Model.Classification"
                    asp-route-ProjectId="@Model.ProjectId"
                    asp-route-Year="@Model.Year"
                    asp-route-PageNumber="@(Model.CurrentPage - 1)">
@@ -329,6 +367,7 @@
                    asp-route-Q="@Model.Q"
                    asp-route-Source="@Model.Source"
                    asp-route-Kind="@Model.Kind"
+                   asp-route-Classification="@Model.Classification"
                    asp-route-ProjectId="@Model.ProjectId"
                    asp-route-Year="@Model.Year"
                    asp-route-PageNumber="@(Model.CurrentPage + 1)">
@@ -357,6 +396,7 @@
                     <option value="projects" selected="@(Model.Source == "projects")">Projects</option>
                     <option value="visits" selected="@(Model.Source == "visits")">Visits to SDD</option>
                     <option value="events" selected="@(Model.Source == "events")">Events</option>
+                    <option value="nas" selected="@(Model.Source == "nas")">NAS archive</option>
                 </select>
             </div>
             <div>
@@ -366,6 +406,16 @@
                     <option value="photo" selected="@(Model.Kind == "photo")">Photos only</option>
                     <option value="video" selected="@(Model.Kind == "video")">Videos only</option>
                 </select>
+            </div>
+            <div>
+                <label for="classificationFilter">Automatic classification</label>
+                <select id="classificationFilter" name="Classification" class="form-select">
+                    <option value="all" selected="@(Model.Classification == "all")">All classifications</option>
+                    <option value="photograph" selected="@(Model.Classification == "photograph")">Photographs</option>
+                    <option value="screenshot" selected="@(Model.Classification == "screenshot")">Screenshots</option>
+                    <option value="unknown" selected="@(Model.Classification == "unknown")">Not yet classified</option>
+                </select>
+                <small>Screenshot detection is currently applied to indexed NAS images.</small>
             </div>
             <div>
                 <label for="projectFilter">Project</label>

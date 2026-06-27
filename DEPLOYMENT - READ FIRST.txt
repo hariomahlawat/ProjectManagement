@@ -1,0 +1,31 @@
+PRISM ENTERPRISE MEDIA LIBRARY — DEPLOYMENT
+===========================================
+
+1. Copy this folder's CONTENTS into the ProjectManagement application root.
+   Allow folder merge and replace the included files.
+
+2. Install pgvector on the PostgreSQL server, then run:
+   ops\media-library\verify-pgvector.sql
+
+3. Edit appsettings.Production.json:
+   - Set MediaLibrary:Sources:0:RootPath to the real UNC share.
+   - Set Enabled to true only after the IIS/service identity has read/list access.
+   - Keep ReadOnly true.
+   - Set CacheRoot to a local path writable by the application identity.
+
+4. From the project root run:
+   npm ci
+   dotnet restore
+   dotnet ef database update --context MediaLibraryDbContext
+   dotnet build
+   dotnet test
+
+5. Restart PRISM, open /Admin/MediaSources as Admin or HoD, and select Scan now.
+
+IMPORTANT
+---------
+- The original NAS files are never copied, renamed, changed, or deleted.
+- PRISM stores catalogue metadata and rebuildable thumbnails/previews locally.
+- The delivered screenshot classifier is active after processing.
+- The People/face/cluster/pgvector schema is included, but no unapproved ONNX
+  face-recognition model is bundled. Face inference is a separate pluggable phase.

@@ -35,6 +35,7 @@ using ProjectManagement.Contracts.Notifications;
 using ProjectManagement.Contracts.Stages;
 using ProjectManagement.Data;
 using ProjectManagement.Features.Analytics;
+using ProjectManagement.Features.MediaLibrary;
 using ProjectManagement.Features.Remarks;
 using ProjectManagement.Features.Users;
 using ProjectManagement.Helpers;
@@ -138,6 +139,9 @@ if (string.IsNullOrWhiteSpace(connectionString))
 var csb = new NpgsqlConnectionStringBuilder(connectionString);
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(csb.ConnectionString));
+
+// ---------- Enterprise media library (PRISM + NAS catalogue) ----------
+builder.Services.AddMediaLibrary(builder.Configuration, csb.ConnectionString);
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
@@ -979,26 +983,6 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 app.UseRouting();
-
-// SECTION: Antiforgery header compatibility
-// The application standard is X-CSRF-TOKEN. Older JavaScript modules still send
-// RequestVerificationToken; copy that value only when the canonical header is absent.
-// This preserves existing AJAX workflows while clients are migrated incrementally.
-app.Use(async (context, next) =>
-{
-    const string canonicalHeader = "X-CSRF-TOKEN";
-    const string legacyHeader = "RequestVerificationToken";
-
-    if (!context.Request.Headers.ContainsKey(canonicalHeader)
-        && context.Request.Headers.TryGetValue(legacyHeader, out var legacyToken)
-        && legacyToken.Count > 0
-        && !string.IsNullOrWhiteSpace(legacyToken[0]))
-    {
-        context.Request.Headers[canonicalHeader] = legacyToken;
-    }
-
-    await next();
-});
 
 app.UseRateLimiter();
 

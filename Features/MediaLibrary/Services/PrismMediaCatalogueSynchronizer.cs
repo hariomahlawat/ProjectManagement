@@ -1,0 +1,345 @@
+using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Data;
+using ProjectManagement.Features.MediaLibrary.Data;
+using ProjectManagement.Features.MediaLibrary.Domain;
+
+namespace ProjectManagement.Features.MediaLibrary.Services;
+
+public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchronizer
+{
+    private readonly ApplicationDbContext _applicationDb;
+    private readonly MediaLibraryDbContext _mediaDb;
+    private readonly ILogger<PrismMediaCatalogueSynchronizer> _logger;
+
+    public PrismMediaCatalogueSynchronizer(
+        ApplicationDbContext applicationDb,
+        MediaLibraryDbContext mediaDb,
+        ILogger<PrismMediaCatalogueSynchronizer> logger)
+    {
+        _applicationDb = applicationDb ?? throw new ArgumentNullException(nameof(applicationDb));
+        _mediaDb = mediaDb ?? throw new ArgumentNullException(nameof(mediaDb));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    public async Task SynchronizeAsync(CancellationToken cancellationToken)
+    {
+        var source = await _mediaDb.Sources
+            .SingleAsync(item => item.Key == MediaSourceBootstrapper.PrismSourceKey, cancellationToken);
+
+        var scanId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+        source.LastScanStartedAtUtc = now;
+        source.ScanStatus = "Scanning";
+        source.LastError = null;
+        await _mediaDb.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            var existing = await _mediaDb.Assets
+                .Where(asset => asset.SourceId == source.Id)
+                .ToDictionaryAsync(asset => asset.SourceEntityId, StringComparer.Ordinal, cancellationToken);
+
+            var photos = await _applicationDb.ProjectPhotos
+                .AsNoTracking()
+                .Where(photo => !photo.Project.IsDeleted)
+                .Select(photo => new
+                {
+                    photo.Id,
+                    photo.ProjectId,
+                    ProjectName = photo.Project.Name,
+                    photo.Caption,
+                    photo.OriginalFileName,
+                    photo.ContentType,
+                    photo.Width,
+                    photo.Height,
+                    photo.Ordinal,
+                    photo.IsCover,
+                    photo.Version,
+                    photo.CreatedUtc,
+                    photo.UpdatedUtc
+                })
+                .ToListAsync(cancellationToken);
+
+            foreach (var row in photos)
+            {
+                Upsert(existing, source.Id, scanId, now, new AssetValues(
+                    $"project-photo:{row.Id}",
+                    row.ProjectId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    MediaAssetOrigin.ProjectPhoto,
+                    MediaAssetKind.Photo,
+                    row.OriginalFileName,
+                    row.ContentType,
+                    $"project:{row.ProjectId}",
+                    $"project:{row.ProjectId}",
+                    row.ProjectName,
+                    "Project media",
+                    "Project",
+                    string.IsNullOrWhiteSpace(row.Caption) ? row.OriginalFileName : row.Caption,
+                    row.Caption,
+                    row.ProjectId,
+                    ToUtcOffset(row.CreatedUtc),
+                    row.Width,
+                    row.Height,
+                    null,
+                    row.Version.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    row.IsCover,
+                    row.Ordinal,
+                    $"{row.Version}:{row.UpdatedUtc.Ticks}"));
+            }
+
+            var videos = await _applicationDb.ProjectVideos
+                .AsNoTracking()
+                .Where(video => !video.Project.IsDeleted)
+                .Select(video => new
+                {
+                    video.Id,
+                    video.ProjectId,
+                    ProjectName = video.Project.Name,
+                    video.Title,
+                    video.Description,
+                    video.OriginalFileName,
+                    video.ContentType,
+                    video.FileSize,
+                    video.DurationSeconds,
+                    video.Ordinal,
+                    video.IsFeatured,
+                    video.Version,
+                    video.CreatedUtc,
+                    video.UpdatedUtc
+                })
+                .ToListAsync(cancellationToken);
+
+            foreach (var row in videos)
+            {
+                var entity = Upsert(existing, source.Id, scanId, now, new AssetValues(
+                    $"project-video:{row.Id}",
+                    row.ProjectId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    MediaAssetOrigin.ProjectVideo,
+                    MediaAssetKind.Video,
+                    row.OriginalFileName,
+                    row.ContentType,
+                    $"project:{row.ProjectId}",
+                    $"project:{row.ProjectId}",
+                    row.ProjectName,
+                    "Project media",
+                    "Project video",
+                    string.IsNullOrWhiteSpace(row.Title) ? row.OriginalFileName : row.Title,
+                    row.Description,
+                    row.ProjectId,
+                    ToUtcOffset(row.CreatedUtc),
+                    null,
+                    null,
+                    row.DurationSeconds,
+                    row.Version.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    row.IsFeatured,
+                    row.Ordinal,
+                    $"{row.Version}:{row.UpdatedUtc.Ticks}"));
+                entity.FileSizeBytes = row.FileSize;
+            }
+
+            var visitPhotos = await _applicationDb.VisitPhotos
+                .AsNoTracking()
+                .Select(photo => new
+                {
+                    photo.Id,
+                    photo.VisitId,
+                    VisitorName = photo.Visit!.VisitorName,
+                    VisitType = photo.Visit.VisitType != null ? photo.Visit.VisitType.Name : null,
+                    photo.Visit.DateOfVisit,
+                    photo.Caption,
+                    photo.StorageKey,
+                    photo.ContentType,
+                    photo.Width,
+                    photo.Height,
+                    photo.VersionStamp,
+                    photo.CreatedAtUtc
+                })
+                .ToListAsync(cancellationToken);
+
+            foreach (var row in visitPhotos)
+            {
+                var date = new DateTimeOffset(row.DateOfVisit.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+                Upsert(existing, source.Id, scanId, now, new AssetValues(
+                    $"visit-photo:{row.Id}",
+                    row.VisitId.ToString(),
+                    MediaAssetOrigin.VisitPhoto,
+                    MediaAssetKind.Photo,
+                    Path.GetFileName(row.StorageKey),
+                    row.ContentType,
+                    $"visit:{row.VisitId}",
+                    $"visit:{row.VisitId}",
+                    $"Visit of {row.VisitorName}",
+                    string.IsNullOrWhiteSpace(row.VisitType) ? "Visit to SDD" : row.VisitType,
+                    "Visit",
+                    string.IsNullOrWhiteSpace(row.Caption) ? $"Visit of {row.VisitorName}" : row.Caption,
+                    row.Caption,
+                    null,
+                    date,
+                    row.Width,
+                    row.Height,
+                    null,
+                    row.VersionStamp,
+                    false,
+                    row.CreatedAtUtc.UtcDateTime.Ticks,
+                    row.VersionStamp));
+            }
+
+            var eventPhotos = await _applicationDb.SocialMediaEventPhotos
+                .AsNoTracking()
+                .Select(photo => new
+                {
+                    photo.Id,
+                    EventId = photo.SocialMediaEventId,
+                    EventTitle = photo.SocialMediaEvent!.Title,
+                    EventType = photo.SocialMediaEvent.SocialMediaEventType != null ? photo.SocialMediaEvent.SocialMediaEventType.Name : null,
+                    photo.SocialMediaEvent.DateOfEvent,
+                    photo.Caption,
+                    photo.StorageKey,
+                    photo.ContentType,
+                    photo.Width,
+                    photo.Height,
+                    photo.IsCover,
+                    photo.VersionStamp,
+                    photo.CreatedAtUtc
+                })
+                .ToListAsync(cancellationToken);
+
+            foreach (var row in eventPhotos)
+            {
+                var date = new DateTimeOffset(row.DateOfEvent.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+                Upsert(existing, source.Id, scanId, now, new AssetValues(
+                    $"event-photo:{row.Id}",
+                    row.EventId.ToString(),
+                    MediaAssetOrigin.SocialMediaEventPhoto,
+                    MediaAssetKind.Photo,
+                    Path.GetFileName(row.StorageKey),
+                    row.ContentType,
+                    $"event:{row.EventId}",
+                    $"event:{row.EventId}",
+                    row.EventTitle,
+                    string.IsNullOrWhiteSpace(row.EventType) ? "Social media event" : row.EventType,
+                    "Event",
+                    string.IsNullOrWhiteSpace(row.Caption) ? row.EventTitle : row.Caption,
+                    row.Caption,
+                    null,
+                    date,
+                    row.Width,
+                    row.Height,
+                    null,
+                    row.VersionStamp,
+                    row.IsCover,
+                    row.CreatedAtUtc.UtcDateTime.Ticks,
+                    row.VersionStamp));
+            }
+
+            foreach (var stale in existing.Values.Where(asset => asset.LastSeenScanId != scanId))
+            {
+                stale.IsAvailable = false;
+                stale.LastSeenAtUtc = now;
+            }
+
+            await _mediaDb.SaveChangesAsync(cancellationToken);
+
+            source.IndexedAssetCount = await _mediaDb.Assets.CountAsync(
+                asset => asset.SourceId == source.Id && asset.IsAvailable && !asset.IsDeleted,
+                cancellationToken);
+            source.LastScanCompletedAtUtc = DateTimeOffset.UtcNow;
+            source.LastSuccessfulScanAtUtc = source.LastScanCompletedAtUtc;
+            source.ScanStatus = "Healthy";
+            source.LastError = null;
+            source.ScanRequestedAtUtc = null;
+            await _mediaDb.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            source.LastScanCompletedAtUtc = DateTimeOffset.UtcNow;
+            source.ScanStatus = "Failed";
+            source.LastError = Trim(ex.GetBaseException().Message, 2048);
+            await _mediaDb.SaveChangesAsync(CancellationToken.None);
+            _logger.LogError(ex, "PRISM media catalogue synchronization failed");
+            throw;
+        }
+    }
+
+    private MediaAsset Upsert(
+        IDictionary<string, MediaAsset> existing,
+        Guid sourceId,
+        Guid scanId,
+        DateTimeOffset now,
+        AssetValues values)
+    {
+        if (!existing.TryGetValue(values.SourceEntityId, out var asset))
+        {
+            asset = new MediaAsset
+            {
+                SourceId = sourceId,
+                SourceEntityId = values.SourceEntityId,
+                IndexedAtUtc = now,
+                DerivativeStatus = MediaProcessingStatus.Ready,
+                AnalysisStatus = MediaProcessingStatus.NotRequested,
+                Classification = values.Kind == MediaAssetKind.Photo
+                    ? MediaClassification.Photograph
+                    : MediaClassification.Unknown
+            };
+            existing.Add(values.SourceEntityId, asset);
+            _mediaDb.Assets.Add(asset);
+        }
+
+        asset.ParentEntityId = values.ParentEntityId;
+        asset.Origin = values.Origin;
+        asset.Kind = values.Kind;
+        asset.OriginalFileName = values.OriginalFileName;
+        asset.ContentType = values.ContentType;
+        asset.ContextKey = values.ContextKey;
+        asset.CollectionKey = values.CollectionKey;
+        asset.ContextTitle = values.ContextTitle;
+        asset.ContextSubtitle = values.ContextSubtitle;
+        asset.SourceLabel = values.SourceLabel;
+        asset.Title = values.Title;
+        asset.Caption = values.Caption;
+        asset.ProjectId = values.ProjectId;
+        asset.MediaDateUtc = values.MediaDateUtc;
+        asset.Width = values.Width;
+        asset.Height = values.Height;
+        asset.DurationSeconds = values.DurationSeconds;
+        asset.VersionToken = values.VersionToken;
+        asset.IsCover = values.IsCover;
+        asset.SortOrder = values.SortOrder;
+        asset.QuickFingerprint = values.Fingerprint;
+        asset.IsAvailable = true;
+        asset.IsDeleted = false;
+        asset.LastSeenAtUtc = now;
+        asset.LastSeenScanId = scanId;
+        return asset;
+    }
+
+    private static DateTimeOffset ToUtcOffset(DateTime value)
+        => new(DateTime.SpecifyKind(value, DateTimeKind.Utc));
+
+    private static string Trim(string value, int maxLength)
+        => value.Length <= maxLength ? value : value[..maxLength];
+
+    private sealed record AssetValues(
+        string SourceEntityId,
+        string ParentEntityId,
+        MediaAssetOrigin Origin,
+        MediaAssetKind Kind,
+        string OriginalFileName,
+        string ContentType,
+        string ContextKey,
+        string CollectionKey,
+        string ContextTitle,
+        string ContextSubtitle,
+        string SourceLabel,
+        string Title,
+        string? Caption,
+        int? ProjectId,
+        DateTimeOffset MediaDateUtc,
+        int? Width,
+        int? Height,
+        int? DurationSeconds,
+        string? VersionToken,
+        bool IsCover,
+        long SortOrder,
+        string Fingerprint);
+}
