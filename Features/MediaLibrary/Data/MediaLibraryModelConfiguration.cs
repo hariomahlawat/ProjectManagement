@@ -9,10 +9,7 @@ public static class MediaLibraryModelConfiguration
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
-        modelBuilder.Ignore<MediaPerson>();
         modelBuilder.Ignore<MediaFaceCluster>();
-        modelBuilder.Ignore<MediaFace>();
-        modelBuilder.Ignore<MediaIdentityAudit>();
 
         modelBuilder.Entity<MediaLibrarySource>(entity =>
         {
@@ -114,6 +111,59 @@ public static class MediaLibraryModelConfiguration
                 .WithMany(x => x.ProcessingJobs)
                 .HasForeignKey(x => x.MediaAssetId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+
+        modelBuilder.Entity<MediaFace>(entity =>
+        {
+            entity.ToTable("MediaFaces"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.LandmarksJson).HasColumnType("jsonb");
+            entity.Property(x => x.QualityStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.DetectorModelKey).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.DetectorModelVersion).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.ReviewThumbnailPath).HasMaxLength(1024);
+            entity.Property(x => x.SuppressedByUserId).HasMaxLength(450);
+            entity.HasIndex(x => new { x.MediaAssetId, x.SequenceNumber }).IsUnique();
+            entity.HasIndex(x => new { x.QualityStatus, x.IsSuppressed });
+            entity.HasOne(x => x.MediaAsset).WithMany(x => x.Faces).HasForeignKey(x => x.MediaAssetId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<MediaFaceEmbedding>(entity =>
+        {
+            entity.ToTable("MediaFaceEmbeddings"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.Embedding).HasColumnType("real[]").IsRequired();
+            entity.Property(x => x.ModelKey).HasMaxLength(128).IsRequired(); entity.Property(x => x.ModelVersion).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.Normalization).HasMaxLength(32).IsRequired();
+            entity.HasIndex(x => new { x.MediaFaceId, x.ModelKey, x.ModelVersion, x.InvalidatedAtUtc });
+            entity.HasOne(x => x.MediaFace).WithMany(x => x.Embeddings).HasForeignKey(x => x.MediaFaceId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<MediaPerson>(entity =>
+        {
+            entity.ToTable("MediaPersons"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.DisplayName).HasMaxLength(200).IsRequired(); entity.Property(x => x.NormalizedName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired(); entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+            entity.HasIndex(x => x.NormalizedName); entity.HasIndex(x => new { x.Status, x.IsHidden });
+        });
+        modelBuilder.Entity<MediaPersonFace>(entity =>
+        {
+            entity.ToTable("MediaPersonFaces"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.AssignmentType).HasConversion<string>().HasMaxLength(32).IsRequired(); entity.Property(x => x.AssignedByUserId).HasMaxLength(450).IsRequired();
+            entity.HasIndex(x => new { x.MediaPersonId, x.MediaFaceId, x.RemovedAtUtc }).IsUnique();
+            entity.HasOne(x => x.MediaPerson).WithMany(x => x.FaceAssignments).HasForeignKey(x => x.MediaPersonId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.MediaFace).WithMany(x => x.PersonAssignments).HasForeignKey(x => x.MediaFaceId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<MediaFaceReviewDecision>(entity =>
+        {
+            entity.ToTable("MediaFaceReviewDecisions"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.Decision).HasConversion<string>().HasMaxLength(32).IsRequired(); entity.Property(x => x.DecidedByUserId).HasMaxLength(450); entity.Property(x => x.Notes).HasMaxLength(1024);
+            entity.HasIndex(x => new { x.Decision, x.CreatedAtUtc });
+            entity.HasOne(x => x.MediaFace).WithMany().HasForeignKey(x => x.MediaFaceId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.CandidatePerson).WithMany().HasForeignKey(x => x.CandidatePersonId).OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<MediaIdentityAudit>(entity =>
+        {
+            entity.ToTable("MediaIdentityAudits"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.Action).HasMaxLength(64).IsRequired(); entity.Property(x => x.PerformedByUserId).HasMaxLength(450).IsRequired(); entity.Property(x => x.Notes).HasMaxLength(1024);
+            entity.HasIndex(x => new { x.FaceId, x.PerformedAtUtc });
         });
     }
 }

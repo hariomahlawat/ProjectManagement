@@ -17,19 +17,25 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
     private readonly IMediaClassifier _classifier;
     private readonly IMediaClassificationEligibilityService _classificationEligibility;
     private readonly MediaLibraryOptions _options;
+    private readonly IFaceIntelligenceService _faceIntelligence;
 
     public MediaAssetProcessor(MediaLibraryDbContext db, IMediaDerivativeService derivatives,
         IMediaContentProviderResolver contentResolver, IMediaMetadataReader metadataReader,
         IMediaClassifier classifier, IMediaClassificationEligibilityService classificationEligibility,
-        IOptions<MediaLibraryOptions> options)
+        IOptions<MediaLibraryOptions> options, IFaceIntelligenceService faceIntelligence)
     {
         _db = db; _derivatives = derivatives; _contentResolver = contentResolver;
         _metadataReader = metadataReader; _classifier = classifier;
-        _classificationEligibility = classificationEligibility; _options = options.Value;
+        _classificationEligibility = classificationEligibility; _options = options.Value; _faceIntelligence = faceIntelligence;
     }
 
     public async Task ProcessAsync(long assetId, MediaProcessingJobType jobType, CancellationToken cancellationToken)
     {
+        if (jobType is MediaProcessingJobType.DetectFaces or MediaProcessingJobType.GenerateFaceEmbeddings or MediaProcessingJobType.AssignFaceCluster)
+        {
+            await _faceIntelligence.ProcessAssetAsync(assetId, cancellationToken);
+            return;
+        }
         var asset = await _db.Assets.Include(x => x.Source)
             .SingleAsync(x => x.Id == assetId, cancellationToken);
         if (!asset.IsAvailable || asset.IsDeleted)

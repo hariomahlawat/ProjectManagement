@@ -97,11 +97,42 @@ public sealed class MediaClassificationOptions
 
 public sealed class MediaPeopleOptions
 {
-    /// <summary>
-    /// Deliberately disabled until approved open model weights and pgvector are deployed.
-    /// </summary>
     public bool Enabled { get; set; }
     public bool WorkerEnabled { get; set; }
+    public bool ProcessPhotographsOnly { get; set; } = true;
+    public int MaximumConcurrentAssets { get; set; } = 1;
+    public int MaximumFacesPerAsset { get; set; } = 25;
+    public int MinimumFacePixels { get; set; } = 64;
+    public double MinimumDetectionConfidence { get; set; } = 0.85;
+    public double MinimumQualityScore { get; set; } = 0.60;
+    public int CandidateLimit { get; set; } = 5;
+    public double CandidateSimilarityThreshold { get; set; } = 0.58;
+    public bool AutoConfirmEnabled { get; set; }
+    public int BatchSize { get; set; } = 1;
+    public int IdleDelaySeconds { get; set; } = 30;
+    public int InferenceMaxDimension { get; set; } = 1600;
+    public string ModelRoot { get; set; } = "App_Data/media-models";
+    public FaceModelOptions Detector { get; set; } = new();
+    public FaceModelOptions Embedder { get; set; } = new();
+}
+
+public sealed class FaceModelOptions
+{
+    public string Key { get; set; } = string.Empty;
+    public string Version { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
+    public string Sha256 { get; set; } = string.Empty;
+    public string License { get; set; } = string.Empty;
+    public string SourceUrl { get; set; } = string.Empty;
+    public int InputWidth { get; set; } = 640;
+    public int InputHeight { get; set; } = 640;
+    public string InputName { get; set; } = "input";
+    public string BoxesOutputName { get; set; } = "boxes";
+    public string ScoresOutputName { get; set; } = "scores";
+    public string LandmarksOutputName { get; set; } = "landmarks";
+    public string EmbeddingOutputName { get; set; } = "embedding";
+    public int EmbeddingDimension { get; set; } = 512;
+    public bool BoxesAreNormalized { get; set; } = true;
 }
 
 public sealed class MediaSourceOptions

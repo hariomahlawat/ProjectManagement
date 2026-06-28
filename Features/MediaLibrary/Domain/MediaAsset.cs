@@ -109,4 +109,5 @@ public sealed class MediaAsset
     public int CacheVersion { get; set; } = 1;
 
     public ICollection<MediaProcessingJob> ProcessingJobs { get; set; } = new List<MediaProcessingJob>();
+    public ICollection<MediaFace> Faces { get; set; } = new List<MediaFace>();
 }

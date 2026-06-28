@@ -1,5 +1,5 @@
 {
-  "scope": "Dependencies introduced directly by PRISM Media Library external-folder phase",
+  "scope": "Dependencies used by PRISM Media Library and optional face intelligence",
   "approvedLicenses": [
     "MIT",
     "Apache-2.0",
@@ -36,6 +36,13 @@
       "version": "2.9.0",
       "license": "Apache-2.0",
       "purpose": "EXIF and media metadata extraction",
+      "approved": true
+    },
+    {
+      "name": "Microsoft.ML.OnnxRuntime",
+      "version": "1.20.1",
+      "license": "MIT",
+      "purpose": "Offline CPU inference for approved ONNX face-detection and embedding models",
       "approved": true
     }
   ]

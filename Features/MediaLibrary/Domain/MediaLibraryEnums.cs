@@ -96,3 +96,21 @@ public enum FaceClusterStatus
     Merged = 2,
     NeedsReview = 3
 }
+
+
+public enum FaceQualityStatus
+{
+    Detected = 0,
+    EmbeddingEligible = 1,
+    LowResolution = 2,
+    Blurred = 3,
+    PoorExposure = 4,
+    ExtremePose = 5,
+    Occluded = 6,
+    Suppressed = 7,
+    ProcessingFailed = 8
+}
+
+public enum MediaPersonStatus { Unreviewed = 0, Confirmed = 1, Hidden = 2, Merged = 3, Archived = 4 }
+public enum FaceAssignmentType { AutomaticCandidate = 0, HumanConfirmed = 1, HumanRejected = 2, ManualAssignment = 3 }
+public enum FaceReviewDecisionType { Pending = 0, Confirmed = 1, Rejected = 2, Ignored = 3, NewPersonCreated = 4 }

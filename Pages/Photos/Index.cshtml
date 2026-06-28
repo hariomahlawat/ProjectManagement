@@ -38,6 +38,12 @@
         <div class="d-flex align-items-center gap-2">
             @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
             {
+                <a asp-page="/Photos/People/Index" class="btn btn-outline-secondary">
+                    <i class="bi bi-people" aria-hidden="true"></i> People
+                </a>
+                <a asp-page="/Admin/MediaIntelligence/Index" class="btn btn-outline-secondary">
+                    <i class="bi bi-cpu" aria-hidden="true"></i> Intelligence
+                </a>
                 <a asp-page="/Admin/MediaSources/Index" class="btn btn-outline-secondary">
                     <i class="bi bi-hdd-network" aria-hidden="true"></i> Sources
                 </a>

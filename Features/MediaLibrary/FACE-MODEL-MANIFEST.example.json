@@ -1,0 +1,25 @@
+{
+  "detector": {
+    "key": "approved-detector",
+    "version": "1.0",
+    "fileName": "detector.onnx",
+    "sha256": "REQUIRED",
+    "license": "REQUIRED",
+    "sourceUrl": "REQUIRED",
+    "inputName": "input",
+    "boxesOutputName": "boxes",
+    "scoresOutputName": "scores",
+    "landmarksOutputName": "landmarks"
+  },
+  "embedder": {
+    "key": "approved-embedder",
+    "version": "1.0",
+    "fileName": "embedder.onnx",
+    "sha256": "REQUIRED",
+    "license": "REQUIRED",
+    "sourceUrl": "REQUIRED",
+    "inputName": "input",
+    "embeddingOutputName": "embedding",
+    "embeddingDimension": 512
+  }
+}

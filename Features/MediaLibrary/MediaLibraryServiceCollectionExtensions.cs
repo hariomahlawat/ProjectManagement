@@ -65,6 +65,11 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaDerivativeService, MediaDerivativeService>();
         services.AddScoped<IMediaAssetProcessor, MediaAssetProcessor>();
         services.AddScoped<IMediaLibrarySchemaService, MediaLibrarySchemaService>();
+        services.AddSingleton<IFaceModelReadinessService, FaceModelReadinessService>();
+        services.AddSingleton<IFaceAnalysisEngine, OnnxFaceAnalysisEngine>();
+        services.AddScoped<IFaceIntelligenceService, FaceIntelligenceService>();
+        services.AddScoped<IFaceQueueService, FaceQueueService>();
+        services.AddScoped<IFaceReviewService, FaceReviewService>();
 
         if (configuredOptions.Enabled && configuredOptions.AutoMigrate)
         {

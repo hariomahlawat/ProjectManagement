@@ -1,0 +1,10 @@
+@page
+@model ProjectManagement.Pages.Admin.MediaIntelligence.IndexModel
+@{ ViewData["Title"]="Media intelligence"; }
+<div class="container-fluid py-4">
+ <div class="d-flex justify-content-between align-items-start mb-4"><div><h1 class="h3 mb-1">Media intelligence</h1><p class="text-muted mb-0">Offline CPU face detection, embeddings and human-reviewed identity management.</p></div><a class="btn btn-outline-secondary" asp-page="/Admin/MediaSources/Index">Media sources</a></div>
+ @if(!string.IsNullOrWhiteSpace(Model.StatusMessage)){<div class="alert alert-info">@Model.StatusMessage</div>}
+ <div class="alert @(Model.ModelStatus?.IsReady==true?"alert-success":"alert-warning")"><strong>Model readiness:</strong> @Model.ModelStatus?.Message</div>
+ <div class="row g-3 mb-4"><div class="col-md"><div class="card card-body"><small class="text-muted">Eligible photographs</small><strong class="fs-3">@Model.Eligible</strong></div></div><div class="col-md"><div class="card card-body"><small class="text-muted">Faces detected</small><strong class="fs-3">@Model.Faces</strong></div></div><div class="col-md"><div class="card card-body"><small class="text-muted">Embeddings</small><strong class="fs-3">@Model.Embedded</strong></div></div><div class="col-md"><div class="card card-body"><small class="text-muted">Confirmed people</small><strong class="fs-3">@Model.Persons</strong></div></div><div class="col-md"><div class="card card-body"><small class="text-muted">Review required</small><strong class="fs-3">@Model.PendingReview</strong></div></div></div>
+ <div class="card"><div class="card-body"><h2 class="h5">Controlled backfill</h2><p class="text-muted">Queues newest eligible photographs first. Automatic naming is disabled; matches require human confirmation.</p><form method="post" asp-page-handler="Queue" class="d-flex gap-2"><input class="form-control" style="max-width:120px" type="number" name="limit" min="1" max="250" value="25"/><button class="btn btn-primary" @(Model.ModelStatus?.IsReady==true?null:"disabled")>Queue photographs</button><a class="btn btn-outline-primary" asp-page="/Photos/People/Review">Open review queue</a></form></div></div>
+</div>

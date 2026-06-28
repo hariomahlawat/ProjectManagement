@@ -64,9 +64,14 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
             ValidateProcessingOptions(options, failures);
         }
 
-        if (options.People.Enabled || options.People.WorkerEnabled)
+        if (options.People.WorkerEnabled && !options.People.Enabled)
         {
-            failures.Add("MediaLibrary:People is not available in this release. Keep People:Enabled and WorkerEnabled false until the approved People migration and model package are deployed.");
+            failures.Add("MediaLibrary:People:WorkerEnabled cannot be true while People:Enabled is false.");
+        }
+
+        if (options.People.Enabled)
+        {
+            ValidatePeopleOptions(options.People, failures);
         }
 
         return failures.Count == 0
@@ -178,6 +183,40 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
         }
     }
 
+
+
+    private static void ValidatePeopleOptions(MediaPeopleOptions people, ICollection<string> failures)
+    {
+        if (people.MaximumConcurrentAssets is < 1 or > 4)
+            failures.Add("MediaLibrary:People:MaximumConcurrentAssets must be between 1 and 4 for CPU processing.");
+        if (people.MaximumFacesPerAsset is < 1 or > 100)
+            failures.Add("MediaLibrary:People:MaximumFacesPerAsset must be between 1 and 100.");
+        if (people.MinimumFacePixels is < 32 or > 1024)
+            failures.Add("MediaLibrary:People:MinimumFacePixels must be between 32 and 1024.");
+        if (people.MinimumDetectionConfidence is < 0.1 or > 1)
+            failures.Add("MediaLibrary:People:MinimumDetectionConfidence must be between 0.1 and 1.0.");
+        if (people.MinimumQualityScore is < 0 or > 1)
+            failures.Add("MediaLibrary:People:MinimumQualityScore must be between 0 and 1.");
+        if (people.CandidateSimilarityThreshold is < -1 or > 1)
+            failures.Add("MediaLibrary:People:CandidateSimilarityThreshold must be between -1 and 1.");
+        if (string.IsNullOrWhiteSpace(people.ModelRoot))
+            failures.Add("MediaLibrary:People:ModelRoot is required when face intelligence is enabled.");
+        ValidateFaceModel(people.Detector, "Detector", failures);
+        ValidateFaceModel(people.Embedder, "Embedder", failures);
+    }
+
+    private static void ValidateFaceModel(FaceModelOptions model, string label, ICollection<string> failures)
+    {
+        if (string.IsNullOrWhiteSpace(model.Key)) failures.Add($"MediaLibrary:People:{label}:Key is required.");
+        if (string.IsNullOrWhiteSpace(model.Version)) failures.Add($"MediaLibrary:People:{label}:Version is required.");
+        if (string.IsNullOrWhiteSpace(model.FileName)) failures.Add($"MediaLibrary:People:{label}:FileName is required.");
+        if (string.IsNullOrWhiteSpace(model.Sha256) || model.Sha256.Replace("-", string.Empty).Length != 64)
+            failures.Add($"MediaLibrary:People:{label}:Sha256 must contain the approved 64-character SHA-256 checksum.");
+        if (string.IsNullOrWhiteSpace(model.License)) failures.Add($"MediaLibrary:People:{label}:License is required.");
+        if (string.IsNullOrWhiteSpace(model.SourceUrl)) failures.Add($"MediaLibrary:People:{label}:SourceUrl is required.");
+        if (model.InputWidth is < 32 or > 4096 || model.InputHeight is < 32 or > 4096)
+            failures.Add($"MediaLibrary:People:{label} input dimensions must be between 32 and 4096 pixels.");
+    }
 
     private static string? TryNormalizeFullPath(string? path)
     {
