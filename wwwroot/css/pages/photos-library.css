@@ -705,3 +705,23 @@
 .photos-tile--unavailable .photos-tile__play,
 .photos-tile--unavailable .photos-tile__duration { display: none; }
 .photos-tile--unavailable { cursor: default; }
+
+/* Catalogue governance refinement: keep single-item collections compact and scannable. */
+.photos-grid--single-portrait .photos-tile {
+    height: clamp(340px, 42vw, 520px);
+    width: min(370px, 32vw);
+}
+
+.photos-grid--single-landscape .photos-tile {
+    height: clamp(260px, 24vw, 400px);
+    width: min(900px, 70vw);
+}
+
+@media (max-width: 767.98px) {
+    .photos-grid--single-portrait .photos-tile,
+    .photos-grid--single-square .photos-tile,
+    .photos-grid--single-landscape .photos-tile {
+        height: min(68vh, 520px);
+        width: 100%;
+    }
+}

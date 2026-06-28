@@ -75,6 +75,19 @@ public sealed class IndexModel : PageModel
     public MediaCacheHealthResult? CacheHealth { get; private set; }
     public IReadOnlyList<ProcessingJobRow> RecentProblemJobs { get; private set; } = Array.Empty<ProcessingJobRow>();
     public IReadOnlyList<UnavailableAssetRow> UnavailableAssets { get; private set; } = Array.Empty<UnavailableAssetRow>();
+    public IReadOnlyDictionary<MediaAvailabilityStatus, int> UnavailableStatusCounts { get; private set; }
+        = new Dictionary<MediaAvailabilityStatus, int>();
+    public int UnavailableTotalPages { get; private set; }
+    public int UnavailablePageSize { get; } = 25;
+
+    [BindProperty(SupportsGet = true, Name = "uq")]
+    public string? UnavailableQuery { get; set; }
+
+    [BindProperty(SupportsGet = true, Name = "us")]
+    public MediaAvailabilityStatus? UnavailableStatusFilter { get; set; }
+
+    [BindProperty(SupportsGet = true, Name = "up")]
+    public int UnavailablePage { get; set; } = 1;
     public bool CatalogueAvailable { get; private set; } = true;
     public bool CatalogueSchemaCurrent { get; private set; } = true;
     public bool CatalogueMigrationHistoryConsistent { get; private set; } = true;
@@ -626,6 +639,8 @@ public sealed class IndexModel : PageModel
             HistoricalAvailabilityCandidates = 0;
             LastAvailabilityCheckUtc = null;
             UnavailableAssets = Array.Empty<UnavailableAssetRow>();
+            UnavailableStatusCounts = new Dictionary<MediaAvailabilityStatus, int>();
+            UnavailableTotalPages = 0;
             ProcessingRuntime = _processingRuntime.GetSnapshot();
             CatalogueDiagnostics = _catalogueDiagnostics.GetLatest();
             return;
@@ -698,13 +713,45 @@ public sealed class IndexModel : PageModel
             UnavailableAssetCount = availabilityStatus.UnavailableAssets;
             HistoricalAvailabilityCandidates = availabilityStatus.HistoricalCandidates;
             LastAvailabilityCheckUtc = availabilityStatus.LastAvailabilityCheckUtc;
-            var unavailableRows = await _db.Assets
+            var unavailableBaseQuery = _db.Assets
                 .AsNoTracking()
                 .Where(asset => !asset.IsDeleted
-                                && asset.AvailabilityStatus != MediaAvailabilityStatus.Available)
-                .OrderByDescending(asset => asset.LastSeenAtUtc)
+                                && asset.AvailabilityStatus != MediaAvailabilityStatus.Available);
+
+            UnavailableStatusCounts = await unavailableBaseQuery
+                .GroupBy(asset => asset.AvailabilityStatus)
+                .Select(group => new { Status = group.Key, Count = group.Count() })
+                .ToDictionaryAsync(item => item.Status, item => item.Count, cancellationToken);
+
+            if (UnavailableStatusFilter.HasValue
+                && UnavailableStatusFilter.Value != MediaAvailabilityStatus.Available)
+            {
+                unavailableBaseQuery = unavailableBaseQuery
+                    .Where(asset => asset.AvailabilityStatus == UnavailableStatusFilter.Value);
+            }
+
+            var unavailableSearch = UnavailableQuery?.Trim();
+            if (!string.IsNullOrWhiteSpace(unavailableSearch))
+            {
+                var pattern = $"%{unavailableSearch}%";
+                unavailableBaseQuery = unavailableBaseQuery.Where(asset =>
+                    EF.Functions.ILike(asset.ContextTitle, pattern)
+                    || EF.Functions.ILike(asset.OriginalFileName, pattern)
+                    || EF.Functions.ILike(asset.SourceLabel, pattern));
+            }
+
+            var unavailableFilteredCount = await unavailableBaseQuery.CountAsync(cancellationToken);
+            UnavailableTotalPages = unavailableFilteredCount == 0
+                ? 0
+                : (int)Math.Ceiling(unavailableFilteredCount / (double)UnavailablePageSize);
+            UnavailablePage = Math.Clamp(UnavailablePage, 1, Math.Max(1, UnavailableTotalPages));
+
+            var unavailableRows = await unavailableBaseQuery
+                .OrderByDescending(asset => asset.LastAvailabilityCheckUtc ?? asset.UnavailableSinceUtc ?? asset.LastSeenAtUtc)
+                .ThenBy(asset => asset.ContextTitle)
                 .ThenBy(asset => asset.Id)
-                .Take(50)
+                .Skip((UnavailablePage - 1) * UnavailablePageSize)
+                .Take(UnavailablePageSize)
                 .Select(asset => new
                 {
                     asset.Id,
@@ -719,6 +766,7 @@ public sealed class IndexModel : PageModel
                     asset.UnavailableReason
                 })
                 .ToListAsync(cancellationToken);
+
             UnavailableAssets = unavailableRows
                 .Select(asset => new UnavailableAssetRow(
                     asset.Id,
@@ -728,8 +776,12 @@ public sealed class IndexModel : PageModel
                     asset.SourceLabel,
                     asset.LastSeenAtUtc,
                     asset.AvailabilityStatus,
+                    GetAvailabilityStatusLabel(asset.AvailabilityStatus),
                     asset.UnavailableSinceUtc,
+                    FormatOrganisationTime(asset.UnavailableSinceUtc),
                     asset.LastAvailabilityCheckUtc,
+                    FormatOrganisationTime(asset.LastAvailabilityCheckUtc),
+                    SummarizeUnavailableReason(asset.UnavailableReason),
                     asset.UnavailableReason ?? "The source media is unavailable."))
                 .ToList();
             OldestPendingAtUtc = await _db.ProcessingJobs
@@ -870,9 +922,74 @@ public sealed class IndexModel : PageModel
         string SourceLabel,
         DateTimeOffset LastSeenAtUtc,
         MediaAvailabilityStatus Status,
+        string StatusLabel,
         DateTimeOffset? UnavailableSinceUtc,
+        string UnavailableSinceDisplay,
         DateTimeOffset? LastCheckedUtc,
-        string Reason);
+        string LastCheckedDisplay,
+        string ReasonSummary,
+        string ReasonDetail);
+
+    public static string GetAvailabilityStatusLabel(MediaAvailabilityStatus status)
+        => status switch
+        {
+            MediaAvailabilityStatus.SourceMissing => "Source file missing",
+            MediaAvailabilityStatus.AccessDenied => "Access denied",
+            MediaAvailabilityStatus.TemporarilyUnavailable => "Temporarily unavailable",
+            MediaAvailabilityStatus.Unsupported => "Unsupported media",
+            MediaAvailabilityStatus.Corrupt => "File appears corrupt",
+            _ => status.ToString()
+        };
+
+    public int GetUnavailableStatusCount(MediaAvailabilityStatus status)
+        => UnavailableStatusCounts.TryGetValue(status, out var count) ? count : 0;
+
+    private static string SummarizeUnavailableReason(string? reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            return "The source file could not be opened.";
+        }
+
+        var normalized = reason.Replace("\r", " ").Replace("\n", " ").Trim();
+        if (normalized.Contains("No project-photo derivative", StringComparison.OrdinalIgnoreCase))
+            return "The project photo file is no longer available.";
+        if (normalized.Contains("No visit-photo asset", StringComparison.OrdinalIgnoreCase))
+            return "The visit photo file is no longer available.";
+        if (normalized.Contains("No social-media photo asset", StringComparison.OrdinalIgnoreCase))
+            return "The event photo file is no longer available.";
+        if (normalized.Contains("access", StringComparison.OrdinalIgnoreCase)
+            && normalized.Contains("denied", StringComparison.OrdinalIgnoreCase))
+            return "PRISM does not currently have permission to read the file.";
+
+        return normalized.Length <= 160 ? normalized : normalized[..157] + "...";
+    }
+
+    private static string FormatOrganisationTime(DateTimeOffset? value)
+    {
+        if (!value.HasValue)
+        {
+            return "Not checked";
+        }
+
+        TimeZoneInfo zone;
+        try
+        {
+            zone = TimeZoneInfo.FindSystemTimeZoneById(OperatingSystem.IsWindows()
+                ? "India Standard Time"
+                : "Asia/Kolkata");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            zone = TimeZoneInfo.Local;
+        }
+        catch (InvalidTimeZoneException)
+        {
+            zone = TimeZoneInfo.Local;
+        }
+
+        return TimeZoneInfo.ConvertTime(value.Value, zone).ToString("dd MMM yyyy, HH:mm");
+    }
 
     public sealed class SourceInput
     {

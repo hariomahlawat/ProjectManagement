@@ -6,6 +6,10 @@
     ViewData["PageShell"] = "wide";
 }
 
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/media-sources.css" asp-append-version="true" />
+}
+
 <div class="container-xxl py-4">
     <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
         <div>
@@ -149,21 +153,21 @@
                             <i class="bi bi-check2-square me-1" aria-hidden="true"></i> Consistency check
                         </button>
                     </form>
-                    <form method="post" asp-page-handler="ReconcileAvailability">
-                        <button type="submit" class="btn @(Model.HistoricalAvailabilityCandidates > 0 ? "btn-warning" : "btn-outline-secondary")">
-                            <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
-                            Reconcile availability
-                            @if (Model.HistoricalAvailabilityCandidates > 0)
-                            {
+                    @if (Model.HistoricalAvailabilityCandidates > 0)
+                    {
+                        <form method="post" asp-page-handler="ReconcileAvailability">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
+                                Reconcile catalogue
                                 <span class="badge text-bg-dark ms-1">@Model.HistoricalAvailabilityCandidates</span>
-                            }
-                        </button>
-                    </form>
+                            </button>
+                        </form>
+                    }
                     @if (Model.UnavailableAssetCount > 0)
                     {
                         <form method="post" asp-page-handler="RecheckUnavailable">
                             <button type="submit" class="btn btn-outline-warning">
-                                <i class="bi bi-folder-check me-1" aria-hidden="true"></i> Recheck unavailable
+                                <i class="bi bi-folder-check me-1" aria-hidden="true"></i> Recheck unavailable media
                             </button>
                         </form>
                     }
@@ -300,7 +304,7 @@
                         }
                     </div>
                     <div class="col-sm-6 col-xl-3">
-                        <div class="small text-muted">Since application start</div>
+                        <div class="small text-muted">This application runtime</div>
                         <div class="fw-semibold">@Model.ProcessingRuntime.CompletedSinceStart completed</div>
                         <div class="small text-muted">@Model.ProcessingRuntime.FailedSinceStart failed attempts</div>
                     </div>
@@ -380,59 +384,155 @@
 
         @if (Model.UnavailableAssetCount > 0)
         {
-            <section class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-body border-bottom d-flex flex-wrap align-items-start justify-content-between gap-3 py-3">
-                    <div>
-                        <h2 class="h5 mb-1">Unavailable media</h2>
-                        <p class="small text-muted mb-0">Source files could not be opened. These items are excluded from Photos but retained for audit and restoration.</p>
+            <section class="card border-0 shadow-sm mb-4 media-unavailable-card">
+                <div class="card-header bg-body border-bottom py-3">
+                    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+                        <div>
+                            <h2 class="h5 mb-1">Unavailable media</h2>
+                            <p class="small text-muted mb-0">Excluded from Photos, preserved in the catalogue, and available for restoration checks.</p>
+                        </div>
+                        <form method="post" asp-page-handler="RecheckUnavailable">
+                            <button type="submit" class="btn btn-outline-warning">
+                                <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i> Recheck unavailable media
+                            </button>
+                        </form>
                     </div>
-                    <form method="post" asp-page-handler="RecheckUnavailable">
-                        <button type="submit" class="btn btn-outline-warning">
-                            <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i> Recheck up to 100
-                        </button>
+
+                    <div class="d-flex flex-wrap gap-2 mt-3" aria-label="Unavailable media summary">
+                        @foreach (var status in new[]
+                        {
+                            MediaAvailabilityStatus.SourceMissing,
+                            MediaAvailabilityStatus.AccessDenied,
+                            MediaAvailabilityStatus.TemporarilyUnavailable,
+                            MediaAvailabilityStatus.Corrupt,
+                            MediaAvailabilityStatus.Unsupported
+                        })
+                        {
+                            var count = Model.GetUnavailableStatusCount(status);
+                            if (count > 0)
+                            {
+                                <a asp-page="./Index"
+                                   asp-route-us="@status"
+                                   asp-route-uq="@Model.UnavailableQuery"
+                                   class="badge rounded-pill text-bg-light border text-decoration-none px-3 py-2">
+                                    @IndexModel.GetAvailabilityStatusLabel(status) · @count
+                                </a>
+                            }
+                        }
+                    </div>
+
+                    <form method="get" class="row g-2 mt-2" role="search">
+                        <div class="col-12 col-lg-7">
+                            <label class="visually-hidden" for="unavailable-search">Search unavailable media</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-body"><i class="bi bi-search" aria-hidden="true"></i></span>
+                                <input id="unavailable-search" name="uq" value="@Model.UnavailableQuery" class="form-control"
+                                       placeholder="Search collection, filename or source" />
+                            </div>
+                        </div>
+                        <div class="col-8 col-lg-3">
+                            <label class="visually-hidden" for="unavailable-status">Availability status</label>
+                            <select id="unavailable-status" name="us" class="form-select">
+                                <option value="">All unavailable statuses</option>
+                                @foreach (var status in new[]
+                                {
+                                    MediaAvailabilityStatus.SourceMissing,
+                                    MediaAvailabilityStatus.AccessDenied,
+                                    MediaAvailabilityStatus.TemporarilyUnavailable,
+                                    MediaAvailabilityStatus.Corrupt,
+                                    MediaAvailabilityStatus.Unsupported
+                                })
+                                {
+                                    <option value="@status" selected="@(Model.UnavailableStatusFilter == status ? "selected" : null)">
+                                        @IndexModel.GetAvailabilityStatusLabel(status) (@Model.GetUnavailableStatusCount(status))
+                                    </option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-4 col-lg-2 d-grid">
+                            <button type="submit" class="btn btn-outline-secondary">Apply</button>
+                        </div>
                     </form>
                 </div>
-                <div class="table-responsive">
-                    <table class="table table-sm align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Media</th>
-                                <th>Source</th>
-                                <th>Status</th>
-                                <th>Reason</th>
-                                <th>Last checked</th>
-                                <th class="text-end">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var asset in Model.UnavailableAssets)
-                            {
-                                <tr>
-                                    <td>
-                                        <div class="fw-semibold">@asset.ContextTitle</div>
-                                        <div class="small text-muted text-break">@asset.OriginalFileName · Asset @asset.Id</div>
-                                    </td>
-                                    <td>
-                                        <div>@asset.SourceLabel</div>
-                                        <div class="small text-muted">@asset.Origin</div>
-                                    </td>
-                                    <td><span class="badge text-bg-secondary">@asset.Status</span></td>
-                                    <td class="small text-muted text-break" style="max-width: 34rem;">@asset.Reason</td>
-                                    <td class="small">@(asset.LastCheckedUtc ?? asset.LastSeenAtUtc).ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
-                                    <td class="text-end">
-                                        <form method="post" asp-page-handler="RecheckUnavailableAsset">
-                                            <input type="hidden" name="id" value="@asset.Id" />
-                                            <button type="submit" class="btn btn-sm btn-outline-secondary">Recheck</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-                @if (Model.UnavailableAssetCount > Model.UnavailableAssets.Count)
+
+                @if (Model.UnavailableAssets.Count == 0)
                 {
-                    <div class="card-footer bg-body small text-muted">Showing @Model.UnavailableAssets.Count of @Model.UnavailableAssetCount unavailable items.</div>
+                    <div class="card-body text-center py-5">
+                        <i class="bi bi-search fs-3 text-muted" aria-hidden="true"></i>
+                        <p class="mb-1 mt-2 fw-semibold">No unavailable media matches these filters</p>
+                        <a asp-page="./Index" class="small">Clear unavailable-media filters</a>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0 media-unavailable-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Media</th>
+                                    <th>Source</th>
+                                    <th>Status</th>
+                                    <th>Last checked</th>
+                                    <th class="text-end">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var asset in Model.UnavailableAssets)
+                                {
+                                    <tr>
+                                        <td class="min-w-0">
+                                            <div class="fw-semibold text-truncate" style="max-width: 28rem;" title="@asset.ContextTitle">@asset.ContextTitle</div>
+                                            <div class="small text-muted text-truncate" style="max-width: 28rem;" title="@asset.OriginalFileName">@asset.OriginalFileName</div>
+                                            <details class="small mt-2">
+                                                <summary class="text-secondary">Technical details</summary>
+                                                <dl class="row g-0 mt-2 mb-0 media-technical-details">
+                                                    <dt class="col-4">Asset</dt><dd class="col-8">@asset.Id</dd>
+                                                    <dt class="col-4">Origin</dt><dd class="col-8">@asset.Origin</dd>
+                                                    <dt class="col-4">Unavailable since</dt><dd class="col-8">@asset.UnavailableSinceDisplay</dd>
+                                                    <dt class="col-4">Recorded reason</dt><dd class="col-8 text-break">@asset.ReasonDetail</dd>
+                                                </dl>
+                                            </details>
+                                        </td>
+                                        <td>
+                                            <div class="fw-medium">@asset.SourceLabel</div>
+                                            <div class="small text-muted">@asset.Origin</div>
+                                        </td>
+                                        <td>
+                                            <span class="badge text-bg-secondary">@asset.StatusLabel</span>
+                                            <div class="small text-muted mt-2" style="max-width: 24rem;">@asset.ReasonSummary</div>
+                                        </td>
+                                        <td class="small text-nowrap">@asset.LastCheckedDisplay</td>
+                                        <td class="text-end">
+                                            <form method="post" asp-page-handler="RecheckUnavailableAsset">
+                                                <input type="hidden" name="id" value="@asset.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-secondary">Recheck source</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    @if (Model.UnavailableTotalPages > 1)
+                    {
+                        <div class="card-footer bg-body d-flex flex-wrap align-items-center justify-content-between gap-2">
+                            <div class="small text-muted">
+                                Page @Model.UnavailablePage of @Model.UnavailableTotalPages · @Model.UnavailableAssetCount total unavailable
+                            </div>
+                            <nav aria-label="Unavailable media pages">
+                                <ul class="pagination pagination-sm mb-0">
+                                    <li class="page-item @(Model.UnavailablePage <= 1 ? "disabled" : string.Empty)">
+                                        <a class="page-link" asp-page="./Index" asp-route-uq="@Model.UnavailableQuery" asp-route-us="@Model.UnavailableStatusFilter" asp-route-up="@(Model.UnavailablePage - 1)">Previous</a>
+                                    </li>
+                                    <li class="page-item disabled"><span class="page-link">@Model.UnavailablePage / @Model.UnavailableTotalPages</span></li>
+                                    <li class="page-item @(Model.UnavailablePage >= Model.UnavailableTotalPages ? "disabled" : string.Empty)">
+                                        <a class="page-link" asp-page="./Index" asp-route-uq="@Model.UnavailableQuery" asp-route-us="@Model.UnavailableStatusFilter" asp-route-up="@(Model.UnavailablePage + 1)">Next</a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+                    }
                 }
             </section>
         }
