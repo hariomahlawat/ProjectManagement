@@ -60,7 +60,8 @@
     <div class="row g-3 mb-4">
         <div class="col-6 col-xl"><div class="metric-card"><span>Available images</span><strong>@Model.AvailableImages</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Face eligible</span><strong>@Model.Eligible</strong></div></div>
-        <div class="col-6 col-xl"><div class="metric-card"><span>Excluded non-photos</span><strong>@Model.ExcludedNonPhotographs</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Unknown / needs review</span><strong>@Model.NeedsReview</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Confirmed non-photos</span><strong>@Model.ConfirmedNonPhotographs</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Low-confidence class</span><strong>@Model.LowConfidence</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Faces detected</span><strong>@Model.Faces</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Embeddings</span><strong>@Model.Embedded</strong></div></div>
@@ -93,9 +94,9 @@
         <div class="col-xl-5">
             <section class="card shadow-sm border-0 h-100">
                 <div class="card-body p-4">
-                    <div class="d-flex justify-content-between align-items-start mb-3"><div><h2 class="h5 mb-1">Worker and queue</h2><p class="text-muted mb-0">Shared durable media worker telemetry.</p></div><span class="badge text-bg-success">@Model.ProcessingRuntime.State</span></div>
+                    <div class="d-flex justify-content-between align-items-start mb-3"><div><h2 class="h5 mb-1">Media processing worker</h2><p class="text-muted mb-0">Catalogue, derivatives and durable job telemetry. Face queue discovery is reported separately in readiness.</p></div><span class="badge text-bg-success">@Model.ProcessingRuntime.State</span></div>
                     <dl class="row mb-0 small">
-                        <dt class="col-6">Worker</dt><dd class="col-6">@(Model.ProcessingRuntime.WorkerStarted ? "Running" : Model.ProcessingRuntime.WorkerConfigured ? "Configured" : "Disabled")</dd>
+                        <dt class="col-6">Media worker</dt><dd class="col-6">@(Model.ProcessingRuntime.WorkerStarted ? "Running" : Model.ProcessingRuntime.WorkerConfigured ? "Configured" : "Disabled")</dd>
                         <dt class="col-6">Face jobs active</dt><dd class="col-6">@Model.PendingFaceJobs</dd>
                         <dt class="col-6">Face jobs failed</dt><dd class="col-6">@Model.FailedFaceJobs</dd>
                         <dt class="col-6">Current asset</dt><dd class="col-6">@(Model.ProcessingRuntime.CurrentAssetId?.ToString() ?? "None")</dd>

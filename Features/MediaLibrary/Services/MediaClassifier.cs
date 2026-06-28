@@ -8,12 +8,13 @@ using SixLabors.ImageSharp.Processing;
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
 /// <summary>
-/// CPU-only, explainable and deterministic media classifier. No proprietary model,
-/// network service or unapproved model weights are used.
+/// CPU-only, explainable and deterministic media classifier. The classifier is
+/// deliberately conservative for non-photographic content while recognising
+/// camera-like natural images even when EXIF metadata has been stripped.
 /// </summary>
 public sealed class MediaClassifier : IMediaClassifier
 {
-    public const string ClassifierVersion = "deterministic-media-v3";
+    public const string ClassifierVersion = "deterministic-media-v4";
 
     private static readonly string[] ScreenshotTerms =
     {
@@ -28,7 +29,12 @@ public sealed class MediaClassifier : IMediaClassifier
 
     private static readonly string[] DiagramTerms =
     {
-        "diagram", "chart", "graph", "flow", "workflow", "architecture", "schematic", "slide", "ppt"
+        "diagram", "chart", "graph", "flow", "workflow", "architecture", "schematic", "slide", "ppt", "drawio"
+    };
+
+    private static readonly HashSet<string> CameraImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg", ".jpeg", ".heic", ".heif", ".webp"
     };
 
     private readonly MediaLibraryOptions _options;
@@ -41,8 +47,13 @@ public sealed class MediaClassifier : IMediaClassifier
         MediaFileMetadata metadata,
         CancellationToken cancellationToken)
     {
-        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete,
-            128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete,
+            128 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
         return await ClassifyCoreAsync(Path.GetFileName(path), stream, metadata, cancellationToken);
     }
 
@@ -74,7 +85,7 @@ public sealed class MediaClassifier : IMediaClassifier
         var signals = new List<string>();
         var scores = new Dictionary<MediaClassification, double>
         {
-            [MediaClassification.Photograph] = metadata.HasCameraMetadata ? 0.78 : 0.25,
+            [MediaClassification.Photograph] = metadata.HasCameraMetadata ? 0.70 : 0.22,
             [MediaClassification.Screenshot] = 0,
             [MediaClassification.ScannedDocument] = 0,
             [MediaClassification.Diagram] = 0,
@@ -86,7 +97,9 @@ public sealed class MediaClassifier : IMediaClassifier
 
         try
         {
-            if (stream.CanSeek) stream.Position = 0;
+            if (stream.CanSeek)
+                stream.Position = 0;
+
             using var image = await Image.LoadAsync<Rgba32>(stream, cancellationToken);
             var metrics = Measure(image, _options.Classification.AnalysisMaxDimension);
             ApplyVisualSignals(metrics, scores, signals);
@@ -103,7 +116,8 @@ public sealed class MediaClassifier : IMediaClassifier
         var ordered = scores.OrderByDescending(pair => pair.Value).ToArray();
         var winner = ordered[0];
         var runnerUp = ordered.Length > 1 ? ordered[1].Value : 0;
-        var confidence = Math.Clamp(0.52 + ((winner.Value - runnerUp) * 0.55), 0.50, 0.98);
+        var margin = Math.Max(0, winner.Value - runnerUp);
+        var confidence = Math.Clamp(0.46 + (winner.Value * 0.34) + (margin * 0.34), 0.50, 0.98);
 
         var requiredScore = winner.Key switch
         {
@@ -119,6 +133,7 @@ public sealed class MediaClassifier : IMediaClassifier
             return new MediaClassificationResult(MediaClassification.Unknown, confidence, signals, ClassifierVersion);
         }
 
+        signals.Add($"Selected {winner.Key} from an explainable score margin of {margin:0.00}.");
         return new MediaClassificationResult(winner.Key, confidence, signals, ClassifierVersion);
     }
 
@@ -146,25 +161,27 @@ public sealed class MediaClassifier : IMediaClassifier
         if (_options.Classification.DiagramDetectionEnabled
             && DiagramTerms.Any(term => fileName.Contains(term, StringComparison.OrdinalIgnoreCase)))
         {
-            scores[MediaClassification.Diagram] += 0.50;
+            scores[MediaClassification.Diagram] += 0.62;
             signals.Add("Filename indicates a diagram, chart or presentation.");
         }
 
         if (metadata.HasCameraMetadata)
         {
-            scores[MediaClassification.Photograph] += 0.32;
+            scores[MediaClassification.Photograph] += 0.42;
             scores[MediaClassification.Screenshot] -= 0.35;
             signals.Add("Camera metadata strongly supports a photograph.");
         }
         else
         {
-            if (_options.Classification.ScreenshotDetectionEnabled)
-                scores[MediaClassification.Screenshot] += 0.10;
-            scores[MediaClassification.Graphic] += 0.08;
-            signals.Add("No camera make or model metadata is present.");
+            signals.Add("No camera make or model metadata is present; visual evidence is required.");
         }
 
-        if (extension.Equals(".png", StringComparison.OrdinalIgnoreCase))
+        if (CameraImageExtensions.Contains(extension))
+        {
+            scores[MediaClassification.Photograph] += 0.13;
+            signals.Add("The encoded format is commonly produced by cameras and photo workflows.");
+        }
+        else if (extension.Equals(".png", StringComparison.OrdinalIgnoreCase))
         {
             if (_options.Classification.ScreenshotDetectionEnabled)
                 scores[MediaClassification.Screenshot] += 0.10;
@@ -186,44 +203,67 @@ public sealed class MediaClassifier : IMediaClassifier
         IDictionary<MediaClassification, double> scores,
         ICollection<string> signals)
     {
-        if (metrics.FlatPixelRatio >= 0.58)
+        if (metrics.SpatialFlatness >= 0.60)
         {
             if (_options.Classification.ScreenshotDetectionEnabled)
-                scores[MediaClassification.Screenshot] += 0.20;
-            scores[MediaClassification.Graphic] += 0.22;
-            signals.Add("Large flat-colour regions are present.");
+                scores[MediaClassification.Screenshot] += 0.18;
+            scores[MediaClassification.Graphic] += 0.24;
+            signals.Add("Large locally uniform regions support generated graphic content.");
         }
 
-        if (metrics.EdgeDensity >= 0.22)
+        if (metrics.EdgeDensity >= 0.24)
         {
             if (_options.Classification.DiagramDetectionEnabled)
-                scores[MediaClassification.Diagram] += 0.24;
+                scores[MediaClassification.Diagram] += 0.27;
             if (_options.Classification.DocumentDetectionEnabled)
-                scores[MediaClassification.ScannedDocument] += 0.18;
-            signals.Add("High edge density indicates text, line art or diagram content.");
+                scores[MediaClassification.ScannedDocument] += 0.16;
+            signals.Add("High two-dimensional edge density indicates text, line art or a diagram.");
         }
 
-        if (metrics.LightBackgroundRatio >= 0.72 && metrics.EdgeDensity >= 0.12)
+        if (metrics.LightBackgroundRatio >= 0.72 && metrics.EdgeDensity >= 0.11)
         {
             if (_options.Classification.DocumentDetectionEnabled)
-                scores[MediaClassification.ScannedDocument] += 0.35;
+                scores[MediaClassification.ScannedDocument] += 0.34;
             signals.Add("A light page-like background with dense foreground marks is present.");
         }
 
-        if (metrics.ColourDiversity <= 0.18 && metrics.EdgeDensity >= 0.16)
+        if (metrics.ColourDiversity <= 0.18 && metrics.EdgeDensity >= 0.15)
         {
             if (_options.Classification.DiagramDetectionEnabled)
-                scores[MediaClassification.Diagram] += 0.24;
+                scores[MediaClassification.Diagram] += 0.26;
             signals.Add("Low colour diversity with strong edges supports a diagram or chart.");
         }
 
-        if (metrics.ColourDiversity >= 0.38 && metrics.FlatPixelRatio < 0.45)
+        var naturalTexture = metrics.Entropy >= 0.54
+                             && metrics.SpatialFlatness < 0.62
+                             && metrics.EdgeDensity <= 0.28;
+        if (naturalTexture)
         {
-            scores[MediaClassification.Photograph] += 0.30;
-            signals.Add("Natural colour diversity and limited flat regions support a photograph.");
+            scores[MediaClassification.Photograph] += 0.38;
+            signals.Add("Natural tonal entropy, texture and edge distribution support a photograph.");
         }
 
-        if (metrics.WideAspectRatio is >= 1.72 and <= 1.82 && metrics.LightBackgroundRatio >= 0.45)
+        if (metrics.ColourDiversity >= 0.18 && metrics.SpatialFlatness < 0.55)
+        {
+            scores[MediaClassification.Photograph] += 0.20;
+            signals.Add("Broad colour variation with limited uniform regions supports a photograph.");
+        }
+
+        if (metrics.LuminanceVariance >= 0.010 && metrics.Entropy >= 0.42)
+        {
+            scores[MediaClassification.Photograph] += 0.14;
+            signals.Add("Continuous-tone luminance variation supports natural image content.");
+        }
+
+        if (metrics.AspectRatio is >= 0.58 and <= 0.90
+            && metrics.Entropy >= 0.40
+            && metrics.EdgeDensity < 0.25)
+        {
+            scores[MediaClassification.Photograph] += 0.10;
+            signals.Add("Portrait-oriented natural-image geometry supports a photograph.");
+        }
+
+        if (metrics.AspectRatio is >= 1.72 and <= 1.82 && metrics.LightBackgroundRatio >= 0.45)
         {
             if (_options.Classification.DiagramDetectionEnabled)
                 scores[MediaClassification.PresentationSlide] += 0.34;
@@ -245,6 +285,9 @@ public sealed class MediaClassifier : IMediaClassifier
         var strongEdges = 0;
         var bins = new HashSet<int>();
         var luminance = new double[pixelCount];
+        var histogram = new int[256];
+        var luminanceSum = 0d;
+        var luminanceSquaredSum = 0d;
 
         image.ProcessPixelRows(accessor =>
         {
@@ -256,7 +299,12 @@ public sealed class MediaClassifier : IMediaClassifier
                     var p = row[x];
                     var value = (0.2126 * p.R) + (0.7152 * p.G) + (0.0722 * p.B);
                     luminance[(y * width) + x] = value;
-                    if (value >= 225) light++;
+                    var bucket = Math.Clamp((int)Math.Round(value), 0, 255);
+                    histogram[bucket]++;
+                    luminanceSum += value;
+                    luminanceSquaredSum += value * value;
+                    if (value >= 225)
+                        light++;
                     bins.Add(((p.R >> 5) << 6) | ((p.G >> 5) << 3) | (p.B >> 5));
                 }
             }
@@ -272,7 +320,8 @@ public sealed class MediaClassifier : IMediaClassifier
                          - luminance[index + width - 1] + luminance[index + width + 1];
                 var gy = -luminance[index - width - 1] - (2 * luminance[index - width]) - luminance[index - width + 1]
                          + luminance[index + width - 1] + (2 * luminance[index + width]) + luminance[index + width + 1];
-                if (Math.Sqrt((gx * gx) + (gy * gy)) >= 150) strongEdges++;
+                if (Math.Sqrt((gx * gx) + (gy * gy)) >= 150)
+                    strongEdges++;
                 edgeSamples++;
 
                 var centre = luminance[index];
@@ -280,16 +329,31 @@ public sealed class MediaClassifier : IMediaClassifier
                                       + Math.Abs(centre - luminance[index + 1])
                                       + Math.Abs(centre - luminance[index - width])
                                       + Math.Abs(centre - luminance[index + width]);
-                if (localDifference / 4d <= 7) locallyFlat++;
+                if (localDifference / 4d <= 7)
+                    locallyFlat++;
             }
         }
+
+        var entropy = 0d;
+        foreach (var count in histogram)
+        {
+            if (count == 0)
+                continue;
+            var probability = count / (double)pixelCount;
+            entropy -= probability * Math.Log2(probability);
+        }
+
+        var mean = luminanceSum / Math.Max(1, pixelCount);
+        var variance = Math.Max(0, (luminanceSquaredSum / Math.Max(1, pixelCount)) - (mean * mean));
 
         return new VisualMetrics(
             light / (double)Math.Max(1, pixelCount),
             locallyFlat / (double)Math.Max(1, edgeSamples),
             strongEdges / (double)Math.Max(1, edgeSamples),
             bins.Count / 512d,
-            source.Width / (double)Math.Max(1, source.Height));
+            source.Width / (double)Math.Max(1, source.Height),
+            entropy / 8d,
+            variance / (255d * 255d));
     }
 
     private static MediaClassificationResult Result(MediaClassification classification, double confidence, string signal)
@@ -312,8 +376,10 @@ public sealed class MediaClassifier : IMediaClassifier
 
     private sealed record VisualMetrics(
         double LightBackgroundRatio,
-        double FlatPixelRatio,
+        double SpatialFlatness,
         double EdgeDensity,
         double ColourDiversity,
-        double WideAspectRatio);
+        double AspectRatio,
+        double Entropy,
+        double LuminanceVariance);
 }

@@ -7,6 +7,7 @@ namespace ProjectManagement.Features.MediaLibrary.Services;
 public interface IMediaClassificationOverrideService
 {
     Task SetManualAsync(long assetId, MediaClassification classification, string userId, string? reason, CancellationToken cancellationToken);
+    Task<int> SetManualBatchAsync(IReadOnlyCollection<long> assetIds, MediaClassification classification, string userId, string? reason, CancellationToken cancellationToken);
     Task ResetToAutomaticAsync(long assetId, string userId, string? reason, CancellationToken cancellationToken);
 }
 
@@ -32,6 +33,61 @@ public sealed class MediaClassificationOverrideService : IMediaClassificationOve
         asset.AnalysisSignalsJson = "[\"Manual classification confirmed by an authorised user.\"]";
         _db.ClassificationAudits.Add(CreateAudit(assetId, previous, classification, previousManual, true, userId, reason));
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+
+    public async Task<int> SetManualBatchAsync(
+        IReadOnlyCollection<long> assetIds,
+        MediaClassification classification,
+        string userId,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(assetIds);
+        if (classification == MediaClassification.Unknown)
+            throw new ArgumentException("Choose a specific classification.", nameof(classification));
+
+        var distinctIds = assetIds.Where(id => id > 0).Distinct().Take(500).ToArray();
+        if (distinctIds.Length == 0)
+            return 0;
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        var assets = await _db.Assets
+            .Where(asset => distinctIds.Contains(asset.Id)
+                            && asset.IsAvailable
+                            && !asset.IsDeleted
+                            && !asset.IsArchived
+                            && asset.Kind == MediaAssetKind.Photo)
+            .ToListAsync(cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        var normalizedReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        foreach (var asset in assets)
+        {
+            var previous = asset.Classification;
+            var previousManual = asset.ClassificationIsManual;
+            asset.Classification = classification;
+            asset.ClassificationConfidence = 1;
+            asset.ClassificationIsManual = true;
+            asset.ClassificationUpdatedByUserId = userId;
+            asset.ClassifiedAtUtc = now;
+            asset.ClassifierVersion = "manual";
+            asset.AnalysisVersion = "manual";
+            asset.AnalysisStatus = MediaProcessingStatus.Ready;
+            asset.AnalysisSignalsJson = "[\"Manual classification confirmed by an authorised user.\"]";
+            _db.ClassificationAudits.Add(CreateAudit(
+                asset.Id,
+                previous,
+                classification,
+                previousManual,
+                true,
+                userId,
+                normalizedReason));
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return assets.Count;
     }
 
     public async Task ResetToAutomaticAsync(long assetId, string userId, string? reason, CancellationToken cancellationToken)

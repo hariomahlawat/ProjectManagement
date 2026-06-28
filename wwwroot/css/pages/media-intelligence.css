@@ -101,3 +101,62 @@
         transition: none;
     }
 }
+
+
+/* Phase 8.2 classification operations */
+.classification-review-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.classification-bulk-form {
+    display: grid;
+    grid-template-columns: auto minmax(10rem, 12rem) minmax(12rem, 18rem) auto;
+    align-items: center;
+    gap: .5rem;
+}
+
+.classification-card--review {
+    position: relative;
+}
+
+.classification-card__selector {
+    position: absolute;
+    z-index: 3;
+    top: .75rem;
+    left: .75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .35rem .55rem;
+    border-radius: .5rem;
+    color: #fff;
+    background: rgba(12, 18, 30, .82);
+    font-size: .78rem;
+    cursor: pointer;
+    box-shadow: 0 .2rem .6rem rgba(0,0,0,.18);
+}
+
+.classification-card__selector .form-check-input {
+    margin: 0;
+}
+
+@media (max-width: 991.98px) {
+    .classification-bulk-form {
+        width: 100%;
+        grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .classification-bulk-form {
+        grid-template-columns: 1fr;
+    }
+
+    .classification-bulk-form .form-check {
+        margin-right: 0 !important;
+    }
+}

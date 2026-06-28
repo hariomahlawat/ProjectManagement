@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Services;
+using ProjectManagement.Features.MediaLibrary.Options;
+using Microsoft.Extensions.Options;
 
 namespace ProjectManagement.Pages.Admin.MediaIntelligence;
 
@@ -16,11 +18,13 @@ public sealed class ClassificationsModel : PageModel
     private readonly MediaLibraryDbContext _db;
     private readonly IMediaClassificationOverrideService _overrides;
     private readonly IFaceEligibilityPolicy _eligibility;
-    public ClassificationsModel(MediaLibraryDbContext db, IMediaClassificationOverrideService overrides, IFaceEligibilityPolicy eligibility)
+    private readonly MediaLibraryOptions _options;
+    public ClassificationsModel(MediaLibraryDbContext db, IMediaClassificationOverrideService overrides, IFaceEligibilityPolicy eligibility, IOptions<MediaLibraryOptions> options)
     {
         _db = db;
         _overrides = overrides;
         _eligibility = eligibility;
+        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
     }
 
     [BindProperty(SupportsGet = true)] public string? Q { get; set; }
@@ -46,7 +50,14 @@ public sealed class ClassificationsModel : PageModel
         query = Mode switch
         {
             "manual" => query.Where(x => x.ClassificationIsManual),
-            "low" => query.Where(x => !x.ClassificationIsManual && (x.ClassificationConfidence == null || x.ClassificationConfidence < 0.65)),
+            "low" => query.Where(x => !x.ClassificationIsManual && (x.ClassificationConfidence == null || x.ClassificationConfidence < _options.People.MinimumClassificationConfidence)),
+            "unknown" => query.Where(x => !x.ClassificationIsManual && x.Classification == MediaClassification.Unknown),
+            "nonphoto" => query.Where(x => x.ClassificationIsManual
+                                            ? x.Classification != MediaClassification.Photograph
+                                            : x.AnalysisStatus == MediaProcessingStatus.Ready
+                                              && x.ClassifierVersion == MediaClassifier.ClassifierVersion
+                                              && x.Classification != MediaClassification.Unknown
+                                              && x.Classification != MediaClassification.Photograph),
             "stale" => query.Where(x => !x.ClassificationIsManual && x.ClassifierVersion != MediaClassifier.ClassifierVersion),
             "eligible" => query.Where(_eligibility.BuildEligiblePredicate()),
             _ => query
@@ -71,6 +82,7 @@ public sealed class ClassificationsModel : PageModel
                 x.ClassifierVersion,
                 x.AnalysisSignalsJson,
                 decision.IsEligible,
+                decision.Code,
                 decision.Reason,
                 x.AnalysisStatus,
                 x.MediaDateUtc);
@@ -82,6 +94,26 @@ public sealed class ClassificationsModel : PageModel
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "unknown";
         await _overrides.SetManualAsync(assetId, classification, userId, reason, cancellationToken);
         StatusMessage = "Classification updated and audited.";
+        return RedirectToPage(new { Q, Classification, Mode, P });
+    }
+
+    public async Task<IActionResult> OnPostSetBatchAsync(
+        long[] assetIds,
+        MediaClassification classification,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        if (assetIds is null || assetIds.Length == 0)
+        {
+            StatusMessage = "Select at least one image before applying a bulk classification.";
+            return RedirectToPage(new { Q, Classification, Mode, P });
+        }
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "unknown";
+        var updated = await _overrides.SetManualBatchAsync(assetIds, classification, userId, reason, cancellationToken);
+        StatusMessage = updated == 0
+            ? "No eligible images were updated."
+            : $"Updated and audited {updated} image classification(s).";
         return RedirectToPage(new { Q, Classification, Mode, P });
     }
 
@@ -166,8 +198,32 @@ public sealed class ClassificationsModel : PageModel
         return RedirectToPage(new { Q, Classification, Mode = "stale", P = 1 });
     }
 
-    public sealed record Row(long Id, string Title, string ContextTitle, string OriginalFileName, MediaClassification Classification, double? Confidence, bool IsManual, string? ClassifierVersion, string? SignalsJson, bool FaceEligible, string FaceEligibilityReason, MediaProcessingStatus AnalysisStatus, DateTimeOffset MediaDateUtc)
+    public sealed record Row(long Id, string Title, string ContextTitle, string OriginalFileName, MediaClassification Classification, double? Confidence, bool IsManual, string? ClassifierVersion, string? SignalsJson, bool FaceEligible, string FaceEligibilityCode, string FaceEligibilityReason, MediaProcessingStatus AnalysisStatus, DateTimeOffset MediaDateUtc)
     {
+        public string ReviewStatusLabel => FaceEligible
+            ? "Face eligible"
+            : FaceEligibilityCode switch
+            {
+                "classification-pending" => "Pending",
+                "classifier-stale" => "Stale",
+                "confidence-low" or "confidence-missing" => "Low confidence",
+                "manual-exclusion" => "Confirmed non-photo",
+                "not-photograph" when Classification != MediaClassification.Unknown => Classification.ToString(),
+                _ => "Needs review"
+            };
+
+        public string ReviewStatusCss => FaceEligible
+            ? "text-bg-success"
+            : FaceEligibilityCode switch
+            {
+                "classification-pending" => "text-bg-info",
+                "classifier-stale" => "text-bg-warning",
+                "confidence-low" or "confidence-missing" => "text-bg-warning",
+                "manual-exclusion" => "text-bg-secondary",
+                "not-photograph" when Classification != MediaClassification.Unknown => "text-bg-secondary",
+                _ => "text-bg-warning"
+            };
+
         public IReadOnlyList<string> Signals
         {
             get

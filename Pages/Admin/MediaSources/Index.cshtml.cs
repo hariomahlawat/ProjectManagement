@@ -173,7 +173,7 @@ public sealed class IndexModel : PageModel
         var report = await _consistencyService.CheckAsync(cancellationToken);
         if (report.IsConsistent)
         {
-            StatusMessage = $"Catalogue consistency check passed: {report.PrismSourceRecords:N0} PRISM source records and {report.CatalogueRecords:N0} available catalogue records.";
+            StatusMessage = $"Catalogue consistency check passed: {report.PrismSourceRecords:N0} PRISM source records matched {report.CatalogueRecords:N0} catalogue records; {report.AvailableCatalogueRecords:N0} are currently available and {report.UnavailableCatalogueRecords:N0} are unavailable.";
         }
         else
         {

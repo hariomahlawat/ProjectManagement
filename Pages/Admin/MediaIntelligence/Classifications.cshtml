@@ -57,6 +57,8 @@
                 <select class="form-select" asp-for="Mode">
                     <option value="all">All</option>
                     <option value="low">Low confidence</option>
+                    <option value="unknown">Unknown / needs review</option>
+                    <option value="nonphoto">Confirmed non-photographs</option>
                     <option value="stale">Stale classifier</option>
                     <option value="manual">Manual overrides</option>
                     <option value="eligible">Face eligible</option>
@@ -68,15 +70,39 @@
         </div>
     </form>
 
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <span class="text-muted">@Model.Total image(s)</span>
-        <span class="small text-muted">Page @Model.P of @Model.TotalPages</span>
+    <div class="classification-review-toolbar mb-3">
+        <div>
+            <span class="text-muted">@Model.Total image(s)</span>
+            <span class="small text-muted ms-2">Page @Model.P of @Model.TotalPages</span>
+        </div>
+        <form id="bulk-classification-form" method="post" asp-page-handler="SetBatch" class="classification-bulk-form">
+            <label class="form-check mb-0 me-2">
+                <input id="select-page" class="form-check-input" type="checkbox" />
+                <span class="form-check-label">Select page</span>
+            </label>
+            <select class="form-select form-select-sm" name="classification" aria-label="Bulk classification">
+                @foreach (var value in Enum.GetValues<MediaClassification>().Where(x => x != MediaClassification.Unknown))
+                {
+                    <option value="@value">@value</option>
+                }
+            </select>
+            <input class="form-control form-control-sm" name="reason" placeholder="Bulk reason (optional)" />
+            <button class="btn btn-sm btn-primary" type="submit">Apply to selected</button>
+        </form>
     </div>
 
     <div class="classification-grid classification-grid--review">
         @foreach (var item in Model.Rows)
         {
             <article class="classification-card classification-card--review">
+                <label class="classification-card__selector">
+                    <input class="form-check-input js-classification-select"
+                           type="checkbox"
+                           name="assetIds"
+                           value="@item.Id"
+                           form="bulk-classification-form" />
+                    <span>Select</span>
+                </label>
                 <a class="classification-card__preview"
                    href="@Url.Page("/Photos/Media", new { id = item.Id, variant = "preview" })"
                    target="_blank"
@@ -93,9 +119,7 @@
                         <strong>@item.Title</strong>
                         <div class="small text-muted text-truncate">@item.ContextTitle · @item.OriginalFileName</div>
                     </div>
-                    <span class="badge @(item.FaceEligible ? "text-bg-success" : "text-bg-secondary")">
-                        @(item.FaceEligible ? "Face eligible" : "Excluded")
-                    </span>
+                    <span class="badge @item.ReviewStatusCss">@item.ReviewStatusLabel</span>
                 </div>
 
                 <div class="classification-card__body">
@@ -174,3 +198,32 @@
         </nav>
     }
 </div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const selectPage = document.getElementById('select-page');
+            const checkboxes = Array.from(document.querySelectorAll('.js-classification-select'));
+            const bulkForm = document.getElementById('bulk-classification-form');
+
+            const syncSelectPage = () => {
+                if (!selectPage) return;
+                const selected = checkboxes.filter(item => item.checked).length;
+                selectPage.checked = checkboxes.length > 0 && selected === checkboxes.length;
+                selectPage.indeterminate = selected > 0 && selected < checkboxes.length;
+            };
+
+            selectPage?.addEventListener('change', () => {
+                checkboxes.forEach(item => { item.checked = selectPage.checked; });
+                syncSelectPage();
+            });
+            checkboxes.forEach(item => item.addEventListener('change', syncSelectPage));
+            bulkForm?.addEventListener('submit', event => {
+                if (!checkboxes.some(item => item.checked)) {
+                    event.preventDefault();
+                    window.alert('Select at least one image.');
+                }
+            });
+        })();
+    </script>
+}
