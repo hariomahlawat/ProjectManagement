@@ -174,7 +174,7 @@ public sealed class IndexModel : PageModel
 
         var existingRoots = await _db.Sources
             .AsNoTracking()
-            .Where(source => source.Type == MediaLibrarySourceType.FileSystem
+            .Where(source => source.SourceType == MediaLibrarySourceType.FileSystem
                              && !source.IsDeleted
                              && source.RootPath != null
                              && (!Input.Id.HasValue || source.Id != Input.Id.Value))
@@ -466,7 +466,7 @@ public sealed class IndexModel : PageModel
                     source.ScanStatus,
                     source.HealthStatus,
                     source.HealthMessage,
-                    source.AssetCount,
+                    source.IndexedAssetCount,
                     source.LastSuccessfulScanAtUtc,
                     source.LastHealthCheckedAtUtc,
                     source.LastError))
