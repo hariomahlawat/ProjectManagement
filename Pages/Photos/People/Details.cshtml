@@ -1,4 +1,168 @@
-@page
+@page "{id:guid}"
 @model ProjectManagement.Pages.Photos.People.DetailsModel
-@{ViewData["Title"]=Model.PersonName;}
-<div class="container-fluid py-4"><div class="d-flex justify-content-between align-items-start mb-4"><div><h1 class="h3 mb-1">@Model.PersonName</h1><p class="text-muted mb-0">Human-confirmed photographs only.</p></div><a class="btn btn-outline-secondary" asp-page="./Index">Back to People</a></div><div class="row g-3">@foreach(var photo in Model.Photos){<div class="col-6 col-md-4 col-xl-3"><a class="card h-100 text-decoration-none" href="/Photos#media-@photo.AssetId"><img class="card-img-top object-fit-cover" style="height:220px" src="/Photos/Media?id=@photo.AssetId&variant=thumb" alt="" loading="lazy"/><div class="card-body"><div class="fw-semibold text-body">@photo.ContextTitle</div><small class="text-muted">@photo.MediaDateUtc.ToLocalTime().ToString("dd MMM yyyy")</small></div></a></div>}@if(Model.Photos.Count==0){<div class="col-12"><div class="alert alert-light border">No confirmed photographs are available.</div></div>}</div></div>
+@{
+    ViewData["Title"] = Model.Person.DisplayName;
+    ViewData["PageShell"] = "wide";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/photos-people.css" asp-append-version="true" />
+}
+
+<div class="people-workspace">
+    <header class="person-profile-header">
+        <div class="person-profile-header__portrait">
+            @if (Model.Person.RepresentativeFaceId.HasValue)
+            {
+                <img src="@Url.Page("/Photos/FaceThumbnail", new { id = Model.Person.RepresentativeFaceId })" alt="" />
+            }
+            else
+            {
+                <i class="bi bi-person" aria-hidden="true"></i>
+            }
+        </div>
+        <div class="person-profile-header__identity">
+            <span class="people-eyebrow">Confirmed person</span>
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                <h1>@Model.Person.DisplayName</h1>
+                @if (Model.Person.IsHidden)
+                {
+                    <span class="badge text-bg-secondary"><i class="bi bi-eye-slash"></i> Hidden</span>
+                }
+            </div>
+            <p>
+                @Model.Person.PhotoCount photo@(Model.Person.PhotoCount == 1 ? string.Empty : "s") ·
+                @Model.Person.ConfirmedFaceCount confirmed face@(Model.Person.ConfirmedFaceCount == 1 ? string.Empty : "s")
+                @if (Model.Person.FirstMediaDateUtc.HasValue && Model.Person.LatestMediaDateUtc.HasValue)
+                {
+                    <span> · @Model.Person.FirstMediaDateUtc.Value.ToLocalTime().ToString("MMM yyyy")–@Model.Person.LatestMediaDateUtc.Value.ToLocalTime().ToString("MMM yyyy")</span>
+                }
+            </p>
+        </div>
+        <nav class="people-header__actions">
+            <a class="btn btn-outline-secondary" asp-page="./Index"><i class="bi bi-people"></i> People</a>
+            <a class="btn btn-primary" asp-page="/Photos/Index" asp-route-PersonId="@Model.Person.Id">
+                <i class="bi bi-images"></i> Open in Photos
+            </a>
+        </nav>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+    {
+        <div class="alert alert-success" role="status">@Model.StatusMessage</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+    }
+
+    <section class="person-governance" aria-labelledby="identityGovernanceTitle">
+        <div>
+            <span class="people-eyebrow">Identity governance</span>
+            <h2 id="identityGovernanceTitle">Manage this person</h2>
+            <p>All changes are recorded in the identity audit history.</p>
+        </div>
+        <details>
+            <summary><i class="bi bi-pencil"></i> Rename</summary>
+            <form method="post" asp-page-handler="Rename" class="people-action-form">
+                <input type="hidden" name="id" value="@Model.Person.Id" />
+                <label for="displayName">Display name</label>
+                <input id="displayName" class="form-control" name="displayName" value="@Model.Person.DisplayName" maxlength="200" required />
+                <button class="btn btn-primary" type="submit">Save name</button>
+            </form>
+        </details>
+        <details>
+            <summary><i class="bi @(Model.Person.IsHidden ? "bi-eye" : "bi-eye-slash")"></i> @(Model.Person.IsHidden ? "Restore" : "Hide")</summary>
+            <form method="post" asp-page-handler="Visibility" class="people-action-form">
+                <input type="hidden" name="id" value="@Model.Person.Id" />
+                <input type="hidden" name="hidden" value="@(!Model.Person.IsHidden)" />
+                <p>@(Model.Person.IsHidden ? "Restore this person to the normal People and Photos experience." : "Hide this person without deleting assignments or audit history.")</p>
+                <button class="btn @(Model.Person.IsHidden ? "btn-primary" : "btn-outline-danger")" type="submit">
+                    @(Model.Person.IsHidden ? "Restore person" : "Hide person")
+                </button>
+            </form>
+        </details>
+        @if (Model.Person.MergeTargets.Count > 0)
+        {
+            <details>
+                <summary><i class="bi bi-intersect"></i> Merge duplicate</summary>
+                <form method="post" asp-page-handler="Merge" class="people-action-form"
+                      onsubmit="return confirm('Merge this person into the selected identity? Active face assignments will move and this action cannot be reversed through the UI.');">
+                    <input type="hidden" name="id" value="@Model.Person.Id" />
+                    <label for="targetPersonId">Merge into</label>
+                    <select id="targetPersonId" name="targetPersonId" class="form-select" required>
+                        <option value="">Select the correct person</option>
+                        @foreach (var target in Model.Person.MergeTargets)
+                        {
+                            <option value="@target.Id">@target.DisplayName</option>
+                        }
+                    </select>
+                    <p class="text-danger mb-0"><strong>This action is irreversible through the UI.</strong> Active face assignments will move to the selected person.</p>
+                    <button class="btn btn-danger" type="submit">Merge person</button>
+                </form>
+            </details>
+        }
+    </section>
+
+    @if (Model.Person.Photos.Count == 0)
+    {
+        <section class="people-empty">
+            <i class="bi bi-image"></i>
+            <h2>No available photographs</h2>
+            <p>This person has no active face assignments in currently available media.</p>
+        </section>
+    }
+    else
+    {
+        <section class="person-photo-section" aria-labelledby="personPhotosTitle">
+            <header>
+                <div>
+                    <span class="people-eyebrow">Confirmed appearances</span>
+                    <h2 id="personPhotosTitle">Photographs</h2>
+                </div>
+                <p>Use the correction controls on a tile to change the cover or remove an incorrect assignment.</p>
+            </header>
+            <div class="person-photo-grid" role="list">
+                @foreach (var photo in Model.Person.Photos)
+                {
+                    <article class="person-photo-card @(photo.IsRepresentative ? "is-representative" : null)" role="listitem">
+                        <a href="@Url.Page("/Photos/Media", new { id = photo.AssetId, variant = "preview" })"
+                           target="_blank" rel="noopener" class="person-photo-card__image">
+                            <img src="@Url.Page("/Photos/Media", new { id = photo.AssetId, variant = "thumb" })"
+                                 alt="@photo.ContextTitle" loading="lazy" decoding="async" />
+                            @if (photo.IsRepresentative)
+                            {
+                                <span><i class="bi bi-star-fill"></i> Cover</span>
+                            }
+                        </a>
+                        <div class="person-photo-card__body">
+                            <strong>@photo.ContextTitle</strong>
+                            <span>@photo.ContextSubtitle</span>
+                            <small>@photo.MediaDateUtc.ToLocalTime().ToString("dd MMM yyyy") · @photo.SourceLabel · quality @photo.FaceQualityScore.ToString("0.00")</small>
+                            <div class="person-photo-card__actions">
+                                @if (!photo.IsRepresentative)
+                                {
+                                    <form method="post" asp-page-handler="Representative">
+                                        <input type="hidden" name="id" value="@Model.Person.Id" />
+                                        <input type="hidden" name="faceId" value="@photo.FaceId" />
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-star"></i> Use as cover</button>
+                                    </form>
+                                }
+                                <details>
+                                    <summary class="btn btn-sm btn-outline-danger"><i class="bi bi-person-x"></i> Incorrect</summary>
+                                    <form method="post" asp-page-handler="RemoveAssignment" class="person-remove-form">
+                                        <input type="hidden" name="id" value="@Model.Person.Id" />
+                                        <input type="hidden" name="faceId" value="@photo.FaceId" />
+                                        <label>Reason</label>
+                                        <input class="form-control form-control-sm" name="reason" maxlength="1024" placeholder="Optional correction note" />
+                                        <button type="submit" class="btn btn-sm btn-danger">Remove assignment</button>
+                                    </form>
+                                </details>
+                            </div>
+                        </div>
+                    </article>
+                }
+            </div>
+        </section>
+    }
+</div>

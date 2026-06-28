@@ -28,14 +28,26 @@ public sealed class MediaProcessingWorker : BackgroundService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+
+    private bool FaceOnlyMode =>
+        !_options.IsProcessingWorkerEnabled && _options.IsPeopleWorkerEnabled;
+
+    private int EffectiveBatchSize => FaceOnlyMode
+        ? Math.Clamp(_options.People.BatchSize, 1, 16)
+        : Math.Clamp(_options.Processing.BatchSize, 1, 16);
+
+    private int EffectiveIdleDelaySeconds => FaceOnlyMode
+        ? Math.Clamp(_options.People.IdleDelaySeconds, 1, 3600)
+        : Math.Clamp(_options.Processing.IdleDelaySeconds, 1, 3600);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _runtime.MarkStarted(_workerId);
         _logger.LogInformation(
             "Media processing worker {WorkerId} started. BatchSize={BatchSize}, IdleDelaySeconds={IdleDelaySeconds}",
             _workerId,
-            _options.Processing.BatchSize,
-            _options.Processing.IdleDelaySeconds);
+            EffectiveBatchSize,
+            EffectiveIdleDelaySeconds);
 
         try
         {
@@ -44,7 +56,7 @@ public sealed class MediaProcessingWorker : BackgroundService
             while (!stoppingToken.IsCancellationRequested)
             {
                 var processed = 0;
-                var idleDelaySeconds = Math.Max(1, _options.Processing.IdleDelaySeconds);
+                var idleDelaySeconds = EffectiveIdleDelaySeconds;
 
                 try
                 {
@@ -60,18 +72,18 @@ public sealed class MediaProcessingWorker : BackgroundService
                         _runtime.Heartbeat("Polling");
                         await RecoverExpiredLocksAsync(stoppingToken);
 
-                    for (var index = 0; index < Math.Max(1, _options.Processing.BatchSize); index++)
-                    {
-                        var job = await ClaimNextAsync(stoppingToken);
-                        if (job is null)
+                        for (var index = 0; index < EffectiveBatchSize; index++)
                         {
-                            break;
-                        }
+                            var job = await ClaimNextAsync(stoppingToken);
+                            if (job is null)
+                            {
+                                break;
+                            }
 
-                        processed++;
-                        _runtime.MarkClaimed(job.Id, job.MediaAssetId);
-                        await ProcessAsync(job, stoppingToken);
-                    }
+                            processed++;
+                            _runtime.MarkClaimed(job.Id, job.MediaAssetId);
+                            await ProcessAsync(job, stoppingToken);
+                        }
                     }
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -146,8 +158,20 @@ public sealed class MediaProcessingWorker : BackgroundService
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
-        var claimed = await db.ProcessingJobs
-            .FromSqlInterpolated($@"
+        var query = FaceOnlyMode
+            ? db.ProcessingJobs.FromSqlInterpolated($@"
+                SELECT *
+                FROM ""MediaProcessingJobs""
+                WHERE ""JobType"" = 'DetectFaces'
+                  AND (
+                        ""Status"" = 'Pending'
+                        OR (""Status"" = 'Running' AND ""LockExpiresAtUtc"" IS NOT NULL AND ""LockExpiresAtUtc"" < {now})
+                      )
+                  AND (""AvailableAfterUtc"" IS NULL OR ""AvailableAfterUtc"" <= {now})
+                ORDER BY COALESCE(""AvailableAfterUtc"", ""CreatedAtUtc""), ""Id""
+                FOR UPDATE SKIP LOCKED
+                LIMIT 1")
+            : db.ProcessingJobs.FromSqlInterpolated($@"
                 SELECT *
                 FROM ""MediaProcessingJobs""
                 WHERE (
@@ -157,8 +181,8 @@ public sealed class MediaProcessingWorker : BackgroundService
                   AND (""AvailableAfterUtc"" IS NULL OR ""AvailableAfterUtc"" <= {now})
                 ORDER BY COALESCE(""AvailableAfterUtc"", ""CreatedAtUtc""), ""Id""
                 FOR UPDATE SKIP LOCKED
-                LIMIT 1")
-            .ToListAsync(cancellationToken);
+                LIMIT 1");
+        var claimed = await query.ToListAsync(cancellationToken);
         var job = claimed.SingleOrDefault();
 
         if (job is null)
@@ -272,21 +296,35 @@ public sealed class MediaProcessingWorker : BackgroundService
         entity.FailureMessage = failureMessage;
         entity.UpdatedAtUtc = now;
 
-        if (sourceUnavailable)
+        if (sourceUnavailable || job.JobType == MediaProcessingJobType.DetectFaces)
         {
-            var asset = await db.Assets.SingleOrDefaultAsync(item => item.Id == job.MediaAssetId, CancellationToken.None);
+            var asset = await db.Assets.SingleOrDefaultAsync(
+                item => item.Id == job.MediaAssetId,
+                CancellationToken.None);
             if (asset is not null)
             {
-                asset.IsAvailable = false;
-                asset.AvailabilityStatus = ex.GetBaseException() is UnauthorizedAccessException
-                    ? MediaAvailabilityStatus.AccessDenied
-                    : MediaAvailabilityStatus.SourceMissing;
-                asset.UnavailableReason = failureMessage;
-                asset.UnavailableSinceUtc ??= now;
-                asset.LastAvailabilityCheckUtc = now;
-                asset.DerivativeStatus = MediaProcessingStatus.Failed;
-                asset.AnalysisStatus = MediaProcessingStatus.Failed;
-                asset.ProcessingFailureReason = MediaProcessingFailurePolicy.MarkSourceUnavailable(failureMessage);
+                if (job.JobType == MediaProcessingJobType.DetectFaces)
+                {
+                    asset.FaceAnalysisStatus = MediaProcessingStatus.Failed;
+                    asset.FaceProcessingFailureReason = failureMessage;
+                }
+
+                if (sourceUnavailable)
+                {
+                    asset.IsAvailable = false;
+                    asset.AvailabilityStatus = ex.GetBaseException() is UnauthorizedAccessException
+                        ? MediaAvailabilityStatus.AccessDenied
+                        : MediaAvailabilityStatus.SourceMissing;
+                    asset.UnavailableReason = failureMessage;
+                    asset.UnavailableSinceUtc ??= now;
+                    asset.LastAvailabilityCheckUtc = now;
+                    asset.DerivativeStatus = MediaProcessingStatus.Failed;
+                    asset.AnalysisStatus = MediaProcessingStatus.Failed;
+                    asset.FaceAnalysisStatus = MediaProcessingStatus.Failed;
+                    var marked = MediaProcessingFailurePolicy.MarkSourceUnavailable(failureMessage);
+                    asset.FaceProcessingFailureReason = marked;
+                    asset.ProcessingFailureReason = marked;
+                }
             }
         }
 

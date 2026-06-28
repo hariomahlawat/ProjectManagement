@@ -37,7 +37,7 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddSingleton<IMediaProcessingRuntimeState>(_ =>
         {
             var state = new MediaProcessingRuntimeState();
-            state.MarkConfigured(configuredOptions.IsProcessingWorkerEnabled);
+            state.MarkConfigured(configuredOptions.IsAnyProcessingWorkerEnabled);
             return state;
         });
         services.AddScoped<IMediaCacheHealthService, MediaCacheHealthService>();
@@ -52,6 +52,7 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaCatalogueConsistencyService, MediaCatalogueConsistencyService>();
         services.AddScoped<IMediaAvailabilityRecoveryService, MediaAvailabilityRecoveryService>();
         services.AddScoped<IMediaLibraryQueryService, MediaLibraryQueryService>();
+        services.AddScoped<IMediaPeopleQueryService, MediaPeopleQueryService>();
         services.AddScoped<IMediaContentProvider, FileSystemMediaContentProvider>();
         services.AddScoped<IMediaContentProvider, ProjectPhotoMediaContentProvider>();
         services.AddScoped<IMediaContentProvider, ProjectVideoMediaContentProvider>();
@@ -67,6 +68,7 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaLibrarySchemaService, MediaLibrarySchemaService>();
         services.AddSingleton<IFaceModelReadinessService, FaceModelReadinessService>();
         services.AddSingleton<IFaceAnalysisEngine, OnnxFaceAnalysisEngine>();
+        services.AddScoped<IFaceCandidateSearchService, FaceCandidateSearchService>();
         services.AddScoped<IFaceIntelligenceService, FaceIntelligenceService>();
         services.AddScoped<IFaceQueueService, FaceQueueService>();
         services.AddScoped<IFaceReviewService, FaceReviewService>();
@@ -83,10 +85,15 @@ public static class MediaLibraryServiceCollectionExtensions
             services.AddHostedService<MediaSourceScannerWorker>();
         }
 
-        if (configuredOptions.IsProcessingWorkerEnabled)
+        if (configuredOptions.IsAnyProcessingWorkerEnabled)
         {
             services.AddHostedService<MediaProcessingWorker>();
             services.AddHostedService<MediaAvailabilityReconciliationWorker>();
+        }
+
+        if (configuredOptions.IsPeopleWorkerEnabled)
+        {
+            services.AddHostedService<FaceAnalysisQueueWorker>();
         }
 
         return services;

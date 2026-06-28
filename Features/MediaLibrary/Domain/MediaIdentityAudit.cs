@@ -5,7 +5,8 @@ namespace ProjectManagement.Features.MediaLibrary.Domain;
 public sealed class MediaIdentityAudit
 {
     public long Id { get; set; }
-    public Guid FaceId { get; set; }
+    public Guid? FaceId { get; set; }
+    public Guid? PersonId { get; set; }
     public Guid? PreviousPersonId { get; set; }
     public Guid? NewPersonId { get; set; }
 
@@ -18,5 +19,6 @@ public sealed class MediaIdentityAudit
     [MaxLength(1024)]
     public string? Notes { get; set; }
 
+    public string? MetadataJson { get; set; }
     public DateTimeOffset PerformedAtUtc { get; set; }
 }

@@ -343,6 +343,10 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
             asset.AnalysisStatus = metadata.Kind == MediaAssetKind.Photo && _options.Classification.Enabled
                 ? MediaProcessingStatus.Pending
                 : MediaProcessingStatus.NotRequested;
+            asset.FaceAnalysisStatus = MediaProcessingStatus.NotRequested;
+            asset.FaceAnalysisVersion = null;
+            asset.FaceAnalysedAtUtc = null;
+            asset.FaceProcessingFailureReason = null;
             asset.ProcessingFailureReason = null;
             changedAssets.Add(asset);
         }

@@ -8,15 +8,20 @@ public sealed record MediaLibraryQuery(
     string Kind,
     string Classification,
     int? ProjectId,
+    Guid? PersonId,
     int? Year,
     int PageNumber,
-    int PageSize);
+    int PageSize,
+    bool IncludePeople);
+
+public sealed record MediaLibraryPersonSummary(Guid Id, string DisplayName);
 
 public sealed record MediaLibraryQueryItem(
     long Id,
     Guid SourceId,
     MediaAssetOrigin Origin,
     MediaAssetKind Kind,
+    MediaClassification Classification,
     string SourceEntityId,
     string? ParentEntityId,
     string ContextKey,
@@ -34,10 +39,12 @@ public sealed record MediaLibraryQueryItem(
     bool IsCover,
     long SortOrder,
     int CacheVersion,
-    string? VersionToken);
+    string? VersionToken,
+    IReadOnlyList<MediaLibraryPersonSummary> People,
+    int UnidentifiedFaceCount);
 
 public sealed record MediaLibraryProjectOption(int Id, string Name);
-
+public sealed record MediaLibraryPersonOption(Guid Id, string Name, int PhotoCount);
 public sealed record MediaLibraryStatistics(int Total, int Photos, int Videos, int Collections);
 
 public enum MediaLibraryQueryOperation
@@ -47,6 +54,7 @@ public enum MediaLibraryQueryOperation
     Statistics,
     Years,
     Projects,
+    People,
     PrismSourceStatus
 }
 
@@ -59,6 +67,7 @@ public sealed record MediaLibraryQueryWarning(
 public sealed record MediaLibraryQueryResult(
     IReadOnlyList<MediaLibraryQueryItem> Items,
     IReadOnlyList<MediaLibraryProjectOption> Projects,
+    IReadOnlyList<MediaLibraryPersonOption> People,
     IReadOnlyList<int> Years,
     MediaLibraryStatistics Statistics,
     int PageNumber,
@@ -81,6 +90,7 @@ public sealed record MediaLibraryQueryResult(
         => new(
             Array.Empty<MediaLibraryQueryItem>(),
             Array.Empty<MediaLibraryProjectOption>(),
+            Array.Empty<MediaLibraryPersonOption>(),
             Array.Empty<int>(),
             new MediaLibraryStatistics(0, 0, 0, 0),
             Math.Max(1, pageNumber),
@@ -96,5 +106,7 @@ public sealed record MediaLibraryQueryResult(
 
 public interface IMediaLibraryQueryService
 {
-    Task<MediaLibraryQueryResult> SearchAsync(MediaLibraryQuery query, CancellationToken cancellationToken);
+    Task<MediaLibraryQueryResult> SearchAsync(
+        MediaLibraryQuery query,
+        CancellationToken cancellationToken);
 }

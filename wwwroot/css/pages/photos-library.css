@@ -783,3 +783,39 @@
         width: 100%;
     }
 }
+
+.photos-tile__people {
+    align-items: center;
+    background: rgba(20, 30, 47, .76);
+    border-radius: 999px;
+    color: #fff;
+    display: inline-flex;
+    font-size: .67rem;
+    font-weight: 800;
+    gap: .28rem;
+    left: .48rem;
+    padding: .26rem .48rem;
+    position: absolute;
+    top: .48rem;
+    z-index: 3;
+}
+
+.photos-viewer__people {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .32rem;
+}
+
+.photos-viewer__people a {
+    background: rgba(255, 255, 255, .1);
+    border: 1px solid rgba(255, 255, 255, .14);
+    border-radius: 999px;
+    color: #fff;
+    font-size: .72rem;
+    padding: .24rem .48rem;
+    text-decoration: none;
+}
+
+.photos-viewer__people a:hover {
+    background: rgba(255, 255, 255, .18);
+}

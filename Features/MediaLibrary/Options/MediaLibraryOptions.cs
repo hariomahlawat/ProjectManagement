@@ -2,7 +2,7 @@ namespace ProjectManagement.Features.MediaLibrary.Options;
 
 /// <summary>
 /// Feature switches for the media catalogue. Core PRISM Photos never depends on an
-/// external source being configured or reachable.
+/// external source, an AI model, or a background worker being available.
 /// </summary>
 public sealed class MediaLibraryOptions
 {
@@ -42,6 +42,14 @@ public sealed class MediaLibraryOptions
         IsCatalogueEnabled
         && (Processing.WorkerEnabled || ProcessingWorkerEnabled == true);
 
+    public bool IsPeopleWorkerEnabled =>
+        IsCatalogueEnabled
+        && People.Enabled
+        && People.WorkerEnabled;
+
+    public bool IsAnyProcessingWorkerEnabled =>
+        IsProcessingWorkerEnabled || IsPeopleWorkerEnabled;
+
     public IReadOnlyList<MediaSourceOptions> GetBootstrapSources()
         => ExternalSources.Sources.Count > 0
             ? ExternalSources.Sources
@@ -61,7 +69,6 @@ public sealed class ExternalMediaSourcesOptions
     /// Master switch for local folders, NAS shares and folders shared by another server.
     /// </summary>
     public bool Enabled { get; set; }
-
     public bool ScannerWorkerEnabled { get; set; }
     public int DefaultScanIntervalMinutes { get; set; } = 30;
     public int ScanBatchSize { get; set; } = 250;
@@ -95,6 +102,10 @@ public sealed class MediaClassificationOptions
     public double DiagramThreshold { get; set; } = 0.64;
 }
 
+/// <summary>
+/// Offline, opt-in face-intelligence controls. The default state is deliberately disabled.
+/// No identity is automatically confirmed, regardless of similarity score.
+/// </summary>
 public sealed class MediaPeopleOptions
 {
     public bool Enabled { get; set; }
@@ -104,10 +115,20 @@ public sealed class MediaPeopleOptions
     public int MaximumFacesPerAsset { get; set; } = 25;
     public int MinimumFacePixels { get; set; } = 64;
     public double MinimumDetectionConfidence { get; set; } = 0.85;
-    public double MinimumQualityScore { get; set; } = 0.60;
+    public double NonMaximumSuppressionThreshold { get; set; } = 0.30;
+    public int DetectorTopK { get; set; } = 5000;
+    public double MinimumQualityScore { get; set; } = 0.55;
     public int CandidateLimit { get; set; } = 5;
-    public double CandidateSimilarityThreshold { get; set; } = 0.58;
+    public double CandidateSimilarityThreshold { get; set; } = 0.42;
+
+    /// <summary>
+    /// Retained only for configuration compatibility. The production service never
+    /// auto-confirms an identity; enabling this value fails options validation.
+    /// </summary>
     public bool AutoConfirmEnabled { get; set; }
+
+    public int ReferenceFacesPerPerson { get; set; } = 8;
+    public int MaximumCandidateReferenceEmbeddings { get; set; } = 20_000;
     public int BatchSize { get; set; } = 1;
     public int IdleDelaySeconds { get; set; } = 30;
     public int InferenceMaxDimension { get; set; } = 1600;
@@ -116,23 +137,36 @@ public sealed class MediaPeopleOptions
     public FaceModelOptions Embedder { get; set; } = new();
 }
 
+/// <summary>
+/// Pinned model contract. Adapter names are intentionally explicit so an arbitrary ONNX
+/// file cannot be interpreted using an incompatible tensor layout.
+/// </summary>
 public sealed class FaceModelOptions
 {
     public string Key { get; set; } = string.Empty;
     public string Version { get; set; } = string.Empty;
+    public string Adapter { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public string Sha256 { get; set; } = string.Empty;
     public string License { get; set; } = string.Empty;
     public string SourceUrl { get; set; } = string.Empty;
-    public int InputWidth { get; set; } = 640;
-    public int InputHeight { get; set; } = 640;
+    public int InputWidth { get; set; } = 320;
+    public int InputHeight { get; set; } = 320;
     public string InputName { get; set; } = "input";
     public string BoxesOutputName { get; set; } = "boxes";
     public string ScoresOutputName { get; set; } = "scores";
     public string LandmarksOutputName { get; set; } = "landmarks";
-    public string EmbeddingOutputName { get; set; } = "embedding";
-    public int EmbeddingDimension { get; set; } = 512;
+    public string EmbeddingOutputName { get; set; } = string.Empty;
+    public int EmbeddingDimension { get; set; } = 128;
     public bool BoxesAreNormalized { get; set; } = true;
+    public string ChannelOrder { get; set; } = "RGB";
+    public float InputScale { get; set; } = 1f;
+    public float MeanR { get; set; }
+    public float MeanG { get; set; }
+    public float MeanB { get; set; }
+    public float StdR { get; set; } = 1f;
+    public float StdG { get; set; } = 1f;
+    public float StdB { get; set; } = 1f;
 }
 
 public sealed class MediaSourceOptions

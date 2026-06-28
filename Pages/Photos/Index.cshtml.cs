@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -34,18 +35,22 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)] public string Kind { get; set; } = "all";
     [BindProperty(SupportsGet = true)] public string Classification { get; set; } = "all";
     [BindProperty(SupportsGet = true)] public int? ProjectId { get; set; }
+    [BindProperty(SupportsGet = true)] public Guid? PersonId { get; set; }
     [BindProperty(SupportsGet = true)] public int? Year { get; set; }
     [BindProperty(SupportsGet = true)] public int PageNumber { get; set; } = 1;
 
     public IReadOnlyList<MediaItem> Items { get; private set; } = Array.Empty<MediaItem>();
     public IReadOnlyList<MediaGroup> Groups { get; private set; } = Array.Empty<MediaGroup>();
     public IReadOnlyList<ProjectOption> Projects { get; private set; } = Array.Empty<ProjectOption>();
+    public IReadOnlyList<PersonOption> People { get; private set; } = Array.Empty<PersonOption>();
     public IReadOnlyList<int> Years { get; private set; } = Array.Empty<int>();
     public LibraryStats Stats { get; private set; } = new();
     public bool HasPreviousPage { get; private set; }
     public bool HasNextPage { get; private set; }
     public int CurrentPage => Math.Max(1, PageNumber);
     public bool ExternalSourcesEnabled => _mediaOptions.IsExternalSourceFeatureEnabled;
+    public bool PeopleFeatureEnabled => _mediaOptions.People.Enabled
+                                        && (User.IsInRole("Admin") || User.IsInRole("HoD"));
     public bool ExternalLibraryAvailable { get; private set; } = true;
     public string? ExternalLibraryWarning { get; private set; }
     public bool IsUsingCatalogue { get; private set; }
@@ -55,7 +60,10 @@ public sealed class IndexModel : PageModel
         NormalizeRequest();
 
         var result = await _library.SearchAsync(
-            new MediaLibraryQuery(Q, Source, Kind, Classification, ProjectId, Year, PageNumber, PageSize),
+            new MediaLibraryQuery(
+                Q, Source, Kind, Classification, ProjectId,
+                PeopleFeatureEnabled ? PersonId : null,
+                Year, PageNumber, PageSize, PeopleFeatureEnabled),
             cancellationToken);
 
         if (result.IsAvailable && result.HasPrismCatalogue)
@@ -70,6 +78,15 @@ public sealed class IndexModel : PageModel
         await LoadPrismFallbackAsync(cancellationToken);
         ExternalLibraryAvailable = result.IsAvailable;
         ExternalLibraryWarning = result.Warning;
+        if (PersonId.HasValue)
+        {
+            ExternalLibraryWarning = string.Join(" ", new[]
+            {
+                ExternalLibraryWarning,
+                "The selected person filter could not be applied because the media catalogue is unavailable."
+            }.Where(value => !string.IsNullOrWhiteSpace(value)));
+            PersonId = null;
+        }
     }
 
     private void NormalizeRequest()
@@ -84,6 +101,10 @@ public sealed class IndexModel : PageModel
         Kind = NormalizeKind(Kind);
         Classification = NormalizeClassification(Classification);
         Q = string.IsNullOrWhiteSpace(Q) ? null : Q.Trim();
+        if (!PeopleFeatureEnabled)
+        {
+            PersonId = null;
+        }
     }
 
     private void ApplyCatalogueResult(MediaLibraryQueryResult result)
@@ -95,6 +116,7 @@ public sealed class IndexModel : PageModel
         ExternalLibraryAvailable = true;
         ExternalLibraryWarning = result.Warning;
         Projects = result.Projects.Select(project => new ProjectOption(project.Id, project.Name)).ToList();
+        People = result.People.Select(person => new PersonOption(person.Id, person.Name, person.PhotoCount)).ToList();
         Years = result.Years;
         Stats = new LibraryStats
         {
@@ -178,9 +200,13 @@ public sealed class IndexModel : PageModel
         return new MediaItem
         {
             Id = $"catalogue:{row.Id}",
+            AssetId = row.Id,
             Kind = row.Kind == MediaAssetKind.Video ? MediaKind.Video : MediaKind.Photo,
             Source = source,
             SourceLabel = row.SourceLabel,
+            Classification = row.Classification,
+            People = row.People.Select(person => new PersonSummary(person.Id, person.DisplayName)).ToList(),
+            UnidentifiedFaceCount = row.UnidentifiedFaceCount,
             ContextKey = row.ContextKey,
             CollectionKey = row.CollectionKey,
             ContextTitle = row.ContextTitle,
@@ -393,8 +419,8 @@ public sealed class IndexModel : PageModel
         => Classification switch
         {
             "photograph" => item.Kind == MediaKind.Photo,
-            "screenshot" => false,
             "unknown" => item.Kind == MediaKind.Video,
+            "screenshot" or "scanned-document" or "diagram" or "presentation-slide" or "graphic" => false,
             _ => true
         };
 
@@ -430,7 +456,36 @@ public sealed class IndexModel : PageModel
     private static string NormalizeClassification(string? value)
         => value?.Trim().ToLowerInvariant() switch
         {
-            "screenshot" => "screenshot", "photograph" => "photograph", "unknown" => "unknown", _ => "all"
+            "photograph" => "photograph",
+            "screenshot" => "screenshot",
+            "scanneddocument" or "scanned-document" => "scanned-document",
+            "diagram" => "diagram",
+            "presentationslide" or "presentation-slide" => "presentation-slide",
+            "graphic" => "graphic",
+            "unknown" => "unknown",
+            _ => "all"
+        };
+
+    public string SerializeViewerPeople(MediaItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        return JsonSerializer.Serialize(item.People.Select(person => new
+        {
+            name = person.Name,
+            url = Url.Page("/Photos/People/Details", new { id = person.Id }) ?? string.Empty
+        }));
+    }
+
+    public static string ClassificationLabel(MediaClassification classification)
+        => classification switch
+        {
+            MediaClassification.Photograph => "Photograph",
+            MediaClassification.Screenshot => "Screenshot",
+            MediaClassification.ScannedDocument => "Scanned document",
+            MediaClassification.Diagram => "Diagram",
+            MediaClassification.PresentationSlide => "Presentation slide",
+            MediaClassification.Graphic => "Graphic",
+            _ => "Not classified"
         };
 
     public static string FormatDuration(int? totalSeconds)
@@ -445,9 +500,13 @@ public sealed class IndexModel : PageModel
     public sealed class MediaItem
     {
         public required string Id { get; init; }
+        public long? AssetId { get; init; }
         public required MediaKind Kind { get; init; }
         public required MediaSource Source { get; init; }
         public required string SourceLabel { get; init; }
+        public MediaClassification Classification { get; init; } = MediaClassification.Unknown;
+        public IReadOnlyList<PersonSummary> People { get; init; } = Array.Empty<PersonSummary>();
+        public int UnidentifiedFaceCount { get; init; }
         public required string ContextKey { get; init; }
         public required string CollectionKey { get; init; }
         public required string ContextTitle { get; init; }
@@ -473,6 +532,8 @@ public sealed class IndexModel : PageModel
 
     public sealed record MediaGroup(string Key, string Title, string Subtitle, DateTime Date, IReadOnlyList<MediaItem> Items);
     public sealed record ProjectOption(int Id, string Name);
+    public sealed record PersonOption(Guid Id, string Name, int PhotoCount);
+    public sealed record PersonSummary(Guid Id, string Name);
     public sealed class LibraryStats
     {
         public int Total { get; init; }

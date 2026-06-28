@@ -73,6 +73,10 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
             entity.Property<string>("AnalysisStatus").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
             entity.Property<string>("AnalysisVersion").HasMaxLength(128).HasColumnType("character varying(128)");
             entity.Property<DateTimeOffset?>("AnalysedAtUtc").HasColumnType("timestamp with time zone");
+            entity.Property<string>("FaceAnalysisStatus").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+            entity.Property<string>("FaceAnalysisVersion").HasMaxLength(256).HasColumnType("character varying(256)");
+            entity.Property<DateTimeOffset?>("FaceAnalysedAtUtc").HasColumnType("timestamp with time zone");
+            entity.Property<string>("FaceProcessingFailureReason").HasMaxLength(2048).HasColumnType("character varying(2048)");
             entity.Property<int>("CacheVersion").HasColumnType("integer");
             entity.Property<string>("Caption").HasMaxLength(1024).HasColumnType("character varying(1024)");
             entity.Property<string>("Classification").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
@@ -121,6 +125,8 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
 
             entity.HasKey("Id");
             entity.HasIndex("AvailabilityStatus", "IsDeleted", "MediaDateUtc");
+            entity.HasIndex("FaceAnalysisStatus", "FaceAnalysisVersion")
+                .HasDatabaseName("IX_MediaAssets_FaceAnalysis");
             entity.HasIndex("CollectionKey");
             entity.HasIndex("ProjectId");
             entity.HasIndex("SourceId");
@@ -181,10 +187,12 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
         {
             entity.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
             entity.Property<double?>("BlurScore").HasColumnType("double precision"); entity.Property<double?>("BrightnessScore").HasColumnType("double precision");
+            entity.Property<Guid>("ConcurrencyToken").IsConcurrencyToken().HasColumnType("uuid");
             entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<double>("DetectionConfidence").HasColumnType("double precision");
             entity.Property<string>("DetectorModelKey").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)"); entity.Property<string>("DetectorModelVersion").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
             entity.Property<double>("Height").HasColumnType("double precision"); entity.Property<bool>("IsSuppressed").HasColumnType("boolean"); entity.Property<string>("LandmarksJson").HasColumnType("jsonb");
             entity.Property<double>("Left").HasColumnType("double precision"); entity.Property<long>("MediaAssetId").HasColumnType("bigint"); entity.Property<double?>("PoseScore").HasColumnType("double precision");
+            entity.Property<string>("QualitySignalsJson").HasColumnType("jsonb");
             entity.Property<string>("QualityStatus").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)"); entity.Property<double>("QualityScore").HasColumnType("double precision");
             entity.Property<string>("ReviewThumbnailPath").HasMaxLength(1024).HasColumnType("character varying(1024)"); entity.Property<int>("SequenceNumber").HasColumnType("integer");
             entity.Property<DateTimeOffset?>("SuppressedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<string>("SuppressedByUserId").HasMaxLength(450).HasColumnType("character varying(450)");
@@ -198,38 +206,39 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
             entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<int>("Dimension").HasColumnType("integer"); entity.Property<float[]>("Embedding").IsRequired().HasColumnType("real[]");
             entity.Property<DateTimeOffset?>("InvalidatedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<Guid>("MediaFaceId").HasColumnType("uuid"); entity.Property<string>("ModelKey").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
             entity.Property<string>("ModelVersion").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)"); entity.Property<string>("Normalization").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)"); entity.Property<double>("QualityScore").HasColumnType("double precision");
-            entity.HasKey("Id"); entity.HasIndex("MediaFaceId", "ModelKey", "ModelVersion", "InvalidatedAtUtc"); entity.ToTable("MediaFaceEmbeddings");
+            entity.HasKey("Id"); entity.HasIndex("MediaFaceId", "ModelKey", "ModelVersion", "InvalidatedAtUtc");
+            entity.HasIndex("ModelKey", "ModelVersion", "Dimension", "InvalidatedAtUtc", "QualityScore").HasDatabaseName("IX_MediaFaceEmbeddings_CandidateLookup"); entity.ToTable("MediaFaceEmbeddings");
         });
 
         modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaPerson", entity =>
         {
-            entity.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid"); entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<string>("CreatedByUserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)");
+            entity.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid"); entity.Property<Guid>("ConcurrencyToken").IsConcurrencyToken().HasColumnType("uuid"); entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<string>("CreatedByUserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)");
             entity.Property<string>("DisplayName").IsRequired().HasMaxLength(200).HasColumnType("character varying(200)"); entity.Property<bool>("IsHidden").HasColumnType("boolean"); entity.Property<bool>("IsMinor").HasColumnType("boolean");
-            entity.Property<string>("NormalizedName").IsRequired().HasMaxLength(200).HasColumnType("character varying(200)"); entity.Property<Guid?>("RepresentativeFaceId").HasColumnType("uuid"); entity.Property<string>("Status").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)"); entity.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
-            entity.HasKey("Id"); entity.HasIndex("NormalizedName"); entity.HasIndex("Status", "IsHidden"); entity.ToTable("MediaPersons");
+            entity.Property<Guid?>("MergedIntoPersonId").HasColumnType("uuid"); entity.Property<string>("NormalizedName").IsRequired().HasMaxLength(200).HasColumnType("character varying(200)"); entity.Property<Guid?>("RepresentativeFaceId").HasColumnType("uuid"); entity.Property<string>("Status").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)"); entity.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone");
+            entity.HasKey("Id"); entity.HasIndex("MergedIntoPersonId"); entity.HasIndex("NormalizedName"); entity.HasIndex("Status", "IsHidden"); entity.ToTable("MediaPersons");
         });
 
         modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaPersonFace", entity =>
         {
             entity.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint").HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
-            entity.Property<DateTimeOffset>("AssignedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<string>("AssignedByUserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)"); entity.Property<double?>("AssignmentConfidence").HasColumnType("double precision");
-            entity.Property<string>("AssignmentType").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)"); entity.Property<Guid>("MediaFaceId").HasColumnType("uuid"); entity.Property<Guid>("MediaPersonId").HasColumnType("uuid"); entity.Property<DateTimeOffset?>("RemovedAtUtc").HasColumnType("timestamp with time zone");
-            entity.HasKey("Id"); entity.HasIndex("MediaFaceId"); entity.HasIndex("MediaPersonId", "MediaFaceId", "RemovedAtUtc").IsUnique(); entity.ToTable("MediaPersonFaces");
+            entity.Property<DateTimeOffset>("AssignedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<string>("AssignedByUserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)"); entity.Property<double?>("AssignmentConfidence").HasColumnType("double precision"); entity.Property<Guid>("ConcurrencyToken").IsConcurrencyToken().HasColumnType("uuid");
+            entity.Property<string>("AssignmentType").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)"); entity.Property<Guid>("MediaFaceId").HasColumnType("uuid"); entity.Property<Guid>("MediaPersonId").HasColumnType("uuid"); entity.Property<DateTimeOffset?>("RemovedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<string>("RemovedByUserId").HasMaxLength(450).HasColumnType("character varying(450)"); entity.Property<string>("RemovalReason").HasMaxLength(1024).HasColumnType("character varying(1024)");
+            entity.HasKey("Id"); entity.HasIndex("MediaFaceId").IsUnique().HasFilter("\"RemovedAtUtc\" IS NULL").HasDatabaseName("UX_MediaPersonFaces_OneActiveAssignmentPerFace"); entity.HasIndex("MediaPersonId", "MediaFaceId", "RemovedAtUtc").IsUnique(); entity.HasIndex("MediaPersonId", "RemovedAtUtc", "AssignedAtUtc").HasDatabaseName("IX_MediaPersonFaces_ActivePersonTimeline"); entity.ToTable("MediaPersonFaces");
         });
 
         modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaFaceReviewDecision", entity =>
         {
             entity.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint").HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
-            entity.Property<Guid?>("CandidatePersonId").HasColumnType("uuid"); entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<DateTimeOffset?>("DecidedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<string>("DecidedByUserId").HasMaxLength(450).HasColumnType("character varying(450)");
-            entity.Property<string>("Decision").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)"); entity.Property<Guid>("MediaFaceId").HasColumnType("uuid"); entity.Property<string>("Notes").HasMaxLength(1024).HasColumnType("character varying(1024)"); entity.Property<double?>("Similarity").HasColumnType("double precision");
-            entity.HasKey("Id"); entity.HasIndex("CandidatePersonId"); entity.HasIndex("MediaFaceId"); entity.HasIndex("Decision", "CreatedAtUtc"); entity.ToTable("MediaFaceReviewDecisions");
+            entity.Property<Guid?>("CandidatePersonId").HasColumnType("uuid"); entity.Property<Guid>("ConcurrencyToken").IsConcurrencyToken().HasColumnType("uuid"); entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<DateTimeOffset?>("DecidedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<string>("DecidedByUserId").HasMaxLength(450).HasColumnType("character varying(450)");
+            entity.Property<string>("Decision").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)"); entity.Property<Guid>("MediaFaceId").HasColumnType("uuid"); entity.Property<string>("ModelKey").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)"); entity.Property<string>("ModelVersion").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)"); entity.Property<string>("Notes").HasMaxLength(1024).HasColumnType("character varying(1024)"); entity.Property<double?>("Similarity").HasColumnType("double precision");
+            entity.HasKey("Id"); entity.HasIndex("CandidatePersonId"); entity.HasIndex("MediaFaceId").IsUnique().HasFilter("\"Decision\" = 'Ignored' AND \"CandidatePersonId\" IS NULL").HasDatabaseName("UX_MediaFaceReviewDecisions_IgnoredFace"); entity.HasIndex("MediaFaceId", "CandidatePersonId").IsUnique().HasFilter("\"Decision\" = 'Pending' AND \"CandidatePersonId\" IS NOT NULL").HasDatabaseName("UX_MediaFaceReviewDecisions_PendingCandidate"); entity.HasIndex("Decision", "CreatedAtUtc"); entity.HasIndex("MediaFaceId", "ModelKey", "ModelVersion", "Decision").HasDatabaseName("IX_MediaFaceReviewDecisions_ModelDecision"); entity.ToTable("MediaFaceReviewDecisions");
         });
 
         modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaIdentityAudit", entity =>
         {
             entity.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint").HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
-            entity.Property<string>("Action").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)"); entity.Property<Guid>("FaceId").HasColumnType("uuid"); entity.Property<Guid?>("NewPersonId").HasColumnType("uuid"); entity.Property<string>("Notes").HasMaxLength(1024).HasColumnType("character varying(1024)"); entity.Property<DateTimeOffset>("PerformedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<string>("PerformedByUserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)"); entity.Property<Guid?>("PreviousPersonId").HasColumnType("uuid");
-            entity.HasKey("Id"); entity.HasIndex("FaceId", "PerformedAtUtc"); entity.ToTable("MediaIdentityAudits");
+            entity.Property<string>("Action").IsRequired().HasMaxLength(64).HasColumnType("character varying(64)"); entity.Property<Guid?>("FaceId").HasColumnType("uuid"); entity.Property<string>("MetadataJson").HasColumnType("jsonb"); entity.Property<Guid?>("NewPersonId").HasColumnType("uuid"); entity.Property<string>("Notes").HasMaxLength(1024).HasColumnType("character varying(1024)"); entity.Property<DateTimeOffset>("PerformedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<string>("PerformedByUserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)"); entity.Property<Guid?>("PersonId").HasColumnType("uuid"); entity.Property<Guid?>("PreviousPersonId").HasColumnType("uuid");
+            entity.HasKey("Id"); entity.HasIndex("FaceId", "PerformedAtUtc"); entity.HasIndex("PersonId", "PerformedAtUtc").HasDatabaseName("IX_MediaIdentityAudits_Person"); entity.ToTable("MediaIdentityAudits");
         });
 
         modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaAsset", entity =>

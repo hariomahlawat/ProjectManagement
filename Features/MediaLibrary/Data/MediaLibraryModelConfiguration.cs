@@ -62,7 +62,12 @@ public static class MediaLibraryModelConfiguration
             entity.Property(x => x.ClassificationUpdatedByUserId).HasMaxLength(450);
             entity.Property(x => x.ClassifierVersion).HasMaxLength(128);
             entity.Property(x => x.AnalysisSignalsJson).HasColumnType("jsonb");
+            entity.Property(x => x.FaceAnalysisStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.FaceAnalysisVersion).HasMaxLength(256);
+            entity.Property(x => x.FaceProcessingFailureReason).HasMaxLength(2048);
             entity.Property(x => x.ProcessingFailureReason).HasMaxLength(2048);
+            entity.HasIndex(x => new { x.FaceAnalysisStatus, x.FaceAnalysisVersion })
+                .HasDatabaseName("IX_MediaAssets_FaceAnalysis");
             entity.Property(x => x.AvailabilityStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(x => x.UnavailableReason).HasMaxLength(2048);
             entity.HasIndex(x => new { x.SourceId, x.SourceEntityId }).IsUnique();
@@ -116,54 +121,140 @@ public static class MediaLibraryModelConfiguration
 
         modelBuilder.Entity<MediaFace>(entity =>
         {
-            entity.ToTable("MediaFaces"); entity.HasKey(x => x.Id);
+            entity.ToTable("MediaFaces");
+            entity.HasKey(x => x.Id);
             entity.Property(x => x.LandmarksJson).HasColumnType("jsonb");
+            entity.Property(x => x.QualitySignalsJson).HasColumnType("jsonb");
             entity.Property(x => x.QualityStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(x => x.DetectorModelKey).HasMaxLength(128).IsRequired();
             entity.Property(x => x.DetectorModelVersion).HasMaxLength(128).IsRequired();
             entity.Property(x => x.ReviewThumbnailPath).HasMaxLength(1024);
             entity.Property(x => x.SuppressedByUserId).HasMaxLength(450);
+            entity.Property(x => x.ConcurrencyToken).IsConcurrencyToken();
             entity.HasIndex(x => new { x.MediaAssetId, x.SequenceNumber }).IsUnique();
             entity.HasIndex(x => new { x.QualityStatus, x.IsSuppressed });
-            entity.HasOne(x => x.MediaAsset).WithMany(x => x.Faces).HasForeignKey(x => x.MediaAssetId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.MediaAsset)
+                .WithMany(x => x.Faces)
+                .HasForeignKey(x => x.MediaAssetId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
+
         modelBuilder.Entity<MediaFaceEmbedding>(entity =>
         {
-            entity.ToTable("MediaFaceEmbeddings"); entity.HasKey(x => x.Id);
+            entity.ToTable("MediaFaceEmbeddings");
+            entity.HasKey(x => x.Id);
             entity.Property(x => x.Embedding).HasColumnType("real[]").IsRequired();
-            entity.Property(x => x.ModelKey).HasMaxLength(128).IsRequired(); entity.Property(x => x.ModelVersion).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.ModelKey).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.ModelVersion).HasMaxLength(128).IsRequired();
             entity.Property(x => x.Normalization).HasMaxLength(32).IsRequired();
-            entity.HasIndex(x => new { x.MediaFaceId, x.ModelKey, x.ModelVersion, x.InvalidatedAtUtc });
-            entity.HasOne(x => x.MediaFace).WithMany(x => x.Embeddings).HasForeignKey(x => x.MediaFaceId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(x => new
+            {
+                x.MediaFaceId,
+                x.ModelKey,
+                x.ModelVersion,
+                x.InvalidatedAtUtc
+            });
+            entity.HasIndex(x => new
+            {
+                x.ModelKey,
+                x.ModelVersion,
+                x.Dimension,
+                x.InvalidatedAtUtc,
+                x.QualityScore
+            }).HasDatabaseName("IX_MediaFaceEmbeddings_CandidateLookup");
+            entity.HasOne(x => x.MediaFace)
+                .WithMany(x => x.Embeddings)
+                .HasForeignKey(x => x.MediaFaceId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
+
         modelBuilder.Entity<MediaPerson>(entity =>
         {
-            entity.ToTable("MediaPersons"); entity.HasKey(x => x.Id);
-            entity.Property(x => x.DisplayName).HasMaxLength(200).IsRequired(); entity.Property(x => x.NormalizedName).HasMaxLength(200).IsRequired();
-            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired(); entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
-            entity.HasIndex(x => x.NormalizedName); entity.HasIndex(x => new { x.Status, x.IsHidden });
+            entity.ToTable("MediaPersons");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.NormalizedName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+            entity.Property(x => x.ConcurrencyToken).IsConcurrencyToken();
+            entity.HasIndex(x => x.NormalizedName);
+            entity.HasIndex(x => new { x.Status, x.IsHidden });
+            entity.HasIndex(x => x.MergedIntoPersonId);
         });
+
         modelBuilder.Entity<MediaPersonFace>(entity =>
         {
-            entity.ToTable("MediaPersonFaces"); entity.HasKey(x => x.Id);
-            entity.Property(x => x.AssignmentType).HasConversion<string>().HasMaxLength(32).IsRequired(); entity.Property(x => x.AssignedByUserId).HasMaxLength(450).IsRequired();
+            entity.ToTable("MediaPersonFaces");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.AssignmentType).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.AssignedByUserId).HasMaxLength(450).IsRequired();
+            entity.Property(x => x.RemovedByUserId).HasMaxLength(450);
+            entity.Property(x => x.RemovalReason).HasMaxLength(1024);
+            entity.Property(x => x.ConcurrencyToken).IsConcurrencyToken();
             entity.HasIndex(x => new { x.MediaPersonId, x.MediaFaceId, x.RemovedAtUtc }).IsUnique();
-            entity.HasOne(x => x.MediaPerson).WithMany(x => x.FaceAssignments).HasForeignKey(x => x.MediaPersonId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(x => x.MediaFace).WithMany(x => x.PersonAssignments).HasForeignKey(x => x.MediaFaceId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(x => x.MediaFaceId)
+                .IsUnique()
+                .HasFilter("\"RemovedAtUtc\" IS NULL")
+                .HasDatabaseName("UX_MediaPersonFaces_OneActiveAssignmentPerFace");
+            entity.HasIndex(x => new { x.MediaPersonId, x.RemovedAtUtc, x.AssignedAtUtc })
+                .HasDatabaseName("IX_MediaPersonFaces_ActivePersonTimeline");
+            entity.HasOne(x => x.MediaPerson)
+                .WithMany(x => x.FaceAssignments)
+                .HasForeignKey(x => x.MediaPersonId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.MediaFace)
+                .WithMany(x => x.PersonAssignments)
+                .HasForeignKey(x => x.MediaFaceId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
+
         modelBuilder.Entity<MediaFaceReviewDecision>(entity =>
         {
-            entity.ToTable("MediaFaceReviewDecisions"); entity.HasKey(x => x.Id);
-            entity.Property(x => x.Decision).HasConversion<string>().HasMaxLength(32).IsRequired(); entity.Property(x => x.DecidedByUserId).HasMaxLength(450); entity.Property(x => x.Notes).HasMaxLength(1024);
+            entity.ToTable("MediaFaceReviewDecisions");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Decision).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.ModelKey).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.ModelVersion).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.DecidedByUserId).HasMaxLength(450);
+            entity.Property(x => x.Notes).HasMaxLength(1024);
+            entity.Property(x => x.ConcurrencyToken).IsConcurrencyToken();
             entity.HasIndex(x => new { x.Decision, x.CreatedAtUtc });
-            entity.HasOne(x => x.MediaFace).WithMany().HasForeignKey(x => x.MediaFaceId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(x => x.CandidatePerson).WithMany().HasForeignKey(x => x.CandidatePersonId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(x => new { x.MediaFaceId, x.CandidatePersonId })
+                .IsUnique()
+                .HasFilter("\"Decision\" = 'Pending' AND \"CandidatePersonId\" IS NOT NULL")
+                .HasDatabaseName("UX_MediaFaceReviewDecisions_PendingCandidate");
+            entity.HasIndex(x => x.MediaFaceId)
+                .IsUnique()
+                .HasFilter("\"Decision\" = 'Ignored' AND \"CandidatePersonId\" IS NULL")
+                .HasDatabaseName("UX_MediaFaceReviewDecisions_IgnoredFace");
+            entity.HasIndex(x => new
+            {
+                x.MediaFaceId,
+                x.ModelKey,
+                x.ModelVersion,
+                x.Decision
+            }).HasDatabaseName("IX_MediaFaceReviewDecisions_ModelDecision");
+            entity.HasOne(x => x.MediaFace)
+                .WithMany()
+                .HasForeignKey(x => x.MediaFaceId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.CandidatePerson)
+                .WithMany()
+                .HasForeignKey(x => x.CandidatePersonId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
+
         modelBuilder.Entity<MediaIdentityAudit>(entity =>
         {
-            entity.ToTable("MediaIdentityAudits"); entity.HasKey(x => x.Id);
-            entity.Property(x => x.Action).HasMaxLength(64).IsRequired(); entity.Property(x => x.PerformedByUserId).HasMaxLength(450).IsRequired(); entity.Property(x => x.Notes).HasMaxLength(1024);
+            entity.ToTable("MediaIdentityAudits");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Action).HasMaxLength(64).IsRequired();
+            entity.Property(x => x.PerformedByUserId).HasMaxLength(450).IsRequired();
+            entity.Property(x => x.Notes).HasMaxLength(1024);
+            entity.Property(x => x.MetadataJson).HasColumnType("jsonb");
             entity.HasIndex(x => new { x.FaceId, x.PerformedAtUtc });
+            entity.HasIndex(x => new { x.PersonId, x.PerformedAtUtc })
+                .HasDatabaseName("IX_MediaIdentityAudits_Person");
         });
     }
 }

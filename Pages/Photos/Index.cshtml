@@ -10,6 +10,7 @@
         || Model.Kind != "all"
         || Model.Classification != "all"
         || Model.ProjectId.HasValue
+        || Model.PersonId.HasValue
         || Model.Year.HasValue;
 
     var activeFilterCount = 0;
@@ -18,6 +19,7 @@
     if (Model.Kind != "all") activeFilterCount++;
     if (Model.Classification != "all") activeFilterCount++;
     if (Model.ProjectId.HasValue) activeFilterCount++;
+    if (Model.PersonId.HasValue) activeFilterCount++;
     if (Model.Year.HasValue) activeFilterCount++;
 }
 
@@ -38,9 +40,12 @@
         <div class="d-flex align-items-center gap-2">
             @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
             {
-                <a asp-page="/Photos/People/Index" class="btn btn-outline-secondary">
-                    <i class="bi bi-people" aria-hidden="true"></i> People
-                </a>
+                @if (Model.PeopleFeatureEnabled)
+                {
+                    <a asp-page="/Photos/People/Index" class="btn btn-outline-secondary">
+                        <i class="bi bi-people" aria-hidden="true"></i> People
+                    </a>
+                }
                 <a asp-page="/Admin/MediaIntelligence/Index" class="btn btn-outline-secondary">
                     <i class="bi bi-cpu" aria-hidden="true"></i> Intelligence
                 </a>
@@ -78,6 +83,10 @@
             {
                 <input type="hidden" name="ProjectId" value="@Model.ProjectId" />
             }
+            @if (Model.PersonId.HasValue)
+            {
+                <input type="hidden" name="PersonId" value="@Model.PersonId" />
+            }
             @if (Model.Year.HasValue)
             {
                 <input type="hidden" name="Year" value="@Model.Year" />
@@ -89,6 +98,7 @@
                    asp-route-Kind="@Model.Kind"
                    asp-route-Classification="@Model.Classification"
                    asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-PersonId="@Model.PersonId"
                    asp-route-Year="@Model.Year"
                    class="photos-search__clear"
                    aria-label="Clear search">
@@ -105,6 +115,7 @@
                asp-route-Kind="all"
                asp-route-Classification="@Model.Classification"
                asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-PersonId="@Model.PersonId"
                asp-route-Year="@Model.Year">All</a>
             <a class="@(Model.Kind == "photo" ? "is-active" : null)"
                asp-page="./Index"
@@ -113,6 +124,7 @@
                asp-route-Kind="photo"
                asp-route-Classification="@Model.Classification"
                asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-PersonId="@Model.PersonId"
                asp-route-Year="@Model.Year">Photos</a>
             <a class="@(Model.Kind == "video" ? "is-active" : null)"
                asp-page="./Index"
@@ -121,6 +133,7 @@
                asp-route-Kind="video"
                asp-route-Classification="@Model.Classification"
                asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-PersonId="@Model.PersonId"
                asp-route-Year="@Model.Year">Videos</a>
         </nav>
     </section>
@@ -151,6 +164,7 @@
                    asp-route-Kind="@Model.Kind"
                    asp-route-Classification="@Model.Classification"
                    asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-PersonId="@Model.PersonId"
                    asp-route-Year="@Model.Year"
                    class="photos-filter-chip">
                     <i class="bi bi-search" aria-hidden="true"></i>
@@ -166,6 +180,7 @@
                    asp-route-Kind="@Model.Kind"
                    asp-route-Classification="@Model.Classification"
                    asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-PersonId="@Model.PersonId"
                    asp-route-Year="@Model.Year"
                    class="photos-filter-chip">
                     <i class="bi bi-folder2" aria-hidden="true"></i>
@@ -181,6 +196,7 @@
                    asp-route-Kind="all"
                    asp-route-Classification="@Model.Classification"
                    asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-PersonId="@Model.PersonId"
                    asp-route-Year="@Model.Year"
                    class="photos-filter-chip">
                     <i class="bi bi-images" aria-hidden="true"></i>
@@ -196,6 +212,7 @@
                    asp-route-Kind="@Model.Kind"
                    asp-route-Classification="all"
                    asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-PersonId="@Model.PersonId"
                    asp-route-Year="@Model.Year"
                    class="photos-filter-chip">
                     <i class="bi bi-stars" aria-hidden="true"></i>
@@ -218,6 +235,22 @@
                     <i class="bi bi-x-lg" aria-hidden="true"></i>
                 </a>
             }
+            @if (Model.PersonId.HasValue)
+            {
+                var personName = Model.People.FirstOrDefault(person => person.Id == Model.PersonId.Value)?.Name ?? "Selected person";
+                <a asp-page="./Index"
+                   asp-route-Q="@Model.Q"
+                   asp-route-Source="@Model.Source"
+                   asp-route-Kind="@Model.Kind"
+                   asp-route-Classification="@Model.Classification"
+                   asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-Year="@Model.Year"
+                   class="photos-filter-chip">
+                    <i class="bi bi-person" aria-hidden="true"></i>
+                    <span>@personName</span>
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </a>
+            }
             @if (Model.Year.HasValue)
             {
                 <a asp-page="./Index"
@@ -226,6 +259,7 @@
                    asp-route-Kind="@Model.Kind"
                    asp-route-Classification="@Model.Classification"
                    asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-PersonId="@Model.PersonId"
                    class="photos-filter-chip">
                     <i class="bi bi-calendar3" aria-hidden="true"></i>
                     <span>@Model.Year</span>
@@ -325,6 +359,10 @@
                                                 data-subtitle="@item.ContextSubtitle"
                                                 data-date="@item.MediaDate.ToString("dd MMMM yyyy")"
                                                 data-source-label="@item.SourceLabel"
+                                                data-classification="@IndexModel.ClassificationLabel(item.Classification)"
+                                                data-people="@Model.SerializeViewerPeople(item)"
+                                                data-unidentified="@item.UnidentifiedFaceCount"
+                                                data-asset-id="@item.AssetId"
                                                 data-display-url="@item.DisplayUrl"
                                                 data-original-url="@item.OriginalUrl"
                                                 data-download-url="@item.DownloadUrl"
@@ -353,6 +391,13 @@
                                                     Cover
                                                 </span>
                                             }
+                                            @if (item.People.Count > 0 || item.UnidentifiedFaceCount > 0)
+                                            {
+                                                <span class="photos-tile__people" title="People in this photo">
+                                                    <i class="bi bi-people-fill" aria-hidden="true"></i>
+                                                    @(item.People.Count + item.UnidentifiedFaceCount)
+                                                </span>
+                                            }
                                             <span class="photos-tile__meta">
                                                 <strong>@item.Title</strong>
                                                 <span>@item.SourceLabel</span>
@@ -377,6 +422,7 @@
                    asp-route-Kind="@Model.Kind"
                    asp-route-Classification="@Model.Classification"
                    asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-PersonId="@Model.PersonId"
                    asp-route-Year="@Model.Year"
                    asp-route-PageNumber="@(Model.CurrentPage - 1)">
                     <i class="bi bi-arrow-left" aria-hidden="true"></i> Previous
@@ -392,6 +438,7 @@
                    asp-route-Kind="@Model.Kind"
                    asp-route-Classification="@Model.Classification"
                    asp-route-ProjectId="@Model.ProjectId"
+                   asp-route-PersonId="@Model.PersonId"
                    asp-route-Year="@Model.Year"
                    asp-route-PageNumber="@(Model.CurrentPage + 1)">
                     Next <i class="bi bi-arrow-right" aria-hidden="true"></i>
@@ -439,9 +486,13 @@
                     <option value="all" selected="@(Model.Classification == "all")">All classifications</option>
                     <option value="photograph" selected="@(Model.Classification == "photograph")">Photographs</option>
                     <option value="screenshot" selected="@(Model.Classification == "screenshot")">Screenshots</option>
+                    <option value="scanned-document" selected="@(Model.Classification == "scanned-document")">Scanned documents</option>
+                    <option value="diagram" selected="@(Model.Classification == "diagram")">Diagrams</option>
+                    <option value="presentation-slide" selected="@(Model.Classification == "presentation-slide")">Presentation slides</option>
+                    <option value="graphic" selected="@(Model.Classification == "graphic")">Graphics</option>
                     <option value="unknown" selected="@(Model.Classification == "unknown")">Not yet classified</option>
                 </select>
-                <small>Screenshot detection is applied to indexed external-folder images.</small>
+                <small>Classification is deterministic, auditable and can be overridden by authorised administrators.</small>
             </div>
             <div>
                 <label for="projectFilter">Project</label>
@@ -454,6 +505,20 @@
                 </select>
                 <small>Selecting a project limits the library to project media.</small>
             </div>
+            @if (Model.PeopleFeatureEnabled && Model.People.Count > 0)
+            {
+                <div>
+                    <label for="personFilter">Person</label>
+                    <select id="personFilter" name="PersonId" class="form-select">
+                        <option value="">All people</option>
+                        @foreach (var person in Model.People)
+                        {
+                            <option value="@person.Id" selected="@(Model.PersonId == person.Id)">@person.Name (@person.PhotoCount)</option>
+                        }
+                    </select>
+                    <small>Only human-confirmed identities are used.</small>
+                </div>
+            }
             <div>
                 <label for="yearFilter">Year</label>
                 <select id="yearFilter" name="Year" class="form-select">
@@ -504,6 +569,9 @@
                 <div><dt>Collection</dt><dd data-info-context></dd></div>
                 <div><dt>Date</dt><dd data-info-date></dd></div>
                 <div><dt>Source</dt><dd data-info-source></dd></div>
+                <div><dt>Classification</dt><dd data-info-classification></dd></div>
+                <div data-info-people-row><dt>People</dt><dd data-info-people class="photos-viewer__people"></dd></div>
+                <div data-info-unidentified-row><dt>Unidentified</dt><dd data-info-unidentified></dd></div>
                 <div data-info-dimensions-row><dt>Dimensions</dt><dd data-info-dimensions></dd></div>
                 <div data-info-duration-row><dt>Duration</dt><dd data-info-duration></dd></div>
             </dl>

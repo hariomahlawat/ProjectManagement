@@ -45,5 +45,25 @@
       "purpose": "Offline CPU inference for approved ONNX face-detection and embedding models",
       "approved": true
     }
+  ],
+  "models": [
+    {
+      "name": "OpenCV Zoo YuNet",
+      "version": "2026may",
+      "license": "MIT",
+      "purpose": "Offline face detection and five-landmark localisation",
+      "bundled": false,
+      "sha256": "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0",
+      "approved": true
+    },
+    {
+      "name": "OpenCV Zoo SFace",
+      "version": "2021dec",
+      "license": "Apache-2.0",
+      "purpose": "Offline aligned face embedding",
+      "bundled": false,
+      "sha256": "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79",
+      "approved": true
+    }
   ]
 }

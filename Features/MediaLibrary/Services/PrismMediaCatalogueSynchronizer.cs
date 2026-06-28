@@ -308,6 +308,10 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
             asset.ClassificationConfidence = null;
             asset.AnalysisSignalsJson = null;
             asset.AnalysedAtUtc = null;
+            asset.FaceAnalysisStatus = MediaProcessingStatus.NotRequested;
+            asset.FaceAnalysisVersion = null;
+            asset.FaceAnalysedAtUtc = null;
+            asset.FaceProcessingFailureReason = null;
             asset.ProcessingFailureReason = null;
         }
 

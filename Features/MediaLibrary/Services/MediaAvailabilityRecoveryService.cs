@@ -297,6 +297,10 @@ public sealed class MediaAvailabilityRecoveryService : IMediaAvailabilityRecover
         asset.Width = null;
         asset.Height = null;
         asset.AnalysedAtUtc = null;
+        asset.FaceAnalysisStatus = MediaProcessingStatus.NotRequested;
+        asset.FaceAnalysisVersion = null;
+        asset.FaceAnalysedAtUtc = null;
+        asset.FaceProcessingFailureReason = null;
     }
 
     private static void MarkUnavailable(MediaAsset asset, MediaAvailabilityStatus status, string reason)
@@ -312,6 +316,8 @@ public sealed class MediaAvailabilityRecoveryService : IMediaAvailabilityRecover
             ? MediaProcessingStatus.Pending
             : MediaProcessingStatus.Failed;
         asset.AnalysisStatus = asset.DerivativeStatus;
+        asset.FaceAnalysisStatus = asset.DerivativeStatus;
+        asset.FaceProcessingFailureReason = MediaProcessingFailurePolicy.MarkSourceUnavailable(reason);
         asset.ProcessingFailureReason = MediaProcessingFailurePolicy.MarkSourceUnavailable(reason);
     }
 

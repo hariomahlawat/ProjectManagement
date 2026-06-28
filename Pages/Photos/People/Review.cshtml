@@ -1,5 +1,203 @@
 @page
 @model ProjectManagement.Pages.Photos.People.ReviewModel
-@{ViewData["Title"]="Face review";}
-<div class="container-fluid py-4"><div class="d-flex justify-content-between mb-4"><div><h1 class="h3">Face review</h1><p class="text-muted">Every identity suggestion requires a human decision.</p></div><a class="btn btn-outline-secondary" asp-page="/Admin/MediaIntelligence/Index">Intelligence dashboard</a></div>
-@foreach(var item in Model.Items){<div class="card mb-3"><div class="card-body d-flex flex-wrap gap-3 align-items-center"><img class="rounded object-fit-cover" width="96" height="96" src="/Photos/FaceThumbnail?id=@item.FaceId" alt="Detected face"/><div class="flex-grow-1"><strong>@item.ContextTitle</strong><div class="text-muted">Suggested: @(item.PersonName??"No existing person") · Similarity: @(item.Similarity?.ToString("0.000")??"—")</div></div>@if(item.PersonId.HasValue){<form method="post" asp-page-handler="Confirm"><input type="hidden" name="faceId" value="@item.FaceId"/><input type="hidden" name="personId" value="@item.PersonId"/><input type="hidden" name="confidence" value="@item.Similarity"/><button class="btn btn-success">Confirm</button></form><form method="post" asp-page-handler="Reject"><input type="hidden" name="faceId" value="@item.FaceId"/><input type="hidden" name="personId" value="@item.PersonId"/><button class="btn btn-outline-danger">Not this person</button></form>}<form method="post" asp-page-handler="Create" class="d-flex gap-2"><input type="hidden" name="faceId" value="@item.FaceId"/><input class="form-control" name="displayName" placeholder="Create person" required/><button class="btn btn-primary">Create & assign</button></form></div></div>}@if(Model.Items.Count==0){<div class="alert alert-light border">No face suggestions are awaiting review.</div>}</div>
+@{
+    ViewData["Title"] = "Face review";
+    ViewData["PageShell"] = "wide";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/photos-people.css" asp-append-version="true" />
+}
+
+<div class="people-workspace">
+    <header class="people-header">
+        <div>
+            <span class="people-eyebrow">Human-in-the-loop verification</span>
+            <h1>Face review</h1>
+            <p>Confirm an existing person, create a new identity, reject a suggestion, or suppress an invalid detection.</p>
+        </div>
+        <nav class="people-header__actions">
+            <a class="btn btn-outline-secondary" asp-page="./Index"><i class="bi bi-people"></i> People</a>
+            <a class="btn btn-outline-secondary" asp-page="/Admin/MediaIntelligence/Index"><i class="bi bi-cpu"></i> Readiness</a>
+        </nav>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+    {
+        <div class="alert alert-success" role="status">@Model.StatusMessage</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+    }
+
+    <section class="review-summary">
+        <strong>@Model.Result.TotalFaces</strong>
+        <span>face@(Model.Result.TotalFaces == 1 ? string.Empty : "s") awaiting a human decision</span>
+    </section>
+
+    @if (Model.Result.Items.Count == 0)
+    {
+        <section class="people-empty">
+            <i class="bi bi-check2-circle"></i>
+            <h2>Review queue clear</h2>
+            <p>No detected faces currently require a human decision.</p>
+        </section>
+    }
+    else
+    {
+        <div class="face-review-list">
+            @foreach (var item in Model.Result.Items)
+            {
+                <article class="face-review-card">
+                    <div class="face-review-card__face">
+                        <img src="@Url.Page("/Photos/FaceThumbnail", new { id = item.FaceId })" alt="Detected face" loading="lazy" />
+                        <span>Quality @item.QualityScore.ToString("0.00")</span>
+                    </div>
+                    <div class="face-review-card__content">
+                        <header>
+                            <div>
+                                <h2>@item.ContextTitle</h2>
+                                <p>@item.ContextSubtitle · @item.MediaDateUtc.ToLocalTime().ToString("dd MMM yyyy")</p>
+                            </div>
+                            <a class="btn btn-sm btn-outline-secondary"
+                               href="@Url.Page("/Photos/Media", new { id = item.AssetId, variant = "preview" })"
+                               target="_blank" rel="noopener">View photograph <i class="bi bi-arrow-up-right"></i></a>
+                        </header>
+
+                        <div class="face-candidates" aria-label="Suggested people">
+                            @if (item.Candidates.Count == 0)
+                            {
+                                <div class="face-candidates__empty">
+                                    <i class="bi bi-person-question" aria-hidden="true"></i>
+                                    <span>No reliable match was found. Assign an existing person, create a new person, or leave the face unidentified.</span>
+                                </div>
+                            }
+                            @foreach (var candidate in item.Candidates)
+                            {
+                                <div class="face-candidate">
+                                    <span class="face-candidate__identity">
+                                        <strong>@candidate.DisplayName</strong>
+                                        <small>Similarity @(candidate.Similarity?.ToString("0.000") ?? "—")</small>
+                                    </span>
+                                    <form method="post" asp-page-handler="Confirm">
+                                        <input type="hidden" name="PageNumber" value="@Model.PageNumber" />
+                                        <input type="hidden" name="faceId" value="@item.FaceId" />
+                                        <input type="hidden" name="personId" value="@candidate.PersonId" />
+                                        <input type="hidden" name="confidence" value="@candidate.Similarity" />
+                                        <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Confirm</button>
+                                    </form>
+                                    <form method="post" asp-page-handler="Reject">
+                                        <input type="hidden" name="PageNumber" value="@Model.PageNumber" />
+                                        <input type="hidden" name="faceId" value="@item.FaceId" />
+                                        <input type="hidden" name="personId" value="@candidate.PersonId" />
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-x-lg"></i> Not this person</button>
+                                    </form>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="face-review-card__alternatives">
+                            @if (Model.Result.AvailablePeople.Count > 0)
+                            {
+                                <div class="face-assign-existing">
+                                    <span class="face-assign-existing__label">Already known?</span>
+                                    <button type="button"
+                                            class="btn btn-outline-primary"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#assignExistingModal"
+                                            data-face-id="@item.FaceId"
+                                            data-face-context="@item.ContextTitle">
+                                        <i class="bi bi-person-check"></i> Assign an existing person
+                                    </button>
+                                </div>
+                            }
+                            <form method="post" asp-page-handler="Create" class="face-create-person">
+                                <input type="hidden" name="PageNumber" value="@Model.PageNumber" />
+                                <input type="hidden" name="faceId" value="@item.FaceId" />
+                                <label for="new-person-@item.FaceId">Create a new person</label>
+                                <input id="new-person-@item.FaceId" class="form-control" name="displayName" maxlength="200" placeholder="Enter the correct name" required />
+                                <button type="submit" class="btn btn-primary">Create and confirm</button>
+                            </form>
+                            <div class="face-review-card__secondary-actions">
+                                @if (item.Candidates.Count > 0)
+                                {
+                                    <form method="post" asp-page-handler="RejectAll">
+                                        <input type="hidden" name="PageNumber" value="@Model.PageNumber" />
+                                        <input type="hidden" name="faceId" value="@item.FaceId" />
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary">Reject all suggestions</button>
+                                    </form>
+                                }
+                                <form method="post" asp-page-handler="Ignore">
+                                    <input type="hidden" name="PageNumber" value="@Model.PageNumber" />
+                                    <input type="hidden" name="faceId" value="@item.FaceId" />
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">Leave unidentified</button>
+                                </form>
+                                <form method="post" asp-page-handler="Suppress">
+                                    <input type="hidden" name="PageNumber" value="@Model.PageNumber" />
+                                    <input type="hidden" name="faceId" value="@item.FaceId" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Not a face</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+            }
+        </div>
+
+        <nav class="people-pagination" aria-label="Review pages">
+            @if (Model.Result.HasPreviousPage)
+            {
+                <a class="btn btn-outline-secondary" asp-page="./Review" asp-route-PageNumber="@(Model.Result.PageNumber - 1)">
+                    <i class="bi bi-arrow-left"></i> Previous
+                </a>
+            }
+            <span>Page @Model.Result.PageNumber</span>
+            @if (Model.Result.HasNextPage)
+            {
+                <a class="btn btn-outline-secondary" asp-page="./Review" asp-route-PageNumber="@(Model.Result.PageNumber + 1)">
+                    Next <i class="bi bi-arrow-right"></i>
+                </a>
+            }
+        </nav>
+
+        @if (Model.Result.AvailablePeople.Count > 0)
+        {
+            <div class="modal fade" id="assignExistingModal" tabindex="-1" aria-labelledby="assignExistingModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <form method="post" asp-page-handler="AssignExisting">
+                            <div class="modal-header">
+                                <div>
+                                    <h2 class="modal-title fs-5" id="assignExistingModalLabel">Assign an existing person</h2>
+                                    <p class="mb-0 small text-body-secondary" data-face-context>Choose the confirmed identity for this face.</p>
+                                </div>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <input type="hidden" name="PageNumber" value="@Model.PageNumber" />
+                                <input type="hidden" name="faceId" value="" />
+                                <label for="existingPersonId" class="form-label">Person</label>
+                                <select id="existingPersonId" class="form-select" name="personId" required>
+                                    <option value="">Select a person</option>
+                                    @foreach (var person in Model.Result.AvailablePeople)
+                                    {
+                                        <option value="@person.Id">@person.DisplayName</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Assign person</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@section Scripts {
+    <script src="~/js/pages/photos-people-review.js" asp-append-version="true"></script>
+}

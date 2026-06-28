@@ -4,8 +4,8 @@ using ProjectManagement.Features.MediaLibrary.Domain;
 namespace ProjectManagement.Features.MediaLibrary.Data;
 
 /// <summary>
-/// Core catalogue context. People/face tables are deliberately excluded and will use a
-/// separate opt-in migration when that feature is approved.
+/// Media catalogue context. Face-intelligence tables remain dormant unless the opt-in
+/// People feature is enabled and its approved models pass readiness validation.
 /// </summary>
 public sealed class MediaLibraryDbContext : DbContext
 {

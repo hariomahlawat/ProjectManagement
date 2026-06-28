@@ -101,7 +101,35 @@
         viewer.querySelector('[data-info-context]').textContent = value(tile, 'context');
         viewer.querySelector('[data-info-date]').textContent = value(tile, 'date');
         viewer.querySelector('[data-info-source]').textContent = `${value(tile, 'sourceLabel')} · ${value(tile, 'subtitle')}`;
+        viewer.querySelector('[data-info-classification]').textContent = value(tile, 'classification') || 'Not classified';
         viewer.querySelector('[data-info-caption]').textContent = value(tile, 'caption');
+
+        const peopleHost = viewer.querySelector('[data-info-people]');
+        const peopleRow = viewer.querySelector('[data-info-people-row]');
+        let people = [];
+        try {
+            const parsed = JSON.parse(value(tile, 'people') || '[]');
+            people = Array.isArray(parsed)
+                ? parsed.filter(person => person && person.name && person.url)
+                : [];
+        } catch {
+            people = [];
+        }
+        peopleHost.replaceChildren();
+        people.forEach(person => {
+            const link = document.createElement('a');
+            link.href = person.url;
+            link.textContent = person.name;
+            peopleHost.append(link);
+        });
+        peopleRow.hidden = people.length === 0;
+
+        const unidentified = Number.parseInt(value(tile, 'unidentified'), 10) || 0;
+        const unidentifiedRow = viewer.querySelector('[data-info-unidentified-row]');
+        unidentifiedRow.hidden = unidentified === 0;
+        viewer.querySelector('[data-info-unidentified]').textContent = unidentified === 1
+            ? '1 face awaiting review'
+            : `${unidentified} faces awaiting review`;
 
         const width = value(tile, 'width');
         const height = value(tile, 'height');

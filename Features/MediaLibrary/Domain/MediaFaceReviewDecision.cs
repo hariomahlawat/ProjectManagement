@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
+
 namespace ProjectManagement.Features.MediaLibrary.Domain;
+
 public sealed class MediaFaceReviewDecision
 {
     public long Id { get; set; }
@@ -9,8 +11,20 @@ public sealed class MediaFaceReviewDecision
     public MediaPerson? CandidatePerson { get; set; }
     public FaceReviewDecisionType Decision { get; set; }
     public double? Similarity { get; set; }
-    [MaxLength(450)] public string? DecidedByUserId { get; set; }
-    [MaxLength(1024)] public string? Notes { get; set; }
+
+    [MaxLength(128)]
+    public string ModelKey { get; set; } = string.Empty;
+
+    [MaxLength(128)]
+    public string ModelVersion { get; set; } = string.Empty;
+
+    [MaxLength(450)]
+    public string? DecidedByUserId { get; set; }
+
+    [MaxLength(1024)]
+    public string? Notes { get; set; }
+
+    public Guid ConcurrencyToken { get; set; } = Guid.NewGuid();
     public DateTimeOffset CreatedAtUtc { get; set; }
     public DateTimeOffset? DecidedAtUtc { get; set; }
 }

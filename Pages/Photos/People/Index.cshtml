@@ -1,4 +1,149 @@
 @page
 @model ProjectManagement.Pages.Photos.People.IndexModel
-@{ViewData["Title"]="People";}
-<div class="container-fluid py-4"><div class="d-flex justify-content-between mb-4"><div><h1 class="h3">People</h1><p class="text-muted">Only human-confirmed identities are shown.</p></div><a class="btn btn-outline-secondary" asp-page="/Photos/Index">Back to Photos</a></div><div class="row g-3">@foreach(var p in Model.People){<div class="col-6 col-md-3 col-xl-2"><a class="card h-100 text-decoration-none text-body" asp-page="./Details" asp-route-id="@p.Id"><div class="card-body">@if(p.RepresentativeFaceId.HasValue){<img class="rounded-circle object-fit-cover mb-3" width="72" height="72" src="/Photos/FaceThumbnail?id=@p.RepresentativeFaceId" alt=""/>}else{<div class="rounded-circle bg-light d-flex align-items-center justify-content-center mb-3" style="width:72px;height:72px"><i class="bi bi-person fs-2"></i></div>}<h2 class="h6 mb-1">@p.Name</h2><small class="text-muted">@p.FaceCount confirmed face(s)</small></div></a></div>}@if(Model.People.Count==0){<div class="col-12"><div class="alert alert-light border">No people have been confirmed yet.</div></div>}</div></div>
+@{
+    ViewData["Title"] = "People";
+    ViewData["PageShell"] = "wide";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/photos-people.css" asp-append-version="true" />
+}
+
+<div class="people-workspace">
+    <header class="people-header">
+        <div>
+            <span class="people-eyebrow">Human-confirmed identities</span>
+            <h1>People</h1>
+            <p>Find photographs by person and correct identity data through a fully audited workflow.</p>
+        </div>
+        <nav class="people-header__actions" aria-label="Photos navigation">
+            <a class="btn btn-outline-secondary" asp-page="/Photos/Index">
+                <i class="bi bi-images" aria-hidden="true"></i> All photos
+            </a>
+            @if (Model.FeatureEnabled)
+            {
+                <a class="btn btn-outline-secondary position-relative" asp-page="./Review">
+                    <i class="bi bi-person-check" aria-hidden="true"></i> Review
+                    @if (Model.Result.PendingReviewCount > 0)
+                    {
+                        <span class="people-count-badge">@Model.Result.PendingReviewCount</span>
+                    }
+                </a>
+            }
+        </nav>
+    </header>
+
+    @if (!Model.FeatureEnabled)
+    {
+        <section class="people-empty">
+            <i class="bi bi-shield-lock" aria-hidden="true"></i>
+            <h2>People intelligence is disabled</h2>
+            <p>Enable it only after the approved detector and embedding models pass the readiness checks.</p>
+            <a class="btn btn-primary" asp-page="/Admin/MediaIntelligence/Index">Open readiness dashboard</a>
+        </section>
+    }
+    else
+    {
+        <section class="people-summary" aria-label="People summary">
+            <div><strong>@Model.Result.TotalPeople</strong><span>confirmed people</span></div>
+            <div><strong>@Model.Result.PendingReviewCount</strong><span>faces awaiting review</span></div>
+            <div><strong>@Model.Result.UnidentifiedFaceCount</strong><span>unidentified faces</span></div>
+        </section>
+
+        <section class="people-toolbar">
+            <form method="get" class="people-search" role="search">
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <input type="search" name="Q" value="@Model.Q" placeholder="Search people" autocomplete="off" />
+                <input type="hidden" name="Sort" value="@Model.Sort" />
+                @if (Model.IncludeHidden)
+                {
+                    <input type="hidden" name="IncludeHidden" value="true" />
+                }
+                <button class="btn btn-primary" type="submit">Search</button>
+            </form>
+            <form method="get" class="people-sort">
+                <input type="hidden" name="Q" value="@Model.Q" />
+                <label for="peopleSort">Sort</label>
+                <select id="peopleSort" name="Sort" class="form-select" onchange="this.form.submit()">
+                    <option value="name" selected="@(Model.Sort == "name")">Name</option>
+                    <option value="photos" selected="@(Model.Sort == "photos")">Most photos</option>
+                    <option value="recent" selected="@(Model.Sort == "recent")">Recently seen</option>
+                </select>
+                <label class="form-check people-hidden-toggle">
+                    <input class="form-check-input" type="checkbox" name="IncludeHidden" value="true"
+                           checked="@Model.IncludeHidden" onchange="this.form.submit()" />
+                    <span class="form-check-label">Show hidden</span>
+                </label>
+            </form>
+        </section>
+
+        @if (Model.Result.People.Count == 0)
+        {
+            <section class="people-empty">
+                <i class="bi bi-person-bounding-box" aria-hidden="true"></i>
+                <h2>No people found</h2>
+                <p>@(string.IsNullOrWhiteSpace(Model.Q) ? "Confirmed identities will appear here after review." : "Try a different name or clear the current search.")</p>
+                @if (!string.IsNullOrWhiteSpace(Model.Q))
+                {
+                    <a class="btn btn-outline-primary" asp-page="./Index">Clear search</a>
+                }
+            </section>
+        }
+        else
+        {
+            <div class="people-grid" role="list">
+                @foreach (var person in Model.Result.People)
+                {
+                    <a class="person-card @(person.IsHidden ? "is-hidden" : null)"
+                       role="listitem"
+                       asp-page="./Details"
+                       asp-route-id="@person.Id">
+                        <span class="person-card__portrait">
+                            @if (person.RepresentativeFaceId.HasValue)
+                            {
+                                <img src="@Url.Page("/Photos/FaceThumbnail", new { id = person.RepresentativeFaceId })"
+                                     alt="" loading="lazy" decoding="async" />
+                            }
+                            else
+                            {
+                                <i class="bi bi-person" aria-hidden="true"></i>
+                            }
+                            @if (person.IsHidden)
+                            {
+                                <span class="person-card__state"><i class="bi bi-eye-slash"></i> Hidden</span>
+                            }
+                        </span>
+                        <span class="person-card__body">
+                            <strong>@person.DisplayName</strong>
+                            <span>@person.PhotoCount photo@(person.PhotoCount == 1 ? string.Empty : "s") · @person.ConfirmedFaceCount confirmed face@(person.ConfirmedFaceCount == 1 ? string.Empty : "s")</span>
+                            @if (person.LatestMediaDateUtc.HasValue)
+                            {
+                                <small>Last seen @person.LatestMediaDateUtc.Value.ToLocalTime().ToString("dd MMM yyyy")</small>
+                            }
+                        </span>
+                    </a>
+                }
+            </div>
+
+            <nav class="people-pagination" aria-label="People pages">
+                @if (Model.Result.HasPreviousPage)
+                {
+                    <a class="btn btn-outline-secondary" asp-page="./Index" asp-route-Q="@Model.Q"
+                       asp-route-Sort="@Model.Sort" asp-route-IncludeHidden="@Model.IncludeHidden"
+                       asp-route-PageNumber="@(Model.Result.PageNumber - 1)">
+                        <i class="bi bi-arrow-left"></i> Previous
+                    </a>
+                }
+                <span>Page @Model.Result.PageNumber</span>
+                @if (Model.Result.HasNextPage)
+                {
+                    <a class="btn btn-outline-secondary" asp-page="./Index" asp-route-Q="@Model.Q"
+                       asp-route-Sort="@Model.Sort" asp-route-IncludeHidden="@Model.IncludeHidden"
+                       asp-route-PageNumber="@(Model.Result.PageNumber + 1)">
+                        Next <i class="bi bi-arrow-right"></i>
+                    </a>
+                }
+            </nav>
+        }
+    }
+</div>

@@ -19,12 +19,23 @@ public sealed class MediaFace
     public double? BlurScore { get; set; }
     public double? BrightnessScore { get; set; }
     public double? PoseScore { get; set; }
+    public string? QualitySignalsJson { get; set; }
     public bool IsSuppressed { get; set; }
     public DateTimeOffset? SuppressedAtUtc { get; set; }
-    [MaxLength(450)] public string? SuppressedByUserId { get; set; }
-    [MaxLength(128)] public string DetectorModelKey { get; set; } = string.Empty;
-    [MaxLength(128)] public string DetectorModelVersion { get; set; } = string.Empty;
-    [MaxLength(1024)] public string? ReviewThumbnailPath { get; set; }
+
+    [MaxLength(450)]
+    public string? SuppressedByUserId { get; set; }
+
+    [MaxLength(128)]
+    public string DetectorModelKey { get; set; } = string.Empty;
+
+    [MaxLength(128)]
+    public string DetectorModelVersion { get; set; } = string.Empty;
+
+    [MaxLength(1024)]
+    public string? ReviewThumbnailPath { get; set; }
+
+    public Guid ConcurrencyToken { get; set; } = Guid.NewGuid();
     public DateTimeOffset CreatedAtUtc { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }
     public ICollection<MediaFaceEmbedding> Embeddings { get; set; } = new List<MediaFaceEmbedding>();

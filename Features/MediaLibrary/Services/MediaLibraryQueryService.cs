@@ -9,8 +9,7 @@ namespace ProjectManagement.Features.MediaLibrary.Services;
 
 /// <summary>
 /// Read-optimised facade for the Photos experience. The timeline is the critical query;
-/// statistics and facets are deliberately isolated so an optional aggregate failure can
-/// never force the complete Photos page back to the legacy read path.
+/// optional facets are isolated so their failure cannot make core PRISM photos unavailable.
 /// </summary>
 public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
 {
@@ -36,7 +35,6 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-
         if (!_options.IsCatalogueEnabled)
         {
             return MediaLibraryQueryResult.Unavailable(
@@ -67,10 +65,20 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                 baseQuery = baseQuery.Where(asset => asset.ProjectId == request.ProjectId.Value);
             }
 
+            if (request.IncludePeople && request.PersonId.HasValue)
+            {
+                var personId = request.PersonId.Value;
+                baseQuery = baseQuery.Where(asset => asset.Faces.Any(face =>
+                    !face.IsSuppressed
+                    && face.PersonAssignments.Any(assignment =>
+                        assignment.RemovedAtUtc == null
+                        && assignment.MediaPersonId == personId)));
+            }
+
             if (!string.IsNullOrWhiteSpace(request.Query))
             {
                 var pattern = $"%{EscapeLikePattern(request.Query.Trim())}%";
-                baseQuery = baseQuery.Where(asset =>
+                var metadataMatches = baseQuery.Where(asset =>
                     EF.Functions.ILike(asset.Title, pattern, "\\")
                     || (asset.Caption != null && EF.Functions.ILike(asset.Caption, pattern, "\\"))
                     || EF.Functions.ILike(asset.ContextTitle, pattern, "\\")
@@ -79,31 +87,47 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                     || EF.Functions.ILike(asset.SourceLabel, pattern, "\\")
                     || EF.Functions.ILike(asset.Source.Name, pattern, "\\")
                     || (asset.RelativePath != null && EF.Functions.ILike(asset.RelativePath, pattern, "\\")));
+
+                baseQuery = request.IncludePeople
+                    ? baseQuery.Where(asset =>
+                        EF.Functions.ILike(asset.Title, pattern, "\\")
+                        || (asset.Caption != null && EF.Functions.ILike(asset.Caption, pattern, "\\"))
+                        || EF.Functions.ILike(asset.ContextTitle, pattern, "\\")
+                        || EF.Functions.ILike(asset.ContextSubtitle, pattern, "\\")
+                        || EF.Functions.ILike(asset.OriginalFileName, pattern, "\\")
+                        || EF.Functions.ILike(asset.SourceLabel, pattern, "\\")
+                        || EF.Functions.ILike(asset.Source.Name, pattern, "\\")
+                        || (asset.RelativePath != null && EF.Functions.ILike(asset.RelativePath, pattern, "\\"))
+                        || asset.Faces.Any(face => face.PersonAssignments.Any(assignment =>
+                            assignment.RemovedAtUtc == null
+                            && !assignment.MediaPerson.IsHidden
+                            && EF.Functions.ILike(assignment.MediaPerson.DisplayName, pattern, "\\"))))
+                    : metadataMatches;
             }
 
             queryWithoutYear = baseQuery;
             filteredQuery = request.Year.HasValue
                 ? baseQuery.Where(asset => asset.MediaDateUtc.Year == request.Year.Value)
                 : baseQuery;
-
             total = await filteredQuery.CountAsync(cancellationToken);
             pageSize = Math.Clamp(request.PageSize, 1, 250);
             var pageCount = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
             pageNumber = Math.Clamp(request.PageNumber, 1, pageCount);
             skip = (pageNumber - 1) * pageSize;
 
-            items = await filteredQuery
+            var rows = await filteredQuery
                 .OrderByDescending(asset => asset.MediaDateUtc)
                 .ThenBy(asset => asset.ContextTitle)
                 .ThenBy(asset => asset.SortOrder)
                 .ThenBy(asset => asset.Id)
                 .Skip(skip)
                 .Take(pageSize)
-                .Select(asset => new MediaLibraryQueryItem(
+                .Select(asset => new TimelineRow(
                     asset.Id,
                     asset.SourceId,
                     asset.Origin,
                     asset.Kind,
+                    asset.Classification,
                     asset.SourceEntityId,
                     asset.ParentEntityId,
                     asset.ContextKey,
@@ -124,24 +148,93 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                     asset.VersionToken))
                 .ToListAsync(cancellationToken);
 
+            var assetIds = rows.Select(row => row.Id).ToArray();
+            var peopleByAsset = new Dictionary<long, IReadOnlyList<MediaLibraryPersonSummary>>();
+            var unidentifiedByAsset = new Dictionary<long, int>();
+            if (request.IncludePeople && _options.People.Enabled && assetIds.Length > 0)
+            {
+                var assignments = await _db.PersonFaces
+                    .AsNoTracking()
+                    .Where(assignment => assignment.RemovedAtUtc == null
+                                         && !assignment.MediaFace.IsSuppressed
+                                         && assetIds.Contains(assignment.MediaFace.MediaAssetId)
+                                         && !assignment.MediaPerson.IsHidden
+                                         && assignment.MediaPerson.Status == MediaPersonStatus.Confirmed)
+                    .Select(assignment => new
+                    {
+                        AssetId = assignment.MediaFace.MediaAssetId,
+                        PersonId = assignment.MediaPersonId,
+                        assignment.MediaPerson.DisplayName
+                    })
+                    .Distinct()
+                    .OrderBy(item => item.DisplayName)
+                    .ToListAsync(cancellationToken);
+                peopleByAsset = assignments
+                    .GroupBy(item => item.AssetId)
+                    .ToDictionary(
+                        group => group.Key,
+                        group => (IReadOnlyList<MediaLibraryPersonSummary>)group
+                            .Select(item => new MediaLibraryPersonSummary(item.PersonId, item.DisplayName))
+                            .ToList());
+
+                unidentifiedByAsset = await _db.Faces
+                    .AsNoTracking()
+                    .Where(face => assetIds.Contains(face.MediaAssetId)
+                                   && !face.IsSuppressed
+                                   && !face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null))
+                    .GroupBy(face => face.MediaAssetId)
+                    .Select(group => new { AssetId = group.Key, Count = group.Count() })
+                    .ToDictionaryAsync(item => item.AssetId, item => item.Count, cancellationToken);
+            }
+
+            items = rows.Select(row => new MediaLibraryQueryItem(
+                row.Id,
+                row.SourceId,
+                row.Origin,
+                row.Kind,
+                row.Classification,
+                row.SourceEntityId,
+                row.ParentEntityId,
+                row.ContextKey,
+                row.CollectionKey,
+                row.ContextTitle,
+                row.ContextSubtitle,
+                row.SourceLabel,
+                row.Title,
+                row.Caption,
+                row.OriginalFileName,
+                row.MediaDateUtc,
+                row.Width,
+                row.Height,
+                row.DurationSeconds,
+                row.IsCover,
+                row.SortOrder,
+                row.CacheVersion,
+                row.VersionToken,
+                peopleByAsset.GetValueOrDefault(row.Id) ?? Array.Empty<MediaLibraryPersonSummary>(),
+                unidentifiedByAsset.GetValueOrDefault(row.Id)))
+                .ToList();
+
             primaryStopwatch.Stop();
-            _diagnostics.RecordSuccess(MediaLibraryQueryOperation.PrimaryTimeline, primaryStopwatch.ElapsedMilliseconds);
+            _diagnostics.RecordSuccess(
+                MediaLibraryQueryOperation.PrimaryTimeline,
+                primaryStopwatch.ElapsedMilliseconds);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
             primaryStopwatch.Stop();
             var diagnostic = _diagnostics.RecordFailure(
                 MediaLibraryQueryOperation.PrimaryTimeline,
-                ex,
+                exception,
                 primaryStopwatch.ElapsedMilliseconds);
-            _logger.LogWarning(ex,
-                "Unified media timeline query failed. Reference {Reference}. The Photos page will use its PRISM-owned fallback.",
+            _logger.LogWarning(
+                exception,
+                "Primary media catalogue query failed. Reference {Reference}.",
                 diagnostic.Reference);
-
             return MediaLibraryQueryResult.Unavailable(
                 request.PageNumber,
                 request.PageSize,
@@ -162,12 +255,10 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                         Videos = group.Count(asset => asset.Kind == MediaAssetKind.Video)
                     })
                     .FirstOrDefaultAsync(cancellationToken);
-
                 var collections = await filteredQuery
                     .Select(asset => asset.CollectionKey)
                     .Distinct()
                     .CountAsync(cancellationToken);
-
                 return new MediaLibraryStatistics(
                     counts?.Total ?? 0,
                     counts?.Photos ?? 0,
@@ -197,24 +288,52 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
             MediaLibraryQueryOperation.Projects,
             async () =>
             {
-                var rows = await BuildBaseQuery()
+                var projectRows = await BuildBaseQuery()
                     .Where(asset => asset.ProjectId.HasValue)
                     .Select(asset => new { Id = asset.ProjectId!.Value, Name = asset.ContextTitle })
                     .Distinct()
                     .OrderBy(project => project.Name)
                     .ThenBy(project => project.Id)
                     .ToListAsync(cancellationToken);
-                return rows.Select(row => new MediaLibraryProjectOption(row.Id, row.Name)).ToList();
+                return projectRows
+                    .Select(row => new MediaLibraryProjectOption(row.Id, row.Name))
+                    .ToList();
             },
             Array.Empty<MediaLibraryProjectOption>(),
             warnings,
             cancellationToken);
 
+        IReadOnlyList<MediaLibraryPersonOption> people = request.IncludePeople && _options.People.Enabled
+            ? await ExecuteOptionalAsync<IReadOnlyList<MediaLibraryPersonOption>>(
+                MediaLibraryQueryOperation.People,
+                async () => await _db.Persons
+                    .AsNoTracking()
+                    .Where(person => person.Status == MediaPersonStatus.Confirmed && !person.IsHidden)
+                    .OrderBy(person => person.DisplayName)
+                    .Select(person => new MediaLibraryPersonOption(
+                        person.Id,
+                        person.DisplayName,
+                        person.FaceAssignments
+                            .Where(assignment => assignment.RemovedAtUtc == null
+                                                 && assignment.MediaFace.MediaAsset.IsAvailable
+                                                 && !assignment.MediaFace.MediaAsset.IsDeleted
+                                                 && !assignment.MediaFace.MediaAsset.IsArchived)
+                            .Select(assignment => assignment.MediaFace.MediaAssetId)
+                            .Distinct()
+                            .Count()))
+                    .ToListAsync(cancellationToken),
+                Array.Empty<MediaLibraryPersonOption>(),
+                warnings,
+                cancellationToken)
+            : Array.Empty<MediaLibraryPersonOption>();
+
         var hasPrismCatalogue = await ExecuteOptionalAsync(
             MediaLibraryQueryOperation.PrismSourceStatus,
             async () => await _db.Sources
                 .AsNoTracking()
-                .AnyAsync(source => source.Key == MediaSourceBootstrapper.PrismSourceKey && !source.IsDeleted, cancellationToken),
+                .AnyAsync(source => source.Key == MediaSourceBootstrapper.PrismSourceKey
+                                    && !source.IsDeleted,
+                    cancellationToken),
             true,
             warnings,
             cancellationToken);
@@ -222,10 +341,10 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
         var summaryWarning = warnings.Count == 0
             ? null
             : $"The media timeline is available, but {warnings.Count} optional catalogue feature(s) are degraded. Reference {warnings[0].Reference}.";
-
         return new MediaLibraryQueryResult(
             items,
             projects,
+            people,
             years,
             statistics,
             pageNumber,
@@ -273,12 +392,13 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
         {
             throw;
         }
-        catch (Exception ex)
+        catch (Exception exception)
         {
             stopwatch.Stop();
-            var diagnostic = _diagnostics.RecordFailure(operation, ex, stopwatch.ElapsedMilliseconds);
+            var diagnostic = _diagnostics.RecordFailure(operation, exception, stopwatch.ElapsedMilliseconds);
             warnings.Add(ToWarning(diagnostic));
-            _logger.LogWarning(ex,
+            _logger.LogWarning(
+                exception,
                 "Optional media catalogue query {Operation} failed. Reference {Reference}. The timeline remains available.",
                 operation,
                 diagnostic.Reference);
@@ -297,7 +417,7 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
         => source switch
         {
             "projects" => query.Where(asset => asset.Origin == MediaAssetOrigin.ProjectPhoto
-                                                || asset.Origin == MediaAssetOrigin.ProjectVideo),
+                                               || asset.Origin == MediaAssetOrigin.ProjectVideo),
             "visits" => query.Where(asset => asset.Origin == MediaAssetOrigin.VisitPhoto),
             "events" => query.Where(asset => asset.Origin == MediaAssetOrigin.SocialMediaEventPhoto),
             "external" => query.Where(asset => asset.Origin == MediaAssetOrigin.ExternalFile),
@@ -312,11 +432,17 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
             _ => query
         };
 
-    private static IQueryable<MediaAsset> ApplyClassification(IQueryable<MediaAsset> query, string classification)
+    private static IQueryable<MediaAsset> ApplyClassification(
+        IQueryable<MediaAsset> query,
+        string classification)
         => classification switch
         {
             "photograph" => query.Where(asset => asset.Classification == MediaClassification.Photograph),
             "screenshot" => query.Where(asset => asset.Classification == MediaClassification.Screenshot),
+            "scanned-document" => query.Where(asset => asset.Classification == MediaClassification.ScannedDocument),
+            "diagram" => query.Where(asset => asset.Classification == MediaClassification.Diagram),
+            "presentation-slide" => query.Where(asset => asset.Classification == MediaClassification.PresentationSlide),
+            "graphic" => query.Where(asset => asset.Classification == MediaClassification.Graphic),
             "unknown" => query.Where(asset => asset.Classification == MediaClassification.Unknown),
             _ => query
         };
@@ -325,4 +451,29 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
         => value.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("%", "\\%", StringComparison.Ordinal)
             .Replace("_", "\\_", StringComparison.Ordinal);
+
+    private sealed record TimelineRow(
+        long Id,
+        Guid SourceId,
+        MediaAssetOrigin Origin,
+        MediaAssetKind Kind,
+        MediaClassification Classification,
+        string SourceEntityId,
+        string? ParentEntityId,
+        string ContextKey,
+        string CollectionKey,
+        string ContextTitle,
+        string ContextSubtitle,
+        string SourceLabel,
+        string Title,
+        string? Caption,
+        string OriginalFileName,
+        DateTimeOffset MediaDateUtc,
+        int? Width,
+        int? Height,
+        int? DurationSeconds,
+        bool IsCover,
+        long SortOrder,
+        int CacheVersion,
+        string? VersionToken);
 }

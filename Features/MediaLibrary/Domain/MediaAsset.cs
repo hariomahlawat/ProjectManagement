@@ -103,6 +103,16 @@ public sealed class MediaAsset
     public string? AnalysisSignalsJson { get; set; }
     public DateTimeOffset? AnalysedAtUtc { get; set; }
 
+    public MediaProcessingStatus FaceAnalysisStatus { get; set; } = MediaProcessingStatus.NotRequested;
+
+    [MaxLength(256)]
+    public string? FaceAnalysisVersion { get; set; }
+
+    public DateTimeOffset? FaceAnalysedAtUtc { get; set; }
+
+    [MaxLength(2048)]
+    public string? FaceProcessingFailureReason { get; set; }
+
     [MaxLength(2048)]
     public string? ProcessingFailureReason { get; set; }
 
