@@ -1,10 +1,110 @@
 @page
 @model ProjectManagement.Pages.Admin.MediaIntelligence.IndexModel
-@{ ViewData["Title"]="Media intelligence"; }
-<div class="container-fluid py-4">
- <div class="d-flex justify-content-between align-items-start mb-4"><div><h1 class="h3 mb-1">Media intelligence</h1><p class="text-muted mb-0">Offline CPU face detection, embeddings and human-reviewed identity management.</p></div><a class="btn btn-outline-secondary" asp-page="/Admin/MediaSources/Index">Media sources</a></div>
- @if(!string.IsNullOrWhiteSpace(Model.StatusMessage)){<div class="alert alert-info">@Model.StatusMessage</div>}
- <div class="alert @(Model.ModelStatus?.IsReady==true?"alert-success":"alert-warning")"><strong>Model readiness:</strong> @Model.ModelStatus?.Message</div>
- <div class="row g-3 mb-4"><div class="col-md"><div class="card card-body"><small class="text-muted">Eligible photographs</small><strong class="fs-3">@Model.Eligible</strong></div></div><div class="col-md"><div class="card card-body"><small class="text-muted">Faces detected</small><strong class="fs-3">@Model.Faces</strong></div></div><div class="col-md"><div class="card card-body"><small class="text-muted">Embeddings</small><strong class="fs-3">@Model.Embedded</strong></div></div><div class="col-md"><div class="card card-body"><small class="text-muted">Confirmed people</small><strong class="fs-3">@Model.Persons</strong></div></div><div class="col-md"><div class="card card-body"><small class="text-muted">Review required</small><strong class="fs-3">@Model.PendingReview</strong></div></div></div>
- <div class="card"><div class="card-body"><h2 class="h5">Controlled backfill</h2><p class="text-muted">Queues newest eligible photographs first. Automatic naming is disabled; matches require human confirmation.</p><form method="post" asp-page-handler="Queue" class="d-flex gap-2"><input class="form-control" style="max-width:120px" type="number" name="limit" min="1" max="250" value="25"/><button class="btn btn-primary" @(Model.ModelStatus?.IsReady==true?null:"disabled")>Queue photographs</button><a class="btn btn-outline-primary" asp-page="/Photos/People/Review">Open review queue</a></form></div></div>
+@{
+    ViewData["Title"] = "Media intelligence";
+}
+<link rel="stylesheet" href="~/css/pages/media-intelligence.css" asp-append-version="true" />
+<div class="container-fluid py-4 media-intelligence-page">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <div class="text-primary small text-uppercase fw-semibold mb-1">Photos administration</div>
+            <h1 class="h3 mb-1">Media intelligence</h1>
+            <p class="text-muted mb-0">Controlled, offline media classification and human-reviewed face intelligence.</p>
+        </div>
+        <a class="btn btn-outline-secondary" asp-page="/Admin/MediaSources/Index">Media sources</a>
+    </div>
+
+    <nav class="intel-tabs mb-4" aria-label="Media intelligence sections">
+        <a class="active" asp-page="/Admin/MediaIntelligence/Index">Overview</a>
+        <a asp-page="/Admin/MediaIntelligence/Classifications">Classification</a>
+        <a asp-page="/Photos/People/Review">People review</a>
+        <a asp-page="/Photos/People/Index">People</a>
+    </nav>
+
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage)) { <div class="alert alert-success">@Model.StatusMessage</div> }
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage)) { <div class="alert alert-danger">@Model.ErrorMessage</div> }
+
+    <section class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <div class="d-flex flex-wrap justify-content-between gap-3 align-items-start mb-3">
+                <div>
+                    <h2 class="h5 mb-1">Readiness</h2>
+                    <p class="text-muted mb-0">Every dependency must pass before photographs can be queued.</p>
+                </div>
+                <form method="post" asp-page-handler="RefreshReadiness">
+                    <button class="btn btn-outline-primary btn-sm" type="submit">Refresh readiness</button>
+                </form>
+            </div>
+            <div class="alert @(Model.ModelStatus.IsReady ? "alert-success" : "alert-warning") mb-3">
+                <strong>@Model.ModelStatus.State:</strong> @Model.ModelStatus.Message
+                <span class="d-block small mt-1">Checked @Model.ModelStatus.CheckedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</span>
+            </div>
+            <div class="readiness-grid">
+                @foreach (var check in Model.ModelStatus.Checks)
+                {
+                    <div class="readiness-item @(check.IsSatisfied ? "is-ready" : "is-blocked")">
+                        <div class="d-flex justify-content-between gap-2">
+                            <strong>@check.Label</strong>
+                            <span class="badge @(check.IsSatisfied ? "text-bg-success" : "text-bg-secondary")">@check.Status</span>
+                        </div>
+                        @if (!check.IsSatisfied && !string.IsNullOrWhiteSpace(check.Action))
+                        {
+                            <div class="small text-muted mt-2">@check.Action</div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-xl"><div class="metric-card"><span>Available images</span><strong>@Model.AvailableImages</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Face eligible</span><strong>@Model.Eligible</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Excluded non-photos</span><strong>@Model.ExcludedNonPhotographs</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Low-confidence class</span><strong>@Model.LowConfidence</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Faces detected</span><strong>@Model.Faces</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Embeddings</span><strong>@Model.Embedded</strong></div></div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-xl-7">
+            <section class="card shadow-sm border-0 h-100">
+                <div class="card-body p-4">
+                    <h2 class="h5 mb-1">Controlled processing</h2>
+                    <p class="text-muted">Queues newest eligible photographs first. Automatic naming remains disabled.</p>
+                    <form method="post" asp-page-handler="Queue" class="row g-3 align-items-end">
+                        <div class="col-sm-4">
+                            <label class="form-label fw-semibold" for="faceBatchSize">Batch size</label>
+                            <div class="input-group"><input id="faceBatchSize" class="form-control" type="number" name="limit" min="1" max="250" value="25" /><span class="input-group-text">photos</span></div>
+                        </div>
+                        <div class="col-sm-auto">
+                            <button class="btn btn-primary" type="submit" disabled="@(!Model.ModelStatus.IsReady)">Queue eligible photographs</button>
+                        </div>
+                        <div class="col-12">
+                            @if (!Model.ModelStatus.IsReady)
+                            {
+                                <div class="small text-warning-emphasis">Queueing is locked until configuration, models, checksums, licensing, schema and cache checks pass and the worker is enabled.</div>
+                            }
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </div>
+        <div class="col-xl-5">
+            <section class="card shadow-sm border-0 h-100">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start mb-3"><div><h2 class="h5 mb-1">Worker and queue</h2><p class="text-muted mb-0">Shared durable media worker telemetry.</p></div><span class="badge text-bg-success">@Model.ProcessingRuntime.State</span></div>
+                    <dl class="row mb-0 small">
+                        <dt class="col-6">Worker</dt><dd class="col-6">@(Model.ProcessingRuntime.WorkerStarted ? "Running" : Model.ProcessingRuntime.WorkerConfigured ? "Configured" : "Disabled")</dd>
+                        <dt class="col-6">Face jobs active</dt><dd class="col-6">@Model.PendingFaceJobs</dd>
+                        <dt class="col-6">Face jobs failed</dt><dd class="col-6">@Model.FailedFaceJobs</dd>
+                        <dt class="col-6">Current asset</dt><dd class="col-6">@(Model.ProcessingRuntime.CurrentAssetId?.ToString() ?? "None")</dd>
+                        <dt class="col-6">Runtime completed</dt><dd class="col-6">@Model.ProcessingRuntime.CompletedSinceStart</dd>
+                        <dt class="col-6">Runtime failures</dt><dd class="col-6">@Model.ProcessingRuntime.FailedSinceStart</dd>
+                        <dt class="col-6">Last heartbeat</dt><dd class="col-6">@(Model.ProcessingRuntime.LastHeartbeatUtc?.ToLocalTime().ToString("dd MMM HH:mm:ss") ?? "Not started")</dd>
+                    </dl>
+                </div>
+            </section>
+        </div>
+    </div>
 </div>

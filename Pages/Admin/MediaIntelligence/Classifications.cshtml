@@ -1,0 +1,27 @@
+@page
+@model ProjectManagement.Pages.Admin.MediaIntelligence.ClassificationsModel
+@using ProjectManagement.Features.MediaLibrary.Domain
+@{ ViewData["Title"] = "Classification review"; }
+<link rel="stylesheet" href="~/css/pages/media-intelligence.css" asp-append-version="true" />
+<div class="container-fluid py-4 media-intelligence-page">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3"><div><div class="text-primary small text-uppercase fw-semibold mb-1">Media intelligence</div><h1 class="h3 mb-1">Classification review</h1><p class="text-muted mb-0">Validate automatic decisions before face processing.</p></div><a class="btn btn-outline-secondary" asp-page="/Admin/MediaIntelligence/Index">Overview</a></div>
+    <nav class="intel-tabs mb-4"><a asp-page="/Admin/MediaIntelligence/Index">Overview</a><a class="active" asp-page="/Admin/MediaIntelligence/Classifications">Classification</a><a asp-page="/Photos/People/Review">People review</a><a asp-page="/Photos/People/Index">People</a></nav>
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage)) { <div class="alert alert-success">@Model.StatusMessage</div> }
+    <form method="get" class="card card-body shadow-sm border-0 mb-4"><div class="row g-3"><div class="col-lg-5"><label class="form-label">Search</label><input class="form-control" asp-for="Q" placeholder="Title, collection or filename" /></div><div class="col-lg-3"><label class="form-label">Classification</label><select class="form-select" asp-for="Classification"><option value="">All classifications</option>@foreach (var value in Enum.GetValues<MediaClassification>()){<option value="@value">@value</option>}</select></div><div class="col-lg-2"><label class="form-label">Review set</label><select class="form-select" asp-for="Mode"><option value="all">All</option><option value="low">Low confidence</option><option value="manual">Manual overrides</option><option value="eligible">Face eligible</option></select></div><div class="col-lg-2 d-flex align-items-end"><button class="btn btn-primary w-100">Apply</button></div></div></form>
+    <div class="d-flex justify-content-between align-items-center mb-3"><span class="text-muted">@Model.Total image(s)</span><span class="small text-muted">Page @Model.P of @Model.TotalPages</span></div>
+    <div class="classification-grid">
+        @foreach (var item in Model.Rows)
+        {
+            <article class="classification-card">
+                <div class="classification-card__header"><div><strong>@item.Title</strong><div class="small text-muted text-truncate">@item.ContextTitle · @item.OriginalFileName</div></div><span class="badge @(item.FaceEligible ? "text-bg-success" : "text-bg-secondary")">@(item.FaceEligible ? "Face eligible" : "Excluded")</span></div>
+                <div class="classification-card__body">
+                    <dl class="row small mb-2"><dt class="col-5">Classification</dt><dd class="col-7">@item.Classification</dd><dt class="col-5">Confidence</dt><dd class="col-7">@(item.Confidence?.ToString("P0") ?? "Not available")</dd><dt class="col-5">Source</dt><dd class="col-7">@(item.IsManual ? "Manual override" : item.ClassifierVersion ?? "Automatic")</dd></dl>
+                    @if (item.Signals.Count > 0){<details class="small mb-3"><summary>Decision signals</summary><ul class="mt-2 mb-0">@foreach(var signal in item.Signals.Take(5)){<li>@signal</li>}</ul></details>}
+                    <form method="post" asp-page-handler="Set" class="row g-2"><input type="hidden" name="assetId" value="@item.Id" /><div class="col-7"><select class="form-select form-select-sm" name="classification">@foreach(var value in Enum.GetValues<MediaClassification>().Where(x => x != MediaClassification.Unknown)){<option value="@value" selected="@(value == item.Classification)">@value</option>}</select></div><div class="col-5"><button class="btn btn-sm btn-primary w-100">Set manually</button></div><div class="col-12"><input class="form-control form-control-sm" name="reason" placeholder="Reason (optional)" /></div></form>
+                    @if (item.IsManual){<form method="post" asp-page-handler="Reset" class="mt-2"><input type="hidden" name="assetId" value="@item.Id" /><button class="btn btn-sm btn-outline-secondary">Reset to automatic</button></form>}
+                </div>
+            </article>
+        }
+    </div>
+    @if (Model.TotalPages > 1){<nav class="d-flex justify-content-end gap-2 mt-4"><a class="btn btn-outline-secondary btn-sm @(Model.P <= 1 ? "disabled" : null)" asp-route-p="@(Model.P-1)" asp-route-q="@Model.Q" asp-route-classification="@Model.Classification" asp-route-mode="@Model.Mode">Previous</a><a class="btn btn-outline-primary btn-sm @(Model.P >= Model.TotalPages ? "disabled" : null)" asp-route-p="@(Model.P+1)" asp-route-q="@Model.Q" asp-route-classification="@Model.Classification" asp-route-mode="@Model.Mode">Next</a></nav>}
+</div>

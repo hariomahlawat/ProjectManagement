@@ -5,14 +5,78 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Services;
+
 namespace ProjectManagement.Pages.Admin.MediaIntelligence;
-[Authorize(Roles="Admin,HoD")]
+
+[Authorize(Roles = "Admin,HoD")]
 public sealed class IndexModel : PageModel
 {
- private readonly MediaLibraryDbContext _db; private readonly IFaceModelReadinessService _readiness; private readonly IFaceQueueService _queue;
- public IndexModel(MediaLibraryDbContext db,IFaceModelReadinessService readiness,IFaceQueueService queue){_db=db;_readiness=readiness;_queue=queue;}
- public FaceModelReadiness? ModelStatus{get;private set;} public int Eligible{get;private set;} public int Faces{get;private set;} public int Embedded{get;private set;} public int Persons{get;private set;} public int PendingReview{get;private set;} [TempData] public string? StatusMessage{get;set;}
- public async Task OnGetAsync(CancellationToken ct){ModelStatus=await _readiness.CheckAsync(ct);Eligible=await _db.Assets.CountAsync(x=>x.IsAvailable&&!x.IsDeleted&&!x.IsArchived&&x.Kind==MediaAssetKind.Photo&&x.Classification==MediaClassification.Photograph,ct);Faces=await _db.Faces.CountAsync(ct);Embedded=await _db.FaceEmbeddings.CountAsync(x=>x.InvalidatedAtUtc==null,ct);Persons=await _db.Persons.CountAsync(x=>!x.IsHidden,ct);PendingReview=await _db.FaceReviewDecisions.CountAsync(x=>x.Decision==FaceReviewDecisionType.Pending,ct);}
- public async Task<IActionResult> OnPostQueueAsync(int limit=25,CancellationToken ct=default){var n=await _queue.QueueEligibleAsync(Math.Clamp(limit,1,250),ct);StatusMessage=$"Queued {n} photograph(s) for face analysis.";return RedirectToPage();}
- public async Task<IActionResult> OnPostQueueAssetAsync(long assetId,CancellationToken ct){StatusMessage=await _queue.QueueAssetAsync(assetId,ct)?"The selected photograph was queued.":"The photograph already has active face-processing work.";return RedirectToPage();}
+    private readonly MediaLibraryDbContext _db;
+    private readonly IFaceModelReadinessService _readiness;
+    private readonly IFaceQueueService _queue;
+    private readonly IMediaProcessingRuntimeState _runtime;
+
+    public IndexModel(MediaLibraryDbContext db, IFaceModelReadinessService readiness, IFaceQueueService queue, IMediaProcessingRuntimeState runtime)
+    {
+        _db = db;
+        _readiness = readiness;
+        _queue = queue;
+        _runtime = runtime;
+    }
+
+    public FaceModelReadiness ModelStatus { get; private set; } = null!;
+    public MediaProcessingRuntimeSnapshot ProcessingRuntime { get; private set; } = null!;
+    public int AvailableImages { get; private set; }
+    public int Eligible { get; private set; }
+    public int ExcludedNonPhotographs { get; private set; }
+    public int LowConfidence { get; private set; }
+    public int Faces { get; private set; }
+    public int Embedded { get; private set; }
+    public int Persons { get; private set; }
+    public int PendingReview { get; private set; }
+    public int PendingFaceJobs { get; private set; }
+    public int FailedFaceJobs { get; private set; }
+
+    [TempData] public string? StatusMessage { get; set; }
+    [TempData] public string? ErrorMessage { get; set; }
+
+    public async Task OnGetAsync(CancellationToken cancellationToken)
+    {
+        ModelStatus = await _readiness.CheckAsync(cancellationToken);
+        ProcessingRuntime = _runtime.GetSnapshot();
+
+        var available = _db.Assets.AsNoTracking().Where(x => x.IsAvailable && !x.IsDeleted && !x.IsArchived && x.Kind == MediaAssetKind.Photo);
+        AvailableImages = await available.CountAsync(cancellationToken);
+        Eligible = await available.CountAsync(x => x.Classification == MediaClassification.Photograph, cancellationToken);
+        ExcludedNonPhotographs = await available.CountAsync(x => x.Classification != MediaClassification.Photograph, cancellationToken);
+        LowConfidence = await available.CountAsync(x => !x.ClassificationIsManual && (x.ClassificationConfidence == null || x.ClassificationConfidence < 0.65), cancellationToken);
+        Faces = await _db.Faces.AsNoTracking().CountAsync(cancellationToken);
+        Embedded = await _db.FaceEmbeddings.AsNoTracking().CountAsync(x => x.InvalidatedAtUtc == null, cancellationToken);
+        Persons = await _db.Persons.AsNoTracking().CountAsync(x => !x.IsHidden, cancellationToken);
+        PendingReview = await _db.FaceReviewDecisions.AsNoTracking().CountAsync(x => x.Decision == FaceReviewDecisionType.Pending, cancellationToken);
+        PendingFaceJobs = await _db.ProcessingJobs.AsNoTracking().CountAsync(x => x.JobType == MediaProcessingJobType.DetectFaces && (x.Status == MediaProcessingJobStatus.Pending || x.Status == MediaProcessingJobStatus.Running), cancellationToken);
+        FailedFaceJobs = await _db.ProcessingJobs.AsNoTracking().CountAsync(x => x.JobType == MediaProcessingJobType.DetectFaces && (x.Status == MediaProcessingJobStatus.Failed || x.Status == MediaProcessingJobStatus.DeadLetter), cancellationToken);
+    }
+
+    public async Task<IActionResult> OnPostQueueAsync(int limit = 25, CancellationToken cancellationToken = default)
+    {
+        var readiness = await _readiness.CheckAsync(cancellationToken);
+        if (!readiness.IsReady)
+        {
+            ErrorMessage = readiness.Message;
+            return RedirectToPage();
+        }
+
+        var boundedLimit = Math.Clamp(limit, 1, 250);
+        var queued = await _queue.QueueEligibleAsync(boundedLimit, cancellationToken);
+        StatusMessage = queued == 0 ? "No new eligible photographs were queued." : $"Queued {queued} photograph(s) for face analysis.";
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostRefreshReadinessAsync(CancellationToken cancellationToken)
+    {
+        var readiness = await _readiness.CheckAsync(cancellationToken);
+        StatusMessage = $"Readiness refreshed: {readiness.Message}";
+        return RedirectToPage();
+    }
 }

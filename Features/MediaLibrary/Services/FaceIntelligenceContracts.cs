@@ -1,6 +1,33 @@
 using ProjectManagement.Features.MediaLibrary.Domain;
+
 namespace ProjectManagement.Features.MediaLibrary.Services;
-public sealed record FaceModelReadiness(bool IsEnabled, bool IsReady, string Message, string? DetectorPath, string? EmbedderPath);
+
+public enum FaceReadinessState
+{
+    Disabled = 0,
+    ConfigurationIncomplete = 1,
+    ModelsMissing = 2,
+    ChecksumMismatch = 3,
+    LicenceUnverified = 4,
+    RuntimeUnavailable = 5,
+    SchemaUnavailable = 6,
+    CacheUnavailable = 7,
+    Ready = 8,
+    Degraded = 9
+}
+
+public sealed record FaceReadinessCheck(string Key, string Label, bool IsSatisfied, string Status, string? Action = null);
+
+public sealed record FaceModelReadiness(
+    bool IsEnabled,
+    bool IsReady,
+    FaceReadinessState State,
+    string Message,
+    string? DetectorPath,
+    string? EmbedderPath,
+    DateTimeOffset CheckedAtUtc,
+    IReadOnlyList<FaceReadinessCheck> Checks);
+
 public sealed record DetectedFaceData(double Left,double Top,double Width,double Height,double Confidence,double QualityScore,FaceQualityStatus QualityStatus,float[]? Embedding,IReadOnlyList<double>? Landmarks,byte[]? ReviewThumbnail);
 public interface IFaceModelReadinessService { Task<FaceModelReadiness> CheckAsync(CancellationToken cancellationToken); }
 public interface IFaceAnalysisEngine { Task<IReadOnlyList<DetectedFaceData>> AnalyseAsync(byte[] imageBytes, CancellationToken cancellationToken); }
