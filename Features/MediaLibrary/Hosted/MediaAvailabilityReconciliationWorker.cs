@@ -23,6 +23,14 @@ public sealed class MediaAvailabilityReconciliationWorker : BackgroundService
             while (!stoppingToken.IsCancellationRequested)
             {
                 using var scope = _scopeFactory.CreateScope();
+                var schema = scope.ServiceProvider.GetRequiredService<IMediaLibrarySchemaService>();
+                var schemaStatus = await schema.GetStatusAsync(stoppingToken);
+                if (!schemaStatus.IsCurrent)
+                {
+                    _logger.LogInformation("Media availability reconciliation is waiting for the catalogue schema to become current");
+                    break;
+                }
+
                 var service = scope.ServiceProvider.GetRequiredService<IMediaAvailabilityRecoveryService>();
                 var result = await service.ReconcileHistoricalAsync(100, stoppingToken);
                 if (result.Examined > 0)

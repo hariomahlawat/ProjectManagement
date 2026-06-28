@@ -114,7 +114,7 @@ public sealed class IndexModel : PageModel
         var result = await _schemaService.MigrateAsync(cancellationToken);
         if (!result.IsCurrent)
         {
-            WarningMessage = $"The media catalogue could not be initialized. {result.Error}";
+            WarningMessage = result.Error ?? "The media catalogue could not be initialized. Review application logs for details.";
             return RedirectToPage();
         }
 
@@ -740,7 +740,7 @@ public sealed class IndexModel : PageModel
         {
             CatalogueAvailable = false;
             Sources = Array.Empty<SourceRow>();
-            CatalogueError = ex.GetBaseException().Message;
+            CatalogueError = "The media catalogue could not be loaded. Review application logs and verify that all media migrations have been applied.";
         }
     }
 

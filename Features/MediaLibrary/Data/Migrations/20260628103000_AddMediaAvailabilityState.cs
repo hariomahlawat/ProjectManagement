@@ -1,10 +1,14 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using ProjectManagement.Features.MediaLibrary.Data;
 
 #nullable disable
 
 namespace ProjectManagement.Features.MediaLibrary.Data.Migrations;
 
-public partial class AddMediaAvailabilityState : Migration
+[DbContext(typeof(MediaLibraryDbContext))]
+[Migration("20260628103000_AddMediaAvailabilityState")]
+public sealed class AddMediaAvailabilityState : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {

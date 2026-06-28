@@ -48,8 +48,17 @@ public sealed class MediaProcessingWorker : BackgroundService
 
                 try
                 {
-                    _runtime.Heartbeat("Polling");
-                    await RecoverExpiredLocksAsync(stoppingToken);
+                    _runtime.Heartbeat("Checking schema");
+                    if (!await IsSchemaReadyAsync(stoppingToken))
+                    {
+                        idleDelaySeconds = Math.Max(60, idleDelaySeconds);
+                        _runtime.Heartbeat("Waiting for catalogue schema");
+                        processed = 0;
+                    }
+                    else
+                    {
+                        _runtime.Heartbeat("Polling");
+                        await RecoverExpiredLocksAsync(stoppingToken);
 
                     for (var index = 0; index < Math.Max(1, _options.Processing.BatchSize); index++)
                     {
@@ -62,6 +71,7 @@ public sealed class MediaProcessingWorker : BackgroundService
                         processed++;
                         _runtime.MarkClaimed(job.Id, job.MediaAssetId);
                         await ProcessAsync(job, stoppingToken);
+                    }
                     }
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -94,6 +104,14 @@ public sealed class MediaProcessingWorker : BackgroundService
             _runtime.Heartbeat("Stopped");
             _logger.LogInformation("Media processing worker {WorkerId} stopped", _workerId);
         }
+    }
+
+    private async Task<bool> IsSchemaReadyAsync(CancellationToken cancellationToken)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var schema = scope.ServiceProvider.GetRequiredService<IMediaLibrarySchemaService>();
+        var status = await schema.GetStatusAsync(cancellationToken);
+        return status.IsAvailable && status.IsCurrent;
     }
 
     private async Task RecoverExpiredLocksAsync(CancellationToken cancellationToken)
