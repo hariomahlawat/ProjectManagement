@@ -38,6 +38,17 @@ public enum MediaClassification
     Graphic = 6
 }
 
+public enum MediaClassificationDecisionStatus
+{
+    NotProcessed = 0,
+    AutomaticallyAccepted = 1,
+    NeedsReview = 2,
+    ManuallyConfirmed = 3,
+    ManuallyCorrected = 4,
+    ProcessingFailed = 5,
+    NotApplicable = 6
+}
+
 public enum MediaAvailabilityStatus
 {
     Available = 0,

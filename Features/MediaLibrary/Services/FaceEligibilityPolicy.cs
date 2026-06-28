@@ -45,9 +45,11 @@ public sealed class FaceEligibilityPolicy : IFaceEligibilityPolicy
             return new(false, "classifier-stale", "The asset was classified by an older classifier version.");
         if (asset.Classification != MediaClassification.Photograph)
             return new(false, "not-photograph", "Automatic classification did not identify a photograph.");
-        if (!asset.ClassificationConfidence.HasValue)
-            return new(false, "confidence-missing", "Automatic classification confidence is unavailable.");
-        if (asset.ClassificationConfidence.Value < _options.People.MinimumClassificationConfidence)
+        if (asset.ClassificationDecisionStatus != MediaClassificationDecisionStatus.AutomaticallyAccepted)
+            return new(false, "not-auto-accepted", "Automatic classification was not accepted by the decision policy.");
+        if (asset.PredictedClassification != MediaClassification.Photograph)
+            return new(false, "prediction-mismatch", "The automatic prediction was not a photograph.");
+        if (asset.PredictedClassificationScore < Convert.ToDecimal(_options.People.MinimumClassificationConfidence))
             return new(false, "confidence-low", $"Classification confidence is below the configured {_options.People.MinimumClassificationConfidence:P0} threshold.");
 
         return new(true, "eligible", "Current automatic classification identifies a sufficiently confident photograph.");
@@ -69,7 +71,8 @@ public sealed class FaceEligibilityPolicy : IFaceEligibilityPolicy
                                 : asset.AnalysisStatus == MediaProcessingStatus.Ready
                                   && asset.ClassifierVersion == version
                                   && asset.Classification == MediaClassification.Photograph
-                                  && asset.ClassificationConfidence != null
-                                  && asset.ClassificationConfidence >= threshold));
+                                  && asset.ClassificationDecisionStatus == MediaClassificationDecisionStatus.AutomaticallyAccepted
+                                  && asset.PredictedClassification == MediaClassification.Photograph
+                                  && asset.PredictedClassificationScore >= Convert.ToDecimal(threshold))));
     }
 }

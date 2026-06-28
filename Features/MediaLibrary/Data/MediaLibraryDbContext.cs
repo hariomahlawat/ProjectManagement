@@ -20,6 +20,7 @@ public sealed class MediaLibraryDbContext : DbContext
     public DbSet<MediaAsset> Assets => Set<MediaAsset>();
     public DbSet<MediaProcessingJob> ProcessingJobs => Set<MediaProcessingJob>();
     public DbSet<MediaClassificationAudit> ClassificationAudits => Set<MediaClassificationAudit>();
+    public DbSet<MediaClassificationRun> ClassificationRuns => Set<MediaClassificationRun>();
     public DbSet<MediaFace> Faces => Set<MediaFace>();
     public DbSet<MediaFaceEmbedding> FaceEmbeddings => Set<MediaFaceEmbedding>();
     public DbSet<MediaPerson> Persons => Set<MediaPerson>();

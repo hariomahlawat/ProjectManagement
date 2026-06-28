@@ -83,17 +83,39 @@ public sealed class MediaAsset
     public bool IsArchived { get; set; }
     public bool IsDeleted { get; set; }
 
+    // --- Classification prediction and decision state ---
+    public MediaClassification PredictedClassification { get; set; }
+    public decimal PredictedClassificationScore { get; set; }
     public MediaClassification Classification { get; set; }
     public double? ClassificationConfidence { get; set; }
+    public MediaClassificationDecisionStatus ClassificationDecisionStatus { get; set; }
+
+    [MaxLength(128)]
+    public string? ClassificationDecisionReasonCode { get; set; }
+
+    [MaxLength(128)]
+    public string? ClassifierVersion { get; set; }
+
+    public string? AutomaticClassificationSignalsJson { get; set; }
+    public string? AutomaticClassificationScoresJson { get; set; }
+    public string? AutomaticClassificationMetricsJson { get; set; }
+
+    // --- Manual classification review state ---
     public bool ClassificationIsManual { get; set; }
 
     [MaxLength(450)]
     public string? ClassificationUpdatedByUserId { get; set; }
 
-    public DateTimeOffset? ClassifiedAtUtc { get; set; }
+    [MaxLength(450)]
+    public string? ClassificationReviewedByUserId { get; set; }
 
-    [MaxLength(128)]
-    public string? ClassifierVersion { get; set; }
+    public DateTimeOffset? ClassifiedAtUtc { get; set; }
+    public DateTimeOffset? ClassificationReviewedAt { get; set; }
+
+    [MaxLength(1024)]
+    public string? ClassificationReviewReason { get; set; }
+
+    public Guid ClassificationConcurrencyToken { get; set; } = Guid.NewGuid();
     public MediaProcessingStatus DerivativeStatus { get; set; }
     public MediaProcessingStatus AnalysisStatus { get; set; }
 
@@ -120,4 +142,5 @@ public sealed class MediaAsset
 
     public ICollection<MediaProcessingJob> ProcessingJobs { get; set; } = new List<MediaProcessingJob>();
     public ICollection<MediaFace> Faces { get; set; } = new List<MediaFace>();
+    public ICollection<MediaClassificationRun> ClassificationRuns { get; set; } = new List<MediaClassificationRun>();
 }

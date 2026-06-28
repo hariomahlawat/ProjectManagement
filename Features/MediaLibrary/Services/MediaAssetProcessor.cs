@@ -102,14 +102,51 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
                 else
                 {
                     var result = await _classifier.ClassifyAsync(content, metadata, cancellationToken);
-                asset.Classification = result.Classification;
-                asset.ClassificationConfidence = result.Confidence;
+                    var now = DateTimeOffset.UtcNow;
+                    var predictedScore = Convert.ToDecimal(Math.Clamp(result.Confidence, 0d, 1d));
+                    var accepted = result.Classification != MediaClassification.Unknown
+                        && predictedScore >= Convert.ToDecimal(_options.People.MinimumClassificationConfidence);
+
+                    asset.PredictedClassification = result.Classification;
+                    asset.PredictedClassificationScore = predictedScore;
+                    asset.Classification = accepted ? result.Classification : MediaClassification.Unknown;
+                    asset.ClassificationConfidence = result.Confidence;
+                    asset.ClassificationDecisionStatus = accepted
+                        ? MediaClassificationDecisionStatus.AutomaticallyAccepted
+                        : MediaClassificationDecisionStatus.NeedsReview;
+                    asset.ClassificationDecisionReasonCode = accepted
+                        ? "CATEGORY_SCORE_ACCEPTED"
+                        : "CATEGORY_SCORE_BELOW_THRESHOLD";
                     asset.AnalysisVersion = result.Version;
                     asset.ClassifierVersion = result.Version;
-                    asset.AnalysisSignalsJson = JsonSerializer.Serialize(result.Signals);
-                    asset.AnalysedAtUtc = DateTimeOffset.UtcNow;
-                    asset.ClassifiedAtUtc = asset.AnalysedAtUtc;
+                    var signalsJson = JsonSerializer.Serialize(result.Signals);
+                    asset.AnalysisSignalsJson = signalsJson;
+                    asset.AutomaticClassificationSignalsJson = signalsJson;
+                    asset.AutomaticClassificationScoresJson = JsonSerializer.Serialize(new Dictionary<MediaClassification, double>
+                    {
+                        [result.Classification] = result.Confidence
+                    });
+                    asset.AutomaticClassificationMetricsJson = "{}";
+                    asset.AnalysedAtUtc = now;
+                    asset.ClassifiedAtUtc = now;
+                    asset.ClassificationConcurrencyToken = Guid.NewGuid();
                     asset.AnalysisStatus = MediaProcessingStatus.Ready;
+                    _db.ClassificationRuns.Add(new MediaClassificationRun
+                    {
+                        MediaAssetId = asset.Id,
+                        ClassifierVersion = result.Version,
+                        PredictedClassification = result.Classification,
+                        PredictedScore = predictedScore,
+                        EffectiveClassification = asset.Classification,
+                        DecisionStatus = asset.ClassificationDecisionStatus,
+                        DecisionReasonCode = asset.ClassificationDecisionReasonCode,
+                        CategoryScoresJson = asset.AutomaticClassificationScoresJson,
+                        SignalsJson = signalsJson,
+                        MetricsJson = asset.AutomaticClassificationMetricsJson,
+                        ProcessingDurationMilliseconds = 0,
+                        CompletedAt = now,
+                        Succeeded = true
+                    });
                 }
             }
 
