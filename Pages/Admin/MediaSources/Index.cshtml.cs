@@ -429,26 +429,77 @@ public sealed class IndexModel : PageModel
     {
         var now = DateTimeOffset.UtcNow;
         var count = await _db.ProcessingJobs
-            .Where(job => job.Status == MediaProcessingJobStatus.Failed
-                          || job.Status == MediaProcessingJobStatus.DeadLetter)
+            .Where(job => (job.Status == MediaProcessingJobStatus.Failed
+                           || job.Status == MediaProcessingJobStatus.DeadLetter)
+                          && job.FailureCode != null
+                          && MediaProcessingFailurePolicy.RecoverableFailureCodeNames.Contains(job.FailureCode))
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(job => job.Status, MediaProcessingJobStatus.Pending)
                 .SetProperty(job => job.AttemptCount, 0)
                 .SetProperty(job => job.AvailableAfterUtc, now)
+                .SetProperty(job => job.StartedAtUtc, (DateTimeOffset?)null)
+                .SetProperty(job => job.CompletedAtUtc, (DateTimeOffset?)null)
                 .SetProperty(job => job.LockedBy, (string?)null)
                 .SetProperty(job => job.LockExpiresAtUtc, (DateTimeOffset?)null)
                 .SetProperty(job => job.FailureCode, (string?)null)
                 .SetProperty(job => job.FailureMessage, (string?)null)
                 .SetProperty(job => job.UpdatedAtUtc, now), cancellationToken);
 
-        StatusMessage = $"{count} failed media processing job(s) were queued again.";
+        StatusMessage = count == 0
+            ? "No recoverable failed media jobs required retry. Permanent missing-content failures were left unchanged."
+            : $"{count} recoverable media processing job(s) were queued again.";
         return RedirectToPage();
     }
 
-    public async Task<IActionResult> OnPostRetryJobAsync(long id, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostRetryPermanentAsync(CancellationToken cancellationToken)
     {
-        var job = await _db.ProcessingJobs.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        var jobs = await _db.ProcessingJobs
+            .Include(job => job.MediaAsset)
+            .Where(job => (job.Status == MediaProcessingJobStatus.Failed
+                           || job.Status == MediaProcessingJobStatus.DeadLetter)
+                          && job.FailureCode != null
+                          && MediaProcessingFailurePolicy.PermanentFailureCodeNames.Contains(job.FailureCode))
+            .ToListAsync(cancellationToken);
+
+        foreach (var job in jobs)
+        {
+            job.Status = MediaProcessingJobStatus.Pending;
+            job.AttemptCount = 0;
+            job.AvailableAfterUtc = now;
+            job.StartedAtUtc = null;
+            job.CompletedAtUtc = null;
+            job.LockedBy = null;
+            job.LockExpiresAtUtc = null;
+            job.FailureCode = null;
+            job.FailureMessage = null;
+            job.UpdatedAtUtc = now;
+
+            job.MediaAsset.IsAvailable = true;
+            job.MediaAsset.DerivativeStatus = MediaProcessingStatus.Pending;
+            job.MediaAsset.AnalysisStatus = MediaProcessingStatus.Pending;
+            job.MediaAsset.ProcessingFailureReason = null;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        StatusMessage = jobs.Count == 0
+            ? "No permanent media failures were available for forced retry."
+            : $"{jobs.Count} permanent media failure(s) were force-queued. Use this only after restoring the underlying files.";
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostRetryJobAsync(long id, bool forcePermanent = false, CancellationToken cancellationToken = default)
+    {
+        var job = await _db.ProcessingJobs
+            .Include(item => item.MediaAsset)
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (job is null) return NotFound();
+
+        if (MediaProcessingFailurePolicy.IsPermanentFailureCode(job.FailureCode) && !forcePermanent)
+        {
+            WarningMessage = "This job represents missing or permanently unsupported content. Restore the source and use force retry only after verifying it is available.";
+            return RedirectToPage();
+        }
 
         var now = DateTimeOffset.UtcNow;
         job.Status = MediaProcessingJobStatus.Pending;
@@ -461,6 +512,15 @@ public sealed class IndexModel : PageModel
         job.FailureCode = null;
         job.FailureMessage = null;
         job.UpdatedAtUtc = now;
+
+        if (forcePermanent)
+        {
+            job.MediaAsset.IsAvailable = true;
+            job.MediaAsset.DerivativeStatus = MediaProcessingStatus.Pending;
+            job.MediaAsset.AnalysisStatus = MediaProcessingStatus.Pending;
+            job.MediaAsset.ProcessingFailureReason = null;
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
         StatusMessage = $"Media processing job {id} was queued again.";
         return RedirectToPage();

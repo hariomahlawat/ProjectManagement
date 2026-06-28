@@ -127,7 +127,13 @@
                     {
                         <form method="post" asp-page-handler="RetryFailed">
                             <button type="submit" class="btn btn-outline-danger">
-                                <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i> Retry failed jobs
+                                <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i> Retry recoverable jobs
+                            </button>
+                        </form>
+                        <form method="post" asp-page-handler="RetryPermanent"
+                              onsubmit="return confirm('Force retry permanent failures only after missing source files have been restored. Continue?');">
+                            <button type="submit" class="btn btn-outline-secondary">
+                                <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i> Force retry permanent
                             </button>
                         </form>
                     }
@@ -274,7 +280,18 @@
                                         <td class="text-end">
                                             <form method="post" asp-page-handler="RetryJob">
                                                 <input type="hidden" name="id" value="@job.Id" />
-                                                <button class="btn btn-sm btn-outline-secondary" type="submit">Retry</button>
+                                                @if (job.Status == MediaProcessingJobStatus.DeadLetter)
+                                                {
+                                                    <input type="hidden" name="forcePermanent" value="true" />
+                                                    <button class="btn btn-sm btn-outline-secondary" type="submit"
+                                                            onclick="return confirm('Retry only after restoring or correcting the source content. Continue?');">
+                                                        Force retry
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button class="btn btn-sm btn-outline-secondary" type="submit">Retry</button>
+                                                }
                                             </form>
                                         </td>
                                     </tr>

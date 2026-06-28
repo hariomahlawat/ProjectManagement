@@ -240,7 +240,8 @@ public sealed class MediaProcessingWorker : BackgroundService
         }
 
         var now = DateTimeOffset.UtcNow;
-        var permanent = ex is MediaContentUnavailableException or MediaProcessingPermanentException;
+        var permanent = MediaProcessingFailurePolicy.IsPermanent(ex);
+        var sourceUnavailable = MediaProcessingFailurePolicy.IsSourceUnavailable(ex);
         var deadLetter = permanent || job.AttemptCount >= Math.Max(1, job.MaxAttempts);
         entity.Status = deadLetter
             ? MediaProcessingJobStatus.DeadLetter
@@ -249,8 +250,22 @@ public sealed class MediaProcessingWorker : BackgroundService
         entity.LockedBy = null;
         entity.LockExpiresAtUtc = null;
         entity.FailureCode = ex.GetType().Name;
-        entity.FailureMessage = Trim(ex.GetBaseException().Message, 2048);
+        var failureMessage = Trim(ex.GetBaseException().Message, 2048);
+        entity.FailureMessage = failureMessage;
         entity.UpdatedAtUtc = now;
+
+        if (sourceUnavailable)
+        {
+            var asset = await db.Assets.SingleOrDefaultAsync(item => item.Id == job.MediaAssetId, CancellationToken.None);
+            if (asset is not null)
+            {
+                asset.IsAvailable = false;
+                asset.DerivativeStatus = MediaProcessingStatus.Failed;
+                asset.AnalysisStatus = MediaProcessingStatus.Failed;
+                asset.ProcessingFailureReason = MediaProcessingFailurePolicy.MarkSourceUnavailable(failureMessage);
+            }
+        }
+
         await db.SaveChangesAsync(CancellationToken.None);
 
         if (deadLetter)
@@ -281,7 +296,8 @@ public sealed class MediaProcessingWorker : BackgroundService
             or TimeoutException;
 
     private static TimeSpan GetRetryDelay(int attempt)
-        => attempt switch
+    {
+        var baseline = attempt switch
         {
             <= 1 => TimeSpan.FromMinutes(1),
             2 => TimeSpan.FromMinutes(5),
@@ -289,6 +305,10 @@ public sealed class MediaProcessingWorker : BackgroundService
             4 => TimeSpan.FromHours(1),
             _ => TimeSpan.FromHours(6)
         };
+
+        // Jitter prevents a large failed batch from retrying on the same instant.
+        return baseline.Add(TimeSpan.FromSeconds(Random.Shared.Next(5, 46)));
+    }
 
     private static string Trim(string value, int maxLength)
         => value.Length <= maxLength ? value : value[..maxLength];

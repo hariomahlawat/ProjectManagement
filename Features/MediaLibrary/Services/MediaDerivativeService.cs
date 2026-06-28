@@ -50,9 +50,16 @@ public sealed class MediaDerivativeService : IMediaDerivativeService
             var output = variant == "thumb"
                 ? _cache.GetThumbnailPath(asset.Id, asset.CacheVersion)
                 : _cache.GetPreviewPath(asset.Id, asset.CacheVersion);
-            if (File.Exists(output))
+            if (IsUsableDerivative(output))
             {
                 return output;
+            }
+
+            // A zero-length file can be left behind by an abnormal process termination.
+            // It is not a valid cache hit and can be regenerated safely.
+            if (File.Exists(output))
+            {
+                TryDelete(output);
             }
 
             var content = await _contentResolver.ResolveAsync(asset, cancellationToken)
@@ -86,16 +93,13 @@ public sealed class MediaDerivativeService : IMediaDerivativeService
                 using var encoded = image.Encode(SKEncodedImageFormat.Webp, _options.Processing.WebpQuality)
                     ?? throw new MediaProcessingPermanentException("The server could not encode the media preview.");
 
-                await using var destination = new FileStream(
-                    temporary,
-                    FileMode.CreateNew,
-                    FileAccess.Write,
-                    FileShare.None,
-                    128 * 1024,
-                    FileOptions.Asynchronous | FileOptions.SequentialScan);
-                encoded.SaveTo(destination);
-                await destination.FlushAsync(cancellationToken);
-                File.Move(temporary, output, overwrite: true);
+                var encodedBytes = encoded.ToArray();
+                if (encodedBytes.Length == 0)
+                {
+                    throw new MediaProcessingPermanentException("The server produced an empty media preview.");
+                }
+
+                await WriteAndCommitAsync(temporary, output, encodedBytes, cancellationToken);
             }
             catch (FileNotFoundException ex)
             {
@@ -262,6 +266,81 @@ public sealed class MediaDerivativeService : IMediaDerivativeService
         var height = Math.Max(1, (int)Math.Round(source.Height * scale));
         return source.Resize(new SKImageInfo(width, height), SKFilterQuality.High)
                ?? throw new MediaProcessingPermanentException("The image preview could not be resized.");
+    }
+
+
+
+    private static bool IsUsableDerivative(string path)
+    {
+        try
+        {
+            return File.Exists(path) && new FileInfo(path).Length > 0;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static async Task WriteAndCommitAsync(
+        string temporary,
+        string output,
+        ReadOnlyMemory<byte> bytes,
+        CancellationToken cancellationToken)
+    {
+        const int maximumAttempts = 4;
+
+        for (var attempt = 1; attempt <= maximumAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            TryDelete(temporary);
+
+            try
+            {
+                // SkiaSharp never receives this stream. The handle is released before
+                // the atomic rename, which is required on Windows when FileShare.None is used.
+                await using (var destination = new FileStream(
+                    temporary,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    128 * 1024,
+                    FileOptions.Asynchronous | FileOptions.SequentialScan | FileOptions.WriteThrough))
+                {
+                    await destination.WriteAsync(bytes, cancellationToken);
+                    await destination.FlushAsync(cancellationToken);
+                }
+
+                // Cache-versioned derivative names are immutable. If another process won
+                // the race, its completed file is authoritative and this temporary copy
+                // can be discarded safely.
+                if (IsUsableDerivative(output))
+                {
+                    TryDelete(temporary);
+                    return;
+                }
+
+                File.Move(temporary, output, overwrite: false);
+                return;
+            }
+            catch (IOException) when (IsUsableDerivative(output))
+            {
+                TryDelete(temporary);
+                return;
+            }
+            catch (IOException) when (attempt < maximumAttempts)
+            {
+                TryDelete(temporary);
+                var delay = TimeSpan.FromMilliseconds((attempt * 125) + Random.Shared.Next(40, 180));
+                await Task.Delay(delay, cancellationToken);
+            }
+        }
+
+        throw new IOException("The media derivative could not be committed after repeated file-system sharing conflicts.");
     }
 
     private static void TryDelete(string path)

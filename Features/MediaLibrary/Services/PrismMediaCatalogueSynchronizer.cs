@@ -295,8 +295,14 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
         if (contentChanged && asset.Id != 0 && values.Kind == MediaAssetKind.Photo)
         {
             asset.CacheVersion++;
+            asset.ContentHash = null;
             asset.DerivativeStatus = MediaProcessingStatus.Pending;
-            asset.AnalysisStatus = MediaProcessingStatus.Pending;
+            asset.AnalysisStatus = _options.Classification.Enabled
+                ? MediaProcessingStatus.Pending
+                : MediaProcessingStatus.NotRequested;
+            asset.ClassificationConfidence = null;
+            asset.AnalysisSignalsJson = null;
+            asset.AnalysedAtUtc = null;
             asset.ProcessingFailureReason = null;
         }
 
@@ -321,7 +327,12 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
         asset.IsCover = values.IsCover;
         asset.SortOrder = values.SortOrder;
         asset.QuickFingerprint = values.Fingerprint;
-        asset.IsAvailable = true;
+        // A catalogue row whose physical content was conclusively unavailable stays
+        // hidden until its source fingerprint changes. This prevents reconciliation
+        // from reviving and requeueing the same broken historical record on every scan.
+        var preserveUnavailable = !contentChanged
+            && MediaProcessingFailurePolicy.HasSourceUnavailableMarker(asset.ProcessingFailureReason);
+        asset.IsAvailable = !preserveUnavailable;
         asset.IsDeleted = false;
         asset.LastSeenAtUtc = now;
         asset.LastSeenScanId = scanId;
@@ -338,9 +349,10 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
                             && asset.Kind == MediaAssetKind.Photo
                             && asset.IsAvailable
                             && !asset.IsDeleted
-                            && (asset.AnalysisStatus == MediaProcessingStatus.NotRequested
-                                || asset.AnalysisStatus == MediaProcessingStatus.Pending
-                                || asset.DerivativeStatus == MediaProcessingStatus.Pending))
+                            && (asset.DerivativeStatus == MediaProcessingStatus.Pending
+                                || (_options.Classification.Enabled
+                                    && (asset.AnalysisStatus == MediaProcessingStatus.NotRequested
+                                        || asset.AnalysisStatus == MediaProcessingStatus.Pending))))
             .Select(asset => asset.Id)
             .ToListAsync(cancellationToken);
 
@@ -355,9 +367,24 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
         {
             if (existingJobs.TryGetValue(assetId, out var existingJob))
             {
-                if (existingJob.Status is MediaProcessingJobStatus.Completed
-                    or MediaProcessingJobStatus.Failed
-                    or MediaProcessingJobStatus.DeadLetter)
+                // Completed jobs are only requeued when the asset state itself was reset
+                // to Pending because its source fingerprint changed. Permanent failures are
+                // never revived by routine reconciliation.
+                if (existingJob.Status == MediaProcessingJobStatus.Completed)
+                {
+                    existingJob.Status = MediaProcessingJobStatus.Pending;
+                    existingJob.AttemptCount = 0;
+                    existingJob.AvailableAfterUtc = now;
+                    existingJob.StartedAtUtc = null;
+                    existingJob.CompletedAtUtc = null;
+                    existingJob.LockedBy = null;
+                    existingJob.LockExpiresAtUtc = null;
+                    existingJob.FailureCode = null;
+                    existingJob.FailureMessage = null;
+                    existingJob.UpdatedAtUtc = now;
+                }
+                else if (existingJob.Status is MediaProcessingJobStatus.Failed or MediaProcessingJobStatus.DeadLetter
+                         && MediaProcessingFailurePolicy.IsRecoverableFailureCode(existingJob.FailureCode))
                 {
                     existingJob.Status = MediaProcessingJobStatus.Pending;
                     existingJob.AttemptCount = 0;
