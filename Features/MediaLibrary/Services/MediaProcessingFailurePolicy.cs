@@ -56,4 +56,12 @@ public static class MediaProcessingFailurePolicy
 
     public static bool HasSourceUnavailableMarker(string? value)
         => value?.StartsWith(SourceUnavailableMarker, StringComparison.Ordinal) == true;
+
+    public static string GetSourceUnavailableMessage(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "The source media is unavailable.";
+        return HasSourceUnavailableMarker(value)
+            ? value[SourceUnavailableMarker.Length..].Trim()
+            : value.Trim();
+    }
 }

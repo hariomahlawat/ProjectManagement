@@ -73,30 +73,30 @@
         <div class="row g-3 mb-4">
             <div class="col-sm-6 col-xl-3">
                 <div class="border rounded-3 p-3 h-100 bg-body">
-                    <div class="text-muted small">PRISM catalogue</div>
+                    <div class="text-muted small">Available catalogue</div>
                     <div class="fs-3 fw-semibold">@Model.PrismAssetCount.ToString("N0")</div>
-                    <div class="small text-muted">indexed assets</div>
+                    <div class="small text-muted">available PRISM assets</div>
                 </div>
             </div>
             <div class="col-sm-6 col-xl-3">
                 <div class="border rounded-3 p-3 h-100 bg-body">
-                    <div class="text-muted small">External sources</div>
-                    <div class="fs-3 fw-semibold">@Model.ExternalSourceCount</div>
-                    <div class="small text-muted">connected folders</div>
-                </div>
-            </div>
-            <div class="col-sm-6 col-xl-3">
-                <div class="border rounded-3 p-3 h-100 bg-body">
-                    <div class="text-muted small">Processing queue</div>
+                    <div class="text-muted small">Processing</div>
                     <div class="fs-3 fw-semibold">@(Model.PendingJobs + Model.RetryingJobs + Model.RunningJobs)</div>
-                    <div class="small text-muted">@Model.PendingJobs pending · @Model.RunningJobs running · @Model.RetryingJobs retrying</div>
+                    <div class="small text-muted">@Model.PendingJobs pending · @Model.RunningJobs running · @Model.RetryingJobs delayed</div>
                 </div>
             </div>
             <div class="col-sm-6 col-xl-3">
                 <div class="border rounded-3 p-3 h-100 bg-body">
-                    <div class="text-muted small">Completed / attention</div>
-                    <div class="fs-3 fw-semibold @(Model.DeadLetterJobs > 0 ? "text-danger" : null)">@Model.CompletedJobs</div>
-                    <div class="small text-muted">completed · @Model.DeadLetterJobs dead-letter</div>
+                    <div class="text-muted small">Completed</div>
+                    <div class="fs-3 fw-semibold text-success">@Model.CompletedJobs</div>
+                    <div class="small text-muted">successfully processed</div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="border rounded-3 p-3 h-100 bg-body">
+                    <div class="text-muted small">Unavailable media</div>
+                    <div class="fs-3 fw-semibold @(Model.UnavailableAssetCount > 0 ? "text-warning" : "text-success")">@Model.UnavailableAssetCount</div>
+                    <div class="small text-muted">hidden from Photos · retained for audit</div>
                 </div>
             </div>
         </div>
@@ -123,6 +123,14 @@
                             <i class="bi bi-check2-square me-1" aria-hidden="true"></i> Consistency check
                         </button>
                     </form>
+                    @if (Model.UnavailableAssetCount > 0)
+                    {
+                        <form method="post" asp-page-handler="RecheckUnavailable">
+                            <button type="submit" class="btn btn-outline-warning">
+                                <i class="bi bi-folder-check me-1" aria-hidden="true"></i> Recheck unavailable
+                            </button>
+                        </form>
+                    }
                     @if (Model.FailedJobs + Model.DeadLetterJobs > 0)
                     {
                         <form method="post" asp-page-handler="RetryFailed">
@@ -306,6 +314,63 @@
                 }
             </div>
         </section>
+
+        @if (Model.UnavailableAssetCount > 0)
+        {
+            <section class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-body border-bottom d-flex flex-wrap align-items-start justify-content-between gap-3 py-3">
+                    <div>
+                        <h2 class="h5 mb-1">Unavailable media</h2>
+                        <p class="small text-muted mb-0">Source files could not be opened. These items are excluded from Photos but retained for audit and restoration.</p>
+                    </div>
+                    <form method="post" asp-page-handler="RecheckUnavailable">
+                        <button type="submit" class="btn btn-outline-warning">
+                            <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i> Recheck up to 100
+                        </button>
+                    </form>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Media</th>
+                                <th>Source</th>
+                                <th>Reason</th>
+                                <th>Last checked</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var asset in Model.UnavailableAssets)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold">@asset.ContextTitle</div>
+                                        <div class="small text-muted text-break">@asset.OriginalFileName · Asset @asset.Id</div>
+                                    </td>
+                                    <td>
+                                        <div>@asset.SourceLabel</div>
+                                        <div class="small text-muted">@asset.Origin</div>
+                                    </td>
+                                    <td class="small text-muted text-break" style="max-width: 34rem;">@asset.Reason</td>
+                                    <td class="small">@asset.LastSeenAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                                    <td class="text-end">
+                                        <form method="post" asp-page-handler="RecheckUnavailableAsset">
+                                            <input type="hidden" name="id" value="@asset.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-secondary">Recheck</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @if (Model.UnavailableAssetCount > Model.UnavailableAssets.Count)
+                {
+                    <div class="card-footer bg-body small text-muted">Showing @Model.UnavailableAssets.Count of @Model.UnavailableAssetCount unavailable items.</div>
+                }
+            </section>
+        }
 
         <div class="row g-4">
             <div class="col-12 col-xl-8">

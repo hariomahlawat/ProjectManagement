@@ -27,6 +27,7 @@ public sealed class IndexModel : PageModel
     private readonly IPrismMediaCatalogueSynchronizer _prismSynchronizer;
     private readonly IMediaProcessingRuntimeState _processingRuntime;
     private readonly IMediaCacheHealthService _cacheHealthService;
+    private readonly IMediaAvailabilityRecoveryService _availabilityRecoveryService;
 
     public IndexModel(
         MediaLibraryDbContext db,
@@ -39,7 +40,8 @@ public sealed class IndexModel : PageModel
         IMediaCatalogueConsistencyService consistencyService,
         IPrismMediaCatalogueSynchronizer prismSynchronizer,
         IMediaProcessingRuntimeState processingRuntime,
-        IMediaCacheHealthService cacheHealthService)
+        IMediaCacheHealthService cacheHealthService,
+        IMediaAvailabilityRecoveryService availabilityRecoveryService)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -52,6 +54,7 @@ public sealed class IndexModel : PageModel
         _prismSynchronizer = prismSynchronizer ?? throw new ArgumentNullException(nameof(prismSynchronizer));
         _processingRuntime = processingRuntime ?? throw new ArgumentNullException(nameof(processingRuntime));
         _cacheHealthService = cacheHealthService ?? throw new ArgumentNullException(nameof(cacheHealthService));
+        _availabilityRecoveryService = availabilityRecoveryService ?? throw new ArgumentNullException(nameof(availabilityRecoveryService));
     }
 
     [BindProperty]
@@ -64,10 +67,12 @@ public sealed class IndexModel : PageModel
     public int CompletedJobs { get; private set; }
     public int FailedJobs { get; private set; }
     public int DeadLetterJobs { get; private set; }
+    public int UnavailableAssetCount { get; private set; }
     public DateTimeOffset? OldestPendingAtUtc { get; private set; }
     public MediaProcessingRuntimeSnapshot ProcessingRuntime { get; private set; } = new(false, false, "Unknown", string.Empty, null, null, null, null, null, null, null, 0, 0, null, null);
     public MediaCacheHealthResult? CacheHealth { get; private set; }
     public IReadOnlyList<ProcessingJobRow> RecentProblemJobs { get; private set; } = Array.Empty<ProcessingJobRow>();
+    public IReadOnlyList<UnavailableAssetRow> UnavailableAssets { get; private set; } = Array.Empty<UnavailableAssetRow>();
     public bool CatalogueAvailable { get; private set; } = true;
     public bool ExternalSourcesEnabled => _options.IsExternalSourceFeatureEnabled;
     public bool IsEditing => Input.Id.HasValue;
@@ -76,7 +81,7 @@ public sealed class IndexModel : PageModel
     public MediaLibraryHealthReport? CatalogueHealth { get; private set; }
     public IReadOnlyList<MediaLibraryDiagnosticEvent> CatalogueDiagnostics { get; private set; } = Array.Empty<MediaLibraryDiagnosticEvent>();
     public int ExternalSourceCount => Sources.Count(source => source.Type == MediaLibrarySourceType.FileSystem);
-    public long PrismAssetCount => Sources.Where(source => source.Type == MediaLibrarySourceType.Prism).Sum(source => source.AssetCount);
+    public long PrismAssetCount { get; private set; }
 
     [TempData]
     public string? StatusMessage { get; set; }
@@ -458,6 +463,7 @@ public sealed class IndexModel : PageModel
             .Include(job => job.MediaAsset)
             .Where(job => (job.Status == MediaProcessingJobStatus.Failed
                            || job.Status == MediaProcessingJobStatus.DeadLetter)
+                          && job.MediaAsset.IsAvailable
                           && job.FailureCode != null
                           && MediaProcessingFailurePolicy.PermanentFailureCodeNames.Contains(job.FailureCode))
             .ToListAsync(cancellationToken);
@@ -495,9 +501,15 @@ public sealed class IndexModel : PageModel
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (job is null) return NotFound();
 
+        if (!job.MediaAsset.IsAvailable)
+        {
+            WarningMessage = "This media item is marked unavailable. Restore the underlying source and use Recheck in the Unavailable media section.";
+            return RedirectToPage();
+        }
+
         if (MediaProcessingFailurePolicy.IsPermanentFailureCode(job.FailureCode) && !forcePermanent)
         {
-            WarningMessage = "This job represents missing or permanently unsupported content. Restore the source and use force retry only after verifying it is available.";
+            WarningMessage = "This job represents permanently unsupported content. Use force retry only after correcting the source.";
             return RedirectToPage();
         }
 
@@ -526,6 +538,39 @@ public sealed class IndexModel : PageModel
         return RedirectToPage();
     }
 
+    public async Task<IActionResult> OnPostRecheckUnavailableAsync(CancellationToken cancellationToken)
+    {
+        var result = await _availabilityRecoveryService.RecheckAsync(null, 100, cancellationToken);
+        StatusMessage = result.Examined == 0
+            ? "No unavailable media required rechecking."
+            : $"Rechecked {result.Examined:N0} unavailable item(s): {result.Restored:N0} restored, {result.StillUnavailable:N0} still unavailable, {result.Errors:N0} error(s)."
+              + (result.HasMore ? " More unavailable items remain; run the check again." : string.Empty);
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostRecheckUnavailableAssetAsync(long id, CancellationToken cancellationToken)
+    {
+        var result = await _availabilityRecoveryService.RecheckAsync(id, 1, cancellationToken);
+        if (result.Examined == 0)
+        {
+            WarningMessage = "The requested unavailable media item was not found or has already been restored.";
+        }
+        else if (result.Restored == 1)
+        {
+            StatusMessage = $"Media asset {id} is available again and was queued for processing.";
+        }
+        else if (result.Errors > 0)
+        {
+            WarningMessage = $"Media asset {id} could not be checked. Review application logs for details.";
+        }
+        else
+        {
+            WarningMessage = $"Media asset {id} is still unavailable. Restore the underlying file before rechecking.";
+        }
+
+        return RedirectToPage();
+    }
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         var schema = await _schemaService.GetStatusAsync(cancellationToken);
@@ -541,6 +586,9 @@ public sealed class IndexModel : PageModel
             CompletedJobs = 0;
             FailedJobs = 0;
             DeadLetterJobs = 0;
+            PrismAssetCount = 0;
+            UnavailableAssetCount = 0;
+            UnavailableAssets = Array.Empty<UnavailableAssetRow>();
             ProcessingRuntime = _processingRuntime.GetSnapshot();
             CatalogueDiagnostics = _catalogueDiagnostics.GetLatest();
             return;
@@ -572,6 +620,12 @@ public sealed class IndexModel : PageModel
                     source.LastError))
                 .ToListAsync(cancellationToken);
 
+            PrismAssetCount = await _db.Assets.LongCountAsync(
+                asset => asset.Source.SourceType == MediaLibrarySourceType.Prism
+                         && asset.IsAvailable
+                         && !asset.IsDeleted,
+                cancellationToken);
+
             var now = DateTimeOffset.UtcNow;
             PendingJobs = await _db.ProcessingJobs.CountAsync(
                 job => job.Status == MediaProcessingJobStatus.Pending
@@ -591,8 +645,45 @@ public sealed class IndexModel : PageModel
                 job => job.Status == MediaProcessingJobStatus.Failed,
                 cancellationToken);
             DeadLetterJobs = await _db.ProcessingJobs.CountAsync(
-                job => job.Status == MediaProcessingJobStatus.DeadLetter,
+                job => job.Status == MediaProcessingJobStatus.DeadLetter
+                       && job.MediaAsset.IsAvailable,
                 cancellationToken);
+            UnavailableAssetCount = await _db.Assets.CountAsync(
+                asset => !asset.IsAvailable
+                         && !asset.IsDeleted
+                         && asset.ProcessingFailureReason != null
+                         && asset.ProcessingFailureReason.StartsWith(MediaProcessingFailurePolicy.SourceUnavailableMarker),
+                cancellationToken);
+            var unavailableRows = await _db.Assets
+                .AsNoTracking()
+                .Where(asset => !asset.IsAvailable
+                                && !asset.IsDeleted
+                                && asset.ProcessingFailureReason != null
+                                && asset.ProcessingFailureReason.StartsWith(MediaProcessingFailurePolicy.SourceUnavailableMarker))
+                .OrderByDescending(asset => asset.LastSeenAtUtc)
+                .ThenBy(asset => asset.Id)
+                .Take(50)
+                .Select(asset => new
+                {
+                    asset.Id,
+                    asset.Origin,
+                    asset.ContextTitle,
+                    asset.OriginalFileName,
+                    asset.SourceLabel,
+                    asset.LastSeenAtUtc,
+                    asset.ProcessingFailureReason
+                })
+                .ToListAsync(cancellationToken);
+            UnavailableAssets = unavailableRows
+                .Select(asset => new UnavailableAssetRow(
+                    asset.Id,
+                    asset.Origin,
+                    asset.ContextTitle,
+                    asset.OriginalFileName,
+                    asset.SourceLabel,
+                    asset.LastSeenAtUtc,
+                    MediaProcessingFailurePolicy.GetSourceUnavailableMessage(asset.ProcessingFailureReason)))
+                .ToList();
             OldestPendingAtUtc = await _db.ProcessingJobs
                 .Where(job => job.Status == MediaProcessingJobStatus.Pending)
                 .OrderBy(job => job.CreatedAtUtc)
@@ -601,9 +692,10 @@ public sealed class IndexModel : PageModel
 
             RecentProblemJobs = await _db.ProcessingJobs
                 .AsNoTracking()
-                .Where(job => job.Status == MediaProcessingJobStatus.DeadLetter
-                              || job.Status == MediaProcessingJobStatus.Failed
-                              || (job.Status == MediaProcessingJobStatus.Pending && job.AttemptCount > 0))
+                .Where(job => job.MediaAsset.IsAvailable
+                              && (job.Status == MediaProcessingJobStatus.DeadLetter
+                                  || job.Status == MediaProcessingJobStatus.Failed
+                                  || (job.Status == MediaProcessingJobStatus.Pending && job.AttemptCount > 0)))
                 .OrderByDescending(job => job.UpdatedAtUtc)
                 .Take(20)
                 .Select(job => new ProcessingJobRow(
@@ -719,6 +811,15 @@ public sealed class IndexModel : PageModel
         string? FailureMessage,
         DateTimeOffset AvailableAfterUtc,
         DateTimeOffset UpdatedAtUtc);
+
+    public sealed record UnavailableAssetRow(
+        long Id,
+        MediaAssetOrigin Origin,
+        string ContextTitle,
+        string OriginalFileName,
+        string SourceLabel,
+        DateTimeOffset LastSeenAtUtc,
+        string Reason);
 
     public sealed class SourceInput
     {

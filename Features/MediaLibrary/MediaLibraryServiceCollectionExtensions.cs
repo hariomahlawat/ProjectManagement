@@ -50,6 +50,7 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddSingleton<IMediaLibraryDiagnostics, MediaLibraryDiagnostics>();
         services.AddScoped<IMediaLibraryHealthService, MediaLibraryHealthService>();
         services.AddScoped<IMediaCatalogueConsistencyService, MediaCatalogueConsistencyService>();
+        services.AddScoped<IMediaAvailabilityRecoveryService, MediaAvailabilityRecoveryService>();
         services.AddScoped<IMediaLibraryQueryService, MediaLibraryQueryService>();
         services.AddScoped<IMediaContentProvider, FileSystemMediaContentProvider>();
         services.AddScoped<IMediaContentProvider, ProjectPhotoMediaContentProvider>();
