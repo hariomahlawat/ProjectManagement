@@ -16,64 +16,39 @@ public sealed class MediaModel : PageModel
 {
     private readonly MediaLibraryDbContext _db;
     private readonly IMediaDerivativeService _derivatives;
-    private readonly IFileSystemPathResolver _pathResolver;
+    private readonly IMediaContentProviderResolver _contentResolver;
     private readonly MediaLibraryOptions _options;
     private readonly ILogger<MediaModel> _logger;
 
-    public MediaModel(
-        MediaLibraryDbContext db,
-        IMediaDerivativeService derivatives,
-        IFileSystemPathResolver pathResolver,
-        IOptions<MediaLibraryOptions> options,
+    public MediaModel(MediaLibraryDbContext db, IMediaDerivativeService derivatives,
+        IMediaContentProviderResolver contentResolver, IOptions<MediaLibraryOptions> options,
         ILogger<MediaModel> logger)
     {
-        _db = db ?? throw new ArgumentNullException(nameof(db));
-        _derivatives = derivatives ?? throw new ArgumentNullException(nameof(derivatives));
-        _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _db = db; _derivatives = derivatives; _contentResolver = contentResolver;
+        _options = options.Value; _logger = logger;
     }
 
-    public async Task<IActionResult> OnGetAsync(
-        long id,
-        string? variant,
-        bool download = false,
+    public async Task<IActionResult> OnGetAsync(long id, string? variant, bool download = false,
         CancellationToken cancellationToken = default)
     {
-        if (!_options.IsExternalSourceFeatureEnabled)
-        {
-            return NotFound();
-        }
+        if (!_options.IsCatalogueEnabled) return NotFound();
 
         MediaAsset? asset;
         try
         {
-            asset = await _db.Assets
-                .AsNoTracking()
-                .Include(item => item.Source)
-                .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+            asset = await _db.Assets.AsNoTracking().Include(x => x.Source)
+                .SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
         }
         catch (Exception ex) when (ex is NpgsqlException or InvalidOperationException or TimeoutException)
         {
-            _logger.LogWarning(ex, "External media catalogue is unavailable while serving asset {AssetId}", id);
+            _logger.LogWarning(ex, "Media catalogue is unavailable while serving asset {AssetId}", id);
             return StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
 
-        if (asset is null
-            || !asset.IsAvailable
-            || asset.IsDeleted
-            || asset.Source.IsDeleted
-            || !asset.Source.IsVisibleInLibrary)
-        {
+        if (asset is null || !asset.IsAvailable || asset.IsDeleted || asset.Source.IsDeleted)
             return NotFound();
-        }
-
-        if (asset.Source.SourceType != MediaLibrarySourceType.FileSystem
-            || string.IsNullOrWhiteSpace(asset.Source.RootPath)
-            || string.IsNullOrWhiteSpace(asset.RelativePath))
-        {
+        if (asset.Source.SourceType == MediaLibrarySourceType.FileSystem && !asset.Source.IsVisibleInLibrary)
             return NotFound();
-        }
 
         variant = variant?.Trim().ToLowerInvariant() switch
         {
@@ -85,56 +60,32 @@ public sealed class MediaModel : PageModel
 
         try
         {
-            string path;
-            string contentType;
-            var enableRangeProcessing = false;
-
             if (variant is "thumb" or "preview")
             {
-                if (asset.Kind != MediaAssetKind.Photo)
-                {
-                    return NotFound();
-                }
-
-                path = await _derivatives.EnsureAsync(asset.Id, variant, cancellationToken);
-                contentType = "image/webp";
+                if (asset.Kind != MediaAssetKind.Photo) return NotFound();
+                var path = await _derivatives.EnsureAsync(asset.Id, variant, cancellationToken);
+                var stream = new FileStream(path, FileMode.Open, FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete, 128 * 1024,
+                    FileOptions.Asynchronous | FileOptions.SequentialScan);
                 Response.Headers.CacheControl = "private,max-age=86400";
-            }
-            else
-            {
-                path = _pathResolver.ResolveAssetPath(asset.Source.RootPath, asset.RelativePath);
-                if (!System.IO.File.Exists(path))
-                {
-                    return StatusCode(StatusCodes.Status503ServiceUnavailable);
-                }
-
-                contentType = asset.ContentType;
-                enableRangeProcessing = asset.Kind == MediaAssetKind.Video;
-                Response.Headers.CacheControl = "private,max-age=300";
+                return new FileStreamResult(stream, "image/webp") { LastModified = asset.FileModifiedAtUtc };
             }
 
-            var stream = new FileStream(
-                path,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete,
-                bufferSize: 128 * 1024,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
-
-            return new FileStreamResult(stream, contentType)
+            var content = await _contentResolver.ResolveAsync(asset, cancellationToken);
+            if (content is null) return StatusCode(StatusCodes.Status503ServiceUnavailable);
+            var original = await content.OpenReadAsync(cancellationToken);
+            Response.Headers.CacheControl = "private,max-age=300";
+            return new FileStreamResult(original, content.ContentType)
             {
-                EnableRangeProcessing = enableRangeProcessing,
+                EnableRangeProcessing = asset.Kind == MediaAssetKind.Video,
                 FileDownloadName = download ? asset.OriginalFileName : null,
-                LastModified = asset.FileModifiedAtUtc
+                LastModified = content.LastModifiedUtc ?? asset.FileModifiedAtUtc
             };
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            _logger.LogWarning(ex, "Unable to serve external media asset {AssetId}", id);
+            _logger.LogWarning(ex, "Unable to serve media asset {AssetId}", id);
             return StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
     }

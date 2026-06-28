@@ -107,6 +107,58 @@ public sealed class MediaMetadataReader : IMediaMetadataReader
             model));
     }
 
+
+    public async Task<MediaFileMetadata> ReadAsync(MediaContentDescriptor content, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var extension = Path.GetExtension(content.FileName);
+        var kind = VideoExtensions.Contains(extension) ? MediaAssetKind.Video : MediaAssetKind.Photo;
+        var modified = content.LastModifiedUtc ?? DateTimeOffset.UtcNow;
+        if (kind == MediaAssetKind.Video)
+        {
+            return new MediaFileMetadata(kind, content.ContentType, content.Length ?? 0, modified, modified, null, null, null, false, null, null);
+        }
+
+        await using var source = await content.OpenReadAsync(cancellationToken);
+        using var memory = new MemoryStream();
+        await source.CopyToAsync(memory, cancellationToken);
+        memory.Position = 0;
+
+        int width;
+        int height;
+        using (var codec = SKCodec.Create(memory))
+        {
+            if (codec is null || codec.Info.Width <= 0 || codec.Info.Height <= 0)
+                throw new InvalidDataException("The image format is not supported by the current server decoder.");
+            var rotates = codec.EncodedOrigin is SKEncodedOrigin.LeftTop or SKEncodedOrigin.RightTop or SKEncodedOrigin.RightBottom or SKEncodedOrigin.LeftBottom;
+            width = rotates ? codec.Info.Height : codec.Info.Width;
+            height = rotates ? codec.Info.Width : codec.Info.Height;
+        }
+
+        memory.Position = 0;
+        string? make = null;
+        string? model = null;
+        DateTimeOffset? taken = null;
+        try
+        {
+            var directories = ImageMetadataReader.ReadMetadata(memory);
+            var ifd0 = directories.OfType<ExifIfd0Directory>().FirstOrDefault();
+            var subIfd = directories.OfType<ExifSubIfdDirectory>().FirstOrDefault();
+            make = ifd0?.GetString(ExifDirectoryBase.TagMake)?.Trim();
+            model = ifd0?.GetString(ExifDirectoryBase.TagModel)?.Trim();
+            if (TryGetDate(subIfd, ExifDirectoryBase.TagDateTimeOriginal, out var original)
+                || TryGetDate(subIfd, ExifDirectoryBase.TagDateTimeDigitized, out original)
+                || TryGetDate(ifd0, ExifDirectoryBase.TagDateTime, out original))
+                taken = new DateTimeOffset(DateTime.SpecifyKind(original, DateTimeKind.Local));
+        }
+        catch (ImageProcessingException) { }
+
+        return new MediaFileMetadata(kind, content.ContentType, content.Length ?? memory.Length, modified, taken ?? modified, width, height, null,
+            !string.IsNullOrWhiteSpace(make) || !string.IsNullOrWhiteSpace(model), make, model);
+    }
+
     private static bool TryGetDate(ExifDirectoryBase? directory, int tag, out DateTime value)
     {
         value = default;

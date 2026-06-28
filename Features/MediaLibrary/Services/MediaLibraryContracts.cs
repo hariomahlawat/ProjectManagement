@@ -111,12 +111,18 @@ public interface IExternalMediaLibraryReader
 public interface IMediaMetadataReader
 {
     Task<MediaFileMetadata> ReadAsync(string path, CancellationToken cancellationToken);
+    Task<MediaFileMetadata> ReadAsync(MediaContentDescriptor content, CancellationToken cancellationToken);
 }
 
 public interface IMediaClassifier
 {
     Task<MediaClassificationResult> ClassifyAsync(
         string path,
+        MediaFileMetadata metadata,
+        CancellationToken cancellationToken);
+
+    Task<MediaClassificationResult> ClassifyAsync(
+        MediaContentDescriptor content,
         MediaFileMetadata metadata,
         CancellationToken cancellationToken);
 }

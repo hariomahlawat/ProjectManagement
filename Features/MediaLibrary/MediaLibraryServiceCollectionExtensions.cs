@@ -40,6 +40,12 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaLibraryHealthService, MediaLibraryHealthService>();
         services.AddScoped<IMediaCatalogueConsistencyService, MediaCatalogueConsistencyService>();
         services.AddScoped<IMediaLibraryQueryService, MediaLibraryQueryService>();
+        services.AddScoped<IMediaContentProvider, FileSystemMediaContentProvider>();
+        services.AddScoped<IMediaContentProvider, ProjectPhotoMediaContentProvider>();
+        services.AddScoped<IMediaContentProvider, ProjectVideoMediaContentProvider>();
+        services.AddScoped<IMediaContentProvider, VisitPhotoMediaContentProvider>();
+        services.AddScoped<IMediaContentProvider, SocialMediaPhotoMediaContentProvider>();
+        services.AddScoped<IMediaContentProviderResolver, MediaContentProviderResolver>();
         services.AddScoped<IMediaMetadataReader, MediaMetadataReader>();
         services.AddScoped<IMediaClassifier, MediaClassifier>();
         services.AddScoped<IMediaDerivativeService, MediaDerivativeService>();

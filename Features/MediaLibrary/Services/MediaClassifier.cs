@@ -29,6 +29,18 @@ public sealed class MediaClassifier : IMediaClassifier
         string path,
         MediaFileMetadata metadata,
         CancellationToken cancellationToken)
+        => ClassifyCoreAsync(Path.GetFileName(path), metadata, cancellationToken);
+
+    public Task<MediaClassificationResult> ClassifyAsync(
+        MediaContentDescriptor content,
+        MediaFileMetadata metadata,
+        CancellationToken cancellationToken)
+        => ClassifyCoreAsync(content.FileName, metadata, cancellationToken);
+
+    private Task<MediaClassificationResult> ClassifyCoreAsync(
+        string fileNameWithExtension,
+        MediaFileMetadata metadata,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -61,8 +73,8 @@ public sealed class MediaClassifier : IMediaClassifier
 
         var signals = new List<string>();
         var screenshotScore = 0d;
-        var fileName = Path.GetFileNameWithoutExtension(path);
-        var extension = Path.GetExtension(path);
+        var fileName = Path.GetFileNameWithoutExtension(fileNameWithExtension);
+        var extension = Path.GetExtension(fileNameWithExtension);
 
         if (ScreenshotTerms.Any(term => fileName.Contains(term, StringComparison.OrdinalIgnoreCase)))
         {
