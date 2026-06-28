@@ -73,6 +73,6 @@ public sealed class FaceEligibilityPolicy : IFaceEligibilityPolicy
                                   && asset.Classification == MediaClassification.Photograph
                                   && asset.ClassificationDecisionStatus == MediaClassificationDecisionStatus.AutomaticallyAccepted
                                   && asset.PredictedClassification == MediaClassification.Photograph
-                                  && asset.PredictedClassificationScore >= Convert.ToDecimal(threshold))));
+                                  && asset.PredictedClassificationScore >= Convert.ToDecimal(threshold)));
     }
 }
