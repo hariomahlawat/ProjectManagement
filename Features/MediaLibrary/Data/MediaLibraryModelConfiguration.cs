@@ -55,7 +55,18 @@ public static class MediaLibraryModelConfiguration
             entity.Property(x => x.Title).HasMaxLength(300).IsRequired();
             entity.Property(x => x.Caption).HasMaxLength(1024);
             entity.Property(x => x.VersionToken).HasMaxLength(128);
+            // --- Classification prediction and decision columns ---
+            entity.Property(x => x.PredictedClassification).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.PredictedClassificationScore).HasPrecision(5, 4);
             entity.Property(x => x.Classification).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.ClassificationDecisionStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.ClassificationDecisionReasonCode).HasMaxLength(128);
+            entity.Property(x => x.AutomaticClassificationSignalsJson).HasColumnType("jsonb");
+            entity.Property(x => x.AutomaticClassificationScoresJson).HasColumnType("jsonb");
+            entity.Property(x => x.AutomaticClassificationMetricsJson).HasColumnType("jsonb");
+            entity.Property(x => x.ClassificationReviewedByUserId).HasMaxLength(450);
+            entity.Property(x => x.ClassificationReviewReason).HasMaxLength(1024);
+            entity.Property(x => x.ClassificationConcurrencyToken).IsConcurrencyToken();
             entity.Property(x => x.DerivativeStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(x => x.AnalysisStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(x => x.AnalysisVersion).HasMaxLength(128);
@@ -81,6 +92,13 @@ public static class MediaLibraryModelConfiguration
                 .HasDatabaseName("IX_MediaAssets_ProjectTimeline");
             entity.HasIndex(x => new { x.Kind, x.Classification });
             entity.HasIndex(x => new { x.ClassificationIsManual, x.Classification });
+            entity.HasIndex(x => x.ClassificationDecisionStatus);
+            entity.HasIndex(x => x.PredictedClassification);
+            entity.HasIndex(x => x.Classification);
+            entity.HasIndex(x => x.ClassificationIsManual);
+            entity.HasIndex(x => x.ClassifierVersion);
+            entity.HasIndex(x => x.ClassificationReviewedAt);
+            entity.HasIndex(x => x.ClassificationConcurrencyToken);
             entity.HasIndex(x => x.ProjectId);
             entity.HasIndex(x => x.CollectionKey);
             entity.HasOne(x => x.Source)
@@ -95,10 +113,38 @@ public static class MediaLibraryModelConfiguration
             entity.HasKey(x => x.Id);
             entity.Property(x => x.PreviousClassification).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(x => x.NewClassification).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.AutomaticPredictedClassification).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.AutomaticPredictedScore).HasPrecision(5, 4);
+            entity.Property(x => x.PreviousDecisionStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.NewDecisionStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.CorrelationId).HasMaxLength(128);
             entity.Property(x => x.ChangedByUserId).HasMaxLength(450).IsRequired();
             entity.Property(x => x.Reason).HasMaxLength(1024);
             entity.HasIndex(x => new { x.MediaAssetId, x.ChangedAtUtc });
             entity.HasOne(x => x.MediaAsset).WithMany().HasForeignKey(x => x.MediaAssetId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+
+        modelBuilder.Entity<MediaClassificationRun>(entity =>
+        {
+            entity.ToTable("MediaClassificationRuns");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.ClassifierVersion).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.PredictedClassification).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.PredictedScore).HasPrecision(5, 4);
+            entity.Property(x => x.EffectiveClassification).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.DecisionStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.DecisionReasonCode).HasMaxLength(128);
+            entity.Property(x => x.CategoryScoresJson).HasColumnType("jsonb").HasDefaultValue("{}");
+            entity.Property(x => x.SignalsJson).HasColumnType("jsonb").HasDefaultValue("[]");
+            entity.Property(x => x.MetricsJson).HasColumnType("jsonb").HasDefaultValue("{}");
+            entity.Property(x => x.FailureReason).HasMaxLength(2048);
+            entity.HasIndex(x => new { x.MediaAssetId, x.CompletedAt }).HasDatabaseName("IX_MediaClassificationRuns_Asset_CompletedAt");
+            entity.HasIndex(x => x.ClassifierVersion);
+            entity.HasIndex(x => x.PredictedClassification);
+            entity.HasIndex(x => x.DecisionStatus);
+            entity.HasIndex(x => x.Succeeded);
+            entity.HasOne(x => x.MediaAsset).WithMany(x => x.ClassificationRuns).HasForeignKey(x => x.MediaAssetId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<MediaProcessingJob>(entity =>

@@ -18,20 +18,34 @@ public sealed class MediaClassificationOverrideService : IMediaClassificationOve
 
     public async Task SetManualAsync(long assetId, MediaClassification classification, string userId, string? reason, CancellationToken cancellationToken)
     {
+        // --- Validate manual review input ---
         if (classification == MediaClassification.Unknown) throw new ArgumentException("Choose a specific classification.", nameof(classification));
+
+        // --- Preserve automatic evidence while applying authoritative manual decision ---
         var asset = await _db.Assets.SingleAsync(x => x.Id == assetId, cancellationToken);
         var previous = asset.Classification;
         var previousManual = asset.ClassificationIsManual;
+        var previousStatus = asset.ClassificationDecisionStatus;
+        var now = DateTimeOffset.UtcNow;
+
         asset.Classification = classification;
         asset.ClassificationConfidence = 1;
         asset.ClassificationIsManual = true;
         asset.ClassificationUpdatedByUserId = userId;
-        asset.ClassifiedAtUtc = DateTimeOffset.UtcNow;
-        asset.ClassifierVersion = "manual";
-        asset.AnalysisVersion = "manual";
+        asset.ClassificationReviewedByUserId = userId;
+        asset.ClassifiedAtUtc = now;
+        asset.ClassificationReviewedAt = now;
+        asset.ClassificationReviewReason = NormalizeReason(reason);
+        asset.ClassificationDecisionStatus = classification == asset.PredictedClassification
+            ? MediaClassificationDecisionStatus.ManuallyConfirmed
+            : MediaClassificationDecisionStatus.ManuallyCorrected;
+        asset.ClassificationDecisionReasonCode = classification == asset.PredictedClassification
+            ? "MANUAL_CONFIRMATION"
+            : "MANUAL_CORRECTION";
         asset.AnalysisStatus = MediaProcessingStatus.Ready;
-        asset.AnalysisSignalsJson = "[\"Manual classification confirmed by an authorised user.\"]";
-        _db.ClassificationAudits.Add(CreateAudit(assetId, previous, classification, previousManual, true, userId, reason));
+        asset.ClassificationConcurrencyToken = Guid.NewGuid();
+
+        _db.ClassificationAudits.Add(CreateAudit(assetId, previous, classification, previousManual, true, previousStatus, asset.ClassificationDecisionStatus, userId, reason, asset));
         await _db.SaveChangesAsync(cancellationToken);
     }
 
@@ -64,25 +78,37 @@ public sealed class MediaClassificationOverrideService : IMediaClassificationOve
         var normalizedReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
         foreach (var asset in assets)
         {
+            // --- Preserve automatic evidence while applying authoritative manual decision ---
             var previous = asset.Classification;
             var previousManual = asset.ClassificationIsManual;
+            var previousStatus = asset.ClassificationDecisionStatus;
             asset.Classification = classification;
             asset.ClassificationConfidence = 1;
             asset.ClassificationIsManual = true;
             asset.ClassificationUpdatedByUserId = userId;
+            asset.ClassificationReviewedByUserId = userId;
             asset.ClassifiedAtUtc = now;
-            asset.ClassifierVersion = "manual";
-            asset.AnalysisVersion = "manual";
+            asset.ClassificationReviewedAt = now;
+            asset.ClassificationReviewReason = normalizedReason;
+            asset.ClassificationDecisionStatus = classification == asset.PredictedClassification
+                ? MediaClassificationDecisionStatus.ManuallyConfirmed
+                : MediaClassificationDecisionStatus.ManuallyCorrected;
+            asset.ClassificationDecisionReasonCode = classification == asset.PredictedClassification
+                ? "MANUAL_CONFIRMATION"
+                : "MANUAL_CORRECTION";
             asset.AnalysisStatus = MediaProcessingStatus.Ready;
-            asset.AnalysisSignalsJson = "[\"Manual classification confirmed by an authorised user.\"]";
+            asset.ClassificationConcurrencyToken = Guid.NewGuid();
             _db.ClassificationAudits.Add(CreateAudit(
                 asset.Id,
                 previous,
                 classification,
                 previousManual,
                 true,
+                previousStatus,
+                asset.ClassificationDecisionStatus,
                 userId,
-                normalizedReason));
+                normalizedReason,
+                asset));
         }
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -95,13 +121,19 @@ public sealed class MediaClassificationOverrideService : IMediaClassificationOve
         var asset = await _db.Assets.SingleAsync(x => x.Id == assetId, cancellationToken);
         var previous = asset.Classification;
         var previousManual = asset.ClassificationIsManual;
+        var previousStatus = asset.ClassificationDecisionStatus;
         asset.ClassificationIsManual = false;
         asset.ClassificationUpdatedByUserId = null;
+        asset.ClassificationReviewedByUserId = null;
+        asset.ClassificationReviewedAt = null;
+        asset.ClassificationReviewReason = null;
         asset.ClassificationConfidence = null;
-        asset.ClassifierVersion = null;
         asset.ClassifiedAtUtc = null;
+        asset.ClassificationDecisionStatus = MediaClassificationDecisionStatus.NotProcessed;
+        asset.ClassificationDecisionReasonCode = null;
+        asset.ClassificationConcurrencyToken = Guid.NewGuid();
         asset.AnalysisStatus = MediaProcessingStatus.Pending;
-        _db.ClassificationAudits.Add(CreateAudit(assetId, previous, previous, previousManual, false, userId, reason));
+        _db.ClassificationAudits.Add(CreateAudit(assetId, previous, previous, previousManual, false, previousStatus, asset.ClassificationDecisionStatus, userId, reason, asset));
 
         var job = await _db.ProcessingJobs.SingleOrDefaultAsync(x => x.MediaAssetId == assetId && x.JobType == MediaProcessingJobType.ClassifyMedia, cancellationToken);
         if (job is null)
@@ -129,15 +161,23 @@ public sealed class MediaClassificationOverrideService : IMediaClassificationOve
     }
 
     private static MediaClassificationAudit CreateAudit(long assetId, MediaClassification previous, MediaClassification next,
-        bool previousManual, bool nextManual, string userId, string? reason) => new()
+        bool previousManual, bool nextManual, MediaClassificationDecisionStatus previousStatus,
+        MediaClassificationDecisionStatus nextStatus, string userId, string? reason, MediaAsset asset) => new()
     {
         MediaAssetId = assetId,
         PreviousClassification = previous,
         NewClassification = next,
         PreviousWasManual = previousManual,
         NewIsManual = nextManual,
+        AutomaticPredictedClassification = asset.PredictedClassification,
+        AutomaticPredictedScore = asset.PredictedClassificationScore,
+        PreviousDecisionStatus = previousStatus,
+        NewDecisionStatus = nextStatus,
         ChangedByUserId = userId,
-        Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(),
+        Reason = NormalizeReason(reason),
         ChangedAtUtc = DateTimeOffset.UtcNow
     };
+
+    private static string? NormalizeReason(string? reason)
+        => string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
 }
