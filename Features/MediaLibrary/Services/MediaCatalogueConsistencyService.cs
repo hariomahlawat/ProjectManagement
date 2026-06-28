@@ -70,23 +70,36 @@ public sealed class MediaCatalogueConsistencyService : IMediaCatalogueConsistenc
 
         var catalogue = await _mediaDb.Assets.AsNoTracking()
             .Where(asset => asset.Origin != MediaAssetOrigin.ExternalFile && !asset.IsDeleted)
-            .Select(asset => new { asset.SourceEntityId, asset.IsAvailable })
+            .Select(asset => new
+            {
+                asset.SourceEntityId,
+                asset.IsAvailable,
+                asset.AvailabilityStatus
+            })
             .ToListAsync(cancellationToken);
 
-        var availableIds = catalogue
-            .Where(asset => asset.IsAvailable && asset.AvailabilityStatus == MediaAvailabilityStatus.Available)
+        // Catalogue integrity and source availability are deliberately separate concerns.
+        // An unavailable asset still exists in the catalogue and must not be reported as
+        // "missing from catalogue" merely because its physical source cannot be read.
+        var catalogueIds = catalogue
             .Select(asset => asset.SourceEntityId)
             .ToHashSet(StringComparer.Ordinal);
 
-        var missing = expected.Count(id => !availableIds.Contains(id));
-        var orphaned = availableIds.Count(id => !expected.Contains(id));
+        var missing = expected.Count(id => !catalogueIds.Contains(id));
+        var orphaned = catalogueIds.Count(id => !expected.Contains(id));
+
+        var available = catalogue.Count(asset =>
+            asset.IsAvailable
+            && asset.AvailabilityStatus == MediaAvailabilityStatus.Available);
+
+        var unavailable = catalogue.Count - available;
 
         return new MediaCatalogueConsistencyReport(
             expected.Count,
             catalogue.Count,
             missing,
             orphaned,
-            catalogue.Count(asset => asset.IsAvailable),
-            catalogue.Count(asset => !asset.IsAvailable));
+            available,
+            unavailable);
     }
 }
