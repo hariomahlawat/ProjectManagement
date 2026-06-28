@@ -79,6 +79,12 @@ public static class MediaLibraryServiceCollectionExtensions
         if (configuredOptions.IsProcessingWorkerEnabled)
         {
             services.AddHostedService<MediaProcessingWorker>();
+        }
+
+        // Availability reconciliation protects the integrity of the central timeline
+        // and is required even when derivative/analysis processing is disabled.
+        if (configuredOptions.IsCatalogueEnabled)
+        {
             services.AddHostedService<MediaAvailabilityReconciliationWorker>();
         }
 

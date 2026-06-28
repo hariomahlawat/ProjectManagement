@@ -680,3 +680,28 @@
         width: min(78vw, 350px);
     }
 }
+
+
+.photos-tile__unavailable {
+    position: absolute;
+    inset: 0;
+    display: none;
+    place-content: center;
+    justify-items: center;
+    gap: .35rem;
+    padding: 1rem;
+    background: linear-gradient(145deg, #eef2f7, #e3e8ef);
+    color: #5f6b7a;
+    text-align: center;
+    z-index: 2;
+}
+
+.photos-tile__unavailable i { font-size: 1.5rem; }
+.photos-tile__unavailable strong { font-size: .85rem; }
+.photos-tile__unavailable small { font-size: .72rem; }
+.photos-tile--unavailable .photos-tile__unavailable { display: grid; }
+.photos-tile--unavailable .photos-tile__shade,
+.photos-tile--unavailable .photos-tile__meta,
+.photos-tile--unavailable .photos-tile__play,
+.photos-tile--unavailable .photos-tile__duration { display: none; }
+.photos-tile--unavailable { cursor: default; }

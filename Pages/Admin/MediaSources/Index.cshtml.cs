@@ -68,6 +68,8 @@ public sealed class IndexModel : PageModel
     public int FailedJobs { get; private set; }
     public int DeadLetterJobs { get; private set; }
     public int UnavailableAssetCount { get; private set; }
+    public int HistoricalAvailabilityCandidates { get; private set; }
+    public DateTimeOffset? LastAvailabilityCheckUtc { get; private set; }
     public DateTimeOffset? OldestPendingAtUtc { get; private set; }
     public MediaProcessingRuntimeSnapshot ProcessingRuntime { get; private set; } = new(false, false, "Unknown", string.Empty, null, null, null, null, null, null, null, 0, 0, null, null);
     public MediaCacheHealthResult? CacheHealth { get; private set; }
@@ -554,8 +556,17 @@ public sealed class IndexModel : PageModel
     public async Task<IActionResult> OnPostReconcileAvailabilityAsync(CancellationToken cancellationToken)
     {
         var result = await _availabilityRecoveryService.ReconcileHistoricalAsync(250, cancellationToken);
-        StatusMessage = $"Availability reconciliation examined {result.Examined:N0} item(s): {result.Restored:N0} restored, {result.MarkedUnavailable:N0} marked unavailable, {result.Errors:N0} error(s).";
-        if (result.HasMore) WarningMessage = "More historical items remain. Run Reconcile availability again.";
+        StatusMessage = result.Examined == 0
+            ? "No historical missing-media records required reconciliation."
+            : $"Availability reconciliation examined {result.Examined:N0} item(s): {result.Restored:N0} restored, "
+              + $"{result.MarkedUnavailable:N0} confirmed unavailable, {result.TemporarilyUnavailable:N0} temporarily unavailable, "
+              + $"{result.Errors:N0} error(s).";
+
+        if (result.HasMore)
+        {
+            WarningMessage = "Additional historical items remain. Background reconciliation will continue automatically.";
+        }
+
         return RedirectToPage();
     }
 
@@ -612,6 +623,8 @@ public sealed class IndexModel : PageModel
             DeadLetterJobs = 0;
             PrismAssetCount = 0;
             UnavailableAssetCount = 0;
+            HistoricalAvailabilityCandidates = 0;
+            LastAvailabilityCheckUtc = null;
             UnavailableAssets = Array.Empty<UnavailableAssetRow>();
             ProcessingRuntime = _processingRuntime.GetSnapshot();
             CatalogueDiagnostics = _catalogueDiagnostics.GetLatest();
@@ -669,15 +682,22 @@ public sealed class IndexModel : PageModel
             FailedJobs = await _db.ProcessingJobs.CountAsync(
                 job => job.Status == MediaProcessingJobStatus.Failed,
                 cancellationToken);
+            var unavailableFailureCodes = new[]
+            {
+                nameof(MediaContentUnavailableException),
+                nameof(FileNotFoundException),
+                nameof(DirectoryNotFoundException)
+            };
             DeadLetterJobs = await _db.ProcessingJobs.CountAsync(
                 job => job.Status == MediaProcessingJobStatus.DeadLetter
                        && job.MediaAsset.IsAvailable
-                       && job.MediaAsset.AvailabilityStatus == MediaAvailabilityStatus.Available,
+                       && job.MediaAsset.AvailabilityStatus == MediaAvailabilityStatus.Available
+                       && (job.FailureCode == null || !unavailableFailureCodes.Contains(job.FailureCode)),
                 cancellationToken);
-            UnavailableAssetCount = await _db.Assets.CountAsync(
-                asset => !asset.IsDeleted
-                         && asset.AvailabilityStatus != MediaAvailabilityStatus.Available,
-                cancellationToken);
+            var availabilityStatus = await _availabilityRecoveryService.GetStatusAsync(cancellationToken);
+            UnavailableAssetCount = availabilityStatus.UnavailableAssets;
+            HistoricalAvailabilityCandidates = availabilityStatus.HistoricalCandidates;
+            LastAvailabilityCheckUtc = availabilityStatus.LastAvailabilityCheckUtc;
             var unavailableRows = await _db.Assets
                 .AsNoTracking()
                 .Where(asset => !asset.IsDeleted
@@ -721,6 +741,7 @@ public sealed class IndexModel : PageModel
             RecentProblemJobs = await _db.ProcessingJobs
                 .AsNoTracking()
                 .Where(job => job.MediaAsset.IsAvailable
+                              && (job.FailureCode == null || !unavailableFailureCodes.Contains(job.FailureCode))
                               && job.MediaAsset.AvailabilityStatus == MediaAvailabilityStatus.Available
                               && (job.Status == MediaProcessingJobStatus.DeadLetter
                                   || job.Status == MediaProcessingJobStatus.Failed

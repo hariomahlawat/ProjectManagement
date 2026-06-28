@@ -3,12 +3,16 @@ using ProjectManagement.Features.MediaLibrary.Services;
 namespace ProjectManagement.Features.MediaLibrary.Hosted;
 
 /// <summary>
-/// Reconciles historical missing-content failures after the catalogue becomes
-/// physically operational. Temporary schema unavailability never terminates the
-/// worker for the lifetime of the process.
+/// Continuously converts historical missing-content processing failures into the
+/// authoritative MediaAsset availability state. Work is bounded and idempotent.
 /// </summary>
 public sealed class MediaAvailabilityReconciliationWorker : BackgroundService
 {
+    private static readonly TimeSpan StartupDelay = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan BatchDelay = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan IdleDelay = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan ErrorDelay = TimeSpan.FromMinutes(1);
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<MediaAvailabilityReconciliationWorker> _logger;
 
@@ -22,7 +26,7 @@ public sealed class MediaAvailabilityReconciliationWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+        await Task.Delay(StartupDelay, stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -36,27 +40,24 @@ public sealed class MediaAvailabilityReconciliationWorker : BackgroundService
                     _logger.LogInformation(
                         "Media availability reconciliation is waiting for an operational catalogue schema. Reference={Reference}",
                         schemaStatus.DiagnosticReference);
-                    await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+                    await Task.Delay(ErrorDelay, stoppingToken);
                     continue;
                 }
 
                 var service = scope.ServiceProvider.GetRequiredService<IMediaAvailabilityRecoveryService>();
-                var result = await service.ReconcileHistoricalAsync(100, stoppingToken);
+                var result = await service.ReconcileHistoricalAsync(250, stoppingToken);
                 if (result.Examined > 0)
                 {
                     _logger.LogInformation(
-                        "Media availability reconciliation examined {Examined}, restored {Restored}, marked unavailable {Unavailable}, errors {Errors}",
-                        result.Examined, result.Restored, result.MarkedUnavailable, result.Errors);
+                        "Availability reconciliation examined {Examined}, restored {Restored}, marked unavailable {Unavailable}, temporary {Temporary}, errors {Errors}",
+                        result.Examined,
+                        result.Restored,
+                        result.MarkedUnavailable,
+                        result.TemporarilyUnavailable,
+                        result.Errors);
                 }
 
-                if (result.HasMore)
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
-                    continue;
-                }
-
-                _logger.LogInformation("Media availability reconciliation completed");
-                return;
+                await Task.Delay(result.HasMore ? BatchDelay : IdleDelay, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -65,7 +66,7 @@ public sealed class MediaAvailabilityReconciliationWorker : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Media availability reconciliation failed; it will retry automatically");
-                await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+                await Task.Delay(ErrorDelay, stoppingToken);
             }
         }
     }

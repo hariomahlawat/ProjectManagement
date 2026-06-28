@@ -170,4 +170,22 @@
         if (event.key === '0') setZoom(1);
         if (event.key.toLowerCase() === 'i') infoButton.click();
     });
+
+
+    const markUnavailable = (image) => {
+        const tile = image.closest('[data-media-item]');
+        if (!tile) return;
+        image.hidden = true;
+        tile.classList.add('photos-tile--unavailable');
+        tile.setAttribute('aria-label', 'Media unavailable');
+        tile.disabled = true;
+    };
+
+    document.querySelectorAll('[data-media-image]').forEach((image) => {
+        image.addEventListener('error', () => markUnavailable(image), { once: true });
+        if (image.complete && image.naturalWidth === 0) {
+            markUnavailable(image);
+        }
+    });
+
 })();

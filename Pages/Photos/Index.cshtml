@@ -326,7 +326,12 @@
                                                 data-width="@item.Width"
                                                 data-height="@item.Height"
                                                 aria-label="Open @item.Title">
-                                            <img src="@item.ThumbnailUrl" alt="" loading="lazy" decoding="async" />
+                                            <img src="@item.ThumbnailUrl" alt="" loading="lazy" decoding="async" data-media-image />
+                                            <span class="photos-tile__unavailable" aria-hidden="true">
+                                                <i class="bi bi-image" aria-hidden="true"></i>
+                                                <strong>Media unavailable</strong>
+                                                <small>Source file could not be opened</small>
+                                            </span>
                                             <span class="photos-tile__shade"></span>
                                             @if (item.Kind == IndexModel.MediaKind.Video)
                                             {
