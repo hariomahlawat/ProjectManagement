@@ -242,7 +242,10 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
     private IQueryable<MediaAsset> BuildBaseQuery()
         => _db.Assets
             .AsNoTracking()
-            .Where(asset => asset.IsAvailable && !asset.IsDeleted && !asset.IsArchived)
+            .Where(asset => asset.IsAvailable
+                            && asset.AvailabilityStatus == MediaAvailabilityStatus.Available
+                            && !asset.IsDeleted
+                            && !asset.IsArchived)
             .Where(asset => !asset.Source.IsDeleted)
             .Where(asset => asset.Origin != MediaAssetOrigin.ExternalFile
                             || (_options.IsExternalSourceFeatureEnabled

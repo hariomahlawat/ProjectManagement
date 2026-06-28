@@ -123,6 +123,11 @@
                             <i class="bi bi-check2-square me-1" aria-hidden="true"></i> Consistency check
                         </button>
                     </form>
+                    <form method="post" asp-page-handler="ReconcileAvailability">
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i> Reconcile availability
+                        </button>
+                    </form>
                     @if (Model.UnavailableAssetCount > 0)
                     {
                         <form method="post" asp-page-handler="RecheckUnavailable">
@@ -335,6 +340,7 @@
                             <tr>
                                 <th>Media</th>
                                 <th>Source</th>
+                                <th>Status</th>
                                 <th>Reason</th>
                                 <th>Last checked</th>
                                 <th class="text-end">Action</th>
@@ -352,8 +358,9 @@
                                         <div>@asset.SourceLabel</div>
                                         <div class="small text-muted">@asset.Origin</div>
                                     </td>
+                                    <td><span class="badge text-bg-secondary">@asset.Status</span></td>
                                     <td class="small text-muted text-break" style="max-width: 34rem;">@asset.Reason</td>
-                                    <td class="small">@asset.LastSeenAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                                    <td class="small">@(asset.LastCheckedUtc ?? asset.LastSeenAtUtc).ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
                                     <td class="text-end">
                                         <form method="post" asp-page-handler="RecheckUnavailableAsset">
                                             <input type="hidden" name="id" value="@asset.Id" />

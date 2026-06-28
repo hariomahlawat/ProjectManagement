@@ -11,22 +11,22 @@ public sealed record MediaAvailabilityRecoveryResult(
     int Errors,
     bool HasMore);
 
+public sealed record MediaAvailabilityReconciliationResult(
+    int Examined,
+    int Restored,
+    int MarkedUnavailable,
+    int Errors,
+    bool HasMore);
+
 public interface IMediaAvailabilityRecoveryService
 {
-    Task<MediaAvailabilityRecoveryResult> RecheckAsync(
-        long? assetId,
-        int batchSize,
-        CancellationToken cancellationToken);
+    Task<MediaAvailabilityRecoveryResult> RecheckAsync(long? assetId, int batchSize, CancellationToken cancellationToken);
+    Task<MediaAvailabilityReconciliationResult> ReconcileHistoricalAsync(int batchSize, CancellationToken cancellationToken);
 }
 
-/// <summary>
-/// Re-validates catalogue assets whose physical content was previously unavailable.
-/// Successful recovery is idempotent and requeues the existing analysis job (or creates one).
-/// </summary>
 public sealed class MediaAvailabilityRecoveryService : IMediaAvailabilityRecoveryService
 {
     private const int MaximumBatchSize = 250;
-
     private readonly MediaLibraryDbContext _db;
     private readonly IMediaContentProviderResolver _contentResolver;
     private readonly ILogger<MediaAvailabilityRecoveryService> _logger;
@@ -49,146 +49,157 @@ public sealed class MediaAvailabilityRecoveryService : IMediaAvailabilityRecover
         var take = Math.Clamp(batchSize, 1, MaximumBatchSize);
         var query = _db.Assets
             .Include(asset => asset.Source)
-            .Where(asset => !asset.IsAvailable
-                            && !asset.IsDeleted
-                            && asset.ProcessingFailureReason != null
-                            && asset.ProcessingFailureReason.StartsWith(
-                                MediaProcessingFailurePolicy.SourceUnavailableMarker));
+            .Where(asset => !asset.IsDeleted
+                            && (!asset.IsAvailable || asset.AvailabilityStatus != MediaAvailabilityStatus.Available));
+        if (assetId.HasValue) query = query.Where(asset => asset.Id == assetId.Value);
 
-        if (assetId.HasValue)
-        {
-            query = query.Where(asset => asset.Id == assetId.Value);
-        }
-
-        var assets = await query
-            .OrderBy(asset => asset.LastSeenAtUtc)
-            .ThenBy(asset => asset.Id)
-            .Take(take)
-            .ToListAsync(cancellationToken);
-
-        var examined = 0;
-        var restored = 0;
-        var unavailable = 0;
-        var errors = 0;
-        var now = DateTimeOffset.UtcNow;
-
+        var assets = await query.OrderBy(asset => asset.Id).Take(take).ToListAsync(cancellationToken);
+        var restored = 0; var unavailable = 0; var errors = 0;
         foreach (var asset in assets)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            examined++;
-
             try
             {
-                var content = await _contentResolver.ResolveAsync(asset, cancellationToken);
-                if (content is null)
+                if (await CanOpenAsync(asset, cancellationToken))
                 {
-                    unavailable++;
-                    continue;
+                    Restore(asset);
+                    QueueProcessing(asset);
+                    restored++;
                 }
-
-                await using var stream = await content.OpenReadAsync(cancellationToken);
-                if (stream is null || !stream.CanRead)
+                else
                 {
+                    MarkUnavailable(asset, MediaAvailabilityStatus.SourceMissing,
+                        asset.UnavailableReason ?? "The source media could not be opened.");
                     unavailable++;
-                    continue;
                 }
-
-                var probe = new byte[1];
-                var bytesRead = await stream.ReadAsync(probe.AsMemory(0, 1), cancellationToken);
-                if (bytesRead == 0)
-                {
-                    unavailable++;
-                    continue;
-                }
-
-                RestoreAsset(asset, now);
-                await ResetOrCreateJobAsync(asset, now, cancellationToken);
-                restored++;
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            catch (UnauthorizedAccessException ex)
             {
-                throw;
-            }
-            catch (Exception ex) when (MediaProcessingFailurePolicy.IsSourceUnavailable(ex))
-            {
+                MarkUnavailable(asset, MediaAvailabilityStatus.AccessDenied, ex.GetBaseException().Message);
                 unavailable++;
-                asset.ProcessingFailureReason = MediaProcessingFailurePolicy.MarkSourceUnavailable(
-                    Trim(ex.GetBaseException().Message, 1900));
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
                 errors++;
-                _logger.LogWarning(ex, "Unable to recheck media asset {AssetId}", asset.Id);
+                asset.LastAvailabilityCheckUtc = DateTimeOffset.UtcNow;
+                _logger.LogWarning(ex, "Availability recheck failed for media asset {AssetId}", asset.Id);
             }
         }
-
-        if (restored > 0)
-        {
-            var sourceIds = assets.Where(asset => asset.IsAvailable).Select(asset => asset.SourceId).Distinct().ToArray();
-            foreach (var sourceId in sourceIds)
-            {
-                var source = await _db.Sources.SingleAsync(item => item.Id == sourceId, cancellationToken);
-                source.IndexedAssetCount = await _db.Assets.CountAsync(
-                    item => item.SourceId == sourceId && item.IsAvailable && !item.IsDeleted,
-                    cancellationToken);
-                source.UpdatedAtUtc = now;
-            }
-        }
-
         await _db.SaveChangesAsync(cancellationToken);
-
-        var examinedIds = assets.Select(item => item.Id).ToArray();
-        var hasMore = !assetId.HasValue && await _db.Assets.AnyAsync(
-            asset => !asset.IsAvailable
-                     && !asset.IsDeleted
-                     && asset.ProcessingFailureReason != null
-                     && asset.ProcessingFailureReason.StartsWith(
-                         MediaProcessingFailurePolicy.SourceUnavailableMarker)
-                     && !examinedIds.Contains(asset.Id),
-            cancellationToken);
-
-        return new MediaAvailabilityRecoveryResult(examined, restored, unavailable, errors, hasMore);
+        var hasMore = !assetId.HasValue && await query.Skip(take).AnyAsync(cancellationToken);
+        return new(assets.Count, restored, unavailable, errors, hasMore);
     }
 
-    private static void RestoreAsset(MediaAsset asset, DateTimeOffset now)
-    {
-        asset.IsAvailable = true;
-        asset.ProcessingFailureReason = null;
-        asset.ContentHash = null;
-        asset.CacheVersion++;
-
-        if (asset.Kind == MediaAssetKind.Photo)
-        {
-            asset.DerivativeStatus = MediaProcessingStatus.Pending;
-            asset.AnalysisStatus = MediaProcessingStatus.Pending;
-            asset.ClassificationConfidence = null;
-            asset.AnalysisSignalsJson = null;
-            asset.AnalysedAtUtc = null;
-        }
-
-        asset.LastSeenAtUtc = now;
-    }
-
-    private async Task ResetOrCreateJobAsync(
-        MediaAsset asset,
-        DateTimeOffset now,
+    public async Task<MediaAvailabilityReconciliationResult> ReconcileHistoricalAsync(
+        int batchSize,
         CancellationToken cancellationToken)
     {
-        if (asset.Kind != MediaAssetKind.Photo)
+        var take = Math.Clamp(batchSize, 1, MaximumBatchSize);
+        var sourceUnavailableCode = nameof(MediaContentUnavailableException);
+        var candidates = await _db.Assets
+            .Include(asset => asset.Source)
+            .Include(asset => asset.ProcessingJobs)
+            .Where(asset => !asset.IsDeleted
+                            && asset.AvailabilityStatus == MediaAvailabilityStatus.Available
+                            && asset.IsAvailable
+                            && asset.ProcessingJobs.Any(job =>
+                                job.Status == MediaProcessingJobStatus.DeadLetter
+                                && job.FailureCode == sourceUnavailableCode))
+            .OrderBy(asset => asset.Id)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        var restored = 0; var marked = 0; var errors = 0;
+        foreach (var asset in candidates)
         {
-            return;
+            try
+            {
+                if (await CanOpenAsync(asset, cancellationToken))
+                {
+                    Restore(asset);
+                    QueueProcessing(asset);
+                    restored++;
+                }
+                else
+                {
+                    var failure = asset.ProcessingJobs
+                        .Where(job => job.FailureCode == sourceUnavailableCode)
+                        .OrderByDescending(job => job.UpdatedAtUtc)
+                        .FirstOrDefault();
+                    MarkUnavailable(asset, MediaAvailabilityStatus.SourceMissing,
+                        failure?.FailureMessage ?? "The source media is no longer available.");
+                    marked++;
+                }
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                MarkUnavailable(asset, MediaAvailabilityStatus.AccessDenied, ex.GetBaseException().Message);
+                marked++;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception ex)
+            {
+                errors++;
+                asset.LastAvailabilityCheckUtc = DateTimeOffset.UtcNow;
+                _logger.LogWarning(ex, "Historical availability reconciliation failed for media asset {AssetId}", asset.Id);
+            }
         }
+        await _db.SaveChangesAsync(cancellationToken);
+        var hasMore = await _db.Assets.AnyAsync(asset => !asset.IsDeleted
+            && asset.AvailabilityStatus == MediaAvailabilityStatus.Available
+            && asset.IsAvailable
+            && asset.ProcessingJobs.Any(job => job.Status == MediaProcessingJobStatus.DeadLetter
+                && job.FailureCode == sourceUnavailableCode), cancellationToken);
+        return new(candidates.Count, restored, marked, errors, hasMore);
+    }
 
-        var job = await _db.ProcessingJobs.SingleOrDefaultAsync(
-            item => item.MediaAssetId == asset.Id
-                    && item.JobType == MediaProcessingJobType.AnalyseAsset,
-            cancellationToken);
+    private async Task<bool> CanOpenAsync(MediaAsset asset, CancellationToken cancellationToken)
+    {
+        var descriptor = await _contentResolver.ResolveAsync(asset, cancellationToken);
+        if (descriptor is null) return false;
+        await using var stream = await descriptor.OpenReadAsync(cancellationToken);
+        var buffer = new byte[1];
+        return await stream.ReadAsync(buffer.AsMemory(0, 1), cancellationToken) > 0;
+    }
 
+    private static void Restore(MediaAsset asset)
+    {
+        var now = DateTimeOffset.UtcNow;
+        asset.IsAvailable = true;
+        asset.AvailabilityStatus = MediaAvailabilityStatus.Available;
+        asset.UnavailableReason = null;
+        asset.UnavailableSinceUtc = null;
+        asset.LastAvailabilityCheckUtc = now;
+        asset.ProcessingFailureReason = null;
+        asset.DerivativeStatus = MediaProcessingStatus.Pending;
+        asset.AnalysisStatus = MediaProcessingStatus.Pending;
+        asset.ContentHash = null;
+        asset.Width = null;
+        asset.Height = null;
+        asset.AnalysedAtUtc = null;
+    }
+
+    private static void MarkUnavailable(MediaAsset asset, MediaAvailabilityStatus status, string reason)
+    {
+        var now = DateTimeOffset.UtcNow;
+        asset.IsAvailable = false;
+        asset.AvailabilityStatus = status;
+        asset.UnavailableReason = Trim(reason, 2048);
+        asset.UnavailableSinceUtc ??= now;
+        asset.LastAvailabilityCheckUtc = now;
+        asset.DerivativeStatus = MediaProcessingStatus.Failed;
+        asset.AnalysisStatus = MediaProcessingStatus.Failed;
+        asset.ProcessingFailureReason = MediaProcessingFailurePolicy.MarkSourceUnavailable(reason);
+    }
+
+    private void QueueProcessing(MediaAsset asset)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var job = asset.ProcessingJobs.FirstOrDefault(job => job.JobType == MediaProcessingJobType.AnalyseAsset);
         if (job is null)
         {
-            _db.ProcessingJobs.Add(new MediaProcessingJob
+            asset.ProcessingJobs.Add(new MediaProcessingJob
             {
-                MediaAssetId = asset.Id,
                 JobType = MediaProcessingJobType.AnalyseAsset,
                 Status = MediaProcessingJobStatus.Pending,
                 AttemptCount = 0,
@@ -199,7 +210,6 @@ public sealed class MediaAvailabilityRecoveryService : IMediaAvailabilityRecover
             });
             return;
         }
-
         job.Status = MediaProcessingJobStatus.Pending;
         job.AttemptCount = 0;
         job.AvailableAfterUtc = now;
@@ -212,6 +222,5 @@ public sealed class MediaAvailabilityRecoveryService : IMediaAvailabilityRecover
         job.UpdatedAtUtc = now;
     }
 
-    private static string Trim(string value, int maxLength)
-        => value.Length <= maxLength ? value : value[..maxLength];
+    private static string Trim(string value, int maxLength) => value.Length <= maxLength ? value : value[..maxLength];
 }

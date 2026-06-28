@@ -91,7 +91,7 @@ public sealed class MediaLibraryHealthService : IMediaLibraryHealthService
         var indexedAssets = await ExecuteValueAsync(
             MediaLibraryQueryOperation.Statistics,
             async () => await _db.Assets.AsNoTracking().CountAsync(
-                asset => asset.IsAvailable && !asset.IsDeleted,
+                asset => asset.IsAvailable && asset.AvailabilityStatus == MediaAvailabilityStatus.Available && !asset.IsDeleted,
                 cancellationToken),
             checks,
             cancellationToken);
@@ -101,7 +101,7 @@ public sealed class MediaLibraryHealthService : IMediaLibraryHealthService
             async () =>
             {
                 _ = await _db.Assets.AsNoTracking()
-                    .Where(asset => asset.IsAvailable && !asset.IsDeleted && !asset.IsArchived)
+                    .Where(asset => asset.IsAvailable && asset.AvailabilityStatus == MediaAvailabilityStatus.Available && !asset.IsDeleted && !asset.IsArchived)
                     .OrderByDescending(asset => asset.MediaDateUtc)
                     .ThenBy(asset => asset.Id)
                     .Select(asset => new { asset.Id, asset.MediaDateUtc, asset.Title })
@@ -117,7 +117,7 @@ public sealed class MediaLibraryHealthService : IMediaLibraryHealthService
             async () =>
             {
                 _ = await _db.Assets.AsNoTracking()
-                    .Where(asset => asset.IsAvailable && !asset.IsDeleted && !asset.IsArchived)
+                    .Where(asset => asset.IsAvailable && asset.AvailabilityStatus == MediaAvailabilityStatus.Available && !asset.IsDeleted && !asset.IsArchived)
                     .GroupBy(_ => 1)
                     .Select(group => new
                     {
@@ -136,7 +136,7 @@ public sealed class MediaLibraryHealthService : IMediaLibraryHealthService
             async () =>
             {
                 _ = await _db.Assets.AsNoTracking()
-                    .Where(asset => asset.IsAvailable && !asset.IsDeleted)
+                    .Where(asset => asset.IsAvailable && asset.AvailabilityStatus == MediaAvailabilityStatus.Available && !asset.IsDeleted)
                     .GroupBy(asset => asset.MediaDateUtc.Year)
                     .Select(group => group.Key)
                     .Take(2)
@@ -151,7 +151,7 @@ public sealed class MediaLibraryHealthService : IMediaLibraryHealthService
             async () =>
             {
                 _ = await _db.Assets.AsNoTracking()
-                    .Where(asset => asset.IsAvailable && !asset.IsDeleted && asset.ProjectId.HasValue)
+                    .Where(asset => asset.IsAvailable && asset.AvailabilityStatus == MediaAvailabilityStatus.Available && !asset.IsDeleted && asset.ProjectId.HasValue)
                     .Select(asset => new { Id = asset.ProjectId!.Value, Name = asset.ContextTitle })
                     .Distinct()
                     .Take(2)

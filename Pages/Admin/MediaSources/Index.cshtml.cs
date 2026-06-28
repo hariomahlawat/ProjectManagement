@@ -482,6 +482,10 @@ public sealed class IndexModel : PageModel
             job.UpdatedAtUtc = now;
 
             job.MediaAsset.IsAvailable = true;
+            job.MediaAsset.AvailabilityStatus = MediaAvailabilityStatus.Available;
+            job.MediaAsset.UnavailableReason = null;
+            job.MediaAsset.UnavailableSinceUtc = null;
+            job.MediaAsset.LastAvailabilityCheckUtc = now;
             job.MediaAsset.DerivativeStatus = MediaProcessingStatus.Pending;
             job.MediaAsset.AnalysisStatus = MediaProcessingStatus.Pending;
             job.MediaAsset.ProcessingFailureReason = null;
@@ -528,6 +532,10 @@ public sealed class IndexModel : PageModel
         if (forcePermanent)
         {
             job.MediaAsset.IsAvailable = true;
+            job.MediaAsset.AvailabilityStatus = MediaAvailabilityStatus.Available;
+            job.MediaAsset.UnavailableReason = null;
+            job.MediaAsset.UnavailableSinceUtc = null;
+            job.MediaAsset.LastAvailabilityCheckUtc = now;
             job.MediaAsset.DerivativeStatus = MediaProcessingStatus.Pending;
             job.MediaAsset.AnalysisStatus = MediaProcessingStatus.Pending;
             job.MediaAsset.ProcessingFailureReason = null;
@@ -535,6 +543,14 @@ public sealed class IndexModel : PageModel
 
         await _db.SaveChangesAsync(cancellationToken);
         StatusMessage = $"Media processing job {id} was queued again.";
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostReconcileAvailabilityAsync(CancellationToken cancellationToken)
+    {
+        var result = await _availabilityRecoveryService.ReconcileHistoricalAsync(250, cancellationToken);
+        StatusMessage = $"Availability reconciliation examined {result.Examined:N0} item(s): {result.Restored:N0} restored, {result.MarkedUnavailable:N0} marked unavailable, {result.Errors:N0} error(s).";
+        if (result.HasMore) WarningMessage = "More historical items remain. Run Reconcile availability again.";
         return RedirectToPage();
     }
 
@@ -623,6 +639,7 @@ public sealed class IndexModel : PageModel
             PrismAssetCount = await _db.Assets.LongCountAsync(
                 asset => asset.Source.SourceType == MediaLibrarySourceType.Prism
                          && asset.IsAvailable
+                         && asset.AvailabilityStatus == MediaAvailabilityStatus.Available
                          && !asset.IsDeleted,
                 cancellationToken);
 
@@ -646,20 +663,17 @@ public sealed class IndexModel : PageModel
                 cancellationToken);
             DeadLetterJobs = await _db.ProcessingJobs.CountAsync(
                 job => job.Status == MediaProcessingJobStatus.DeadLetter
-                       && job.MediaAsset.IsAvailable,
+                       && job.MediaAsset.IsAvailable
+                       && job.MediaAsset.AvailabilityStatus == MediaAvailabilityStatus.Available,
                 cancellationToken);
             UnavailableAssetCount = await _db.Assets.CountAsync(
-                asset => !asset.IsAvailable
-                         && !asset.IsDeleted
-                         && asset.ProcessingFailureReason != null
-                         && asset.ProcessingFailureReason.StartsWith(MediaProcessingFailurePolicy.SourceUnavailableMarker),
+                asset => !asset.IsDeleted
+                         && asset.AvailabilityStatus != MediaAvailabilityStatus.Available,
                 cancellationToken);
             var unavailableRows = await _db.Assets
                 .AsNoTracking()
-                .Where(asset => !asset.IsAvailable
-                                && !asset.IsDeleted
-                                && asset.ProcessingFailureReason != null
-                                && asset.ProcessingFailureReason.StartsWith(MediaProcessingFailurePolicy.SourceUnavailableMarker))
+                .Where(asset => !asset.IsDeleted
+                                && asset.AvailabilityStatus != MediaAvailabilityStatus.Available)
                 .OrderByDescending(asset => asset.LastSeenAtUtc)
                 .ThenBy(asset => asset.Id)
                 .Take(50)
@@ -671,7 +685,10 @@ public sealed class IndexModel : PageModel
                     asset.OriginalFileName,
                     asset.SourceLabel,
                     asset.LastSeenAtUtc,
-                    asset.ProcessingFailureReason
+                    asset.AvailabilityStatus,
+                    asset.UnavailableSinceUtc,
+                    asset.LastAvailabilityCheckUtc,
+                    asset.UnavailableReason
                 })
                 .ToListAsync(cancellationToken);
             UnavailableAssets = unavailableRows
@@ -682,7 +699,10 @@ public sealed class IndexModel : PageModel
                     asset.OriginalFileName,
                     asset.SourceLabel,
                     asset.LastSeenAtUtc,
-                    MediaProcessingFailurePolicy.GetSourceUnavailableMessage(asset.ProcessingFailureReason)))
+                    asset.AvailabilityStatus,
+                    asset.UnavailableSinceUtc,
+                    asset.LastAvailabilityCheckUtc,
+                    asset.UnavailableReason ?? "The source media is unavailable."))
                 .ToList();
             OldestPendingAtUtc = await _db.ProcessingJobs
                 .Where(job => job.Status == MediaProcessingJobStatus.Pending)
@@ -693,6 +713,7 @@ public sealed class IndexModel : PageModel
             RecentProblemJobs = await _db.ProcessingJobs
                 .AsNoTracking()
                 .Where(job => job.MediaAsset.IsAvailable
+                              && job.MediaAsset.AvailabilityStatus == MediaAvailabilityStatus.Available
                               && (job.Status == MediaProcessingJobStatus.DeadLetter
                                   || job.Status == MediaProcessingJobStatus.Failed
                                   || (job.Status == MediaProcessingJobStatus.Pending && job.AttemptCount > 0)))
@@ -819,6 +840,9 @@ public sealed class IndexModel : PageModel
         string OriginalFileName,
         string SourceLabel,
         DateTimeOffset LastSeenAtUtc,
+        MediaAvailabilityStatus Status,
+        DateTimeOffset? UnavailableSinceUtc,
+        DateTimeOffset? LastCheckedUtc,
         string Reason);
 
     public sealed class SourceInput

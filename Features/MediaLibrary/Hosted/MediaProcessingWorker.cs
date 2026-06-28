@@ -260,6 +260,12 @@ public sealed class MediaProcessingWorker : BackgroundService
             if (asset is not null)
             {
                 asset.IsAvailable = false;
+                asset.AvailabilityStatus = ex.GetBaseException() is UnauthorizedAccessException
+                    ? MediaAvailabilityStatus.AccessDenied
+                    : MediaAvailabilityStatus.SourceMissing;
+                asset.UnavailableReason = failureMessage;
+                asset.UnavailableSinceUtc ??= now;
+                asset.LastAvailabilityCheckUtc = now;
                 asset.DerivativeStatus = MediaProcessingStatus.Failed;
                 asset.AnalysisStatus = MediaProcessingStatus.Failed;
                 asset.ProcessingFailureReason = MediaProcessingFailurePolicy.MarkSourceUnavailable(failureMessage);

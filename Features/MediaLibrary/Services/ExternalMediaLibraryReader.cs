@@ -44,6 +44,7 @@ public sealed class ExternalMediaLibraryReader : IExternalMediaLibraryReader
                 .AsNoTracking()
                 .Where(asset => asset.Origin == MediaAssetOrigin.ExternalFile
                                 && asset.IsAvailable
+                                && asset.AvailabilityStatus == MediaAvailabilityStatus.Available
                                 && !asset.IsDeleted
                                 && !asset.IsArchived
                                 && asset.Source.SourceType == MediaLibrarySourceType.FileSystem

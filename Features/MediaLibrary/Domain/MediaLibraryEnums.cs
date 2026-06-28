@@ -38,6 +38,16 @@ public enum MediaClassification
     Graphic = 6
 }
 
+public enum MediaAvailabilityStatus
+{
+    Available = 0,
+    TemporarilyUnavailable = 1,
+    SourceMissing = 2,
+    AccessDenied = 3,
+    Unsupported = 4,
+    Corrupt = 5
+}
+
 public enum MediaProcessingStatus
 {
     NotRequested = 0,

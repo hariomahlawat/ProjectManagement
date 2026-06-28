@@ -338,6 +338,17 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
         var preserveUnavailable = !contentChanged
             && MediaProcessingFailurePolicy.HasSourceUnavailableMarker(asset.ProcessingFailureReason);
         asset.IsAvailable = !preserveUnavailable;
+        asset.AvailabilityStatus = preserveUnavailable
+            ? (asset.AvailabilityStatus == MediaAvailabilityStatus.Available
+                ? MediaAvailabilityStatus.SourceMissing
+                : asset.AvailabilityStatus)
+            : MediaAvailabilityStatus.Available;
+        if (!preserveUnavailable)
+        {
+            asset.UnavailableReason = null;
+            asset.UnavailableSinceUtc = null;
+            asset.LastAvailabilityCheckUtc = DateTimeOffset.UtcNow;
+        }
         asset.IsDeleted = false;
         asset.LastSeenAtUtc = now;
         asset.LastSeenScanId = scanId;

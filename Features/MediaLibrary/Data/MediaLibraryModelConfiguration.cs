@@ -64,8 +64,11 @@ public static class MediaLibraryModelConfiguration
             entity.Property(x => x.AnalysisVersion).HasMaxLength(128);
             entity.Property(x => x.AnalysisSignalsJson).HasColumnType("jsonb");
             entity.Property(x => x.ProcessingFailureReason).HasMaxLength(2048);
+            entity.Property(x => x.AvailabilityStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.UnavailableReason).HasMaxLength(2048);
             entity.HasIndex(x => new { x.SourceId, x.SourceEntityId }).IsUnique();
             entity.HasIndex(x => new { x.IsAvailable, x.IsDeleted, x.MediaDateUtc });
+            entity.HasIndex(x => new { x.AvailabilityStatus, x.IsDeleted, x.MediaDateUtc });
             entity.HasIndex(x => new { x.IsAvailable, x.IsDeleted, x.IsArchived, x.MediaDateUtc, x.Id })
                 .HasDatabaseName("IX_MediaAssets_LibraryTimeline");
             entity.HasIndex(x => new { x.Origin, x.IsAvailable, x.IsDeleted, x.IsArchived, x.MediaDateUtc })

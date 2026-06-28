@@ -79,6 +79,7 @@ public static class MediaLibraryServiceCollectionExtensions
         if (configuredOptions.IsProcessingWorkerEnabled)
         {
             services.AddHostedService<MediaProcessingWorker>();
+            services.AddHostedService<MediaAvailabilityReconciliationWorker>();
         }
 
         return services;

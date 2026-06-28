@@ -69,6 +69,7 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
             entity.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint")
                 .HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
             entity.Property<string>("AnalysisSignalsJson").HasColumnType("jsonb");
+            entity.Property<string>("AvailabilityStatus").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
             entity.Property<string>("AnalysisStatus").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
             entity.Property<string>("AnalysisVersion").HasMaxLength(128).HasColumnType("character varying(128)");
             entity.Property<DateTimeOffset?>("AnalysedAtUtc").HasColumnType("timestamp with time zone");
@@ -93,6 +94,7 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
             entity.Property<bool>("IsCover").HasColumnType("boolean");
             entity.Property<bool>("IsDeleted").HasColumnType("boolean");
             entity.Property<string>("Kind").IsRequired().HasMaxLength(16).HasColumnType("character varying(16)");
+            entity.Property<DateTimeOffset?>("LastAvailabilityCheckUtc").HasColumnType("timestamp with time zone");
             entity.Property<DateTimeOffset>("LastSeenAtUtc").HasColumnType("timestamp with time zone");
             entity.Property<Guid>("LastSeenScanId").HasColumnType("uuid");
             entity.Property<DateTimeOffset>("MediaDateUtc").HasColumnType("timestamp with time zone");
@@ -108,10 +110,13 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
             entity.Property<string>("SourceEntityId").IsRequired().HasMaxLength(1024).HasColumnType("character varying(1024)");
             entity.Property<string>("SourceLabel").IsRequired().HasMaxLength(160).HasColumnType("character varying(160)");
             entity.Property<string>("Title").IsRequired().HasMaxLength(300).HasColumnType("character varying(300)");
+            entity.Property<string>("UnavailableReason").HasMaxLength(2048).HasColumnType("character varying(2048)");
+            entity.Property<DateTimeOffset?>("UnavailableSinceUtc").HasColumnType("timestamp with time zone");
             entity.Property<string>("VersionToken").HasMaxLength(128).HasColumnType("character varying(128)");
             entity.Property<int?>("Width").HasColumnType("integer");
 
             entity.HasKey("Id");
+            entity.HasIndex("AvailabilityStatus", "IsDeleted", "MediaDateUtc");
             entity.HasIndex("CollectionKey");
             entity.HasIndex("ProjectId");
             entity.HasIndex("SourceId");

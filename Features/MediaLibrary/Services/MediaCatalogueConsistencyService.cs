@@ -9,7 +9,9 @@ public sealed record MediaCatalogueConsistencyReport(
     int PrismSourceRecords,
     int CatalogueRecords,
     int MissingFromCatalogue,
-    int OrphanedCatalogueRecords)
+    int OrphanedCatalogueRecords,
+    int AvailableCatalogueRecords,
+    int UnavailableCatalogueRecords)
 {
     public bool IsConsistent => MissingFromCatalogue == 0 && OrphanedCatalogueRecords == 0;
 }
@@ -72,7 +74,7 @@ public sealed class MediaCatalogueConsistencyService : IMediaCatalogueConsistenc
             .ToListAsync(cancellationToken);
 
         var availableIds = catalogue
-            .Where(asset => asset.IsAvailable)
+            .Where(asset => asset.IsAvailable && asset.AvailabilityStatus == MediaAvailabilityStatus.Available)
             .Select(asset => asset.SourceEntityId)
             .ToHashSet(StringComparer.Ordinal);
 
@@ -81,8 +83,10 @@ public sealed class MediaCatalogueConsistencyService : IMediaCatalogueConsistenc
 
         return new MediaCatalogueConsistencyReport(
             expected.Count,
-            availableIds.Count,
+            catalogue.Count,
             missing,
-            orphaned);
+            orphaned,
+            catalogue.Count(asset => asset.IsAvailable),
+            catalogue.Count(asset => !asset.IsAvailable));
     }
 }

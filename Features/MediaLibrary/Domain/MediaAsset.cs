@@ -73,6 +73,13 @@ public sealed class MediaAsset
     public bool IsCover { get; set; }
     public long SortOrder { get; set; }
     public bool IsAvailable { get; set; } = true;
+    public MediaAvailabilityStatus AvailabilityStatus { get; set; } = MediaAvailabilityStatus.Available;
+
+    [MaxLength(2048)]
+    public string? UnavailableReason { get; set; }
+
+    public DateTimeOffset? UnavailableSinceUtc { get; set; }
+    public DateTimeOffset? LastAvailabilityCheckUtc { get; set; }
     public bool IsArchived { get; set; }
     public bool IsDeleted { get; set; }
 
