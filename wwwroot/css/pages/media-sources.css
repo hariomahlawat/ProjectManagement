@@ -1,16 +1,21 @@
 .media-unavailable-card .card-header {
-    position: sticky;
-    top: var(--app-header-height, 4.5rem);
-    z-index: 4;
+    background: #fff;
+    position: static;
+    z-index: auto;
 }
 
-.media-unavailable-table th {
+.media-unavailable-table thead th {
+    background: #f8fafc;
+    box-shadow: inset 0 -1px 0 #dfe5ec;
     color: #596579;
     font-size: .72rem;
     font-weight: 750;
     letter-spacing: .035em;
+    position: sticky;
     text-transform: uppercase;
+    top: var(--app-header-height, 4.5rem);
     white-space: nowrap;
+    z-index: 2;
 }
 
 .media-unavailable-table td {
@@ -44,12 +49,10 @@
     padding: .65rem .75rem;
 }
 .media-technical-details dt,
-.media-technical-details dd {
-    margin-bottom: .25rem;
-}
+.media-technical-details dd { margin-bottom: .25rem; }
 .media-technical-details dt { color: #687386; font-weight: 650; }
 
 @media (max-width: 991.98px) {
-    .media-unavailable-card .card-header { position: static; }
     .media-unavailable-table { min-width: 920px; }
+    .media-unavailable-table thead th { position: static; }
 }

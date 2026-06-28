@@ -143,6 +143,10 @@
         if (previousFocus instanceof HTMLElement) {
             previousFocus.focus({ preventScroll: true });
         }
+
+        if (window.location.hash.startsWith('#media-')) {
+            history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+        }
     }
 
     tiles.forEach((tile, index) => tile.addEventListener('click', () => open(index, tile)));
@@ -187,5 +191,134 @@
             markUnavailable(image);
         }
     });
+
+
+    const parseRatio = (tile) => {
+        const raw = Number.parseFloat(tile.dataset.aspectRatio || '');
+        if (Number.isFinite(raw) && raw > 0.1 && raw < 10) return raw;
+        return 1;
+    };
+
+    const gridTargetHeight = () => {
+        if (window.matchMedia('(max-width: 575.98px)').matches) return 145;
+        if (window.matchMedia('(max-width: 991.98px)').matches) return 180;
+        return 215;
+    };
+
+    function layoutGrid(grid) {
+        const items = Array.from(grid.querySelectorAll('[data-media-item]:not(.photos-tile--unavailable)'));
+        if (items.length === 0 || grid.clientWidth < 120) return;
+
+        const gap = 5;
+        const containerWidth = grid.clientWidth;
+        const target = gridTargetHeight();
+        const minHeight = Math.max(120, target * 0.72);
+        const maxHeight = target * 1.26;
+
+        if (items.length === 1) {
+            const tile = items[0];
+            const ratio = parseRatio(tile);
+            let height;
+            let width;
+
+            if (ratio < 0.86) {
+                height = Math.min(500, Math.max(350, window.innerHeight * 0.52));
+                width = height * ratio;
+            } else if (ratio > 1.2) {
+                width = Math.min(containerWidth, 920);
+                height = Math.min(430, width / ratio);
+            } else {
+                height = Math.min(460, Math.max(320, window.innerHeight * 0.46));
+                width = height * ratio;
+            }
+
+            if (width > containerWidth) {
+                width = containerWidth;
+                height = width / ratio;
+            }
+
+            tile.style.width = `${Math.round(width)}px`;
+            tile.style.height = `${Math.round(height)}px`;
+            grid.classList.add('is-layout-ready');
+            return;
+        }
+
+        let row = [];
+        let ratioSum = 0;
+        const rows = [];
+
+        items.forEach((tile, index) => {
+            const ratio = parseRatio(tile);
+            row.push({ tile, ratio });
+            ratioSum += ratio;
+
+            const rowWidthAtTarget = ratioSum * target + gap * (row.length - 1);
+            const isLast = index === items.length - 1;
+
+            if (rowWidthAtTarget >= containerWidth || isLast) {
+                rows.push({ entries: row, ratioSum, isLast });
+                row = [];
+                ratioSum = 0;
+            }
+        });
+
+        rows.forEach(({ entries, ratioSum: sum, isLast }) => {
+            const available = containerWidth - gap * (entries.length - 1);
+            let height = available / sum;
+
+            if (isLast && height > target) height = target;
+            height = Math.max(minHeight, Math.min(maxHeight, height));
+
+            entries.forEach(({ tile, ratio }) => {
+                tile.style.width = `${Math.max(96, Math.round(height * ratio))}px`;
+                tile.style.height = `${Math.round(height)}px`;
+            });
+        });
+
+        grid.classList.add('is-layout-ready');
+    }
+
+    const grids = Array.from(root.querySelectorAll('.photos-grid'));
+    const layoutAll = () => grids.forEach(layoutGrid);
+    let layoutFrame = 0;
+    const queueLayout = () => {
+        cancelAnimationFrame(layoutFrame);
+        layoutFrame = requestAnimationFrame(layoutAll);
+    };
+
+    if ('ResizeObserver' in window) {
+        const observer = new ResizeObserver(queueLayout);
+        grids.forEach(grid => observer.observe(grid));
+    } else {
+        window.addEventListener('resize', queueLayout, { passive: true });
+    }
+
+    document.querySelectorAll('[data-media-image]').forEach((image) => {
+        const markLoaded = () => {
+            image.closest('[data-media-item]')?.classList.add('is-loaded');
+            queueLayout();
+        };
+        image.addEventListener('load', markLoaded, { once: true });
+        if (image.complete && image.naturalWidth > 0) markLoaded();
+    });
+
+    layoutAll();
+
+    const openFromHash = () => {
+        const match = /^#media-(\d+)$/.exec(window.location.hash);
+        if (!match) return;
+        const index = Number.parseInt(match[1], 10) - 1;
+        if (index >= 0 && index < tiles.length) open(index, tiles[index]);
+    };
+
+    tiles.forEach((tile, index) => {
+        tile.addEventListener('click', () => {
+            const nextHash = `#media-${index + 1}`;
+            if (window.location.hash !== nextHash) history.replaceState(null, '', nextHash);
+        });
+    });
+
+    window.addEventListener('hashchange', openFromHash);
+    openFromHash();
 
 })();

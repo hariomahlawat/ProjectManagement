@@ -725,3 +725,61 @@
         width: 100%;
     }
 }
+
+/* Enterprise justified-grid refinement. JavaScript assigns exact dimensions while
+   preserving the existing flex layout as a no-script fallback. */
+.photos-grid.is-layout-ready {
+    align-items: flex-start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.photos-grid.is-layout-ready .photos-tile {
+    flex: 0 0 auto;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.photos-tile__placeholder {
+    background: linear-gradient(100deg, #e4e8ee 18%, #f2f4f7 38%, #e4e8ee 58%);
+    background-size: 200% 100%;
+    inset: 0;
+    position: absolute;
+    animation: photos-tile-loading 1.15s linear infinite;
+}
+
+.photos-tile img {
+    opacity: 0;
+}
+
+.photos-tile.is-loaded img {
+    opacity: 1;
+}
+
+.photos-tile.is-loaded .photos-tile__placeholder,
+.photos-tile--unavailable .photos-tile__placeholder {
+    display: none;
+}
+
+@keyframes photos-tile-loading {
+    to { background-position-x: -200%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .photos-tile__placeholder { animation: none; }
+    .photos-tile img,
+    .photos-tile__shade,
+    .photos-tile__meta { transition: none; }
+}
+
+@media (max-width: 767.98px) {
+    .photos-grid { gap: 3px; }
+    .photos-grid--single-landscape .photos-tile,
+    .photos-grid--single-portrait .photos-tile,
+    .photos-grid--single-square .photos-tile {
+        height: auto;
+        max-height: 420px;
+        width: 100%;
+    }
+}

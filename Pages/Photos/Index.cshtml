@@ -310,6 +310,7 @@
                                                 class="photos-tile"
                                                 role="listitem"
                                                 style="--media-ratio:@item.AspectRatio.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
+                                                data-aspect-ratio="@item.AspectRatio.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
                                                 data-media-item
                                                 data-kind="@item.Kind.ToString().ToLowerInvariant()"
                                                 data-title="@item.Title"
@@ -326,6 +327,7 @@
                                                 data-width="@item.Width"
                                                 data-height="@item.Height"
                                                 aria-label="Open @item.Title">
+                                            <span class="photos-tile__placeholder" aria-hidden="true"></span>
                                             <img src="@item.ThumbnailUrl" alt="" loading="lazy" decoding="async" data-media-image />
                                             <span class="photos-tile__unavailable" aria-hidden="true">
                                                 <i class="bi bi-image" aria-hidden="true"></i>
