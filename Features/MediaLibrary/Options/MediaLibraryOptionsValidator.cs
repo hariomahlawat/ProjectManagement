@@ -208,6 +208,8 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
             failures.Add("MediaLibrary:People:DetectorTopK must be between 100 and 100000.");
         if (people.MinimumQualityScore is < 0 or > 1)
             failures.Add("MediaLibrary:People:MinimumQualityScore must be between 0 and 1.");
+        if (people.MinimumClassificationConfidence is < 0 or > 1)
+            failures.Add("MediaLibrary:People:MinimumClassificationConfidence must be between 0 and 1.");
         if (people.CandidateLimit is < 1 or > 20)
             failures.Add("MediaLibrary:People:CandidateLimit must be between 1 and 20.");
         if (people.CandidateSimilarityThreshold is < -1 or > 1)

@@ -36,13 +36,16 @@ public sealed class FaceModelReadinessService : IFaceModelReadinessService, IDis
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<FaceModelReadiness> CheckAsync(CancellationToken cancellationToken)
+    public Task<FaceModelReadiness> CheckAsync(CancellationToken cancellationToken)
+        => CheckAsync(forceRefresh: false, cancellationToken);
+
+    public async Task<FaceModelReadiness> CheckAsync(bool forceRefresh, CancellationToken cancellationToken)
     {
         if (_disposed)
         {
             throw new ObjectDisposedException(nameof(FaceModelReadinessService));
         }
-        if (_cached is not null && DateTimeOffset.UtcNow < _cacheExpiresAtUtc)
+        if (!forceRefresh && _cached is not null && DateTimeOffset.UtcNow < _cacheExpiresAtUtc)
         {
             return _cached;
         }
@@ -50,7 +53,7 @@ public sealed class FaceModelReadinessService : IFaceModelReadinessService, IDis
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            if (_cached is not null && DateTimeOffset.UtcNow < _cacheExpiresAtUtc)
+            if (!forceRefresh && _cached is not null && DateTimeOffset.UtcNow < _cacheExpiresAtUtc)
             {
                 return _cached;
             }

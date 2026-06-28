@@ -70,6 +70,7 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddSingleton<IFaceAnalysisEngine, OnnxFaceAnalysisEngine>();
         services.AddScoped<IFaceCandidateSearchService, FaceCandidateSearchService>();
         services.AddScoped<IFaceIntelligenceService, FaceIntelligenceService>();
+        services.AddScoped<IFaceEligibilityPolicy, FaceEligibilityPolicy>();
         services.AddScoped<IFaceQueueService, FaceQueueService>();
         services.AddScoped<IFaceReviewService, FaceReviewService>();
 

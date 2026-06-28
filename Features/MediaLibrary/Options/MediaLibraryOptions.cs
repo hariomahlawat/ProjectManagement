@@ -118,6 +118,7 @@ public sealed class MediaPeopleOptions
     public double NonMaximumSuppressionThreshold { get; set; } = 0.30;
     public int DetectorTopK { get; set; } = 5000;
     public double MinimumQualityScore { get; set; } = 0.55;
+    public double MinimumClassificationConfidence { get; set; } = 0.75;
     public int CandidateLimit { get; set; } = 5;
     public double CandidateSimilarityThreshold { get; set; } = 0.42;
 

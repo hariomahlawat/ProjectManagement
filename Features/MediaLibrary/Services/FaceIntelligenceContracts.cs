@@ -73,6 +73,7 @@ public sealed class FaceIdentityConflictException : InvalidOperationException
 public interface IFaceModelReadinessService
 {
     Task<FaceModelReadiness> CheckAsync(CancellationToken cancellationToken);
+    Task<FaceModelReadiness> CheckAsync(bool forceRefresh, CancellationToken cancellationToken);
 }
 
 public interface IFaceAnalysisEngine

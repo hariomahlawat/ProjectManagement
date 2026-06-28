@@ -15,13 +15,15 @@ public sealed class IndexModel : PageModel
     private readonly IFaceModelReadinessService _readiness;
     private readonly IFaceQueueService _queue;
     private readonly IMediaProcessingRuntimeState _runtime;
+    private readonly IFaceEligibilityPolicy _eligibility;
 
-    public IndexModel(MediaLibraryDbContext db, IFaceModelReadinessService readiness, IFaceQueueService queue, IMediaProcessingRuntimeState runtime)
+    public IndexModel(MediaLibraryDbContext db, IFaceModelReadinessService readiness, IFaceQueueService queue, IMediaProcessingRuntimeState runtime, IFaceEligibilityPolicy eligibility)
     {
         _db = db;
         _readiness = readiness;
         _queue = queue;
         _runtime = runtime;
+        _eligibility = eligibility;
     }
 
     public FaceModelReadiness ModelStatus { get; private set; } = null!;
@@ -47,8 +49,9 @@ public sealed class IndexModel : PageModel
 
         var available = _db.Assets.AsNoTracking().Where(x => x.IsAvailable && !x.IsDeleted && !x.IsArchived && x.Kind == MediaAssetKind.Photo);
         AvailableImages = await available.CountAsync(cancellationToken);
-        Eligible = await available.CountAsync(x => x.Classification == MediaClassification.Photograph, cancellationToken);
-        ExcludedNonPhotographs = await available.CountAsync(x => x.Classification != MediaClassification.Photograph, cancellationToken);
+        var eligiblePredicate = _eligibility.BuildEligiblePredicate();
+        Eligible = await _db.Assets.AsNoTracking().CountAsync(eligiblePredicate, cancellationToken);
+        ExcludedNonPhotographs = AvailableImages - Eligible;
         LowConfidence = await available.CountAsync(x => !x.ClassificationIsManual && (x.ClassificationConfidence == null || x.ClassificationConfidence < 0.65), cancellationToken);
         Faces = await _db.Faces.AsNoTracking().CountAsync(cancellationToken);
         Embedded = await _db.FaceEmbeddings.AsNoTracking().CountAsync(x => x.InvalidatedAtUtc == null, cancellationToken);
@@ -75,7 +78,7 @@ public sealed class IndexModel : PageModel
 
     public async Task<IActionResult> OnPostRefreshReadinessAsync(CancellationToken cancellationToken)
     {
-        var readiness = await _readiness.CheckAsync(cancellationToken);
+        var readiness = await _readiness.CheckAsync(forceRefresh: true, cancellationToken);
         StatusMessage = $"Readiness refreshed: {readiness.Message}";
         return RedirectToPage();
     }

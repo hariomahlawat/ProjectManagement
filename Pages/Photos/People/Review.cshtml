@@ -22,6 +22,17 @@
         </nav>
     </header>
 
+    @if (!Model.FeatureEnabled)
+    {
+        <section class="people-empty">
+            <i class="bi bi-shield-lock" aria-hidden="true"></i>
+            <h2>People intelligence is disabled</h2>
+            <p>Install and verify the approved local models, complete the readiness checks, and then enable the feature. This page remains available so navigation never leads to a false 404.</p>
+            <a class="btn btn-primary" asp-page="/Admin/MediaIntelligence/Index">Open readiness dashboard</a>
+        </section>
+    }
+    else
+    {
     @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
     {
         <div class="alert alert-success" role="status">@Model.StatusMessage</div>
@@ -195,6 +206,7 @@
                 </div>
             </div>
         }
+    }
     }
 </div>
 

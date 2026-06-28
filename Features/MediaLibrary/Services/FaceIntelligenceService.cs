@@ -13,6 +13,7 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
     private readonly IMediaContentProviderResolver _resolver;
     private readonly IFaceAnalysisEngine _engine;
     private readonly IFaceCandidateSearchService _candidateSearch;
+    private readonly IFaceEligibilityPolicy _eligibility;
     private readonly MediaLibraryOptions _options;
     private readonly IWebHostEnvironment _environment;
     private readonly ILogger<FaceIntelligenceService> _logger;
@@ -22,6 +23,7 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
         IMediaContentProviderResolver resolver,
         IFaceAnalysisEngine engine,
         IFaceCandidateSearchService candidateSearch,
+        IFaceEligibilityPolicy eligibility,
         IOptions<MediaLibraryOptions> options,
         IWebHostEnvironment environment,
         ILogger<FaceIntelligenceService> logger)
@@ -30,6 +32,7 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
         _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
         _candidateSearch = candidateSearch ?? throw new ArgumentNullException(nameof(candidateSearch));
+        _eligibility = eligibility ?? throw new ArgumentNullException(nameof(eligibility));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -45,8 +48,14 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
         var asset = await _db.Assets
             .Include(item => item.Source)
             .SingleAsync(item => item.Id == assetId, cancellationToken);
-        if (!IsEligible(asset))
+        var eligibility = _eligibility.Evaluate(asset);
+        if (!eligibility.IsEligible)
         {
+            _logger.LogInformation(
+                "Skipping face analysis for asset {AssetId}: {EligibilityCode} - {EligibilityReason}",
+                asset.Id,
+                eligibility.Code,
+                eligibility.Reason);
             return;
         }
 
@@ -212,14 +221,6 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
 
     private string CurrentAnalysisVersion
         => $"{_options.People.Detector.Key}:{_options.People.Detector.Version}|{_options.People.Embedder.Key}:{_options.People.Embedder.Version}";
-
-    private bool IsEligible(MediaAsset asset)
-        => asset.IsAvailable
-           && !asset.IsDeleted
-           && !asset.IsArchived
-           && asset.Kind == MediaAssetKind.Photo
-           && (!_options.People.ProcessPhotographsOnly
-               || asset.Classification == MediaClassification.Photograph);
 
     private async Task CreateCandidatesAsync(
         Guid faceId,

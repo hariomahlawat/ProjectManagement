@@ -15,7 +15,13 @@ public sealed class ClassificationsModel : PageModel
 {
     private readonly MediaLibraryDbContext _db;
     private readonly IMediaClassificationOverrideService _overrides;
-    public ClassificationsModel(MediaLibraryDbContext db, IMediaClassificationOverrideService overrides) { _db = db; _overrides = overrides; }
+    private readonly IFaceEligibilityPolicy _eligibility;
+    public ClassificationsModel(MediaLibraryDbContext db, IMediaClassificationOverrideService overrides, IFaceEligibilityPolicy eligibility)
+    {
+        _db = db;
+        _overrides = overrides;
+        _eligibility = eligibility;
+    }
 
     [BindProperty(SupportsGet = true)] public string? Q { get; set; }
     [BindProperty(SupportsGet = true)] public MediaClassification? Classification { get; set; }
@@ -41,14 +47,34 @@ public sealed class ClassificationsModel : PageModel
         {
             "manual" => query.Where(x => x.ClassificationIsManual),
             "low" => query.Where(x => !x.ClassificationIsManual && (x.ClassificationConfidence == null || x.ClassificationConfidence < 0.65)),
-            "eligible" => query.Where(x => x.Classification == MediaClassification.Photograph),
+            "stale" => query.Where(x => !x.ClassificationIsManual && x.ClassifierVersion != MediaClassifier.ClassifierVersion),
+            "eligible" => query.Where(_eligibility.BuildEligiblePredicate()),
             _ => query
         };
         Total = await query.CountAsync(cancellationToken);
         if (P > TotalPages) P = TotalPages;
-        Rows = await query.OrderByDescending(x => x.MediaDateUtc).ThenBy(x => x.Id).Skip((P - 1) * PageSize).Take(PageSize)
-            .Select(x => new Row(x.Id, x.Title, x.ContextTitle, x.OriginalFileName, x.Classification, x.ClassificationConfidence, x.ClassificationIsManual, x.ClassifierVersion, x.AnalysisSignalsJson, x.Classification == MediaClassification.Photograph, x.MediaDateUtc))
+        var assets = await query.OrderByDescending(x => x.MediaDateUtc).ThenBy(x => x.Id)
+            .Skip((P - 1) * PageSize)
+            .Take(PageSize)
             .ToListAsync(cancellationToken);
+        Rows = assets.Select(x =>
+        {
+            var decision = _eligibility.Evaluate(x);
+            return new Row(
+                x.Id,
+                x.Title,
+                x.ContextTitle,
+                x.OriginalFileName,
+                x.Classification,
+                x.ClassificationConfidence,
+                x.ClassificationIsManual,
+                x.ClassifierVersion,
+                x.AnalysisSignalsJson,
+                decision.IsEligible,
+                decision.Reason,
+                x.AnalysisStatus,
+                x.MediaDateUtc);
+        }).ToList();
     }
 
     public async Task<IActionResult> OnPostSetAsync(long assetId, MediaClassification classification, string? reason, CancellationToken cancellationToken)
@@ -67,7 +93,80 @@ public sealed class ClassificationsModel : PageModel
         return RedirectToPage(new { Q, Classification, Mode, P });
     }
 
-    public sealed record Row(long Id, string Title, string ContextTitle, string OriginalFileName, MediaClassification Classification, double? Confidence, bool IsManual, string? ClassifierVersion, string? SignalsJson, bool FaceEligible, DateTimeOffset MediaDateUtc)
+    public async Task<IActionResult> OnPostReclassifyStaleAsync(CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var staleIds = await _db.Assets
+            .Where(x => x.IsAvailable
+                        && !x.IsDeleted
+                        && !x.IsArchived
+                        && x.Kind == MediaAssetKind.Photo
+                        && !x.ClassificationIsManual
+                        && x.ClassifierVersion != MediaClassifier.ClassifierVersion)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        if (staleIds.Count == 0)
+        {
+            StatusMessage = "All automatic classifications already use the current classifier version.";
+            return RedirectToPage(new { Q, Classification, Mode, P });
+        }
+
+        await _db.Assets
+            .Where(x => staleIds.Contains(x.Id))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(x => x.AnalysisStatus, MediaProcessingStatus.Pending)
+                .SetProperty(x => x.Classification, MediaClassification.Unknown)
+                .SetProperty(x => x.ClassificationConfidence, (double?)null)
+                .SetProperty(x => x.AnalysisVersion, (string?)null)
+                .SetProperty(x => x.ClassifierVersion, (string?)null)
+                .SetProperty(x => x.AnalysisSignalsJson, (string?)null)
+                .SetProperty(x => x.AnalysedAtUtc, (DateTimeOffset?)null)
+                .SetProperty(x => x.ClassifiedAtUtc, (DateTimeOffset?)null), cancellationToken);
+
+        var jobs = await _db.ProcessingJobs
+            .Where(x => staleIds.Contains(x.MediaAssetId)
+                        && x.JobType == MediaProcessingJobType.AnalyseAsset)
+            .ToDictionaryAsync(x => x.MediaAssetId, cancellationToken);
+
+        foreach (var assetId in staleIds)
+        {
+            if (!jobs.TryGetValue(assetId, out var job))
+            {
+                _db.ProcessingJobs.Add(new MediaProcessingJob
+                {
+                    MediaAssetId = assetId,
+                    JobType = MediaProcessingJobType.AnalyseAsset,
+                    Status = MediaProcessingJobStatus.Pending,
+                    AvailableAfterUtc = now,
+                    CreatedAtUtc = now,
+                    UpdatedAtUtc = now,
+                    MaxAttempts = 5
+                });
+                continue;
+            }
+
+            if (job.Status != MediaProcessingJobStatus.Running)
+            {
+                job.Status = MediaProcessingJobStatus.Pending;
+                job.AttemptCount = 0;
+                job.AvailableAfterUtc = now;
+                job.StartedAtUtc = null;
+                job.CompletedAtUtc = null;
+                job.LockedBy = null;
+                job.LockExpiresAtUtc = null;
+                job.FailureCode = null;
+                job.FailureMessage = null;
+                job.UpdatedAtUtc = now;
+            }
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        StatusMessage = $"Queued {staleIds.Count} stale automatic classification(s) for the current classifier.";
+        return RedirectToPage(new { Q, Classification, Mode = "stale", P = 1 });
+    }
+
+    public sealed record Row(long Id, string Title, string ContextTitle, string OriginalFileName, MediaClassification Classification, double? Confidence, bool IsManual, string? ClassifierVersion, string? SignalsJson, bool FaceEligible, string FaceEligibilityReason, MediaProcessingStatus AnalysisStatus, DateTimeOffset MediaDateUtc)
     {
         public IReadOnlyList<string> Signals
         {

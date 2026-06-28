@@ -105,35 +105,46 @@ public sealed class MediaClassifier : IMediaClassifier
         var runnerUp = ordered.Length > 1 ? ordered[1].Value : 0;
         var confidence = Math.Clamp(0.52 + ((winner.Value - runnerUp) * 0.55), 0.50, 0.98);
 
-        if (winner.Value < _options.Classification.MinimumConfidence)
+        var requiredScore = winner.Key switch
         {
-            signals.Add("No classification exceeded the configured minimum confidence.");
+            MediaClassification.Screenshot => _options.Classification.ScreenshotThreshold,
+            MediaClassification.ScannedDocument => _options.Classification.DocumentThreshold,
+            MediaClassification.Diagram or MediaClassification.PresentationSlide => _options.Classification.DiagramThreshold,
+            _ => _options.Classification.MinimumConfidence
+        };
+
+        if (winner.Value < requiredScore)
+        {
+            signals.Add($"The leading classification score did not meet its configured {requiredScore:P0} threshold.");
             return new MediaClassificationResult(MediaClassification.Unknown, confidence, signals, ClassifierVersion);
         }
 
         return new MediaClassificationResult(winner.Key, confidence, signals, ClassifierVersion);
     }
 
-    private static void ApplyNameAndMetadataSignals(
+    private void ApplyNameAndMetadataSignals(
         string fileName,
         string extension,
         MediaFileMetadata metadata,
         IDictionary<MediaClassification, double> scores,
         ICollection<string> signals)
     {
-        if (ScreenshotTerms.Any(term => fileName.Contains(term, StringComparison.OrdinalIgnoreCase)))
+        if (_options.Classification.ScreenshotDetectionEnabled
+            && ScreenshotTerms.Any(term => fileName.Contains(term, StringComparison.OrdinalIgnoreCase)))
         {
             scores[MediaClassification.Screenshot] += 0.72;
             signals.Add("Filename indicates a screenshot or screen capture.");
         }
 
-        if (DocumentTerms.Any(term => fileName.Contains(term, StringComparison.OrdinalIgnoreCase)))
+        if (_options.Classification.DocumentDetectionEnabled
+            && DocumentTerms.Any(term => fileName.Contains(term, StringComparison.OrdinalIgnoreCase)))
         {
             scores[MediaClassification.ScannedDocument] += 0.48;
             signals.Add("Filename indicates a scanned or document image.");
         }
 
-        if (DiagramTerms.Any(term => fileName.Contains(term, StringComparison.OrdinalIgnoreCase)))
+        if (_options.Classification.DiagramDetectionEnabled
+            && DiagramTerms.Any(term => fileName.Contains(term, StringComparison.OrdinalIgnoreCase)))
         {
             scores[MediaClassification.Diagram] += 0.50;
             signals.Add("Filename indicates a diagram, chart or presentation.");
@@ -147,52 +158,62 @@ public sealed class MediaClassifier : IMediaClassifier
         }
         else
         {
-            scores[MediaClassification.Screenshot] += 0.10;
+            if (_options.Classification.ScreenshotDetectionEnabled)
+                scores[MediaClassification.Screenshot] += 0.10;
             scores[MediaClassification.Graphic] += 0.08;
             signals.Add("No camera make or model metadata is present.");
         }
 
         if (extension.Equals(".png", StringComparison.OrdinalIgnoreCase))
         {
-            scores[MediaClassification.Screenshot] += 0.10;
+            if (_options.Classification.ScreenshotDetectionEnabled)
+                scores[MediaClassification.Screenshot] += 0.10;
             scores[MediaClassification.Graphic] += 0.07;
         }
 
-        if (metadata.Width.HasValue && metadata.Height.HasValue && IsCommonScreenDimension(metadata.Width.Value, metadata.Height.Value))
+        if (_options.Classification.ScreenshotDetectionEnabled
+            && metadata.Width.HasValue
+            && metadata.Height.HasValue
+            && IsCommonScreenDimension(metadata.Width.Value, metadata.Height.Value))
         {
             scores[MediaClassification.Screenshot] += 0.25;
             signals.Add("Dimensions match a common display or mobile screenshot size.");
         }
     }
 
-    private static void ApplyVisualSignals(
+    private void ApplyVisualSignals(
         VisualMetrics metrics,
         IDictionary<MediaClassification, double> scores,
         ICollection<string> signals)
     {
         if (metrics.FlatPixelRatio >= 0.58)
         {
-            scores[MediaClassification.Screenshot] += 0.20;
+            if (_options.Classification.ScreenshotDetectionEnabled)
+                scores[MediaClassification.Screenshot] += 0.20;
             scores[MediaClassification.Graphic] += 0.22;
             signals.Add("Large flat-colour regions are present.");
         }
 
         if (metrics.EdgeDensity >= 0.22)
         {
-            scores[MediaClassification.Diagram] += 0.24;
-            scores[MediaClassification.ScannedDocument] += 0.18;
+            if (_options.Classification.DiagramDetectionEnabled)
+                scores[MediaClassification.Diagram] += 0.24;
+            if (_options.Classification.DocumentDetectionEnabled)
+                scores[MediaClassification.ScannedDocument] += 0.18;
             signals.Add("High edge density indicates text, line art or diagram content.");
         }
 
         if (metrics.LightBackgroundRatio >= 0.72 && metrics.EdgeDensity >= 0.12)
         {
-            scores[MediaClassification.ScannedDocument] += 0.35;
+            if (_options.Classification.DocumentDetectionEnabled)
+                scores[MediaClassification.ScannedDocument] += 0.35;
             signals.Add("A light page-like background with dense foreground marks is present.");
         }
 
         if (metrics.ColourDiversity <= 0.18 && metrics.EdgeDensity >= 0.16)
         {
-            scores[MediaClassification.Diagram] += 0.24;
+            if (_options.Classification.DiagramDetectionEnabled)
+                scores[MediaClassification.Diagram] += 0.24;
             signals.Add("Low colour diversity with strong edges supports a diagram or chart.");
         }
 
@@ -204,7 +225,8 @@ public sealed class MediaClassifier : IMediaClassifier
 
         if (metrics.WideAspectRatio is >= 1.72 and <= 1.82 && metrics.LightBackgroundRatio >= 0.45)
         {
-            scores[MediaClassification.PresentationSlide] += 0.34;
+            if (_options.Classification.DiagramDetectionEnabled)
+                scores[MediaClassification.PresentationSlide] += 0.34;
             signals.Add("A presentation-like 16:9 aspect ratio and structured background are present.");
         }
     }
@@ -218,10 +240,11 @@ public sealed class MediaClassifier : IMediaClassifier
 
         var pixelCount = width * height;
         var light = 0;
-        var flat = 0;
-        var edges = 0;
+        var locallyFlat = 0;
+        var edgeSamples = 0;
+        var strongEdges = 0;
         var bins = new HashSet<int>();
-        Rgba32? previous = null;
+        var luminance = new double[pixelCount];
 
         image.ProcessPixelRows(accessor =>
         {
@@ -231,23 +254,40 @@ public sealed class MediaClassifier : IMediaClassifier
                 for (var x = 0; x < width; x++)
                 {
                     var p = row[x];
-                    var luminance = (0.2126 * p.R) + (0.7152 * p.G) + (0.0722 * p.B);
-                    if (luminance >= 225) light++;
-                    var max = Math.Max(p.R, Math.Max(p.G, p.B));
-                    var min = Math.Min(p.R, Math.Min(p.G, p.B));
-                    if (max - min <= 12) flat++;
+                    var value = (0.2126 * p.R) + (0.7152 * p.G) + (0.0722 * p.B);
+                    luminance[(y * width) + x] = value;
+                    if (value >= 225) light++;
                     bins.Add(((p.R >> 5) << 6) | ((p.G >> 5) << 3) | (p.B >> 5));
-                    if (previous is { } q && Math.Abs(luminance - ((0.2126 * q.R) + (0.7152 * q.G) + (0.0722 * q.B))) >= 42)
-                        edges++;
-                    previous = p;
                 }
             }
         });
 
+        for (var y = 1; y < height - 1; y++)
+        {
+            for (var x = 1; x < width - 1; x++)
+            {
+                var index = (y * width) + x;
+                var gx = -luminance[index - width - 1] + luminance[index - width + 1]
+                         - (2 * luminance[index - 1]) + (2 * luminance[index + 1])
+                         - luminance[index + width - 1] + luminance[index + width + 1];
+                var gy = -luminance[index - width - 1] - (2 * luminance[index - width]) - luminance[index - width + 1]
+                         + luminance[index + width - 1] + (2 * luminance[index + width]) + luminance[index + width + 1];
+                if (Math.Sqrt((gx * gx) + (gy * gy)) >= 150) strongEdges++;
+                edgeSamples++;
+
+                var centre = luminance[index];
+                var localDifference = Math.Abs(centre - luminance[index - 1])
+                                      + Math.Abs(centre - luminance[index + 1])
+                                      + Math.Abs(centre - luminance[index - width])
+                                      + Math.Abs(centre - luminance[index + width]);
+                if (localDifference / 4d <= 7) locallyFlat++;
+            }
+        }
+
         return new VisualMetrics(
-            light / (double)pixelCount,
-            flat / (double)pixelCount,
-            edges / (double)Math.Max(1, pixelCount - 1),
+            light / (double)Math.Max(1, pixelCount),
+            locallyFlat / (double)Math.Max(1, edgeSamples),
+            strongEdges / (double)Math.Max(1, edgeSamples),
             bins.Count / 512d,
             source.Width / (double)Math.Max(1, source.Height));
     }

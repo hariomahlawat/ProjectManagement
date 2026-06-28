@@ -288,9 +288,7 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
                 AnalysisStatus = values.Kind == MediaAssetKind.Photo
                     ? MediaProcessingStatus.Pending
                     : MediaProcessingStatus.NotRequested,
-                Classification = values.Kind == MediaAssetKind.Photo
-                    ? MediaClassification.Photograph
-                    : MediaClassification.Unknown
+                Classification = MediaClassification.Unknown
             };
             existing.Add(values.SourceEntityId, asset);
             _mediaDb.Assets.Add(asset);
@@ -305,9 +303,16 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
             asset.AnalysisStatus = _options.Classification.Enabled
                 ? MediaProcessingStatus.Pending
                 : MediaProcessingStatus.NotRequested;
-            asset.ClassificationConfidence = null;
-            asset.AnalysisSignalsJson = null;
-            asset.AnalysedAtUtc = null;
+            if (!asset.ClassificationIsManual)
+            {
+                asset.Classification = MediaClassification.Unknown;
+                asset.ClassificationConfidence = null;
+                asset.AnalysisVersion = null;
+                asset.ClassifierVersion = null;
+                asset.AnalysisSignalsJson = null;
+                asset.AnalysedAtUtc = null;
+                asset.ClassifiedAtUtc = null;
+            }
             asset.FaceAnalysisStatus = MediaProcessingStatus.NotRequested;
             asset.FaceAnalysisVersion = null;
             asset.FaceAnalysedAtUtc = null;
@@ -371,12 +376,30 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
                             && !asset.IsDeleted
                             && (asset.DerivativeStatus == MediaProcessingStatus.Pending
                                 || (_options.Classification.Enabled
+                                    && !asset.ClassificationIsManual
                                     && (asset.AnalysisStatus == MediaProcessingStatus.NotRequested
-                                        || asset.AnalysisStatus == MediaProcessingStatus.Pending))))
+                                        || asset.AnalysisStatus == MediaProcessingStatus.Pending
+                                        || asset.AnalysisStatus == MediaProcessingStatus.Failed
+                                        || asset.ClassifierVersion != MediaClassifier.ClassifierVersion))))
             .Select(asset => asset.Id)
             .ToListAsync(cancellationToken);
 
         if (candidates.Count == 0) return;
+
+        await _mediaDb.Assets
+            .Where(asset => candidates.Contains(asset.Id)
+                            && !asset.ClassificationIsManual
+                            && asset.ClassifierVersion != MediaClassifier.ClassifierVersion)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(asset => asset.AnalysisStatus, MediaProcessingStatus.Pending)
+                .SetProperty(asset => asset.Classification, MediaClassification.Unknown)
+                .SetProperty(asset => asset.ClassificationConfidence, (double?)null)
+                .SetProperty(asset => asset.AnalysisVersion, (string?)null)
+                .SetProperty(asset => asset.ClassifierVersion, (string?)null)
+                .SetProperty(asset => asset.AnalysisSignalsJson, (string?)null)
+                .SetProperty(asset => asset.AnalysedAtUtc, (DateTimeOffset?)null)
+                .SetProperty(asset => asset.ClassifiedAtUtc, (DateTimeOffset?)null),
+                cancellationToken);
 
         var existingJobs = await _mediaDb.ProcessingJobs
             .Where(job => candidates.Contains(job.MediaAssetId)

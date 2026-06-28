@@ -329,6 +329,18 @@ public sealed class MediaLibraryOptionsValidatorTests
             }
         };
 
+
+    [Fact]
+    public void Validate_RejectsInvalidFaceClassificationConfidenceThreshold()
+    {
+        var options = CreateApprovedPeopleOptions();
+        options.People.MinimumClassificationConfidence = 1.1;
+
+        var result = _validator.Validate(Options.DefaultName, options);
+
+        Assert.True(result.Failed);
+    }
+
     private static MediaLibraryOptions CreateExternalEnabledOptions()
         => new()
         {

@@ -53,7 +53,7 @@ public sealed class ReviewModel : PageModel
     {
         if (!FeatureEnabled)
         {
-            return NotFound();
+            return Page();
         }
 
         Result = await _people.GetReviewQueueAsync(
@@ -127,7 +127,8 @@ public sealed class ReviewModel : PageModel
     {
         if (!FeatureEnabled)
         {
-            return NotFound();
+            ErrorMessage = "People intelligence is disabled. Complete readiness checks and enable the feature before reviewing faces.";
+            return RedirectToPage(new { PageNumber });
         }
 
         try

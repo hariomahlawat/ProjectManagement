@@ -15,17 +15,20 @@ public sealed class FaceQueueService : IFaceQueueService
     private readonly MediaLibraryDbContext _db;
     private readonly MediaLibraryOptions _options;
     private readonly IFaceModelReadinessService _readiness;
+    private readonly IFaceEligibilityPolicy _eligibility;
     private readonly ILogger<FaceQueueService> _logger;
 
     public FaceQueueService(
         MediaLibraryDbContext db,
         IOptions<MediaLibraryOptions> options,
         IFaceModelReadinessService readiness,
+        IFaceEligibilityPolicy eligibility,
         ILogger<FaceQueueService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _readiness = readiness ?? throw new ArgumentNullException(nameof(readiness));
+        _eligibility = eligibility ?? throw new ArgumentNullException(nameof(eligibility));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -38,15 +41,11 @@ public sealed class FaceQueueService : IFaceQueueService
 
         var version = CurrentAnalysisVersion;
         var maximum = Math.Clamp(limit, 1, 1_000);
+        var eligibilityPredicate = _eligibility.BuildEligiblePredicate();
         var assetIds = await _db.Assets
             .AsNoTracking()
-            .Where(asset => asset.IsAvailable
-                            && !asset.IsDeleted
-                            && !asset.IsArchived
-                            && asset.Kind == MediaAssetKind.Photo
-                            && (!_options.People.ProcessPhotographsOnly
-                                || asset.Classification == MediaClassification.Photograph)
-                            && asset.FaceAnalysisVersion != version)
+            .Where(eligibilityPredicate)
+            .Where(asset => asset.FaceAnalysisVersion != version)
             .Where(asset => !asset.Faces.Any(face =>
                 face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null)))
             .Where(asset => !asset.ProcessingJobs.Any(job =>
@@ -91,14 +90,19 @@ public sealed class FaceQueueService : IFaceQueueService
             .Include(item => item.Faces)
                 .ThenInclude(face => face.PersonAssignments)
             .SingleOrDefaultAsync(item => item.Id == assetId, cancellationToken);
-        if (asset is null
-            || !asset.IsAvailable
-            || asset.IsDeleted
-            || asset.IsArchived
-            || asset.Kind != MediaAssetKind.Photo
-            || (_options.People.ProcessPhotographsOnly
-                && asset.Classification != MediaClassification.Photograph))
+        if (asset is null)
         {
+            return false;
+        }
+
+        var eligibility = _eligibility.Evaluate(asset);
+        if (!eligibility.IsEligible)
+        {
+            _logger.LogInformation(
+                "Face analysis was not queued for asset {AssetId}: {EligibilityCode} - {EligibilityReason}",
+                assetId,
+                eligibility.Code,
+                eligibility.Reason);
             return false;
         }
 
