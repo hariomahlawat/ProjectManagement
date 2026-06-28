@@ -19,6 +19,7 @@ public sealed class MediaLibraryDbContext : DbContext
     public DbSet<MediaLibrarySource> Sources => Set<MediaLibrarySource>();
     public DbSet<MediaAsset> Assets => Set<MediaAsset>();
     public DbSet<MediaProcessingJob> ProcessingJobs => Set<MediaProcessingJob>();
+    public DbSet<MediaClassificationAudit> ClassificationAudits => Set<MediaClassificationAudit>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

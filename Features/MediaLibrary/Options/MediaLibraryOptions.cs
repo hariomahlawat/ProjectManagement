@@ -86,6 +86,13 @@ public sealed class MediaClassificationOptions
 {
     public bool Enabled { get; set; } = true;
     public bool ScreenshotDetectionEnabled { get; set; } = true;
+    public bool DocumentDetectionEnabled { get; set; } = true;
+    public bool DiagramDetectionEnabled { get; set; } = true;
+    public double MinimumConfidence { get; set; } = 0.55;
+    public int AnalysisMaxDimension { get; set; } = 512;
+    public double ScreenshotThreshold { get; set; } = 0.62;
+    public double DocumentThreshold { get; set; } = 0.66;
+    public double DiagramThreshold { get; set; } = 0.64;
 }
 
 public sealed class MediaPeopleOptions

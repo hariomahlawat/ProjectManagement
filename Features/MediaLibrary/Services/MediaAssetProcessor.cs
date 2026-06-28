@@ -15,14 +15,17 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
     private readonly IMediaContentProviderResolver _contentResolver;
     private readonly IMediaMetadataReader _metadataReader;
     private readonly IMediaClassifier _classifier;
+    private readonly IMediaClassificationEligibilityService _classificationEligibility;
     private readonly MediaLibraryOptions _options;
 
     public MediaAssetProcessor(MediaLibraryDbContext db, IMediaDerivativeService derivatives,
         IMediaContentProviderResolver contentResolver, IMediaMetadataReader metadataReader,
-        IMediaClassifier classifier, IOptions<MediaLibraryOptions> options)
+        IMediaClassifier classifier, IMediaClassificationEligibilityService classificationEligibility,
+        IOptions<MediaLibraryOptions> options)
     {
         _db = db; _derivatives = derivatives; _contentResolver = contentResolver;
-        _metadataReader = metadataReader; _classifier = classifier; _options = options.Value;
+        _metadataReader = metadataReader; _classifier = classifier;
+        _classificationEligibility = classificationEligibility; _options = options.Value;
     }
 
     public async Task ProcessAsync(long assetId, MediaProcessingJobType jobType, CancellationToken cancellationToken)
@@ -47,9 +50,15 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
             return;
         }
 
-        var rebuild = jobType is MediaProcessingJobType.AnalyseAsset or MediaProcessingJobType.RebuildDerivatives;
-        var classify = _options.Classification.Enabled
-            && jobType is (MediaProcessingJobType.AnalyseAsset or MediaProcessingJobType.ReclassifyAsset);
+        var rebuild = jobType is MediaProcessingJobType.AnalyseAsset
+            or MediaProcessingJobType.RebuildDerivatives
+            or MediaProcessingJobType.BuildDerivatives;
+        var classifyRequested = _options.Classification.Enabled
+            && jobType is (MediaProcessingJobType.AnalyseAsset
+                or MediaProcessingJobType.ReclassifyAsset
+                or MediaProcessingJobType.ClassifyMedia
+                or MediaProcessingJobType.RebuildIntelligence);
+        var classify = classifyRequested && !asset.ClassificationIsManual;
         if (rebuild) asset.DerivativeStatus = MediaProcessingStatus.Processing;
         if (classify) asset.AnalysisStatus = MediaProcessingStatus.Processing;
         else if (!_options.Classification.Enabled) asset.AnalysisStatus = MediaProcessingStatus.NotRequested;
@@ -78,13 +87,24 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
             }
             if (classify)
             {
-                var result = await _classifier.ClassifyAsync(content, metadata, cancellationToken);
+                var eligibility = _classificationEligibility.Evaluate(asset, metadata);
+                if (!eligibility.IsEligible)
+                {
+                    asset.AnalysisStatus = MediaProcessingStatus.NotRequested;
+                    asset.ProcessingFailureReason = null;
+                }
+                else
+                {
+                    var result = await _classifier.ClassifyAsync(content, metadata, cancellationToken);
                 asset.Classification = result.Classification;
                 asset.ClassificationConfidence = result.Confidence;
-                asset.AnalysisVersion = result.Version;
-                asset.AnalysisSignalsJson = JsonSerializer.Serialize(result.Signals);
-                asset.AnalysedAtUtc = DateTimeOffset.UtcNow;
-                asset.AnalysisStatus = MediaProcessingStatus.Ready;
+                    asset.AnalysisVersion = result.Version;
+                    asset.ClassifierVersion = result.Version;
+                    asset.AnalysisSignalsJson = JsonSerializer.Serialize(result.Signals);
+                    asset.AnalysedAtUtc = DateTimeOffset.UtcNow;
+                    asset.ClassifiedAtUtc = asset.AnalysedAtUtc;
+                    asset.AnalysisStatus = MediaProcessingStatus.Ready;
+                }
             }
 
             asset.Width = metadata.Width;

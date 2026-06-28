@@ -85,6 +85,15 @@ public sealed class MediaAsset
 
     public MediaClassification Classification { get; set; }
     public double? ClassificationConfidence { get; set; }
+    public bool ClassificationIsManual { get; set; }
+
+    [MaxLength(450)]
+    public string? ClassificationUpdatedByUserId { get; set; }
+
+    public DateTimeOffset? ClassifiedAtUtc { get; set; }
+
+    [MaxLength(128)]
+    public string? ClassifierVersion { get; set; }
     public MediaProcessingStatus DerivativeStatus { get; set; }
     public MediaProcessingStatus AnalysisStatus { get; set; }
 

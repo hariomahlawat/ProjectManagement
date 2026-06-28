@@ -60,6 +60,8 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaContentProviderResolver, MediaContentProviderResolver>();
         services.AddScoped<IMediaMetadataReader, MediaMetadataReader>();
         services.AddScoped<IMediaClassifier, MediaClassifier>();
+        services.AddScoped<IMediaClassificationEligibilityService, MediaClassificationEligibilityService>();
+        services.AddScoped<IMediaClassificationOverrideService, MediaClassificationOverrideService>();
         services.AddScoped<IMediaDerivativeService, MediaDerivativeService>();
         services.AddScoped<IMediaAssetProcessor, MediaAssetProcessor>();
         services.AddScoped<IMediaLibrarySchemaService, MediaLibrarySchemaService>();
@@ -79,12 +81,6 @@ public static class MediaLibraryServiceCollectionExtensions
         if (configuredOptions.IsProcessingWorkerEnabled)
         {
             services.AddHostedService<MediaProcessingWorker>();
-        }
-
-        // Availability reconciliation protects the integrity of the central timeline
-        // and is required even when derivative/analysis processing is disabled.
-        if (configuredOptions.IsCatalogueEnabled)
-        {
             services.AddHostedService<MediaAvailabilityReconciliationWorker>();
         }
 

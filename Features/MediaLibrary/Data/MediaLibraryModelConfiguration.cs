@@ -62,6 +62,8 @@ public static class MediaLibraryModelConfiguration
             entity.Property(x => x.DerivativeStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(x => x.AnalysisStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(x => x.AnalysisVersion).HasMaxLength(128);
+            entity.Property(x => x.ClassificationUpdatedByUserId).HasMaxLength(450);
+            entity.Property(x => x.ClassifierVersion).HasMaxLength(128);
             entity.Property(x => x.AnalysisSignalsJson).HasColumnType("jsonb");
             entity.Property(x => x.ProcessingFailureReason).HasMaxLength(2048);
             entity.Property(x => x.AvailabilityStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
@@ -76,12 +78,25 @@ public static class MediaLibraryModelConfiguration
             entity.HasIndex(x => new { x.ProjectId, x.IsAvailable, x.IsDeleted, x.IsArchived, x.MediaDateUtc })
                 .HasDatabaseName("IX_MediaAssets_ProjectTimeline");
             entity.HasIndex(x => new { x.Kind, x.Classification });
+            entity.HasIndex(x => new { x.ClassificationIsManual, x.Classification });
             entity.HasIndex(x => x.ProjectId);
             entity.HasIndex(x => x.CollectionKey);
             entity.HasOne(x => x.Source)
                 .WithMany(x => x.Assets)
                 .HasForeignKey(x => x.SourceId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MediaClassificationAudit>(entity =>
+        {
+            entity.ToTable("MediaClassificationAudits");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.PreviousClassification).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.NewClassification).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.ChangedByUserId).HasMaxLength(450).IsRequired();
+            entity.Property(x => x.Reason).HasMaxLength(1024);
+            entity.HasIndex(x => new { x.MediaAssetId, x.ChangedAtUtc });
+            entity.HasOne(x => x.MediaAsset).WithMany().HasForeignKey(x => x.MediaAssetId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<MediaProcessingJob>(entity =>

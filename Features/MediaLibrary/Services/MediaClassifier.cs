@@ -1,16 +1,19 @@
 using Microsoft.Extensions.Options;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
 /// <summary>
-/// Explainable, deterministic screenshot classifier. It intentionally avoids any model
-/// whose weights or training-data licence has not been approved.
+/// CPU-only, explainable and deterministic media classifier. No proprietary model,
+/// network service or unapproved model weights are used.
 /// </summary>
 public sealed class MediaClassifier : IMediaClassifier
 {
-    public const string ClassifierVersion = "heuristic-screenshot-v2";
+    public const string ClassifierVersion = "deterministic-media-v3";
 
     private static readonly string[] ScreenshotTerms =
     {
@@ -18,127 +21,239 @@ public sealed class MediaClassifier : IMediaClassifier
         "snipping", "snip", "capture", "clipboard"
     };
 
+    private static readonly string[] DocumentTerms =
+    {
+        "scan", "scanned", "document", "letter", "memo", "page", "form", "certificate", "receipt"
+    };
+
+    private static readonly string[] DiagramTerms =
+    {
+        "diagram", "chart", "graph", "flow", "workflow", "architecture", "schematic", "slide", "ppt"
+    };
+
     private readonly MediaLibraryOptions _options;
 
     public MediaClassifier(IOptions<MediaLibraryOptions> options)
-    {
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-    }
+        => _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 
-    public Task<MediaClassificationResult> ClassifyAsync(
+    public async Task<MediaClassificationResult> ClassifyAsync(
         string path,
         MediaFileMetadata metadata,
         CancellationToken cancellationToken)
-        => ClassifyCoreAsync(Path.GetFileName(path), metadata, cancellationToken);
+    {
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete,
+            128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        return await ClassifyCoreAsync(Path.GetFileName(path), stream, metadata, cancellationToken);
+    }
 
-    public Task<MediaClassificationResult> ClassifyAsync(
+    public async Task<MediaClassificationResult> ClassifyAsync(
         MediaContentDescriptor content,
         MediaFileMetadata metadata,
         CancellationToken cancellationToken)
-        => ClassifyCoreAsync(content.FileName, metadata, cancellationToken);
+    {
+        await using var stream = await content.OpenReadAsync(cancellationToken);
+        return await ClassifyCoreAsync(content.FileName, stream, metadata, cancellationToken);
+    }
 
-    private Task<MediaClassificationResult> ClassifyCoreAsync(
+    private async Task<MediaClassificationResult> ClassifyCoreAsync(
         string fileNameWithExtension,
+        Stream stream,
         MediaFileMetadata metadata,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         if (!_options.Classification.Enabled)
-        {
-            return Task.FromResult(new MediaClassificationResult(
-                MediaClassification.Unknown,
-                0,
-                new[] { "Media classification is disabled." },
-                ClassifierVersion));
-        }
+            return Result(MediaClassification.Unknown, 0, "Media classification is disabled.");
 
         if (metadata.Kind == MediaAssetKind.Video)
-        {
-            return Task.FromResult(new MediaClassificationResult(
-                MediaClassification.Unknown,
-                0,
-                new[] { "Video classification is not enabled in this release." },
-                ClassifierVersion));
-        }
+            return Result(MediaClassification.Unknown, 0, "Video classification is not enabled in this release.");
 
-        if (!_options.Classification.ScreenshotDetectionEnabled)
-        {
-            return Task.FromResult(new MediaClassificationResult(
-                MediaClassification.Photograph,
-                metadata.HasCameraMetadata ? 0.94 : 0.60,
-                new[] { "Screenshot detection is disabled." },
-                ClassifierVersion));
-        }
-
-        var signals = new List<string>();
-        var screenshotScore = 0d;
         var fileName = Path.GetFileNameWithoutExtension(fileNameWithExtension);
         var extension = Path.GetExtension(fileNameWithExtension);
+        var signals = new List<string>();
+        var scores = new Dictionary<MediaClassification, double>
+        {
+            [MediaClassification.Photograph] = metadata.HasCameraMetadata ? 0.78 : 0.25,
+            [MediaClassification.Screenshot] = 0,
+            [MediaClassification.ScannedDocument] = 0,
+            [MediaClassification.Diagram] = 0,
+            [MediaClassification.PresentationSlide] = 0,
+            [MediaClassification.Graphic] = 0
+        };
 
+        ApplyNameAndMetadataSignals(fileName, extension, metadata, scores, signals);
+
+        try
+        {
+            if (stream.CanSeek) stream.Position = 0;
+            using var image = await Image.LoadAsync<Rgba32>(stream, cancellationToken);
+            var metrics = Measure(image, _options.Classification.AnalysisMaxDimension);
+            ApplyVisualSignals(metrics, scores, signals);
+        }
+        catch (UnknownImageFormatException)
+        {
+            signals.Add("The image format could not be decoded for visual analysis.");
+        }
+        catch (InvalidImageContentException)
+        {
+            signals.Add("The image content could not be decoded for visual analysis.");
+        }
+
+        var ordered = scores.OrderByDescending(pair => pair.Value).ToArray();
+        var winner = ordered[0];
+        var runnerUp = ordered.Length > 1 ? ordered[1].Value : 0;
+        var confidence = Math.Clamp(0.52 + ((winner.Value - runnerUp) * 0.55), 0.50, 0.98);
+
+        if (winner.Value < _options.Classification.MinimumConfidence)
+        {
+            signals.Add("No classification exceeded the configured minimum confidence.");
+            return new MediaClassificationResult(MediaClassification.Unknown, confidence, signals, ClassifierVersion);
+        }
+
+        return new MediaClassificationResult(winner.Key, confidence, signals, ClassifierVersion);
+    }
+
+    private static void ApplyNameAndMetadataSignals(
+        string fileName,
+        string extension,
+        MediaFileMetadata metadata,
+        IDictionary<MediaClassification, double> scores,
+        ICollection<string> signals)
+    {
         if (ScreenshotTerms.Any(term => fileName.Contains(term, StringComparison.OrdinalIgnoreCase)))
         {
-            screenshotScore += 0.60;
+            scores[MediaClassification.Screenshot] += 0.72;
             signals.Add("Filename indicates a screenshot or screen capture.");
         }
 
-        if (!metadata.HasCameraMetadata)
+        if (DocumentTerms.Any(term => fileName.Contains(term, StringComparison.OrdinalIgnoreCase)))
         {
-            screenshotScore += 0.15;
-            signals.Add("No camera make or model metadata is present.");
+            scores[MediaClassification.ScannedDocument] += 0.48;
+            signals.Add("Filename indicates a scanned or document image.");
+        }
+
+        if (DiagramTerms.Any(term => fileName.Contains(term, StringComparison.OrdinalIgnoreCase)))
+        {
+            scores[MediaClassification.Diagram] += 0.50;
+            signals.Add("Filename indicates a diagram, chart or presentation.");
+        }
+
+        if (metadata.HasCameraMetadata)
+        {
+            scores[MediaClassification.Photograph] += 0.32;
+            scores[MediaClassification.Screenshot] -= 0.35;
+            signals.Add("Camera metadata strongly supports a photograph.");
         }
         else
         {
-            screenshotScore -= 0.45;
-            signals.Add("Camera metadata is present.");
+            scores[MediaClassification.Screenshot] += 0.10;
+            scores[MediaClassification.Graphic] += 0.08;
+            signals.Add("No camera make or model metadata is present.");
         }
 
         if (extension.Equals(".png", StringComparison.OrdinalIgnoreCase))
         {
-            screenshotScore += 0.12;
-            signals.Add("PNG is commonly used for screenshots.");
+            scores[MediaClassification.Screenshot] += 0.10;
+            scores[MediaClassification.Graphic] += 0.07;
         }
 
-        if (metadata.Width.HasValue && metadata.Height.HasValue)
+        if (metadata.Width.HasValue && metadata.Height.HasValue && IsCommonScreenDimension(metadata.Width.Value, metadata.Height.Value))
         {
-            var width = metadata.Width.Value;
-            var height = metadata.Height.Value;
-            var longSide = Math.Max(width, height);
-            var shortSide = Math.Min(width, height);
-            var ratio = shortSide > 0 ? (double)longSide / shortSide : 0;
-
-            if (IsCommonScreenDimension(width, height))
-            {
-                screenshotScore += 0.22;
-                signals.Add("Dimensions match a common display or mobile screenshot size.");
-            }
-            else if (longSide >= 1000 && ratio is >= 1.55 and <= 2.30 && !metadata.HasCameraMetadata)
-            {
-                screenshotScore += 0.08;
-                signals.Add("Aspect ratio is consistent with a screen capture.");
-            }
+            scores[MediaClassification.Screenshot] += 0.25;
+            signals.Add("Dimensions match a common display or mobile screenshot size.");
         }
-
-        screenshotScore = Math.Clamp(screenshotScore, 0, 1);
-        var classification = screenshotScore >= 0.62
-            ? MediaClassification.Screenshot
-            : MediaClassification.Photograph;
-
-        var confidence = classification == MediaClassification.Screenshot
-            ? screenshotScore
-            : Math.Clamp(1 - screenshotScore, 0.50, 0.98);
-
-        if (classification == MediaClassification.Photograph && metadata.HasCameraMetadata)
-        {
-            confidence = Math.Max(confidence, 0.94);
-        }
-
-        return Task.FromResult(new MediaClassificationResult(
-            classification,
-            confidence,
-            signals,
-            ClassifierVersion));
     }
+
+    private static void ApplyVisualSignals(
+        VisualMetrics metrics,
+        IDictionary<MediaClassification, double> scores,
+        ICollection<string> signals)
+    {
+        if (metrics.FlatPixelRatio >= 0.58)
+        {
+            scores[MediaClassification.Screenshot] += 0.20;
+            scores[MediaClassification.Graphic] += 0.22;
+            signals.Add("Large flat-colour regions are present.");
+        }
+
+        if (metrics.EdgeDensity >= 0.22)
+        {
+            scores[MediaClassification.Diagram] += 0.24;
+            scores[MediaClassification.ScannedDocument] += 0.18;
+            signals.Add("High edge density indicates text, line art or diagram content.");
+        }
+
+        if (metrics.LightBackgroundRatio >= 0.72 && metrics.EdgeDensity >= 0.12)
+        {
+            scores[MediaClassification.ScannedDocument] += 0.35;
+            signals.Add("A light page-like background with dense foreground marks is present.");
+        }
+
+        if (metrics.ColourDiversity <= 0.18 && metrics.EdgeDensity >= 0.16)
+        {
+            scores[MediaClassification.Diagram] += 0.24;
+            signals.Add("Low colour diversity with strong edges supports a diagram or chart.");
+        }
+
+        if (metrics.ColourDiversity >= 0.38 && metrics.FlatPixelRatio < 0.45)
+        {
+            scores[MediaClassification.Photograph] += 0.30;
+            signals.Add("Natural colour diversity and limited flat regions support a photograph.");
+        }
+
+        if (metrics.WideAspectRatio is >= 1.72 and <= 1.82 && metrics.LightBackgroundRatio >= 0.45)
+        {
+            scores[MediaClassification.PresentationSlide] += 0.34;
+            signals.Add("A presentation-like 16:9 aspect ratio and structured background are present.");
+        }
+    }
+
+    private static VisualMetrics Measure(Image<Rgba32> source, int maxDimension)
+    {
+        var scale = Math.Min(1d, Math.Max(64, maxDimension) / (double)Math.Max(source.Width, source.Height));
+        var width = Math.Max(1, (int)Math.Round(source.Width * scale));
+        var height = Math.Max(1, (int)Math.Round(source.Height * scale));
+        using var image = source.Clone(context => context.Resize(width, height));
+
+        var pixelCount = width * height;
+        var light = 0;
+        var flat = 0;
+        var edges = 0;
+        var bins = new HashSet<int>();
+        Rgba32? previous = null;
+
+        image.ProcessPixelRows(accessor =>
+        {
+            for (var y = 0; y < height; y++)
+            {
+                var row = accessor.GetRowSpan(y);
+                for (var x = 0; x < width; x++)
+                {
+                    var p = row[x];
+                    var luminance = (0.2126 * p.R) + (0.7152 * p.G) + (0.0722 * p.B);
+                    if (luminance >= 225) light++;
+                    var max = Math.Max(p.R, Math.Max(p.G, p.B));
+                    var min = Math.Min(p.R, Math.Min(p.G, p.B));
+                    if (max - min <= 12) flat++;
+                    bins.Add(((p.R >> 5) << 6) | ((p.G >> 5) << 3) | (p.B >> 5));
+                    if (previous is { } q && Math.Abs(luminance - ((0.2126 * q.R) + (0.7152 * q.G) + (0.0722 * q.B))) >= 42)
+                        edges++;
+                    previous = p;
+                }
+            }
+        });
+
+        return new VisualMetrics(
+            light / (double)pixelCount,
+            flat / (double)pixelCount,
+            edges / (double)Math.Max(1, pixelCount - 1),
+            bins.Count / 512d,
+            source.Width / (double)Math.Max(1, source.Height));
+    }
+
+    private static MediaClassificationResult Result(MediaClassification classification, double confidence, string signal)
+        => new(classification, confidence, new[] { signal }, ClassifierVersion);
 
     private static bool IsCommonScreenDimension(int width, int height)
     {
@@ -154,4 +269,11 @@ public sealed class MediaClassifier : IMediaClassifier
             (Math.Abs(candidate.Width - width) <= 8 && Math.Abs(candidate.Height - height) <= 8)
             || (Math.Abs(candidate.Width - height) <= 8 && Math.Abs(candidate.Height - width) <= 8));
     }
+
+    private sealed record VisualMetrics(
+        double LightBackgroundRatio,
+        double FlatPixelRatio,
+        double EdgeDensity,
+        double ColourDiversity,
+        double WideAspectRatio);
 }

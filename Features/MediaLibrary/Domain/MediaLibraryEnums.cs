@@ -63,7 +63,13 @@ public enum MediaProcessingJobType
     AnalyseAsset = 0,
     RebuildDerivatives = 1,
     ReclassifyAsset = 2,
-    DetectFaces = 3
+    DetectFaces = 3,
+    BuildDerivatives = 4,
+    ExtractMetadata = 5,
+    ClassifyMedia = 6,
+    GenerateFaceEmbeddings = 7,
+    AssignFaceCluster = 8,
+    RebuildIntelligence = 9
 }
 
 public enum MediaProcessingJobStatus
