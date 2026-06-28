@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
+using ProjectManagement.Features.MediaLibrary.Options;
 
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
@@ -9,15 +11,18 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
 {
     private readonly ApplicationDbContext _applicationDb;
     private readonly MediaLibraryDbContext _mediaDb;
+    private readonly MediaLibraryOptions _options;
     private readonly ILogger<PrismMediaCatalogueSynchronizer> _logger;
 
     public PrismMediaCatalogueSynchronizer(
         ApplicationDbContext applicationDb,
         MediaLibraryDbContext mediaDb,
+        IOptions<MediaLibraryOptions> options,
         ILogger<PrismMediaCatalogueSynchronizer> logger)
     {
         _applicationDb = applicationDb ?? throw new ArgumentNullException(nameof(applicationDb));
         _mediaDb = mediaDb ?? throw new ArgumentNullException(nameof(mediaDb));
+        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
