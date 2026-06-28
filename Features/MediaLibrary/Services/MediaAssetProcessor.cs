@@ -30,7 +30,13 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
         var asset = await _db.Assets.Include(x => x.Source)
             .SingleAsync(x => x.Id == assetId, cancellationToken);
         if (!asset.IsAvailable || asset.IsDeleted)
-            throw new FileNotFoundException("The media asset is unavailable.");
+        {
+            asset.DerivativeStatus = MediaProcessingStatus.NotRequested;
+            asset.AnalysisStatus = MediaProcessingStatus.NotRequested;
+            asset.ProcessingFailureReason = null;
+            await _db.SaveChangesAsync(cancellationToken);
+            return;
+        }
 
         if (asset.Kind != MediaAssetKind.Photo)
         {
@@ -53,7 +59,8 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
         try
         {
             var content = await _contentResolver.ResolveAsync(asset, cancellationToken)
-                ?? throw new FileNotFoundException("The original media content could not be resolved.");
+                ?? throw new MediaContentUnavailableException(
+                    $"The original media content could not be resolved for asset {asset.Id} ({asset.Origin}, {asset.SourceEntityId}).");
             var metadata = await _metadataReader.ReadAsync(content, cancellationToken);
 
             if (string.IsNullOrWhiteSpace(asset.ContentHash))

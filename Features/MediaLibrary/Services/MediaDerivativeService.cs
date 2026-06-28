@@ -51,9 +51,9 @@ public sealed class MediaDerivativeService : IMediaDerivativeService
             if (File.Exists(output)) return output;
 
             var content = await _contentResolver.ResolveAsync(asset, cancellationToken)
-                ?? throw new FileNotFoundException("The original media content could not be resolved.");
+                ?? throw new MediaContentUnavailableException("The original media content could not be resolved.");
             if (content.Length is > 0 && content.Length > _options.Processing.MaxImageFileSizeBytes)
-                throw new InvalidDataException("The image exceeds the configured processing size limit.");
+                throw new MediaProcessingPermanentException("The image exceeds the configured processing size limit.");
 
             var maxPixels = variant == "thumb"
                 ? _options.Processing.ThumbnailMaxPixels
@@ -68,7 +68,7 @@ public sealed class MediaDerivativeService : IMediaDerivativeService
                 using var resized = ResizeToFit(oriented, maxPixels);
                 using var image = SKImage.FromBitmap(resized);
                 using var encoded = image.Encode(SKEncodedImageFormat.Webp, _options.Processing.WebpQuality)
-                    ?? throw new InvalidDataException("The server could not encode the media preview.");
+                    ?? throw new MediaProcessingPermanentException("The server could not encode the media preview.");
                 await using var destination = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write,
                     FileShare.None, 128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
                 encoded.SaveTo(destination);
@@ -91,13 +91,13 @@ public sealed class MediaDerivativeService : IMediaDerivativeService
         stream.CopyTo(memory);
         memory.Position = 0;
         using var codec = SKCodec.Create(memory)
-            ?? throw new InvalidDataException("The image format is not supported by SkiaSharp.");
+            ?? throw new MediaProcessingPermanentException("The image format is not supported by SkiaSharp.");
         var source = new SKBitmap(codec.Info.Width, codec.Info.Height, codec.Info.ColorType, codec.Info.AlphaType);
         var result = codec.GetPixels(source.Info, source.GetPixels());
         if (result is not (SKCodecResult.Success or SKCodecResult.IncompleteInput))
         {
             source.Dispose();
-            throw new InvalidDataException($"The image could not be decoded ({result}).");
+            throw new MediaProcessingPermanentException($"The image could not be decoded ({result}).");
         }
         if (codec.EncodedOrigin == SKEncodedOrigin.TopLeft) return source;
 
@@ -139,6 +139,6 @@ public sealed class MediaDerivativeService : IMediaDerivativeService
         var width = Math.Max(1, (int)Math.Round(source.Width * scale));
         var height = Math.Max(1, (int)Math.Round(source.Height * scale));
         return source.Resize(new SKImageInfo(width, height), SKFilterQuality.High)
-               ?? throw new InvalidDataException("The image preview could not be resized.");
+               ?? throw new MediaProcessingPermanentException("The image preview could not be resized.");
     }
 }

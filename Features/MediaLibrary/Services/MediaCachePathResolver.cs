@@ -15,7 +15,6 @@ public sealed class MediaCachePathResolver : IMediaCachePathResolver
             ? Path.GetFullPath(configured)
             : Path.GetFullPath(Path.Combine(environment.ContentRootPath, configured));
 
-        Directory.CreateDirectory(CacheRoot);
     }
 
     public string CacheRoot { get; }

@@ -18,6 +18,10 @@ public static class MediaLibraryServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
+        var configuredOptions = configuration
+            .GetSection(MediaLibraryOptions.SectionName)
+            .Get<MediaLibraryOptions>() ?? new MediaLibraryOptions();
+
         services
             .AddOptions<MediaLibraryOptions>()
             .Bind(configuration.GetSection(MediaLibraryOptions.SectionName))
@@ -30,6 +34,13 @@ public static class MediaLibraryServiceCollectionExtensions
 
         services.AddSingleton<IFileSystemPathResolver, FileSystemPathResolver>();
         services.AddSingleton<IMediaCachePathResolver, MediaCachePathResolver>();
+        services.AddSingleton<IMediaProcessingRuntimeState>(_ =>
+        {
+            var state = new MediaProcessingRuntimeState();
+            state.MarkConfigured(configuredOptions.IsProcessingWorkerEnabled);
+            return state;
+        });
+        services.AddScoped<IMediaCacheHealthService, MediaCacheHealthService>();
         services.AddScoped<SafeFileEnumerator>();
         services.AddScoped<IFileSystemSourceHealthService, FileSystemSourceHealthService>();
         services.AddScoped<IMediaSourceBootstrapper, MediaSourceBootstrapper>();
@@ -52,23 +63,19 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaAssetProcessor, MediaAssetProcessor>();
         services.AddScoped<IMediaLibrarySchemaService, MediaLibrarySchemaService>();
 
-        var options = configuration.GetSection(MediaLibraryOptions.SectionName).Get<MediaLibraryOptions>()
-            ?? new MediaLibraryOptions();
-
-        if (options.Enabled && options.AutoMigrate)
+        if (configuredOptions.Enabled && configuredOptions.AutoMigrate)
         {
             services.AddHostedService<MediaLibrarySchemaInitializerWorker>();
         }
 
-        // The workers are optional. Pages and PRISM-owned media remain available even
-        // when the catalogue, external folders, or their schema are unavailable.
-        if (options.IsCatalogueEnabled
-            && (options.Catalogue.SynchronizePrismMedia || options.IsScannerWorkerEnabled))
+        if (configuredOptions.IsCatalogueEnabled
+            && (configuredOptions.Catalogue.SynchronizePrismMedia
+                || configuredOptions.IsScannerWorkerEnabled))
         {
             services.AddHostedService<MediaSourceScannerWorker>();
         }
 
-        if (options.IsProcessingWorkerEnabled)
+        if (configuredOptions.IsProcessingWorkerEnabled)
         {
             services.AddHostedService<MediaProcessingWorker>();
         }

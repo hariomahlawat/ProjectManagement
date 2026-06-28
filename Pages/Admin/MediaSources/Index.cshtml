@@ -87,16 +87,16 @@
             </div>
             <div class="col-sm-6 col-xl-3">
                 <div class="border rounded-3 p-3 h-100 bg-body">
-                    <div class="text-muted small">Queued / processing</div>
-                    <div class="fs-3 fw-semibold">@Model.PendingJobs</div>
-                    <div class="small text-muted">background jobs</div>
+                    <div class="text-muted small">Processing queue</div>
+                    <div class="fs-3 fw-semibold">@(Model.PendingJobs + Model.RetryingJobs + Model.RunningJobs)</div>
+                    <div class="small text-muted">@Model.PendingJobs pending · @Model.RunningJobs running · @Model.RetryingJobs retrying</div>
                 </div>
             </div>
             <div class="col-sm-6 col-xl-3">
                 <div class="border rounded-3 p-3 h-100 bg-body">
-                    <div class="text-muted small">Failed jobs</div>
-                    <div class="fs-3 fw-semibold @(Model.FailedJobs > 0 ? "text-danger" : null)">@Model.FailedJobs</div>
-                    <div class="small text-muted">requiring attention</div>
+                    <div class="text-muted small">Completed / attention</div>
+                    <div class="fs-3 fw-semibold @(Model.DeadLetterJobs > 0 ? "text-danger" : null)">@Model.CompletedJobs</div>
+                    <div class="small text-muted">completed · @Model.DeadLetterJobs dead-letter</div>
                 </div>
             </div>
         </div>
@@ -123,7 +123,7 @@
                             <i class="bi bi-check2-square me-1" aria-hidden="true"></i> Consistency check
                         </button>
                     </form>
-                    @if (Model.FailedJobs > 0)
+                    @if (Model.FailedJobs + Model.DeadLetterJobs > 0)
                     {
                         <form method="post" asp-page-handler="RetryFailed">
                             <button type="submit" class="btn btn-outline-danger">
@@ -188,6 +188,104 @@
                             </table>
                         </div>
                     }
+                }
+            </div>
+        </section>
+
+        <section class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-body border-bottom py-3">
+                <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+                    <div>
+                        <h2 class="h5 mb-1">Media processing</h2>
+                        <p class="small text-muted mb-0">Worker runtime, cache health and retry diagnostics.</p>
+                    </div>
+                    <span class="badge @(Model.ProcessingRuntime.WorkerStarted ? "text-bg-success" : "text-bg-warning")">
+                        @Model.ProcessingRuntime.State
+                    </span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-3 mb-3">
+                    <div class="col-sm-6 col-xl-3">
+                        <div class="small text-muted">Worker</div>
+                        <div class="fw-semibold">@(Model.ProcessingRuntime.WorkerConfigured ? (Model.ProcessingRuntime.WorkerStarted ? "Running" : "Configured, not started") : "Disabled")</div>
+                        @if (Model.ProcessingRuntime.LastHeartbeatUtc.HasValue)
+                        {
+                            <div class="small text-muted">Heartbeat @Model.ProcessingRuntime.LastHeartbeatUtc.Value.ToLocalTime().ToString("dd MMM HH:mm:ss")</div>
+                        }
+                    </div>
+                    <div class="col-sm-6 col-xl-3">
+                        <div class="small text-muted">Current work</div>
+                        <div class="fw-semibold">@(Model.ProcessingRuntime.CurrentJobId.HasValue ? $"Job {Model.ProcessingRuntime.CurrentJobId}" : "None")</div>
+                        @if (Model.ProcessingRuntime.CurrentAssetId.HasValue)
+                        {
+                            <div class="small text-muted">Asset @Model.ProcessingRuntime.CurrentAssetId</div>
+                        }
+                    </div>
+                    <div class="col-sm-6 col-xl-3">
+                        <div class="small text-muted">Since application start</div>
+                        <div class="fw-semibold">@Model.ProcessingRuntime.CompletedSinceStart completed</div>
+                        <div class="small text-muted">@Model.ProcessingRuntime.FailedSinceStart failed attempts</div>
+                    </div>
+                    <div class="col-sm-6 col-xl-3">
+                        <div class="small text-muted">Derivative cache</div>
+                        @if (Model.CacheHealth is null)
+                        {
+                            <div class="fw-semibold text-muted">Not tested</div>
+                        }
+                        else
+                        {
+                            <div class="fw-semibold @(Model.CacheHealth.IsHealthy ? "text-success" : "text-danger")">@(Model.CacheHealth.IsHealthy ? "Writable" : "Unavailable")</div>
+                            <div class="small text-muted text-break" title="@Model.CacheHealth.CacheRoot">@Model.CacheHealth.CacheRoot</div>
+                        }
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(Model.ProcessingRuntime.LastFailureMessage))
+                {
+                    <div class="alert alert-warning py-2 mb-3">
+                        <strong>Latest worker failure:</strong> @Model.ProcessingRuntime.LastFailureCode — @Model.ProcessingRuntime.LastFailureMessage
+                    </div>
+                }
+                @if (Model.CacheHealth is { IsHealthy: false })
+                {
+                    <div class="alert alert-danger py-2 mb-3">@Model.CacheHealth.Message</div>
+                }
+
+                @if (Model.RecentProblemJobs.Count > 0)
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                                <tr><th>Job</th><th>Status</th><th>Attempts</th><th>Last error</th><th>Next action</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var job in Model.RecentProblemJobs)
+                                {
+                                    <tr>
+                                        <td><div class="fw-semibold">#@job.Id</div><div class="small text-muted">Asset @job.MediaAssetId</div></td>
+                                        <td><span class="badge @(job.Status == MediaProcessingJobStatus.DeadLetter ? "text-bg-danger" : "text-bg-warning")">@job.Status</span></td>
+                                        <td>@job.AttemptCount / @job.MaxAttempts</td>
+                                        <td class="small" style="max-width: 34rem;">
+                                            <div class="fw-semibold">@(job.FailureCode ?? "Unknown")</div>
+                                            <div class="text-muted text-break">@(job.FailureMessage ?? "No failure detail was recorded.")</div>
+                                        </td>
+                                        <td class="small">@job.AvailableAfterUtc.ToLocalTime().ToString("dd MMM HH:mm:ss")</td>
+                                        <td class="text-end">
+                                            <form method="post" asp-page-handler="RetryJob">
+                                                <input type="hidden" name="id" value="@job.Id" />
+                                                <button class="btn btn-sm btn-outline-secondary" type="submit">Retry</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted mb-0">No retrying, failed or dead-letter jobs.</p>
                 }
             </div>
         </section>

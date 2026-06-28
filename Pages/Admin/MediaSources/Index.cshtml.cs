@@ -25,6 +25,8 @@ public sealed class IndexModel : PageModel
     private readonly IMediaLibraryDiagnostics _catalogueDiagnostics;
     private readonly IMediaCatalogueConsistencyService _consistencyService;
     private readonly IPrismMediaCatalogueSynchronizer _prismSynchronizer;
+    private readonly IMediaProcessingRuntimeState _processingRuntime;
+    private readonly IMediaCacheHealthService _cacheHealthService;
 
     public IndexModel(
         MediaLibraryDbContext db,
@@ -35,7 +37,9 @@ public sealed class IndexModel : PageModel
         IMediaLibraryHealthService catalogueHealthService,
         IMediaLibraryDiagnostics catalogueDiagnostics,
         IMediaCatalogueConsistencyService consistencyService,
-        IPrismMediaCatalogueSynchronizer prismSynchronizer)
+        IPrismMediaCatalogueSynchronizer prismSynchronizer,
+        IMediaProcessingRuntimeState processingRuntime,
+        IMediaCacheHealthService cacheHealthService)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -46,6 +50,8 @@ public sealed class IndexModel : PageModel
         _catalogueDiagnostics = catalogueDiagnostics ?? throw new ArgumentNullException(nameof(catalogueDiagnostics));
         _consistencyService = consistencyService ?? throw new ArgumentNullException(nameof(consistencyService));
         _prismSynchronizer = prismSynchronizer ?? throw new ArgumentNullException(nameof(prismSynchronizer));
+        _processingRuntime = processingRuntime ?? throw new ArgumentNullException(nameof(processingRuntime));
+        _cacheHealthService = cacheHealthService ?? throw new ArgumentNullException(nameof(cacheHealthService));
     }
 
     [BindProperty]
@@ -53,7 +59,15 @@ public sealed class IndexModel : PageModel
 
     public IReadOnlyList<SourceRow> Sources { get; private set; } = Array.Empty<SourceRow>();
     public int PendingJobs { get; private set; }
+    public int RunningJobs { get; private set; }
+    public int RetryingJobs { get; private set; }
+    public int CompletedJobs { get; private set; }
     public int FailedJobs { get; private set; }
+    public int DeadLetterJobs { get; private set; }
+    public DateTimeOffset? OldestPendingAtUtc { get; private set; }
+    public MediaProcessingRuntimeSnapshot ProcessingRuntime { get; private set; } = new(false, false, "Unknown", string.Empty, null, null, null, null, null, null, null, 0, 0, null, null);
+    public MediaCacheHealthResult? CacheHealth { get; private set; }
+    public IReadOnlyList<ProcessingJobRow> RecentProblemJobs { get; private set; } = Array.Empty<ProcessingJobRow>();
     public bool CatalogueAvailable { get; private set; } = true;
     public bool ExternalSourcesEnabled => _options.IsExternalSourceFeatureEnabled;
     public bool IsEditing => Input.Id.HasValue;
@@ -431,6 +445,27 @@ public sealed class IndexModel : PageModel
         return RedirectToPage();
     }
 
+    public async Task<IActionResult> OnPostRetryJobAsync(long id, CancellationToken cancellationToken)
+    {
+        var job = await _db.ProcessingJobs.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (job is null) return NotFound();
+
+        var now = DateTimeOffset.UtcNow;
+        job.Status = MediaProcessingJobStatus.Pending;
+        job.AttemptCount = 0;
+        job.AvailableAfterUtc = now;
+        job.StartedAtUtc = null;
+        job.CompletedAtUtc = null;
+        job.LockedBy = null;
+        job.LockExpiresAtUtc = null;
+        job.FailureCode = null;
+        job.FailureMessage = null;
+        job.UpdatedAtUtc = now;
+        await _db.SaveChangesAsync(cancellationToken);
+        StatusMessage = $"Media processing job {id} was queued again.";
+        return RedirectToPage();
+    }
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         var schema = await _schemaService.GetStatusAsync(cancellationToken);
@@ -441,7 +476,12 @@ public sealed class IndexModel : PageModel
         {
             Sources = Array.Empty<SourceRow>();
             PendingJobs = 0;
+            RunningJobs = 0;
+            RetryingJobs = 0;
+            CompletedJobs = 0;
             FailedJobs = 0;
+            DeadLetterJobs = 0;
+            ProcessingRuntime = _processingRuntime.GetSnapshot();
             CatalogueDiagnostics = _catalogueDiagnostics.GetLatest();
             return;
         }
@@ -472,15 +512,54 @@ public sealed class IndexModel : PageModel
                     source.LastError))
                 .ToListAsync(cancellationToken);
 
+            var now = DateTimeOffset.UtcNow;
             PendingJobs = await _db.ProcessingJobs.CountAsync(
                 job => job.Status == MediaProcessingJobStatus.Pending
-                       || job.Status == MediaProcessingJobStatus.Running,
+                       && job.AttemptCount == 0,
+                cancellationToken);
+            RetryingJobs = await _db.ProcessingJobs.CountAsync(
+                job => job.Status == MediaProcessingJobStatus.Pending
+                       && job.AttemptCount > 0,
+                cancellationToken);
+            RunningJobs = await _db.ProcessingJobs.CountAsync(
+                job => job.Status == MediaProcessingJobStatus.Running,
+                cancellationToken);
+            CompletedJobs = await _db.ProcessingJobs.CountAsync(
+                job => job.Status == MediaProcessingJobStatus.Completed,
                 cancellationToken);
             FailedJobs = await _db.ProcessingJobs.CountAsync(
-                job => job.Status == MediaProcessingJobStatus.Failed
-                       || job.Status == MediaProcessingJobStatus.DeadLetter,
+                job => job.Status == MediaProcessingJobStatus.Failed,
                 cancellationToken);
+            DeadLetterJobs = await _db.ProcessingJobs.CountAsync(
+                job => job.Status == MediaProcessingJobStatus.DeadLetter,
+                cancellationToken);
+            OldestPendingAtUtc = await _db.ProcessingJobs
+                .Where(job => job.Status == MediaProcessingJobStatus.Pending)
+                .OrderBy(job => job.CreatedAtUtc)
+                .Select(job => (DateTimeOffset?)job.CreatedAtUtc)
+                .FirstOrDefaultAsync(cancellationToken);
 
+            RecentProblemJobs = await _db.ProcessingJobs
+                .AsNoTracking()
+                .Where(job => job.Status == MediaProcessingJobStatus.DeadLetter
+                              || job.Status == MediaProcessingJobStatus.Failed
+                              || (job.Status == MediaProcessingJobStatus.Pending && job.AttemptCount > 0))
+                .OrderByDescending(job => job.UpdatedAtUtc)
+                .Take(20)
+                .Select(job => new ProcessingJobRow(
+                    job.Id,
+                    job.MediaAssetId,
+                    job.Status,
+                    job.AttemptCount,
+                    job.MaxAttempts,
+                    job.FailureCode,
+                    job.FailureMessage,
+                    job.AvailableAfterUtc,
+                    job.UpdatedAtUtc))
+                .ToListAsync(cancellationToken);
+
+            ProcessingRuntime = _processingRuntime.GetSnapshot();
+            CacheHealth = await _cacheHealthService.CheckAsync(cancellationToken);
             CatalogueHealth = await _catalogueHealthService.CheckAsync(cancellationToken);
             CatalogueDiagnostics = _catalogueDiagnostics.GetLatest();
         }
@@ -569,6 +648,17 @@ public sealed class IndexModel : PageModel
             entity.LastError = null;
         }
     }
+
+    public sealed record ProcessingJobRow(
+        long Id,
+        long MediaAssetId,
+        MediaProcessingJobStatus Status,
+        int AttemptCount,
+        int MaxAttempts,
+        string? FailureCode,
+        string? FailureMessage,
+        DateTimeOffset AvailableAfterUtc,
+        DateTimeOffset UpdatedAtUtc);
 
     public sealed class SourceInput
     {
