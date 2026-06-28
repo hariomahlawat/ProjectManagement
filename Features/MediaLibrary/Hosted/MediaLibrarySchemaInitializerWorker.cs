@@ -35,9 +35,9 @@ public sealed class MediaLibrarySchemaInitializerWorker : BackgroundService
         var schema = scope.ServiceProvider.GetRequiredService<IMediaLibrarySchemaService>();
         var result = await schema.MigrateAsync(stoppingToken);
 
-        if (result.IsCurrent)
+        if (result.IsOperational)
         {
-            _logger.LogInformation("Media catalogue schema is current");
+            _logger.LogInformation(result.IsCurrent ? "Media catalogue schema is current" : "Media catalogue is operational with a migration-history warning");
         }
         else
         {

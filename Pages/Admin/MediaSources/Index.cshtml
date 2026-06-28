@@ -22,7 +22,7 @@
     {
         <div class="alert alert-success" role="status">@Model.StatusMessage</div>
     }
-    @if (!string.IsNullOrWhiteSpace(Model.WarningMessage))
+    @if (Model.CatalogueAvailable && !string.IsNullOrWhiteSpace(Model.WarningMessage))
     {
         <div class="alert alert-warning" role="alert">@Model.WarningMessage</div>
     }
@@ -57,6 +57,28 @@
     }
     else
     {
+        @if (!Model.CatalogueSchemaCurrent)
+        {
+            <div class="alert alert-warning d-flex gap-2 align-items-start" role="alert">
+                <i class="bi bi-exclamation-triangle mt-1" aria-hidden="true"></i>
+                <div class="flex-grow-1">
+                    <strong>The catalogue is operational, but its migration metadata is not fully current.</strong>
+                    @if (Model.PendingMigrations.Count > 0)
+                    {
+                        <span> @Model.PendingMigrations.Count migration(s) remain pending.</span>
+                    }
+                    @if (!Model.CatalogueMigrationHistoryConsistent)
+                    {
+                        <span> The dedicated media migration history requires repair.</span>
+                    }
+                    <div class="small mt-1">Reference @Model.CatalogueDiagnosticReference</div>
+                </div>
+                <form method="post" asp-page-handler="InitializeCatalogue">
+                    <button type="submit" class="btn btn-sm btn-outline-warning">Apply migrations</button>
+                </form>
+            </div>
+        }
+
         @if (!Model.ExternalSourcesEnabled)
         {
             <div class="alert alert-info d-flex gap-2 align-items-start">

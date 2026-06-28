@@ -74,6 +74,9 @@ public sealed class IndexModel : PageModel
     public IReadOnlyList<ProcessingJobRow> RecentProblemJobs { get; private set; } = Array.Empty<ProcessingJobRow>();
     public IReadOnlyList<UnavailableAssetRow> UnavailableAssets { get; private set; } = Array.Empty<UnavailableAssetRow>();
     public bool CatalogueAvailable { get; private set; } = true;
+    public bool CatalogueSchemaCurrent { get; private set; } = true;
+    public bool CatalogueMigrationHistoryConsistent { get; private set; } = true;
+    public string? CatalogueDiagnosticReference { get; private set; }
     public bool ExternalSourcesEnabled => _options.IsExternalSourceFeatureEnabled;
     public bool IsEditing => Input.Id.HasValue;
     public IReadOnlyList<string> PendingMigrations { get; private set; } = Array.Empty<string>();
@@ -112,13 +115,15 @@ public sealed class IndexModel : PageModel
     public async Task<IActionResult> OnPostInitializeCatalogueAsync(CancellationToken cancellationToken)
     {
         var result = await _schemaService.MigrateAsync(cancellationToken);
-        if (!result.IsCurrent)
+        if (!result.IsOperational)
         {
-            WarningMessage = result.Error ?? "The media catalogue could not be initialized. Review application logs for details.";
+            WarningMessage = null;
             return RedirectToPage();
         }
 
-        StatusMessage = "The media catalogue schema is ready. PRISM media reconciliation and optional folder scanning can now run.";
+        StatusMessage = result.IsCurrent
+            ? "The media catalogue schema is current. PRISM reconciliation and background processing can run."
+            : "The media catalogue is operational. One or more migration metadata items still require administrative attention.";
         return RedirectToPage();
     }
 
@@ -592,7 +597,10 @@ public sealed class IndexModel : PageModel
         var schema = await _schemaService.GetStatusAsync(cancellationToken);
         PendingMigrations = schema.PendingMigrations;
         CatalogueError = schema.Error;
-        CatalogueAvailable = schema.IsAvailable && schema.IsCurrent;
+        CatalogueDiagnosticReference = schema.DiagnosticReference;
+        CatalogueSchemaCurrent = schema.IsCurrent;
+        CatalogueMigrationHistoryConsistent = schema.MigrationHistoryConsistent;
+        CatalogueAvailable = schema.IsAvailable && schema.IsOperational;
         if (!CatalogueAvailable)
         {
             Sources = Array.Empty<SourceRow>();

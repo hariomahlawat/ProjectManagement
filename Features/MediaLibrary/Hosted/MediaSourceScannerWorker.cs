@@ -68,6 +68,19 @@ public sealed class MediaSourceScannerWorker : BackgroundService
 
     private async Task RunCycleAsync(CancellationToken cancellationToken)
     {
+        using (var readinessScope = _scopeFactory.CreateScope())
+        {
+            var schema = readinessScope.ServiceProvider.GetRequiredService<IMediaLibrarySchemaService>();
+            var status = await schema.GetStatusAsync(cancellationToken);
+            if (!status.IsAvailable || !status.IsOperational)
+            {
+                _logger.LogInformation(
+                    "Media source scanner is waiting for an operational catalogue schema. Reference={Reference}",
+                    status.DiagnosticReference);
+                return;
+            }
+        }
+
         if (!_bootstrapCompleted)
         {
             using var bootstrapScope = _scopeFactory.CreateScope();
@@ -149,9 +162,22 @@ public sealed class MediaSourceScannerWorker : BackgroundService
         try
         {
             using var scope = _scopeFactory.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<MediaLibraryDbContext>();
-            await db.Database.MigrateAsync(cancellationToken);
-            _logger.LogInformation("Media catalogue database migrations applied");
+            var schema = scope.ServiceProvider.GetRequiredService<IMediaLibrarySchemaService>();
+            var result = await schema.MigrateAsync(cancellationToken);
+            if (result.IsOperational)
+            {
+                _logger.LogInformation(
+                    result.IsCurrent
+                        ? "Media catalogue database migrations applied and verified"
+                        : "Media catalogue is operational, but migration metadata still requires attention");
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Media catalogue migrations did not produce an operational schema. Reference={Reference}; Error={Error}",
+                    result.DiagnosticReference,
+                    result.Error);
+            }
         }
         catch (Exception ex) when (IsCatalogueInfrastructureFailure(ex))
         {

@@ -1,36 +1,35 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using ProjectManagement.Features.MediaLibrary.Data;
 
 #nullable disable
 
 namespace ProjectManagement.Features.MediaLibrary.Data.Migrations;
 
-/// <inheritdoc />
-public partial class AddUnifiedLibraryQueryIndexes : Migration
+[DbContext(typeof(MediaLibraryDbContext))]
+[Migration("20260628090000_AddUnifiedLibraryQueryIndexes")]
+public sealed class AddUnifiedLibraryQueryIndexes : Migration
 {
-    /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.CreateIndex(
-            name: "IX_MediaAssets_LibraryTimeline",
-            table: "MediaAssets",
-            columns: new[] { "IsAvailable", "IsDeleted", "IsArchived", "MediaDateUtc", "Id" });
+        migrationBuilder.Sql("""
+            CREATE INDEX IF NOT EXISTS "IX_MediaAssets_LibraryTimeline"
+            ON "MediaAssets" ("IsAvailable", "IsDeleted", "IsArchived", "MediaDateUtc", "Id");
 
-        migrationBuilder.CreateIndex(
-            name: "IX_MediaAssets_OriginTimeline",
-            table: "MediaAssets",
-            columns: new[] { "Origin", "IsAvailable", "IsDeleted", "IsArchived", "MediaDateUtc" });
+            CREATE INDEX IF NOT EXISTS "IX_MediaAssets_OriginTimeline"
+            ON "MediaAssets" ("Origin", "IsAvailable", "IsDeleted", "IsArchived", "MediaDateUtc");
 
-        migrationBuilder.CreateIndex(
-            name: "IX_MediaAssets_ProjectTimeline",
-            table: "MediaAssets",
-            columns: new[] { "ProjectId", "IsAvailable", "IsDeleted", "IsArchived", "MediaDateUtc" });
+            CREATE INDEX IF NOT EXISTS "IX_MediaAssets_ProjectTimeline"
+            ON "MediaAssets" ("ProjectId", "IsAvailable", "IsDeleted", "IsArchived", "MediaDateUtc");
+            """);
     }
 
-    /// <inheritdoc />
     protected override void Down(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.DropIndex(name: "IX_MediaAssets_LibraryTimeline", table: "MediaAssets");
-        migrationBuilder.DropIndex(name: "IX_MediaAssets_OriginTimeline", table: "MediaAssets");
-        migrationBuilder.DropIndex(name: "IX_MediaAssets_ProjectTimeline", table: "MediaAssets");
+        migrationBuilder.Sql("""
+            DROP INDEX IF EXISTS "IX_MediaAssets_LibraryTimeline";
+            DROP INDEX IF EXISTS "IX_MediaAssets_OriginTimeline";
+            DROP INDEX IF EXISTS "IX_MediaAssets_ProjectTimeline";
+            """);
     }
 }
