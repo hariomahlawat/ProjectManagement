@@ -40,20 +40,27 @@ public sealed class MediaDerivativeService : IMediaDerivativeService
         {
             var asset = await _db.Assets.Include(x => x.Source)
                 .SingleOrDefaultAsync(x => x.Id == assetId, cancellationToken)
-                ?? throw new FileNotFoundException("The media asset is not indexed.");
+                ?? throw new MediaContentUnavailableException("The media asset is not indexed.");
 
             if (!asset.IsAvailable || asset.IsDeleted || asset.Kind != MediaAssetKind.Photo)
-                throw new FileNotFoundException("The media asset is unavailable.");
+            {
+                throw new MediaContentUnavailableException("The media asset is unavailable.");
+            }
 
             var output = variant == "thumb"
                 ? _cache.GetThumbnailPath(asset.Id, asset.CacheVersion)
                 : _cache.GetPreviewPath(asset.Id, asset.CacheVersion);
-            if (File.Exists(output)) return output;
+            if (File.Exists(output))
+            {
+                return output;
+            }
 
             var content = await _contentResolver.ResolveAsync(asset, cancellationToken)
                 ?? throw new MediaContentUnavailableException("The original media content could not be resolved.");
             if (content.Length is > 0 && content.Length > _options.Processing.MaxImageFileSizeBytes)
+            {
                 throw new MediaProcessingPermanentException("The image exceeds the configured processing size limit.");
+            }
 
             var maxPixels = variant == "thumb"
                 ? _options.Processing.ThumbnailMaxPixels
@@ -63,57 +70,152 @@ public sealed class MediaDerivativeService : IMediaDerivativeService
 
             try
             {
-                await using var source = await content.OpenReadAsync(cancellationToken);
-                using var oriented = DecodeOriented(source);
+                byte[] bytes;
+                await using (var source = await content.OpenReadAsync(cancellationToken)
+                    ?? throw new MediaContentUnavailableException("The media provider returned no readable stream."))
+                {
+                    bytes = await ReadBoundedAsync(
+                        source,
+                        _options.Processing.MaxImageFileSizeBytes,
+                        cancellationToken);
+                }
+
+                using var oriented = DecodeOriented(bytes);
                 using var resized = ResizeToFit(oriented, maxPixels);
                 using var image = SKImage.FromBitmap(resized);
                 using var encoded = image.Encode(SKEncodedImageFormat.Webp, _options.Processing.WebpQuality)
                     ?? throw new MediaProcessingPermanentException("The server could not encode the media preview.");
-                await using var destination = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write,
-                    FileShare.None, 128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+
+                await using var destination = new FileStream(
+                    temporary,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    128 * 1024,
+                    FileOptions.Asynchronous | FileOptions.SequentialScan);
                 encoded.SaveTo(destination);
                 await destination.FlushAsync(cancellationToken);
                 File.Move(temporary, output, overwrite: true);
             }
+            catch (FileNotFoundException ex)
+            {
+                throw new MediaContentUnavailableException("The source image is no longer available.", ex);
+            }
+            catch (DirectoryNotFoundException ex)
+            {
+                throw new MediaContentUnavailableException("The source image storage location is no longer available.", ex);
+            }
             finally
             {
-                if (File.Exists(temporary)) File.Delete(temporary);
+                TryDelete(temporary);
             }
 
             return output;
         }
-        finally { gate.Release(); }
+        finally
+        {
+            gate.Release();
+        }
     }
 
-    private static SKBitmap DecodeOriented(Stream stream)
+    private static SKBitmap DecodeOriented(byte[] bytes)
     {
-        using var memory = new MemoryStream();
-        stream.CopyTo(memory);
-        memory.Position = 0;
-        using var codec = SKCodec.Create(memory)
-            ?? throw new MediaProcessingPermanentException("The image format is not supported by SkiaSharp.");
-        var source = new SKBitmap(codec.Info.Width, codec.Info.Height, codec.Info.ColorType, codec.Info.AlphaType);
-        var result = codec.GetPixels(source.Info, source.GetPixels());
-        if (result is not (SKCodecResult.Success or SKCodecResult.IncompleteInput))
+        if (bytes.Length == 0)
         {
-            source.Dispose();
-            throw new MediaProcessingPermanentException($"The image could not be decoded ({result}).");
+            throw new MediaProcessingPermanentException("The image file is empty.");
         }
-        if (codec.EncodedOrigin == SKEncodedOrigin.TopLeft) return source;
 
-        var swapsAxes = codec.EncodedOrigin is SKEncodedOrigin.LeftTop or SKEncodedOrigin.RightTop
-            or SKEncodedOrigin.RightBottom or SKEncodedOrigin.LeftBottom;
-        var destination = new SKBitmap(swapsAxes ? source.Height : source.Width,
-            swapsAxes ? source.Width : source.Height, source.ColorType, source.AlphaType);
-        using (source)
-        using (var canvas = new SKCanvas(destination))
+        try
         {
-            canvas.Clear(SKColors.Transparent);
-            canvas.SetMatrix(CreateOrientationMatrix(codec.EncodedOrigin, source.Width, source.Height));
-            canvas.DrawBitmap(source, 0, 0);
-            canvas.Flush();
+            using var data = SKData.CreateCopy(bytes)
+                ?? throw new MediaProcessingPermanentException("The image buffer could not be prepared for decoding.");
+            using var codec = SKCodec.Create(data)
+                ?? throw new MediaProcessingPermanentException("The image format is not supported by SkiaSharp.");
+
+            if (codec.Info.Width <= 0 || codec.Info.Height <= 0)
+            {
+                throw new MediaProcessingPermanentException("The image has invalid dimensions.");
+            }
+
+            var source = new SKBitmap(
+                codec.Info.Width,
+                codec.Info.Height,
+                codec.Info.ColorType,
+                codec.Info.AlphaType);
+            var result = codec.GetPixels(source.Info, source.GetPixels());
+            if (result is not (SKCodecResult.Success or SKCodecResult.IncompleteInput))
+            {
+                source.Dispose();
+                throw new MediaProcessingPermanentException($"The image could not be decoded ({result}).");
+            }
+
+            if (codec.EncodedOrigin == SKEncodedOrigin.TopLeft)
+            {
+                return source;
+            }
+
+            var swapsAxes = codec.EncodedOrigin is SKEncodedOrigin.LeftTop
+                or SKEncodedOrigin.RightTop
+                or SKEncodedOrigin.RightBottom
+                or SKEncodedOrigin.LeftBottom;
+            var destination = new SKBitmap(
+                swapsAxes ? source.Height : source.Width,
+                swapsAxes ? source.Width : source.Height,
+                source.ColorType,
+                source.AlphaType);
+
+            using (source)
+            using (var canvas = new SKCanvas(destination))
+            {
+                canvas.Clear(SKColors.Transparent);
+                canvas.SetMatrix(CreateOrientationMatrix(codec.EncodedOrigin, source.Width, source.Height));
+                canvas.DrawBitmap(source, 0, 0);
+                canvas.Flush();
+            }
+
+            return destination;
         }
-        return destination;
+        catch (MediaProcessingPermanentException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new MediaProcessingPermanentException("The image could not be decoded safely.", ex);
+        }
+    }
+
+    private static async Task<byte[]> ReadBoundedAsync(
+        Stream source,
+        long maximumBytes,
+        CancellationToken cancellationToken)
+    {
+        if (!source.CanRead)
+        {
+            throw new MediaProcessingPermanentException("The media provider returned a non-readable stream.");
+        }
+
+        using var destination = new MemoryStream();
+        var buffer = new byte[128 * 1024];
+        long total = 0;
+        while (true)
+        {
+            var read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+            if (read == 0)
+            {
+                break;
+            }
+
+            total += read;
+            if (total > maximumBytes)
+            {
+                throw new MediaProcessingPermanentException("The image exceeds the configured processing size limit.");
+            }
+
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+        }
+
+        return destination.ToArray();
     }
 
     private static SKMatrix CreateOrientationMatrix(SKEncodedOrigin origin, int width, int height) => origin switch
@@ -128,17 +230,52 @@ public sealed class MediaDerivativeService : IMediaDerivativeService
         _ => SKMatrix.CreateIdentity()
     };
 
-    private static SKMatrix Matrix(float scaleX, float skewX, float transX, float skewY, float scaleY, float transY) => new()
-    { ScaleX = scaleX, SkewX = skewX, TransX = transX, SkewY = skewY, ScaleY = scaleY, TransY = transY, Persp0 = 0, Persp1 = 0, Persp2 = 1 };
+    private static SKMatrix Matrix(
+        float scaleX,
+        float skewX,
+        float transX,
+        float skewY,
+        float scaleY,
+        float transY) => new()
+    {
+        ScaleX = scaleX,
+        SkewX = skewX,
+        TransX = transX,
+        SkewY = skewY,
+        ScaleY = scaleY,
+        TransY = transY,
+        Persp0 = 0,
+        Persp1 = 0,
+        Persp2 = 1
+    };
 
     private static SKBitmap ResizeToFit(SKBitmap source, int maxPixels)
     {
         var longest = Math.Max(source.Width, source.Height);
-        if (longest <= maxPixels) return source.Copy();
+        if (longest <= maxPixels)
+        {
+            return source.Copy();
+        }
+
         var scale = maxPixels / (double)longest;
         var width = Math.Max(1, (int)Math.Round(source.Width * scale));
         var height = Math.Max(1, (int)Math.Round(source.Height * scale));
         return source.Resize(new SKImageInfo(width, height), SKFilterQuality.High)
                ?? throw new MediaProcessingPermanentException("The image preview could not be resized.");
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch
+        {
+            // A stale temporary file is non-authoritative and can be cleaned later.
+        }
     }
 }
