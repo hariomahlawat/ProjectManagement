@@ -418,7 +418,7 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IDisposable
 
     private InferenceSession CreateSession(string path)
     {
-        using var sessionOptions = new SessionOptions
+        using var sessionOptions = new Microsoft.ML.OnnxRuntime.SessionOptions
         {
             GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
             InterOpNumThreads = 1,
