@@ -31,6 +31,7 @@ public sealed class IndexModel : PageModel
     }
 
     [BindProperty(SupportsGet = true)] public string? Q { get; set; }
+    [BindProperty(SupportsGet = true)] public string View { get; set; } = "photos";
     [BindProperty(SupportsGet = true)] public string Source { get; set; } = "all";
     [BindProperty(SupportsGet = true)] public string Kind { get; set; } = "all";
     [BindProperty(SupportsGet = true)] public string Classification { get; set; } = "all";
@@ -98,6 +99,7 @@ public sealed class IndexModel : PageModel
 
     private void NormalizeRequest()
     {
+        View = string.Equals(View?.Trim(), "collections", StringComparison.OrdinalIgnoreCase) ? "collections" : "photos";
         PageNumber = Math.Max(1, PageNumber);
         Source = NormalizeSource(Source);
         if (!ExternalSourcesEnabled && Source == "external")

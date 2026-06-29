@@ -433,38 +433,50 @@
 
 })();
 
-// Near-real-time catalogue visibility. The scanner remains the durable source of truth;
-// this light poll only refreshes the page when the rendered catalogue version changes.
+// Media-first selection mode. Kept independent from the viewer so normal clicks
+// continue to open media unless the user explicitly enters Select mode.
 (() => {
-    const root = document.querySelector('[data-photos-library][data-auto-refresh-url]');
-    if (!root) return;
+    const library = document.querySelector('[data-photos-library]');
+    const toggle = document.querySelector('[data-photos-select-toggle]');
+    if (!library || !toggle) return;
 
-    let currentVersion = root.dataset.libraryVersion || '';
-    let checking = false;
+    let selecting = false;
+    const selected = new Set();
+    const label = toggle.querySelector('span');
 
-    const checkForUpdates = async () => {
-        if (checking || document.hidden || document.body.classList.contains('photos-viewer-open')) return;
-        checking = true;
-        try {
-            const response = await fetch(root.dataset.autoRefreshUrl, {
-                headers: { 'X-Requested-With': 'PhotosCataloguePoll' },
-                cache: 'no-store'
-            });
-            if (!response.ok) return;
-            const html = await response.text();
-            const documentCopy = new DOMParser().parseFromString(html, 'text/html');
-            const nextRoot = documentCopy.querySelector('[data-photos-library]');
-            const nextVersion = nextRoot?.dataset.libraryVersion || '';
-            if (nextVersion && nextVersion !== currentVersion) {
-                currentVersion = nextVersion;
-                window.location.reload();
-            }
-        } catch {
-            // Polling is enhancement-only. Normal navigation remains fully functional.
-        } finally {
-            checking = false;
-        }
+    const render = () => {
+        library.classList.toggle('is-selecting', selecting);
+        toggle.setAttribute('aria-pressed', String(selecting));
+        if (label) label.textContent = selecting
+            ? (selected.size > 0 ? `${selected.size} selected` : 'Cancel')
+            : 'Select';
     };
 
-    window.setInterval(checkForUpdates, 15000);
+    toggle.addEventListener('click', () => {
+        selecting = !selecting;
+        if (!selecting) {
+            selected.clear();
+            library.querySelectorAll('.photos-tile.is-selected').forEach(tile => tile.classList.remove('is-selected'));
+        }
+        render();
+    });
+
+    library.addEventListener('click', event => {
+        if (!selecting) return;
+        const tile = event.target.closest('[data-media-item]');
+        if (!tile) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const key = tile.dataset.mediaKey || String(Array.from(library.querySelectorAll('[data-media-item]')).indexOf(tile));
+        if (selected.has(key)) {
+            selected.delete(key);
+            tile.classList.remove('is-selected');
+        } else {
+            selected.add(key);
+            tile.classList.add('is-selected');
+        }
+        render();
+    }, true);
+
+    render();
 })();
