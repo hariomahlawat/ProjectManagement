@@ -36,6 +36,8 @@ public sealed class ClassificationsModel : PageModel
     public int TotalPages => Math.Max(1, (int)Math.Ceiling(Total / (double)PageSize));
     public IReadOnlyList<Row> Rows { get; private set; } = Array.Empty<Row>();
     [TempData] public string? StatusMessage { get; set; }
+    [TempData] public string? WarningMessage { get; set; }
+    [TempData] public string? ErrorMessage { get; set; }
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
@@ -76,6 +78,8 @@ public sealed class ClassificationsModel : PageModel
                 x.Title,
                 x.ContextTitle,
                 x.OriginalFileName,
+                x.PredictedClassification,
+                x.PredictedClassificationScore,
                 x.Classification,
                 x.ClassificationConfidence,
                 x.ClassificationIsManual,
@@ -85,42 +89,51 @@ public sealed class ClassificationsModel : PageModel
                 decision.Code,
                 decision.Reason,
                 x.AnalysisStatus,
-                x.MediaDateUtc);
+                x.MediaDateUtc,
+                x.ClassificationDecisionStatus,
+                x.ClassificationDecisionReasonCode,
+                x.AutomaticClassificationScoresJson,
+                x.AutomaticClassificationMetricsJson,
+                x.ClassificationConcurrencyToken);
         }).ToList();
     }
 
-    public async Task<IActionResult> OnPostSetAsync(long assetId, MediaClassification classification, string? reason, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostSetAsync(long assetId, Guid expectedConcurrencyToken, MediaClassification classification, string? reason, CancellationToken cancellationToken)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "unknown";
-        await _overrides.SetManualAsync(assetId, classification, userId, reason, cancellationToken);
+        await _overrides.SetManualAsync(assetId, expectedConcurrencyToken, classification, userId, reason, cancellationToken);
         StatusMessage = "Classification updated and audited.";
         return RedirectToPage(new { Q, Classification, Mode, P });
     }
 
     public async Task<IActionResult> OnPostSetBatchAsync(
         long[] assetIds,
+        Guid[] expectedConcurrencyTokens,
         MediaClassification classification,
         string? reason,
         CancellationToken cancellationToken)
     {
         if (assetIds is null || assetIds.Length == 0)
         {
-            StatusMessage = "Select at least one image before applying a bulk classification.";
+            WarningMessage = "Select at least one image before applying a bulk classification.";
             return RedirectToPage(new { Q, Classification, Mode, P });
         }
 
+        if (string.IsNullOrWhiteSpace(reason)) { WarningMessage = "A reason is required for bulk classification."; return RedirectToPage(new { Q, Classification, Mode, P }); }
+        if (expectedConcurrencyTokens is null || expectedConcurrencyTokens.Length != assetIds.Length) { ErrorMessage = "The selected review state is incomplete. Reload the page and try again."; return RedirectToPage(new { Q, Classification, Mode, P }); }
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "unknown";
-        var updated = await _overrides.SetManualBatchAsync(assetIds, classification, userId, reason, cancellationToken);
+        var items = assetIds.Select((id,index) => new ClassificationBatchItem(id, expectedConcurrencyTokens[index])).ToArray();
+        var updated = await _overrides.SetManualBatchAsync(items, classification, userId, reason!, cancellationToken);
         StatusMessage = updated == 0
             ? "No eligible images were updated."
             : $"Updated and audited {updated} image classification(s).";
         return RedirectToPage(new { Q, Classification, Mode, P });
     }
 
-    public async Task<IActionResult> OnPostResetAsync(long assetId, string? reason, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostResetAsync(long assetId, Guid expectedConcurrencyToken, string? reason, CancellationToken cancellationToken)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "unknown";
-        await _overrides.ResetToAutomaticAsync(assetId, userId, reason, cancellationToken);
+        await _overrides.ResetToAutomaticAsync(assetId, expectedConcurrencyToken, userId, reason, cancellationToken);
         StatusMessage = "Automatic classification has been queued.";
         return RedirectToPage(new { Q, Classification, Mode, P });
     }
@@ -148,8 +161,16 @@ public sealed class ClassificationsModel : PageModel
             .Where(x => staleIds.Contains(x.Id))
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(x => x.AnalysisStatus, MediaProcessingStatus.Pending)
+                .SetProperty(x => x.PredictedClassification, MediaClassification.Unknown)
+                .SetProperty(x => x.PredictedClassificationScore, 0m)
                 .SetProperty(x => x.Classification, MediaClassification.Unknown)
                 .SetProperty(x => x.ClassificationConfidence, (double?)null)
+                .SetProperty(x => x.ClassificationDecisionStatus, MediaClassificationDecisionStatus.NotProcessed)
+                .SetProperty(x => x.ClassificationDecisionReasonCode, (string?)null)
+                .SetProperty(x => x.AutomaticClassificationSignalsJson, (string?)null)
+                .SetProperty(x => x.AutomaticClassificationScoresJson, (string?)null)
+                .SetProperty(x => x.AutomaticClassificationMetricsJson, (string?)null)
+                .SetProperty(x => x.ClassificationConcurrencyToken, Guid.NewGuid())
                 .SetProperty(x => x.AnalysisVersion, (string?)null)
                 .SetProperty(x => x.ClassifierVersion, (string?)null)
                 .SetProperty(x => x.AnalysisSignalsJson, (string?)null)
@@ -198,39 +219,18 @@ public sealed class ClassificationsModel : PageModel
         return RedirectToPage(new { Q, Classification, Mode = "stale", P = 1 });
     }
 
-    public sealed record Row(long Id, string Title, string ContextTitle, string OriginalFileName, MediaClassification Classification, double? Confidence, bool IsManual, string? ClassifierVersion, string? SignalsJson, bool FaceEligible, string FaceEligibilityCode, string FaceEligibilityReason, MediaProcessingStatus AnalysisStatus, DateTimeOffset MediaDateUtc)
+    public sealed record Row(long Id, string Title, string ContextTitle, string OriginalFileName,
+        MediaClassification PredictedClassification, decimal PredictedScore,
+        MediaClassification Classification, double? Confidence, bool IsManual, string? ClassifierVersion,
+        string? SignalsJson, bool FaceEligible, string FaceEligibilityCode, string FaceEligibilityReason,
+        MediaProcessingStatus AnalysisStatus, DateTimeOffset MediaDateUtc,
+        MediaClassificationDecisionStatus DecisionStatus, string? DecisionReasonCode,
+        string? ScoresJson, string? MetricsJson, Guid ConcurrencyToken)
     {
-        public string ReviewStatusLabel => FaceEligible
-            ? "Face eligible"
-            : FaceEligibilityCode switch
-            {
-                "classification-pending" => "Pending",
-                "classifier-stale" => "Stale",
-                "confidence-low" or "confidence-missing" => "Low confidence",
-                "manual-exclusion" => "Confirmed non-photo",
-                "not-photograph" when Classification != MediaClassification.Unknown => Classification.ToString(),
-                _ => "Needs review"
-            };
-
-        public string ReviewStatusCss => FaceEligible
-            ? "text-bg-success"
-            : FaceEligibilityCode switch
-            {
-                "classification-pending" => "text-bg-info",
-                "classifier-stale" => "text-bg-warning",
-                "confidence-low" or "confidence-missing" => "text-bg-warning",
-                "manual-exclusion" => "text-bg-secondary",
-                "not-photograph" when Classification != MediaClassification.Unknown => "text-bg-secondary",
-                _ => "text-bg-warning"
-            };
-
-        public IReadOnlyList<string> Signals
-        {
-            get
-            {
-                if (string.IsNullOrWhiteSpace(SignalsJson)) return Array.Empty<string>();
-                try { return JsonSerializer.Deserialize<string[]>(SignalsJson) ?? Array.Empty<string>(); } catch { return Array.Empty<string>(); }
-            }
-        }
+        public IReadOnlyList<string> Signals => ParseSignals(SignalsJson);
+        public string ReviewStatusLabel => FaceEligible ? "Face eligible" : DecisionStatus == MediaClassificationDecisionStatus.NeedsReview ? "Needs review" : DecisionStatus.ToString();
+        public string ReviewStatusCss => FaceEligible ? "bg-success" : DecisionStatus == MediaClassificationDecisionStatus.NeedsReview ? "bg-warning text-dark" : "bg-secondary";
+        private static IReadOnlyList<string> ParseSignals(string? json)
+        { if(string.IsNullOrWhiteSpace(json)) return Array.Empty<string>(); try{return JsonSerializer.Deserialize<string[]>(json)??Array.Empty<string>();}catch{return Array.Empty<string>();} }
     }
 }

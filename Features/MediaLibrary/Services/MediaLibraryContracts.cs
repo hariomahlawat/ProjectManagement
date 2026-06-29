@@ -15,11 +15,45 @@ public sealed record MediaFileMetadata(
     string? CameraMake,
     string? CameraModel);
 
+public sealed record ClassificationMetrics(
+    double Entropy,
+    double EdgeDensity,
+    double SpatialFlatness,
+    double LightBackgroundRatio,
+    double ColourDiversity,
+    double LuminanceVariance,
+    double AspectRatio,
+    int Width,
+    int Height);
+
+public sealed record FacePresenceResult(
+    bool Succeeded,
+    bool FaceDetected,
+    int FaceCount,
+    double HighestConfidence,
+    int LargestFaceWidth,
+    int LargestFaceHeight,
+    double LargestFaceAreaRatio,
+    bool ValidFivePointLandmarks,
+    string? FailureReason = null);
+
 public sealed record MediaClassificationResult(
-    MediaClassification Classification,
-    double Confidence,
+    MediaClassification PredictedClassification,
+    double PredictedScore,
+    IReadOnlyDictionary<MediaClassification, double> CategoryScores,
     IReadOnlyList<string> Signals,
-    string Version);
+    ClassificationMetrics Metrics,
+    MediaClassification EffectiveClassification,
+    MediaClassificationDecisionStatus DecisionStatus,
+    string DecisionReasonCode,
+    string Version,
+    int ProcessingDurationMilliseconds);
+
+public sealed record MediaClassificationDecision(
+    MediaClassification EffectiveClassification,
+    MediaClassificationDecisionStatus Status,
+    string ReasonCode);
+
 
 public sealed record FileSystemSourceHealth(
     bool IsReachable,
@@ -112,6 +146,20 @@ public interface IMediaMetadataReader
 {
     Task<MediaFileMetadata> ReadAsync(string path, CancellationToken cancellationToken);
     Task<MediaFileMetadata> ReadAsync(MediaContentDescriptor content, CancellationToken cancellationToken);
+}
+
+public interface IFacePresenceProbe
+{
+    Task<FacePresenceResult> AnalyseAsync(byte[] imageBytes, CancellationToken cancellationToken);
+}
+
+public interface IMediaClassificationDecisionPolicy
+{
+    MediaClassificationDecision Decide(
+        MediaClassification predictedClassification,
+        double predictedScore,
+        IReadOnlyDictionary<MediaClassification, double> categoryScores,
+        IReadOnlyList<string> signals);
 }
 
 public interface IMediaClassifier

@@ -31,10 +31,9 @@
         <a asp-page="/Photos/People/Index">People</a>
     </nav>
 
-    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
-    {
-        <div class="alert alert-success" role="status">@Model.StatusMessage</div>
-    }
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage)) { <div class="alert alert-success" role="status">@Model.StatusMessage</div> }
+    @if (!string.IsNullOrWhiteSpace(Model.WarningMessage)) { <div class="alert alert-warning" role="alert">@Model.WarningMessage</div> }
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage)) { <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div> }
 
     <form method="get" class="card card-body shadow-sm border-0 mb-4">
         <div class="row g-3">
@@ -80,14 +79,16 @@
                 <input id="select-page" class="form-check-input" type="checkbox" />
                 <span class="form-check-label">Select page</span>
             </label>
-            <select class="form-select form-select-sm" name="classification" aria-label="Bulk classification">
+            <select id="bulk-classification" class="form-select form-select-sm" name="classification" aria-label="Bulk classification" required>
+                <option value="">Choose classification…</option>
                 @foreach (var value in Enum.GetValues<MediaClassification>().Where(x => x != MediaClassification.Unknown))
                 {
                     <option value="@value">@value</option>
                 }
             </select>
-            <input class="form-control form-control-sm" name="reason" placeholder="Bulk reason (optional)" />
-            <button class="btn btn-sm btn-primary" type="submit">Apply to selected</button>
+            <input class="form-control form-control-sm" name="reason" placeholder="Bulk reason (required)" required />
+            <span id="selected-count" class="small text-muted">0 selected</span>
+            <button id="bulk-apply" class="btn btn-sm btn-primary" type="submit" disabled>Apply to selected</button>
         </form>
     </div>
 
@@ -101,6 +102,7 @@
                            name="assetIds"
                            value="@item.Id"
                            form="bulk-classification-form" />
+                    <input type="hidden" name="expectedConcurrencyTokens" value="@item.ConcurrencyToken" form="bulk-classification-form" disabled class="js-classification-token" />
                     <span>Select</span>
                 </label>
                 <a class="classification-card__preview"
@@ -124,10 +126,12 @@
 
                 <div class="classification-card__body">
                     <dl class="row small mb-2">
+                        <dt class="col-5">Prediction</dt>
+                        <dd class="col-7">@item.PredictedClassification — @item.PredictedScore.ToString("P0")</dd>
+                        <dt class="col-5">Final decision</dt>
+                        <dd class="col-7">@item.DecisionStatus</dd>
                         <dt class="col-5">Classification</dt>
                         <dd class="col-7">@item.Classification</dd>
-                        <dt class="col-5">Confidence</dt>
-                        <dd class="col-7">@(item.Confidence?.ToString("P0") ?? "Not available")</dd>
                         <dt class="col-5">Analysis</dt>
                         <dd class="col-7">@item.AnalysisStatus</dd>
                         <dt class="col-5">Source</dt>
@@ -154,11 +158,12 @@
 
                     <form method="post" asp-page-handler="Set" class="row g-2">
                         <input type="hidden" name="assetId" value="@item.Id" />
+                        <input type="hidden" name="expectedConcurrencyToken" value="@item.ConcurrencyToken" />
                         <div class="col-7">
                             <select class="form-select form-select-sm" name="classification">
                                 @foreach (var value in Enum.GetValues<MediaClassification>().Where(x => x != MediaClassification.Unknown))
                                 {
-                                    <option value="@value" selected="@(value == item.Classification)">@value</option>
+                                    @if (value == item.Classification) { <option value="@value" selected>@value</option> } else { <option value="@value">@value</option> }
                                 }
                             </select>
                         </div>
@@ -174,6 +179,7 @@
                     {
                         <form method="post" asp-page-handler="Reset" class="mt-2">
                             <input type="hidden" name="assetId" value="@item.Id" />
+                            <input type="hidden" name="expectedConcurrencyToken" value="@item.ConcurrencyToken" />
                             <button class="btn btn-sm btn-outline-secondary">Reset to automatic</button>
                         </form>
                     }
@@ -200,30 +206,12 @@
 </div>
 
 @section Scripts {
-    <script>
-        (() => {
-            const selectPage = document.getElementById('select-page');
-            const checkboxes = Array.from(document.querySelectorAll('.js-classification-select'));
-            const bulkForm = document.getElementById('bulk-classification-form');
-
-            const syncSelectPage = () => {
-                if (!selectPage) return;
-                const selected = checkboxes.filter(item => item.checked).length;
-                selectPage.checked = checkboxes.length > 0 && selected === checkboxes.length;
-                selectPage.indeterminate = selected > 0 && selected < checkboxes.length;
-            };
-
-            selectPage?.addEventListener('change', () => {
-                checkboxes.forEach(item => { item.checked = selectPage.checked; });
-                syncSelectPage();
-            });
-            checkboxes.forEach(item => item.addEventListener('change', syncSelectPage));
-            bulkForm?.addEventListener('submit', event => {
-                if (!checkboxes.some(item => item.checked)) {
-                    event.preventDefault();
-                    window.alert('Select at least one image.');
-                }
-            });
-        })();
-    </script>
+<script>
+(() => {
+ const page=document.getElementById('select-page'), boxes=[...document.querySelectorAll('.js-classification-select')], button=document.getElementById('bulk-apply'), count=document.getElementById('selected-count'), form=document.getElementById('bulk-classification-form');
+ const sync=()=>{const selected=boxes.filter(x=>x.checked); boxes.forEach((box,i)=>{const token=box.parentElement.querySelector('.js-classification-token'); if(token) token.disabled=!box.checked;}); if(count) count.textContent=`${selected.length} selected`; if(button) button.disabled=selected.length===0; if(page){page.checked=boxes.length>0&&selected.length===boxes.length;page.indeterminate=selected.length>0&&selected.length<boxes.length;}};
+ page?.addEventListener('change',()=>{boxes.forEach(x=>x.checked=page.checked);sync();}); boxes.forEach(x=>x.addEventListener('change',sync));
+ form?.addEventListener('submit',e=>{const selected=boxes.filter(x=>x.checked).length;if(!selected){e.preventDefault();alert('Select at least one image.');return;} if(selected>10&&!confirm(`Apply this classification to ${selected} images?`))e.preventDefault();}); sync();
+})();
+</script>
 }

@@ -62,24 +62,21 @@ public sealed class AddClassificationDecisionPipeline : Migration
 
         migrationBuilder.Sql("""
             UPDATE "MediaAssets"
-            SET "PredictedClassification" = "Classification",
-                "PredictedClassificationScore" = LEAST(GREATEST(COALESCE("ClassificationConfidence", 0), 0), 1),
+            SET "PredictedClassification" = CASE WHEN "ClassificationIsManual" THEN 'Unknown' ELSE "Classification" END,
+                "PredictedClassificationScore" = CASE WHEN "ClassificationIsManual" THEN 0 ELSE LEAST(GREATEST(COALESCE("ClassificationConfidence", 0), 0), 1) END,
                 "ClassificationDecisionStatus" = CASE
-                    WHEN "ClassificationIsManual" = TRUE AND "Classification" = "PredictedClassification" THEN 'ManuallyConfirmed'
                     WHEN "ClassificationIsManual" = TRUE THEN 'ManuallyCorrected'
                     WHEN "Kind" <> 'Photo' THEN 'NotApplicable'
-                    WHEN "Classification" = 'Photograph' AND COALESCE("ClassificationConfidence", 0) >= 0.82 THEN 'AutomaticallyAccepted'
                     WHEN "AnalysisStatus" = 'Failed' THEN 'ProcessingFailed'
                     ELSE 'NeedsReview'
                 END,
                 "ClassificationDecisionReasonCode" = CASE
-                    WHEN "ClassificationIsManual" = TRUE THEN 'MANUAL_CONFIRMATION'
-                    WHEN "Classification" = 'Photograph' AND COALESCE("ClassificationConfidence", 0) >= 0.82 THEN 'CATEGORY_SCORE_ACCEPTED'
+                    WHEN "ClassificationIsManual" = TRUE THEN 'MIGRATED_MANUAL_DECISION'
                     WHEN "AnalysisStatus" = 'Failed' THEN 'CLASSIFIER_PROCESSING_FAILED'
-                    ELSE 'CATEGORY_SCORE_BELOW_THRESHOLD'
+                    ELSE 'MIGRATED_REQUIRES_RECLASSIFICATION'
                 END,
                 "AutomaticClassificationSignalsJson" = COALESCE("AnalysisSignalsJson", '[]'::jsonb),
-                "AutomaticClassificationScoresJson" = jsonb_build_object("Classification", LEAST(GREATEST(COALESCE("ClassificationConfidence", 0), 0), 1)),
+                "AutomaticClassificationScoresJson" = '{}'::jsonb,
                 "AutomaticClassificationMetricsJson" = '{}'::jsonb,
                 "ClassificationReviewedByUserId" = CASE WHEN "ClassificationIsManual" THEN "ClassificationUpdatedByUserId" ELSE NULL END,
                 "ClassificationReviewedAt" = CASE WHEN "ClassificationIsManual" THEN "ClassifiedAtUtc" ELSE NULL END;

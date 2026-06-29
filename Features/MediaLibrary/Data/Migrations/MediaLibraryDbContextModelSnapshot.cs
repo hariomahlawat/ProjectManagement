@@ -85,6 +85,17 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
             entity.Property<DateTimeOffset?>("ClassifiedAtUtc").HasColumnType("timestamp with time zone");
             entity.Property<string>("ClassifierVersion").HasMaxLength(128).HasColumnType("character varying(128)");
             entity.Property<double?>("ClassificationConfidence").HasColumnType("double precision");
+            entity.Property<string>("PredictedClassification").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+            entity.Property<decimal>("PredictedClassificationScore").HasPrecision(5, 4).HasColumnType("numeric(5,4)");
+            entity.Property<string>("ClassificationDecisionStatus").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+            entity.Property<string>("ClassificationDecisionReasonCode").HasMaxLength(128).HasColumnType("character varying(128)");
+            entity.Property<string>("AutomaticClassificationSignalsJson").HasColumnType("jsonb");
+            entity.Property<string>("AutomaticClassificationScoresJson").HasColumnType("jsonb");
+            entity.Property<string>("AutomaticClassificationMetricsJson").HasColumnType("jsonb");
+            entity.Property<string>("ClassificationReviewedByUserId").HasMaxLength(450).HasColumnType("character varying(450)");
+            entity.Property<DateTimeOffset?>("ClassificationReviewedAt").HasColumnType("timestamp with time zone");
+            entity.Property<string>("ClassificationReviewReason").HasMaxLength(1024).HasColumnType("character varying(1024)");
+            entity.Property<Guid>("ClassificationConcurrencyToken").IsConcurrencyToken().HasColumnType("uuid");
             entity.Property<string>("CollectionKey").IsRequired().HasMaxLength(1024).HasColumnType("character varying(1024)");
             entity.Property<string>("ContentHash").HasMaxLength(64).HasColumnType("character varying(64)");
             entity.Property<string>("ContentType").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
@@ -134,6 +145,13 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
                 .HasDatabaseName("IX_MediaAssets_LibraryTimeline");
             entity.HasIndex("IsAvailable", "IsDeleted", "MediaDateUtc");
             entity.HasIndex("Kind", "Classification");
+            entity.HasIndex("ClassificationDecisionStatus");
+            entity.HasIndex("PredictedClassification");
+            entity.HasIndex("Classification");
+            entity.HasIndex("ClassificationIsManual");
+            entity.HasIndex("ClassifierVersion");
+            entity.HasIndex("ClassificationReviewedAt");
+            entity.HasIndex("ClassificationConcurrencyToken");
             entity.HasIndex("ClassificationIsManual", "Classification");
             entity.HasIndex("Origin", "IsAvailable", "IsDeleted", "IsArchived", "MediaDateUtc")
                 .HasDatabaseName("IX_MediaAssets_OriginTimeline");
@@ -141,6 +159,29 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
                 .HasDatabaseName("IX_MediaAssets_ProjectTimeline");
             entity.HasIndex("SourceId", "SourceEntityId").IsUnique();
             entity.ToTable("MediaAssets");
+        });
+
+        modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaClassificationRun", entity =>
+        {
+            entity.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint").HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
+            entity.Property<long>("MediaAssetId").HasColumnType("bigint");
+            entity.Property<string>("ClassifierVersion").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
+            entity.Property<string>("PredictedClassification").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+            entity.Property<decimal>("PredictedScore").HasPrecision(5, 4).HasColumnType("numeric(5,4)");
+            entity.Property<string>("EffectiveClassification").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+            entity.Property<string>("DecisionStatus").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+            entity.Property<string>("DecisionReasonCode").HasMaxLength(128).HasColumnType("character varying(128)");
+            entity.Property<string>("CategoryScoresJson").IsRequired().ValueGeneratedOnAdd().HasColumnType("jsonb").HasDefaultValue("{}");
+            entity.Property<string>("SignalsJson").IsRequired().ValueGeneratedOnAdd().HasColumnType("jsonb").HasDefaultValue("[]");
+            entity.Property<string>("MetricsJson").IsRequired().ValueGeneratedOnAdd().HasColumnType("jsonb").HasDefaultValue("{}");
+            entity.Property<int>("ProcessingDurationMilliseconds").HasColumnType("integer");
+            entity.Property<DateTimeOffset>("CompletedAt").HasColumnType("timestamp with time zone");
+            entity.Property<bool>("Succeeded").HasColumnType("boolean");
+            entity.Property<string>("FailureReason").HasMaxLength(2048).HasColumnType("character varying(2048)");
+            entity.HasKey("Id");
+            entity.HasIndex("MediaAssetId", "CompletedAt").HasDatabaseName("IX_MediaClassificationRuns_Asset_CompletedAt");
+            entity.HasIndex("ClassifierVersion"); entity.HasIndex("PredictedClassification"); entity.HasIndex("DecisionStatus"); entity.HasIndex("Succeeded");
+            entity.ToTable("MediaClassificationRuns");
         });
 
         modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaProcessingJob", entity =>
@@ -174,6 +215,11 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
             entity.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint")
                 .HasAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn);
             entity.Property<DateTimeOffset>("ChangedAtUtc").HasColumnType("timestamp with time zone");
+            entity.Property<string>("AutomaticPredictedClassification").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+            entity.Property<decimal>("AutomaticPredictedScore").HasPrecision(5, 4).HasColumnType("numeric(5,4)");
+            entity.Property<string>("PreviousDecisionStatus").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+            entity.Property<string>("NewDecisionStatus").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
+            entity.Property<string>("CorrelationId").HasMaxLength(128).HasColumnType("character varying(128)");
             entity.Property<string>("ChangedByUserId").IsRequired().HasMaxLength(450).HasColumnType("character varying(450)");
             entity.Property<bool>("IsManual").HasColumnType("boolean");
             entity.Property<long>("MediaAssetId").HasColumnType("bigint");
@@ -251,6 +297,12 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
             entity.Navigation("Source");
         });
 
+        modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaClassificationRun", entity =>
+        {
+            entity.HasOne("ProjectManagement.Features.MediaLibrary.Domain.MediaAsset", "MediaAsset").WithMany("ClassificationRuns").HasForeignKey("MediaAssetId").OnDelete(DeleteBehavior.Cascade).IsRequired();
+            entity.Navigation("MediaAsset");
+        });
+
         modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaProcessingJob", entity =>
         {
             entity.HasOne("ProjectManagement.Features.MediaLibrary.Domain.MediaAsset", "MediaAsset")
@@ -289,6 +341,7 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
 
         modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaAsset", entity =>
         {
+            entity.Navigation("ClassificationRuns");
             entity.Navigation("Faces");
             entity.Navigation("ProcessingJobs");
         });

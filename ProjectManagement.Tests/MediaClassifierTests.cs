@@ -2,204 +2,93 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
 using ProjectManagement.Features.MediaLibrary.Services;
-using Xunit;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using Xunit;
 
 namespace ProjectManagement.Tests;
 
 public sealed class MediaClassifierTests
 {
     [Fact]
-    public async Task ClassifyAsync_RecognisesTypicalScreenshot()
+    public async Task ClassifyAsync_RecognisesStrongScreenshotFilename()
     {
-        var classifier = CreateClassifier();
-        var metadata = new MediaFileMetadata(
-            MediaAssetKind.Photo,
-            "image/png",
-            1000,
-            DateTimeOffset.UtcNow,
-            DateTimeOffset.UtcNow,
-            1920,
-            1080,
-            null,
-            false,
-            null,
-            null);
-
-        var result = await classifier.ClassifyAsync(
-            "Screenshot 2026-06-27.png",
-            metadata,
-            CancellationToken.None);
-
-        Assert.Equal(MediaClassification.Screenshot, result.Classification);
-        Assert.True(result.Confidence >= 0.62);
-    }
-
-    [Fact]
-    public async Task ClassifyAsync_PrefersPhotographWhenCameraMetadataExists()
-    {
-        var classifier = CreateClassifier();
-        var metadata = new MediaFileMetadata(
-            MediaAssetKind.Photo,
-            "image/jpeg",
-            1000,
-            DateTimeOffset.UtcNow,
-            DateTimeOffset.UtcNow,
-            4032,
-            3024,
-            null,
-            true,
-            "Canon",
-            "EOS");
-
-        var result = await classifier.ClassifyAsync("IMG_0001.jpg", metadata, CancellationToken.None);
-
-        Assert.Equal(MediaClassification.Photograph, result.Classification);
-        Assert.True(result.Confidence >= 0.90);
-    }
-
-    [Fact]
-    public async Task ClassifyAsync_ReturnsUnknownWhenClassificationIsDisabled()
-    {
-        var options = new MediaLibraryOptions
-        {
-            Classification = new MediaClassificationOptions
-            {
-                Enabled = false,
-                ScreenshotDetectionEnabled = false
-            }
-        };
-        var classifier = new MediaClassifier(Options.Create(options));
-        var metadata = new MediaFileMetadata(
-            MediaAssetKind.Photo,
-            "image/png",
-            1000,
-            DateTimeOffset.UtcNow,
-            DateTimeOffset.UtcNow,
-            1920,
-            1080,
-            null,
-            false,
-            null,
-            null);
-
-        var result = await classifier.ClassifyAsync("Screenshot.png", metadata, CancellationToken.None);
-
-        Assert.Equal(MediaClassification.Unknown, result.Classification);
-    }
-
-    private static MediaClassifier CreateClassifier()
-        => new(Options.Create(new MediaLibraryOptions()));
-}
-
-public sealed class MediaClassifierNaturalImageTests
-{
-    [Fact]
-    public async Task ClassifyAsync_RecognisesNaturalPortraitWithoutExif()
-    {
-        var path = Path.Combine(Path.GetTempPath(), $"portrait-{Guid.NewGuid():N}.jpg");
+        var path = await CreateImageAsync("screenshot", 640, 360, new Rgba32(240, 240, 240));
         try
         {
-            using (var image = new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(480, 640))
-            {
-                var random = new Random(42);
-                image.ProcessPixelRows(accessor =>
-                {
-                    for (var y = 0; y < image.Height; y++)
-                    {
-                        var row = accessor.GetRowSpan(y);
-                        for (var x = 0; x < image.Width; x++)
-                        {
-                            var radial = Math.Sqrt(Math.Pow((x - 240d) / 240d, 2) + Math.Pow((y - 300d) / 340d, 2));
-                            var noise = random.Next(-18, 19);
-                            var r = Math.Clamp((int)(155 + (45 * Math.Sin(x / 37d)) - (30 * radial) + noise), 0, 255);
-                            var g = Math.Clamp((int)(120 + (55 * Math.Sin(y / 43d)) - (20 * radial) + noise), 0, 255);
-                            var b = Math.Clamp((int)(95 + (40 * Math.Cos((x + y) / 51d)) - (15 * radial) + noise), 0, 255);
-                            row[x] = new SixLabors.ImageSharp.PixelFormats.Rgba32((byte)r, (byte)g, (byte)b);
-                        }
-                    }
-                });
-                await image.SaveAsJpegAsync(path);
-            }
-
-            var metadata = new MediaFileMetadata(
-                MediaAssetKind.Photo,
-                "image/jpeg",
-                new FileInfo(path).Length,
-                DateTimeOffset.UtcNow,
-                DateTimeOffset.UtcNow,
-                480,
-                640,
-                null,
-                false,
-                null,
-                null);
-
-            var classifier = new MediaClassifier(Options.Create(new MediaLibraryOptions()));
-            var result = await classifier.ClassifyAsync(path, metadata, CancellationToken.None);
-
-            Assert.Equal(MediaClassification.Photograph, result.Classification);
-            Assert.True(result.Confidence >= 0.75, $"Confidence was {result.Confidence:P0}.");
-            Assert.Contains(result.Signals, signal => signal.Contains("natural", StringComparison.OrdinalIgnoreCase));
+            var result = await CreateClassifier().ClassifyAsync(path, Metadata(path, "image/png", 640, 360), CancellationToken.None);
+            Assert.Equal(MediaClassification.Screenshot, result.PredictedClassification);
+            Assert.Equal(MediaClassificationDecisionStatus.AutomaticallyAccepted, result.DecisionStatus);
         }
-        finally
-        {
-            if (File.Exists(path))
-                File.Delete(path);
-        }
+        finally { File.Delete(path); }
     }
 
     [Fact]
-    public async Task ClassifyAsync_KeepsNamedFlowChartOutOfPhotographs()
+    public async Task ClassifyAsync_UsesFaceEvidenceForAmbiguousPortrait()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"flow-chart-{Guid.NewGuid():N}.png");
+        var path = await CreateImageAsync("portrait", 480, 640, new Rgba32(160, 130, 110));
         try
         {
-            using (var image = new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(1000, 600, new SixLabors.ImageSharp.PixelFormats.Rgba32(255, 255, 255, 255)))
-            {
-                image.ProcessPixelRows(accessor =>
-                {
-                    for (var y = 80; y < 520; y += 110)
-                    {
-                        for (var x = 80; x < 920; x++)
-                        {
-                            accessor.GetRowSpan(y)[x] = new SixLabors.ImageSharp.PixelFormats.Rgba32(0, 0, 0, 255);
-                            accessor.GetRowSpan(Math.Min(y + 60, 599))[x] = new SixLabors.ImageSharp.PixelFormats.Rgba32(0, 0, 0, 255);
-                        }
-                    }
-
-                    for (var x = 80; x < 920; x += 210)
-                    {
-                        for (var y = 80; y < 580; y++)
-                            accessor.GetRowSpan(y)[x] = new SixLabors.ImageSharp.PixelFormats.Rgba32(0, 0, 0, 255);
-                    }
-                });
-                await image.SaveAsPngAsync(path);
-            }
-
-            var metadata = new MediaFileMetadata(
-                MediaAssetKind.Photo,
-                "image/png",
-                new FileInfo(path).Length,
-                DateTimeOffset.UtcNow,
-                DateTimeOffset.UtcNow,
-                1000,
-                600,
-                null,
-                false,
-                null,
-                null);
-
-            var classifier = new MediaClassifier(Options.Create(new MediaLibraryOptions()));
-            var result = await classifier.ClassifyAsync("SDD_Proliferation_Flow_Chart.drawio.png", metadata, CancellationToken.None);
-
-            Assert.NotEqual(MediaClassification.Photograph, result.Classification);
-            Assert.True(result.Classification is MediaClassification.Diagram or MediaClassification.ScannedDocument or MediaClassification.PresentationSlide);
+            var classifier = CreateClassifier(new StubFacePresenceProbe(true));
+            var result = await classifier.ClassifyAsync(path, Metadata(path, "image/jpeg", 480, 640), CancellationToken.None);
+            Assert.Equal(MediaClassification.Photograph, result.PredictedClassification);
+            Assert.Equal(MediaClassification.Photograph, result.EffectiveClassification);
+            Assert.Contains(result.Signals, x => x.Contains("face", StringComparison.OrdinalIgnoreCase));
         }
-        finally
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_StrongDrawIoFilenameIsDiagram()
+    {
+        var path = await CreateImageAsync("diagram", 1000, 600, new Rgba32(255, 255, 255));
+        try
         {
-            if (File.Exists(path))
-                File.Delete(path);
+            var classifier = CreateClassifier(new StubFacePresenceProbe(false));
+            var content = new MediaContentDescriptor("SDD_Proliferation_Flow_Chart.drawio.png", "image/png", new FileInfo(path).Length,
+                DateTimeOffset.UtcNow, _ => Task.FromResult<Stream>(File.OpenRead(path)));
+            var result = await classifier.ClassifyAsync(content, Metadata(path, "image/png", 1000, 600), CancellationToken.None);
+            Assert.Equal(MediaClassification.Diagram, result.PredictedClassification);
+            Assert.NotEqual(MediaClassification.Photograph, result.EffectiveClassification);
         }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_ReturnsNotApplicableWhenDisabled()
+    {
+        var options = new MediaLibraryOptions { Classification = new MediaClassificationOptions { Enabled = false } };
+        var classifier = new MediaClassifier(Options.Create(options), new StubFacePresenceProbe(false),
+            new MediaClassificationDecisionPolicy(Options.Create(options)));
+        await using var stream = new MemoryStream(new byte[] { 1, 2, 3 });
+        var content = new MediaContentDescriptor("x.png", "image/png", 3, DateTimeOffset.UtcNow, _ => Task.FromResult<Stream>(new MemoryStream(new byte[] { 1, 2, 3 })));
+        var result = await classifier.ClassifyAsync(content, Metadata(null, "image/png", 1, 1), CancellationToken.None);
+        Assert.Equal(MediaClassificationDecisionStatus.NotApplicable, result.DecisionStatus);
+    }
+
+    private static MediaClassifier CreateClassifier(IFacePresenceProbe? probe = null)
+    {
+        var options = Options.Create(new MediaLibraryOptions());
+        return new MediaClassifier(options, probe ?? new StubFacePresenceProbe(false), new MediaClassificationDecisionPolicy(options));
+    }
+
+    private static MediaFileMetadata Metadata(string? path, string type, int width, int height)
+        => new(MediaAssetKind.Photo, type, path is null ? 0 : new FileInfo(path).Length, DateTimeOffset.UtcNow,
+            DateTimeOffset.UtcNow, width, height, null, false, null, null);
+
+    private static async Task<string> CreateImageAsync(string prefix, int width, int height, Rgba32 colour)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"{prefix}-{Guid.NewGuid():N}.png");
+        using var image = new Image<Rgba32>(width, height, colour);
+        await image.SaveAsPngAsync(path);
+        return path;
+    }
+
+    private sealed class StubFacePresenceProbe(bool detected) : IFacePresenceProbe
+    {
+        public Task<FacePresenceResult> AnalyseAsync(byte[] imageBytes, CancellationToken cancellationToken)
+            => Task.FromResult(detected
+                ? new FacePresenceResult(true, true, 1, .96, 160, 160, .08, true)
+                : new FacePresenceResult(true, false, 0, 0, 0, 0, 0, false));
     }
 }

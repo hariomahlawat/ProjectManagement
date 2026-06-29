@@ -100,6 +100,14 @@ public sealed class MediaClassificationOptions
     public double ScreenshotThreshold { get; set; } = 0.62;
     public double DocumentThreshold { get; set; } = 0.66;
     public double DiagramThreshold { get; set; } = 0.64;
+    public double PresentationThreshold { get; set; } = 0.72;
+    public double GraphicThreshold { get; set; } = 0.80;
+    public double PhotographThreshold { get; set; } = 0.82;
+    public double NaturalPhotoAutoAcceptThreshold { get; set; } = 0.88;
+    public bool FacePresenceAssistanceEnabled { get; set; } = true;
+    public double FacePresenceMinimumConfidence { get; set; } = 0.82;
+    public int FacePresenceMinimumPixels { get; set; } = 48;
+    public double FacePresenceMinimumAreaRatio { get; set; } = 0.01;
 }
 
 /// <summary>
@@ -151,6 +159,9 @@ public sealed class FaceModelOptions
     public string Sha256 { get; set; } = string.Empty;
     public string License { get; set; } = string.Empty;
     public string SourceUrl { get; set; } = string.Empty;
+    public string Publisher { get; set; } = string.Empty;
+    public string ApprovedArtifactId { get; set; } = string.Empty;
+    public string AcquiredOn { get; set; } = string.Empty;
     public int InputWidth { get; set; } = 320;
     public int InputHeight { get; set; } = 320;
     public string InputName { get; set; } = "input";

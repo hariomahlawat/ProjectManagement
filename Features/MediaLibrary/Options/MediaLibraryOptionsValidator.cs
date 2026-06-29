@@ -66,6 +66,8 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
             ValidateProcessingOptions(options, failures);
         }
 
+        ValidateClassificationOptions(options.Classification, failures);
+
         if (options.People.WorkerEnabled && !options.People.Enabled)
         {
             failures.Add("MediaLibrary:People:WorkerEnabled cannot be true while People:Enabled is false.");
@@ -187,6 +189,19 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
 
 
 
+    private static void ValidateClassificationOptions(MediaClassificationOptions classification, ICollection<string> failures)
+    {
+        static bool Invalid(double value) => value < 0 || value > 1 || double.IsNaN(value) || double.IsInfinity(value);
+        if (Invalid(classification.MinimumConfidence)) failures.Add("MediaLibrary:Classification:MinimumConfidence must be between 0 and 1.");
+        if (Invalid(classification.PhotographThreshold)) failures.Add("MediaLibrary:Classification:PhotographThreshold must be between 0 and 1.");
+        if (Invalid(classification.NaturalPhotoAutoAcceptThreshold)) failures.Add("MediaLibrary:Classification:NaturalPhotoAutoAcceptThreshold must be between 0 and 1.");
+        if (classification.NaturalPhotoAutoAcceptThreshold < classification.PhotographThreshold) failures.Add("MediaLibrary:Classification:NaturalPhotoAutoAcceptThreshold cannot be below PhotographThreshold.");
+        if (Invalid(classification.ScreenshotThreshold) || Invalid(classification.DocumentThreshold) || Invalid(classification.DiagramThreshold) || Invalid(classification.PresentationThreshold) || Invalid(classification.GraphicThreshold)) failures.Add("All media classification thresholds must be between 0 and 1.");
+        if (Invalid(classification.FacePresenceMinimumConfidence)) failures.Add("MediaLibrary:Classification:FacePresenceMinimumConfidence must be between 0 and 1.");
+        if (classification.FacePresenceMinimumPixels is < 24 or > 2048) failures.Add("MediaLibrary:Classification:FacePresenceMinimumPixels must be between 24 and 2048.");
+        if (classification.FacePresenceMinimumAreaRatio is < 0 or > 1) failures.Add("MediaLibrary:Classification:FacePresenceMinimumAreaRatio must be between 0 and 1.");
+    }
+
     private static void ValidatePeopleOptions(MediaPeopleOptions people, ICollection<string> failures)
     {
         if (people.AutoConfirmEnabled)
@@ -249,7 +264,8 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
             failures.Add($"MediaLibrary:People:{label}:Sha256 must contain the approved 64-character hexadecimal SHA-256 checksum.");
         }
         if (string.IsNullOrWhiteSpace(model.License)) failures.Add($"MediaLibrary:People:{label}:License is required.");
-        if (string.IsNullOrWhiteSpace(model.SourceUrl)) failures.Add($"MediaLibrary:People:{label}:SourceUrl is required.");
+        if (string.IsNullOrWhiteSpace(model.Publisher)) failures.Add($"MediaLibrary:People:{label}:Publisher is required.");
+        if (string.IsNullOrWhiteSpace(model.ApprovedArtifactId)) failures.Add($"MediaLibrary:People:{label}:ApprovedArtifactId is required.");
         if (model.InputWidth is < 32 or > 4096 || model.InputHeight is < 32 or > 4096)
             failures.Add($"MediaLibrary:People:{label} input dimensions must be between 32 and 4096 pixels.");
         if (model.InputScale <= 0 || !float.IsFinite(model.InputScale))

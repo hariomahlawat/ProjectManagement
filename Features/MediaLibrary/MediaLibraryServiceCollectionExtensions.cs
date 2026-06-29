@@ -60,6 +60,8 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaContentProvider, SocialMediaPhotoMediaContentProvider>();
         services.AddScoped<IMediaContentProviderResolver, MediaContentProviderResolver>();
         services.AddScoped<IMediaMetadataReader, MediaMetadataReader>();
+        services.AddScoped<IFacePresenceProbe, YuNetFacePresenceProbe>();
+        services.AddScoped<IMediaClassificationDecisionPolicy, MediaClassificationDecisionPolicy>();
         services.AddScoped<IMediaClassifier, MediaClassifier>();
         services.AddScoped<IMediaClassificationEligibilityService, MediaClassificationEligibilityService>();
         services.AddScoped<IMediaClassificationOverrideService, MediaClassificationOverrideService>();
