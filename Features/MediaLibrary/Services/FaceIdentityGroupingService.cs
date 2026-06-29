@@ -33,58 +33,51 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
     {
         if (!_options.Enabled || !_options.GroupingEnabled)
         {
-            return new FaceIdentityGroupingResult(Array.Empty<FaceIdentityGroup>(), 0, 0, 0);
+            return EmptyResult();
         }
 
         var modelKey = _options.Embedder.Key;
         var modelVersion = _options.Embedder.Version;
         var dimension = _options.Embedder.EmbeddingDimension;
         var maximumFaces = Math.Clamp(_options.GroupingMaximumFaces, 10, 25_000);
-        var rows = await _db.Faces
-            .AsNoTracking()
-            .Where(face => !face.IsSuppressed
-                           && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
-                           && face.QualityScore >= _options.MinimumQualityScore
-                           && face.MediaAsset.IsAvailable
-                           && !face.MediaAsset.IsDeleted
-                           && !face.MediaAsset.IsArchived
-                           && !face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null)
-                           && !_db.FaceReviewDecisions.Any(decision =>
-                               decision.MediaFaceId == face.Id
-                               && !decision.CandidatePersonId.HasValue
-                               && decision.Decision == FaceReviewDecisionType.Ignored))
-            .SelectMany(
-                face => face.Embeddings
-                    .Where(embedding => embedding.InvalidatedAtUtc == null
-                                        && embedding.ModelKey == modelKey
-                                        && embedding.ModelVersion == modelVersion
-                                        && embedding.Dimension == dimension),
-                (face, embedding) => new GroupingFaceRow(
-                    face.Id,
-                    face.MediaAssetId,
-                    face.MediaAsset.ContextTitle,
-                    face.MediaAsset.ContextSubtitle,
-                    face.MediaAsset.MediaDateUtc,
-                    face.QualityScore,
-                    embedding.Embedding,
-                    embedding.ModelKey,
-                    embedding.ModelVersion,
-                    embedding.Dimension))
-            .OrderByDescending(face => face.QualityScore)
-            .ThenByDescending(face => face.MediaDateUtc)
-            .Take(maximumFaces)
+
+        // Keep the entire relational operation provider-translatable. The earlier navigation
+        // SelectMany/custom-record projection caused Npgsql to reject the expression tree at
+        // runtime. Ordering and limiting now happen over scalar database columns; construction
+        // of the in-memory grouping row happens only after materialisation.
+        var databaseRows = await BuildGroupingRowsQuery(
+                _db,
+                modelKey,
+                modelVersion,
+                dimension,
+                _options.MinimumQualityScore,
+                maximumFaces)
             .ToListAsync(cancellationToken);
 
-        var validRows = rows
-            .Where(row => row.Embedding.Length == dimension)
+        var validRows = databaseRows
+            .Where(row => row.Embedding is { Length: > 0 }
+                          && row.Embedding.Length == dimension)
             .GroupBy(row => row.FaceId)
             .Select(group => group
-                .OrderByDescending(row => row.QualityScore)
+                .OrderByDescending(row => row.EmbeddingQualityScore)
+                .ThenByDescending(row => row.QualityScore)
                 .First())
+            .Select(row => new GroupingFaceRow(
+                row.FaceId,
+                row.AssetId,
+                row.ContextTitle,
+                row.ContextSubtitle,
+                row.MediaDateUtc,
+                row.QualityScore,
+                row.Embedding,
+                row.ModelKey,
+                row.ModelVersion,
+                row.Dimension))
             .ToList();
+
         if (validRows.Count == 0)
         {
-            return new FaceIdentityGroupingResult(Array.Empty<FaceIdentityGroup>(), 0, 0, 0);
+            return EmptyResult();
         }
 
         var mutableGroups = BuildStrictGroups(validRows, _options);
@@ -108,6 +101,7 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
                 representative.ModelVersion,
                 representative.Dimension,
                 cancellationToken);
+
             var memberFaceIds = group.Members.Select(member => member.FaceId).ToArray();
             var rejectedPersonIds = await _db.FaceReviewDecisions
                 .AsNoTracking()
@@ -119,6 +113,7 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
                 .Select(decision => decision.CandidatePersonId!.Value)
                 .Distinct()
                 .ToListAsync(cancellationToken);
+
             var rejected = rejectedPersonIds.ToHashSet();
             var candidates = searchedCandidates
                 .Where(candidate => !rejected.Contains(candidate.PersonId))
@@ -138,6 +133,7 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
             var cohesion = members.Count == 0
                 ? 0d
                 : members.Average(member => member.SimilarityToRepresentative);
+
             result.Add(new FaceIdentityGroup(
                 CreateGroupKey(members.Select(member => member.FaceId)),
                 representative.FaceId,
@@ -157,6 +153,83 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
             groupedFaceCount,
             Math.Max(0, validRows.Count - groupedFaceCount));
     }
+
+    /// <summary>
+    /// Builds the PostgreSQL-translatable relational query used by identity grouping.
+    /// Kept internal so provider translation can be regression-tested with ToQueryString().
+    /// </summary>
+    internal static IQueryable<GroupingFaceDatabaseRow> BuildGroupingRowsQuery(
+        MediaLibraryDbContext db,
+        string modelKey,
+        string modelVersion,
+        int dimension,
+        double minimumQualityScore,
+        int maximumFaces)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+
+        var ordered =
+            from embedding in db.FaceEmbeddings.AsNoTracking()
+            join face in db.Faces.AsNoTracking()
+                on embedding.MediaFaceId equals face.Id
+            join asset in db.Assets.AsNoTracking()
+                on face.MediaAssetId equals asset.Id
+            where !face.IsSuppressed
+                  && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
+                  && face.QualityScore >= minimumQualityScore
+                  && asset.IsAvailable
+                  && !asset.IsDeleted
+                  && !asset.IsArchived
+                  && embedding.InvalidatedAtUtc == null
+                  && embedding.ModelKey == modelKey
+                  && embedding.ModelVersion == modelVersion
+                  && embedding.Dimension == dimension
+                  && !db.PersonFaces.Any(assignment =>
+                      assignment.MediaFaceId == face.Id
+                      && assignment.RemovedAtUtc == null)
+                  && !db.FaceReviewDecisions.Any(decision =>
+                      decision.MediaFaceId == face.Id
+                      && !decision.CandidatePersonId.HasValue
+                      && decision.Decision == FaceReviewDecisionType.Ignored)
+            orderby face.QualityScore descending,
+                asset.MediaDateUtc descending,
+                embedding.QualityScore descending,
+                face.Id
+            select new
+            {
+                FaceId = face.Id,
+                AssetId = face.MediaAssetId,
+                asset.ContextTitle,
+                asset.ContextSubtitle,
+                asset.MediaDateUtc,
+                QualityScore = face.QualityScore,
+                EmbeddingQualityScore = embedding.QualityScore,
+                embedding.Embedding,
+                embedding.ModelKey,
+                embedding.ModelVersion,
+                embedding.Dimension
+            };
+
+        return ordered
+            .Take(Math.Clamp(maximumFaces, 1, 25_000))
+            .Select(row => new GroupingFaceDatabaseRow
+            {
+                FaceId = row.FaceId,
+                AssetId = row.AssetId,
+                ContextTitle = row.ContextTitle,
+                ContextSubtitle = row.ContextSubtitle,
+                MediaDateUtc = row.MediaDateUtc,
+                QualityScore = row.QualityScore,
+                EmbeddingQualityScore = row.EmbeddingQualityScore,
+                Embedding = row.Embedding,
+                ModelKey = row.ModelKey,
+                ModelVersion = row.ModelVersion,
+                Dimension = row.Dimension
+            });
+    }
+
+    private static FaceIdentityGroupingResult EmptyResult()
+        => new(Array.Empty<FaceIdentityGroup>(), 0, 0, 0);
 
     private static List<MutableGroup> BuildStrictGroups(
         IReadOnlyList<GroupingFaceRow> rows,
@@ -284,4 +357,23 @@ public sealed class FaceIdentityGroupingService : IFaceIdentityGroupingService
                 .First();
         }
     }
+}
+
+/// <summary>
+/// Flat database projection for grouping. This intentionally contains scalar columns only;
+/// clustering and identity construction occur after the query has been materialised.
+/// </summary>
+internal sealed class GroupingFaceDatabaseRow
+{
+    public Guid FaceId { get; init; }
+    public long AssetId { get; init; }
+    public string ContextTitle { get; init; } = string.Empty;
+    public string ContextSubtitle { get; init; } = string.Empty;
+    public DateTimeOffset MediaDateUtc { get; init; }
+    public double QualityScore { get; init; }
+    public double EmbeddingQualityScore { get; init; }
+    public float[] Embedding { get; init; } = Array.Empty<float>();
+    public string ModelKey { get; init; } = string.Empty;
+    public string ModelVersion { get; init; } = string.Empty;
+    public int Dimension { get; init; }
 }

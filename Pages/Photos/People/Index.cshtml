@@ -22,7 +22,7 @@
             </a>
             @if (Model.FeatureEnabled)
             {
-                <a class="btn btn-outline-secondary position-relative" asp-page="./Review" asp-route-Mode="groups">
+                <a class="btn btn-outline-secondary position-relative" asp-page="./Review" asp-route-Mode="@Model.ReviewMode">
                     <i class="bi bi-person-check" aria-hidden="true"></i> Classify people
                     @if (Model.ReviewWorkCount > 0)
                     {
@@ -44,11 +44,30 @@
     }
     else
     {
+        @if (!Model.DirectoryAvailable)
+        {
+            <section class="people-empty">
+                <i class="bi bi-database-exclamation" aria-hidden="true"></i>
+                <h2>People directory temporarily unavailable</h2>
+                <p>The identity data could not be loaded. The error has been logged; retry after checking database connectivity and application logs.</p>
+                <a class="btn btn-outline-primary" asp-page="/Admin/MediaIntelligence/Index">Open media intelligence</a>
+            </section>
+        }
+        else
+        {
+        @if (!Model.GroupingAvailable)
+        {
+            <div class="alert alert-warning" role="status">
+                <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+                Identity grouping is temporarily unavailable. The confirmed-people directory and individual-face review remain operational.
+            </div>
+        }
+
         <section class="people-summary" aria-label="People summary">
             <div><strong>@Model.Result.TotalPeople</strong><span>confirmed people</span></div>
-            <div><strong>@Model.SuggestedGroupCount</strong><span>suggested identity groups</span></div>
-            <div><strong>@Model.GroupedFaceCount</strong><span>grouped appearances</span></div>
-            <div><strong>@Model.RemainingIndividualFaceCount</strong><span>individual faces remaining</span></div>
+            <div><strong>@(Model.GroupingAvailable ? Model.SuggestedGroupCount.ToString() : "—")</strong><span>suggested identity groups</span></div>
+            <div><strong>@(Model.GroupingAvailable ? Model.GroupedFaceCount.ToString() : "—")</strong><span>grouped appearances</span></div>
+            <div><strong>@(Model.GroupingAvailable ? Model.RemainingIndividualFaceCount.ToString() : "—")</strong><span>individual faces remaining</span></div>
             <div><strong>@Model.Result.UnidentifiedFaceCount</strong><span>unidentified faces</span></div>
         </section>
 
@@ -146,6 +165,7 @@
                     </a>
                 }
             </nav>
+        }
         }
     }
 </div>

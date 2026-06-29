@@ -25,63 +25,44 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
     {
         ArgumentNullException.ThrowIfNull(request);
         var pageSize = Math.Clamp(request.PageSize, 12, 120);
-        var peopleQuery = _db.Persons
-            .AsNoTracking()
-            .Where(person => person.Status == MediaPersonStatus.Confirmed
-                             || person.Status == MediaPersonStatus.Hidden);
-        if (!request.IncludeHidden)
-        {
-            peopleQuery = peopleQuery.Where(person => !person.IsHidden);
-        }
+        var normalizedQuery = string.IsNullOrWhiteSpace(request.Query)
+            ? null
+            : request.Query.Trim();
+        var normalizedSort = NormalizeSort(request.Sort);
 
-        if (!string.IsNullOrWhiteSpace(request.Query))
-        {
-            var term = request.Query.Trim();
-            peopleQuery = peopleQuery.Where(person =>
-                EF.Functions.ILike(person.DisplayName, $"%{EscapeLikePattern(term)}%", "\\"));
-        }
-
-        var projected = peopleQuery.Select(person => new MediaPersonCard(
-            person.Id,
-            person.DisplayName,
-            person.RepresentativeFaceId,
-            person.FaceAssignments.Count(assignment => assignment.RemovedAtUtc == null),
-            person.FaceAssignments
-                .Where(assignment => assignment.RemovedAtUtc == null
-                                     && assignment.MediaFace.MediaAsset.IsAvailable
-                                     && !assignment.MediaFace.MediaAsset.IsDeleted
-                                     && !assignment.MediaFace.MediaAsset.IsArchived)
-                .Select(assignment => assignment.MediaFace.MediaAssetId)
-                .Distinct()
-                .Count(),
-            person.FaceAssignments
-                .Where(assignment => assignment.RemovedAtUtc == null
-                                     && assignment.MediaFace.MediaAsset.IsAvailable
-                                     && !assignment.MediaFace.MediaAsset.IsDeleted
-                                     && !assignment.MediaFace.MediaAsset.IsArchived)
-                .Select(assignment => (DateTimeOffset?)assignment.MediaFace.MediaAsset.MediaDateUtc)
-                .Max(),
-            person.IsHidden,
-            person.IsMinor,
-            person.ConcurrencyToken));
-
-        projected = request.Sort switch
-        {
-            "photos" => projected.OrderByDescending(person => person.PhotoCount)
-                .ThenBy(person => person.DisplayName),
-            "recent" => projected.OrderByDescending(person => person.LatestMediaDateUtc)
-                .ThenBy(person => person.DisplayName),
-            _ => projected.OrderBy(person => person.DisplayName)
-        };
-
-        var total = await projected.CountAsync(cancellationToken);
+        var filteredPeople = BuildFilteredPeopleQuery(
+            _db,
+            normalizedQuery,
+            request.IncludeHidden);
+        var total = await filteredPeople.CountAsync(cancellationToken);
         var pageCount = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
         var pageNumber = Math.Clamp(request.PageNumber, 1, pageCount);
-        var people = await projected
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
+
+        // Aggregation, ordering and pagination all remain on scalar SQL columns. The former
+        // query projected a MediaPersonCard containing correlated subqueries and then ordered
+        // the CLR record; Npgsql correctly rejected that non-translatable expression tree.
+        var databaseRows = await BuildPeopleIndexRowsQuery(
+                _db,
+                filteredPeople,
+                normalizedSort,
+                (pageNumber - 1) * pageSize,
+                pageSize)
             .ToListAsync(cancellationToken);
-        var reviewableFaces = BuildReviewableFacesQuery();
+
+        var people = databaseRows
+            .Select(row => new MediaPersonCard(
+                row.Id,
+                row.DisplayName,
+                row.RepresentativeFaceId,
+                row.ConfirmedFaceCount,
+                row.PhotoCount,
+                row.LatestMediaDateUtc,
+                row.IsHidden,
+                row.IsMinor,
+                row.ConcurrencyToken))
+            .ToList();
+
+        var reviewableFaces = BuildReviewableFacesQuery(_db);
         var pendingReviewCount = await reviewableFaces.CountAsync(cancellationToken);
         var unidentifiedFaceCount = await _db.Faces
             .AsNoTracking()
@@ -128,28 +109,46 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             return null;
         }
 
-        var assignments = await _db.PersonFaces
-            .AsNoTracking()
-            .Where(assignment => assignment.MediaPersonId == personId
-                                 && assignment.RemovedAtUtc == null
-                                 && !assignment.MediaFace.IsSuppressed
-                                 && assignment.MediaFace.MediaAsset.IsAvailable
-                                 && !assignment.MediaFace.MediaAsset.IsDeleted
-                                 && !assignment.MediaFace.MediaAsset.IsArchived)
-            .OrderByDescending(assignment => assignment.MediaFace.MediaAsset.MediaDateUtc)
-            .ThenBy(assignment => assignment.MediaFace.MediaAssetId)
-            .Select(assignment => new MediaPersonPhotoItem(
-                assignment.MediaFace.MediaAssetId,
-                assignment.MediaFaceId,
-                assignment.MediaFace.MediaAsset.ContextTitle,
-                assignment.MediaFace.MediaAsset.ContextSubtitle,
-                assignment.MediaFace.MediaAsset.SourceLabel,
-                assignment.MediaFace.MediaAsset.MediaDateUtc,
-                assignment.MediaFace.MediaAsset.Width,
-                assignment.MediaFace.MediaAsset.Height,
-                assignment.MediaFace.QualityScore,
-                person.RepresentativeFaceId == assignment.MediaFaceId))
+        var assignmentRows = await (
+                from assignment in _db.PersonFaces.AsNoTracking()
+                join face in _db.Faces.AsNoTracking()
+                    on assignment.MediaFaceId equals face.Id
+                join asset in _db.Assets.AsNoTracking()
+                    on face.MediaAssetId equals asset.Id
+                where assignment.MediaPersonId == personId
+                      && assignment.RemovedAtUtc == null
+                      && !face.IsSuppressed
+                      && asset.IsAvailable
+                      && !asset.IsDeleted
+                      && !asset.IsArchived
+                orderby asset.MediaDateUtc descending, asset.Id, face.Id
+                select new MediaPersonPhotoDatabaseRow
+                {
+                    AssetId = asset.Id,
+                    FaceId = face.Id,
+                    ContextTitle = asset.ContextTitle,
+                    ContextSubtitle = asset.ContextSubtitle,
+                    SourceLabel = asset.SourceLabel,
+                    MediaDateUtc = asset.MediaDateUtc,
+                    Width = asset.Width,
+                    Height = asset.Height,
+                    FaceQualityScore = face.QualityScore
+                })
             .ToListAsync(cancellationToken);
+
+        var assignments = assignmentRows
+            .Select(row => new MediaPersonPhotoItem(
+                row.AssetId,
+                row.FaceId,
+                row.ContextTitle,
+                row.ContextSubtitle,
+                row.SourceLabel,
+                row.MediaDateUtc,
+                row.Width,
+                row.Height,
+                row.FaceQualityScore,
+                person.RepresentativeFaceId == row.FaceId))
+            .ToList();
         var mergeTargets = await GetPersonOptionsAsync(cancellationToken);
         mergeTargets = mergeTargets.Where(item => item.Id != personId).ToList();
 
@@ -174,12 +173,12 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
         CancellationToken cancellationToken)
     {
         pageSize = Math.Clamp(pageSize, 12, 100);
-        var reviewableFaces = BuildReviewableFacesQuery();
+        var reviewableFaces = BuildReviewableFacesQuery(_db);
 
         var totalFaces = await reviewableFaces.CountAsync(cancellationToken);
         var pageCount = Math.Max(1, (int)Math.Ceiling(totalFaces / (double)pageSize));
         pageNumber = Math.Clamp(pageNumber, 1, pageCount);
-        var faces = await reviewableFaces
+        var faceRows = await reviewableFaces
             .OrderByDescending(face => _db.FaceReviewDecisions.Any(decision =>
                 decision.MediaFaceId == face.Id
                 && decision.Decision == FaceReviewDecisionType.Pending
@@ -188,42 +187,55 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             .ThenByDescending(face => face.CreatedAtUtc)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
-            .Select(face => new ReviewFaceRow(
-                face.Id,
-                face.MediaAssetId,
-                face.MediaAsset.ContextTitle,
-                face.MediaAsset.ContextSubtitle,
-                face.MediaAsset.MediaDateUtc,
-                face.QualityScore))
+            .Select(face => new ReviewFaceDatabaseRow
+            {
+                FaceId = face.Id,
+                AssetId = face.MediaAssetId,
+                ContextTitle = face.MediaAsset.ContextTitle,
+                ContextSubtitle = face.MediaAsset.ContextSubtitle,
+                MediaDateUtc = face.MediaAsset.MediaDateUtc,
+                QualityScore = face.QualityScore
+            })
             .ToListAsync(cancellationToken);
 
-        var faceIds = faces.Select(face => face.FaceId).ToArray();
-        var candidateRows = faceIds.Length == 0
-            ? new List<ReviewCandidateRow>()
-            : await _db.FaceReviewDecisions
-                .AsNoTracking()
-                .Where(decision => faceIds.Contains(decision.MediaFaceId)
-                                   && decision.Decision == FaceReviewDecisionType.Pending
-                                   && decision.CandidatePersonId.HasValue
-                                   && decision.CandidatePerson != null
-                                   && !decision.CandidatePerson.IsHidden
-                                   && decision.CandidatePerson.Status == MediaPersonStatus.Confirmed)
-                .OrderBy(decision => decision.MediaFaceId)
-                .ThenByDescending(decision => decision.Similarity)
-                .Select(decision => new ReviewCandidateRow(
-                    decision.MediaFaceId,
-                    decision.Id,
-                    decision.CandidatePersonId!.Value,
-                    decision.CandidatePerson!.DisplayName,
-                    decision.Similarity,
-                    decision.ConcurrencyToken))
+        var faceIds = faceRows.Select(face => face.FaceId).ToArray();
+        var candidateDatabaseRows = faceIds.Length == 0
+            ? new List<ReviewCandidateDatabaseRow>()
+            : await (
+                    from decision in _db.FaceReviewDecisions.AsNoTracking()
+                    join person in _db.Persons.AsNoTracking()
+                        on decision.CandidatePersonId equals (Guid?)person.Id
+                    where faceIds.Contains(decision.MediaFaceId)
+                          && decision.Decision == FaceReviewDecisionType.Pending
+                          && decision.CandidatePersonId.HasValue
+                          && !person.IsHidden
+                          && person.Status == MediaPersonStatus.Confirmed
+                    orderby decision.MediaFaceId, decision.Similarity descending, person.DisplayName
+                    select new ReviewCandidateDatabaseRow
+                    {
+                        FaceId = decision.MediaFaceId,
+                        DecisionId = decision.Id,
+                        PersonId = person.Id,
+                        DisplayName = person.DisplayName,
+                        Similarity = decision.Similarity,
+                        ConcurrencyToken = decision.ConcurrencyToken
+                    })
                 .ToListAsync(cancellationToken);
-        var candidatesByFace = candidateRows
+
+        var candidatesByFace = candidateDatabaseRows
             .GroupBy(candidate => candidate.FaceId)
             .ToDictionary(
                 group => group.Key,
-                group => BuildCandidateItems(group.ToList()));
-        var items = faces
+                group => BuildCandidateItems(group
+                    .Select(candidate => new ReviewCandidateRow(
+                        candidate.FaceId,
+                        candidate.DecisionId,
+                        candidate.PersonId,
+                        candidate.DisplayName,
+                        candidate.Similarity,
+                        candidate.ConcurrencyToken))
+                    .ToList()));
+        var items = faceRows
             .Select(face => new FaceReviewQueueItem(
                 face.FaceId,
                 face.AssetId,
@@ -248,26 +260,168 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
 
     public async Task<IReadOnlyList<MediaPersonOption>> GetPersonOptionsAsync(
         CancellationToken cancellationToken)
-        => await _db.Persons
+    {
+        var people = await _db.Persons
             .AsNoTracking()
             .Where(person => !person.IsHidden && person.Status == MediaPersonStatus.Confirmed)
             .OrderBy(person => person.DisplayName)
-            .Select(person => new MediaPersonOption(person.Id, person.DisplayName))
+            .Select(person => new { person.Id, person.DisplayName })
             .ToListAsync(cancellationToken);
 
-    private IQueryable<MediaFace> BuildReviewableFacesQuery()
-        => _db.Faces
+        return people
+            .Select(person => new MediaPersonOption(person.Id, person.DisplayName))
+            .ToList();
+    }
+
+    internal static IQueryable<MediaPerson> BuildFilteredPeopleQuery(
+        MediaLibraryDbContext db,
+        string? query,
+        bool includeHidden)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+
+        var peopleQuery = db.Persons
+            .AsNoTracking()
+            .Where(person => person.Status == MediaPersonStatus.Confirmed
+                             || person.Status == MediaPersonStatus.Hidden);
+        if (!includeHidden)
+        {
+            peopleQuery = peopleQuery.Where(person => !person.IsHidden);
+        }
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            var escapedTerm = EscapeLikePattern(query.Trim());
+            peopleQuery = peopleQuery.Where(person =>
+                EF.Functions.ILike(person.DisplayName, $"%{escapedTerm}%", "\\"));
+        }
+
+        return peopleQuery;
+    }
+
+    /// <summary>
+    /// Builds the provider-translatable people-directory query. Aggregate subqueries are
+    /// joined to people before sorting; MediaPersonCard is constructed only in memory.
+    /// </summary>
+    internal static IQueryable<MediaPersonIndexDatabaseRow> BuildPeopleIndexRowsQuery(
+        MediaLibraryDbContext db,
+        IQueryable<MediaPerson> filteredPeople,
+        string sort,
+        int skip,
+        int take)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(filteredPeople);
+
+        var activeAssignmentStats =
+            from assignment in db.PersonFaces.AsNoTracking()
+            where assignment.RemovedAtUtc == null
+            group assignment by assignment.MediaPersonId
+            into assignmentGroup
+            select new
+            {
+                PersonId = assignmentGroup.Key,
+                ConfirmedFaceCount = assignmentGroup.Count()
+            };
+
+        var availableAssignmentRows =
+            from assignment in db.PersonFaces.AsNoTracking()
+            join face in db.Faces.AsNoTracking()
+                on assignment.MediaFaceId equals face.Id
+            join asset in db.Assets.AsNoTracking()
+                on face.MediaAssetId equals asset.Id
+            where assignment.RemovedAtUtc == null
+                  && !face.IsSuppressed
+                  && asset.IsAvailable
+                  && !asset.IsDeleted
+                  && !asset.IsArchived
+            select new
+            {
+                assignment.MediaPersonId,
+                AssetId = asset.Id,
+                asset.MediaDateUtc
+            };
+
+        var availablePhotoStats =
+            from row in availableAssignmentRows
+            group row by row.MediaPersonId
+            into photoGroup
+            select new
+            {
+                PersonId = photoGroup.Key,
+                PhotoCount = photoGroup.Select(row => row.AssetId).Distinct().Count(),
+                LatestMediaDateUtc = (DateTimeOffset?)photoGroup.Max(row => row.MediaDateUtc)
+            };
+
+        var rows =
+            from person in filteredPeople
+            join assignmentStats in activeAssignmentStats
+                on person.Id equals assignmentStats.PersonId into assignmentStatsGroup
+            from assignmentStats in assignmentStatsGroup.DefaultIfEmpty()
+            join photoStats in availablePhotoStats
+                on person.Id equals photoStats.PersonId into photoStatsGroup
+            from photoStats in photoStatsGroup.DefaultIfEmpty()
+            select new
+            {
+                person.Id,
+                person.DisplayName,
+                person.RepresentativeFaceId,
+                ConfirmedFaceCount = (int?)assignmentStats.ConfirmedFaceCount ?? 0,
+                PhotoCount = (int?)photoStats.PhotoCount ?? 0,
+                LatestMediaDateUtc = photoStats.LatestMediaDateUtc,
+                person.IsHidden,
+                person.IsMinor,
+                person.ConcurrencyToken
+            };
+
+        var ordered = NormalizeSort(sort) switch
+        {
+            "photos" => rows.OrderByDescending(person => person.PhotoCount)
+                .ThenBy(person => person.DisplayName)
+                .ThenBy(person => person.Id),
+            "recent" => rows.OrderByDescending(person => person.LatestMediaDateUtc)
+                .ThenBy(person => person.DisplayName)
+                .ThenBy(person => person.Id),
+            _ => rows.OrderBy(person => person.DisplayName)
+                .ThenBy(person => person.Id)
+        };
+
+        return ordered
+            .Skip(Math.Max(0, skip))
+            .Take(Math.Clamp(take, 1, 120))
+            .Select(person => new MediaPersonIndexDatabaseRow
+            {
+                Id = person.Id,
+                DisplayName = person.DisplayName,
+                RepresentativeFaceId = person.RepresentativeFaceId,
+                ConfirmedFaceCount = person.ConfirmedFaceCount,
+                PhotoCount = person.PhotoCount,
+                LatestMediaDateUtc = person.LatestMediaDateUtc,
+                IsHidden = person.IsHidden,
+                IsMinor = person.IsMinor,
+                ConcurrencyToken = person.ConcurrencyToken
+            });
+    }
+
+    internal static IQueryable<MediaFace> BuildReviewableFacesQuery(MediaLibraryDbContext db)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+
+        return db.Faces
             .AsNoTracking()
             .Where(face => !face.IsSuppressed
                            && face.QualityStatus != FaceQualityStatus.ProcessingFailed
                            && face.MediaAsset.IsAvailable
                            && !face.MediaAsset.IsDeleted
                            && !face.MediaAsset.IsArchived
-                           && !face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null)
-                           && !_db.FaceReviewDecisions.Any(decision =>
+                           && !db.PersonFaces.Any(assignment =>
+                               assignment.MediaFaceId == face.Id
+                               && assignment.RemovedAtUtc == null)
+                           && !db.FaceReviewDecisions.Any(decision =>
                                decision.MediaFaceId == face.Id
                                && !decision.CandidatePersonId.HasValue
                                && decision.Decision == FaceReviewDecisionType.Ignored));
+    }
 
     private IReadOnlyList<FaceReviewCandidateItem> BuildCandidateItems(
         IReadOnlyList<ReviewCandidateRow> candidates)
@@ -304,18 +458,18 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
         return results;
     }
 
+    private static string NormalizeSort(string? sort)
+        => sort?.Trim().ToLowerInvariant() switch
+        {
+            "photos" => "photos",
+            "recent" => "recent",
+            _ => "name"
+        };
+
     private static string EscapeLikePattern(string value)
         => value.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("%", "\\%", StringComparison.Ordinal)
             .Replace("_", "\\_", StringComparison.Ordinal);
-
-    private sealed record ReviewFaceRow(
-        Guid FaceId,
-        long AssetId,
-        string ContextTitle,
-        string ContextSubtitle,
-        DateTimeOffset MediaDateUtc,
-        double QualityScore);
 
     private sealed record ReviewCandidateRow(
         Guid FaceId,
@@ -324,4 +478,50 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
         string DisplayName,
         double? Similarity,
         Guid ConcurrencyToken);
+}
+
+internal sealed class MediaPersonIndexDatabaseRow
+{
+    public Guid Id { get; init; }
+    public string DisplayName { get; init; } = string.Empty;
+    public Guid? RepresentativeFaceId { get; init; }
+    public int ConfirmedFaceCount { get; init; }
+    public int PhotoCount { get; init; }
+    public DateTimeOffset? LatestMediaDateUtc { get; init; }
+    public bool IsHidden { get; init; }
+    public bool IsMinor { get; init; }
+    public Guid ConcurrencyToken { get; init; }
+}
+
+internal sealed class MediaPersonPhotoDatabaseRow
+{
+    public long AssetId { get; init; }
+    public Guid FaceId { get; init; }
+    public string ContextTitle { get; init; } = string.Empty;
+    public string ContextSubtitle { get; init; } = string.Empty;
+    public string SourceLabel { get; init; } = string.Empty;
+    public DateTimeOffset MediaDateUtc { get; init; }
+    public int? Width { get; init; }
+    public int? Height { get; init; }
+    public double FaceQualityScore { get; init; }
+}
+
+internal sealed class ReviewFaceDatabaseRow
+{
+    public Guid FaceId { get; init; }
+    public long AssetId { get; init; }
+    public string ContextTitle { get; init; } = string.Empty;
+    public string ContextSubtitle { get; init; } = string.Empty;
+    public DateTimeOffset MediaDateUtc { get; init; }
+    public double QualityScore { get; init; }
+}
+
+internal sealed class ReviewCandidateDatabaseRow
+{
+    public Guid FaceId { get; init; }
+    public long DecisionId { get; init; }
+    public Guid PersonId { get; init; }
+    public string DisplayName { get; init; } = string.Empty;
+    public double? Similarity { get; init; }
+    public Guid ConcurrencyToken { get; init; }
 }

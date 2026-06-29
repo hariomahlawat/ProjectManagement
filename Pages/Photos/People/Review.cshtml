@@ -53,7 +53,7 @@
         }
 
         <nav class="identity-review-tabs" aria-label="People review mode">
-            @if (Model.GroupingEnabled)
+            @if (Model.GroupingEnabled && Model.GroupingAvailable)
             {
                 <a class="identity-review-tab @(Model.IsGroupsMode ? "is-active" : null)"
                    asp-page="./Review" asp-route-Mode="groups">
@@ -210,12 +210,23 @@
         }
         else
         {
-            <section class="review-summary">
-                <strong>@Model.Result.TotalFaces</strong>
-                <span>face@(Model.Result.TotalFaces == 1 ? string.Empty : "s") awaiting an individual human decision</span>
-            </section>
+            @if (Model.ReviewDataAvailable)
+            {
+                <section class="review-summary">
+                    <strong>@Model.Result.TotalFaces</strong>
+                    <span>face@(Model.Result.TotalFaces == 1 ? string.Empty : "s") awaiting an individual human decision</span>
+                </section>
+            }
 
-            @if (Model.Result.Items.Count == 0)
+            @if (!Model.ReviewDataAvailable)
+            {
+                <section class="people-empty">
+                    <i class="bi bi-database-exclamation"></i>
+                    <h2>Review data temporarily unavailable</h2>
+                    <p>The error has been logged. Retry after checking database connectivity and application logs.</p>
+                </section>
+            }
+            else if (Model.Result.Items.Count == 0)
             {
                 <section class="people-empty">
                     <i class="bi bi-check2-circle"></i>

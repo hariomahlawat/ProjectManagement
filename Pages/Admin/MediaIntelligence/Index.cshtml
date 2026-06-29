@@ -132,11 +132,18 @@
                     <a class="btn btn-outline-secondary btn-sm" asp-page="/Photos/People/Index">Open people</a>
                 </div>
             </div>
+            @if (!Model.IdentityGroupingAvailable)
+            {
+                <div class="alert alert-warning py-2 mb-3" role="status">
+                    <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+                    Identity grouping metrics are temporarily unavailable. Readiness, processing and confirmed-person data remain available.
+                </div>
+            }
             <div class="row g-3">
                 <div class="col-6 col-lg"><div class="metric-card"><span>Confirmed people</span><strong>@Model.Persons</strong></div></div>
-                <div class="col-6 col-lg"><div class="metric-card"><span>Suggested identity groups</span><strong>@Model.IdentityGroups</strong></div></div>
-                <div class="col-6 col-lg"><div class="metric-card"><span>Grouped appearances</span><strong>@Model.GroupedUnassignedFaces</strong></div></div>
-                <div class="col-6 col-lg"><div class="metric-card"><span>Individual faces remaining</span><strong>@Model.RemainingIndividualFaces</strong></div></div>
+                <div class="col-6 col-lg"><div class="metric-card"><span>Suggested identity groups</span><strong>@(Model.IdentityGroupingAvailable ? Model.IdentityGroups.ToString() : "—")</strong></div></div>
+                <div class="col-6 col-lg"><div class="metric-card"><span>Grouped appearances</span><strong>@(Model.IdentityGroupingAvailable ? Model.GroupedUnassignedFaces.ToString() : "—")</strong></div></div>
+                <div class="col-6 col-lg"><div class="metric-card"><span>Individual faces remaining</span><strong>@(Model.IdentityGroupingAvailable ? Model.RemainingIndividualFaces.ToString() : "—")</strong></div></div>
                 <div class="col-6 col-lg"><div class="metric-card"><span>Pending known-person matches</span><strong>@Model.PendingReview</strong></div></div>
             </div>
         </div>

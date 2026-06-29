@@ -58,6 +58,8 @@ public sealed class ReviewModel : PageModel
 
     public bool FeatureEnabled => _options.People.Enabled;
     public bool GroupingEnabled => _options.People.GroupingEnabled;
+    public bool GroupingAvailable { get; private set; } = true;
+    public bool ReviewDataAvailable { get; private set; } = true;
     public bool IsGroupsMode => Mode == "groups";
     public double CandidateStrongSimilarityThreshold => _options.People.CandidateStrongSimilarityThreshold;
 
@@ -77,12 +79,38 @@ public sealed class ReviewModel : PageModel
 
         if (IsGroupsMode && GroupingEnabled)
         {
-            GroupResult = await _groups.GetGroupsAsync(cancellationToken);
-            AvailablePeople = await _people.GetPersonOptionsAsync(cancellationToken);
+            try
+            {
+                GroupResult = await _groups.GetGroupsAsync(cancellationToken);
+                AvailablePeople = await _people.GetPersonOptionsAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                GroupingAvailable = false;
+                Mode = "faces";
+                _logger.LogError(exception,
+                    "Identity grouping could not be loaded. Falling back to individual-face review.");
+                ErrorMessage = "Identity grouping is temporarily unavailable. Individual-face review remains operational.";
+                await TryLoadIndividualFacesAsync(cancellationToken);
+            }
         }
         else
         {
-            Mode = "faces";
+            await TryLoadIndividualFacesAsync(cancellationToken);
+        }
+
+        return Page();
+    }
+
+    private async Task TryLoadIndividualFacesAsync(CancellationToken cancellationToken)
+    {
+        Mode = "faces";
+        try
+        {
             Result = await _people.GetReviewQueueAsync(
                 Math.Max(1, PageNumber),
                 PageSize,
@@ -90,8 +118,16 @@ public sealed class ReviewModel : PageModel
             AvailablePeople = Result.AvailablePeople;
             PageNumber = Result.PageNumber;
         }
-
-        return Page();
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            ReviewDataAvailable = false;
+            _logger.LogError(exception, "Individual-face review data could not be loaded.");
+            ErrorMessage = "People review data is temporarily unavailable. The error has been logged; verify database connectivity and application logs.";
+        }
     }
 
     public Task<IActionResult> OnPostConfirmAsync(

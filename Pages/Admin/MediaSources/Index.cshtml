@@ -117,9 +117,9 @@
             </div>
             <div class="col-sm-6 col-xl-3">
                 <div class="border rounded-3 p-3 h-100 bg-body">
-                    <div class="text-muted small">Completed</div>
+                    <div class="text-muted small">Completed processing jobs</div>
                     <div class="fs-3 fw-semibold text-success">@Model.CompletedJobs</div>
-                    <div class="small text-muted">successfully processed</div>
+                    <div class="small text-muted">successful catalogue, derivative and intelligence jobs</div>
                 </div>
             </div>
             <div class="col-sm-6 col-xl-3">
@@ -305,7 +305,7 @@
                     </div>
                     <div class="col-sm-6 col-xl-3">
                         <div class="small text-muted">This application runtime</div>
-                        <div class="fw-semibold">@Model.ProcessingRuntime.CompletedSinceStart completed</div>
+                        <div class="fw-semibold">@Model.ProcessingRuntime.CompletedSinceStart jobs completed</div>
                         <div class="small text-muted">@Model.ProcessingRuntime.FailedSinceStart failed attempts</div>
                     </div>
                     <div class="col-sm-6 col-xl-3">
@@ -390,6 +390,7 @@
                         <div>
                             <h2 class="h5 mb-1">Unavailable media</h2>
                             <p class="small text-muted mb-0">Excluded from Photos, preserved in the catalogue, and available for restoration checks.</p>
+                            <p class="small text-muted mb-0 mt-1">Recheck only verifies whether an original file has returned; it cannot recreate a missing upload. Restore the historical upload storage or correct its configured root first.</p>
                         </div>
                         <form method="post" asp-page-handler="RecheckUnavailable">
                             <button type="submit" class="btn btn-outline-warning">

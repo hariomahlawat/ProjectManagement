@@ -31,6 +31,7 @@ public sealed class IndexModel : PageModel
     private readonly IFaceEligibilityPolicy _eligibility;
     private readonly IFaceIdentityGroupingService _groups;
     private readonly IFaceCandidateSuggestionService _candidateSuggestions;
+    private readonly ILogger<IndexModel> _logger;
 
     public IndexModel(
         MediaLibraryDbContext db,
@@ -39,7 +40,8 @@ public sealed class IndexModel : PageModel
         IMediaProcessingRuntimeState runtime,
         IFaceEligibilityPolicy eligibility,
         IFaceIdentityGroupingService groups,
-        IFaceCandidateSuggestionService candidateSuggestions)
+        IFaceCandidateSuggestionService candidateSuggestions,
+        ILogger<IndexModel> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _readiness = readiness ?? throw new ArgumentNullException(nameof(readiness));
@@ -48,6 +50,7 @@ public sealed class IndexModel : PageModel
         _eligibility = eligibility ?? throw new ArgumentNullException(nameof(eligibility));
         _groups = groups ?? throw new ArgumentNullException(nameof(groups));
         _candidateSuggestions = candidateSuggestions ?? throw new ArgumentNullException(nameof(candidateSuggestions));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public FaceModelReadiness ModelStatus { get; private set; } = null!;
@@ -75,6 +78,7 @@ public sealed class IndexModel : PageModel
     public int IdentityGroups { get; private set; }
     public int GroupedUnassignedFaces { get; private set; }
     public int RemainingIndividualFaces { get; private set; }
+    public bool IdentityGroupingAvailable { get; private set; } = true;
 
     [TempData] public string? StatusMessage { get; set; }
     [TempData] public string? ErrorMessage { get; set; }
@@ -116,12 +120,26 @@ public sealed class IndexModel : PageModel
             || x.ClassificationDecisionStatus == MediaClassificationDecisionStatus.ProcessingFailed, cancellationToken);
         Faces = await _db.Faces.AsNoTracking().CountAsync(cancellationToken);
         Embedded = await _db.FaceEmbeddings.AsNoTracking().CountAsync(x => x.InvalidatedAtUtc == null, cancellationToken);
-        Persons = await _db.Persons.AsNoTracking().CountAsync(x => !x.IsHidden, cancellationToken);
+        Persons = await _db.Persons.AsNoTracking().CountAsync(
+            x => !x.IsHidden && x.Status == MediaPersonStatus.Confirmed, cancellationToken);
         PendingReview = await _db.FaceReviewDecisions.AsNoTracking().CountAsync(x => x.Decision == FaceReviewDecisionType.Pending, cancellationToken);
-        var identityGroups = await _groups.GetGroupsAsync(cancellationToken);
-        IdentityGroups = identityGroups.TotalGroups;
-        GroupedUnassignedFaces = identityGroups.GroupedFaceCount;
-        RemainingIndividualFaces = identityGroups.RemainingIndividualFaceCount;
+        try
+        {
+            var identityGroups = await _groups.GetGroupsAsync(cancellationToken);
+            IdentityGroups = identityGroups.TotalGroups;
+            GroupedUnassignedFaces = identityGroups.GroupedFaceCount;
+            RemainingIndividualFaces = identityGroups.RemainingIndividualFaceCount;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            IdentityGroupingAvailable = false;
+            _logger.LogError(exception,
+                "Identity grouping metrics could not be loaded. The media-intelligence dashboard will continue without optional grouping metrics.");
+        }
         PendingFaceJobs = await _db.ProcessingJobs.AsNoTracking().CountAsync(x => x.JobType == MediaProcessingJobType.DetectFaces && (x.Status == MediaProcessingJobStatus.Pending || x.Status == MediaProcessingJobStatus.Running), cancellationToken);
         FailedFaceJobs = await _db.ProcessingJobs.AsNoTracking().CountAsync(x => x.JobType == MediaProcessingJobType.DetectFaces && (x.Status == MediaProcessingJobStatus.Failed || x.Status == MediaProcessingJobStatus.DeadLetter), cancellationToken);
 
