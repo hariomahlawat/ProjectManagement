@@ -233,6 +233,11 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
         {
             entity.Property<Guid>("Id").ValueGeneratedNever().HasColumnType("uuid");
             entity.Property<double?>("BlurScore").HasColumnType("double precision"); entity.Property<double?>("BrightnessScore").HasColumnType("double precision");
+            entity.Property<DateTimeOffset?>("CandidateSearchCompletedAtUtc").HasColumnType("timestamp with time zone");
+            entity.Property<string>("CandidateSearchFailureReason").HasMaxLength(2048).HasColumnType("character varying(2048)");
+            entity.Property<string>("CandidateSearchModelKey").HasMaxLength(128).HasColumnType("character varying(128)");
+            entity.Property<string>("CandidateSearchModelVersion").HasMaxLength(128).HasColumnType("character varying(128)");
+            entity.Property<string>("CandidateSearchStatus").IsRequired().HasMaxLength(32).HasColumnType("character varying(32)");
             entity.Property<Guid>("ConcurrencyToken").IsConcurrencyToken().HasColumnType("uuid");
             entity.Property<DateTimeOffset>("CreatedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<double>("DetectionConfidence").HasColumnType("double precision");
             entity.Property<string>("DetectorModelKey").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)"); entity.Property<string>("DetectorModelVersion").IsRequired().HasMaxLength(128).HasColumnType("character varying(128)");
@@ -243,7 +248,7 @@ public sealed class MediaLibraryDbContextModelSnapshot : ModelSnapshot
             entity.Property<string>("ReviewThumbnailPath").HasMaxLength(1024).HasColumnType("character varying(1024)"); entity.Property<int>("SequenceNumber").HasColumnType("integer");
             entity.Property<DateTimeOffset?>("SuppressedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<string>("SuppressedByUserId").HasMaxLength(450).HasColumnType("character varying(450)");
             entity.Property<double>("Top").HasColumnType("double precision"); entity.Property<DateTimeOffset>("UpdatedAtUtc").HasColumnType("timestamp with time zone"); entity.Property<double>("Width").HasColumnType("double precision");
-            entity.HasKey("Id"); entity.HasIndex("MediaAssetId", "SequenceNumber").IsUnique(); entity.HasIndex("QualityStatus", "IsSuppressed"); entity.ToTable("MediaFaces");
+            entity.HasKey("Id"); entity.HasIndex("MediaAssetId", "SequenceNumber").IsUnique(); entity.HasIndex("QualityStatus", "IsSuppressed"); entity.HasIndex("CandidateSearchStatus", "CandidateSearchModelKey", "CandidateSearchModelVersion", "UpdatedAtUtc").HasDatabaseName("IX_MediaFaces_CandidateSearchQueue"); entity.ToTable("MediaFaces");
         });
 
         modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Domain.MediaFaceEmbedding", entity =>

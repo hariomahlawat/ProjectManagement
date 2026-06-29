@@ -53,6 +53,24 @@
         }
 
         <nav class="identity-review-tabs" aria-label="People review mode">
+            <a class="identity-review-tab @(Model.IsMatchesMode ? "is-active" : null)"
+               asp-page="./Review" asp-route-Mode="matches">
+                <i class="bi bi-person-check"></i>
+                <span>Known-person suggestions</span>
+                @if (!Model.IsGroupsMode)
+                {
+                    <strong>@Model.Result.KnownMatchCount</strong>
+                }
+            </a>
+            <a class="identity-review-tab @(Model.IsUnidentifiedMode ? "is-active" : null)"
+               asp-page="./Review" asp-route-Mode="unidentified">
+                <i class="bi bi-person-question"></i>
+                <span>Unidentified faces</span>
+                @if (!Model.IsGroupsMode)
+                {
+                    <strong>@Model.Result.UnidentifiedCount</strong>
+                }
+            </a>
             @if (Model.GroupingEnabled && Model.GroupingAvailable)
             {
                 <a class="identity-review-tab @(Model.IsGroupsMode ? "is-active" : null)"
@@ -65,16 +83,22 @@
                     }
                 </a>
             }
-            <a class="identity-review-tab @(!Model.IsGroupsMode ? "is-active" : null)"
-               asp-page="./Review" asp-route-Mode="faces">
-                <i class="bi bi-person-bounding-box"></i>
-                <span>Individual faces</span>
-                @if (!Model.IsGroupsMode)
-                {
-                    <strong>@Model.Result.TotalFaces</strong>
-                }
-            </a>
         </nav>
+
+        @if (!Model.IsGroupsMode && Model.Result.CandidateSearchPendingCount > 0)
+        {
+            <div class="alert alert-info py-2" role="status">
+                <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
+                @Model.Result.CandidateSearchPendingCount face(s) are being compared with confirmed people in the background. This page may be refreshed safely.
+            </div>
+        }
+        @if (!Model.IsGroupsMode && Model.Result.CandidateSearchFailureCount > 0)
+        {
+            <div class="alert alert-warning py-2" role="status">
+                <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+                @Model.Result.CandidateSearchFailureCount face(s) could not be matched. Open the unidentified queue to inspect the failure and retry matching.
+            </div>
+        }
 
         @if (Model.IsGroupsMode)
         {
@@ -91,7 +115,7 @@
                     <i class="bi bi-person-check"></i>
                     <h2>No repeated unnamed people found</h2>
                     <p>There are no strict multi-photo groups awaiting confirmation. Continue with individual face review.</p>
-                    <a class="btn btn-primary" asp-page="./Review" asp-route-Mode="faces">Review individual faces</a>
+                    <a class="btn btn-primary" asp-page="./Review" asp-route-Mode="unidentified">Review unidentified faces</a>
                 </section>
             }
             else
@@ -226,7 +250,7 @@
             {
                 <section class="review-summary">
                     <strong>@Model.Result.TotalFaces</strong>
-                    <span>face@(Model.Result.TotalFaces == 1 ? string.Empty : "s") awaiting an individual human decision</span>
+                    <span>@(Model.IsMatchesMode ? "known-person suggestion" : "unidentified face")@(Model.Result.TotalFaces == 1 ? string.Empty : "s") awaiting a human decision</span>
                 </section>
             }
 
@@ -242,16 +266,51 @@
             {
                 <section class="people-empty">
                     <i class="bi bi-check2-circle"></i>
-                    <h2>Individual review queue clear</h2>
-                    <p>No detected faces currently require an individual decision.</p>
+                    <h2>@(Model.IsMatchesMode ? "Known-person queue clear" : "Unidentified queue clear")</h2>
+                    <p>@(Model.IsMatchesMode
+                        ? "No detected face currently has a pending known-person suggestion. New matches are generated automatically in the background."
+                        : "No valid detected face currently requires creation or manual assignment of a person.")</p>
                 </section>
             }
             else
             {
+                @if (Model.AvailablePeople.Count > 0)
+                {
+                    <form id="batchAssignKnownPersonForm" method="post" asp-page-handler="AssignSelected"
+                          class="card border-0 shadow-sm mb-3" data-batch-identity-form>
+                        <div class="card-body py-3 d-flex flex-wrap align-items-end gap-3">
+                            <input type="hidden" name="Mode" value="@Model.Mode" />
+                            <input type="hidden" name="PageNumber" value="@Model.PageNumber" />
+                            <div>
+                                <label class="form-label mb-1" for="batchKnownPerson">Assign selected appearances to</label>
+                                <select id="batchKnownPerson" class="form-select" name="personId" required>
+                                    <option value="">Select a confirmed person</option>
+                                    @foreach (var person in Model.AvailablePeople)
+                                    {
+                                        <option value="@person.Id">@person.DisplayName</option>
+                                    }
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary" data-batch-identity-submit>
+                                Confirm <span data-batch-identity-count>0</span> selected
+                            </button>
+                            <span class="small text-body-secondary">Selections must be from different photographs; PRISM validates this before assignment.</span>
+                        </div>
+                    </form>
+                }
+
                 <div class="face-review-list">
                     @foreach (var item in Model.Result.Items)
                     {
                         <article class="face-review-card">
+                            @if (Model.AvailablePeople.Count > 0)
+                            {
+                                <label class="face-review-card__select" title="Select this appearance for a batch assignment">
+                                    <input class="form-check-input" type="checkbox" name="faceIds" value="@item.FaceId"
+                                           form="batchAssignKnownPersonForm" data-batch-identity-face />
+                                    <span class="visually-hidden">Select face from @item.ContextTitle</span>
+                                </label>
+                            }
                             <div class="face-review-card__face">
                                 <img src="@Url.Page("/Photos/FaceThumbnail", new { id = item.FaceId })" alt="Detected face" loading="lazy" />
                                 <span>Quality @item.QualityScore.ToString("0.00")</span>
@@ -267,12 +326,22 @@
                                        target="_blank" rel="noopener">View photograph <i class="bi bi-arrow-up-right"></i></a>
                                 </header>
 
+                                @if (item.CandidateSearchStatus == ProjectManagement.Features.MediaLibrary.Domain.FaceCandidateSearchStatus.Failed)
+                                {
+                                    <div class="alert alert-warning py-2 mb-3" role="status">
+                                        <strong>Known-person matching needs retry.</strong>
+                                        @if (!string.IsNullOrWhiteSpace(item.CandidateSearchFailureReason))
+                                        {
+                                            <span>@item.CandidateSearchFailureReason</span>
+                                        }
+                                    </div>
+                                }
                                 <div class="face-candidates" aria-label="Suggested people">
                                     @if (item.Candidates.Count == 0)
                                     {
                                         <div class="face-candidates__empty">
                                             <i class="bi bi-person-question" aria-hidden="true"></i>
-                                            <span>No reliable known-person match was found.</span>
+                                            <span>@(Model.IsMatchesMode ? "No active suggestion remains for this face." : "No reliable known-person match was found. Assign an existing person or create a new identity.")</span>
                                         </div>
                                     }
                                     @foreach (var candidate in item.Candidates)
@@ -293,7 +362,11 @@
                                             <span class="face-candidate__identity">
                                                 <a asp-page="./Details" asp-route-id="@candidate.PersonId"><strong>@candidate.DisplayName</strong></a>
                                                 <small title="Embedding similarity is a ranking signal, not an identity probability.">
-                                                    Similarity @(candidate.Similarity?.ToString("0.000") ?? "—")
+                                                    Similarity @(candidate.Similarity?.ToString("0.000") ?? "—") · rank @candidate.Rank
+                                                    @if (candidate.MarginToNext.HasValue)
+                                                    {
+                                                        <span> · margin @candidate.MarginToNext.Value.ToString("0.000")</span>
+                                                    }
                                                     @if (candidate.IsStrong)
                                                     {
                                                         <em class="candidate-strength is-strong">Strong</em>
@@ -305,7 +378,7 @@
                                                 </small>
                                             </span>
                                             <form method="post" asp-page-handler="Confirm">
-                                                <input type="hidden" name="Mode" value="faces" />
+                                                <input type="hidden" name="Mode" value="@Model.Mode" />
                                                 <input type="hidden" name="PageNumber" value="@Model.PageNumber" />
                                                 <input type="hidden" name="faceId" value="@item.FaceId" />
                                                 <input type="hidden" name="personId" value="@candidate.PersonId" />
@@ -313,7 +386,7 @@
                                                 <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Confirm</button>
                                             </form>
                                             <form method="post" asp-page-handler="Reject">
-                                                <input type="hidden" name="Mode" value="faces" />
+                                                <input type="hidden" name="Mode" value="@Model.Mode" />
                                                 <input type="hidden" name="PageNumber" value="@Model.PageNumber" />
                                                 <input type="hidden" name="faceId" value="@item.FaceId" />
                                                 <input type="hidden" name="personId" value="@candidate.PersonId" />
@@ -336,7 +409,7 @@
                                         </button>
                                     }
                                     <form method="post" asp-page-handler="Create" class="face-create-person">
-                                        <input type="hidden" name="Mode" value="faces" />
+                                        <input type="hidden" name="Mode" value="@Model.Mode" />
                                         <input type="hidden" name="PageNumber" value="@Model.PageNumber" />
                                         <input type="hidden" name="faceId" value="@item.FaceId" />
                                         <label for="new-person-@item.FaceId">Create a new person</label>
@@ -347,20 +420,20 @@
                                         @if (item.Candidates.Count > 0)
                                         {
                                             <form method="post" asp-page-handler="RejectAll">
-                                                <input type="hidden" name="Mode" value="faces" />
+                                                <input type="hidden" name="Mode" value="@Model.Mode" />
                                                 <input type="hidden" name="PageNumber" value="@Model.PageNumber" />
                                                 <input type="hidden" name="faceId" value="@item.FaceId" />
                                                 <button type="submit" class="btn btn-sm btn-outline-secondary">Reject all suggestions</button>
                                             </form>
                                         }
                                         <form method="post" asp-page-handler="Ignore">
-                                            <input type="hidden" name="Mode" value="faces" />
+                                            <input type="hidden" name="Mode" value="@Model.Mode" />
                                             <input type="hidden" name="PageNumber" value="@Model.PageNumber" />
                                             <input type="hidden" name="faceId" value="@item.FaceId" />
                                             <button type="submit" class="btn btn-sm btn-outline-secondary">Leave unidentified</button>
                                         </form>
                                         <form method="post" asp-page-handler="Suppress">
-                                            <input type="hidden" name="Mode" value="faces" />
+                                            <input type="hidden" name="Mode" value="@Model.Mode" />
                                             <input type="hidden" name="PageNumber" value="@Model.PageNumber" />
                                             <input type="hidden" name="faceId" value="@item.FaceId" />
                                             <button type="submit" class="btn btn-sm btn-outline-danger">Not a face</button>
@@ -375,14 +448,14 @@
                 <nav class="people-pagination" aria-label="Review pages">
                     @if (Model.Result.HasPreviousPage)
                     {
-                        <a class="btn btn-outline-secondary" asp-page="./Review" asp-route-Mode="faces" asp-route-PageNumber="@(Model.Result.PageNumber - 1)">
+                        <a class="btn btn-outline-secondary" asp-page="./Review" asp-route-Mode="@Model.Mode" asp-route-PageNumber="@(Model.Result.PageNumber - 1)">
                             <i class="bi bi-arrow-left"></i> Previous
                         </a>
                     }
                     <span>Page @Model.Result.PageNumber</span>
                     @if (Model.Result.HasNextPage)
                     {
-                        <a class="btn btn-outline-secondary" asp-page="./Review" asp-route-Mode="faces" asp-route-PageNumber="@(Model.Result.PageNumber + 1)">
+                        <a class="btn btn-outline-secondary" asp-page="./Review" asp-route-Mode="@Model.Mode" asp-route-PageNumber="@(Model.Result.PageNumber + 1)">
                             Next <i class="bi bi-arrow-right"></i>
                         </a>
                     }
@@ -404,7 +477,7 @@
                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                             </div>
                             <div class="modal-body">
-                                <input type="hidden" name="Mode" value="faces" />
+                                <input type="hidden" name="Mode" value="@Model.Mode" />
                                 <input type="hidden" name="PageNumber" value="@Model.PageNumber" />
                                 <input type="hidden" name="faceId" value="" />
                                 <label for="existingPersonId" class="form-label">Person</label>

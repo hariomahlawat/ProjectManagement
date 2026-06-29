@@ -394,9 +394,10 @@
                                             }
                                             @if (item.People.Count > 0 || item.UnidentifiedFaceCount > 0)
                                             {
-                                                <span class="photos-tile__people" title="People in this photo">
+                                                <span class="photos-tile__people"
+                                                      title="@IndexModel.PeopleBadgeTitle(item)">
                                                     <i class="bi bi-people-fill" aria-hidden="true"></i>
-                                                    @(item.People.Count + item.UnidentifiedFaceCount)
+                                                    @IndexModel.PeopleBadgeLabel(item)
                                                 </span>
                                             }
                                             <span class="photos-tile__meta">

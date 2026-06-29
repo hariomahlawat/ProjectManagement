@@ -77,7 +77,9 @@ public static class MediaLibraryServiceCollectionExtensions
             provider.GetRequiredService<OnnxFaceAnalysisEngine>());
         services.AddScoped<IFaceCandidateSearchService, FaceCandidateSearchService>();
         services.AddScoped<IFaceCandidateSuggestionService, FaceCandidateSuggestionService>();
+        services.AddScoped<IFaceCandidateRefreshQueueService, FaceCandidateRefreshQueueService>();
         services.AddScoped<IFaceIdentityGroupingService, FaceIdentityGroupingService>();
+        services.AddSingleton<IFaceIdentityGroupingRuntimeState, FaceIdentityGroupingRuntimeState>();
         services.AddScoped<IFaceIntelligenceService, FaceIntelligenceService>();
         services.AddScoped<IFaceEligibilityPolicy, FaceEligibilityPolicy>();
         services.AddScoped<IFaceQueueService, FaceQueueService>();
@@ -104,6 +106,14 @@ public static class MediaLibraryServiceCollectionExtensions
         if (configuredOptions.IsPeopleWorkerEnabled)
         {
             services.AddHostedService<FaceAnalysisQueueWorker>();
+            if (configuredOptions.People.CandidateSearchEnabled)
+            {
+                services.AddHostedService<FaceCandidateRefreshWorker>();
+            }
+            if (configuredOptions.People.GroupingEnabled)
+            {
+                services.AddHostedService<FaceIdentityGroupingRefreshWorker>();
+            }
         }
 
         return services;

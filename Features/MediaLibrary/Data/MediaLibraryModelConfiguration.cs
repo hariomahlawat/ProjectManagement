@@ -176,9 +176,20 @@ public static class MediaLibraryModelConfiguration
             entity.Property(x => x.DetectorModelVersion).HasMaxLength(128).IsRequired();
             entity.Property(x => x.ReviewThumbnailPath).HasMaxLength(1024);
             entity.Property(x => x.SuppressedByUserId).HasMaxLength(450);
+            entity.Property(x => x.CandidateSearchStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.CandidateSearchModelKey).HasMaxLength(128);
+            entity.Property(x => x.CandidateSearchModelVersion).HasMaxLength(128);
+            entity.Property(x => x.CandidateSearchFailureReason).HasMaxLength(2048);
             entity.Property(x => x.ConcurrencyToken).IsConcurrencyToken();
             entity.HasIndex(x => new { x.MediaAssetId, x.SequenceNumber }).IsUnique();
             entity.HasIndex(x => new { x.QualityStatus, x.IsSuppressed });
+            entity.HasIndex(x => new
+            {
+                x.CandidateSearchStatus,
+                x.CandidateSearchModelKey,
+                x.CandidateSearchModelVersion,
+                x.UpdatedAtUtc
+            }).HasDatabaseName("IX_MediaFaces_CandidateSearchQueue");
             entity.HasOne(x => x.MediaAsset)
                 .WithMany(x => x.Faces)
                 .HasForeignKey(x => x.MediaAssetId)

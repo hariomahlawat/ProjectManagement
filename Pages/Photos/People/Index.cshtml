@@ -55,20 +55,12 @@
         }
         else
         {
-        @if (!Model.GroupingAvailable)
-        {
-            <div class="alert alert-warning" role="status">
-                <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
-                Identity grouping is temporarily unavailable. The confirmed-people directory and individual-face review remain operational.
-            </div>
-        }
-
         <section class="people-summary" aria-label="People summary">
             <div><strong>@Model.Result.TotalPeople</strong><span>confirmed people</span></div>
-            <div><strong>@(Model.GroupingAvailable ? Model.SuggestedGroupCount.ToString() : "—")</strong><span>suggested identity groups</span></div>
-            <div><strong>@(Model.GroupingAvailable ? Model.GroupedFaceCount.ToString() : "—")</strong><span>grouped appearances</span></div>
-            <div><strong>@(Model.GroupingAvailable ? Model.RemainingIndividualFaceCount.ToString() : "—")</strong><span>individual appearances remaining</span></div>
+            <div><strong>@Model.Result.KnownPersonSuggestionCount</strong><span>known-person suggestions</span></div>
             <div><strong>@Model.Result.UnidentifiedFaceCount</strong><span>unidentified appearances</span></div>
+            <div><strong>@Model.Result.CandidateSearchPendingCount</strong><span>matching in progress</span></div>
+            <div><strong>@Model.Result.CandidateSearchFailureCount</strong><span>matching failures</span></div>
         </section>
 
         <section class="people-toolbar">

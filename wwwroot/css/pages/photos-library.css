@@ -797,6 +797,10 @@
     padding: .26rem .48rem;
     position: absolute;
     top: .48rem;
+    max-width: calc(100% - 5.5rem);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     z-index: 3;
 }
 

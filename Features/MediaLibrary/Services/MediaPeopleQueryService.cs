@@ -63,16 +63,28 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             .ToList();
 
         var reviewableFaces = BuildReviewableFacesQuery(_db);
-        var pendingReviewCount = await reviewableFaces.CountAsync(cancellationToken);
-        var unidentifiedFaceCount = await _db.Faces
-            .AsNoTracking()
-            .CountAsync(face => !face.IsSuppressed
-                                && face.MediaAsset.IsAvailable
-                                && !face.MediaAsset.IsDeleted
-                                && !face.MediaAsset.IsArchived
-                                && !face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null)
-                                && face.QualityStatus != FaceQualityStatus.ProcessingFailed,
-                cancellationToken);
+        var knownPersonSuggestionCount = await reviewableFaces.CountAsync(face =>
+            _db.FaceReviewDecisions.Any(decision =>
+                decision.MediaFaceId == face.Id
+                && decision.Decision == FaceReviewDecisionType.Pending
+                && decision.CandidatePersonId.HasValue),
+            cancellationToken);
+        var candidateSearchPendingCount = await reviewableFaces.CountAsync(face =>
+            face.CandidateSearchStatus == FaceCandidateSearchStatus.Pending
+            || face.CandidateSearchStatus == FaceCandidateSearchStatus.Processing,
+            cancellationToken);
+        var candidateSearchFailureCount = await reviewableFaces.CountAsync(face =>
+            face.CandidateSearchStatus == FaceCandidateSearchStatus.Failed,
+            cancellationToken);
+        var unidentifiedFaceCount = await reviewableFaces.CountAsync(face =>
+            !_db.FaceReviewDecisions.Any(decision =>
+                decision.MediaFaceId == face.Id
+                && decision.Decision == FaceReviewDecisionType.Pending
+                && decision.CandidatePersonId.HasValue)
+            && face.CandidateSearchStatus != FaceCandidateSearchStatus.Pending
+            && face.CandidateSearchStatus != FaceCandidateSearchStatus.Processing,
+            cancellationToken);
+        var pendingReviewCount = knownPersonSuggestionCount + unidentifiedFaceCount;
 
         return new MediaPeopleIndexResult(
             people,
@@ -82,7 +94,10 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             pageNumber,
             pageSize,
             pageNumber > 1,
-            pageNumber < pageCount);
+            pageNumber < pageCount,
+            knownPersonSuggestionCount,
+            candidateSearchPendingCount,
+            candidateSearchFailureCount);
     }
 
     public async Task<MediaPersonDetailsResult?> GetPersonAsync(
@@ -202,12 +217,46 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
     }
 
     public async Task<FaceReviewQueueResult> GetReviewQueueAsync(
+        FaceReviewQueueKind kind,
         int pageNumber,
         int pageSize,
         CancellationToken cancellationToken)
     {
         pageSize = Math.Clamp(pageSize, 12, 100);
-        var reviewableFaces = BuildReviewableFacesQuery(_db);
+        var allReviewableFaces = BuildReviewableFacesQuery(_db);
+        var knownMatchCount = await allReviewableFaces.CountAsync(face =>
+            _db.FaceReviewDecisions.Any(decision =>
+                decision.MediaFaceId == face.Id
+                && decision.Decision == FaceReviewDecisionType.Pending
+                && decision.CandidatePersonId.HasValue),
+            cancellationToken);
+        var unidentifiedCount = await allReviewableFaces.CountAsync(face =>
+            !_db.FaceReviewDecisions.Any(decision =>
+                decision.MediaFaceId == face.Id
+                && decision.Decision == FaceReviewDecisionType.Pending
+                && decision.CandidatePersonId.HasValue)
+            && face.CandidateSearchStatus != FaceCandidateSearchStatus.Pending
+            && face.CandidateSearchStatus != FaceCandidateSearchStatus.Processing,
+            cancellationToken);
+        var candidateSearchPendingCount = await allReviewableFaces.CountAsync(face =>
+            face.CandidateSearchStatus == FaceCandidateSearchStatus.Pending
+            || face.CandidateSearchStatus == FaceCandidateSearchStatus.Processing,
+            cancellationToken);
+        var candidateSearchFailureCount = await allReviewableFaces.CountAsync(face =>
+            face.CandidateSearchStatus == FaceCandidateSearchStatus.Failed,
+            cancellationToken);
+
+        var reviewableFaces = kind == FaceReviewQueueKind.KnownMatches
+            ? allReviewableFaces.Where(face => _db.FaceReviewDecisions.Any(decision =>
+                decision.MediaFaceId == face.Id
+                && decision.Decision == FaceReviewDecisionType.Pending
+                && decision.CandidatePersonId.HasValue))
+            : allReviewableFaces.Where(face => !_db.FaceReviewDecisions.Any(decision =>
+                    decision.MediaFaceId == face.Id
+                    && decision.Decision == FaceReviewDecisionType.Pending
+                    && decision.CandidatePersonId.HasValue)
+                && face.CandidateSearchStatus != FaceCandidateSearchStatus.Pending
+                && face.CandidateSearchStatus != FaceCandidateSearchStatus.Processing);
 
         var totalFaces = await reviewableFaces.CountAsync(cancellationToken);
         var pageCount = Math.Max(1, (int)Math.Ceiling(totalFaces / (double)pageSize));
@@ -228,7 +277,9 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                 ContextTitle = face.MediaAsset.ContextTitle,
                 ContextSubtitle = face.MediaAsset.ContextSubtitle,
                 MediaDateUtc = face.MediaAsset.MediaDateUtc,
-                QualityScore = face.QualityScore
+                QualityScore = face.QualityScore,
+                CandidateSearchStatus = face.CandidateSearchStatus,
+                CandidateSearchFailureReason = face.CandidateSearchFailureReason
             })
             .ToListAsync(cancellationToken);
 
@@ -280,7 +331,9 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                 face.MediaDateUtc,
                 face.QualityScore,
                 candidatesByFace.GetValueOrDefault(face.FaceId)
-                    ?? Array.Empty<FaceReviewCandidateItem>()))
+                    ?? Array.Empty<FaceReviewCandidateItem>(),
+                face.CandidateSearchStatus,
+                face.CandidateSearchFailureReason))
             .ToList();
 
         var availablePeople = await GetPersonOptionsAsync(cancellationToken);
@@ -291,7 +344,11 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             pageNumber,
             pageSize,
             pageNumber > 1,
-            pageNumber < pageCount);
+            pageNumber < pageCount,
+            knownMatchCount,
+            unidentifiedCount,
+            candidateSearchPendingCount,
+            candidateSearchFailureCount);
     }
 
     public async Task<IReadOnlyList<MediaPersonOption>> GetPersonOptionsAsync(
@@ -577,6 +634,8 @@ internal sealed class ReviewFaceDatabaseRow
     public string ContextSubtitle { get; init; } = string.Empty;
     public DateTimeOffset MediaDateUtc { get; init; }
     public double QualityScore { get; init; }
+    public FaceCandidateSearchStatus CandidateSearchStatus { get; init; }
+    public string? CandidateSearchFailureReason { get; init; }
 }
 
 internal sealed class ReviewCandidateDatabaseRow

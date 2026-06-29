@@ -98,3 +98,40 @@
         update();
     });
 })();
+
+
+(() => {
+    "use strict";
+
+    const form = document.querySelector("[data-batch-identity-form]");
+    if (!(form instanceof HTMLFormElement)) return;
+
+    const checkboxes = Array.from(document.querySelectorAll("[data-batch-identity-face]"))
+        .filter(item => item instanceof HTMLInputElement);
+    const submit = form.querySelector("[data-batch-identity-submit]");
+    const count = form.querySelector("[data-batch-identity-count]");
+    const person = form.querySelector('select[name="personId"]');
+
+    const update = () => {
+        const selected = checkboxes.filter(item => item.checked).length;
+        if (count instanceof HTMLElement) count.textContent = String(selected);
+        if (submit instanceof HTMLButtonElement) submit.disabled = selected === 0;
+    };
+
+    checkboxes.forEach(item => item.addEventListener("change", update));
+    form.addEventListener("submit", event => {
+        const selected = checkboxes.filter(item => item.checked).length;
+        if (selected === 0) {
+            event.preventDefault();
+            return;
+        }
+        if (person instanceof HTMLSelectElement && !person.value) {
+            event.preventDefault();
+            person.focus();
+            person.setCustomValidity("Select the confirmed person for the selected appearances.");
+            person.reportValidity();
+            window.setTimeout(() => person.setCustomValidity(""), 0);
+        }
+    });
+    update();
+})();

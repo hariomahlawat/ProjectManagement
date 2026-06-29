@@ -13,30 +13,30 @@ public sealed class ReviewModel : PageModel
 {
     private const int PageSize = 24;
     private readonly IMediaPeopleQueryService _people;
-    private readonly IFaceIdentityGroupingService _groups;
-    private readonly IFaceCandidateSuggestionService _candidateSuggestions;
+    private readonly IFaceIdentityGroupingRuntimeState _groupingState;
+    private readonly IFaceCandidateRefreshQueueService _candidateQueue;
     private readonly IFaceReviewService _review;
     private readonly MediaLibraryOptions _options;
     private readonly ILogger<ReviewModel> _logger;
 
     public ReviewModel(
         IMediaPeopleQueryService people,
-        IFaceIdentityGroupingService groups,
-        IFaceCandidateSuggestionService candidateSuggestions,
+        IFaceIdentityGroupingRuntimeState groupingState,
+        IFaceCandidateRefreshQueueService candidateQueue,
         IFaceReviewService review,
         IOptions<MediaLibraryOptions> options,
         ILogger<ReviewModel> logger)
     {
         _people = people ?? throw new ArgumentNullException(nameof(people));
-        _groups = groups ?? throw new ArgumentNullException(nameof(groups));
-        _candidateSuggestions = candidateSuggestions ?? throw new ArgumentNullException(nameof(candidateSuggestions));
+        _groupingState = groupingState ?? throw new ArgumentNullException(nameof(groupingState));
+        _candidateQueue = candidateQueue ?? throw new ArgumentNullException(nameof(candidateQueue));
         _review = review ?? throw new ArgumentNullException(nameof(review));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     [BindProperty(SupportsGet = true)]
-    public string Mode { get; set; } = "groups";
+    public string Mode { get; set; } = "matches";
 
     [BindProperty(SupportsGet = true)]
     public int PageNumber { get; set; } = 1;
@@ -61,6 +61,8 @@ public sealed class ReviewModel : PageModel
     public bool GroupingAvailable { get; private set; } = true;
     public bool ReviewDataAvailable { get; private set; } = true;
     public bool IsGroupsMode => Mode == "groups";
+    public bool IsMatchesMode => Mode == "matches";
+    public bool IsUnidentifiedMode => Mode == "unidentified";
     public double CandidateStrongSimilarityThreshold => _options.People.CandidateStrongSimilarityThreshold;
 
     [TempData]
@@ -79,22 +81,23 @@ public sealed class ReviewModel : PageModel
 
         if (IsGroupsMode && GroupingEnabled)
         {
-            try
+            var snapshot = _groupingState.GetSnapshot();
+            if (snapshot.IsReady && snapshot.Result is not null)
             {
-                GroupResult = await _groups.GetGroupsAsync(cancellationToken);
+                GroupResult = snapshot.Result;
                 AvailablePeople = await _people.GetPersonOptionsAsync(cancellationToken);
+                if (!string.IsNullOrWhiteSpace(snapshot.FailureReason))
+                {
+                    ErrorMessage = "Identity grouping is using the last successful background snapshot because the latest refresh failed.";
+                }
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception exception)
+            else
             {
                 GroupingAvailable = false;
-                Mode = "faces";
-                _logger.LogError(exception,
-                    "Identity grouping could not be loaded. Falling back to individual-face review.");
-                ErrorMessage = "Identity grouping is temporarily unavailable. Individual-face review remains operational.";
+                Mode = "matches";
+                ErrorMessage = string.IsNullOrWhiteSpace(snapshot.FailureReason)
+                    ? "Identity grouping is still being prepared in the background. Known-person review remains operational."
+                    : "Identity grouping is temporarily unavailable. Known-person review remains operational while the background worker retries.";
                 await TryLoadIndividualFacesAsync(cancellationToken);
             }
         }
@@ -108,10 +111,13 @@ public sealed class ReviewModel : PageModel
 
     private async Task TryLoadIndividualFacesAsync(CancellationToken cancellationToken)
     {
-        Mode = "faces";
         try
         {
+            var kind = IsMatchesMode
+                ? FaceReviewQueueKind.KnownMatches
+                : FaceReviewQueueKind.Unidentified;
             Result = await _people.GetReviewQueueAsync(
+                kind,
                 Math.Max(1, PageNumber),
                 PageSize,
                 cancellationToken);
@@ -138,7 +144,7 @@ public sealed class ReviewModel : PageModel
         => ExecuteAsync(
             () => _review.AssignAsync(faceId, personId, UserId, confidence, cancellationToken),
             "Identity confirmed.",
-            "faces");
+            Mode);
 
     public Task<IActionResult> OnPostRejectAsync(
         Guid faceId,
@@ -147,7 +153,7 @@ public sealed class ReviewModel : PageModel
         => ExecuteAsync(
             () => _review.RejectAsync(faceId, personId, UserId, cancellationToken),
             "Suggestion rejected. It will not be recreated for this model version.",
-            "faces");
+            Mode);
 
     public Task<IActionResult> OnPostRejectAllAsync(
         Guid faceId,
@@ -155,7 +161,7 @@ public sealed class ReviewModel : PageModel
         => ExecuteAsync(
             () => _review.RejectAsync(faceId, null, UserId, cancellationToken),
             "All current suggestions for this face were rejected.",
-            "faces");
+            Mode);
 
     public Task<IActionResult> OnPostAssignExistingAsync(
         Guid faceId,
@@ -164,7 +170,16 @@ public sealed class ReviewModel : PageModel
         => ExecuteAsync(
             () => _review.AssignAsync(faceId, personId, UserId, null, cancellationToken),
             "Identity assigned to the selected person.",
-            "faces");
+            Mode);
+
+    public Task<IActionResult> OnPostAssignSelectedAsync(
+        List<Guid> faceIds,
+        Guid personId,
+        CancellationToken cancellationToken)
+        => ExecuteAsync(
+            () => _review.AssignManyAsync(faceIds, personId, UserId, null, cancellationToken),
+            "Selected appearances were assigned to the confirmed person.",
+            Mode);
 
     public Task<IActionResult> OnPostIgnoreAsync(
         Guid faceId,
@@ -172,7 +187,7 @@ public sealed class ReviewModel : PageModel
         => ExecuteAsync(
             () => _review.IgnoreAsync(faceId, UserId, cancellationToken),
             "Face acknowledged and left unidentified.",
-            "faces");
+            Mode);
 
     public Task<IActionResult> OnPostCreateAsync(
         Guid faceId,
@@ -181,7 +196,7 @@ public sealed class ReviewModel : PageModel
         => ExecuteAsync(
             () => _review.CreatePersonAndAssignAsync(faceId, displayName, UserId, cancellationToken),
             "Person created and identity confirmed.",
-            "faces");
+            Mode);
 
     public Task<IActionResult> OnPostSuppressAsync(
         Guid faceId,
@@ -189,7 +204,7 @@ public sealed class ReviewModel : PageModel
         => ExecuteAsync(
             () => _review.SuppressAsync(faceId, UserId, cancellationToken),
             "Detection marked as not a face.",
-            "faces");
+            Mode);
 
     public Task<IActionResult> OnPostCreateGroupAsync(
         List<Guid> faceIds,
@@ -223,12 +238,10 @@ public sealed class ReviewModel : PageModel
         => ExecuteAsync(
             async () =>
             {
-                var refreshed = await _candidateSuggestions.RefreshUnassignedAsync(
-                    _options.People.CandidateRefreshBatchSize,
-                    cancellationToken);
-                StatusMessage = refreshed == 0
-                    ? "No unassigned faces were available for candidate refresh."
-                    : $"Identity suggestions refreshed for {refreshed} unassigned face(s).";
+                var queued = await _candidateQueue.QueueAllUnassignedAsync(cancellationToken);
+                StatusMessage = queued == 0
+                    ? "No unassigned faces required a candidate refresh."
+                    : $"Queued {queued} unassigned face(s) for background known-person matching.";
             },
             null,
             Mode);
@@ -239,9 +252,17 @@ public sealed class ReviewModel : PageModel
            ?? "unknown";
 
     private void NormalizeMode()
-        => Mode = GroupingEnabled && string.Equals(Mode, "groups", StringComparison.OrdinalIgnoreCase)
-            ? "groups"
-            : "faces";
+    {
+        if (GroupingEnabled && string.Equals(Mode, "groups", StringComparison.OrdinalIgnoreCase))
+        {
+            Mode = "groups";
+            return;
+        }
+
+        Mode = string.Equals(Mode, "unidentified", StringComparison.OrdinalIgnoreCase)
+            ? "unidentified"
+            : "matches";
+    }
 
     private async Task<IActionResult> ExecuteAsync(
         Func<Task> action,
@@ -252,7 +273,9 @@ public sealed class ReviewModel : PageModel
         var normalizedRedirectMode = GroupingEnabled
                                      && string.Equals(redirectMode, "groups", StringComparison.OrdinalIgnoreCase)
             ? "groups"
-            : "faces";
+            : string.Equals(redirectMode, "unidentified", StringComparison.OrdinalIgnoreCase)
+                ? "unidentified"
+                : "matches";
         if (!FeatureEnabled)
         {
             ErrorMessage = "People intelligence is disabled. Complete readiness checks and enable the feature before reviewing faces.";

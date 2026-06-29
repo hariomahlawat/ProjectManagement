@@ -12,18 +12,15 @@ public sealed class IndexModel : PageModel
 {
     private const int DefaultPageSize = 36;
     private readonly IMediaPeopleQueryService _people;
-    private readonly IFaceIdentityGroupingService _groups;
     private readonly MediaLibraryOptions _options;
     private readonly ILogger<IndexModel> _logger;
 
     public IndexModel(
         IMediaPeopleQueryService people,
-        IFaceIdentityGroupingService groups,
         IOptions<MediaLibraryOptions> options,
         ILogger<IndexModel> logger)
     {
         _people = people ?? throw new ArgumentNullException(nameof(people));
-        _groups = groups ?? throw new ArgumentNullException(nameof(groups));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -44,15 +41,13 @@ public sealed class IndexModel : PageModel
         Array.Empty<MediaPersonCard>(), 0, 0, 0, 1, DefaultPageSize, false, false);
 
     public bool FeatureEnabled => _options.People.Enabled;
-    public int SuggestedGroupCount { get; private set; }
-    public int GroupedFaceCount { get; private set; }
-    public int RemainingIndividualFaceCount { get; private set; }
     public bool DirectoryAvailable { get; private set; } = true;
-    public bool GroupingAvailable { get; private set; } = true;
-    public string ReviewMode => GroupingAvailable ? "groups" : "faces";
-    public int ReviewWorkCount => GroupingAvailable
-        ? SuggestedGroupCount + RemainingIndividualFaceCount
-        : Result.PendingReviewCount;
+    public string ReviewMode => Result.KnownPersonSuggestionCount > 0
+        ? "matches"
+        : Result.UnidentifiedFaceCount > 0
+            ? "unidentified"
+            : "groups";
+    public int ReviewWorkCount => Result.PendingReviewCount;
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
@@ -75,6 +70,7 @@ public sealed class IndexModel : PageModel
             Result = await _people.GetIndexAsync(
                 new MediaPeopleIndexQuery(Q, Sort, IncludeHidden, PageNumber, DefaultPageSize),
                 cancellationToken);
+            PageNumber = Result.PageNumber;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -83,30 +79,8 @@ public sealed class IndexModel : PageModel
         catch (Exception exception)
         {
             DirectoryAvailable = false;
-            GroupingAvailable = false;
             _logger.LogError(exception,
                 "The confirmed-people directory could not be loaded.");
-            return;
         }
-
-        try
-        {
-            var groups = await _groups.GetGroupsAsync(cancellationToken);
-            SuggestedGroupCount = groups.TotalGroups;
-            GroupedFaceCount = groups.GroupedFaceCount;
-            RemainingIndividualFaceCount = groups.RemainingIndividualFaceCount;
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            GroupingAvailable = false;
-            _logger.LogError(exception,
-                "Identity-group summary could not be loaded. The confirmed-people directory will continue without grouping metrics.");
-        }
-
-        PageNumber = Result.PageNumber;
     }
 }

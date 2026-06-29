@@ -26,7 +26,10 @@ public sealed record MediaPeopleIndexResult(
     int PageNumber,
     int PageSize,
     bool HasPreviousPage,
-    bool HasNextPage);
+    bool HasNextPage,
+    int KnownPersonSuggestionCount = 0,
+    int CandidateSearchPendingCount = 0,
+    int CandidateSearchFailureCount = 0);
 
 public sealed record MediaPersonDetailsResult(
     Guid Id,
@@ -68,6 +71,12 @@ public sealed record MediaIdentityHistoryItem(
     Guid? PreviousPersonId,
     Guid? NewPersonId);
 
+public enum FaceReviewQueueKind
+{
+    KnownMatches = 0,
+    Unidentified = 1
+}
+
 public sealed record FaceReviewCandidateItem(
     long DecisionId,
     Guid PersonId,
@@ -87,7 +96,9 @@ public sealed record FaceReviewQueueItem(
     string ContextSubtitle,
     DateTimeOffset MediaDateUtc,
     double QualityScore,
-    IReadOnlyList<FaceReviewCandidateItem> Candidates);
+    IReadOnlyList<FaceReviewCandidateItem> Candidates,
+    FaceCandidateSearchStatus CandidateSearchStatus = FaceCandidateSearchStatus.NotRequested,
+    string? CandidateSearchFailureReason = null);
 
 public sealed record FaceReviewQueueResult(
     IReadOnlyList<FaceReviewQueueItem> Items,
@@ -96,7 +107,11 @@ public sealed record FaceReviewQueueResult(
     int PageNumber,
     int PageSize,
     bool HasPreviousPage,
-    bool HasNextPage);
+    bool HasNextPage,
+    int KnownMatchCount = 0,
+    int UnidentifiedCount = 0,
+    int CandidateSearchPendingCount = 0,
+    int CandidateSearchFailureCount = 0);
 
 public interface IMediaPeopleQueryService
 {
@@ -109,6 +124,7 @@ public interface IMediaPeopleQueryService
         CancellationToken cancellationToken);
 
     Task<FaceReviewQueueResult> GetReviewQueueAsync(
+        FaceReviewQueueKind kind,
         int pageNumber,
         int pageSize,
         CancellationToken cancellationToken);

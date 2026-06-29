@@ -760,3 +760,26 @@
     .face-candidate--with-portrait { grid-template-columns: 3rem minmax(0, 1fr); }
     .face-candidate--with-portrait form { grid-column: 1 / -1; }
 }
+
+
+.face-review-card {
+    position: relative;
+}
+
+.face-review-card__select {
+    align-items: center;
+    background: rgba(255, 255, 255, .94);
+    border: 1px solid rgba(100, 116, 139, .28);
+    border-radius: .65rem;
+    cursor: pointer;
+    display: inline-flex;
+    left: .65rem;
+    padding: .42rem;
+    position: absolute;
+    top: .65rem;
+    z-index: 4;
+}
+
+.face-review-card__select .form-check-input {
+    margin: 0;
+}

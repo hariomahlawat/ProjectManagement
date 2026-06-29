@@ -7,9 +7,9 @@ using ProjectManagement.Features.MediaLibrary.Options;
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
 /// <summary>
-/// Bounded, model-compatible candidate search. Only high-quality, human-confirmed
-/// references are considered. A candidate is scored from both its best reference and
-/// the repeatability of its top references so one accidental close vector cannot dominate.
+/// Bounded, model-compatible candidate search. Batch searches load the confirmed reference
+/// set once, then score multiple new faces in memory. Similarity is review evidence only and
+/// never confirms an identity automatically.
 /// </summary>
 public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
 {
@@ -38,82 +38,189 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
             return Array.Empty<FaceCandidate>();
         }
 
-        var maximumReferences = Math.Clamp(
-            _options.MaximumCandidateReferenceEmbeddings,
-            100,
-            250_000);
-
-        // Keep provider-side work relational and scalar. The former navigation SelectMany
-        // projected into a CLR record before ordering, which Npgsql could not translate.
-        var databaseRows = await BuildReferenceRowsQuery(
-                _db,
-                faceId,
-                modelKey,
-                modelVersion,
-                dimension,
-                maximumReferences)
-            .ToListAsync(cancellationToken);
-
-        var references = databaseRows
-            .Where(reference => reference.Embedding is { Length: > 0 }
-                                && reference.Embedding.Length == dimension)
-            .GroupBy(reference => reference.FaceId)
-            .Select(group => group
-                .OrderByDescending(reference => reference.QualityScore)
-                .ThenByDescending(reference => reference.EmbeddingId)
-                .First())
-            .Select(reference => new ReferenceRow(
-                reference.PersonId,
-                reference.DisplayName,
-                reference.RepresentativeFaceId,
-                reference.Embedding,
-                reference.QualityScore,
-                reference.AssignedAtUtc))
-            .ToList();
-        if (references.Count == 0)
+        var assetId = await _db.Faces
+            .AsNoTracking()
+            .Where(face => face.Id == faceId)
+            .Select(face => (long?)face.MediaAssetId)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (!assetId.HasValue)
         {
             return Array.Empty<FaceCandidate>();
         }
 
-        var rejectedPersonIds = await _db.FaceReviewDecisions
-            .AsNoTracking()
-            .Where(decision => decision.MediaFaceId == faceId
-                               && decision.CandidatePersonId.HasValue
-                               && decision.ModelKey == modelKey
-                               && decision.ModelVersion == modelVersion
-                               && decision.Decision == FaceReviewDecisionType.Rejected)
-            .Select(decision => decision.CandidatePersonId!.Value)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-        var rejected = rejectedPersonIds.ToHashSet();
-
-        return references
-            .GroupBy(reference => new { reference.PersonId, reference.DisplayName, reference.RepresentativeFaceId })
-            .Where(group => !rejected.Contains(group.Key.PersonId))
-            .Select(group =>
+        var result = await SearchBatchAsync(
+            new[]
             {
-                var score = FaceSimilarityScoring.ScoreReferences(
+                new FaceCandidateSearchInput(
+                    faceId,
+                    assetId.Value,
                     embedding,
-                    group
-                        .OrderByDescending(reference => reference.QualityScore)
-                        .ThenByDescending(reference => reference.AssignedAtUtc)
-                        .Select(reference => (IReadOnlyList<float>)reference.Embedding),
-                    Math.Clamp(_options.ReferenceFacesPerPerson, 1, 50));
-                return new FaceCandidate(
-                    group.Key.PersonId,
-                    group.Key.DisplayName,
-                    group.Key.RepresentativeFaceId,
-                    score.AggregateSimilarity,
-                    score.BestSimilarity,
-                    score.MeanTopSimilarity,
-                    score.ReferenceCount);
-            })
-            .Where(candidate => candidate.Similarity >= _options.CandidateSimilarityThreshold)
-            .OrderByDescending(candidate => candidate.Similarity)
-            .ThenByDescending(candidate => candidate.ReferenceCount)
-            .ThenBy(candidate => candidate.DisplayName)
-            .Take(Math.Clamp(_options.CandidateLimit, 1, 20))
+                    modelKey,
+                    modelVersion,
+                    dimension)
+            },
+            cancellationToken);
+
+        return result.GetValueOrDefault(faceId) ?? Array.Empty<FaceCandidate>();
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<FaceCandidate>>> SearchBatchAsync(
+        IReadOnlyCollection<FaceCandidateSearchInput> inputs,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(inputs);
+        var validInputs = inputs
+            .Where(input => input.FaceId != Guid.Empty
+                            && input.AssetId > 0
+                            && input.Dimension > 0
+                            && input.Embedding is { Length: > 0 }
+                            && input.Embedding.Length == input.Dimension
+                            && !string.IsNullOrWhiteSpace(input.ModelKey)
+                            && !string.IsNullOrWhiteSpace(input.ModelVersion))
+            .GroupBy(input => input.FaceId)
+            .Select(group => group.First())
             .ToList();
+        if (validInputs.Count == 0)
+        {
+            return new Dictionary<Guid, IReadOnlyList<FaceCandidate>>();
+        }
+
+        var results = validInputs.ToDictionary(
+            input => input.FaceId,
+            _ => (IReadOnlyList<FaceCandidate>)Array.Empty<FaceCandidate>());
+
+        foreach (var modelGroup in validInputs.GroupBy(input => new
+                 {
+                     input.ModelKey,
+                     input.ModelVersion,
+                     input.Dimension
+                 }))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var groupInputs = modelGroup.ToList();
+            var faceIds = groupInputs.Select(input => input.FaceId).ToArray();
+            var assetIds = groupInputs.Select(input => input.AssetId).Distinct().ToArray();
+            var maximumReferences = Math.Clamp(
+                _options.MaximumCandidateReferenceEmbeddings,
+                100,
+                250_000);
+
+            var databaseRows = await BuildReferenceRowsQuery(
+                    _db,
+                    Guid.Empty,
+                    modelGroup.Key.ModelKey,
+                    modelGroup.Key.ModelVersion,
+                    modelGroup.Key.Dimension,
+                    maximumReferences)
+                .ToListAsync(cancellationToken);
+
+            var references = databaseRows
+                .Where(reference => reference.Embedding is { Length: > 0 }
+                                    && reference.Embedding.Length == modelGroup.Key.Dimension)
+                .GroupBy(reference => reference.FaceId)
+                .Select(group => group
+                    .OrderByDescending(reference => reference.QualityScore)
+                    .ThenByDescending(reference => reference.EmbeddingId)
+                    .First())
+                .GroupBy(reference => new
+                {
+                    reference.PersonId,
+                    reference.DisplayName,
+                    reference.RepresentativeFaceId
+                })
+                .ToDictionary(
+                    group => group.Key.PersonId,
+                    group => new PersonReferenceSet(
+                        group.Key.PersonId,
+                        group.Key.DisplayName,
+                        group.Key.RepresentativeFaceId,
+                        group.OrderByDescending(reference => reference.QualityScore)
+                            .ThenByDescending(reference => reference.AssignedAtUtc)
+                            .Take(Math.Clamp(_options.ReferenceFacesPerPerson, 1, 50))
+                            .Select(reference => reference.Embedding)
+                            .ToList()));
+            if (references.Count == 0)
+            {
+                continue;
+            }
+
+            var rejectedRows = await _db.FaceReviewDecisions
+                .AsNoTracking()
+                .Where(decision => faceIds.Contains(decision.MediaFaceId)
+                                   && decision.CandidatePersonId.HasValue
+                                   && decision.ModelKey == modelGroup.Key.ModelKey
+                                   && decision.ModelVersion == modelGroup.Key.ModelVersion
+                                   && decision.Decision == FaceReviewDecisionType.Rejected)
+                .Select(decision => new
+                {
+                    decision.MediaFaceId,
+                    PersonId = decision.CandidatePersonId!.Value
+                })
+                .ToListAsync(cancellationToken);
+            var rejectedByFace = rejectedRows
+                .GroupBy(row => row.MediaFaceId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.Select(row => row.PersonId).ToHashSet());
+
+            // A confirmed person may appear only once in one photograph. Excluding people
+            // already assigned elsewhere in the same asset prevents duplicate suggestions.
+            var assignedRows = await (
+                    from assignment in _db.PersonFaces.AsNoTracking()
+                    join face in _db.Faces.AsNoTracking()
+                        on assignment.MediaFaceId equals face.Id
+                    where assignment.RemovedAtUtc == null
+                          && assetIds.Contains(face.MediaAssetId)
+                    select new
+                    {
+                        face.MediaAssetId,
+                        assignment.MediaPersonId
+                    })
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            var assignedByAsset = assignedRows
+                .GroupBy(row => row.MediaAssetId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.Select(row => row.MediaPersonId).ToHashSet());
+
+            foreach (var input in groupInputs)
+            {
+                var rejected = rejectedByFace.GetValueOrDefault(input.FaceId)
+                               ?? new HashSet<Guid>();
+                var alreadyPresent = assignedByAsset.GetValueOrDefault(input.AssetId)
+                                     ?? new HashSet<Guid>();
+
+                var candidates = references.Values
+                    .Where(reference => !rejected.Contains(reference.PersonId)
+                                        && !alreadyPresent.Contains(reference.PersonId))
+                    .Select(reference =>
+                    {
+                        var score = FaceSimilarityScoring.ScoreReferences(
+                            input.Embedding,
+                            reference.Embeddings.Select(vector => (IReadOnlyList<float>)vector),
+                            reference.Embeddings.Count);
+                        return new FaceCandidate(
+                            reference.PersonId,
+                            reference.DisplayName,
+                            reference.RepresentativeFaceId,
+                            score.AggregateSimilarity,
+                            score.BestSimilarity,
+                            score.MeanTopSimilarity,
+                            score.ReferenceCount);
+                    })
+                    .Where(candidate => candidate.Similarity >= _options.CandidateSimilarityThreshold)
+                    .OrderByDescending(candidate => candidate.Similarity)
+                    .ThenByDescending(candidate => candidate.ReferenceCount)
+                    .ThenBy(candidate => candidate.DisplayName)
+                    .Take(Math.Clamp(_options.CandidateLimit, 1, 20))
+                    .ToList();
+
+                results[input.FaceId] = candidates;
+            }
+        }
+
+        return results;
     }
 
     /// <summary>
@@ -141,7 +248,7 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
             join reference in db.FaceEmbeddings.AsNoTracking()
                 on face.Id equals reference.MediaFaceId
             where assignment.RemovedAtUtc == null
-                  && assignment.MediaFaceId != excludedFaceId
+                  && (excludedFaceId == Guid.Empty || assignment.MediaFaceId != excludedFaceId)
                   && !person.IsHidden
                   && person.Status == MediaPersonStatus.Confirmed
                   && !face.IsSuppressed
@@ -188,13 +295,11 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
     public static double CosineSimilarity(float[] first, float[] second)
         => FaceSimilarityScoring.CosineSimilarity(first, second);
 
-    private sealed record ReferenceRow(
+    private sealed record PersonReferenceSet(
         Guid PersonId,
         string DisplayName,
         Guid? RepresentativeFaceId,
-        float[] Embedding,
-        double QualityScore,
-        DateTimeOffset AssignedAtUtc);
+        IReadOnlyList<float[]> Embeddings);
 }
 
 /// <summary>

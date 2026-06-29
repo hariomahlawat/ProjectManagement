@@ -43,4 +43,22 @@ public sealed class MediaLibraryMigrationMetadataTests
         Assert.Equal("20260628190000_HardenPeopleExperience", migrationAttribute.Id);
     }
 
+    [Fact]
+    public void IncrementalKnownPersonMatchingMigration_IsDiscoverableByMediaLibraryContext()
+    {
+        var migrationType = typeof(AddIncrementalKnownPersonMatching);
+
+        var contextAttribute = migrationType
+            .GetCustomAttributes(typeof(DbContextAttribute), inherit: false)
+            .Cast<DbContextAttribute>()
+            .Single();
+        var migrationAttribute = migrationType
+            .GetCustomAttributes(typeof(MigrationAttribute), inherit: false)
+            .Cast<MigrationAttribute>()
+            .Single();
+
+        Assert.Equal(typeof(MediaLibraryDbContext), contextAttribute.ContextType);
+        Assert.Equal("20260629170000_AddIncrementalKnownPersonMatching", migrationAttribute.Id);
+    }
+
 }

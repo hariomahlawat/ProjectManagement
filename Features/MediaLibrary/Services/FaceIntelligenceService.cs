@@ -13,7 +13,6 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
     private readonly MediaLibraryDbContext _db;
     private readonly IMediaContentProviderResolver _resolver;
     private readonly IFaceAnalysisEngine _engine;
-    private readonly IFaceCandidateSuggestionService _candidateSuggestions;
     private readonly IFaceEligibilityPolicy _eligibility;
     private readonly IMediaContentChangeInvalidationService _contentInvalidation;
     private readonly MediaLibraryOptions _options;
@@ -24,7 +23,6 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
         MediaLibraryDbContext db,
         IMediaContentProviderResolver resolver,
         IFaceAnalysisEngine engine,
-        IFaceCandidateSuggestionService candidateSuggestions,
         IFaceEligibilityPolicy eligibility,
         IMediaContentChangeInvalidationService contentInvalidation,
         IOptions<MediaLibraryOptions> options,
@@ -34,7 +32,6 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
-        _candidateSuggestions = candidateSuggestions ?? throw new ArgumentNullException(nameof(candidateSuggestions));
         _eligibility = eligibility ?? throw new ArgumentNullException(nameof(eligibility));
         _contentInvalidation = contentInvalidation ?? throw new ArgumentNullException(nameof(contentInvalidation));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -129,7 +126,6 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
             .Cast<string>()
             .ToList();
 
-        var createdFaces = new List<MediaFace>(detections.Count);
         var newThumbnailPaths = new List<string>();
         var committed = false;
         try
@@ -205,6 +201,17 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
                     DetectorModelKey = _options.People.Detector.Key,
                     DetectorModelVersion = _options.People.Detector.Version,
                     ReviewThumbnailPath = thumbnailPath,
+                    CandidateSearchStatus = detection.Embedding is { Length: > 0 }
+                        ? FaceCandidateSearchStatus.Pending
+                        : FaceCandidateSearchStatus.NotRequested,
+                    CandidateSearchModelKey = detection.Embedding is { Length: > 0 }
+                        ? _options.People.Embedder.Key
+                        : null,
+                    CandidateSearchModelVersion = detection.Embedding is { Length: > 0 }
+                        ? _options.People.Embedder.Version
+                        : null,
+                    CandidateSearchFailureReason = null,
+                    CandidateSearchCompletedAtUtc = null,
                     ConcurrencyToken = Guid.NewGuid(),
                     CreatedAtUtc = now,
                     UpdatedAtUtc = now
@@ -224,7 +231,6 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
                     });
                 }
 
-                createdFaces.Add(face);
                 _db.Faces.Add(face);
             }
 
@@ -246,32 +252,8 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
 
         DeleteThumbnails(oldThumbnailPaths, "obsolete");
 
-        foreach (var face in createdFaces)
-        {
-            var embedding = face.Embeddings.SingleOrDefault();
-            if (embedding is null)
-            {
-                continue;
-            }
-
-            try
-            {
-                await _candidateSuggestions.RefreshFaceAsync(face.Id, cancellationToken);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception exception)
-            {
-                // Candidate suggestions are an optional aid. A successfully detected face
-                // must remain reviewable even when similarity lookup is temporarily degraded.
-                _logger.LogWarning(
-                    exception,
-                    "Unable to create identity candidates for face {FaceId}; manual review remains available.",
-                    face.Id);
-            }
-        }
+        // CandidateSearchStatus is persisted with each new embedding. The dedicated
+        // candidate worker will perform bounded matching outside this processing transaction.
     }
 
     private string CurrentAnalysisVersion

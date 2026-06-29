@@ -250,6 +250,14 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
             failures.Add("MediaLibrary:People:CandidateMinimumMargin must be between 0 and 1.");
         if (people.CandidateRefreshBatchSize is < 1 or > 10_000)
             failures.Add("MediaLibrary:People:CandidateRefreshBatchSize must be between 1 and 10000.");
+        if (people.CandidateRefreshIdleDelaySeconds is < 1 or > 3600)
+            failures.Add("MediaLibrary:People:CandidateRefreshIdleDelaySeconds must be between 1 and 3600.");
+        if (people.CandidateMinimumFaceQuality is < 0 or > 1)
+            failures.Add("MediaLibrary:People:CandidateMinimumFaceQuality must be between 0 and 1.");
+        if (people.CandidateBatchConfirmationLimit is < 1 or > 100)
+            failures.Add("MediaLibrary:People:CandidateBatchConfirmationLimit must be between 1 and 100.");
+        if (people.GroupingRefreshIntervalSeconds is < 5 or > 3600)
+            failures.Add("MediaLibrary:People:GroupingRefreshIntervalSeconds must be between 5 and 3600.");
         if (people.GroupingMinimumFaces is < 2 or > 20)
             failures.Add("MediaLibrary:People:GroupingMinimumFaces must be between 2 and 20.");
         if (people.GroupingMaximumFaces is < 10 or > 25_000)

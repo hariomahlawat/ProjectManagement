@@ -35,6 +35,19 @@ public sealed class MediaFace
     [MaxLength(1024)]
     public string? ReviewThumbnailPath { get; set; }
 
+    public FaceCandidateSearchStatus CandidateSearchStatus { get; set; } = FaceCandidateSearchStatus.NotRequested;
+
+    [MaxLength(128)]
+    public string? CandidateSearchModelKey { get; set; }
+
+    [MaxLength(128)]
+    public string? CandidateSearchModelVersion { get; set; }
+
+    [MaxLength(2048)]
+    public string? CandidateSearchFailureReason { get; set; }
+
+    public DateTimeOffset? CandidateSearchCompletedAtUtc { get; set; }
+
     public Guid ConcurrencyToken { get; set; } = Guid.NewGuid();
     public DateTimeOffset CreatedAtUtc { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }

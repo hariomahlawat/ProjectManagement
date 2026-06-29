@@ -92,6 +92,27 @@ public sealed class MediaPeoplePostgreSqlQueryTranslationTests
         Assert.Contains("NOT EXISTS", sql.ToUpperInvariant());
     }
 
+    [Fact]
+    public void Candidate_queue_discovery_query_translates_for_postgresql()
+    {
+        using var db = CreateContext();
+
+        var sql = FaceCandidateRefreshQueueService.BuildQueueableFacesQuery(
+                db,
+                "opencv-sface",
+                "2021dec",
+                128,
+                0.55d)
+            .OrderByDescending(face => face.QualityScore)
+            .Take(250)
+            .ToQueryString();
+
+        Assert.Contains("MediaFaces", sql);
+        Assert.Contains("MediaFaceEmbeddings", sql);
+        Assert.Contains("MediaPersonFaces", sql);
+        Assert.Contains("NOT EXISTS", sql.ToUpperInvariant());
+    }
+
     private static MediaLibraryDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<MediaLibraryDbContext>()

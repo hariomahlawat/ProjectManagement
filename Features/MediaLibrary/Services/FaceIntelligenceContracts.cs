@@ -81,6 +81,14 @@ public sealed record FaceCandidate(
     double MeanTopSimilarity = 0d,
     int ReferenceCount = 0);
 
+public sealed record FaceCandidateSearchInput(
+    Guid FaceId,
+    long AssetId,
+    float[] Embedding,
+    string ModelKey,
+    string ModelVersion,
+    int Dimension);
+
 public sealed record FaceReviewOperationResult(Guid? PersonId, Guid FaceId, string Message);
 
 public sealed class FaceIdentityConflictException : InvalidOperationException
@@ -128,12 +136,22 @@ public interface IFaceCandidateSearchService
         string modelVersion,
         int dimension,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyDictionary<Guid, IReadOnlyList<FaceCandidate>>> SearchBatchAsync(
+        IReadOnlyCollection<FaceCandidateSearchInput> inputs,
+        CancellationToken cancellationToken);
 }
 
 public interface IFaceCandidateSuggestionService
 {
     Task<int> RefreshFaceAsync(Guid faceId, CancellationToken cancellationToken);
     Task<int> RefreshUnassignedAsync(int limit, CancellationToken cancellationToken);
+}
+
+public interface IFaceCandidateRefreshQueueService
+{
+    Task<bool> QueueFaceAsync(Guid faceId, CancellationToken cancellationToken);
+    Task<int> QueueAllUnassignedAsync(CancellationToken cancellationToken);
 }
 
 public sealed record FaceIdentityGroupMember(
@@ -165,6 +183,22 @@ public sealed record FaceIdentityGroupingResult(
 public interface IFaceIdentityGroupingService
 {
     Task<FaceIdentityGroupingResult> GetGroupsAsync(CancellationToken cancellationToken);
+}
+
+public sealed record FaceIdentityGroupingRuntimeSnapshot(
+    FaceIdentityGroupingResult? Result,
+    DateTimeOffset? RefreshedAtUtc,
+    string? FailureReason)
+{
+    public bool IsReady => Result is not null;
+}
+
+public interface IFaceIdentityGroupingRuntimeState
+{
+    FaceIdentityGroupingRuntimeSnapshot GetSnapshot();
+    void SetResult(FaceIdentityGroupingResult result, DateTimeOffset refreshedAtUtc);
+    void SetFailure(string failureReason, DateTimeOffset failedAtUtc);
+    void Invalidate();
 }
 
 public interface IFaceReviewService

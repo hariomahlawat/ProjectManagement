@@ -15,18 +15,21 @@ namespace ProjectManagement.Features.MediaLibrary.Services;
 public sealed class FaceReviewService : IFaceReviewService
 {
     private readonly MediaLibraryDbContext _db;
-    private readonly IFaceCandidateSuggestionService _candidateSuggestions;
+    private readonly IFaceCandidateRefreshQueueService _candidateRefreshQueue;
+    private readonly IFaceIdentityGroupingRuntimeState _groupingState;
     private readonly MediaPeopleOptions _options;
     private readonly ILogger<FaceReviewService> _logger;
 
     public FaceReviewService(
         MediaLibraryDbContext db,
-        IFaceCandidateSuggestionService candidateSuggestions,
+        IFaceCandidateRefreshQueueService candidateRefreshQueue,
+        IFaceIdentityGroupingRuntimeState groupingState,
         IOptions<MediaLibraryOptions> options,
         ILogger<FaceReviewService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
-        _candidateSuggestions = candidateSuggestions ?? throw new ArgumentNullException(nameof(candidateSuggestions));
+        _candidateRefreshQueue = candidateRefreshQueue ?? throw new ArgumentNullException(nameof(candidateRefreshQueue));
+        _groupingState = groupingState ?? throw new ArgumentNullException(nameof(groupingState));
         _options = options?.Value.People ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -51,6 +54,11 @@ public sealed class FaceReviewService : IFaceReviewService
         var selectedFaces = NormalizeFaceSelection(faceIds);
         var normalized = NormalizeName(displayName);
         ValidateUserId(userId);
+        if (selectedFaces.Count > Math.Clamp(_options.CandidateBatchConfirmationLimit, 1, 100))
+        {
+            throw new FaceIdentityConflictException(
+                $"No more than {_options.CandidateBatchConfirmationLimit} appearances may be confirmed in one operation.");
+        }
         if (selectedFaces.Count > 1)
         {
             await ValidateGroupSelectionAsync(selectedFaces, requireUnassigned: true, cancellationToken);
@@ -131,6 +139,11 @@ public sealed class FaceReviewService : IFaceReviewService
     {
         var selectedFaces = NormalizeFaceSelection(faceIds);
         ValidateUserId(userId);
+        if (selectedFaces.Count > Math.Clamp(_options.CandidateBatchConfirmationLimit, 1, 100))
+        {
+            throw new FaceIdentityConflictException(
+                $"No more than {_options.CandidateBatchConfirmationLimit} appearances may be confirmed in one operation.");
+        }
         if (selectedFaces.Count > 1)
         {
             await ValidateGroupSelectionAsync(selectedFaces, requireUnassigned: true, cancellationToken);
@@ -210,6 +223,20 @@ public sealed class FaceReviewService : IFaceReviewService
             PerformedAtUtc = now
         });
         await SaveWithConflictTranslationAsync(cancellationToken);
+        try
+        {
+            await _candidateRefreshQueue.QueueFaceAsync(faceId, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Unable to queue the rejected face for the next bounded candidate-search pass.");
+        }
     }
 
     public async Task RejectManyAsync(
@@ -286,6 +313,24 @@ public sealed class FaceReviewService : IFaceReviewService
             PerformedAtUtc = now
         });
         await SaveWithConflictTranslationAsync(cancellationToken);
+        foreach (var faceId in selectedFaces)
+        {
+            try
+            {
+                await _candidateRefreshQueue.QueueFaceAsync(faceId, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "Unable to queue face {FaceId} after rejecting a grouped known-person candidate.",
+                    faceId);
+            }
+        }
     }
 
     public async Task IgnoreAsync(
@@ -328,6 +373,12 @@ public sealed class FaceReviewService : IFaceReviewService
                 cancellationToken);
             if (acknowledged is not null && pending.Count == 0)
             {
+                face.CandidateSearchStatus = FaceCandidateSearchStatus.Ready;
+                face.CandidateSearchFailureReason = null;
+                face.CandidateSearchCompletedAtUtc = now;
+                face.UpdatedAtUtc = now;
+                face.ConcurrencyToken = Guid.NewGuid();
+                await _db.SaveChangesAsync(cancellationToken);
                 return;
             }
 
@@ -351,6 +402,12 @@ public sealed class FaceReviewService : IFaceReviewService
                 });
             }
 
+            face.CandidateSearchStatus = FaceCandidateSearchStatus.Ready;
+            face.CandidateSearchFailureReason = null;
+            face.CandidateSearchCompletedAtUtc = now;
+            face.UpdatedAtUtc = now;
+            face.ConcurrencyToken = Guid.NewGuid();
+
             _db.IdentityAudits.Add(new MediaIdentityAudit
             {
                 FaceId = faceId,
@@ -361,6 +418,7 @@ public sealed class FaceReviewService : IFaceReviewService
             });
             await _db.SaveChangesAsync(cancellationToken);
         }, cancellationToken);
+        await RefreshCandidatesAfterIdentityChangeAsync(cancellationToken);
     }
 
     public Task SuppressAsync(
@@ -401,6 +459,9 @@ public sealed class FaceReviewService : IFaceReviewService
 
             face.IsSuppressed = true;
             face.QualityStatus = FaceQualityStatus.Suppressed;
+            face.CandidateSearchStatus = FaceCandidateSearchStatus.NotRequested;
+            face.CandidateSearchFailureReason = null;
+            face.CandidateSearchCompletedAtUtc = now;
             face.SuppressedAtUtc = now;
             face.SuppressedByUserId = userId;
             face.UpdatedAtUtc = now;
@@ -456,6 +517,7 @@ public sealed class FaceReviewService : IFaceReviewService
             });
             await _db.SaveChangesAsync(cancellationToken);
         }, cancellationToken);
+        await RefreshCandidatesAfterIdentityChangeAsync(cancellationToken);
     }
 
     public async Task RenamePersonAsync(
@@ -1051,6 +1113,9 @@ public sealed class FaceReviewService : IFaceReviewService
         person.IsHidden = false;
         person.UpdatedAtUtc = now;
         person.ConcurrencyToken = Guid.NewGuid();
+        face.CandidateSearchStatus = FaceCandidateSearchStatus.Ready;
+        face.CandidateSearchFailureReason = null;
+        face.CandidateSearchCompletedAtUtc = now;
         face.UpdatedAtUtc = now;
         face.ConcurrencyToken = Guid.NewGuid();
         await ResolvePendingDecisionsAsync(faceId, person.Id, userId, now, cancellationToken);
@@ -1157,11 +1222,10 @@ public sealed class FaceReviewService : IFaceReviewService
 
     private async Task RefreshCandidatesAfterIdentityChangeAsync(CancellationToken cancellationToken)
     {
+        _groupingState.Invalidate();
         try
         {
-            await _candidateSuggestions.RefreshUnassignedAsync(
-                Math.Clamp(_options.CandidateRefreshBatchSize, 1, 10_000),
-                cancellationToken);
+            await _candidateRefreshQueue.QueueAllUnassignedAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

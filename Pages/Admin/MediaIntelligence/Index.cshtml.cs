@@ -29,9 +29,7 @@ public sealed class IndexModel : PageModel
     private readonly IFaceQueueService _queue;
     private readonly IMediaProcessingRuntimeState _runtime;
     private readonly IFaceEligibilityPolicy _eligibility;
-    private readonly IFaceIdentityGroupingService _groups;
-    private readonly IFaceCandidateSuggestionService _candidateSuggestions;
-    private readonly ILogger<IndexModel> _logger;
+    private readonly IFaceCandidateRefreshQueueService _candidateQueue;
 
     public IndexModel(
         MediaLibraryDbContext db,
@@ -39,18 +37,14 @@ public sealed class IndexModel : PageModel
         IFaceQueueService queue,
         IMediaProcessingRuntimeState runtime,
         IFaceEligibilityPolicy eligibility,
-        IFaceIdentityGroupingService groups,
-        IFaceCandidateSuggestionService candidateSuggestions,
-        ILogger<IndexModel> logger)
+        IFaceCandidateRefreshQueueService candidateQueue)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _readiness = readiness ?? throw new ArgumentNullException(nameof(readiness));
         _queue = queue ?? throw new ArgumentNullException(nameof(queue));
         _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _eligibility = eligibility ?? throw new ArgumentNullException(nameof(eligibility));
-        _groups = groups ?? throw new ArgumentNullException(nameof(groups));
-        _candidateSuggestions = candidateSuggestions ?? throw new ArgumentNullException(nameof(candidateSuggestions));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _candidateQueue = candidateQueue ?? throw new ArgumentNullException(nameof(candidateQueue));
     }
 
     public FaceModelReadiness ModelStatus { get; private set; } = null!;
@@ -67,7 +61,11 @@ public sealed class IndexModel : PageModel
     public int Faces { get; private set; }
     public int Embedded { get; private set; }
     public int Persons { get; private set; }
-    public int PendingReview { get; private set; }
+    public int ConfirmedAppearances { get; private set; }
+    public int KnownPersonSuggestions { get; private set; }
+    public int UnidentifiedFaces { get; private set; }
+    public int CandidateSearchPending { get; private set; }
+    public int CandidateSearchFailures { get; private set; }
     public int PendingFaceJobs { get; private set; }
     public int FailedFaceJobs { get; private set; }
     public int CurrentClassifierAssets { get; private set; }
@@ -75,10 +73,6 @@ public sealed class IndexModel : PageModel
     public int FaceEvidenceUsed { get; private set; }
     public int FaceEvidenceBlocked { get; private set; }
     public int ManualCorrections { get; private set; }
-    public int IdentityGroups { get; private set; }
-    public int GroupedUnassignedFaces { get; private set; }
-    public int RemainingIndividualFaces { get; private set; }
-    public bool IdentityGroupingAvailable { get; private set; } = true;
 
     [TempData] public string? StatusMessage { get; set; }
     [TempData] public string? ErrorMessage { get; set; }
@@ -89,66 +83,96 @@ public sealed class IndexModel : PageModel
         DetectorStatus = await _readiness.CheckDetectorAsync(cancellationToken);
         ProcessingRuntime = _runtime.GetSnapshot();
 
-        var available = _db.Assets.AsNoTracking().Where(x => x.IsAvailable && !x.IsDeleted && !x.IsArchived && x.Kind == MediaAssetKind.Photo);
+        var available = _db.Assets.AsNoTracking()
+            .Where(asset => asset.IsAvailable
+                            && !asset.IsDeleted
+                            && !asset.IsArchived
+                            && asset.Kind == MediaAssetKind.Photo);
         AvailableImages = await available.CountAsync(cancellationToken);
-        var eligiblePredicate = _eligibility.BuildEligiblePredicate();
-        Eligible = await _db.Assets.AsNoTracking().CountAsync(eligiblePredicate, cancellationToken);
-        ConfirmedNonPhotographs = await available.CountAsync(x =>
-            (x.ClassificationIsManual && x.Classification != MediaClassification.Photograph)
-            || (!x.ClassificationIsManual
-                && x.AnalysisStatus == MediaProcessingStatus.Ready
-                && x.ClassifierVersion == MediaClassifier.ClassifierVersion
-                && x.Classification != MediaClassification.Unknown
-                && x.Classification != MediaClassification.Photograph), cancellationToken);
-        NeedsReview = await available.CountAsync(x =>
-            x.ClassificationDecisionStatus == MediaClassificationDecisionStatus.NeedsReview
-            || (!x.ClassificationIsManual && x.Classification == MediaClassification.Unknown), cancellationToken);
-        LowConfidence = await available.CountAsync(x =>
-            !x.ClassificationIsManual
-            && x.ClassificationDecisionStatus == MediaClassificationDecisionStatus.NeedsReview
-            && x.ClassificationDecisionReasonCode == "BELOW_CATEGORY_THRESHOLD", cancellationToken);
-        FaceAdmissionPending = await available.CountAsync(x =>
-            x.ClassificationIsManual
-            && x.Classification == MediaClassification.Photograph
-            && x.ClassificationDecisionStatus != MediaClassificationDecisionStatus.ManualFaceProcessingApproved, cancellationToken);
-        PendingClassification = await available.CountAsync(x =>
-            x.AnalysisStatus == MediaProcessingStatus.NotRequested
-            || x.AnalysisStatus == MediaProcessingStatus.Pending
-            || x.AnalysisStatus == MediaProcessingStatus.Processing, cancellationToken);
-        FailedClassification = await available.CountAsync(x =>
-            x.AnalysisStatus == MediaProcessingStatus.Failed
-            || x.ClassificationDecisionStatus == MediaClassificationDecisionStatus.ProcessingFailed, cancellationToken);
+        Eligible = await _db.Assets.AsNoTracking()
+            .CountAsync(_eligibility.BuildEligiblePredicate(), cancellationToken);
+        ConfirmedNonPhotographs = await available.CountAsync(asset =>
+            (asset.ClassificationIsManual && asset.Classification != MediaClassification.Photograph)
+            || (!asset.ClassificationIsManual
+                && asset.AnalysisStatus == MediaProcessingStatus.Ready
+                && asset.ClassifierVersion == MediaClassifier.ClassifierVersion
+                && asset.Classification != MediaClassification.Unknown
+                && asset.Classification != MediaClassification.Photograph), cancellationToken);
+        NeedsReview = await available.CountAsync(asset =>
+            asset.ClassificationDecisionStatus == MediaClassificationDecisionStatus.NeedsReview
+            || (!asset.ClassificationIsManual && asset.Classification == MediaClassification.Unknown), cancellationToken);
+        LowConfidence = await available.CountAsync(asset =>
+            !asset.ClassificationIsManual
+            && asset.ClassificationDecisionStatus == MediaClassificationDecisionStatus.NeedsReview
+            && asset.ClassificationDecisionReasonCode == "BELOW_CATEGORY_THRESHOLD", cancellationToken);
+        FaceAdmissionPending = await available.CountAsync(asset =>
+            asset.ClassificationIsManual
+            && asset.Classification == MediaClassification.Photograph
+            && asset.ClassificationDecisionStatus != MediaClassificationDecisionStatus.ManualFaceProcessingApproved,
+            cancellationToken);
+        PendingClassification = await available.CountAsync(asset =>
+            asset.AnalysisStatus == MediaProcessingStatus.NotRequested
+            || asset.AnalysisStatus == MediaProcessingStatus.Pending
+            || asset.AnalysisStatus == MediaProcessingStatus.Processing, cancellationToken);
+        FailedClassification = await available.CountAsync(asset =>
+            asset.AnalysisStatus == MediaProcessingStatus.Failed
+            || asset.ClassificationDecisionStatus == MediaClassificationDecisionStatus.ProcessingFailed,
+            cancellationToken);
+
         Faces = await _db.Faces.AsNoTracking().CountAsync(cancellationToken);
-        Embedded = await _db.FaceEmbeddings.AsNoTracking().CountAsync(x => x.InvalidatedAtUtc == null, cancellationToken);
-        Persons = await _db.Persons.AsNoTracking().CountAsync(
-            x => !x.IsHidden && x.Status == MediaPersonStatus.Confirmed, cancellationToken);
-        PendingReview = await _db.FaceReviewDecisions.AsNoTracking().CountAsync(x => x.Decision == FaceReviewDecisionType.Pending, cancellationToken);
-        try
-        {
-            var identityGroups = await _groups.GetGroupsAsync(cancellationToken);
-            IdentityGroups = identityGroups.TotalGroups;
-            GroupedUnassignedFaces = identityGroups.GroupedFaceCount;
-            RemainingIndividualFaces = identityGroups.RemainingIndividualFaceCount;
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            IdentityGroupingAvailable = false;
-            _logger.LogError(exception,
-                "Identity grouping metrics could not be loaded. The media-intelligence dashboard will continue without optional grouping metrics.");
-        }
-        PendingFaceJobs = await _db.ProcessingJobs.AsNoTracking().CountAsync(x => x.JobType == MediaProcessingJobType.DetectFaces && (x.Status == MediaProcessingJobStatus.Pending || x.Status == MediaProcessingJobStatus.Running), cancellationToken);
-        FailedFaceJobs = await _db.ProcessingJobs.AsNoTracking().CountAsync(x => x.JobType == MediaProcessingJobType.DetectFaces && (x.Status == MediaProcessingJobStatus.Failed || x.Status == MediaProcessingJobStatus.DeadLetter), cancellationToken);
+        Embedded = await _db.FaceEmbeddings.AsNoTracking()
+            .CountAsync(embedding => embedding.InvalidatedAtUtc == null, cancellationToken);
+        Persons = await _db.Persons.AsNoTracking()
+            .CountAsync(person => !person.IsHidden && person.Status == MediaPersonStatus.Confirmed,
+                cancellationToken);
+        ConfirmedAppearances = await _db.PersonFaces.AsNoTracking()
+            .CountAsync(assignment => assignment.RemovedAtUtc == null, cancellationToken);
+
+        var reviewableFaces = _db.Faces.AsNoTracking()
+            .Where(face => !face.IsSuppressed
+                           && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
+                           && face.MediaAsset.IsAvailable
+                           && !face.MediaAsset.IsDeleted
+                           && !face.MediaAsset.IsArchived
+                           && !face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null)
+                           && !_db.FaceReviewDecisions.Any(decision =>
+                               decision.MediaFaceId == face.Id
+                               && !decision.CandidatePersonId.HasValue
+                               && decision.Decision == FaceReviewDecisionType.Ignored));
+        KnownPersonSuggestions = await reviewableFaces.CountAsync(face =>
+            _db.FaceReviewDecisions.Any(decision =>
+                decision.MediaFaceId == face.Id
+                && decision.CandidatePersonId.HasValue
+                && decision.Decision == FaceReviewDecisionType.Pending), cancellationToken);
+        CandidateSearchPending = await reviewableFaces.CountAsync(face =>
+            face.CandidateSearchStatus == FaceCandidateSearchStatus.Pending
+            || face.CandidateSearchStatus == FaceCandidateSearchStatus.Processing, cancellationToken);
+        CandidateSearchFailures = await reviewableFaces.CountAsync(face =>
+            face.CandidateSearchStatus == FaceCandidateSearchStatus.Failed, cancellationToken);
+        UnidentifiedFaces = await reviewableFaces.CountAsync(face =>
+            !_db.FaceReviewDecisions.Any(decision =>
+                decision.MediaFaceId == face.Id
+                && decision.CandidatePersonId.HasValue
+                && decision.Decision == FaceReviewDecisionType.Pending)
+            && face.CandidateSearchStatus != FaceCandidateSearchStatus.Pending
+            && face.CandidateSearchStatus != FaceCandidateSearchStatus.Processing,
+            cancellationToken);
+
+        PendingFaceJobs = await _db.ProcessingJobs.AsNoTracking().CountAsync(job =>
+            job.JobType == MediaProcessingJobType.DetectFaces
+            && (job.Status == MediaProcessingJobStatus.Pending
+                || job.Status == MediaProcessingJobStatus.Running), cancellationToken);
+        FailedFaceJobs = await _db.ProcessingJobs.AsNoTracking().CountAsync(job =>
+            job.JobType == MediaProcessingJobType.DetectFaces
+            && (job.Status == MediaProcessingJobStatus.Failed
+                || job.Status == MediaProcessingJobStatus.DeadLetter), cancellationToken);
 
         var classifierRows = await available
-            .Where(x => x.ClassifierVersion == MediaClassifier.ClassifierVersion)
-            .Select(x => new
+            .Where(asset => asset.ClassifierVersion == MediaClassifier.ClassifierVersion)
+            .Select(asset => new
             {
-                x.ClassificationDecisionReasonCode,
-                x.AutomaticClassificationMetricsJson
+                asset.ClassificationDecisionReasonCode,
+                asset.AutomaticClassificationMetricsJson
             })
             .ToListAsync(cancellationToken);
         CurrentClassifierAssets = classifierRows.Count;
@@ -162,9 +186,54 @@ public sealed class IndexModel : PageModel
             if (evidence.Detected && !evidence.Used) FaceEvidenceBlocked++;
         }
 
-        ManualCorrections = await _db.ClassificationAudits
-            .AsNoTracking()
-            .CountAsync(audit => audit.NewDecisionStatus == MediaClassificationDecisionStatus.ManuallyCorrected, cancellationToken);
+        ManualCorrections = await _db.ClassificationAudits.AsNoTracking()
+            .CountAsync(audit =>
+                audit.NewDecisionStatus == MediaClassificationDecisionStatus.ManuallyCorrected,
+                cancellationToken);
+    }
+
+    public async Task<IActionResult> OnPostQueueAsync(
+        int limit = 25,
+        CancellationToken cancellationToken = default)
+    {
+        var readiness = await _readiness.CheckAsync(cancellationToken);
+        if (!readiness.IsReady)
+        {
+            ErrorMessage = readiness.Message;
+            return RedirectToPage();
+        }
+
+        var queued = await _queue.QueueEligibleAsync(Math.Clamp(limit, 1, 250), cancellationToken);
+        StatusMessage = queued == 0
+            ? "All currently approved photographs have already been queued or processed."
+            : $"Queued {queued} photograph(s) for face detection and embedding.";
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostRefreshIdentityCandidatesAsync(
+        CancellationToken cancellationToken)
+    {
+        var readiness = await _readiness.CheckAsync(cancellationToken);
+        if (!readiness.IsReady)
+        {
+            ErrorMessage = readiness.Message;
+            return RedirectToPage();
+        }
+
+        var queued = await _candidateQueue.QueueAllUnassignedAsync(cancellationToken);
+        StatusMessage = queued == 0
+            ? "No eligible unassigned faces require identity matching."
+            : $"Queued {queued} unassigned face(s) for background known-person matching.";
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostRefreshReadinessAsync(
+        CancellationToken cancellationToken)
+    {
+        var readiness = await _readiness.CheckAsync(forceRefresh: true, cancellationToken);
+        var detector = await _readiness.CheckDetectorAsync(forceRefresh: true, cancellationToken);
+        StatusMessage = $"Readiness refreshed. People: {readiness.Message} Detector assistance: {detector.Message}";
+        return RedirectToPage();
     }
 
     private static FaceEvidenceSnapshot ReadFaceEvidence(string? json)
@@ -190,53 +259,11 @@ public sealed class IndexModel : PageModel
     }
 
     private static bool ReadBoolean(JsonElement element, string property)
-    {
-        if (!element.TryGetProperty(property, out var value)) return false;
-        return value.ValueKind == JsonValueKind.True;
-    }
+        => element.TryGetProperty(property, out var value)
+           && value.ValueKind == JsonValueKind.True;
 
     private sealed record FaceEvidenceSnapshot(bool Detected, bool Used)
     {
         public static FaceEvidenceSnapshot Empty { get; } = new(false, false);
-    }
-
-    public async Task<IActionResult> OnPostQueueAsync(int limit = 25, CancellationToken cancellationToken = default)
-    {
-        var readiness = await _readiness.CheckAsync(cancellationToken);
-        if (!readiness.IsReady)
-        {
-            ErrorMessage = readiness.Message;
-            return RedirectToPage();
-        }
-
-        var boundedLimit = Math.Clamp(limit, 1, 250);
-        var queued = await _queue.QueueEligibleAsync(boundedLimit, cancellationToken);
-        StatusMessage = queued == 0 ? "No new eligible photographs were queued." : $"Queued {queued} photograph(s) for face analysis.";
-        return RedirectToPage();
-    }
-
-
-    public async Task<IActionResult> OnPostRefreshIdentityCandidatesAsync(CancellationToken cancellationToken)
-    {
-        var readiness = await _readiness.CheckAsync(cancellationToken);
-        if (!readiness.IsReady)
-        {
-            ErrorMessage = readiness.Message;
-            return RedirectToPage();
-        }
-
-        var refreshed = await _candidateSuggestions.RefreshUnassignedAsync(500, cancellationToken);
-        StatusMessage = refreshed == 0
-            ? "No unassigned faces were available for identity matching."
-            : $"Identity suggestions refreshed for {refreshed} unassigned face(s).";
-        return RedirectToPage();
-    }
-
-    public async Task<IActionResult> OnPostRefreshReadinessAsync(CancellationToken cancellationToken)
-    {
-        var readiness = await _readiness.CheckAsync(forceRefresh: true, cancellationToken);
-        var detector = await _readiness.CheckDetectorAsync(forceRefresh: true, cancellationToken);
-        StatusMessage = $"Readiness refreshed. People: {readiness.Message} Detector assistance: {detector.Message}";
-        return RedirectToPage();
     }
 }

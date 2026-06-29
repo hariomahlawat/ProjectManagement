@@ -479,6 +479,43 @@ public sealed class IndexModel : PageModel
         }));
     }
 
+    public static string PeopleBadgeTitle(MediaItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        if (item.People.Count > 0)
+        {
+            var confirmed = string.Join(", ", item.People.Select(person => person.Name));
+            return item.UnidentifiedFaceCount > 0
+                ? $"{confirmed}; {item.UnidentifiedFaceCount} unidentified"
+                : confirmed;
+        }
+
+        return item.UnidentifiedFaceCount == 1
+            ? "1 unidentified person"
+            : $"{item.UnidentifiedFaceCount} unidentified people";
+    }
+
+    public static string PeopleBadgeLabel(MediaItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        if (item.People.Count == 1 && item.UnidentifiedFaceCount == 0)
+        {
+            return item.People[0].Name;
+        }
+
+        if (item.People.Count > 0)
+        {
+            var additional = item.People.Count - 1 + item.UnidentifiedFaceCount;
+            return additional > 0
+                ? $"{item.People[0].Name} +{additional}"
+                : item.People[0].Name;
+        }
+
+        return item.UnidentifiedFaceCount == 1
+            ? "1 unidentified"
+            : $"{item.UnidentifiedFaceCount} unidentified";
+    }
+
     public static string ClassificationLabel(MediaClassification classification)
         => classification switch
         {

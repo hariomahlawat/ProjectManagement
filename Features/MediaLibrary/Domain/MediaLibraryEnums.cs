@@ -93,6 +93,16 @@ public enum MediaProcessingJobStatus
     DeadLetter = 4
 }
 
+
+public enum FaceCandidateSearchStatus
+{
+    NotRequested = 0,
+    Pending = 1,
+    Processing = 2,
+    Ready = 3,
+    Failed = 4
+}
+
 public enum FaceIdentityStatus
 {
     Unidentified = 0,
