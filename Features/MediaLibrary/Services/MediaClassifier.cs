@@ -9,13 +9,13 @@ using SixLabors.ImageSharp.Processing;
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
 /// <summary>
-/// Conservative, offline hybrid classifier. Deterministic filename, metadata and pixel
-/// evidence is converted into a normalized probability distribution. Optional detector-only
-/// face evidence may support Photograph without enabling identity or embedding processing.
+/// Conservative, offline hybrid classifier. Natural-photograph admission is deliberately
+/// fail-closed: detector-only face evidence can support an existing photograph hypothesis,
+/// but can never create that hypothesis or override document/diagram/graphic structure.
 /// </summary>
 public sealed class MediaClassifier : IMediaClassifier
 {
-    public const string ClassifierVersion = "hybrid-media-v6";
+    public const string ClassifierVersion = "hybrid-media-v7";
 
     private static readonly MediaClassification[] ScoredCategories =
     {
@@ -27,6 +27,19 @@ public sealed class MediaClassifier : IMediaClassifier
         MediaClassification.PresentationSlide,
         MediaClassification.Graphic
     };
+
+    private static readonly string[] ScreenshotTerms =
+        { "screenshot", "screen-shot", "screen_shot", "snip", "screen capture" };
+    private static readonly string[] DiagramTerms =
+        { "drawio", "flow_chart", "flow-chart", "flowchart", "workflow", "architecture", "schematic", "block-diagram" };
+    private static readonly string[] ChartTerms =
+        { "chart", "graph", "category-share", "stage-cycle", "dashboard-export", "by-current-stage", "by-project-cost-band" };
+    private static readonly string[] DocumentTerms =
+        { "scan", "scanned", "worksheet", "question-paper", "certificate", "letter", "document", "form" };
+    private static readonly string[] PresentationTerms =
+        { "slide", "presentation", "powerpoint", "ppt", "deck" };
+    private static readonly string[] GraphicTerms =
+        { "logo", "icon", "banner", "poster", "illustration", "wallpaper", "clipart", "template", "border", "background" };
 
     private readonly MediaLibraryOptions _options;
     private readonly IFacePresenceProbe _faceProbe;
@@ -84,55 +97,103 @@ public sealed class MediaClassifier : IMediaClassifier
         var bytes = copy.ToArray();
         using var image = Image.Load<Rgba32>(bytes);
         var metrics = Measure(image, _options.Classification.AnalysisMaxDimension);
+        var profile = AnalyseStructure(metrics);
         var evidence = CreateEvidenceMap();
         var signals = new List<string>();
         var name = Path.GetFileNameWithoutExtension(fileName).ToLowerInvariant();
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        var filenameFlags = DetectFilenameEvidence(name);
 
         ApplyMetadataEvidence(metadata, extension, evidence, signals);
-        ApplyFilenameEvidence(name, evidence, signals);
-        ApplyPixelEvidence(metrics, evidence, signals);
+        ApplyFilenameEvidence(filenameFlags, evidence, signals);
+        ApplyPixelEvidence(metrics, profile, evidence, signals);
         DisableConfiguredCategories(evidence);
 
+        // Capture the pre-face state. Decision safety is evaluated against this immutable
+        // baseline so a face boost cannot erase contradictory document or graphic evidence.
+        var rawEvidence = Snapshot(evidence);
+        var baseScores = Softmax(rawEvidence, temperature: 0.82);
+        var safety = AssessSafety(metadata, filenameFlags, metrics, profile, baseScores);
+
+        FacePresenceResult? facePresence = null;
+        var faceProbeAttempted = false;
+        var faceEvidenceDetected = false;
+        var faceEvidenceUsed = false;
+        string? faceEvidenceDecisionCode = null;
+
         if (_options.Classification.FacePresenceAssistanceEnabled
-            && ShouldProbeForFace(evidence))
+            && ShouldProbeForFace(rawEvidence, baseScores))
         {
-            var face = await _faceProbe.AnalyseAsync(bytes, cancellationToken);
-            if (face.Succeeded
-                && face.FaceDetected
-                && face.HighestConfidence >= _options.Classification.FacePresenceMinimumConfidence
-                && face.LargestFaceWidth >= _options.Classification.FacePresenceMinimumPixels
-                && face.LargestFaceHeight >= _options.Classification.FacePresenceMinimumPixels
-                && face.LargestFaceAreaRatio >= _options.Classification.FacePresenceMinimumAreaRatio
-                && face.ValidFivePointLandmarks)
+            faceProbeAttempted = true;
+            facePresence = await _faceProbe.AnalyseAsync(bytes, cancellationToken);
+            if (IsVerifiedFace(facePresence))
             {
-                evidence[MediaClassification.Photograph] += 5.25;
-                evidence[MediaClassification.Unknown] -= 1.25;
-                signals.Add(
-                    $"Verified detector-only face evidence supports a photograph " +
-                    $"({face.HighestConfidence:P0}, area {face.LargestFaceAreaRatio:P1}).");
+                faceEvidenceDetected = true;
+                if (safety.NaturalPhotoBaselineSatisfied && !safety.HasStructuralVeto)
+                {
+                    var confidenceFactor = 0.75 + 0.25 * Clamp01(facePresence.HighestConfidence);
+                    var boundedBoost = Math.Min(
+                        _options.Classification.FacePresenceEvidenceBoost,
+                        _options.Classification.FacePresenceEvidenceBoost * confidenceFactor);
+                    evidence[MediaClassification.Photograph] += boundedBoost;
+                    evidence[MediaClassification.Unknown] -= _options.Classification.FacePresenceUnknownReduction;
+                    faceEvidenceUsed = true;
+                    faceEvidenceDecisionCode = "FACE_EVIDENCE_USED_AS_SUPPORT";
+                    signals.Add(
+                        $"Verified detector-only face evidence supported an existing natural-photograph baseline " +
+                        $"({facePresence.HighestConfidence:P0}, area {facePresence.LargestFaceAreaRatio:P1}).");
+                }
+                else
+                {
+                    faceEvidenceDecisionCode = safety.HasStructuralVeto
+                        ? "FACE_EVIDENCE_REJECTED_BY_STRUCTURE"
+                        : "FACE_EVIDENCE_REJECTED_BY_BASELINE";
+                    signals.Add(
+                        "A face-like structure was detected, but it was not used because the image did not pass the natural-photograph safety gate.");
+                }
             }
-            else if (!face.Succeeded)
+            else if (facePresence is { Succeeded: false })
             {
+                faceEvidenceDecisionCode = "FACE_PROBE_UNAVAILABLE";
                 signals.Add("Optional face-presence assistance was unavailable; classification continued conservatively.");
             }
+            else
+            {
+                faceEvidenceDecisionCode = "NO_VERIFIED_FACE_EVIDENCE";
+            }
         }
+
+        safety = safety with
+        {
+            FaceProbeAttempted = faceProbeAttempted,
+            FaceEvidenceDetected = faceEvidenceDetected,
+            FaceEvidenceUsed = faceEvidenceUsed,
+            FaceEvidenceDecisionCode = faceEvidenceDecisionCode
+        };
 
         var normalized = Softmax(evidence, temperature: 0.82);
         var winner = normalized.OrderByDescending(pair => pair.Value).First();
         var decision = _decisionPolicy.Decide(
             winner.Key,
             winner.Value,
-            normalized,
-            signals);
+            new MediaClassificationDecisionContext(
+                normalized,
+                baseScores,
+                rawEvidence,
+                safety,
+                signals));
 
         stopwatch.Stop();
         return new MediaClassificationResult(
             winner.Key,
             winner.Value,
             normalized,
+            baseScores,
+            rawEvidence,
             signals,
             metrics,
+            safety,
+            facePresence,
             decision.EffectiveClassification,
             decision.Status,
             decision.ReasonCode,
@@ -167,6 +228,7 @@ public sealed class MediaClassifier : IMediaClassifier
 
         if (extension is ".jpg" or ".jpeg" or ".heic" or ".heif")
         {
+            // File type is only weak evidence; graphics and documents are frequently exported as JPEG.
             evidence[MediaClassification.Photograph] += 0.50;
         }
         else if (extension == ".png")
@@ -178,106 +240,130 @@ public sealed class MediaClassifier : IMediaClassifier
     }
 
     private void ApplyFilenameEvidence(
-        string name,
+        FilenameEvidence flags,
         IDictionary<MediaClassification, double> evidence,
         ICollection<string> signals)
     {
-        if (_options.Classification.ScreenshotDetectionEnabled)
+        if (_options.Classification.ScreenshotDetectionEnabled && flags.Screenshot)
         {
-            AddNameEvidence(name, new[] { "screenshot", "screen-shot", "screen_shot", "snip", "screen capture" },
-                MediaClassification.Screenshot, 5.25, evidence, signals,
+            AddEvidence(MediaClassification.Screenshot, 5.25, evidence, signals,
                 "Explicit screenshot filename evidence.");
         }
 
-        if (_options.Classification.DiagramDetectionEnabled)
+        if (_options.Classification.DiagramDetectionEnabled && flags.Diagram)
         {
-            AddNameEvidence(name, new[] { "drawio", "flow_chart", "flow-chart", "flowchart", "workflow", "architecture", "schematic", "block-diagram" },
-                MediaClassification.Diagram, 5.75, evidence, signals,
-                "Explicit diagram or workflow filename evidence.");
-            AddNameEvidence(name, new[]
-                {
-                    "chart", "graph", "category-share", "stage-cycle", "dashboard-export",
-                    "by-current-stage", "by-project-cost-band"
-                },
-                MediaClassification.Diagram, 4.25, evidence, signals,
-                "Chart or graph filename evidence.");
+            AddEvidence(MediaClassification.Diagram, flags.StrongDiagram ? 5.75 : 4.25, evidence, signals,
+                flags.StrongDiagram
+                    ? "Explicit diagram or workflow filename evidence."
+                    : "Chart or graph filename evidence.");
         }
 
-        if (_options.Classification.DocumentDetectionEnabled)
+        if (_options.Classification.DocumentDetectionEnabled && flags.Document)
         {
-            AddNameEvidence(name, new[] { "scan", "scanned", "worksheet", "question-paper", "certificate", "letter", "document", "form" },
-                MediaClassification.ScannedDocument, 4.50, evidence, signals,
+            AddEvidence(MediaClassification.ScannedDocument, 4.50, evidence, signals,
                 "Document or worksheet filename evidence.");
-            AddNameEvidence(name, new[] { "slide", "presentation", "powerpoint", "ppt", "deck" },
-                MediaClassification.PresentationSlide, 4.75, evidence, signals,
+        }
+
+        if (_options.Classification.DocumentDetectionEnabled && flags.Presentation)
+        {
+            AddEvidence(MediaClassification.PresentationSlide, 4.75, evidence, signals,
                 "Presentation filename evidence.");
         }
 
-        AddNameEvidence(name, new[] { "logo", "icon", "banner", "poster", "illustration", "wallpaper", "clipart" },
-            MediaClassification.Graphic, 4.25, evidence, signals,
-            "Graphic-design filename evidence.");
+        if (flags.Graphic)
+        {
+            AddEvidence(MediaClassification.Graphic, 4.25, evidence, signals,
+                "Graphic-design filename evidence.");
+        }
     }
 
     private static void ApplyPixelEvidence(
         ClassificationMetrics metrics,
+        StructuralProfile profile,
         IDictionary<MediaClassification, double> evidence,
         ICollection<string> signals)
     {
-        // Natural photographs often contain continuous, low-amplitude variation even where
-        // large areas look smooth to the eye. Exact-flat and micro-variation ratios separate
-        // those regions from digitally filled backgrounds much better than a single flatness
-        // threshold. The score remains conservative: difficult scenes are sent to review.
-        var entropyStrength = Clamp01((metrics.Entropy - 0.32) / 0.52);
-        var microVariationStrength = Clamp01((metrics.MicroVariationRatio - 0.10) / 0.55);
-        var varianceStrength = Clamp01((metrics.LuminanceVariance - 0.006) / 0.065);
-        var colourStrength = Clamp01((metrics.ColourDiversity - 0.13) / 0.52);
-        var continuousTone = 0.30 * entropyStrength
-                             + 0.30 * microVariationStrength
-                             + 0.22 * varianceStrength
-                             + 0.18 * colourStrength;
+        evidence[MediaClassification.Photograph] += profile.ContinuousTone * 4.80
+                                                     + profile.NaturalPhoto * 1.50
+                                                     - profile.PageStructure * 4.50
+                                                     - profile.DesignedGraphic * 3.20
+                                                     - profile.DiagramStructure * 2.00;
+        evidence[MediaClassification.ScannedDocument] += profile.PageStructure * 5.00
+                                                         + profile.WhiteCanvas * 0.80
+                                                         + metrics.TextRowRatio * 1.20;
+        evidence[MediaClassification.Diagram] += profile.DiagramStructure * 4.20
+                                                + profile.WhiteCanvas * 1.40
+                                                + metrics.TextColumnRatio * 0.50;
+        evidence[MediaClassification.Graphic] += profile.DesignedGraphic * 4.50
+                                                + metrics.DominantPaletteRatio * 0.25;
 
-        var whiteCanvas = Clamp01((metrics.LightBackgroundRatio - 0.62) / 0.32)
-                          * (0.42 * Clamp01((metrics.ExactFlatness - 0.50) / 0.45)
-                             + 0.32 * Clamp01((metrics.ColourDiversity - 0.18) / 0.55)
-                             + 0.26 * Clamp01((metrics.EdgeDensity - 0.008) / 0.10));
-        var pageStructure = Clamp01((metrics.LightBackgroundRatio - 0.60) / 0.35)
-                            * (0.50 * Clamp01((metrics.EdgeDensity - 0.01) / 0.12)
-                               + 0.25 * Clamp01((metrics.ExactFlatness - 0.55) / 0.40)
-                               + 0.25 * Clamp01((metrics.ColourDiversity - 0.15) / 0.60));
-        var lineStructure = Clamp01((metrics.EdgeDensity - 0.06) / 0.22)
-                            * Clamp01((0.70 - metrics.ColourDiversity) / 0.55);
-        var designedFlatness = Clamp01((metrics.ExactFlatness - 0.72) / 0.25)
-                               * Clamp01((0.20 - metrics.MicroVariationRatio) / 0.18);
-
-        evidence[MediaClassification.Photograph] += continuousTone * 5.20
-                                                     - whiteCanvas * 3.50
-                                                     - designedFlatness * 3.40;
-        evidence[MediaClassification.ScannedDocument] += pageStructure * 2.80 + whiteCanvas;
-        evidence[MediaClassification.Diagram] += lineStructure * 2.40 + whiteCanvas * 2.20;
-        evidence[MediaClassification.Graphic] += designedFlatness * 4.50;
-
-        if (continuousTone >= 0.58)
+        if (profile.ContinuousTone >= 0.58)
         {
-            signals.Add("Continuous-tone texture and colour variation support a photograph.");
+            signals.Add("Continuous-tone texture and colour variation support a natural photograph.");
         }
-        if (pageStructure >= 0.45)
+        if (profile.PageStructure >= 0.30)
         {
-            signals.Add("A light page-like background with foreground detail supports document content.");
+            signals.Add("Page-like background and repeated text-row structure support document content.");
         }
-        if (lineStructure >= 0.45 || whiteCanvas >= 0.42)
+        if (profile.DiagramStructure >= 0.40 || profile.WhiteCanvas >= 0.42)
         {
             signals.Add("Structured content on a flat canvas supports diagram or chart content.");
         }
-        if (designedFlatness >= 0.50)
+        if (profile.DesignedGraphic >= 0.50)
         {
-            signals.Add("Digitally flat colour regions support designed graphic content.");
+            signals.Add("Digitally flat colour regions and palette concentration support designed graphic content.");
         }
+        if (profile.NaturalPhoto < 0.22)
+        {
+            signals.Add("Natural-photograph structure is weak.");
+        }
+    }
 
-        if (metrics.LightBackgroundRatio > 0.88 && metrics.ColourDiversity < 0.18)
-        {
-            evidence[MediaClassification.Photograph] -= 0.75;
-            evidence[MediaClassification.ScannedDocument] += 0.65;
-        }
+    private ClassificationSafetyAssessment AssessSafety(
+        MediaFileMetadata metadata,
+        FilenameEvidence filename,
+        ClassificationMetrics metrics,
+        StructuralProfile profile,
+        IReadOnlyDictionary<MediaClassification, double> baseScores)
+    {
+        var documentVeto = filename.Document
+                           || filename.Presentation
+                           || profile.PageStructure >= _options.Classification.DocumentStructureVetoThreshold
+                           || (metrics.TextRowRatio >= 0.18 && metrics.LightBackgroundRatio >= 0.55)
+                           || (metrics.DenseTextRowRatio >= 0.09 && metrics.BorderLightRatio >= 0.72);
+        var graphicVeto = filename.Graphic
+                          || (profile.DesignedGraphic >= _options.Classification.GraphicStructureVetoThreshold
+                              && profile.NaturalPhoto < 0.58);
+        var diagramVeto = filename.Diagram
+                          || (profile.DiagramStructure >= _options.Classification.DiagramStructureVetoThreshold
+                              && profile.NaturalPhoto < 0.58);
+        var explicitNonPhoto = filename.HasNonPhotoEvidence;
+        var basePhotoScore = Score(baseScores, MediaClassification.Photograph);
+        var strongestBaseNonPhoto = baseScores
+            .Where(pair => pair.Key is not MediaClassification.Unknown and not MediaClassification.Photograph)
+            .Select(pair => pair.Value)
+            .DefaultIfEmpty(0d)
+            .Max();
+        var naturalBaseline = (metadata.HasCameraMetadata
+                               || profile.NaturalPhoto >= _options.Classification.NaturalPhotoBaselineMinimumScore)
+                              && basePhotoScore >= _options.Classification.FaceProbeBasePhotographMinimumScore;
+
+        return new ClassificationSafetyAssessment(
+            naturalBaseline,
+            documentVeto,
+            graphicVeto,
+            diagramVeto,
+            explicitNonPhoto,
+            profile.NaturalPhoto,
+            profile.PageStructure,
+            profile.DesignedGraphic,
+            profile.DiagramStructure,
+            basePhotoScore,
+            strongestBaseNonPhoto,
+            false,
+            false,
+            false,
+            null);
     }
 
     private void DisableConfiguredCategories(IDictionary<MediaClassification, double> evidence)
@@ -297,31 +383,63 @@ public sealed class MediaClassifier : IMediaClassifier
         }
     }
 
-    private static bool ShouldProbeForFace(IReadOnlyDictionary<MediaClassification, double> evidence)
+    private bool ShouldProbeForFace(
+        IReadOnlyDictionary<MediaClassification, double> evidence,
+        IReadOnlyDictionary<MediaClassification, double> baseScores)
     {
-        var best = evidence.OrderByDescending(pair => pair.Value).First();
+        if (Score(baseScores, MediaClassification.Photograph)
+            < _options.Classification.FaceProbeBasePhotographMinimumScore)
+        {
+            return false;
+        }
+
+        var best = evidence
+            .Where(pair => double.IsFinite(pair.Value))
+            .OrderByDescending(pair => pair.Value)
+            .First();
         return best.Key is MediaClassification.Photograph or MediaClassification.Unknown
                || evidence[MediaClassification.Photograph] >= best.Value - 1.75;
     }
 
-    private static void AddNameEvidence(
-        string name,
-        IEnumerable<string> terms,
+    private bool IsVerifiedFace(FacePresenceResult? face)
+        => face is
+           {
+               Succeeded: true,
+               FaceDetected: true,
+               ValidFivePointLandmarks: true
+           }
+           && face.HighestConfidence >= _options.Classification.FacePresenceMinimumConfidence
+           && face.LargestFaceWidth >= _options.Classification.FacePresenceMinimumPixels
+           && face.LargestFaceHeight >= _options.Classification.FacePresenceMinimumPixels
+           && face.LargestFaceAreaRatio >= _options.Classification.FacePresenceMinimumAreaRatio;
+
+    private static FilenameEvidence DetectFilenameEvidence(string name)
+    {
+        var strongDiagram = ContainsAnyKeyword(name, DiagramTerms);
+        var chart = ContainsAnyKeyword(name, ChartTerms);
+        return new FilenameEvidence(
+            ContainsAnyKeyword(name, ScreenshotTerms),
+            ContainsAnyKeyword(name, DocumentTerms),
+            strongDiagram || chart,
+            strongDiagram,
+            ContainsAnyKeyword(name, PresentationTerms),
+            ContainsAnyKeyword(name, GraphicTerms));
+    }
+
+    private static void AddEvidence(
         MediaClassification category,
         double weight,
         IDictionary<MediaClassification, double> evidence,
         ICollection<string> signals,
         string signal)
     {
-        if (!terms.Any(term => ContainsKeyword(name, term)))
-        {
-            return;
-        }
-
         evidence[category] += weight;
         evidence[MediaClassification.Unknown] -= 0.65;
         signals.Add(signal);
     }
+
+    private static bool ContainsAnyKeyword(string name, IEnumerable<string> terms)
+        => terms.Any(term => ContainsKeyword(name, term));
 
     private static bool ContainsKeyword(string name, string term)
     {
@@ -357,11 +475,22 @@ public sealed class MediaClassifier : IMediaClassifier
         return new string(buffer, 0, length);
     }
 
+    private static IReadOnlyDictionary<MediaClassification, double> Snapshot(
+        IReadOnlyDictionary<MediaClassification, double> evidence)
+        => ScoredCategories.ToDictionary(
+            category => category,
+            category => evidence.TryGetValue(category, out var value) ? value : double.NegativeInfinity);
+
     private static IReadOnlyDictionary<MediaClassification, double> Softmax(
         IReadOnlyDictionary<MediaClassification, double> evidence,
         double temperature)
     {
         var finite = evidence.Where(pair => double.IsFinite(pair.Value)).ToArray();
+        if (finite.Length == 0)
+        {
+            return ScoredCategories.ToDictionary(category => category, _ => 0d);
+        }
+
         var maximum = finite.Max(pair => pair.Value);
         var exponentials = finite.ToDictionary(
             pair => pair.Key,
@@ -375,6 +504,55 @@ public sealed class MediaClassifier : IMediaClassifier
                 : 0d);
     }
 
+    private static StructuralProfile AnalyseStructure(ClassificationMetrics metrics)
+    {
+        var entropyStrength = Clamp01((metrics.Entropy - 0.32) / 0.52);
+        var microVariationStrength = Clamp01((metrics.MicroVariationRatio - 0.10) / 0.55);
+        var varianceStrength = Clamp01((metrics.LuminanceVariance - 0.006) / 0.065);
+        var colourStrength = Clamp01((metrics.ColourDiversity - 0.13) / 0.52);
+        var continuousTone = 0.30 * entropyStrength
+                             + 0.30 * microVariationStrength
+                             + 0.22 * varianceStrength
+                             + 0.18 * colourStrength;
+
+        var whiteCanvas = Clamp01((metrics.LightBackgroundRatio - 0.62) / 0.32)
+                          * (0.42 * Clamp01((metrics.ExactFlatness - 0.50) / 0.45)
+                             + 0.32 * Clamp01((metrics.ColourDiversity - 0.18) / 0.55)
+                             + 0.26 * Clamp01((metrics.EdgeDensity - 0.008) / 0.10));
+
+        var pageStructure = Clamp01((metrics.LightBackgroundRatio - 0.55) / 0.40)
+                            * (0.30 * Clamp01((metrics.TextRowRatio - 0.06) / 0.34)
+                               + 0.20 * Clamp01((metrics.TextColumnRatio - 0.08) / 0.65)
+                               + 0.18 * Clamp01((metrics.BorderLightRatio - 0.65) / 0.35)
+                               + 0.16 * Clamp01((metrics.InkCoverage - 0.02) / 0.20)
+                               + 0.16 * Clamp01((metrics.EdgeDensity - 0.008) / 0.10));
+
+        var designedGraphic = 0.35 * Clamp01((metrics.ExactFlatness - 0.70) / 0.28)
+                              + 0.25 * Clamp01((metrics.DominantPaletteRatio - 0.78) / 0.20)
+                              + 0.20 * Clamp01((0.22 - metrics.MicroVariationRatio) / 0.20)
+                              + 0.20 * Clamp01((metrics.MeanSaturation - 0.08) / 0.35);
+
+        var diagramStructure = Clamp01((metrics.LightBackgroundRatio - 0.55) / 0.40)
+                               * (0.34 * Clamp01((metrics.TextColumnRatio - 0.15) / 0.70)
+                                  + 0.25 * Clamp01((metrics.TextRowRatio - 0.08) / 0.35)
+                                  + 0.22 * Clamp01((metrics.ExactFlatness - 0.65) / 0.32)
+                                  + 0.19 * Clamp01((metrics.EdgeDensity - 0.012) / 0.12));
+
+        var naturalPhoto = 0.38 * continuousTone
+                           + 0.20 * Clamp01((0.78 - metrics.ExactFlatness) / 0.45)
+                           + 0.18 * Clamp01((metrics.MicroVariationRatio - 0.12) / 0.45)
+                           + 0.14 * Clamp01((metrics.LuminanceVariance - 0.01) / 0.08)
+                           + 0.10 * Clamp01((0.86 - metrics.BorderLightRatio) / 0.50);
+
+        return new StructuralProfile(
+            continuousTone,
+            whiteCanvas,
+            pageStructure,
+            designedGraphic,
+            diagramStructure,
+            naturalPhoto);
+    }
+
     private static ClassificationMetrics Measure(Image<Rgba32> source, int maxDimension)
     {
         using var image = source.Clone(context => context.Resize(new ResizeOptions
@@ -385,27 +563,46 @@ public sealed class MediaClassifier : IMediaClassifier
         var width = image.Width;
         var height = image.Height;
         var pixels = Math.Max(1, width * height);
+        var luminance = new double[pixels];
+        var dark = new bool[pixels];
         double luminanceSum = 0;
         double luminanceSquareSum = 0;
+        double saturationSum = 0;
+        double saturationSquareSum = 0;
         double edgeCount = 0;
         double flatCount = 0;
         double exactFlatCount = 0;
         double microVariationCount = 0;
         double lightCount = 0;
+        double darkCount = 0;
         var histogram = new int[32];
         var colours = new HashSet<int>();
+        var palette = new int[512];
 
         for (var y = 0; y < height; y++)
         {
             for (var x = 0; x < width; x++)
             {
+                var index = y * width + x;
                 var pixel = image[x, y];
-                var luminance = (.2126 * pixel.R + .7152 * pixel.G + .0722 * pixel.B) / 255d;
-                luminanceSum += luminance;
-                luminanceSquareSum += luminance * luminance;
-                histogram[Math.Min(31, (int)(luminance * 32))]++;
-                if (luminance > .86) lightCount++;
-                colours.Add((pixel.R / 32) * 64 + (pixel.G / 32) * 8 + pixel.B / 32);
+                var pixelLuminance = (.2126 * pixel.R + .7152 * pixel.G + .0722 * pixel.B) / 255d;
+                luminance[index] = pixelLuminance;
+                dark[index] = pixelLuminance < 0.72;
+                luminanceSum += pixelLuminance;
+                luminanceSquareSum += pixelLuminance * pixelLuminance;
+                histogram[Math.Min(31, (int)(pixelLuminance * 32))]++;
+                if (pixelLuminance > .86) lightCount++;
+                if (dark[index]) darkCount++;
+
+                var maximum = Math.Max(pixel.R, Math.Max(pixel.G, pixel.B));
+                var minimum = Math.Min(pixel.R, Math.Min(pixel.G, pixel.B));
+                var saturation = maximum == 0 ? 0d : (maximum - minimum) / (double)maximum;
+                saturationSum += saturation;
+                saturationSquareSum += saturation * saturation;
+
+                var quantized = (pixel.R / 32) * 64 + (pixel.G / 32) * 8 + pixel.B / 32;
+                colours.Add(quantized);
+                palette[quantized]++;
 
                 if (x > 0)
                 {
@@ -439,8 +636,74 @@ public sealed class MediaClassifier : IMediaClassifier
         }
         entropy /= 5d;
 
+        var horizontalTransitions = 0;
+        var verticalTransitions = 0;
+        var textRows = 0;
+        var denseTextRows = 0;
+        for (var y = 0; y < height; y++)
+        {
+            var rowDark = 0;
+            var rowTransitions = 0;
+            for (var x = 0; x < width; x++)
+            {
+                var index = y * width + x;
+                if (dark[index]) rowDark++;
+                if (x > 0 && dark[index] != dark[index - 1]) rowTransitions++;
+            }
+
+            horizontalTransitions += rowTransitions;
+            var darkRatio = rowDark / (double)Math.Max(1, width);
+            var transitionRatio = rowTransitions / (double)Math.Max(1, width - 1);
+            if (darkRatio is >= 0.008 and <= 0.48 && transitionRatio >= 0.025) textRows++;
+            if (darkRatio is >= 0.02 and <= 0.42 && transitionRatio >= 0.05) denseTextRows++;
+        }
+
+        var textColumns = 0;
+        for (var x = 0; x < width; x++)
+        {
+            var columnDark = 0;
+            var columnTransitions = 0;
+            for (var y = 0; y < height; y++)
+            {
+                var index = y * width + x;
+                if (dark[index]) columnDark++;
+                if (y > 0 && dark[index] != dark[index - width]) columnTransitions++;
+            }
+
+            verticalTransitions += columnTransitions;
+            var darkRatio = columnDark / (double)Math.Max(1, height);
+            var transitionRatio = columnTransitions / (double)Math.Max(1, height - 1);
+            if (darkRatio is >= 0.008 and <= 0.55 && transitionRatio >= 0.025) textColumns++;
+        }
+
+        var borderThickness = Math.Max(1, (int)Math.Round(Math.Min(width, height) * 0.06));
+        var borderLight = 0;
+        var borderPixels = 0;
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                if (x >= borderThickness && x < width - borderThickness
+                    && y >= borderThickness && y < height - borderThickness)
+                {
+                    continue;
+                }
+
+                borderPixels++;
+                if (luminance[y * width + x] > 0.86) borderLight++;
+            }
+        }
+
         var comparisons = Math.Max(1, (width - 1) * height + width * (height - 1));
+        var horizontalComparisons = Math.Max(1, (width - 1) * height);
+        var verticalComparisons = Math.Max(1, width * (height - 1));
         var mean = luminanceSum / pixels;
+        var meanSaturation = saturationSum / pixels;
+        var dominantPalette = palette
+            .OrderByDescending(count => count)
+            .Take(8)
+            .Sum() / (double)pixels;
+
         return new ClassificationMetrics(
             Math.Clamp(entropy, 0, 1),
             edgeCount / comparisons,
@@ -452,7 +715,17 @@ public sealed class MediaClassifier : IMediaClassifier
             Math.Max(0, luminanceSquareSum / pixels - mean * mean),
             width / (double)Math.Max(1, height),
             width,
-            height);
+            height,
+            darkCount / pixels,
+            borderPixels == 0 ? 0 : borderLight / (double)borderPixels,
+            textRows / (double)Math.Max(1, height),
+            denseTextRows / (double)Math.Max(1, height),
+            textColumns / (double)Math.Max(1, width),
+            horizontalTransitions / (double)horizontalComparisons,
+            verticalTransitions / (double)verticalComparisons,
+            meanSaturation,
+            Math.Max(0, saturationSquareSum / pixels - meanSaturation * meanSaturation),
+            dominantPalette);
     }
 
     private static void MeasureNeighbour(
@@ -472,23 +745,57 @@ public sealed class MediaClassifier : IMediaClassifier
         if (difference is >= .003 and < .08) microVariation++;
     }
 
+    private static double Score(
+        IReadOnlyDictionary<MediaClassification, double> scores,
+        MediaClassification classification)
+        => scores.TryGetValue(classification, out var value) ? value : 0d;
+
     private static double Clamp01(double value) => Math.Clamp(value, 0d, 1d);
 
     private static MediaClassificationResult Empty(string signal, Stopwatch stopwatch)
     {
         stopwatch.Stop();
-        var metrics = new ClassificationMetrics(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        var metrics = new ClassificationMetrics(
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         var scores = ScoredCategories.ToDictionary(category => category, _ => 0d);
+        var safety = new ClassificationSafetyAssessment(
+            false, false, false, false, false,
+            0, 0, 0, 0, 0, 0,
+            false, false, false, null);
         return new MediaClassificationResult(
             MediaClassification.Unknown,
             0,
             scores,
+            scores,
+            scores,
             new[] { signal },
             metrics,
+            safety,
+            null,
             MediaClassification.Unknown,
             MediaClassificationDecisionStatus.NotApplicable,
             "NOT_APPLICABLE",
             ClassifierVersion,
             checked((int)Math.Min(int.MaxValue, stopwatch.ElapsedMilliseconds)));
     }
+
+    private sealed record FilenameEvidence(
+        bool Screenshot,
+        bool Document,
+        bool Diagram,
+        bool StrongDiagram,
+        bool Presentation,
+        bool Graphic)
+    {
+        public bool HasNonPhotoEvidence => Screenshot || Document || Diagram || Presentation || Graphic;
+    }
+
+    private sealed record StructuralProfile(
+        double ContinuousTone,
+        double WhiteCanvas,
+        double PageStructure,
+        double DesignedGraphic,
+        double DiagramStructure,
+        double NaturalPhoto);
 }

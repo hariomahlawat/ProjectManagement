@@ -1,167 +1,84 @@
-.media-intelligence-page{max-width:1600px;margin-inline:auto}.intel-tabs{display:flex;gap:.35rem;flex-wrap:wrap;border-bottom:1px solid var(--bs-border-color)}.intel-tabs a{padding:.65rem .9rem;text-decoration:none;color:var(--bs-secondary-color);border-bottom:2px solid transparent}.intel-tabs a:hover,.intel-tabs a.active{color:var(--bs-primary);border-bottom-color:var(--bs-primary)}.readiness-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:.75rem}.readiness-item{border:1px solid var(--bs-border-color);border-radius:.75rem;padding:.85rem;background:var(--bs-body-bg)}.readiness-item.is-ready{border-left:4px solid var(--bs-success)}.readiness-item.is-blocked{border-left:4px solid var(--bs-warning)}.metric-card{height:100%;padding:1rem;border:1px solid var(--bs-border-color);border-radius:.75rem;background:var(--bs-body-bg)}.metric-card span{display:block;color:var(--bs-secondary-color);font-size:.8rem}.metric-card strong{display:block;font-size:1.8rem;line-height:1.2;margin-top:.25rem}.classification-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:1rem}.classification-card{border:1px solid var(--bs-border-color);border-radius:.85rem;background:var(--bs-body-bg);overflow:hidden;box-shadow:0 .25rem .9rem rgba(15,23,42,.05)}.classification-card__header{display:flex;justify-content:space-between;gap:1rem;padding:1rem;border-bottom:1px solid var(--bs-border-color);background:var(--bs-tertiary-bg)}.classification-card__body{padding:1rem}@media(max-width:575.98px){.classification-grid{grid-template-columns:1fr}.readiness-grid{grid-template-columns:1fr}}
-
-/* Phase 8.1 classification-review hardening */
-.classification-grid--review {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+.media-intelligence-page {
+    max-width: 1600px;
+    margin-inline: auto;
 }
 
-.classification-card--review {
-    overflow: hidden;
-}
-
-.classification-card__preview {
-    position: relative;
-    display: block;
-    aspect-ratio: 16 / 10;
-    overflow: hidden;
-    background: var(--bs-tertiary-bg);
+.intel-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
     border-bottom: 1px solid var(--bs-border-color);
 }
 
-.classification-card__preview img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform .18s ease;
+.intel-tabs a {
+    padding: .65rem .9rem;
+    color: var(--bs-secondary-color);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
 }
 
-.classification-card__preview span {
-    position: absolute;
-    right: .75rem;
-    bottom: .75rem;
-    padding: .35rem .55rem;
-    border-radius: .45rem;
-    color: #fff;
-    background: rgba(12, 18, 30, .78);
-    font-size: .75rem;
-    opacity: 0;
-    transform: translateY(.2rem);
-    transition: opacity .18s ease, transform .18s ease;
+.intel-tabs a:hover,
+.intel-tabs a.active {
+    color: var(--bs-primary);
+    border-bottom-color: var(--bs-primary);
 }
 
-.classification-card__preview:hover img,
-.classification-card__preview:focus-visible img {
-    transform: scale(1.025);
+.readiness-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: .75rem;
 }
 
-.classification-card__preview:hover span,
-.classification-card__preview:focus-visible span {
-    opacity: 1;
-    transform: translateY(0);
+.readiness-item {
+    min-width: 0;
+    padding: .85rem;
+    overflow: hidden;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: .75rem;
 }
 
-.classification-card__header {
-    align-items: flex-start;
+.readiness-item.is-ready {
+    border-left: 4px solid var(--bs-success);
 }
 
-.classification-card__title {
+.readiness-item.is-blocked {
+    border-left: 4px solid var(--bs-warning);
+}
+
+.readiness-item strong {
     min-width: 0;
 }
 
-.classification-card__header .badge {
-    flex: 0 0 auto;
-    max-width: 8.5rem;
-    white-space: normal;
-    text-align: center;
+.readiness-item .badge {
+    flex: 0 1 auto;
+    max-width: 10rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.classification-eligibility {
-    display: flex;
-    gap: .5rem;
-    align-items: flex-start;
-    margin: .65rem 0 1rem;
-    padding: .65rem .75rem;
-    border-radius: .55rem;
+.metric-card {
+    height: 100%;
+    padding: 1rem;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: .75rem;
+}
+
+.metric-card span {
+    display: block;
     color: var(--bs-secondary-color);
-    background: var(--bs-tertiary-bg);
-    font-size: .82rem;
-    line-height: 1.35;
+    font-size: .8rem;
 }
 
-.classification-eligibility--eligible {
-    color: var(--bs-success-text-emphasis);
-    background: var(--bs-success-bg-subtle);
+.metric-card strong {
+    display: block;
+    margin-top: .25rem;
+    font-size: 1.8rem;
+    line-height: 1.2;
 }
 
-@media (max-width: 1199.98px) {
-    .classification-grid--review {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-}
-
-@media (max-width: 767.98px) {
-    .classification-grid--review {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .classification-card__preview img,
-    .classification-card__preview span {
-        transition: none;
-    }
-}
-
-
-/* Phase 8.2 classification operations */
-.classification-review-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
-}
-
-.classification-bulk-form {
-    display: grid;
-    grid-template-columns: auto minmax(10rem, 12rem) minmax(12rem, 18rem) auto;
-    align-items: center;
-    gap: .5rem;
-}
-
-.classification-card--review {
-    position: relative;
-}
-
-.classification-card__selector {
-    position: absolute;
-    z-index: 3;
-    top: .75rem;
-    left: .75rem;
-    display: inline-flex;
-    align-items: center;
-    gap: .4rem;
-    padding: .35rem .55rem;
-    border-radius: .5rem;
-    color: #fff;
-    background: rgba(12, 18, 30, .82);
-    font-size: .78rem;
-    cursor: pointer;
-    box-shadow: 0 .2rem .6rem rgba(0,0,0,.18);
-}
-
-.classification-card__selector .form-check-input {
-    margin: 0;
-}
-
-@media (max-width: 991.98px) {
-    .classification-bulk-form {
-        width: 100%;
-        grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto;
-    }
-}
-
-@media (max-width: 575.98px) {
-    .classification-bulk-form {
-        grid-template-columns: 1fr;
-    }
-
-    .classification-bulk-form .form-check {
-        margin-right: 0 !important;
-    }
-}
-
-/* Phase 8.4 — high-throughput classification review */
 .classification-filter-form {
     position: relative;
     z-index: 2;
@@ -169,13 +86,19 @@
 
 .classification-review-toolbar {
     position: sticky;
-    top: var(--app-header-height, 4.5rem);
+    top: var(--classification-sticky-top, 4.75rem);
     z-index: 20;
-    padding: .65rem .8rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .65rem 1rem;
+    min-height: 3.35rem;
+    padding: .55rem .8rem;
+    background: color-mix(in srgb, var(--bs-body-bg) 95%, transparent);
     border: 1px solid var(--bs-border-color);
     border-radius: .75rem;
-    background: color-mix(in srgb, var(--bs-body-bg) 94%, transparent);
-    box-shadow: 0 .35rem 1.2rem rgba(15, 23, 42, .08);
+    box-shadow: 0 .3rem 1rem rgba(15, 23, 42, .08);
     backdrop-filter: blur(12px);
 }
 
@@ -192,51 +115,148 @@
     font-size: .82rem;
 }
 
+.classification-bulk-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .45rem;
+    min-width: 0;
+}
+
+.classification-bulk-form .form-select {
+    width: 12rem;
+}
+
+.classification-bulk-form .form-control {
+    width: min(19rem, 30vw);
+}
+
+.classification-bulk-action {
+    display: none;
+}
+
+.classification-review-toolbar.has-selection .classification-bulk-action {
+    display: inline-flex;
+}
+
+.classification-review-toolbar.has-selection .form-select.classification-bulk-action,
+.classification-review-toolbar.has-selection .form-control.classification-bulk-action {
+    display: block;
+}
+
+.classification-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 1rem;
+}
+
 .classification-grid--review {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: .85rem;
 }
 
+.classification-card {
+    overflow: hidden;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: .85rem;
+    box-shadow: 0 .25rem .9rem rgba(15, 23, 42, .05);
+}
+
 .classification-card--review {
+    position: relative;
     display: grid;
     grid-template-columns: minmax(150px, 34%) minmax(0, 1fr);
-    min-height: 280px;
+    min-height: 300px;
     overflow: visible;
 }
 
+.classification-card__selector {
+    position: absolute;
+    z-index: 3;
+    top: .55rem;
+    left: .55rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    color: #fff;
+    cursor: pointer;
+    background: rgba(12, 18, 30, .82);
+    border-radius: .55rem;
+    box-shadow: 0 .2rem .6rem rgba(0, 0, 0, .18);
+}
+
+.classification-card__selector .form-check-input {
+    width: 1.05rem;
+    height: 1.05rem;
+    margin: 0;
+}
+
 .classification-card__preview {
+    position: relative;
+    display: block;
     min-height: 100%;
-    aspect-ratio: auto;
-    border-right: 1px solid var(--bs-border-color);
-    border-bottom: 0;
+    overflow: hidden;
     background:
         linear-gradient(45deg, rgba(148, 163, 184, .08) 25%, transparent 25%),
         linear-gradient(-45deg, rgba(148, 163, 184, .08) 25%, transparent 25%),
         linear-gradient(45deg, transparent 75%, rgba(148, 163, 184, .08) 75%),
         linear-gradient(-45deg, transparent 75%, rgba(148, 163, 184, .08) 75%),
         var(--bs-tertiary-bg);
-    background-size: 20px 20px;
     background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+    background-size: 20px 20px;
+    border-right: 1px solid var(--bs-border-color);
 }
 
 .classification-card__preview img {
-    object-fit: contain;
+    width: 100%;
+    height: 100%;
     padding: .45rem;
+    object-fit: contain;
 }
 
-.classification-card__preview:hover img,
-.classification-card__preview:focus-visible img {
-    transform: none;
+.classification-card__preview > span {
+    position: absolute;
+    right: .65rem;
+    bottom: .65rem;
+    padding: .3rem .5rem;
+    color: #fff;
+    font-size: .72rem;
+    background: rgba(12, 18, 30, .78);
+    border-radius: .4rem;
+    opacity: 0;
+    transform: translateY(.2rem);
+    transition: opacity .18s ease, transform .18s ease;
+}
+
+.classification-card__preview:hover > span,
+.classification-card__preview:focus-visible > span {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 .classification-card__content {
-    min-width: 0;
     display: flex;
     flex-direction: column;
+    min-width: 0;
 }
 
 .classification-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
     padding: .8rem .85rem .7rem;
+    background: var(--bs-tertiary-bg);
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.classification-card__title {
+    min-width: 0;
 }
 
 .classification-card__title strong {
@@ -244,6 +264,13 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.classification-card__header .badge {
+    flex: 0 0 auto;
+    max-width: 9rem;
+    text-align: center;
+    white-space: normal;
 }
 
 .classification-card__body {
@@ -262,9 +289,9 @@
 .classification-evidence > div {
     min-width: 0;
     padding: .5rem .55rem;
+    background: var(--bs-tertiary-bg);
     border: 1px solid var(--bs-border-color);
     border-radius: .55rem;
-    background: var(--bs-tertiary-bg);
 }
 
 .classification-evidence span,
@@ -277,8 +304,8 @@
 
 .classification-evidence strong {
     display: block;
-    overflow: hidden;
     margin: .08rem 0;
+    overflow: hidden;
     font-size: .84rem;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -296,9 +323,50 @@
     color: var(--bs-secondary-color);
 }
 
+.classification-assistance {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: .35rem;
+    padding: .28rem .5rem;
+    font-size: .72rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 999px;
+}
+
+.classification-assistance--used {
+    color: var(--bs-success-text-emphasis);
+    background: var(--bs-success-bg-subtle);
+    border-color: color-mix(in srgb, var(--bs-success) 35%, var(--bs-border-color));
+}
+
+.classification-assistance--blocked {
+    color: var(--bs-warning-text-emphasis);
+    background: var(--bs-warning-bg-subtle);
+    border-color: color-mix(in srgb, var(--bs-warning) 40%, var(--bs-border-color));
+}
+
+.classification-assistance--neutral {
+    color: var(--bs-secondary-color);
+    background: var(--bs-tertiary-bg);
+}
+
 .classification-eligibility {
+    display: flex;
+    align-items: flex-start;
+    gap: .5rem;
     margin: 0;
     padding: .55rem .65rem;
+    color: var(--bs-secondary-color);
+    font-size: .82rem;
+    line-height: 1.35;
+    background: var(--bs-tertiary-bg);
+    border-radius: .55rem;
+}
+
+.classification-eligibility--eligible {
+    color: var(--bs-success-text-emphasis);
+    background: var(--bs-success-bg-subtle);
 }
 
 .classification-eligibility > div {
@@ -321,13 +389,34 @@
 }
 
 .classification-signals summary {
-    cursor: pointer;
     color: var(--bs-secondary-color);
+    cursor: pointer;
 }
 
 .classification-signals ul {
     margin: .45rem 0 0;
     padding-left: 1.1rem;
+}
+
+.classification-safety-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .3rem .55rem;
+    margin-top: .5rem;
+    padding: .5rem;
+    color: var(--bs-secondary-color);
+    background: var(--bs-tertiary-bg);
+    border-radius: .45rem;
+}
+
+.classification-safety-grid span {
+    display: flex;
+    justify-content: space-between;
+    gap: .5rem;
+}
+
+.classification-safety-grid strong {
+    color: var(--bs-body-color);
 }
 
 .classification-manual-form {
@@ -337,19 +426,48 @@
     margin-top: auto;
 }
 
-.classification-card__selector {
-    top: .55rem;
-    left: .55rem;
-    width: 2rem;
-    height: 2rem;
-    justify-content: center;
-    padding: 0;
-    border-radius: .55rem;
+.classification-admission-panel {
+    display: grid;
+    gap: .55rem;
+    padding: .7rem;
+    background: var(--bs-warning-bg-subtle);
+    border: 1px solid color-mix(in srgb, var(--bs-warning) 45%, var(--bs-border-color));
+    border-radius: .65rem;
 }
 
-.classification-card__selector .form-check-input {
-    width: 1.05rem;
-    height: 1.05rem;
+.classification-admission-panel--approved {
+    background: var(--bs-success-bg-subtle);
+    border-color: color-mix(in srgb, var(--bs-success) 40%, var(--bs-border-color));
+}
+
+.classification-admission-panel__heading {
+    display: flex;
+    align-items: flex-start;
+    gap: .5rem;
+}
+
+.classification-admission-panel__heading > div {
+    display: grid;
+    gap: .08rem;
+}
+
+.classification-admission-panel__heading strong {
+    font-size: .8rem;
+}
+
+.classification-admission-panel__heading span {
+    color: var(--bs-secondary-color);
+    font-size: .75rem;
+}
+
+.classification-admission-panel .form-check {
+    margin: 0;
+}
+
+.classification-revoke-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .4rem;
 }
 
 .classification-empty > i {
@@ -360,6 +478,19 @@
 @media (max-width: 1199.98px) {
     .classification-grid--review {
         grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .classification-bulk-form {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .classification-review-toolbar.has-selection .classification-bulk-form .form-control,
+    .classification-review-toolbar.has-selection .classification-bulk-form .form-select {
+        flex: 1 1 12rem;
+        width: auto;
     }
 }
 
@@ -385,11 +516,42 @@
 }
 
 @media (max-width: 575.98px) {
-    .classification-evidence {
+    .readiness-grid,
+    .classification-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .classification-review-toolbar,
+    .classification-bulk-form {
+        align-items: stretch;
+    }
+
+    .classification-bulk-form {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .classification-review-toolbar.has-selection .classification-bulk-form .form-control,
+    .classification-review-toolbar.has-selection .classification-bulk-form .form-select {
+        width: 100%;
+    }
+
+    .classification-evidence,
+    .classification-safety-grid {
         grid-template-columns: 1fr 1fr;
     }
 
     .classification-evidence > div:last-child {
         grid-column: 1 / -1;
+    }
+
+    .classification-revoke-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .classification-card__preview > span {
+        transition: none;
     }
 }

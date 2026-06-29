@@ -15,8 +15,9 @@ public interface IFaceEligibilityPolicy
 
 /// <summary>
 /// Single source of truth for deciding whether an asset may enter face processing.
-/// Automatic classification must be complete, current and sufficiently confident;
-/// a human classification remains authoritative.
+/// Automatic classification must be complete, current, safety-gated and sufficiently
+/// confident. A manual Photograph classification is deliberately insufficient by itself:
+/// it requires an explicit, separately audited biometric-admission approval.
 /// </summary>
 public sealed class FaceEligibilityPolicy : IFaceEligibilityPolicy
 {
@@ -35,10 +36,19 @@ public sealed class FaceEligibilityPolicy : IFaceEligibilityPolicy
             return new(false, "not-photo", "Only still images can be processed for faces.");
         if (!_options.People.ProcessPhotographsOnly)
             return new(true, "eligible", "Still-image processing is enabled without photograph-only filtering.");
+
         if (asset.ClassificationIsManual)
-            return asset.Classification == MediaClassification.Photograph
-                ? new(true, "manual-photograph", "A reviewer classified this asset as a photograph.")
-                : new(false, "manual-exclusion", "A reviewer classified this asset as non-photographic.");
+        {
+            if (asset.Classification != MediaClassification.Photograph)
+            {
+                return new(false, "manual-exclusion", "A reviewer classified this asset as non-photographic.");
+            }
+
+            return asset.ClassificationDecisionStatus == MediaClassificationDecisionStatus.ManualFaceProcessingApproved
+                ? new(true, "manual-face-admission", "A reviewer separately approved this natural photograph for face processing.")
+                : new(false, "manual-face-admission-pending", "The image is classified as a photograph, but explicit face-processing approval is still required.");
+        }
+
         if (asset.AnalysisStatus != MediaProcessingStatus.Ready)
             return new(false, "classification-pending", "Automatic classification has not completed successfully.");
         if (!string.Equals(asset.ClassifierVersion, MediaClassifier.ClassifierVersion, StringComparison.Ordinal))
@@ -46,13 +56,15 @@ public sealed class FaceEligibilityPolicy : IFaceEligibilityPolicy
         if (asset.Classification != MediaClassification.Photograph)
             return new(false, "not-photograph", "Automatic classification did not identify a photograph.");
         if (asset.ClassificationDecisionStatus != MediaClassificationDecisionStatus.AutomaticallyAccepted)
-            return new(false, "not-auto-accepted", "Automatic classification was not accepted by the decision policy.");
+            return new(false, "not-auto-accepted", "Automatic classification did not pass the photograph-safety admission policy.");
+        if (!string.Equals(asset.ClassificationDecisionReasonCode, "AUTO_ACCEPTED_HIGH_CONFIDENCE", StringComparison.Ordinal))
+            return new(false, "admission-reason-invalid", "The automatic photograph decision does not carry the required safety-policy outcome.");
         if (asset.PredictedClassification != MediaClassification.Photograph)
             return new(false, "prediction-mismatch", "The automatic prediction was not a photograph.");
         if (asset.PredictedClassificationScore < Convert.ToDecimal(_options.People.MinimumClassificationConfidence))
-            return new(false, "confidence-low", $"Classification confidence is below the configured {_options.People.MinimumClassificationConfidence:P0} threshold.");
+            return new(false, "confidence-low", $"Classification evidence is below the configured {_options.People.MinimumClassificationConfidence:P0} threshold.");
 
-        return new(true, "eligible", "Current automatic classification identifies a sufficiently confident photograph.");
+        return new(true, "eligible", "Current automatic classification passed the natural-photograph safety gate.");
     }
 
     public Expression<Func<MediaAsset, bool>> BuildEligiblePredicate()
@@ -68,10 +80,12 @@ public sealed class FaceEligibilityPolicy : IFaceEligibilityPolicy
                         && (!photographsOnly
                             || (asset.ClassificationIsManual
                                 ? asset.Classification == MediaClassification.Photograph
+                                  && asset.ClassificationDecisionStatus == MediaClassificationDecisionStatus.ManualFaceProcessingApproved
                                 : asset.AnalysisStatus == MediaProcessingStatus.Ready
                                   && asset.ClassifierVersion == version
                                   && asset.Classification == MediaClassification.Photograph
                                   && asset.ClassificationDecisionStatus == MediaClassificationDecisionStatus.AutomaticallyAccepted
+                                  && asset.ClassificationDecisionReasonCode == "AUTO_ACCEPTED_HIGH_CONFIDENCE"
                                   && asset.PredictedClassification == MediaClassification.Photograph
                                   && asset.PredictedClassificationScore >= Convert.ToDecimal(threshold)));
     }

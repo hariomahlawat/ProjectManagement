@@ -153,7 +153,7 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
                         asset.AnalysisSignalsJson = signalsJson;
                         asset.AutomaticClassificationSignalsJson = signalsJson;
                         asset.AutomaticClassificationScoresJson = JsonSerializer.Serialize(result.CategoryScores);
-                        asset.AutomaticClassificationMetricsJson = JsonSerializer.Serialize(result.Metrics);
+                        asset.AutomaticClassificationMetricsJson = JsonSerializer.Serialize(result.Telemetry);
                         asset.AnalysedAtUtc = now;
                         asset.ClassifiedAtUtc = now;
                         asset.ClassificationConcurrencyToken = Guid.NewGuid();

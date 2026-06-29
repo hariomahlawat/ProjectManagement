@@ -19,8 +19,7 @@ public sealed class MediaClassificationDecisionPolicyTests
         var result = policy.Decide(
             MediaClassification.Screenshot,
             .70,
-            scores,
-            Array.Empty<string>());
+            Context(scores));
 
         Assert.Equal(MediaClassificationDecisionStatus.NeedsReview, result.Status);
         Assert.Equal(MediaClassification.Unknown, result.EffectiveClassification);
@@ -38,15 +37,14 @@ public sealed class MediaClassificationDecisionPolicyTests
         var result = policy.Decide(
             MediaClassification.Photograph,
             .86,
-            scores,
-            Array.Empty<string>());
+            Context(scores));
 
         Assert.Equal(MediaClassificationDecisionStatus.NeedsReview, result.Status);
         Assert.Equal("BELOW_CATEGORY_THRESHOLD", result.ReasonCode);
     }
 
     [Fact]
-    public void Decide_BlocksPhotographWhenNonPhotoProbabilityRemainsMaterial()
+    public void Decide_BlocksPhotographWhenFinalNonPhotoProbabilityRemainsMaterial()
     {
         var policy = CreatePolicy();
         var scores = Scores(
@@ -57,15 +55,78 @@ public sealed class MediaClassificationDecisionPolicyTests
         var result = policy.Decide(
             MediaClassification.Photograph,
             .89,
-            scores,
-            Array.Empty<string>());
+            Context(scores));
 
         Assert.Equal(MediaClassificationDecisionStatus.NeedsReview, result.Status);
         Assert.Equal("CONFLICTING_NON_PHOTO_EVIDENCE", result.ReasonCode);
     }
 
     [Fact]
-    public void Decide_AcceptsClearHighConfidencePrediction()
+    public void Decide_BlocksPhotographBeforeThresholdWhenDocumentStructureVetoIsActive()
+    {
+        var policy = CreatePolicy();
+        var scores = Scores(
+            (MediaClassification.Photograph, .99),
+            (MediaClassification.ScannedDocument, .005));
+        var safety = SafePhotographSafety() with
+        {
+            DocumentStructureVeto = true,
+            DocumentStructureScore = .74,
+            FaceEvidenceDetected = true,
+            FaceEvidenceUsed = false
+        };
+
+        var result = policy.Decide(
+            MediaClassification.Photograph,
+            .99,
+            Context(scores, safety));
+
+        Assert.Equal(MediaClassificationDecisionStatus.NeedsReview, result.Status);
+        Assert.Equal(MediaClassification.Unknown, result.EffectiveClassification);
+        Assert.Equal("DOCUMENT_STRUCTURE_VETO", result.ReasonCode);
+    }
+
+    [Fact]
+    public void Decide_BlocksPhotographWhenPreFaceNonPhotoEvidenceConflicts()
+    {
+        var policy = CreatePolicy();
+        var scores = Scores((MediaClassification.Photograph, .94));
+        var safety = SafePhotographSafety() with
+        {
+            StrongestBaseNonPhotoScore = .42
+        };
+
+        var result = policy.Decide(
+            MediaClassification.Photograph,
+            .94,
+            Context(scores, safety));
+
+        Assert.Equal(MediaClassificationDecisionStatus.NeedsReview, result.Status);
+        Assert.Equal("CONFLICTING_BASE_NON_PHOTO_EVIDENCE", result.ReasonCode);
+    }
+
+    [Fact]
+    public void Decide_BlocksFaceLikeStructureThatFailedNaturalPhotoGate()
+    {
+        var policy = CreatePolicy();
+        var scores = Scores((MediaClassification.Photograph, .96));
+        var safety = SafePhotographSafety() with
+        {
+            FaceEvidenceDetected = true,
+            FaceEvidenceUsed = false
+        };
+
+        var result = policy.Decide(
+            MediaClassification.Photograph,
+            .96,
+            Context(scores, safety));
+
+        Assert.Equal(MediaClassificationDecisionStatus.NeedsReview, result.Status);
+        Assert.Equal("FACE_EVIDENCE_NOT_NATURAL_PHOTO", result.ReasonCode);
+    }
+
+    [Fact]
+    public void Decide_AcceptsClearHighConfidenceNonPhotoPrediction()
     {
         var policy = CreatePolicy();
         var scores = Scores(
@@ -75,8 +136,7 @@ public sealed class MediaClassificationDecisionPolicyTests
         var result = policy.Decide(
             MediaClassification.Diagram,
             .91,
-            scores,
-            Array.Empty<string>());
+            Context(scores));
 
         Assert.Equal(MediaClassificationDecisionStatus.AutomaticallyAccepted, result.Status);
         Assert.Equal(MediaClassification.Diagram, result.EffectiveClassification);
@@ -99,8 +159,7 @@ public sealed class MediaClassificationDecisionPolicyTests
         var result = policy.Decide(
             MediaClassification.Diagram,
             .99,
-            scores,
-            Array.Empty<string>());
+            Context(scores));
 
         Assert.Equal(MediaClassificationDecisionStatus.NeedsReview, result.Status);
         Assert.Equal("CATEGORY_DISABLED", result.ReasonCode);
@@ -108,6 +167,34 @@ public sealed class MediaClassificationDecisionPolicyTests
 
     private static MediaClassificationDecisionPolicy CreatePolicy()
         => new(Options.Create(new MediaLibraryOptions()));
+
+    private static MediaClassificationDecisionContext Context(
+        IReadOnlyDictionary<MediaClassification, double> finalScores,
+        ClassificationSafetyAssessment? safety = null)
+        => new(
+            finalScores,
+            finalScores,
+            finalScores,
+            safety ?? SafePhotographSafety(),
+            Array.Empty<string>());
+
+    private static ClassificationSafetyAssessment SafePhotographSafety()
+        => new(
+            NaturalPhotoBaselineSatisfied: true,
+            DocumentStructureVeto: false,
+            GraphicStructureVeto: false,
+            DiagramStructureVeto: false,
+            ExplicitNonPhotoFilenameVeto: false,
+            NaturalPhotoScore: .82,
+            DocumentStructureScore: .04,
+            GraphicStructureScore: .05,
+            DiagramStructureScore: .03,
+            BasePhotographScore: .92,
+            StrongestBaseNonPhotoScore: .05,
+            FaceProbeAttempted: false,
+            FaceEvidenceDetected: false,
+            FaceEvidenceUsed: false,
+            FaceEvidenceDecisionCode: null);
 
     private static IReadOnlyDictionary<MediaClassification, double> Scores(
         params (MediaClassification Classification, double Score)[] values)

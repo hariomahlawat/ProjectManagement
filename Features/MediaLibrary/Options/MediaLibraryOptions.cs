@@ -108,12 +108,37 @@ public sealed class MediaClassificationOptions
     public double MinimumScoreMargin { get; set; } = 0.10;
     /// <summary>Photographs require a wider margin because they can enter face processing.</summary>
     public double PhotographMinimumScoreMargin { get; set; } = 0.14;
-    /// <summary>Non-photograph evidence at or above this score blocks automatic photograph acceptance.</summary>
+    /// <summary>Final non-photograph probability at or above this score blocks automatic photograph acceptance.</summary>
     public double StrongConflictScore { get; set; } = 0.10;
+
+    /// <summary>Minimum pre-face Photograph score before detector-only assistance may be considered.</summary>
+    public double FaceProbeBasePhotographMinimumScore { get; set; } = 0.18;
+
+    /// <summary>Minimum deterministic natural-photo structure score required for automatic Photograph admission.</summary>
+    public double NaturalPhotoBaselineMinimumScore { get; set; } = 0.34;
+
+    /// <summary>Pre-face non-photograph score at or above this value is a material conflict.</summary>
+    public double BaseNonPhotoConflictScore { get; set; } = 0.35;
+
+    /// <summary>Page/text structure at or above this value vetoes automatic Photograph admission.</summary>
+    public double DocumentStructureVetoThreshold { get; set; } = 0.32;
+
+    /// <summary>Designed-flat/illustration structure at or above this value vetoes automatic Photograph admission.</summary>
+    public double GraphicStructureVetoThreshold { get; set; } = 0.55;
+
+    /// <summary>Diagram-like line/page structure at or above this value vetoes automatic Photograph admission.</summary>
+    public double DiagramStructureVetoThreshold { get; set; } = 0.50;
+
     public bool FacePresenceAssistanceEnabled { get; set; } = true;
     public double FacePresenceMinimumConfidence { get; set; } = 0.82;
     public int FacePresenceMinimumPixels { get; set; } = 48;
     public double FacePresenceMinimumAreaRatio { get; set; } = 0.01;
+
+    /// <summary>Maximum raw-evidence contribution from a verified face. Deliberately bounded.</summary>
+    public double FacePresenceEvidenceBoost { get; set; } = 1.65;
+
+    /// <summary>Maximum raw Unknown-evidence reduction when verified face assistance is accepted.</summary>
+    public double FacePresenceUnknownReduction { get; set; } = 0.30;
 }
 
 /// <summary>

@@ -46,7 +46,8 @@ public enum MediaClassificationDecisionStatus
     ManuallyConfirmed = 3,
     ManuallyCorrected = 4,
     ProcessingFailed = 5,
-    NotApplicable = 6
+    NotApplicable = 6,
+    ManualFaceProcessingApproved = 7
 }
 
 public enum MediaAvailabilityStatus

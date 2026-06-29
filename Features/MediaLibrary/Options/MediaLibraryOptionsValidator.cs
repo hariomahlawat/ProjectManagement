@@ -201,10 +201,18 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
         if (Invalid(classification.PhotographMinimumScoreMargin)) failures.Add("MediaLibrary:Classification:PhotographMinimumScoreMargin must be between 0 and 1.");
         if (classification.PhotographMinimumScoreMargin < classification.MinimumScoreMargin) failures.Add("MediaLibrary:Classification:PhotographMinimumScoreMargin cannot be below MinimumScoreMargin.");
         if (Invalid(classification.StrongConflictScore)) failures.Add("MediaLibrary:Classification:StrongConflictScore must be between 0 and 1.");
+        if (Invalid(classification.FaceProbeBasePhotographMinimumScore)) failures.Add("MediaLibrary:Classification:FaceProbeBasePhotographMinimumScore must be between 0 and 1.");
+        if (Invalid(classification.NaturalPhotoBaselineMinimumScore)) failures.Add("MediaLibrary:Classification:NaturalPhotoBaselineMinimumScore must be between 0 and 1.");
+        if (Invalid(classification.BaseNonPhotoConflictScore)) failures.Add("MediaLibrary:Classification:BaseNonPhotoConflictScore must be between 0 and 1.");
+        if (Invalid(classification.DocumentStructureVetoThreshold)) failures.Add("MediaLibrary:Classification:DocumentStructureVetoThreshold must be between 0 and 1.");
+        if (Invalid(classification.GraphicStructureVetoThreshold)) failures.Add("MediaLibrary:Classification:GraphicStructureVetoThreshold must be between 0 and 1.");
+        if (Invalid(classification.DiagramStructureVetoThreshold)) failures.Add("MediaLibrary:Classification:DiagramStructureVetoThreshold must be between 0 and 1.");
         if (Invalid(classification.ScreenshotThreshold) || Invalid(classification.DocumentThreshold) || Invalid(classification.DiagramThreshold) || Invalid(classification.PresentationThreshold) || Invalid(classification.GraphicThreshold)) failures.Add("All media classification thresholds must be between 0 and 1.");
         if (Invalid(classification.FacePresenceMinimumConfidence)) failures.Add("MediaLibrary:Classification:FacePresenceMinimumConfidence must be between 0 and 1.");
         if (classification.FacePresenceMinimumPixels is < 24 or > 2048) failures.Add("MediaLibrary:Classification:FacePresenceMinimumPixels must be between 24 and 2048.");
         if (classification.FacePresenceMinimumAreaRatio is < 0 or > 1) failures.Add("MediaLibrary:Classification:FacePresenceMinimumAreaRatio must be between 0 and 1.");
+        if (classification.FacePresenceEvidenceBoost is < 0 or > 3 || double.IsNaN(classification.FacePresenceEvidenceBoost) || double.IsInfinity(classification.FacePresenceEvidenceBoost)) failures.Add("MediaLibrary:Classification:FacePresenceEvidenceBoost must be between 0 and 3.");
+        if (classification.FacePresenceUnknownReduction is < 0 or > 1 || double.IsNaN(classification.FacePresenceUnknownReduction) || double.IsInfinity(classification.FacePresenceUnknownReduction)) failures.Add("MediaLibrary:Classification:FacePresenceUnknownReduction must be between 0 and 1.");
     }
 
     private static void ValidatePeopleOptions(MediaPeopleOptions people, ICollection<string> failures)

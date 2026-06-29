@@ -5,9 +5,9 @@ using ProjectManagement.Features.MediaLibrary.Options;
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
 /// <summary>
-/// Converts model/evidence scores into a deliberately conservative automatic decision.
-/// A category must clear its threshold and be sufficiently separated from the runner-up.
-/// Photograph acceptance is stricter because it is the admission gate for face processing.
+/// Converts normalized classifier scores into a deliberately conservative automatic decision.
+/// Photograph acceptance additionally requires a clean pre-face safety assessment because it
+/// is the admission boundary for biometric processing.
 /// </summary>
 public sealed class MediaClassificationDecisionPolicy : IMediaClassificationDecisionPolicy
 {
@@ -20,11 +20,14 @@ public sealed class MediaClassificationDecisionPolicy : IMediaClassificationDeci
     public MediaClassificationDecision Decide(
         MediaClassification predictedClassification,
         double predictedScore,
-        IReadOnlyDictionary<MediaClassification, double> categoryScores,
-        IReadOnlyList<string> signals)
+        MediaClassificationDecisionContext context)
     {
-        ArgumentNullException.ThrowIfNull(categoryScores);
-        ArgumentNullException.ThrowIfNull(signals);
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(context.FinalCategoryScores);
+        ArgumentNullException.ThrowIfNull(context.BaseCategoryScores);
+        ArgumentNullException.ThrowIfNull(context.RawEvidence);
+        ArgumentNullException.ThrowIfNull(context.Safety);
+        ArgumentNullException.ThrowIfNull(context.Signals);
 
         if (predictedClassification == MediaClassification.Unknown)
         {
@@ -36,7 +39,16 @@ public sealed class MediaClassificationDecisionPolicy : IMediaClassificationDeci
             return NeedsReview("CATEGORY_DISABLED");
         }
 
-        var ordered = categoryScores
+        if (predictedClassification == MediaClassification.Photograph)
+        {
+            var safetyDecision = EvaluatePhotographSafety(context.Safety);
+            if (safetyDecision is not null)
+            {
+                return safetyDecision;
+            }
+        }
+
+        var ordered = context.FinalCategoryScores
             .Where(pair => pair.Key != MediaClassification.Unknown && IsCategoryEnabled(pair.Key))
             .OrderByDescending(pair => pair.Value)
             .ToArray();
@@ -63,12 +75,12 @@ public sealed class MediaClassificationDecisionPolicy : IMediaClassificationDeci
 
         if (predictedClassification == MediaClassification.Photograph)
         {
-            var strongestNonPhoto = categoryScores
+            var strongestFinalNonPhoto = context.FinalCategoryScores
                 .Where(pair => pair.Key is not MediaClassification.Unknown and not MediaClassification.Photograph)
                 .Select(pair => pair.Value)
                 .DefaultIfEmpty(0d)
                 .Max();
-            if (strongestNonPhoto >= _options.StrongConflictScore)
+            if (strongestFinalNonPhoto >= _options.StrongConflictScore)
             {
                 return NeedsReview("CONFLICTING_NON_PHOTO_EVIDENCE");
             }
@@ -80,7 +92,48 @@ public sealed class MediaClassificationDecisionPolicy : IMediaClassificationDeci
             "AUTO_ACCEPTED_HIGH_CONFIDENCE");
     }
 
-    private MediaClassificationDecision NeedsReview(string reasonCode)
+    private MediaClassificationDecision? EvaluatePhotographSafety(
+        ClassificationSafetyAssessment safety)
+    {
+        if (safety.ExplicitNonPhotoFilenameVeto)
+        {
+            return NeedsReview("EXPLICIT_NON_PHOTO_FILENAME_VETO");
+        }
+
+        if (safety.DocumentStructureVeto)
+        {
+            return NeedsReview("DOCUMENT_STRUCTURE_VETO");
+        }
+
+        if (safety.DiagramStructureVeto)
+        {
+            return NeedsReview("DIAGRAM_STRUCTURE_VETO");
+        }
+
+        if (safety.GraphicStructureVeto)
+        {
+            return NeedsReview("GRAPHIC_STRUCTURE_VETO");
+        }
+
+        if (!safety.NaturalPhotoBaselineSatisfied)
+        {
+            return NeedsReview("PHOTO_BASELINE_INSUFFICIENT");
+        }
+
+        if (safety.StrongestBaseNonPhotoScore >= _options.BaseNonPhotoConflictScore)
+        {
+            return NeedsReview("CONFLICTING_BASE_NON_PHOTO_EVIDENCE");
+        }
+
+        if (safety.FaceEvidenceDetected && !safety.FaceEvidenceUsed)
+        {
+            return NeedsReview("FACE_EVIDENCE_NOT_NATURAL_PHOTO");
+        }
+
+        return null;
+    }
+
+    private static MediaClassificationDecision NeedsReview(string reasonCode)
         => new(MediaClassification.Unknown, MediaClassificationDecisionStatus.NeedsReview, reasonCode);
 
     private bool IsCategoryEnabled(MediaClassification category)

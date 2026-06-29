@@ -56,7 +56,7 @@
                     <div class="readiness-item @(check.IsSatisfied ? "is-ready" : "is-blocked")">
                         <div class="d-flex justify-content-between gap-2">
                             <strong>@check.Label</strong>
-                            <span class="badge @(check.IsSatisfied ? "text-bg-success" : "text-bg-secondary")">@check.Status</span>
+                            <span class="badge @(check.IsSatisfied ? "text-bg-success" : "text-bg-secondary")" title="@check.Status">@check.Status</span>
                         </div>
                         @if (!check.IsSatisfied && !string.IsNullOrWhiteSpace(check.Action))
                         {
@@ -73,7 +73,7 @@
                     <div class="readiness-item @(check.IsSatisfied ? "is-ready" : "is-blocked")">
                         <div class="d-flex justify-content-between gap-2">
                             <strong>@check.Label</strong>
-                            <span class="badge @(check.IsSatisfied ? "text-bg-success" : "text-bg-secondary")">@check.Status</span>
+                            <span class="badge @(check.IsSatisfied ? "text-bg-success" : "text-bg-secondary")" title="@check.Status">@check.Status</span>
                         </div>
                         @if (!check.IsSatisfied && !string.IsNullOrWhiteSpace(check.Action))
                         {
@@ -91,11 +91,31 @@
         <div class="col-6 col-xl"><div class="metric-card"><span>Unknown / needs review</span><strong>@Model.NeedsReview</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Confirmed non-photos</span><strong>@Model.ConfirmedNonPhotographs</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Low-confidence decisions</span><strong>@Model.LowConfidence</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Face admission pending</span><strong>@Model.FaceAdmissionPending</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Pending analysis</span><strong>@Model.PendingClassification</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Analysis failures</span><strong>@Model.FailedClassification</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Faces detected</span><strong>@Model.Faces</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Embeddings</span><strong>@Model.Embedded</strong></div></div>
     </div>
+
+    <section class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                <div>
+                    <h2 class="h5 mb-1">Classification safety telemetry</h2>
+                    <p class="text-muted mb-0">Current v7 decisions, safety-gate referrals and detector-only face-assistance outcomes.</p>
+                </div>
+                <a class="btn btn-outline-primary btn-sm" asp-page="/Admin/MediaIntelligence/Classifications" asp-route-mode="risk">Review safety conflicts</a>
+            </div>
+            <div class="row g-3">
+                <div class="col-6 col-lg"><div class="metric-card"><span>Current classifier</span><strong>@Model.CurrentClassifierAssets</strong></div></div>
+                <div class="col-6 col-lg"><div class="metric-card"><span>Safety-gate referrals</span><strong>@Model.SafetyGateReferrals</strong></div></div>
+                <div class="col-6 col-lg"><div class="metric-card"><span>Face evidence used</span><strong>@Model.FaceEvidenceUsed</strong></div></div>
+                <div class="col-6 col-lg"><div class="metric-card"><span>Face-like evidence blocked</span><strong>@Model.FaceEvidenceBlocked</strong></div></div>
+                <div class="col-6 col-lg"><div class="metric-card"><span>Manual corrections</span><strong>@Model.ManualCorrections</strong></div></div>
+            </div>
+        </div>
+    </section>
 
     <div class="row g-4">
         <div class="col-xl-7">

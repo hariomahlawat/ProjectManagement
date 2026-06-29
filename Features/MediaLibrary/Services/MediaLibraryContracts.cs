@@ -15,6 +15,10 @@ public sealed record MediaFileMetadata(
     string? CameraMake,
     string? CameraModel);
 
+/// <summary>
+/// Deterministic image-structure measurements used by the offline classifier.
+/// Values are normalized to the 0..1 range unless otherwise stated.
+/// </summary>
 public sealed record ClassificationMetrics(
     double Entropy,
     double EdgeDensity,
@@ -26,7 +30,17 @@ public sealed record ClassificationMetrics(
     double LuminanceVariance,
     double AspectRatio,
     int Width,
-    int Height);
+    int Height,
+    double InkCoverage,
+    double BorderLightRatio,
+    double TextRowRatio,
+    double DenseTextRowRatio,
+    double TextColumnRatio,
+    double HorizontalTransitionDensity,
+    double VerticalTransitionDensity,
+    double MeanSaturation,
+    double SaturationVariance,
+    double DominantPaletteRatio);
 
 public sealed record FacePresenceResult(
     bool Succeeded,
@@ -39,23 +53,82 @@ public sealed record FacePresenceResult(
     bool ValidFivePointLandmarks,
     string? FailureReason = null);
 
+/// <summary>
+/// Safety assessment calculated before detector-only face evidence is allowed to influence
+/// the result. Face presence may support a natural-photograph hypothesis, but it can never
+/// create one or override document, diagram or graphic structure.
+/// </summary>
+public sealed record ClassificationSafetyAssessment(
+    bool NaturalPhotoBaselineSatisfied,
+    bool DocumentStructureVeto,
+    bool GraphicStructureVeto,
+    bool DiagramStructureVeto,
+    bool ExplicitNonPhotoFilenameVeto,
+    double NaturalPhotoScore,
+    double DocumentStructureScore,
+    double GraphicStructureScore,
+    double DiagramStructureScore,
+    double BasePhotographScore,
+    double StrongestBaseNonPhotoScore,
+    bool FaceProbeAttempted,
+    bool FaceEvidenceDetected,
+    bool FaceEvidenceUsed,
+    string? FaceEvidenceDecisionCode)
+{
+    public bool HasStructuralVeto => DocumentStructureVeto
+                                     || GraphicStructureVeto
+                                     || DiagramStructureVeto
+                                     || ExplicitNonPhotoFilenameVeto;
+}
+
+public sealed record MediaClassificationDecisionContext(
+    IReadOnlyDictionary<MediaClassification, double> FinalCategoryScores,
+    IReadOnlyDictionary<MediaClassification, double> BaseCategoryScores,
+    IReadOnlyDictionary<MediaClassification, double> RawEvidence,
+    ClassificationSafetyAssessment Safety,
+    IReadOnlyList<string> Signals);
+
+/// <summary>
+/// Versioned decision snapshot persisted as JSON for operational diagnostics and regression
+/// analysis. It deliberately contains no biometric template or identity information.
+/// </summary>
+public sealed record MediaClassificationTelemetry(
+    ClassificationMetrics Metrics,
+    IReadOnlyDictionary<MediaClassification, double> RawEvidence,
+    IReadOnlyDictionary<MediaClassification, double> BaseCategoryScores,
+    IReadOnlyDictionary<MediaClassification, double> FinalCategoryScores,
+    ClassificationSafetyAssessment Safety,
+    FacePresenceResult? FacePresence);
+
 public sealed record MediaClassificationResult(
     MediaClassification PredictedClassification,
     double PredictedScore,
     IReadOnlyDictionary<MediaClassification, double> CategoryScores,
+    IReadOnlyDictionary<MediaClassification, double> BaseCategoryScores,
+    IReadOnlyDictionary<MediaClassification, double> RawEvidence,
     IReadOnlyList<string> Signals,
     ClassificationMetrics Metrics,
+    ClassificationSafetyAssessment Safety,
+    FacePresenceResult? FacePresence,
     MediaClassification EffectiveClassification,
     MediaClassificationDecisionStatus DecisionStatus,
     string DecisionReasonCode,
     string Version,
-    int ProcessingDurationMilliseconds);
+    int ProcessingDurationMilliseconds)
+{
+    public MediaClassificationTelemetry Telemetry => new(
+        Metrics,
+        RawEvidence,
+        BaseCategoryScores,
+        CategoryScores,
+        Safety,
+        FacePresence);
+}
 
 public sealed record MediaClassificationDecision(
     MediaClassification EffectiveClassification,
     MediaClassificationDecisionStatus Status,
     string ReasonCode);
-
 
 public sealed record FileSystemSourceHealth(
     bool IsReachable,
@@ -160,8 +233,7 @@ public interface IMediaClassificationDecisionPolicy
     MediaClassificationDecision Decide(
         MediaClassification predictedClassification,
         double predictedScore,
-        IReadOnlyDictionary<MediaClassification, double> categoryScores,
-        IReadOnlyList<string> signals);
+        MediaClassificationDecisionContext context);
 }
 
 public interface IMediaClassifier

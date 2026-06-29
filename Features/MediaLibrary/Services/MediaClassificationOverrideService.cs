@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
@@ -19,6 +20,20 @@ public interface IMediaClassificationOverrideService
     Task<int> SetManualBatchAsync(
         IReadOnlyCollection<ClassificationBatchItem> items,
         MediaClassification classification,
+        string userId,
+        string reason,
+        CancellationToken cancellationToken);
+
+    Task ApproveFaceProcessingAsync(
+        long assetId,
+        Guid expectedConcurrencyToken,
+        string userId,
+        string reason,
+        CancellationToken cancellationToken);
+
+    Task RevokeFaceProcessingAsync(
+        long assetId,
+        Guid expectedConcurrencyToken,
         string userId,
         string reason,
         CancellationToken cancellationToken);
@@ -60,6 +75,7 @@ public sealed class MediaClassificationOverrideService : IMediaClassificationOve
         CancellationToken cancellationToken)
     {
         ValidateClassification(classification);
+        ValidateManualReason(classification, reason);
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
         var asset = await LoadReviewableAssetAsync(assetId, cancellationToken);
         EnsureToken(asset, expectedConcurrencyToken);
@@ -71,8 +87,10 @@ public sealed class MediaClassificationOverrideService : IMediaClassificationOve
         }
 
         var now = DateTimeOffset.UtcNow;
+        var previousFaceAdmission = asset.ClassificationDecisionStatus
+                                    == MediaClassificationDecisionStatus.ManualFaceProcessingApproved;
         ApplyManual(asset, classification, userId, reason, now);
-        if (classification != MediaClassification.Photograph)
+        if (classification != MediaClassification.Photograph || previousFaceAdmission)
         {
             await RetireFaceIntelligenceAsync(
                 new[] { asset },
@@ -123,15 +141,24 @@ public sealed class MediaClassificationOverrideService : IMediaClassificationOve
             EnsureToken(asset, map[asset.Id]);
         }
 
+        var previouslyAdmittedIds = assets
+            .Where(asset => asset.ClassificationDecisionStatus
+                            == MediaClassificationDecisionStatus.ManualFaceProcessingApproved)
+            .Select(asset => asset.Id)
+            .ToHashSet();
         var now = DateTimeOffset.UtcNow;
         foreach (var asset in assets)
         {
             ApplyManual(asset, classification, userId, reason, now);
         }
-        if (classification != MediaClassification.Photograph)
+
+        IReadOnlyCollection<MediaAsset> retire = classification != MediaClassification.Photograph
+            ? assets
+            : assets.Where(asset => previouslyAdmittedIds.Contains(asset.Id)).ToArray();
+        if (retire.Count > 0)
         {
             await RetireFaceIntelligenceAsync(
-                assets,
+                retire,
                 userId,
                 reason,
                 now,
@@ -141,6 +168,140 @@ public sealed class MediaClassificationOverrideService : IMediaClassificationOve
         await SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return assets.Count;
+    }
+
+    public async Task ApproveFaceProcessingAsync(
+        long assetId,
+        Guid expectedConcurrencyToken,
+        string userId,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new ArgumentException(
+                "A reason is required before approving biometric face processing.",
+                nameof(reason));
+        }
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        var asset = await LoadReviewableAssetAsync(assetId, cancellationToken);
+        EnsureToken(asset, expectedConcurrencyToken);
+        if (!asset.ClassificationIsManual || asset.Classification != MediaClassification.Photograph)
+        {
+            throw new InvalidOperationException(
+                "Only a manually reviewed natural photograph can be approved for face processing.");
+        }
+        if (asset.ClassificationDecisionStatus
+            == MediaClassificationDecisionStatus.ManualFaceProcessingApproved)
+        {
+            throw new InvalidOperationException("This photograph is already approved for face processing.");
+        }
+        if (string.IsNullOrWhiteSpace(asset.ContentHash))
+        {
+            throw new InvalidOperationException(
+                "The image content hash is not available. Run automatic analysis once before approving face processing.");
+        }
+
+        var previousStatus = asset.ClassificationDecisionStatus;
+        var now = DateTimeOffset.UtcNow;
+        asset.ClassificationDecisionStatus = MediaClassificationDecisionStatus.ManualFaceProcessingApproved;
+        asset.ClassificationDecisionReasonCode = "MANUAL_FACE_ADMISSION";
+        asset.ClassificationReviewedByUserId = userId;
+        asset.ClassificationReviewedAt = now;
+        asset.ClassificationReviewReason = AppendReviewReason(
+            asset.ClassificationReviewReason,
+            $"Face processing approved: {reason.Trim()}");
+        asset.ClassificationConcurrencyToken = Guid.NewGuid();
+
+        _db.ClassificationAudits.Add(CreateAudit(
+            asset,
+            asset.Classification,
+            asset.Classification,
+            true,
+            true,
+            previousStatus,
+            asset.ClassificationDecisionStatus,
+            asset.PredictedClassification,
+            asset.PredictedClassificationScore,
+            userId,
+            reason));
+        _db.IdentityAudits.Add(CreateFaceAdmissionAudit(
+            asset,
+            "FaceAdmissionApproved",
+            userId,
+            reason,
+            now));
+
+        await SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task RevokeFaceProcessingAsync(
+        long assetId,
+        Guid expectedConcurrencyToken,
+        string userId,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new ArgumentException(
+                "A reason is required when revoking face-processing approval.",
+                nameof(reason));
+        }
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        var asset = await LoadReviewableAssetAsync(assetId, cancellationToken);
+        EnsureToken(asset, expectedConcurrencyToken);
+        if (!asset.ClassificationIsManual
+            || asset.Classification != MediaClassification.Photograph
+            || asset.ClassificationDecisionStatus
+               != MediaClassificationDecisionStatus.ManualFaceProcessingApproved)
+        {
+            throw new InvalidOperationException("This image does not have an active manual face-processing approval.");
+        }
+
+        var previousStatus = asset.ClassificationDecisionStatus;
+        var now = DateTimeOffset.UtcNow;
+        asset.ClassificationDecisionStatus = asset.Classification == asset.PredictedClassification
+            ? MediaClassificationDecisionStatus.ManuallyConfirmed
+            : MediaClassificationDecisionStatus.ManuallyCorrected;
+        asset.ClassificationDecisionReasonCode = "MANUAL_FACE_ADMISSION_REVOKED";
+        asset.ClassificationReviewedByUserId = userId;
+        asset.ClassificationReviewedAt = now;
+        asset.ClassificationReviewReason = AppendReviewReason(
+            asset.ClassificationReviewReason,
+            $"Face processing approval revoked: {reason.Trim()}");
+        asset.ClassificationConcurrencyToken = Guid.NewGuid();
+
+        await RetireFaceIntelligenceAsync(
+            new[] { asset },
+            userId,
+            reason,
+            now,
+            cancellationToken);
+        _db.ClassificationAudits.Add(CreateAudit(
+            asset,
+            asset.Classification,
+            asset.Classification,
+            true,
+            true,
+            previousStatus,
+            asset.ClassificationDecisionStatus,
+            asset.PredictedClassification,
+            asset.PredictedClassificationScore,
+            userId,
+            reason));
+        _db.IdentityAudits.Add(CreateFaceAdmissionAudit(
+            asset,
+            "FaceAdmissionRevoked",
+            userId,
+            reason,
+            now));
+
+        await SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task ResetToAutomaticAsync(
@@ -318,8 +479,8 @@ public sealed class MediaClassificationOverrideService : IMediaClassificationOve
             "ClassificationRevoked",
             userId,
             string.IsNullOrWhiteSpace(reason)
-                ? "Face intelligence retired because a human reviewer classified the image as non-photographic."
-                : $"Face intelligence retired after human classification review: {reason.Trim()}",
+                ? "Face intelligence retired because photograph admission was revoked."
+                : $"Face intelligence retired after classification/admission review: {reason.Trim()}",
             now,
             cancellationToken);
 
@@ -347,6 +508,16 @@ public sealed class MediaClassificationOverrideService : IMediaClassificationOve
             || !Enum.IsDefined(classification))
         {
             throw new ArgumentException("Choose a specific classification.", nameof(classification));
+        }
+    }
+
+    private static void ValidateManualReason(MediaClassification classification, string? reason)
+    {
+        if (classification == MediaClassification.Photograph && string.IsNullOrWhiteSpace(reason))
+        {
+            throw new ArgumentException(
+                "A reason is required when confirming or correcting an image as a natural photograph.",
+                nameof(reason));
         }
     }
 
@@ -388,6 +559,30 @@ public sealed class MediaClassificationOverrideService : IMediaClassificationOve
             ChangedAtUtc = DateTimeOffset.UtcNow
         };
 
+    private static MediaIdentityAudit CreateFaceAdmissionAudit(
+        MediaAsset asset,
+        string action,
+        string userId,
+        string reason,
+        DateTimeOffset now)
+        => new()
+        {
+            Action = action,
+            PerformedByUserId = userId,
+            Notes = Normalize(reason),
+            MetadataJson = JsonSerializer.Serialize(new
+            {
+                MediaAssetId = asset.Id,
+                asset.ContentHash,
+                asset.ClassifierVersion,
+                asset.PredictedClassification,
+                asset.PredictedClassificationScore,
+                asset.Classification,
+                asset.ClassificationDecisionStatus
+            }),
+            PerformedAtUtc = now
+        };
+
     private async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
         try
@@ -400,6 +595,14 @@ public sealed class MediaClassificationOverrideService : IMediaClassificationOve
                 "This image was changed by another reviewer. Reload the page and review the latest result.",
                 exception);
         }
+    }
+
+    private static string? AppendReviewReason(string? existing, string addition)
+    {
+        var combined = string.IsNullOrWhiteSpace(existing)
+            ? addition.Trim()
+            : $"{existing.Trim()} | {addition.Trim()}";
+        return combined.Length <= 1024 ? combined : combined[..1024];
     }
 
     private static string? Normalize(string? value)
