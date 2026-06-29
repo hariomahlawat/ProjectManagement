@@ -13,7 +13,7 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
     private readonly MediaLibraryDbContext _db;
     private readonly IMediaContentProviderResolver _resolver;
     private readonly IFaceAnalysisEngine _engine;
-    private readonly IFaceCandidateSearchService _candidateSearch;
+    private readonly IFaceCandidateSuggestionService _candidateSuggestions;
     private readonly IFaceEligibilityPolicy _eligibility;
     private readonly IMediaContentChangeInvalidationService _contentInvalidation;
     private readonly MediaLibraryOptions _options;
@@ -24,7 +24,7 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
         MediaLibraryDbContext db,
         IMediaContentProviderResolver resolver,
         IFaceAnalysisEngine engine,
-        IFaceCandidateSearchService candidateSearch,
+        IFaceCandidateSuggestionService candidateSuggestions,
         IFaceEligibilityPolicy eligibility,
         IMediaContentChangeInvalidationService contentInvalidation,
         IOptions<MediaLibraryOptions> options,
@@ -34,7 +34,7 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
-        _candidateSearch = candidateSearch ?? throw new ArgumentNullException(nameof(candidateSearch));
+        _candidateSuggestions = candidateSuggestions ?? throw new ArgumentNullException(nameof(candidateSuggestions));
         _eligibility = eligibility ?? throw new ArgumentNullException(nameof(eligibility));
         _contentInvalidation = contentInvalidation ?? throw new ArgumentNullException(nameof(contentInvalidation));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -256,7 +256,7 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
 
             try
             {
-                await CreateCandidatesAsync(face.Id, embedding, cancellationToken);
+                await _candidateSuggestions.RefreshFaceAsync(face.Id, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -318,53 +318,6 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
         job.FailureCode = null;
         job.FailureMessage = null;
         job.UpdatedAtUtc = now;
-    }
-
-    private async Task CreateCandidatesAsync(
-        Guid faceId,
-        MediaFaceEmbedding embedding,
-        CancellationToken cancellationToken)
-    {
-        var candidates = await _candidateSearch.SearchAsync(
-            faceId,
-            embedding.Embedding,
-            embedding.ModelKey,
-            embedding.ModelVersion,
-            embedding.Dimension,
-            cancellationToken);
-        if (candidates.Count == 0)
-        {
-            return;
-        }
-
-        var existing = await _db.FaceReviewDecisions
-            .Where(decision => decision.MediaFaceId == faceId)
-            .ToListAsync(cancellationToken);
-        foreach (var candidate in candidates)
-        {
-            if (existing.Any(decision => decision.CandidatePersonId == candidate.PersonId
-                                         && decision.ModelKey == embedding.ModelKey
-                                         && decision.ModelVersion == embedding.ModelVersion
-                                         && (decision.Decision == FaceReviewDecisionType.Pending
-                                             || decision.Decision == FaceReviewDecisionType.Rejected)))
-            {
-                continue;
-            }
-
-            _db.FaceReviewDecisions.Add(new MediaFaceReviewDecision
-            {
-                MediaFaceId = faceId,
-                CandidatePersonId = candidate.PersonId,
-                Decision = FaceReviewDecisionType.Pending,
-                Similarity = candidate.Similarity,
-                ModelKey = embedding.ModelKey,
-                ModelVersion = embedding.ModelVersion,
-                ConcurrencyToken = Guid.NewGuid(),
-                CreatedAtUtc = DateTimeOffset.UtcNow
-            });
-        }
-
-        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<string?> SaveThumbnailAsync(

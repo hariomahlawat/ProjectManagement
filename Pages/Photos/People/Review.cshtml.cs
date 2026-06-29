@@ -13,24 +13,36 @@ public sealed class ReviewModel : PageModel
 {
     private const int PageSize = 24;
     private readonly IMediaPeopleQueryService _people;
+    private readonly IFaceIdentityGroupingService _groups;
+    private readonly IFaceCandidateSuggestionService _candidateSuggestions;
     private readonly IFaceReviewService _review;
     private readonly MediaLibraryOptions _options;
     private readonly ILogger<ReviewModel> _logger;
 
     public ReviewModel(
         IMediaPeopleQueryService people,
+        IFaceIdentityGroupingService groups,
+        IFaceCandidateSuggestionService candidateSuggestions,
         IFaceReviewService review,
         IOptions<MediaLibraryOptions> options,
         ILogger<ReviewModel> logger)
     {
         _people = people ?? throw new ArgumentNullException(nameof(people));
+        _groups = groups ?? throw new ArgumentNullException(nameof(groups));
+        _candidateSuggestions = candidateSuggestions ?? throw new ArgumentNullException(nameof(candidateSuggestions));
         _review = review ?? throw new ArgumentNullException(nameof(review));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     [BindProperty(SupportsGet = true)]
+    public string Mode { get; set; } = "groups";
+
+    [BindProperty(SupportsGet = true)]
     public int PageNumber { get; set; } = 1;
+
+    public FaceIdentityGroupingResult GroupResult { get; private set; } = new(
+        Array.Empty<FaceIdentityGroup>(), 0, 0, 0);
 
     public FaceReviewQueueResult Result { get; private set; } = new(
         Array.Empty<FaceReviewQueueItem>(),
@@ -41,7 +53,13 @@ public sealed class ReviewModel : PageModel
         false,
         false);
 
+    public IReadOnlyList<MediaPersonOption> AvailablePeople { get; private set; }
+        = Array.Empty<MediaPersonOption>();
+
     public bool FeatureEnabled => _options.People.Enabled;
+    public bool GroupingEnabled => _options.People.GroupingEnabled;
+    public bool IsGroupsMode => Mode == "groups";
+    public double CandidateStrongSimilarityThreshold => _options.People.CandidateStrongSimilarityThreshold;
 
     [TempData]
     public string? StatusMessage { get; set; }
@@ -51,16 +69,28 @@ public sealed class ReviewModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
+        NormalizeMode();
         if (!FeatureEnabled)
         {
             return Page();
         }
 
-        Result = await _people.GetReviewQueueAsync(
-            Math.Max(1, PageNumber),
-            PageSize,
-            cancellationToken);
-        PageNumber = Result.PageNumber;
+        if (IsGroupsMode && GroupingEnabled)
+        {
+            GroupResult = await _groups.GetGroupsAsync(cancellationToken);
+            AvailablePeople = await _people.GetPersonOptionsAsync(cancellationToken);
+        }
+        else
+        {
+            Mode = "faces";
+            Result = await _people.GetReviewQueueAsync(
+                Math.Max(1, PageNumber),
+                PageSize,
+                cancellationToken);
+            AvailablePeople = Result.AvailablePeople;
+            PageNumber = Result.PageNumber;
+        }
+
         return Page();
     }
 
@@ -71,7 +101,8 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.AssignAsync(faceId, personId, UserId, confidence, cancellationToken),
-            "Identity confirmed.");
+            "Identity confirmed.",
+            "faces");
 
     public Task<IActionResult> OnPostRejectAsync(
         Guid faceId,
@@ -79,14 +110,16 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.RejectAsync(faceId, personId, UserId, cancellationToken),
-            "Suggestion rejected. It will not be recreated for this model version.");
+            "Suggestion rejected. It will not be recreated for this model version.",
+            "faces");
 
     public Task<IActionResult> OnPostRejectAllAsync(
         Guid faceId,
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.RejectAsync(faceId, null, UserId, cancellationToken),
-            "All current suggestions for this face were rejected.");
+            "All current suggestions for this face were rejected.",
+            "faces");
 
     public Task<IActionResult> OnPostAssignExistingAsync(
         Guid faceId,
@@ -94,14 +127,16 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.AssignAsync(faceId, personId, UserId, null, cancellationToken),
-            "Identity assigned to the selected person.");
+            "Identity assigned to the selected person.",
+            "faces");
 
     public Task<IActionResult> OnPostIgnoreAsync(
         Guid faceId,
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.IgnoreAsync(faceId, UserId, cancellationToken),
-            "Face acknowledged and left unidentified.");
+            "Face acknowledged and left unidentified.",
+            "faces");
 
     public Task<IActionResult> OnPostCreateAsync(
         Guid faceId,
@@ -109,32 +144,92 @@ public sealed class ReviewModel : PageModel
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.CreatePersonAndAssignAsync(faceId, displayName, UserId, cancellationToken),
-            "Person created and identity confirmed.");
+            "Person created and identity confirmed.",
+            "faces");
 
     public Task<IActionResult> OnPostSuppressAsync(
         Guid faceId,
         CancellationToken cancellationToken)
         => ExecuteAsync(
             () => _review.SuppressAsync(faceId, UserId, cancellationToken),
-            "Detection marked as not a face.");
+            "Detection marked as not a face.",
+            "faces");
+
+    public Task<IActionResult> OnPostCreateGroupAsync(
+        List<Guid> faceIds,
+        string displayName,
+        CancellationToken cancellationToken)
+        => ExecuteAsync(
+            () => _review.CreatePersonAndAssignManyAsync(faceIds, displayName, UserId, cancellationToken),
+            "Person created and the selected appearances were confirmed.",
+            "groups");
+
+    public Task<IActionResult> OnPostRejectGroupCandidateAsync(
+        List<Guid> faceIds,
+        Guid personId,
+        CancellationToken cancellationToken)
+        => ExecuteAsync(
+            () => _review.RejectManyAsync(faceIds, personId, UserId, cancellationToken),
+            "The known-person suggestion was rejected for this group.",
+            "groups");
+
+    public Task<IActionResult> OnPostAssignGroupAsync(
+        List<Guid> faceIds,
+        Guid personId,
+        double? confidence,
+        CancellationToken cancellationToken)
+        => ExecuteAsync(
+            () => _review.AssignManyAsync(faceIds, personId, UserId, confidence, cancellationToken),
+            "The selected appearances were assigned to the person.",
+            "groups");
+
+    public Task<IActionResult> OnPostRefreshCandidatesAsync(CancellationToken cancellationToken)
+        => ExecuteAsync(
+            async () =>
+            {
+                var refreshed = await _candidateSuggestions.RefreshUnassignedAsync(
+                    _options.People.CandidateRefreshBatchSize,
+                    cancellationToken);
+                StatusMessage = refreshed == 0
+                    ? "No unassigned faces were available for candidate refresh."
+                    : $"Identity suggestions refreshed for {refreshed} unassigned face(s).";
+            },
+            null,
+            Mode);
 
     private string UserId
         => User.FindFirstValue(ClaimTypes.NameIdentifier)
            ?? User.Identity?.Name
            ?? "unknown";
 
-    private async Task<IActionResult> ExecuteAsync(Func<Task> action, string successMessage)
+    private void NormalizeMode()
+        => Mode = GroupingEnabled && string.Equals(Mode, "groups", StringComparison.OrdinalIgnoreCase)
+            ? "groups"
+            : "faces";
+
+    private async Task<IActionResult> ExecuteAsync(
+        Func<Task> action,
+        string? successMessage,
+        string redirectMode)
     {
+        NormalizeMode();
+        var normalizedRedirectMode = GroupingEnabled
+                                     && string.Equals(redirectMode, "groups", StringComparison.OrdinalIgnoreCase)
+            ? "groups"
+            : "faces";
         if (!FeatureEnabled)
         {
             ErrorMessage = "People intelligence is disabled. Complete readiness checks and enable the feature before reviewing faces.";
-            return RedirectToPage(new { PageNumber });
+            return RedirectToPage(new { Mode = normalizedRedirectMode, PageNumber });
         }
 
         try
         {
             await action();
-            StatusMessage = successMessage;
+            if (!string.IsNullOrWhiteSpace(successMessage))
+            {
+                StatusMessage = successMessage;
+            }
         }
         catch (Exception exception) when (exception is ArgumentException
                                            or InvalidOperationException
@@ -144,6 +239,6 @@ public sealed class ReviewModel : PageModel
             ErrorMessage = exception.Message;
         }
 
-        return RedirectToPage(new { PageNumber });
+        return RedirectToPage(new { Mode = normalizedRedirectMode, PageNumber });
     }
 }

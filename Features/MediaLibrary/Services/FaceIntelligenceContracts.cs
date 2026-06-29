@@ -72,7 +72,13 @@ public sealed record DetectedFaceData(
     double? PoseScore = null,
     FaceQualitySignals? QualitySignals = null);
 
-public sealed record FaceCandidate(Guid PersonId, string DisplayName, double Similarity);
+public sealed record FaceCandidate(
+    Guid PersonId,
+    string DisplayName,
+    double Similarity,
+    double BestReferenceSimilarity = 0d,
+    double MeanTopSimilarity = 0d,
+    int ReferenceCount = 0);
 
 public sealed record FaceReviewOperationResult(Guid? PersonId, Guid FaceId, string Message);
 
@@ -123,10 +129,53 @@ public interface IFaceCandidateSearchService
         CancellationToken cancellationToken);
 }
 
+public interface IFaceCandidateSuggestionService
+{
+    Task<int> RefreshFaceAsync(Guid faceId, CancellationToken cancellationToken);
+    Task<int> RefreshUnassignedAsync(int limit, CancellationToken cancellationToken);
+}
+
+public sealed record FaceIdentityGroupMember(
+    Guid FaceId,
+    long AssetId,
+    string ContextTitle,
+    string ContextSubtitle,
+    DateTimeOffset MediaDateUtc,
+    double QualityScore,
+    double SimilarityToRepresentative);
+
+public sealed record FaceIdentityGroup(
+    string GroupKey,
+    Guid RepresentativeFaceId,
+    IReadOnlyList<Guid> FaceIds,
+    IReadOnlyList<FaceIdentityGroupMember> Members,
+    IReadOnlyList<FaceCandidate> Candidates,
+    double CohesionScore,
+    int PhotoCount,
+    DateTimeOffset FirstSeenUtc,
+    DateTimeOffset LastSeenUtc);
+
+public sealed record FaceIdentityGroupingResult(
+    IReadOnlyList<FaceIdentityGroup> Groups,
+    int TotalGroups,
+    int GroupedFaceCount,
+    int RemainingIndividualFaceCount);
+
+public interface IFaceIdentityGroupingService
+{
+    Task<FaceIdentityGroupingResult> GetGroupsAsync(CancellationToken cancellationToken);
+}
+
 public interface IFaceReviewService
 {
     Task<Guid> CreatePersonAndAssignAsync(
         Guid faceId,
+        string displayName,
+        string userId,
+        CancellationToken cancellationToken);
+
+    Task<Guid> CreatePersonAndAssignManyAsync(
+        IReadOnlyCollection<Guid> faceIds,
         string displayName,
         string userId,
         CancellationToken cancellationToken);
@@ -138,9 +187,22 @@ public interface IFaceReviewService
         double? confidence,
         CancellationToken cancellationToken);
 
+    Task AssignManyAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        Guid personId,
+        string userId,
+        double? confidence,
+        CancellationToken cancellationToken);
+
     Task RejectAsync(
         Guid faceId,
         Guid? personId,
+        string userId,
+        CancellationToken cancellationToken);
+
+    Task RejectManyAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        Guid personId,
         string userId,
         CancellationToken cancellationToken);
 

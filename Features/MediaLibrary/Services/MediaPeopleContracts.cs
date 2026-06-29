@@ -61,7 +61,11 @@ public sealed record FaceReviewCandidateItem(
     Guid PersonId,
     string DisplayName,
     double? Similarity,
-    Guid ConcurrencyToken);
+    Guid ConcurrencyToken,
+    int Rank = 0,
+    double? MarginToNext = null,
+    bool IsStrong = false,
+    bool IsAmbiguous = false);
 
 public sealed record FaceReviewQueueItem(
     Guid FaceId,
@@ -94,5 +98,8 @@ public interface IMediaPeopleQueryService
     Task<FaceReviewQueueResult> GetReviewQueueAsync(
         int pageNumber,
         int pageSize,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<MediaPersonOption>> GetPersonOptionsAsync(
         CancellationToken cancellationToken);
 }

@@ -17,7 +17,7 @@
     <nav class="intel-tabs mb-4" aria-label="Media intelligence sections">
         <a class="active" asp-page="/Admin/MediaIntelligence/Index">Overview</a>
         <a asp-page="/Admin/MediaIntelligence/Classifications">Classification</a>
-        <a asp-page="/Photos/People/Review">People review</a>
+        <a asp-page="/Photos/People/Review" asp-route-Mode="groups">People classification</a>
         <a asp-page="/Photos/People/Index">People</a>
     </nav>
 
@@ -87,7 +87,7 @@
 
     <div class="row g-3 mb-4">
         <div class="col-6 col-xl"><div class="metric-card"><span>Available images</span><strong>@Model.AvailableImages</strong></div></div>
-        <div class="col-6 col-xl"><div class="metric-card"><span>Face eligible</span><strong>@Model.Eligible</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Approved for face scan</span><strong>@Model.Eligible</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Unknown / needs review</span><strong>@Model.NeedsReview</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Confirmed non-photos</span><strong>@Model.ConfirmedNonPhotographs</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Low-confidence decisions</span><strong>@Model.LowConfidence</strong></div></div>
@@ -117,12 +117,37 @@
         </div>
     </section>
 
+    <section class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                <div>
+                    <h2 class="h5 mb-1">People classification</h2>
+                    <p class="text-muted mb-0">Strict embedding groups and known-person matches reduce repetitive review. Every identity remains human-confirmed.</p>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <form method="post" asp-page-handler="RefreshIdentityCandidates">
+                        <button class="btn btn-outline-primary btn-sm" type="submit" disabled="@(!Model.ModelStatus.IsReady)">Refresh identity matches</button>
+                    </form>
+                    <a class="btn btn-primary btn-sm" asp-page="/Photos/People/Review" asp-route-Mode="groups">Classify people</a>
+                    <a class="btn btn-outline-secondary btn-sm" asp-page="/Photos/People/Index">Open people</a>
+                </div>
+            </div>
+            <div class="row g-3">
+                <div class="col-6 col-lg"><div class="metric-card"><span>Confirmed people</span><strong>@Model.Persons</strong></div></div>
+                <div class="col-6 col-lg"><div class="metric-card"><span>Suggested identity groups</span><strong>@Model.IdentityGroups</strong></div></div>
+                <div class="col-6 col-lg"><div class="metric-card"><span>Grouped appearances</span><strong>@Model.GroupedUnassignedFaces</strong></div></div>
+                <div class="col-6 col-lg"><div class="metric-card"><span>Individual faces remaining</span><strong>@Model.RemainingIndividualFaces</strong></div></div>
+                <div class="col-6 col-lg"><div class="metric-card"><span>Pending known-person matches</span><strong>@Model.PendingReview</strong></div></div>
+            </div>
+        </div>
+    </section>
+
     <div class="row g-4">
         <div class="col-xl-7">
             <section class="card shadow-sm border-0 h-100">
                 <div class="card-body p-4">
                     <h2 class="h5 mb-1">Controlled processing</h2>
-                    <p class="text-muted">Queues newest eligible photographs first. Automatic naming remains disabled.</p>
+                    <p class="text-muted">Queues approved photographs for face detection and embedding. Identity assignment remains human-controlled.</p>
                     <form method="post" asp-page-handler="Queue" class="row g-3 align-items-end">
                         <div class="col-sm-4">
                             <label class="form-label fw-semibold" for="faceBatchSize">Batch size</label>

@@ -29,14 +29,25 @@ public sealed class IndexModel : PageModel
     private readonly IFaceQueueService _queue;
     private readonly IMediaProcessingRuntimeState _runtime;
     private readonly IFaceEligibilityPolicy _eligibility;
+    private readonly IFaceIdentityGroupingService _groups;
+    private readonly IFaceCandidateSuggestionService _candidateSuggestions;
 
-    public IndexModel(MediaLibraryDbContext db, IFaceModelReadinessService readiness, IFaceQueueService queue, IMediaProcessingRuntimeState runtime, IFaceEligibilityPolicy eligibility)
+    public IndexModel(
+        MediaLibraryDbContext db,
+        IFaceModelReadinessService readiness,
+        IFaceQueueService queue,
+        IMediaProcessingRuntimeState runtime,
+        IFaceEligibilityPolicy eligibility,
+        IFaceIdentityGroupingService groups,
+        IFaceCandidateSuggestionService candidateSuggestions)
     {
-        _db = db;
-        _readiness = readiness;
-        _queue = queue;
-        _runtime = runtime;
-        _eligibility = eligibility;
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _readiness = readiness ?? throw new ArgumentNullException(nameof(readiness));
+        _queue = queue ?? throw new ArgumentNullException(nameof(queue));
+        _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+        _eligibility = eligibility ?? throw new ArgumentNullException(nameof(eligibility));
+        _groups = groups ?? throw new ArgumentNullException(nameof(groups));
+        _candidateSuggestions = candidateSuggestions ?? throw new ArgumentNullException(nameof(candidateSuggestions));
     }
 
     public FaceModelReadiness ModelStatus { get; private set; } = null!;
@@ -61,6 +72,9 @@ public sealed class IndexModel : PageModel
     public int FaceEvidenceUsed { get; private set; }
     public int FaceEvidenceBlocked { get; private set; }
     public int ManualCorrections { get; private set; }
+    public int IdentityGroups { get; private set; }
+    public int GroupedUnassignedFaces { get; private set; }
+    public int RemainingIndividualFaces { get; private set; }
 
     [TempData] public string? StatusMessage { get; set; }
     [TempData] public string? ErrorMessage { get; set; }
@@ -104,6 +118,10 @@ public sealed class IndexModel : PageModel
         Embedded = await _db.FaceEmbeddings.AsNoTracking().CountAsync(x => x.InvalidatedAtUtc == null, cancellationToken);
         Persons = await _db.Persons.AsNoTracking().CountAsync(x => !x.IsHidden, cancellationToken);
         PendingReview = await _db.FaceReviewDecisions.AsNoTracking().CountAsync(x => x.Decision == FaceReviewDecisionType.Pending, cancellationToken);
+        var identityGroups = await _groups.GetGroupsAsync(cancellationToken);
+        IdentityGroups = identityGroups.TotalGroups;
+        GroupedUnassignedFaces = identityGroups.GroupedFaceCount;
+        RemainingIndividualFaces = identityGroups.RemainingIndividualFaceCount;
         PendingFaceJobs = await _db.ProcessingJobs.AsNoTracking().CountAsync(x => x.JobType == MediaProcessingJobType.DetectFaces && (x.Status == MediaProcessingJobStatus.Pending || x.Status == MediaProcessingJobStatus.Running), cancellationToken);
         FailedFaceJobs = await _db.ProcessingJobs.AsNoTracking().CountAsync(x => x.JobType == MediaProcessingJobType.DetectFaces && (x.Status == MediaProcessingJobStatus.Failed || x.Status == MediaProcessingJobStatus.DeadLetter), cancellationToken);
 
@@ -176,6 +194,23 @@ public sealed class IndexModel : PageModel
         var boundedLimit = Math.Clamp(limit, 1, 250);
         var queued = await _queue.QueueEligibleAsync(boundedLimit, cancellationToken);
         StatusMessage = queued == 0 ? "No new eligible photographs were queued." : $"Queued {queued} photograph(s) for face analysis.";
+        return RedirectToPage();
+    }
+
+
+    public async Task<IActionResult> OnPostRefreshIdentityCandidatesAsync(CancellationToken cancellationToken)
+    {
+        var readiness = await _readiness.CheckAsync(cancellationToken);
+        if (!readiness.IsReady)
+        {
+            ErrorMessage = readiness.Message;
+            return RedirectToPage();
+        }
+
+        var refreshed = await _candidateSuggestions.RefreshUnassignedAsync(500, cancellationToken);
+        StatusMessage = refreshed == 0
+            ? "No unassigned faces were available for identity matching."
+            : $"Identity suggestions refreshed for {refreshed} unassigned face(s).";
         return RedirectToPage();
     }
 

@@ -159,7 +159,33 @@ public sealed class MediaPeopleOptions
     public double MinimumQualityScore { get; set; } = 0.55;
     public double MinimumClassificationConfidence { get; set; } = 0.75;
     public int CandidateLimit { get; set; } = 5;
-    public double CandidateSimilarityThreshold { get; set; } = 0.42;
+
+    /// <summary>
+    /// Cosine thresholds for the approved OpenCV SFace embedding model. These are
+    /// similarity gates, not probabilities. The lower threshold creates review-only
+    /// suggestions; the strong threshold only changes presentation and never auto-confirms.
+    /// </summary>
+    public double CandidateSimilarityThreshold { get; set; } = 0.38;
+    public double CandidateStrongSimilarityThreshold { get; set; } = 0.46;
+    public double CandidateMinimumMargin { get; set; } = 0.04;
+    public int CandidateRefreshBatchSize { get; set; } = 500;
+
+    /// <summary>
+    /// Groups unassigned, model-compatible embeddings into strict unnamed-person sets.
+    /// Grouping never creates or confirms an identity; it only reduces human review effort.
+    /// </summary>
+    public bool GroupingEnabled { get; set; } = true;
+    public int GroupingMinimumFaces { get; set; } = 2;
+    public int GroupingMaximumFaces { get; set; } = 2_000;
+    public int GroupingMaximumGroupSize { get; set; } = 50;
+
+    /// <summary>
+    /// Strict unnamed-face grouping gates. Every new member must satisfy both the
+    /// centroid threshold and the complete-link pairwise floor. Faces from the same
+    /// photograph are never grouped together.
+    /// </summary>
+    public double GroupingSimilarityThreshold { get; set; } = 0.42;
+    public double GroupingMinimumPairwiseSimilarity { get; set; } = 0.38;
 
     /// <summary>
     /// Retained only for configuration compatibility. The production service never

@@ -7,9 +7,9 @@ using ProjectManagement.Features.MediaLibrary.Options;
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
 /// <summary>
-/// Bounded, model-compatible candidate search. It deliberately uses only a limited set
-/// of high-quality, human-confirmed reference faces per person. The abstraction can be
-/// replaced by a pgvector-backed implementation without changing the processing pipeline.
+/// Bounded, model-compatible candidate search. Only high-quality, human-confirmed
+/// references are considered. A candidate is scored from both its best reference and
+/// the repeatability of its top references so one accidental close vector cannot dominate.
 /// </summary>
 public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
 {
@@ -49,6 +49,7 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
                                  && !assignment.MediaPerson.IsHidden
                                  && assignment.MediaPerson.Status == MediaPersonStatus.Confirmed
                                  && !assignment.MediaFace.IsSuppressed
+                                 && assignment.MediaFace.QualityStatus == FaceQualityStatus.EmbeddingEligible
                                  && (assignment.AssignmentType == FaceAssignmentType.HumanConfirmed
                                      || assignment.AssignmentType == FaceAssignmentType.ManualAssignment))
             .SelectMany(
@@ -90,41 +91,31 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
             .Where(group => !rejected.Contains(group.Key.PersonId))
             .Select(group =>
             {
-                var similarity = group
-                    .Take(Math.Clamp(_options.ReferenceFacesPerPerson, 1, 50))
-                    .Select(reference => CosineSimilarity(embedding, reference.Embedding))
-                    .DefaultIfEmpty(-1)
-                    .Max();
-                return new FaceCandidate(group.Key.PersonId, group.Key.DisplayName, similarity);
+                var score = FaceSimilarityScoring.ScoreReferences(
+                    embedding,
+                    group
+                        .OrderByDescending(reference => reference.QualityScore)
+                        .ThenByDescending(reference => reference.AssignedAtUtc)
+                        .Select(reference => (IReadOnlyList<float>)reference.Embedding),
+                    Math.Clamp(_options.ReferenceFacesPerPerson, 1, 50));
+                return new FaceCandidate(
+                    group.Key.PersonId,
+                    group.Key.DisplayName,
+                    score.AggregateSimilarity,
+                    score.BestSimilarity,
+                    score.MeanTopSimilarity,
+                    score.ReferenceCount);
             })
             .Where(candidate => candidate.Similarity >= _options.CandidateSimilarityThreshold)
             .OrderByDescending(candidate => candidate.Similarity)
+            .ThenByDescending(candidate => candidate.ReferenceCount)
             .ThenBy(candidate => candidate.DisplayName)
             .Take(Math.Clamp(_options.CandidateLimit, 1, 20))
             .ToList();
     }
 
     public static double CosineSimilarity(float[] first, float[] second)
-    {
-        if (first.Length == 0 || first.Length != second.Length)
-        {
-            return -1;
-        }
-
-        double dot = 0;
-        double firstNorm = 0;
-        double secondNorm = 0;
-        for (var index = 0; index < first.Length; index++)
-        {
-            dot += first[index] * second[index];
-            firstNorm += first[index] * first[index];
-            secondNorm += second[index] * second[index];
-        }
-
-        return firstNorm <= 1e-12 || secondNorm <= 1e-12
-            ? -1
-            : dot / Math.Sqrt(firstNorm * secondNorm);
-    }
+        => FaceSimilarityScoring.CosineSimilarity(first, second);
 
     private sealed record ReferenceRow(
         Guid PersonId,

@@ -22,11 +22,11 @@
             </a>
             @if (Model.FeatureEnabled)
             {
-                <a class="btn btn-outline-secondary position-relative" asp-page="./Review">
-                    <i class="bi bi-person-check" aria-hidden="true"></i> Review
-                    @if (Model.Result.PendingReviewCount > 0)
+                <a class="btn btn-outline-secondary position-relative" asp-page="./Review" asp-route-Mode="groups">
+                    <i class="bi bi-person-check" aria-hidden="true"></i> Classify people
+                    @if (Model.ReviewWorkCount > 0)
                     {
-                        <span class="people-count-badge">@Model.Result.PendingReviewCount</span>
+                        <span class="people-count-badge">@Model.ReviewWorkCount</span>
                     }
                 </a>
             }
@@ -46,7 +46,9 @@
     {
         <section class="people-summary" aria-label="People summary">
             <div><strong>@Model.Result.TotalPeople</strong><span>confirmed people</span></div>
-            <div><strong>@Model.Result.PendingReviewCount</strong><span>faces awaiting review</span></div>
+            <div><strong>@Model.SuggestedGroupCount</strong><span>suggested identity groups</span></div>
+            <div><strong>@Model.GroupedFaceCount</strong><span>grouped appearances</span></div>
+            <div><strong>@Model.RemainingIndividualFaceCount</strong><span>individual faces remaining</span></div>
             <div><strong>@Model.Result.UnidentifiedFaceCount</strong><span>unidentified faces</span></div>
         </section>
 

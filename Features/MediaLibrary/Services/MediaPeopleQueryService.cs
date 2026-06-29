@@ -1,16 +1,22 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
+using ProjectManagement.Features.MediaLibrary.Options;
 
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
 public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
 {
     private readonly MediaLibraryDbContext _db;
+    private readonly MediaPeopleOptions _options;
 
-    public MediaPeopleQueryService(MediaLibraryDbContext db)
+    public MediaPeopleQueryService(
+        MediaLibraryDbContext db,
+        IOptions<MediaLibraryOptions> options)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _options = options?.Value.People ?? throw new ArgumentNullException(nameof(options));
     }
 
     public async Task<MediaPeopleIndexResult> GetIndexAsync(
@@ -75,18 +81,7 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
-        var reviewableFaces = _db.Faces
-            .AsNoTracking()
-            .Where(face => !face.IsSuppressed
-                           && face.QualityStatus != FaceQualityStatus.ProcessingFailed
-                           && face.MediaAsset.IsAvailable
-                           && !face.MediaAsset.IsDeleted
-                           && !face.MediaAsset.IsArchived
-                           && !face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null)
-                           && !_db.FaceReviewDecisions.Any(decision =>
-                               decision.MediaFaceId == face.Id
-                               && !decision.CandidatePersonId.HasValue
-                               && decision.Decision == FaceReviewDecisionType.Ignored));
+        var reviewableFaces = BuildReviewableFacesQuery();
         var pendingReviewCount = await reviewableFaces.CountAsync(cancellationToken);
         var unidentifiedFaceCount = await _db.Faces
             .AsNoTracking()
@@ -155,14 +150,8 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                 assignment.MediaFace.QualityScore,
                 person.RepresentativeFaceId == assignment.MediaFaceId))
             .ToListAsync(cancellationToken);
-        var mergeTargets = await _db.Persons
-            .AsNoTracking()
-            .Where(item => item.Id != personId
-                           && !item.IsHidden
-                           && item.Status == MediaPersonStatus.Confirmed)
-            .OrderBy(item => item.DisplayName)
-            .Select(item => new MediaPersonOption(item.Id, item.DisplayName))
-            .ToListAsync(cancellationToken);
+        var mergeTargets = await GetPersonOptionsAsync(cancellationToken);
+        mergeTargets = mergeTargets.Where(item => item.Id != personId).ToList();
 
         return new MediaPersonDetailsResult(
             person.Id,
@@ -185,18 +174,7 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
         CancellationToken cancellationToken)
     {
         pageSize = Math.Clamp(pageSize, 12, 100);
-        var reviewableFaces = _db.Faces
-            .AsNoTracking()
-            .Where(face => !face.IsSuppressed
-                           && face.QualityStatus != FaceQualityStatus.ProcessingFailed
-                           && face.MediaAsset.IsAvailable
-                           && !face.MediaAsset.IsDeleted
-                           && !face.MediaAsset.IsArchived
-                           && !face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null)
-                           && !_db.FaceReviewDecisions.Any(decision =>
-                               decision.MediaFaceId == face.Id
-                               && !decision.CandidatePersonId.HasValue
-                               && decision.Decision == FaceReviewDecisionType.Ignored));
+        var reviewableFaces = BuildReviewableFacesQuery();
 
         var totalFaces = await reviewableFaces.CountAsync(cancellationToken);
         var pageCount = Math.Max(1, (int)Math.Ceiling(totalFaces / (double)pageSize));
@@ -206,6 +184,7 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                 decision.MediaFaceId == face.Id
                 && decision.Decision == FaceReviewDecisionType.Pending
                 && decision.CandidatePersonId.HasValue))
+            .ThenByDescending(face => face.QualityScore)
             .ThenByDescending(face => face.CreatedAtUtc)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
@@ -229,7 +208,8 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                                    && decision.CandidatePerson != null
                                    && !decision.CandidatePerson.IsHidden
                                    && decision.CandidatePerson.Status == MediaPersonStatus.Confirmed)
-                .OrderByDescending(decision => decision.Similarity)
+                .OrderBy(decision => decision.MediaFaceId)
+                .ThenByDescending(decision => decision.Similarity)
                 .Select(decision => new ReviewCandidateRow(
                     decision.MediaFaceId,
                     decision.Id,
@@ -242,14 +222,7 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             .GroupBy(candidate => candidate.FaceId)
             .ToDictionary(
                 group => group.Key,
-                group => (IReadOnlyList<FaceReviewCandidateItem>)group
-                    .Select(candidate => new FaceReviewCandidateItem(
-                        candidate.DecisionId,
-                        candidate.PersonId,
-                        candidate.DisplayName,
-                        candidate.Similarity,
-                        candidate.ConcurrencyToken))
-                    .ToList());
+                group => BuildCandidateItems(group.ToList()));
         var items = faces
             .Select(face => new FaceReviewQueueItem(
                 face.FaceId,
@@ -262,13 +235,7 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                     ?? Array.Empty<FaceReviewCandidateItem>()))
             .ToList();
 
-        var availablePeople = await _db.Persons
-            .AsNoTracking()
-            .Where(person => !person.IsHidden && person.Status == MediaPersonStatus.Confirmed)
-            .OrderBy(person => person.DisplayName)
-            .Select(person => new MediaPersonOption(person.Id, person.DisplayName))
-            .ToListAsync(cancellationToken);
-
+        var availablePeople = await GetPersonOptionsAsync(cancellationToken);
         return new FaceReviewQueueResult(
             items,
             availablePeople,
@@ -277,6 +244,64 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             pageSize,
             pageNumber > 1,
             pageNumber < pageCount);
+    }
+
+    public async Task<IReadOnlyList<MediaPersonOption>> GetPersonOptionsAsync(
+        CancellationToken cancellationToken)
+        => await _db.Persons
+            .AsNoTracking()
+            .Where(person => !person.IsHidden && person.Status == MediaPersonStatus.Confirmed)
+            .OrderBy(person => person.DisplayName)
+            .Select(person => new MediaPersonOption(person.Id, person.DisplayName))
+            .ToListAsync(cancellationToken);
+
+    private IQueryable<MediaFace> BuildReviewableFacesQuery()
+        => _db.Faces
+            .AsNoTracking()
+            .Where(face => !face.IsSuppressed
+                           && face.QualityStatus != FaceQualityStatus.ProcessingFailed
+                           && face.MediaAsset.IsAvailable
+                           && !face.MediaAsset.IsDeleted
+                           && !face.MediaAsset.IsArchived
+                           && !face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null)
+                           && !_db.FaceReviewDecisions.Any(decision =>
+                               decision.MediaFaceId == face.Id
+                               && !decision.CandidatePersonId.HasValue
+                               && decision.Decision == FaceReviewDecisionType.Ignored));
+
+    private IReadOnlyList<FaceReviewCandidateItem> BuildCandidateItems(
+        IReadOnlyList<ReviewCandidateRow> candidates)
+    {
+        var ordered = candidates
+            .OrderByDescending(candidate => candidate.Similarity ?? double.NegativeInfinity)
+            .ThenBy(candidate => candidate.DisplayName)
+            .ToList();
+        var results = new List<FaceReviewCandidateItem>(ordered.Count);
+        for (var index = 0; index < ordered.Count; index++)
+        {
+            var candidate = ordered[index];
+            var nextSimilarity = index + 1 < ordered.Count ? ordered[index + 1].Similarity : null;
+            var margin = candidate.Similarity.HasValue && nextSimilarity.HasValue
+                ? candidate.Similarity.Value - nextSimilarity.Value
+                : candidate.Similarity;
+            var isStrong = candidate.Similarity >= _options.CandidateStrongSimilarityThreshold
+                           && (!margin.HasValue || margin.Value >= _options.CandidateMinimumMargin);
+            var isAmbiguous = index == 0
+                              && candidate.Similarity >= _options.CandidateSimilarityThreshold
+                              && !isStrong;
+            results.Add(new FaceReviewCandidateItem(
+                candidate.DecisionId,
+                candidate.PersonId,
+                candidate.DisplayName,
+                candidate.Similarity,
+                candidate.ConcurrencyToken,
+                index + 1,
+                margin,
+                isStrong,
+                isAmbiguous));
+        }
+
+        return results;
     }
 
     private static string EscapeLikePattern(string value)

@@ -242,6 +242,26 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
             failures.Add("MediaLibrary:People:CandidateLimit must be between 1 and 20.");
         if (people.CandidateSimilarityThreshold is < -1 or > 1)
             failures.Add("MediaLibrary:People:CandidateSimilarityThreshold must be between -1 and 1.");
+        if (people.CandidateStrongSimilarityThreshold is < -1 or > 1)
+            failures.Add("MediaLibrary:People:CandidateStrongSimilarityThreshold must be between -1 and 1.");
+        if (people.CandidateStrongSimilarityThreshold < people.CandidateSimilarityThreshold)
+            failures.Add("MediaLibrary:People:CandidateStrongSimilarityThreshold cannot be below CandidateSimilarityThreshold.");
+        if (people.CandidateMinimumMargin is < 0 or > 1)
+            failures.Add("MediaLibrary:People:CandidateMinimumMargin must be between 0 and 1.");
+        if (people.CandidateRefreshBatchSize is < 1 or > 10_000)
+            failures.Add("MediaLibrary:People:CandidateRefreshBatchSize must be between 1 and 10000.");
+        if (people.GroupingMinimumFaces is < 2 or > 20)
+            failures.Add("MediaLibrary:People:GroupingMinimumFaces must be between 2 and 20.");
+        if (people.GroupingMaximumFaces is < 10 or > 25_000)
+            failures.Add("MediaLibrary:People:GroupingMaximumFaces must be between 10 and 25000.");
+        if (people.GroupingMaximumGroupSize is < 2 or > 500)
+            failures.Add("MediaLibrary:People:GroupingMaximumGroupSize must be between 2 and 500.");
+        if (people.GroupingSimilarityThreshold is < -1 or > 1)
+            failures.Add("MediaLibrary:People:GroupingSimilarityThreshold must be between -1 and 1.");
+        if (people.GroupingMinimumPairwiseSimilarity is < -1 or > 1)
+            failures.Add("MediaLibrary:People:GroupingMinimumPairwiseSimilarity must be between -1 and 1.");
+        if (people.GroupingMinimumPairwiseSimilarity > people.GroupingSimilarityThreshold)
+            failures.Add("MediaLibrary:People:GroupingMinimumPairwiseSimilarity cannot exceed GroupingSimilarityThreshold.");
         if (people.ReferenceFacesPerPerson is < 1 or > 50)
             failures.Add("MediaLibrary:People:ReferenceFacesPerPerson must be between 1 and 50.");
         if (people.MaximumCandidateReferenceEmbeddings is < 100 or > 250_000)

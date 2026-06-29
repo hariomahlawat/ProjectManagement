@@ -12,13 +12,16 @@ public sealed class IndexModel : PageModel
 {
     private const int DefaultPageSize = 36;
     private readonly IMediaPeopleQueryService _people;
+    private readonly IFaceIdentityGroupingService _groups;
     private readonly MediaLibraryOptions _options;
 
     public IndexModel(
         IMediaPeopleQueryService people,
+        IFaceIdentityGroupingService groups,
         IOptions<MediaLibraryOptions> options)
     {
         _people = people ?? throw new ArgumentNullException(nameof(people));
+        _groups = groups ?? throw new ArgumentNullException(nameof(groups));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
     }
 
@@ -38,6 +41,10 @@ public sealed class IndexModel : PageModel
         Array.Empty<MediaPersonCard>(), 0, 0, 0, 1, DefaultPageSize, false, false);
 
     public bool FeatureEnabled => _options.People.Enabled;
+    public int SuggestedGroupCount { get; private set; }
+    public int GroupedFaceCount { get; private set; }
+    public int RemainingIndividualFaceCount { get; private set; }
+    public int ReviewWorkCount => SuggestedGroupCount + RemainingIndividualFaceCount;
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
@@ -58,6 +65,10 @@ public sealed class IndexModel : PageModel
         Result = await _people.GetIndexAsync(
             new MediaPeopleIndexQuery(Q, Sort, IncludeHidden, PageNumber, DefaultPageSize),
             cancellationToken);
+        var groups = await _groups.GetGroupsAsync(cancellationToken);
+        SuggestedGroupCount = groups.TotalGroups;
+        GroupedFaceCount = groups.GroupedFaceCount;
+        RemainingIndividualFaceCount = groups.RemainingIndividualFaceCount;
         PageNumber = Result.PageNumber;
     }
 }
