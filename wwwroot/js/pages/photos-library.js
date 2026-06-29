@@ -6,6 +6,46 @@
     if (!root || !viewer) return;
 
     const tiles = Array.from(root.querySelectorAll('[data-media-item]'));
+
+    // Keep an open Photos page current without making catalogue discovery depend on
+    // navigation. The background worker discovers PRISM-owned media; this lightweight
+    // check only refreshes the UI after the rendered result set changes.
+    const autoRefreshUrl = root.dataset.autoRefreshUrl;
+    let currentLibraryVersion = root.dataset.libraryVersion || '';
+    let updateCheckInProgress = false;
+
+    const checkForLibraryUpdates = async () => {
+        if (!autoRefreshUrl || updateCheckInProgress || document.hidden || !viewer.hidden) return;
+        updateCheckInProgress = true;
+        try {
+            const response = await fetch(autoRefreshUrl, {
+                headers: { 'X-Requested-With': 'PhotosCataloguePoll' },
+                cache: 'no-store',
+                credentials: 'same-origin'
+            });
+            if (!response.ok) return;
+
+            const html = await response.text();
+            const parsed = new DOMParser().parseFromString(html, 'text/html');
+            const nextRoot = parsed.querySelector('[data-photos-library]');
+            const nextVersion = nextRoot?.dataset.libraryVersion || '';
+
+            if (nextVersion && nextVersion !== currentLibraryVersion) {
+                currentLibraryVersion = nextVersion;
+                window.location.reload();
+            }
+        } catch {
+            // Enhancement only. A failed update check must not affect normal browsing.
+        } finally {
+            updateCheckInProgress = false;
+        }
+    };
+
+    window.setInterval(checkForLibraryUpdates, 15000);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) void checkForLibraryUpdates();
+    });
+
     const filterForm = document.querySelector('[data-photos-filter-form]');
     const filterSubmit = document.querySelector('[data-photos-filter-submit]');
 
