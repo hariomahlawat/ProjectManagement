@@ -163,13 +163,13 @@ public sealed class FaceCandidateSuggestionService : IFaceCandidateSuggestionSer
             .ToList();
         if (facesWithoutUsableEmbedding.Count > 0)
         {
-            var completedAt = DateTimeOffset.UtcNow;
+            var noEmbeddingCompletedAt = DateTimeOffset.UtcNow;
             foreach (var face in facesWithoutUsableEmbedding)
             {
                 face.CandidateSearchStatus = FaceCandidateSearchStatus.NotRequested;
                 face.CandidateSearchFailureReason = "No current, valid face embedding is available.";
-                face.CandidateSearchCompletedAtUtc = completedAt;
-                face.UpdatedAtUtc = completedAt;
+                face.CandidateSearchCompletedAtUtc = noEmbeddingCompletedAt;
+                face.UpdatedAtUtc = noEmbeddingCompletedAt;
                 face.ConcurrencyToken = Guid.NewGuid();
             }
         }
