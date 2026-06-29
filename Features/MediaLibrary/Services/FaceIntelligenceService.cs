@@ -69,7 +69,7 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
         if (!string.IsNullOrWhiteSpace(asset.ContentHash)
             && !string.Equals(asset.ContentHash, actualContentHash, StringComparison.OrdinalIgnoreCase))
         {
-            var now = DateTimeOffset.UtcNow;
+            var contentChangedAtUtc = DateTimeOffset.UtcNow;
             var change = _contentInvalidation.ResetAsset(
                 asset,
                 $"sha256:{actualContentHash}",
@@ -78,9 +78,9 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
             asset.ContentHash = actualContentHash;
             await _contentInvalidation.RetireDerivedIntelligenceAsync(
                 new[] { change },
-                now,
+                contentChangedAtUtc,
                 cancellationToken);
-            await QueueAnalyseAssetAsync(asset.Id, now, cancellationToken);
+            await QueueAnalyseAssetAsync(asset.Id, contentChangedAtUtc, cancellationToken);
             await _db.SaveChangesAsync(cancellationToken);
             _logger.LogWarning(
                 "Retired stale face intelligence for asset {AssetId} after an exact content-hash change; classification was requeued.",
