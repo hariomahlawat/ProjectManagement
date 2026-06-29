@@ -152,6 +152,39 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
         var mergeTargets = await GetPersonOptionsAsync(cancellationToken);
         mergeTargets = mergeTargets.Where(item => item.Id != personId).ToList();
 
+        var historyRows = await _db.IdentityAudits
+            .AsNoTracking()
+            .Where(audit => audit.PersonId == personId
+                            || audit.PreviousPersonId == personId
+                            || audit.NewPersonId == personId)
+            .OrderByDescending(audit => audit.PerformedAtUtc)
+            .ThenByDescending(audit => audit.Id)
+            .Take(100)
+            .Select(audit => new
+            {
+                audit.Id,
+                audit.Action,
+                audit.Notes,
+                audit.PerformedByUserId,
+                audit.PerformedAtUtc,
+                audit.FaceId,
+                audit.PreviousPersonId,
+                audit.NewPersonId
+            })
+            .ToListAsync(cancellationToken);
+        var history = historyRows
+            .Select(audit => new MediaIdentityHistoryItem(
+                audit.Id,
+                audit.Action,
+                IdentityActionLabel(audit.Action),
+                audit.Notes,
+                audit.PerformedByUserId,
+                audit.PerformedAtUtc,
+                audit.FaceId,
+                audit.PreviousPersonId,
+                audit.NewPersonId))
+            .ToList();
+
         return new MediaPersonDetailsResult(
             person.Id,
             person.DisplayName,
@@ -164,7 +197,8 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             assignments.Count == 0 ? null : assignments.Min(item => item.MediaDateUtc),
             assignments.Count == 0 ? null : assignments.Max(item => item.MediaDateUtc),
             assignments,
-            mergeTargets);
+            mergeTargets,
+            history);
     }
 
     public async Task<FaceReviewQueueResult> GetReviewQueueAsync(
@@ -217,6 +251,7 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                         DecisionId = decision.Id,
                         PersonId = person.Id,
                         DisplayName = person.DisplayName,
+                        RepresentativeFaceId = person.RepresentativeFaceId,
                         Similarity = decision.Similarity,
                         ConcurrencyToken = decision.ConcurrencyToken
                     })
@@ -232,6 +267,7 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                         candidate.DecisionId,
                         candidate.PersonId,
                         candidate.DisplayName,
+                        candidate.RepresentativeFaceId,
                         candidate.Similarity,
                         candidate.ConcurrencyToken))
                     .ToList()));
@@ -447,6 +483,7 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                 candidate.DecisionId,
                 candidate.PersonId,
                 candidate.DisplayName,
+                candidate.RepresentativeFaceId,
                 candidate.Similarity,
                 candidate.ConcurrencyToken,
                 index + 1,
@@ -457,6 +494,31 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
 
         return results;
     }
+
+    private static string IdentityActionLabel(string action)
+        => action switch
+        {
+            "PersonCreated" => "Person created",
+            "PersonGroupCreated" => "Person created from appearances",
+            "FaceAssigned" => "Appearance confirmed",
+            "FaceReassigned" => "Appearance reassigned",
+            "FaceGroupAssigned" => "Appearances confirmed",
+            "AssignmentRemoved" => "Appearance returned to review",
+            "AssignmentMoved" => "Appearance moved",
+            "AppearancesMoved" => "Appearances moved",
+            "PersonSplit" => "New person created from selected appearances",
+            "PeopleMerged" => "People merged",
+            "AssignmentMerged" => "Appearance merged",
+            "PersonRenamed" => "Person renamed",
+            "PersonHidden" => "Person hidden",
+            "PersonRestored" => "Person restored",
+            "RepresentativeFaceChanged" => "Cover appearance changed",
+            "FaceSuppressed" => "Invalid face detection removed",
+            "FaceLeftUnidentified" => "Face left unidentified",
+            "CandidateRejected" => "Identity suggestion rejected",
+            "GroupCandidateRejected" => "Group identity suggestion rejected",
+            _ => action
+        };
 
     private static string NormalizeSort(string? sort)
         => sort?.Trim().ToLowerInvariant() switch
@@ -476,6 +538,7 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
         long DecisionId,
         Guid PersonId,
         string DisplayName,
+        Guid? RepresentativeFaceId,
         double? Similarity,
         Guid ConcurrencyToken);
 }
@@ -522,6 +585,7 @@ internal sealed class ReviewCandidateDatabaseRow
     public long DecisionId { get; init; }
     public Guid PersonId { get; init; }
     public string DisplayName { get; init; } = string.Empty;
+    public Guid? RepresentativeFaceId { get; init; }
     public double? Similarity { get; init; }
     public Guid ConcurrencyToken { get; init; }
 }

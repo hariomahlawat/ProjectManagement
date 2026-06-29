@@ -79,7 +79,7 @@ public sealed class DetailsModel : PageModel
         => ExecuteAsync(
             id,
             () => _review.SetRepresentativeFaceAsync(id, faceId, UserId, cancellationToken),
-            "Representative photograph updated.");
+            "Cover appearance updated.");
 
     public Task<IActionResult> OnPostRemoveAssignmentAsync(
         Guid id,
@@ -89,11 +89,25 @@ public sealed class DetailsModel : PageModel
         => ExecuteAsync(
             id,
             () => _review.RemoveAssignmentAsync(faceId, id, UserId, reason, cancellationToken),
-            "Incorrect face assignment removed.");
+            "Appearance returned to People Classification for reassignment.");
 
-    public async Task<IActionResult> OnPostMergeAsync(
+    public Task<IActionResult> OnPostSuppressFaceAsync(
         Guid id,
-        Guid targetPersonId,
+        Guid faceId,
+        string? reason,
+        CancellationToken cancellationToken)
+        => ExecuteAsync(
+            id,
+            () => _review.SuppressAsync(faceId, UserId, reason ?? string.Empty, cancellationToken),
+            "Invalid face detection removed from identity processing.");
+
+    public async Task<IActionResult> OnPostCorrectAppearancesAsync(
+        Guid id,
+        List<Guid> faceIds,
+        string correctionAction,
+        Guid? targetPersonId,
+        string? newDisplayName,
+        string? reason,
         CancellationToken cancellationToken)
     {
         if (!FeatureEnabled)
@@ -103,8 +117,78 @@ public sealed class DetailsModel : PageModel
 
         try
         {
-            await _review.MergePeopleAsync(id, targetPersonId, UserId, cancellationToken);
-            StatusMessage = "People merged successfully. All active assignments now belong to the selected person.";
+            var action = correctionAction?.Trim().ToLowerInvariant();
+            switch (action)
+            {
+                case "move":
+                    if (!targetPersonId.HasValue || targetPersonId == Guid.Empty)
+                    {
+                        throw new ArgumentException("Select the correct existing person.");
+                    }
+
+                    await _review.MoveAssignmentsAsync(
+                        id,
+                        faceIds,
+                        targetPersonId.Value,
+                        UserId,
+                        reason ?? string.Empty,
+                        cancellationToken);
+                    StatusMessage = $"{faceIds.Distinct().Count()} appearance(s) moved to the selected person.";
+                    return RedirectToPage("./Details", new { id = targetPersonId.Value });
+
+                case "split":
+                    var newPersonId = await _review.SplitToNewPersonAsync(
+                        id,
+                        faceIds,
+                        newDisplayName ?? string.Empty,
+                        UserId,
+                        reason ?? string.Empty,
+                        cancellationToken);
+                    StatusMessage = "A new person was created from the selected appearances.";
+                    return RedirectToPage("./Details", new { id = newPersonId });
+
+                case "review":
+                    await _review.ReturnAssignmentsToReviewAsync(
+                        id,
+                        faceIds,
+                        UserId,
+                        reason ?? string.Empty,
+                        cancellationToken);
+                    StatusMessage = $"{faceIds.Distinct().Count()} appearance(s) returned to People Classification.";
+                    return RedirectToPage("./Details", new { id });
+
+                default:
+                    throw new ArgumentException("Choose a valid correction action.");
+            }
+        }
+        catch (Exception exception) when (IsExpectedReviewException(exception))
+        {
+            _logger.LogWarning(exception, "Unable to correct appearances for media person {PersonId}.", id);
+            ErrorMessage = exception.Message;
+            return RedirectToPage("./Details", new { id });
+        }
+    }
+
+    public async Task<IActionResult> OnPostMergeAsync(
+        Guid id,
+        Guid targetPersonId,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        if (!FeatureEnabled)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            await _review.MergePeopleAsync(
+                id,
+                targetPersonId,
+                UserId,
+                reason ?? string.Empty,
+                cancellationToken);
+            StatusMessage = "People merged successfully. All active appearances now belong to the selected person.";
             return RedirectToPage("./Details", new { id = targetPersonId });
         }
         catch (Exception exception) when (IsExpectedReviewException(exception))

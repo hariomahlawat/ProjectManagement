@@ -40,7 +40,8 @@ public sealed record MediaPersonDetailsResult(
     DateTimeOffset? FirstMediaDateUtc,
     DateTimeOffset? LatestMediaDateUtc,
     IReadOnlyList<MediaPersonPhotoItem> Photos,
-    IReadOnlyList<MediaPersonOption> MergeTargets);
+    IReadOnlyList<MediaPersonOption> MergeTargets,
+    IReadOnlyList<MediaIdentityHistoryItem> IdentityHistory);
 
 public sealed record MediaPersonPhotoItem(
     long AssetId,
@@ -56,10 +57,22 @@ public sealed record MediaPersonPhotoItem(
 
 public sealed record MediaPersonOption(Guid Id, string DisplayName);
 
+public sealed record MediaIdentityHistoryItem(
+    long Id,
+    string Action,
+    string ActionLabel,
+    string? Notes,
+    string PerformedByUserId,
+    DateTimeOffset PerformedAtUtc,
+    Guid? FaceId,
+    Guid? PreviousPersonId,
+    Guid? NewPersonId);
+
 public sealed record FaceReviewCandidateItem(
     long DecisionId,
     Guid PersonId,
     string DisplayName,
+    Guid? RepresentativeFaceId,
     double? Similarity,
     Guid ConcurrencyToken,
     int Rank = 0,

@@ -75,6 +75,7 @@ public sealed record DetectedFaceData(
 public sealed record FaceCandidate(
     Guid PersonId,
     string DisplayName,
+    Guid? RepresentativeFaceId,
     double Similarity,
     double BestReferenceSimilarity = 0d,
     double MeanTopSimilarity = 0d,
@@ -213,6 +214,12 @@ public interface IFaceReviewService
 
     Task SuppressAsync(Guid faceId, string userId, CancellationToken cancellationToken);
 
+    Task SuppressAsync(
+        Guid faceId,
+        string userId,
+        string reason,
+        CancellationToken cancellationToken);
+
     Task RenamePersonAsync(
         Guid personId,
         string displayName,
@@ -238,9 +245,33 @@ public interface IFaceReviewService
         string? reason,
         CancellationToken cancellationToken);
 
+    Task MoveAssignmentsAsync(
+        Guid sourcePersonId,
+        IReadOnlyCollection<Guid> faceIds,
+        Guid targetPersonId,
+        string userId,
+        string reason,
+        CancellationToken cancellationToken);
+
+    Task<Guid> SplitToNewPersonAsync(
+        Guid sourcePersonId,
+        IReadOnlyCollection<Guid> faceIds,
+        string displayName,
+        string userId,
+        string reason,
+        CancellationToken cancellationToken);
+
+    Task ReturnAssignmentsToReviewAsync(
+        Guid sourcePersonId,
+        IReadOnlyCollection<Guid> faceIds,
+        string userId,
+        string reason,
+        CancellationToken cancellationToken);
+
     Task MergePeopleAsync(
         Guid sourcePersonId,
         Guid targetPersonId,
         string userId,
+        string reason,
         CancellationToken cancellationToken);
 }

@@ -363,12 +363,24 @@ public sealed class FaceReviewService : IFaceReviewService
         }, cancellationToken);
     }
 
-    public async Task SuppressAsync(
+    public Task SuppressAsync(
         Guid faceId,
         string userId,
         CancellationToken cancellationToken)
+        => SuppressAsync(
+            faceId,
+            userId,
+            "Reviewer marked the detection as not a valid face.",
+            cancellationToken);
+
+    public async Task SuppressAsync(
+        Guid faceId,
+        string userId,
+        string reason,
+        CancellationToken cancellationToken)
     {
         ValidateUserId(userId);
+        var normalizedReason = RequireReason(reason);
         await ExecuteTransactionalAsync(async () =>
         {
             var face = await _db.Faces
@@ -382,6 +394,11 @@ public sealed class FaceReviewService : IFaceReviewService
             }
 
             var now = DateTimeOffset.UtcNow;
+            var affectedPersonIds = face.PersonAssignments
+                .Select(assignment => assignment.MediaPersonId)
+                .Distinct()
+                .ToArray();
+
             face.IsSuppressed = true;
             face.QualityStatus = FaceQualityStatus.Suppressed;
             face.SuppressedAtUtc = now;
@@ -397,7 +414,7 @@ public sealed class FaceReviewService : IFaceReviewService
             {
                 assignment.RemovedAtUtc = now;
                 assignment.RemovedByUserId = userId;
-                assignment.RemovalReason = "Detection suppressed as not a usable face.";
+                assignment.RemovalReason = normalizedReason;
                 assignment.ConcurrencyToken = Guid.NewGuid();
             }
 
@@ -410,8 +427,23 @@ public sealed class FaceReviewService : IFaceReviewService
                 decision.Decision = FaceReviewDecisionType.Ignored;
                 decision.DecidedAtUtc = now;
                 decision.DecidedByUserId = userId;
-                decision.Notes = "Face detection suppressed.";
+                decision.Notes = normalizedReason;
                 decision.ConcurrencyToken = Guid.NewGuid();
+            }
+
+            if (affectedPersonIds.Length > 0)
+            {
+                var affectedPeople = await _db.Persons
+                    .Where(person => affectedPersonIds.Contains(person.Id))
+                    .ToListAsync(cancellationToken);
+                foreach (var person in affectedPeople)
+                {
+                    await RefreshRepresentativeAfterRemovalAsync(
+                        person,
+                        new[] { faceId },
+                        now,
+                        cancellationToken);
+                }
             }
 
             _db.IdentityAudits.Add(new MediaIdentityAudit
@@ -419,7 +451,7 @@ public sealed class FaceReviewService : IFaceReviewService
                 FaceId = faceId,
                 Action = "FaceSuppressed",
                 PerformedByUserId = userId,
-                Notes = "Marked as not a usable face.",
+                Notes = normalizedReason,
                 PerformedAtUtc = now
             });
             await _db.SaveChangesAsync(cancellationToken);
@@ -526,64 +558,309 @@ public sealed class FaceReviewService : IFaceReviewService
         await SaveWithConflictTranslationAsync(cancellationToken);
     }
 
-    public async Task RemoveAssignmentAsync(
+    public Task RemoveAssignmentAsync(
         Guid faceId,
         Guid personId,
         string userId,
         string? reason,
         CancellationToken cancellationToken)
+        => ReturnAssignmentsToReviewAsync(
+            personId,
+            new[] { faceId },
+            userId,
+            RequireReason(reason),
+            cancellationToken);
+
+    public async Task MoveAssignmentsAsync(
+        Guid sourcePersonId,
+        IReadOnlyCollection<Guid> faceIds,
+        Guid targetPersonId,
+        string userId,
+        string reason,
+        CancellationToken cancellationToken)
     {
         ValidateUserId(userId);
-        var assignment = await _db.PersonFaces
-            .SingleOrDefaultAsync(
-                item => item.MediaFaceId == faceId
-                        && item.MediaPersonId == personId
-                        && item.RemovedAtUtc == null,
-                cancellationToken)
-            ?? throw new KeyNotFoundException("The active face assignment no longer exists.");
-        var person = await _db.Persons.SingleAsync(item => item.Id == personId, cancellationToken);
-        var now = DateTimeOffset.UtcNow;
-        assignment.RemovedAtUtc = now;
-        assignment.RemovedByUserId = userId;
-        assignment.RemovalReason = CleanOptionalText(reason, 1024) ?? "Removed by an authorised reviewer.";
-        assignment.ConcurrencyToken = Guid.NewGuid();
-
-        if (person.RepresentativeFaceId == faceId)
+        var selectedFaces = NormalizeFaceSelection(faceIds);
+        var correctionReason = RequireReason(reason);
+        if (sourcePersonId == targetPersonId)
         {
-            person.RepresentativeFaceId = await _db.PersonFaces
-                .AsNoTracking()
-                .Where(item => item.MediaPersonId == personId
-                               && item.MediaFaceId != faceId
-                               && item.RemovedAtUtc == null
-                               && !item.MediaFace.IsSuppressed)
-                .OrderByDescending(item => item.MediaFace.QualityScore)
-                .ThenByDescending(item => item.AssignedAtUtc)
-                .Select(item => (Guid?)item.MediaFaceId)
-                .FirstOrDefaultAsync(cancellationToken);
-            person.UpdatedAtUtc = now;
-            person.ConcurrencyToken = Guid.NewGuid();
+            throw new ArgumentException("Choose a different target person.", nameof(targetPersonId));
         }
 
-        _db.IdentityAudits.Add(new MediaIdentityAudit
+        await ExecuteTransactionalAsync(async () =>
         {
-            FaceId = faceId,
-            PersonId = personId,
-            PreviousPersonId = personId,
-            Action = "AssignmentRemoved",
-            PerformedByUserId = userId,
-            Notes = assignment.RemovalReason,
-            PerformedAtUtc = now
-        });
-        await SaveWithConflictTranslationAsync(cancellationToken);
+            var source = await RequireActivePersonAsync(sourcePersonId, cancellationToken);
+            var target = await RequireActivePersonAsync(targetPersonId, cancellationToken);
+            var assignments = await RequireActiveAssignmentsAsync(
+                sourcePersonId,
+                selectedFaces,
+                cancellationToken);
+            await EnsureNoSamePhotographConflictAsync(
+                selectedFaces,
+                targetPersonId,
+                cancellationToken);
+
+            var now = DateTimeOffset.UtcNow;
+            foreach (var assignment in assignments)
+            {
+                assignment.RemovedAtUtc = now;
+                assignment.RemovedByUserId = userId;
+                assignment.RemovalReason = correctionReason;
+                assignment.ConcurrencyToken = Guid.NewGuid();
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+            foreach (var assignment in assignments)
+            {
+                _db.PersonFaces.Add(new MediaPersonFace
+                {
+                    MediaPersonId = target.Id,
+                    MediaFaceId = assignment.MediaFaceId,
+                    AssignmentType = FaceAssignmentType.ManualAssignment,
+                    AssignmentConfidence = assignment.AssignmentConfidence,
+                    AssignedByUserId = userId,
+                    AssignedAtUtc = now,
+                    ConcurrencyToken = Guid.NewGuid()
+                });
+                await ResolvePendingDecisionsAsync(
+                    assignment.MediaFaceId,
+                    target.Id,
+                    userId,
+                    now,
+                    cancellationToken);
+                _db.IdentityAudits.Add(new MediaIdentityAudit
+                {
+                    FaceId = assignment.MediaFaceId,
+                    PersonId = target.Id,
+                    PreviousPersonId = source.Id,
+                    NewPersonId = target.Id,
+                    Action = "AssignmentMoved",
+                    PerformedByUserId = userId,
+                    Notes = correctionReason,
+                    PerformedAtUtc = now
+                });
+            }
+
+            await RefreshRepresentativeAfterRemovalAsync(source, selectedFaces, now, cancellationToken);
+            if (!target.RepresentativeFaceId.HasValue)
+            {
+                target.RepresentativeFaceId = selectedFaces[0];
+            }
+
+            target.Status = MediaPersonStatus.Confirmed;
+            target.IsHidden = false;
+            target.UpdatedAtUtc = now;
+            target.ConcurrencyToken = Guid.NewGuid();
+            _db.IdentityAudits.Add(new MediaIdentityAudit
+            {
+                FaceId = selectedFaces[0],
+                PersonId = target.Id,
+                PreviousPersonId = source.Id,
+                NewPersonId = target.Id,
+                Action = "AppearancesMoved",
+                PerformedByUserId = userId,
+                Notes = $"Moved {selectedFaces.Count} appearance(s) from '{source.DisplayName}' to '{target.DisplayName}'. {correctionReason}",
+                MetadataJson = JsonSerializer.Serialize(new { FaceIds = selectedFaces }),
+                PerformedAtUtc = now
+            });
+            await _db.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
+
+        await RefreshCandidatesAfterIdentityChangeAsync(cancellationToken);
+    }
+
+    public async Task<Guid> SplitToNewPersonAsync(
+        Guid sourcePersonId,
+        IReadOnlyCollection<Guid> faceIds,
+        string displayName,
+        string userId,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        ValidateUserId(userId);
+        var selectedFaces = NormalizeFaceSelection(faceIds);
+        var normalized = NormalizeName(displayName);
+        var correctionReason = RequireReason(reason);
+        var newPersonId = Guid.NewGuid();
+
+        await ExecuteTransactionalAsync(async () =>
+        {
+            var source = await RequireActivePersonAsync(sourcePersonId, cancellationToken);
+            var assignments = await RequireActiveAssignmentsAsync(
+                sourcePersonId,
+                selectedFaces,
+                cancellationToken);
+            await EnsureDistinctPhotographsAsync(selectedFaces, cancellationToken);
+
+            var now = DateTimeOffset.UtcNow;
+            var newPerson = new MediaPerson
+            {
+                Id = newPersonId,
+                DisplayName = normalized.Display,
+                NormalizedName = normalized.Search,
+                Status = MediaPersonStatus.Confirmed,
+                RepresentativeFaceId = selectedFaces[0],
+                CreatedByUserId = userId,
+                ConcurrencyToken = Guid.NewGuid(),
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            };
+            _db.Persons.Add(newPerson);
+
+            foreach (var assignment in assignments)
+            {
+                assignment.RemovedAtUtc = now;
+                assignment.RemovedByUserId = userId;
+                assignment.RemovalReason = correctionReason;
+                assignment.ConcurrencyToken = Guid.NewGuid();
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+            foreach (var assignment in assignments)
+            {
+                _db.PersonFaces.Add(new MediaPersonFace
+                {
+                    MediaPersonId = newPerson.Id,
+                    MediaFaceId = assignment.MediaFaceId,
+                    AssignmentType = FaceAssignmentType.ManualAssignment,
+                    AssignmentConfidence = assignment.AssignmentConfidence,
+                    AssignedByUserId = userId,
+                    AssignedAtUtc = now,
+                    ConcurrencyToken = Guid.NewGuid()
+                });
+                await ResolvePendingDecisionsAsync(
+                    assignment.MediaFaceId,
+                    newPerson.Id,
+                    userId,
+                    now,
+                    cancellationToken);
+                _db.IdentityAudits.Add(new MediaIdentityAudit
+                {
+                    FaceId = assignment.MediaFaceId,
+                    PersonId = newPerson.Id,
+                    PreviousPersonId = source.Id,
+                    NewPersonId = newPerson.Id,
+                    Action = "AssignmentMoved",
+                    PerformedByUserId = userId,
+                    Notes = correctionReason,
+                    PerformedAtUtc = now
+                });
+            }
+
+            await RefreshRepresentativeAfterRemovalAsync(source, selectedFaces, now, cancellationToken);
+            _db.IdentityAudits.Add(new MediaIdentityAudit
+            {
+                FaceId = selectedFaces[0],
+                PersonId = newPerson.Id,
+                PreviousPersonId = source.Id,
+                NewPersonId = newPerson.Id,
+                Action = "PersonSplit",
+                PerformedByUserId = userId,
+                Notes = $"Created '{newPerson.DisplayName}' from {selectedFaces.Count} selected appearance(s) previously assigned to '{source.DisplayName}'. {correctionReason}",
+                MetadataJson = JsonSerializer.Serialize(new { FaceIds = selectedFaces }),
+                PerformedAtUtc = now
+            });
+            await _db.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
+
+        await RefreshCandidatesAfterIdentityChangeAsync(cancellationToken);
+        return newPersonId;
+    }
+
+    public async Task ReturnAssignmentsToReviewAsync(
+        Guid sourcePersonId,
+        IReadOnlyCollection<Guid> faceIds,
+        string userId,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        ValidateUserId(userId);
+        var selectedFaces = NormalizeFaceSelection(faceIds);
+        var correctionReason = RequireReason(reason);
+
+        await ExecuteTransactionalAsync(async () =>
+        {
+            var source = await RequireActivePersonAsync(sourcePersonId, cancellationToken);
+            var assignments = await RequireActiveAssignmentsAsync(
+                sourcePersonId,
+                selectedFaces,
+                cancellationToken);
+            var now = DateTimeOffset.UtcNow;
+            foreach (var assignment in assignments)
+            {
+                assignment.RemovedAtUtc = now;
+                assignment.RemovedByUserId = userId;
+                assignment.RemovalReason = correctionReason;
+                assignment.ConcurrencyToken = Guid.NewGuid();
+            }
+
+            var oldDecisions = await _db.FaceReviewDecisions
+                .Where(decision => selectedFaces.Contains(decision.MediaFaceId)
+                                   && decision.CandidatePersonId == sourcePersonId
+                                   && decision.ModelKey == _options.Embedder.Key
+                                   && decision.ModelVersion == _options.Embedder.Version)
+                .ToListAsync(cancellationToken);
+            foreach (var decision in oldDecisions.Where(decision =>
+                         decision.Decision is FaceReviewDecisionType.Pending or FaceReviewDecisionType.Confirmed))
+            {
+                decision.Decision = FaceReviewDecisionType.Rejected;
+                decision.DecidedByUserId = userId;
+                decision.DecidedAtUtc = now;
+                decision.Notes = $"Previous assignment was returned to review. {correctionReason}";
+                decision.ConcurrencyToken = Guid.NewGuid();
+            }
+
+            var facesWithRejectedSource = oldDecisions
+                .Where(decision => decision.Decision == FaceReviewDecisionType.Rejected)
+                .Select(decision => decision.MediaFaceId)
+                .ToHashSet();
+            foreach (var faceId in selectedFaces.Where(faceId => !facesWithRejectedSource.Contains(faceId)))
+            {
+                _db.FaceReviewDecisions.Add(new MediaFaceReviewDecision
+                {
+                    MediaFaceId = faceId,
+                    CandidatePersonId = sourcePersonId,
+                    Decision = FaceReviewDecisionType.Rejected,
+                    ModelKey = _options.Embedder.Key,
+                    ModelVersion = _options.Embedder.Version,
+                    DecidedByUserId = userId,
+                    Notes = $"Previous assignment was returned to review. {correctionReason}",
+                    ConcurrencyToken = Guid.NewGuid(),
+                    CreatedAtUtc = now,
+                    DecidedAtUtc = now
+                });
+            }
+
+            await RefreshRepresentativeAfterRemovalAsync(source, selectedFaces, now, cancellationToken);
+            foreach (var faceId in selectedFaces)
+            {
+                _db.IdentityAudits.Add(new MediaIdentityAudit
+                {
+                    FaceId = faceId,
+                    PersonId = source.Id,
+                    PreviousPersonId = source.Id,
+                    Action = "AssignmentRemoved",
+                    PerformedByUserId = userId,
+                    Notes = correctionReason,
+                    PerformedAtUtc = now
+                });
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
+
+        await RefreshCandidatesAfterIdentityChangeAsync(cancellationToken);
     }
 
     public async Task MergePeopleAsync(
         Guid sourcePersonId,
         Guid targetPersonId,
         string userId,
+        string reason,
         CancellationToken cancellationToken)
     {
         ValidateUserId(userId);
+        var mergeReason = RequireReason(reason);
         if (sourcePersonId == targetPersonId)
         {
             throw new ArgumentException("The source and target person must be different.");
@@ -605,16 +882,25 @@ public sealed class FaceReviewService : IFaceReviewService
                 .Where(assignment => assignment.MediaPersonId == sourcePersonId
                                      && assignment.RemovedAtUtc == null)
                 .ToListAsync(cancellationToken);
+            var sourceFaceIds = sourceAssignments.Select(assignment => assignment.MediaFaceId).ToList();
+            if (sourceFaceIds.Count > 0)
+            {
+                await EnsureNoSamePhotographConflictAsync(
+                    sourceFaceIds,
+                    targetPersonId,
+                    cancellationToken);
+            }
+
             var now = DateTimeOffset.UtcNow;
             foreach (var assignment in sourceAssignments)
             {
                 assignment.RemovedAtUtc = now;
                 assignment.RemovedByUserId = userId;
-                assignment.RemovalReason = $"Merged into {target.DisplayName}.";
+                assignment.RemovalReason = $"Merged into {target.DisplayName}. {mergeReason}";
                 assignment.ConcurrencyToken = Guid.NewGuid();
             }
 
-            // Release the partial unique constraint before inserting the replacement assignments.
+            // Release the one-active-assignment-per-face constraint before inserting replacements.
             await _db.SaveChangesAsync(cancellationToken);
             foreach (var sourceAssignment in sourceAssignments)
             {
@@ -636,24 +922,23 @@ public sealed class FaceReviewService : IFaceReviewService
                     NewPersonId = target.Id,
                     Action = "AssignmentMerged",
                     PerformedByUserId = userId,
+                    Notes = mergeReason,
                     PerformedAtUtc = now
                 });
             }
 
             if (!target.RepresentativeFaceId.HasValue)
             {
-                var sourceFaceIds = sourceAssignments
-                    .Select(assignment => assignment.MediaFaceId)
-                    .ToHashSet();
                 target.RepresentativeFaceId = source.RepresentativeFaceId.HasValue
                                               && sourceFaceIds.Contains(source.RepresentativeFaceId.Value)
                     ? source.RepresentativeFaceId
-                    : sourceAssignments.Select(assignment => (Guid?)assignment.MediaFaceId).FirstOrDefault();
+                    : sourceFaceIds.Select(faceId => (Guid?)faceId).FirstOrDefault();
             }
 
             source.Status = MediaPersonStatus.Merged;
             source.IsHidden = true;
             source.MergedIntoPersonId = target.Id;
+            source.RepresentativeFaceId = null;
             source.UpdatedAtUtc = now;
             source.ConcurrencyToken = Guid.NewGuid();
             target.Status = MediaPersonStatus.Confirmed;
@@ -665,15 +950,20 @@ public sealed class FaceReviewService : IFaceReviewService
                 .Where(decision => decision.CandidatePersonId == sourcePersonId
                                    && decision.Decision == FaceReviewDecisionType.Pending)
                 .ToListAsync(cancellationToken);
+            var sourceDecisionFaceIds = sourceDecisions.Select(decision => decision.MediaFaceId).ToList();
+            var targetPendingFaceIds = sourceDecisionFaceIds.Count == 0
+                ? new HashSet<Guid>()
+                : (await _db.FaceReviewDecisions
+                    .AsNoTracking()
+                    .Where(existing => sourceDecisionFaceIds.Contains(existing.MediaFaceId)
+                                       && existing.CandidatePersonId == targetPersonId
+                                       && existing.Decision == FaceReviewDecisionType.Pending)
+                    .Select(existing => existing.MediaFaceId)
+                    .ToListAsync(cancellationToken))
+                .ToHashSet();
             foreach (var decision in sourceDecisions)
             {
-                var targetPendingExists = await _db.FaceReviewDecisions.AnyAsync(
-                    existing => existing.Id != decision.Id
-                                && existing.MediaFaceId == decision.MediaFaceId
-                                && existing.CandidatePersonId == targetPersonId
-                                && existing.Decision == FaceReviewDecisionType.Pending,
-                    cancellationToken);
-                if (targetPendingExists)
+                if (targetPendingFaceIds.Contains(decision.MediaFaceId))
                 {
                     decision.Decision = FaceReviewDecisionType.Ignored;
                     decision.DecidedAtUtc = now;
@@ -696,11 +986,14 @@ public sealed class FaceReviewService : IFaceReviewService
                 NewPersonId = target.Id,
                 Action = "PeopleMerged",
                 PerformedByUserId = userId,
-                Notes = $"Merged '{source.DisplayName}' into '{target.DisplayName}'.",
+                Notes = $"Merged '{source.DisplayName}' into '{target.DisplayName}'. {mergeReason}",
+                MetadataJson = JsonSerializer.Serialize(new { FaceIds = sourceFaceIds }),
                 PerformedAtUtc = now
             });
             await _db.SaveChangesAsync(cancellationToken);
         }, cancellationToken);
+
+        await RefreshCandidatesAfterIdentityChangeAsync(cancellationToken);
     }
 
     private async Task AssignCoreAsync(
@@ -884,6 +1177,130 @@ public sealed class FaceReviewService : IFaceReviewService
     }
 
 
+    private async Task<List<MediaPersonFace>> RequireActiveAssignmentsAsync(
+        Guid sourcePersonId,
+        IReadOnlyList<Guid> faceIds,
+        CancellationToken cancellationToken)
+    {
+        var assignments = await _db.PersonFaces
+            .Where(assignment => assignment.MediaPersonId == sourcePersonId
+                                 && faceIds.Contains(assignment.MediaFaceId)
+                                 && assignment.RemovedAtUtc == null
+                                 && !assignment.MediaFace.IsSuppressed
+                                 && assignment.MediaFace.MediaAsset.IsAvailable
+                                 && !assignment.MediaFace.MediaAsset.IsDeleted
+                                 && !assignment.MediaFace.MediaAsset.IsArchived)
+            .ToListAsync(cancellationToken);
+        if (assignments.Count != faceIds.Count)
+        {
+            throw new FaceIdentityConflictException(
+                "One or more selected appearances are unavailable or no longer belong to this person. Refresh the page and try again.");
+        }
+
+        return assignments;
+    }
+
+    private async Task EnsureDistinctPhotographsAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        CancellationToken cancellationToken)
+    {
+        if (faceIds.Count < 2)
+        {
+            return;
+        }
+
+        var assetIds = await _db.Faces
+            .AsNoTracking()
+            .Where(face => faceIds.Contains(face.Id))
+            .Select(face => face.MediaAssetId)
+            .ToListAsync(cancellationToken);
+        if (assetIds.Count != faceIds.Count || assetIds.Distinct().Count() != assetIds.Count)
+        {
+            throw new FaceIdentityConflictException(
+                "Two selected faces come from the same photograph. They cannot be assigned to one person in a batch; review them separately.");
+        }
+    }
+
+    private async Task EnsureNoSamePhotographConflictAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        Guid targetPersonId,
+        CancellationToken cancellationToken)
+    {
+        await EnsureDistinctPhotographsAsync(faceIds, cancellationToken);
+        var selectedAssetIds = await _db.Faces
+            .AsNoTracking()
+            .Where(face => faceIds.Contains(face.Id))
+            .Select(face => face.MediaAssetId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        if (selectedAssetIds.Count == 0)
+        {
+            throw new FaceIdentityConflictException("The selected appearances are no longer available.");
+        }
+
+        var conflictExists = await _db.PersonFaces
+            .AsNoTracking()
+            .AnyAsync(assignment => assignment.MediaPersonId == targetPersonId
+                                    && assignment.RemovedAtUtc == null
+                                    && selectedAssetIds.Contains(assignment.MediaFace.MediaAssetId),
+                cancellationToken);
+        if (conflictExists)
+        {
+            throw new FaceIdentityConflictException(
+                "The target person already has a confirmed face in one of the selected photographs. Correct the conflicting photograph before moving or merging identities.");
+        }
+    }
+
+    private async Task RefreshRepresentativeAfterRemovalAsync(
+        MediaPerson person,
+        IReadOnlyCollection<Guid> removedFaceIds,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var activeAssignments = _db.PersonFaces
+            .AsNoTracking()
+            .Where(assignment => assignment.MediaPersonId == person.Id
+                                 && assignment.RemovedAtUtc == null
+                                 && !removedFaceIds.Contains(assignment.MediaFaceId)
+                                 && !assignment.MediaFace.IsSuppressed);
+
+        var hasAnyActiveAssignment = await activeAssignments.AnyAsync(cancellationToken);
+        if (!hasAnyActiveAssignment)
+        {
+            person.RepresentativeFaceId = null;
+            person.IsHidden = true;
+            person.Status = MediaPersonStatus.Hidden;
+            person.UpdatedAtUtc = now;
+            person.ConcurrencyToken = Guid.NewGuid();
+            return;
+        }
+
+        if (person.RepresentativeFaceId.HasValue
+            && !removedFaceIds.Contains(person.RepresentativeFaceId.Value))
+        {
+            return;
+        }
+
+        // Prefer an appearance whose source is currently available, while still
+        // retaining the person when only audited/unavailable appearances remain.
+        var availableRepresentative = await activeAssignments
+            .Where(assignment => assignment.MediaFace.MediaAsset.IsAvailable
+                                 && !assignment.MediaFace.MediaAsset.IsDeleted
+                                 && !assignment.MediaFace.MediaAsset.IsArchived)
+            .OrderByDescending(assignment => assignment.MediaFace.QualityScore)
+            .ThenByDescending(assignment => assignment.AssignedAtUtc)
+            .Select(assignment => (Guid?)assignment.MediaFaceId)
+            .FirstOrDefaultAsync(cancellationToken);
+        person.RepresentativeFaceId = availableRepresentative
+            ?? await activeAssignments
+                .OrderByDescending(assignment => assignment.MediaFace.QualityScore)
+                .ThenByDescending(assignment => assignment.AssignedAtUtc)
+                .Select(assignment => (Guid?)assignment.MediaFaceId)
+                .FirstOrDefaultAsync(cancellationToken);
+        person.UpdatedAtUtc = now;
+        person.ConcurrencyToken = Guid.NewGuid();
+    }
+
     private async Task ValidateUnassignedFaceAsync(
         Guid faceId,
         CancellationToken cancellationToken)
@@ -984,6 +1401,17 @@ public sealed class FaceReviewService : IFaceReviewService
         }
 
         return (display, display.ToUpperInvariant());
+    }
+
+    private static string RequireReason(string? value)
+    {
+        var reason = CleanOptionalText(value, 1024);
+        if (reason is null || reason.Length < 3)
+        {
+            throw new ArgumentException("A correction reason of at least 3 characters is required.", nameof(value));
+        }
+
+        return reason;
     }
 
     private static string? CleanOptionalText(string? value, int maximumLength)

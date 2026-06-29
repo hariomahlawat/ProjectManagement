@@ -65,6 +65,7 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
             .Select(reference => new ReferenceRow(
                 reference.PersonId,
                 reference.DisplayName,
+                reference.RepresentativeFaceId,
                 reference.Embedding,
                 reference.QualityScore,
                 reference.AssignedAtUtc))
@@ -87,7 +88,7 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
         var rejected = rejectedPersonIds.ToHashSet();
 
         return references
-            .GroupBy(reference => new { reference.PersonId, reference.DisplayName })
+            .GroupBy(reference => new { reference.PersonId, reference.DisplayName, reference.RepresentativeFaceId })
             .Where(group => !rejected.Contains(group.Key.PersonId))
             .Select(group =>
             {
@@ -101,6 +102,7 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
                 return new FaceCandidate(
                     group.Key.PersonId,
                     group.Key.DisplayName,
+                    group.Key.RepresentativeFaceId,
                     score.AggregateSimilarity,
                     score.BestSimilarity,
                     score.MeanTopSimilarity,
@@ -162,6 +164,7 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
                 EmbeddingId = reference.Id,
                 PersonId = assignment.MediaPersonId,
                 person.DisplayName,
+                person.RepresentativeFaceId,
                 reference.Embedding,
                 QualityScore = reference.QualityScore,
                 assignment.AssignedAtUtc
@@ -175,6 +178,7 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
                 EmbeddingId = row.EmbeddingId,
                 PersonId = row.PersonId,
                 DisplayName = row.DisplayName,
+                RepresentativeFaceId = row.RepresentativeFaceId,
                 Embedding = row.Embedding,
                 QualityScore = row.QualityScore,
                 AssignedAtUtc = row.AssignedAtUtc
@@ -187,6 +191,7 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
     private sealed record ReferenceRow(
         Guid PersonId,
         string DisplayName,
+        Guid? RepresentativeFaceId,
         float[] Embedding,
         double QualityScore,
         DateTimeOffset AssignedAtUtc);
@@ -202,6 +207,7 @@ internal sealed class CandidateReferenceDatabaseRow
     public long EmbeddingId { get; init; }
     public Guid PersonId { get; init; }
     public string DisplayName { get; init; } = string.Empty;
+    public Guid? RepresentativeFaceId { get; init; }
     public float[] Embedding { get; init; } = Array.Empty<float>();
     public double QualityScore { get; init; }
     public DateTimeOffset AssignedAtUtc { get; init; }

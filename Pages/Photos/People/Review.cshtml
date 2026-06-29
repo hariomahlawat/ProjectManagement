@@ -1,7 +1,7 @@
 @page
 @model ProjectManagement.Pages.Photos.People.ReviewModel
 @{
-    ViewData["Title"] = "People classification";
+    ViewData["Title"] = "Identify people";
     ViewData["PageShell"] = "wide";
 }
 
@@ -13,8 +13,8 @@
     <header class="people-header">
         <div>
             <span class="people-eyebrow">Human-confirmed identity intelligence</span>
-            <h1>People classification</h1>
-            <p>Review suggested appearances of the same person, then confirm the identity once. PRISM never names a person automatically.</p>
+            <h1>Identify people</h1>
+            <p>Review suggested matches, confirm known people, and create new identities only when required. PRISM never names a person automatically.</p>
         </div>
         <nav class="people-header__actions">
             @if (Model.FeatureEnabled)
@@ -134,9 +134,21 @@
                                     {
                                         var isStrong = candidate.Similarity >= Model.CandidateStrongSimilarityThreshold;
                                         <div class="identity-group-candidate">
+                                            <a class="face-candidate__portrait" asp-page="./Details" asp-route-id="@candidate.PersonId"
+                                               title="Open @candidate.DisplayName">
+                                                @if (candidate.RepresentativeFaceId.HasValue)
+                                                {
+                                                    <img src="@Url.Page("/Photos/FaceThumbnail", new { id = candidate.RepresentativeFaceId })"
+                                                         alt="Reference appearance for @candidate.DisplayName" loading="lazy" />
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-person" aria-hidden="true"></i>
+                                                }
+                                            </a>
                                             <span>
-                                                <strong>@candidate.DisplayName</strong>
-                                                <small>Match @candidate.Similarity.ToString("0.000") · @candidate.ReferenceCount @(candidate.ReferenceCount == 1 ? "reference face" : "reference faces")</small>
+                                                <a asp-page="./Details" asp-route-id="@candidate.PersonId"><strong>@candidate.DisplayName</strong></a>
+                                                <small title="Embedding similarity is a ranking signal, not an identity probability.">Similarity @candidate.Similarity.ToString("0.000") · @candidate.ReferenceCount @(candidate.ReferenceCount == 1 ? "reference appearance" : "reference appearances")</small>
                                             </span>
                                             <div class="identity-group-candidate__actions">
                                                 <form method="post" asp-page-handler="AssignGroup">
@@ -265,11 +277,23 @@
                                     }
                                     @foreach (var candidate in item.Candidates)
                                     {
-                                        <div class="face-candidate">
+                                        <div class="face-candidate face-candidate--with-portrait">
+                                            <a class="face-candidate__portrait" asp-page="./Details" asp-route-id="@candidate.PersonId"
+                                               title="Open @candidate.DisplayName">
+                                                @if (candidate.RepresentativeFaceId.HasValue)
+                                                {
+                                                    <img src="@Url.Page("/Photos/FaceThumbnail", new { id = candidate.RepresentativeFaceId })"
+                                                         alt="Reference appearance for @candidate.DisplayName" loading="lazy" />
+                                                }
+                                                else
+                                                {
+                                                    <i class="bi bi-person" aria-hidden="true"></i>
+                                                }
+                                            </a>
                                             <span class="face-candidate__identity">
-                                                <strong>@candidate.DisplayName</strong>
-                                                <small>
-                                                    Match @(candidate.Similarity?.ToString("0.000") ?? "—")
+                                                <a asp-page="./Details" asp-route-id="@candidate.PersonId"><strong>@candidate.DisplayName</strong></a>
+                                                <small title="Embedding similarity is a ranking signal, not an identity probability.">
+                                                    Similarity @(candidate.Similarity?.ToString("0.000") ?? "—")
                                                     @if (candidate.IsStrong)
                                                     {
                                                         <em class="candidate-strength is-strong">Strong</em>
