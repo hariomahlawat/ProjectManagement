@@ -20,6 +20,7 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
     private readonly IFileSystemPathResolver _pathResolver;
     private readonly SafeFileEnumerator _enumerator;
     private readonly IMediaMetadataReader _metadataReader;
+    private readonly IMediaContentChangeInvalidationService _contentInvalidation;
     private readonly ILogger<FileSystemMediaSourceScanner> _logger;
 
     public FileSystemMediaSourceScanner(
@@ -28,6 +29,7 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
         IFileSystemPathResolver pathResolver,
         SafeFileEnumerator enumerator,
         IMediaMetadataReader metadataReader,
+        IMediaContentChangeInvalidationService contentInvalidation,
         ILogger<FileSystemMediaSourceScanner> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
@@ -35,6 +37,7 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
         _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
         _enumerator = enumerator ?? throw new ArgumentNullException(nameof(enumerator));
         _metadataReader = metadataReader ?? throw new ArgumentNullException(nameof(metadataReader));
+        _contentInvalidation = contentInvalidation ?? throw new ArgumentNullException(nameof(contentInvalidation));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -254,6 +257,8 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
             .ToDictionaryAsync(asset => asset.SourceEntityId, StringComparer.Ordinal, cancellationToken);
 
         var changedAssets = new List<MediaAsset>();
+        var classificationRefreshAssets = new List<MediaAsset>();
+        var contentChanges = new List<MediaContentChangeSnapshot>();
         var now = DateTimeOffset.UtcNow;
 
         foreach (var candidate in batch)
@@ -266,6 +271,11 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
             {
                 unchanged.LastSeenAtUtc = now;
                 unchanged.LastSeenScanId = scanId;
+                if (NeedsClassificationRefresh(unchanged))
+                {
+                    ResetAutomaticClassificationForRefresh(unchanged);
+                    classificationRefreshAssets.Add(unchanged);
+                }
                 continue;
             }
 
@@ -312,7 +322,23 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
             }
             else
             {
-                asset!.CacheVersion++;
+                var contentChanged = !string.Equals(
+                    asset!.QuickFingerprint,
+                    candidate.QuickFingerprint,
+                    StringComparison.Ordinal);
+                if (contentChanged
+                    && (asset.Kind == MediaAssetKind.Photo || metadata.Kind == MediaAssetKind.Photo))
+                {
+                    contentChanges.Add(_contentInvalidation.ResetAsset(
+                        asset,
+                        candidate.QuickFingerprint,
+                        metadata.Kind,
+                        _options.Classification.Enabled));
+                }
+                else
+                {
+                    asset.CacheVersion++;
+                }
             }
 
             asset!.Kind = metadata.Kind;
@@ -351,43 +377,24 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
             changedAssets.Add(asset);
         }
 
+        await _contentInvalidation.RetireDerivedIntelligenceAsync(
+            contentChanges,
+            now,
+            cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
-        if (changedAssets.Count > 0 && _options.IsProcessingWorkerEnabled)
+        if (_options.IsProcessingWorkerEnabled)
         {
-            var assetIds = changedAssets.Select(asset => asset.Id).ToArray();
-            var jobs = await _db.ProcessingJobs
-                .Where(job => assetIds.Contains(job.MediaAssetId)
-                              && job.JobType == MediaProcessingJobType.AnalyseAsset)
-                .ToDictionaryAsync(job => job.MediaAssetId, cancellationToken);
-
-            foreach (var asset in changedAssets)
-            {
-                if (!jobs.TryGetValue(asset.Id, out var job))
-                {
-                    job = new MediaProcessingJob
-                    {
-                        MediaAssetId = asset.Id,
-                        JobType = MediaProcessingJobType.AnalyseAsset,
-                        CreatedAtUtc = now
-                    };
-                    _db.ProcessingJobs.Add(job);
-                }
-
-                job.Status = MediaProcessingJobStatus.Pending;
-                job.AttemptCount = 0;
-                job.MaxAttempts = _options.Processing.MaxAttempts;
-                job.AvailableAfterUtc = now;
-                job.StartedAtUtc = null;
-                job.CompletedAtUtc = null;
-                job.LockedBy = null;
-                job.LockExpiresAtUtc = null;
-                job.FailureCode = null;
-                job.FailureMessage = null;
-                job.UpdatedAtUtc = now;
-            }
-
-            await _db.SaveChangesAsync(cancellationToken);
+            await QueueJobsAsync(
+                changedAssets,
+                MediaProcessingJobType.AnalyseAsset,
+                now,
+                cancellationToken);
+            await QueueJobsAsync(
+                classificationRefreshAssets,
+                MediaProcessingJobType.ClassifyMedia,
+                now,
+                cancellationToken);
         }
 
         foreach (var entry in _db.ChangeTracker.Entries()
@@ -396,6 +403,95 @@ public sealed class FileSystemMediaSourceScanner : IExternalMediaSourceScanner
         {
             entry.State = EntityState.Detached;
         }
+    }
+
+    private bool NeedsClassificationRefresh(MediaAsset asset)
+        => _options.Classification.Enabled
+           && asset.Kind == MediaAssetKind.Photo
+           && !asset.ClassificationIsManual
+           && !string.Equals(
+               asset.ClassifierVersion,
+               MediaClassifier.ClassifierVersion,
+               StringComparison.Ordinal);
+
+    private static void ResetAutomaticClassificationForRefresh(MediaAsset asset)
+    {
+        asset.PredictedClassification = MediaClassification.Unknown;
+        asset.PredictedClassificationScore = 0m;
+        asset.Classification = MediaClassification.Unknown;
+        asset.ClassificationConfidence = null;
+        asset.ClassificationDecisionStatus = MediaClassificationDecisionStatus.NotProcessed;
+        asset.ClassificationDecisionReasonCode = "CLASSIFIER_VERSION_CHANGED";
+        asset.AnalysisVersion = null;
+        asset.ClassifierVersion = null;
+        asset.AnalysisSignalsJson = null;
+        asset.AutomaticClassificationSignalsJson = null;
+        asset.AutomaticClassificationScoresJson = null;
+        asset.AutomaticClassificationMetricsJson = null;
+        asset.AnalysedAtUtc = null;
+        asset.ClassifiedAtUtc = null;
+        asset.AnalysisStatus = MediaProcessingStatus.Pending;
+        asset.ProcessingFailureReason = null;
+        asset.ClassificationConcurrencyToken = Guid.NewGuid();
+    }
+
+    private async Task QueueJobsAsync(
+        IReadOnlyCollection<MediaAsset> assets,
+        MediaProcessingJobType jobType,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (assets.Count == 0)
+        {
+            return;
+        }
+
+        var assetIds = assets.Select(asset => asset.Id).Distinct().ToArray();
+        var jobs = await _db.ProcessingJobs
+            .Where(job => assetIds.Contains(job.MediaAssetId) && job.JobType == jobType)
+            .ToDictionaryAsync(job => job.MediaAssetId, cancellationToken);
+
+        foreach (var assetId in assetIds)
+        {
+            if (!jobs.TryGetValue(assetId, out var job))
+            {
+                _db.ProcessingJobs.Add(new MediaProcessingJob
+                {
+                    MediaAssetId = assetId,
+                    JobType = jobType,
+                    Status = MediaProcessingJobStatus.Pending,
+                    AttemptCount = 0,
+                    MaxAttempts = _options.Processing.MaxAttempts,
+                    AvailableAfterUtc = now,
+                    CreatedAtUtc = now,
+                    UpdatedAtUtc = now
+                });
+                continue;
+            }
+
+            if (job.Status == MediaProcessingJobStatus.Running
+                && job.LockExpiresAtUtc is { } lockExpiry
+                && lockExpiry > now)
+            {
+                // The asset concurrency token has already been advanced for changed or stale
+                // content. The running processor will yield and the worker will retry this job.
+                continue;
+            }
+
+            job.Status = MediaProcessingJobStatus.Pending;
+            job.AttemptCount = 0;
+            job.MaxAttempts = _options.Processing.MaxAttempts;
+            job.AvailableAfterUtc = now;
+            job.StartedAtUtc = null;
+            job.CompletedAtUtc = null;
+            job.LockedBy = null;
+            job.LockExpiresAtUtc = null;
+            job.FailureCode = null;
+            job.FailureMessage = null;
+            job.UpdatedAtUtc = now;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<bool> TryAcquireLeaseAsync(

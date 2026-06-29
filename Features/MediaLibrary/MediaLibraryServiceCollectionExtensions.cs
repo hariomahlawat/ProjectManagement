@@ -65,11 +65,16 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaClassifier, MediaClassifier>();
         services.AddScoped<IMediaClassificationEligibilityService, MediaClassificationEligibilityService>();
         services.AddScoped<IMediaClassificationOverrideService, MediaClassificationOverrideService>();
+        services.AddScoped<IMediaContentChangeInvalidationService, MediaContentChangeInvalidationService>();
         services.AddScoped<IMediaDerivativeService, MediaDerivativeService>();
         services.AddScoped<IMediaAssetProcessor, MediaAssetProcessor>();
         services.AddScoped<IMediaLibrarySchemaService, MediaLibrarySchemaService>();
         services.AddSingleton<IFaceModelReadinessService, FaceModelReadinessService>();
-        services.AddSingleton<IFaceAnalysisEngine, OnnxFaceAnalysisEngine>();
+        services.AddSingleton<OnnxFaceAnalysisEngine>();
+        services.AddSingleton<IFaceAnalysisEngine>(provider =>
+            provider.GetRequiredService<OnnxFaceAnalysisEngine>());
+        services.AddSingleton<IFacePresenceAnalysisEngine>(provider =>
+            provider.GetRequiredService<OnnxFaceAnalysisEngine>());
         services.AddScoped<IFaceCandidateSearchService, FaceCandidateSearchService>();
         services.AddScoped<IFaceIntelligenceService, FaceIntelligenceService>();
         services.AddScoped<IFaceEligibilityPolicy, FaceEligibilityPolicy>();

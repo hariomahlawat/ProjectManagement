@@ -74,7 +74,7 @@
             <input type="search"
                    name="Q"
                    value="@Model.Q"
-                   placeholder="Search photos, videos, projects, visits, events and external folders"
+                   placeholder="Search images, videos, projects, visits, events and external folders"
                    autocomplete="off" />
             <input type="hidden" name="Source" value="@Model.Source" />
             <input type="hidden" name="Kind" value="@Model.Kind" />
@@ -125,7 +125,7 @@
                asp-route-Classification="@Model.Classification"
                asp-route-ProjectId="@Model.ProjectId"
                    asp-route-PersonId="@Model.PersonId"
-               asp-route-Year="@Model.Year">Photos</a>
+               asp-route-Year="@Model.Year">Images</a>
             <a class="@(Model.Kind == "video" ? "is-active" : null)"
                asp-page="./Index"
                asp-route-Q="@Model.Q"
@@ -139,7 +139,7 @@
     </section>
 
     <section class="photos-library__stats" aria-label="Library summary">
-        <div><strong>@Model.Stats.Photos</strong><span>photos</span></div>
+        <div><strong>@Model.Stats.Photos</strong><span>images</span></div>
         <div><strong>@Model.Stats.Videos</strong><span>videos</span></div>
         <div><strong>@Model.Stats.Collections</strong><span>collections</span></div>
     </section>
@@ -352,6 +352,7 @@
                                                 style="--media-ratio:@item.AspectRatio.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
                                                 data-aspect-ratio="@item.AspectRatio.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
                                                 data-media-item
+                                                data-media-key="@(item.AssetId.HasValue ? $"asset-{item.AssetId.Value}" : item.Id)"
                                                 data-kind="@item.Kind.ToString().ToLowerInvariant()"
                                                 data-title="@item.Title"
                                                 data-caption="@item.Caption"
@@ -412,7 +413,7 @@
             }
         </div>
 
-        <nav class="photos-pagination" aria-label="Photos pages">
+        <nav class="photos-pagination" aria-label="Media pages">
             @if (Model.HasPreviousPage)
             {
                 <a class="btn btn-outline-secondary"

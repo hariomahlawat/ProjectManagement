@@ -26,7 +26,7 @@ public sealed class MediaClassifierTests
     [Fact]
     public async Task ClassifyAsync_UsesFaceEvidenceForAmbiguousPortrait()
     {
-        var path = await CreateImageAsync("portrait", 480, 640, new Rgba32(160, 130, 110));
+        var path = await CreateTexturedPortraitImageAsync(480, 640);
         try
         {
             var classifier = CreateClassifier(new StubFacePresenceProbe(true));
@@ -50,6 +50,67 @@ public sealed class MediaClassifierTests
             var result = await classifier.ClassifyAsync(content, Metadata(path, "image/png", 1000, 600), CancellationToken.None);
             Assert.Equal(MediaClassification.Diagram, result.PredictedClassification);
             Assert.NotEqual(MediaClassification.Photograph, result.EffectiveClassification);
+        }
+        finally { File.Delete(path); }
+    }
+
+
+    [Fact]
+    public async Task ClassifyAsync_HonoursDisabledDiagramDetector()
+    {
+        var path = await CreateImageAsync("diagram", 1000, 600, new Rgba32(255, 255, 255));
+        try
+        {
+            var optionsValue = new MediaLibraryOptions
+            {
+                Classification = new MediaClassificationOptions
+                {
+                    DiagramDetectionEnabled = false
+                }
+            };
+            var options = Options.Create(optionsValue);
+            var classifier = new MediaClassifier(
+                options,
+                new StubFacePresenceProbe(false),
+                new MediaClassificationDecisionPolicy(options));
+            var content = new MediaContentDescriptor(
+                "architecture-flowchart.drawio.png",
+                "image/png",
+                new FileInfo(path).Length,
+                DateTimeOffset.UtcNow,
+                _ => Task.FromResult<Stream>(File.OpenRead(path)));
+
+            var result = await classifier.ClassifyAsync(
+                content,
+                Metadata(path, "image/png", 1000, 600),
+                CancellationToken.None);
+
+            Assert.NotEqual(MediaClassification.Diagram, result.PredictedClassification);
+            Assert.NotEqual(MediaClassification.Diagram, result.EffectiveClassification);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public async Task ClassifyAsync_DoesNotMatchDocumentKeywordInsideUniform()
+    {
+        var path = await CreateImageAsync("uniform", 480, 640, new Rgba32(110, 125, 105));
+        try
+        {
+            var classifier = CreateClassifier(new StubFacePresenceProbe(false));
+            var content = new MediaContentDescriptor(
+                "uniform-portrait.jpg",
+                "image/jpeg",
+                new FileInfo(path).Length,
+                DateTimeOffset.UtcNow,
+                _ => Task.FromResult<Stream>(File.OpenRead(path)));
+
+            var result = await classifier.ClassifyAsync(
+                content,
+                Metadata(path, "image/jpeg", 480, 640),
+                CancellationToken.None);
+
+            Assert.NotEqual(MediaClassification.ScannedDocument, result.PredictedClassification);
         }
         finally { File.Delete(path); }
     }
@@ -81,6 +142,27 @@ public sealed class MediaClassifierTests
         var path = Path.Combine(Path.GetTempPath(), $"{prefix}-{Guid.NewGuid():N}.png");
         using var image = new Image<Rgba32>(width, height, colour);
         await image.SaveAsPngAsync(path);
+        return path;
+    }
+
+    private static async Task<string> CreateTexturedPortraitImageAsync(int width, int height)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"portrait-{Guid.NewGuid():N}.jpg");
+        using var image = new Image<Rgba32>(width, height);
+        var random = new Random(4319);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                var shade = Math.Clamp(95 + (int)(75d * y / height) + random.Next(-18, 19), 0, 255);
+                image[x, y] = new Rgba32(
+                    (byte)Math.Clamp(shade + 22, 0, 255),
+                    (byte)Math.Clamp(shade + 4, 0, 255),
+                    (byte)Math.Clamp(shade - 10, 0, 255));
+            }
+        }
+
+        await image.SaveAsJpegAsync(path);
         return path;
     }
 

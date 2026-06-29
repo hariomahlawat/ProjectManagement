@@ -104,6 +104,12 @@ public sealed class MediaClassificationOptions
     public double GraphicThreshold { get; set; } = 0.80;
     public double PhotographThreshold { get; set; } = 0.82;
     public double NaturalPhotoAutoAcceptThreshold { get; set; } = 0.88;
+    /// <summary>Minimum separation between the winning and runner-up categories.</summary>
+    public double MinimumScoreMargin { get; set; } = 0.10;
+    /// <summary>Photographs require a wider margin because they can enter face processing.</summary>
+    public double PhotographMinimumScoreMargin { get; set; } = 0.14;
+    /// <summary>Non-photograph evidence at or above this score blocks automatic photograph acceptance.</summary>
+    public double StrongConflictScore { get; set; } = 0.10;
     public bool FacePresenceAssistanceEnabled { get; set; } = true;
     public double FacePresenceMinimumConfidence { get; set; } = 0.82;
     public int FacePresenceMinimumPixels { get; set; } = 48;

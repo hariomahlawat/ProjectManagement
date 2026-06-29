@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -14,6 +15,7 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
     private readonly IFaceAnalysisEngine _engine;
     private readonly IFaceCandidateSearchService _candidateSearch;
     private readonly IFaceEligibilityPolicy _eligibility;
+    private readonly IMediaContentChangeInvalidationService _contentInvalidation;
     private readonly MediaLibraryOptions _options;
     private readonly IWebHostEnvironment _environment;
     private readonly ILogger<FaceIntelligenceService> _logger;
@@ -24,6 +26,7 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
         IFaceAnalysisEngine engine,
         IFaceCandidateSearchService candidateSearch,
         IFaceEligibilityPolicy eligibility,
+        IMediaContentChangeInvalidationService contentInvalidation,
         IOptions<MediaLibraryOptions> options,
         IWebHostEnvironment environment,
         ILogger<FaceIntelligenceService> logger)
@@ -33,6 +36,7 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
         _engine = engine ?? throw new ArgumentNullException(nameof(engine));
         _candidateSearch = candidateSearch ?? throw new ArgumentNullException(nameof(candidateSearch));
         _eligibility = eligibility ?? throw new ArgumentNullException(nameof(eligibility));
+        _contentInvalidation = contentInvalidation ?? throw new ArgumentNullException(nameof(contentInvalidation));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -48,6 +52,44 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
         var asset = await _db.Assets
             .Include(item => item.Source)
             .SingleAsync(item => item.Id == assetId, cancellationToken);
+        var content = await _resolver.ResolveAsync(asset, cancellationToken)
+            ?? throw new MediaContentUnavailableException(
+                $"Media content is unavailable for face analysis of asset {asset.Id}.");
+        var bytes = await ReadBoundedAsync(
+            await content.OpenReadAsync(cancellationToken),
+            _options.Processing.MaxImageFileSizeBytes,
+            cancellationToken);
+        var actualContentHash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+
+        var existingFaces = await _db.Faces
+            .AsNoTracking()
+            .Include(face => face.PersonAssignments)
+            .Where(face => face.MediaAssetId == assetId)
+            .ToListAsync(cancellationToken);
+        if (!string.IsNullOrWhiteSpace(asset.ContentHash)
+            && !string.Equals(asset.ContentHash, actualContentHash, StringComparison.OrdinalIgnoreCase))
+        {
+            var now = DateTimeOffset.UtcNow;
+            var change = _contentInvalidation.ResetAsset(
+                asset,
+                $"sha256:{actualContentHash}",
+                asset.Kind,
+                _options.Classification.Enabled);
+            asset.ContentHash = actualContentHash;
+            await _contentInvalidation.RetireDerivedIntelligenceAsync(
+                new[] { change },
+                now,
+                cancellationToken);
+            await QueueAnalyseAssetAsync(asset.Id, now, cancellationToken);
+            await _db.SaveChangesAsync(cancellationToken);
+            _logger.LogWarning(
+                "Retired stale face intelligence for asset {AssetId} after an exact content-hash change; classification was requeued.",
+                asset.Id);
+            return;
+        }
+
+        var contentHashWasMissing = string.IsNullOrWhiteSpace(asset.ContentHash);
+        asset.ContentHash ??= actualContentHash;
         var eligibility = _eligibility.Evaluate(asset);
         if (!eligibility.IsEligible)
         {
@@ -56,19 +98,22 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
                 asset.Id,
                 eligibility.Code,
                 eligibility.Reason);
+            if (contentHashWasMissing)
+            {
+                await _db.SaveChangesAsync(cancellationToken);
+            }
             return;
         }
 
-        var existingFaces = await _db.Faces
-            .AsNoTracking()
-            .Include(face => face.PersonAssignments)
-            .Where(face => face.MediaAssetId == assetId)
-            .ToListAsync(cancellationToken);
         if (existingFaces.Any(face => face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null)))
         {
             _logger.LogInformation(
                 "Skipping face reprocessing for asset {AssetId} because it contains a human-reviewed assignment.",
                 assetId);
+            if (contentHashWasMissing)
+            {
+                await _db.SaveChangesAsync(cancellationToken);
+            }
             return;
         }
 
@@ -76,13 +121,6 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
         asset.FaceProcessingFailureReason = null;
         await _db.SaveChangesAsync(cancellationToken);
 
-        var content = await _resolver.ResolveAsync(asset, cancellationToken)
-            ?? throw new MediaContentUnavailableException(
-                $"Media content is unavailable for face analysis of asset {asset.Id}.");
-        var bytes = await ReadBoundedAsync(
-            await content.OpenReadAsync(cancellationToken),
-            _options.Processing.MaxImageFileSizeBytes,
-            cancellationToken);
         var detections = await _engine.AnalyseAsync(bytes, cancellationToken);
         var now = DateTimeOffset.UtcNow;
         var oldThumbnailPaths = existingFaces
@@ -97,6 +135,23 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
         try
         {
             await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+            await _db.Entry(asset).ReloadAsync(cancellationToken);
+            var currentEligibility = _eligibility.Evaluate(asset);
+            if (!currentEligibility.IsEligible
+                || !string.Equals(asset.ContentHash, actualContentHash, StringComparison.OrdinalIgnoreCase))
+            {
+                asset.FaceAnalysisStatus = MediaProcessingStatus.NotRequested;
+                asset.FaceAnalysisVersion = null;
+                asset.FaceAnalysedAtUtc = null;
+                asset.FaceProcessingFailureReason = null;
+                await _db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                _logger.LogInformation(
+                    "Discarded face-analysis output for asset {AssetId} because eligibility or content changed during processing.",
+                    assetId);
+                return;
+            }
+
             var trackedExisting = await _db.Faces
                 .Include(face => face.Embeddings)
                 .Include(face => face.PersonAssignments)
@@ -221,6 +276,49 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
 
     private string CurrentAnalysisVersion
         => $"{_options.People.Detector.Key}:{_options.People.Detector.Version}|{_options.People.Embedder.Key}:{_options.People.Embedder.Version}";
+
+    private async Task QueueAnalyseAssetAsync(
+        long assetId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var job = await _db.ProcessingJobs.SingleOrDefaultAsync(
+            item => item.MediaAssetId == assetId
+                    && item.JobType == MediaProcessingJobType.AnalyseAsset,
+            cancellationToken);
+        if (job is null)
+        {
+            _db.ProcessingJobs.Add(new MediaProcessingJob
+            {
+                MediaAssetId = assetId,
+                JobType = MediaProcessingJobType.AnalyseAsset,
+                Status = MediaProcessingJobStatus.Pending,
+                AvailableAfterUtc = now,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now,
+                MaxAttempts = 5
+            });
+            return;
+        }
+
+        if (job.Status == MediaProcessingJobStatus.Running
+            && job.LockExpiresAtUtc is { } lockExpiry
+            && lockExpiry > now)
+        {
+            return;
+        }
+
+        job.Status = MediaProcessingJobStatus.Pending;
+        job.AttemptCount = 0;
+        job.AvailableAfterUtc = now;
+        job.StartedAtUtc = null;
+        job.CompletedAtUtc = null;
+        job.LockedBy = null;
+        job.LockExpiresAtUtc = null;
+        job.FailureCode = null;
+        job.FailureMessage = null;
+        job.UpdatedAtUtc = now;
+    }
 
     private async Task CreateCandidatesAsync(
         Guid faceId,

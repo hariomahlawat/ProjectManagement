@@ -74,19 +74,26 @@ public sealed class IndexModel : PageModel
 
         // Fail-safe path: the media catalogue is optional. Core PRISM media remains
         // browsable if migrations are pending, PostgreSQL is unavailable, or the worker
-        // has not completed its first synchronisation.
-        await LoadPrismFallbackAsync(cancellationToken);
-        ExternalLibraryAvailable = result.IsAvailable;
-        ExternalLibraryWarning = result.Warning;
+        // has not completed its first synchronisation. Classification and person filters
+        // are catalogue facts and must never be invented by the fallback path.
+        var fallbackWarnings = new List<string>();
+        if (!string.IsNullOrWhiteSpace(result.Warning)) fallbackWarnings.Add(result.Warning);
+        if (Classification != "all")
+        {
+            fallbackWarnings.Add("The classification filter was cleared because classification data is temporarily unavailable.");
+            Classification = "all";
+        }
         if (PersonId.HasValue)
         {
-            ExternalLibraryWarning = string.Join(" ", new[]
-            {
-                ExternalLibraryWarning,
-                "The selected person filter could not be applied because the media catalogue is unavailable."
-            }.Where(value => !string.IsNullOrWhiteSpace(value)));
+            fallbackWarnings.Add("The person filter was cleared because identity data is temporarily unavailable.");
             PersonId = null;
         }
+
+        await LoadPrismFallbackAsync(cancellationToken);
+        ExternalLibraryAvailable = result.IsAvailable;
+        ExternalLibraryWarning = fallbackWarnings.Count == 0
+            ? null
+            : string.Join(" ", fallbackWarnings);
     }
 
     private void NormalizeRequest()
@@ -416,13 +423,9 @@ public sealed class IndexModel : PageModel
            || Contains(item.OriginalFileName, Q) || Contains(item.SourceLabel, Q);
 
     private bool MatchesClassification(MediaItem item)
-        => Classification switch
-        {
-            "photograph" => item.Kind == MediaKind.Photo,
-            "unknown" => item.Kind == MediaKind.Video,
-            "screenshot" or "scanned-document" or "diagram" or "presentation-slide" or "graphic" => false,
-            _ => true
-        };
+        // The fallback reads source-owned media without classification state. The request
+        // is normalized to "all" before this path is entered; no classification is inferred.
+        => Classification == "all";
 
     private static string ExtractEntityId(string sourceEntityId)
     {

@@ -24,6 +24,7 @@ public static class MediaProcessingFailurePolicy
         nameof(ObjectDisposedException),
         nameof(TimeoutException),
         nameof(UnauthorizedAccessException),
+        nameof(MediaProcessingSupersededException),
         "ExpiredWorkerLock",
         "WorkerStopping"
     };

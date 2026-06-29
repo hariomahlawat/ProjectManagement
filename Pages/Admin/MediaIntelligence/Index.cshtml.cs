@@ -31,12 +31,15 @@ public sealed class IndexModel : PageModel
     }
 
     public FaceModelReadiness ModelStatus { get; private set; } = null!;
+    public FaceDetectorReadiness DetectorStatus { get; private set; } = null!;
     public MediaProcessingRuntimeSnapshot ProcessingRuntime { get; private set; } = null!;
     public int AvailableImages { get; private set; }
     public int Eligible { get; private set; }
     public int NeedsReview { get; private set; }
     public int ConfirmedNonPhotographs { get; private set; }
     public int LowConfidence { get; private set; }
+    public int PendingClassification { get; private set; }
+    public int FailedClassification { get; private set; }
     public int Faces { get; private set; }
     public int Embedded { get; private set; }
     public int Persons { get; private set; }
@@ -50,6 +53,7 @@ public sealed class IndexModel : PageModel
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         ModelStatus = await _readiness.CheckAsync(cancellationToken);
+        DetectorStatus = await _readiness.CheckDetectorAsync(cancellationToken);
         ProcessingRuntime = _runtime.GetSnapshot();
 
         var available = _db.Assets.AsNoTracking().Where(x => x.IsAvailable && !x.IsDeleted && !x.IsArchived && x.Kind == MediaAssetKind.Photo);
@@ -65,8 +69,16 @@ public sealed class IndexModel : PageModel
                 && x.Classification != MediaClassification.Photograph), cancellationToken);
         NeedsReview = Math.Max(0, AvailableImages - Eligible - ConfirmedNonPhotographs);
         LowConfidence = await available.CountAsync(x => !x.ClassificationIsManual
-            && (x.ClassificationConfidence == null
-                || x.ClassificationConfidence < _options.People.MinimumClassificationConfidence), cancellationToken);
+            && x.AnalysisStatus == MediaProcessingStatus.Ready
+            && x.ClassificationConfidence != null
+            && x.ClassificationConfidence < _options.Classification.MinimumConfidence, cancellationToken);
+        PendingClassification = await available.CountAsync(x =>
+            x.AnalysisStatus == MediaProcessingStatus.NotRequested
+            || x.AnalysisStatus == MediaProcessingStatus.Pending
+            || x.AnalysisStatus == MediaProcessingStatus.Processing, cancellationToken);
+        FailedClassification = await available.CountAsync(x =>
+            x.AnalysisStatus == MediaProcessingStatus.Failed
+            || x.ClassificationDecisionStatus == MediaClassificationDecisionStatus.ProcessingFailed, cancellationToken);
         Faces = await _db.Faces.AsNoTracking().CountAsync(cancellationToken);
         Embedded = await _db.FaceEmbeddings.AsNoTracking().CountAsync(x => x.InvalidatedAtUtc == null, cancellationToken);
         Persons = await _db.Persons.AsNoTracking().CountAsync(x => !x.IsHidden, cancellationToken);
@@ -93,7 +105,8 @@ public sealed class IndexModel : PageModel
     public async Task<IActionResult> OnPostRefreshReadinessAsync(CancellationToken cancellationToken)
     {
         var readiness = await _readiness.CheckAsync(forceRefresh: true, cancellationToken);
-        StatusMessage = $"Readiness refreshed: {readiness.Message}";
+        var detector = await _readiness.CheckDetectorAsync(forceRefresh: true, cancellationToken);
+        StatusMessage = $"Readiness refreshed. People: {readiness.Message} Detector assistance: {detector.Message}";
         return RedirectToPage();
     }
 }

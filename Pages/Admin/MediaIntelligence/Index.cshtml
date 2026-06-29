@@ -35,10 +35,38 @@
                     <button class="btn btn-outline-primary btn-sm" type="submit">Refresh readiness</button>
                 </form>
             </div>
-            <div class="alert @(Model.ModelStatus.IsReady ? "alert-success" : "alert-warning") mb-3">
-                <strong>@Model.ModelStatus.State:</strong> @Model.ModelStatus.Message
-                <span class="d-block small mt-1">Checked @Model.ModelStatus.CheckedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</span>
+            <div class="row g-3 mb-3">
+                <div class="col-lg-6">
+                    <div class="alert @(Model.DetectorStatus.IsReady ? "alert-success" : "alert-warning") h-100 mb-0">
+                        <strong>Classification detector:</strong> @Model.DetectorStatus.Message
+                        <span class="d-block small mt-1">This detector-only path never creates embeddings or identities.</span>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="alert @(Model.ModelStatus.IsReady ? "alert-success" : "alert-warning") h-100 mb-0">
+                        <strong>People intelligence:</strong> @Model.ModelStatus.Message
+                        <span class="d-block small mt-1">Checked @Model.ModelStatus.CheckedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</span>
+                    </div>
+                </div>
             </div>
+            <h3 class="h6 mb-2">Detector-only classification path</h3>
+            <div class="readiness-grid mb-4">
+                @foreach (var check in Model.DetectorStatus.Checks)
+                {
+                    <div class="readiness-item @(check.IsSatisfied ? "is-ready" : "is-blocked")">
+                        <div class="d-flex justify-content-between gap-2">
+                            <strong>@check.Label</strong>
+                            <span class="badge @(check.IsSatisfied ? "text-bg-success" : "text-bg-secondary")">@check.Status</span>
+                        </div>
+                        @if (!check.IsSatisfied && !string.IsNullOrWhiteSpace(check.Action))
+                        {
+                            <div class="small text-muted mt-2">@check.Action</div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <h3 class="h6 mb-2">People and identity-processing path</h3>
             <div class="readiness-grid">
                 @foreach (var check in Model.ModelStatus.Checks)
                 {
@@ -62,7 +90,9 @@
         <div class="col-6 col-xl"><div class="metric-card"><span>Face eligible</span><strong>@Model.Eligible</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Unknown / needs review</span><strong>@Model.NeedsReview</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Confirmed non-photos</span><strong>@Model.ConfirmedNonPhotographs</strong></div></div>
-        <div class="col-6 col-xl"><div class="metric-card"><span>Low-confidence class</span><strong>@Model.LowConfidence</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Low-confidence decisions</span><strong>@Model.LowConfidence</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Pending analysis</span><strong>@Model.PendingClassification</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Analysis failures</span><strong>@Model.FailedClassification</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Faces detected</span><strong>@Model.Faces</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Embeddings</span><strong>@Model.Embedded</strong></div></div>
     </div>

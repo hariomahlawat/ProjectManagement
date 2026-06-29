@@ -45,9 +45,54 @@
 
     let currentIndex = 0;
     let previousFocus = null;
+    let returnHash = '';
+    let inertedElements = [];
     let zoom = 1;
 
+    const mediaHashPrefix = '#media=';
+    const mediaKey = tile => tile.dataset.mediaKey || tile.dataset.assetId || String(tiles.indexOf(tile) + 1);
+    const hashFor = tile => `${mediaHashPrefix}${encodeURIComponent(mediaKey(tile))}`;
+    const isMediaHash = hash => hash.startsWith(mediaHashPrefix);
+    const focusableSelector = [
+        'a[href]:not([hidden])',
+        'button:not([disabled]):not([hidden])',
+        'input:not([disabled]):not([hidden])',
+        'select:not([disabled]):not([hidden])',
+        'textarea:not([disabled]):not([hidden])',
+        '[tabindex]:not([tabindex="-1"]):not([hidden])'
+    ].join(',');
+
     const value = (tile, name) => tile.dataset[name] || '';
+
+    function setBackgroundInert(enabled) {
+        if (!enabled) {
+            inertedElements.forEach(({ element, inert, ariaHidden }) => {
+                element.inert = inert;
+                if (ariaHidden === null) element.removeAttribute('aria-hidden');
+                else element.setAttribute('aria-hidden', ariaHidden);
+            });
+            inertedElements = [];
+            return;
+        }
+
+        if (inertedElements.length > 0) return;
+        let current = viewer;
+        while (current?.parentElement) {
+            const parent = current.parentElement;
+            [...parent.children].forEach(sibling => {
+                if (sibling === current || sibling.contains(viewer)) return;
+                inertedElements.push({
+                    element: sibling,
+                    inert: sibling.inert,
+                    ariaHidden: sibling.getAttribute('aria-hidden')
+                });
+                sibling.inert = true;
+                sibling.setAttribute('aria-hidden', 'true');
+            });
+            current = parent;
+            if (current === document.body) break;
+        }
+    }
 
     function setOptionalLink(link, href) {
         if (!link) return;
@@ -146,12 +191,20 @@
         nextButton.hidden = tiles.length < 2;
     }
 
-    function open(index, trigger) {
-        previousFocus = trigger || document.activeElement;
+    function open(index, trigger, fromHash = false) {
+        if (viewer.hidden) {
+            previousFocus = trigger || document.activeElement;
+            returnHash = isMediaHash(window.location.hash) ? '' : window.location.hash;
+            setBackgroundInert(true);
+        }
         render(index);
         viewer.hidden = false;
         viewer.setAttribute('aria-hidden', 'false');
         document.body.classList.add('photos-viewer-open');
+        if (!fromHash) {
+            const nextHash = hashFor(tiles[currentIndex]);
+            if (window.location.hash !== nextHash) history.replaceState(null, '', nextHash);
+        }
         viewer.querySelector('[data-viewer-close]').focus({ preventScroll: true });
     }
 
@@ -167,20 +220,28 @@
         mediaHost.replaceChildren();
         setZoom(1);
         document.body.classList.remove('photos-viewer-open');
+        setBackgroundInert(false);
 
-        if (previousFocus instanceof HTMLElement) {
+        if (previousFocus instanceof HTMLElement && document.contains(previousFocus)) {
             previousFocus.focus({ preventScroll: true });
         }
 
-        if (window.location.hash.startsWith('#media-')) {
-            history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+        if (isMediaHash(window.location.hash)) {
+            const destination = `${window.location.pathname}${window.location.search}${returnHash}`;
+            history.replaceState(null, '', destination);
         }
     }
 
     tiles.forEach((tile, index) => tile.addEventListener('click', () => open(index, tile)));
     viewer.querySelectorAll('[data-viewer-close]').forEach(button => button.addEventListener('click', close));
-    previousButton.addEventListener('click', () => render(currentIndex - 1));
-    nextButton.addEventListener('click', () => render(currentIndex + 1));
+    previousButton.addEventListener('click', () => {
+        render(currentIndex - 1);
+        history.replaceState(null, '', hashFor(tiles[currentIndex]));
+    });
+    nextButton.addEventListener('click', () => {
+        render(currentIndex + 1);
+        history.replaceState(null, '', hashFor(tiles[currentIndex]));
+    });
     zoomInButton?.addEventListener('click', () => setZoom(zoom + 0.25));
     zoomOutButton?.addEventListener('click', () => setZoom(zoom - 0.25));
     zoomResetButton?.addEventListener('click', () => setZoom(1));
@@ -194,13 +255,32 @@
     document.addEventListener('keydown', event => {
         if (viewer.hidden) return;
 
-        if (event.key === 'Escape') close();
-        if (event.key === 'ArrowLeft') render(currentIndex - 1);
-        if (event.key === 'ArrowRight') render(currentIndex + 1);
-        if (event.key === '+' || event.key === '=') setZoom(zoom + 0.25);
-        if (event.key === '-') setZoom(zoom - 0.25);
-        if (event.key === '0') setZoom(1);
-        if (event.key.toLowerCase() === 'i') infoButton.click();
+        if (event.key === 'Tab') {
+            const focusable = [...viewer.querySelectorAll(focusableSelector)]
+                .filter(element => !element.hidden && element.getClientRects().length > 0);
+            if (focusable.length === 0) {
+                event.preventDefault();
+                return;
+            }
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+            return;
+        }
+
+        if (event.key === 'Escape') { event.preventDefault(); close(); }
+        if (event.key === 'ArrowLeft') { event.preventDefault(); render(currentIndex - 1); history.replaceState(null, '', hashFor(tiles[currentIndex])); }
+        if (event.key === 'ArrowRight') { event.preventDefault(); render(currentIndex + 1); history.replaceState(null, '', hashFor(tiles[currentIndex])); }
+        if (event.key === '+' || event.key === '=') { event.preventDefault(); setZoom(zoom + 0.25); }
+        if (event.key === '-') { event.preventDefault(); setZoom(zoom - 0.25); }
+        if (event.key === '0') { event.preventDefault(); setZoom(1); }
+        if (event.key.toLowerCase() === 'i') { event.preventDefault(); infoButton.click(); }
     });
 
 
@@ -250,13 +330,13 @@
             let width;
 
             if (ratio < 0.86) {
-                height = Math.min(500, Math.max(350, window.innerHeight * 0.52));
+                height = Math.min(410, Math.max(300, window.innerHeight * 0.44));
                 width = height * ratio;
             } else if (ratio > 1.2) {
-                width = Math.min(containerWidth, 920);
-                height = Math.min(430, width / ratio);
+                width = Math.min(containerWidth, 780);
+                height = Math.min(350, width / ratio);
             } else {
-                height = Math.min(460, Math.max(320, window.innerHeight * 0.46));
+                height = Math.min(390, Math.max(285, window.innerHeight * 0.40));
                 width = height * ratio;
             }
 
@@ -332,21 +412,23 @@
 
     layoutAll();
 
-    const openFromHash = () => {
-        const match = /^#media-(\d+)$/.exec(window.location.hash);
-        if (!match) return;
-        const index = Number.parseInt(match[1], 10) - 1;
-        if (index >= 0 && index < tiles.length) open(index, tiles[index]);
+    const syncViewerWithHash = () => {
+        if (!isMediaHash(window.location.hash)) {
+            if (!viewer.hidden) close();
+            return;
+        }
+
+        let key;
+        try {
+            key = decodeURIComponent(window.location.hash.slice(mediaHashPrefix.length));
+        } catch {
+            return;
+        }
+        const index = tiles.findIndex(tile => mediaKey(tile) === key);
+        if (index >= 0) open(index, tiles[index], true);
     };
 
-    tiles.forEach((tile, index) => {
-        tile.addEventListener('click', () => {
-            const nextHash = `#media-${index + 1}`;
-            if (window.location.hash !== nextHash) history.replaceState(null, '', nextHash);
-        });
-    });
-
-    window.addEventListener('hashchange', openFromHash);
-    openFromHash();
+    window.addEventListener('hashchange', syncViewerWithHash);
+    syncViewerWithHash();
 
 })();

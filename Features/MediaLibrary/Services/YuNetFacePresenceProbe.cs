@@ -1,34 +1,52 @@
-using ProjectManagement.Features.MediaLibrary.Options;
 using Microsoft.Extensions.Options;
-using SixLabors.ImageSharp;
+using ProjectManagement.Features.MediaLibrary.Options;
 
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
+/// <summary>
+/// Executes only the approved detector. It never creates embeddings, thumbnails,
+/// identities or database records and therefore remains independent of People activation.
+/// </summary>
 public sealed class YuNetFacePresenceProbe : IFacePresenceProbe
 {
-    private readonly IFaceAnalysisEngine _engine;
+    private readonly IFacePresenceAnalysisEngine _engine;
     private readonly MediaClassificationOptions _options;
-    public YuNetFacePresenceProbe(IFaceAnalysisEngine engine, IOptions<MediaLibraryOptions> options)
-    { _engine = engine; _options = options.Value.Classification; }
 
-    public async Task<FacePresenceResult> AnalyseAsync(byte[] imageBytes, CancellationToken cancellationToken)
+    public YuNetFacePresenceProbe(
+        IFacePresenceAnalysisEngine engine,
+        IOptions<MediaLibraryOptions> options)
     {
+        _engine = engine ?? throw new ArgumentNullException(nameof(engine));
+        _options = options?.Value.Classification
+            ?? throw new ArgumentNullException(nameof(options));
+    }
+
+    public async Task<FacePresenceResult> AnalyseAsync(
+        byte[] imageBytes,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(imageBytes);
         if (!_options.FacePresenceAssistanceEnabled || imageBytes.Length == 0)
-            return new(true, false, 0, 0, 0, 0, 0, false);
+        {
+            return new FacePresenceResult(true, false, 0, 0, 0, 0, 0, false);
+        }
+
         try
         {
-            var faces = await _engine.AnalyseAsync(imageBytes, cancellationToken);
-            if (faces.Count == 0) return new(true, false, 0, 0, 0, 0, 0, false);
-            var dimensions = Image.Identify(imageBytes);
-            var sourceWidth = dimensions?.Width ?? 0;
-            var sourceHeight = dimensions?.Height ?? 0;
-            var best = faces.OrderByDescending(x => x.Confidence).First();
-            var landmarksValid = best.Landmarks is { Count: >= 10 };
-            return new(true, true, faces.Count, best.Confidence,
-                (int)Math.Round(best.Width * sourceWidth), (int)Math.Round(best.Height * sourceHeight),
-                best.Width * best.Height, landmarksValid);
+            return await _engine.AnalysePresenceAsync(imageBytes, cancellationToken);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        { return new(false, false, 0, 0, 0, 0, 0, false, ex.GetBaseException().Message); }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return new FacePresenceResult(
+                false,
+                false,
+                0,
+                0,
+                0,
+                0,
+                0,
+                false,
+                exception.GetBaseException().Message);
+        }
     }
 }

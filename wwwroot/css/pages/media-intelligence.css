@@ -160,3 +160,236 @@
         margin-right: 0 !important;
     }
 }
+
+/* Phase 8.4 — high-throughput classification review */
+.classification-filter-form {
+    position: relative;
+    z-index: 2;
+}
+
+.classification-review-toolbar {
+    position: sticky;
+    top: var(--app-header-height, 4.5rem);
+    z-index: 20;
+    padding: .65rem .8rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: .75rem;
+    background: color-mix(in srgb, var(--bs-body-bg) 94%, transparent);
+    box-shadow: 0 .35rem 1.2rem rgba(15, 23, 42, .08);
+    backdrop-filter: blur(12px);
+}
+
+.classification-review-toolbar__summary {
+    display: flex;
+    align-items: baseline;
+    gap: .35rem;
+    color: var(--bs-body-color);
+}
+
+.classification-review-toolbar__summary span {
+    margin-left: .35rem;
+    color: var(--bs-secondary-color);
+    font-size: .82rem;
+}
+
+.classification-grid--review {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .85rem;
+}
+
+.classification-card--review {
+    display: grid;
+    grid-template-columns: minmax(150px, 34%) minmax(0, 1fr);
+    min-height: 280px;
+    overflow: visible;
+}
+
+.classification-card__preview {
+    min-height: 100%;
+    aspect-ratio: auto;
+    border-right: 1px solid var(--bs-border-color);
+    border-bottom: 0;
+    background:
+        linear-gradient(45deg, rgba(148, 163, 184, .08) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(148, 163, 184, .08) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(148, 163, 184, .08) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(148, 163, 184, .08) 75%),
+        var(--bs-tertiary-bg);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+}
+
+.classification-card__preview img {
+    object-fit: contain;
+    padding: .45rem;
+}
+
+.classification-card__preview:hover img,
+.classification-card__preview:focus-visible img {
+    transform: none;
+}
+
+.classification-card__content {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.classification-card__header {
+    padding: .8rem .85rem .7rem;
+}
+
+.classification-card__title strong {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.classification-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: .65rem;
+    padding: .75rem .85rem .85rem;
+}
+
+.classification-evidence {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .45rem;
+}
+
+.classification-evidence > div {
+    min-width: 0;
+    padding: .5rem .55rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: .55rem;
+    background: var(--bs-tertiary-bg);
+}
+
+.classification-evidence span,
+.classification-evidence small {
+    display: block;
+    color: var(--bs-secondary-color);
+    font-size: .7rem;
+    line-height: 1.25;
+}
+
+.classification-evidence strong {
+    display: block;
+    overflow: hidden;
+    margin: .08rem 0;
+    font-size: .84rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.classification-decision-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .3rem;
+    font-size: .82rem;
+}
+
+.classification-decision-line > span:first-child {
+    color: var(--bs-secondary-color);
+}
+
+.classification-eligibility {
+    margin: 0;
+    padding: .55rem .65rem;
+}
+
+.classification-eligibility > div {
+    display: grid;
+    gap: .08rem;
+}
+
+.classification-eligibility strong {
+    color: var(--bs-body-color);
+    font-size: .78rem;
+}
+
+.classification-eligibility span {
+    color: var(--bs-secondary-color);
+}
+
+.classification-signals {
+    margin: 0;
+    padding-top: .1rem;
+}
+
+.classification-signals summary {
+    cursor: pointer;
+    color: var(--bs-secondary-color);
+}
+
+.classification-signals ul {
+    margin: .45rem 0 0;
+    padding-left: 1.1rem;
+}
+
+.classification-manual-form {
+    display: grid;
+    grid-template-columns: minmax(9rem, .8fr) minmax(10rem, 1.2fr) auto;
+    gap: .4rem;
+    margin-top: auto;
+}
+
+.classification-card__selector {
+    top: .55rem;
+    left: .55rem;
+    width: 2rem;
+    height: 2rem;
+    justify-content: center;
+    padding: 0;
+    border-radius: .55rem;
+}
+
+.classification-card__selector .form-check-input {
+    width: 1.05rem;
+    height: 1.05rem;
+}
+
+.classification-empty > i {
+    color: var(--bs-success);
+    font-size: 2.5rem;
+}
+
+@media (max-width: 1199.98px) {
+    .classification-grid--review {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .classification-review-toolbar {
+        position: static;
+    }
+
+    .classification-card--review {
+        grid-template-columns: 1fr;
+    }
+
+    .classification-card__preview {
+        min-height: 220px;
+        max-height: 340px;
+        border-right: 0;
+        border-bottom: 1px solid var(--bs-border-color);
+    }
+
+    .classification-manual-form {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .classification-evidence {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .classification-evidence > div:last-child {
+        grid-column: 1 / -1;
+    }
+}

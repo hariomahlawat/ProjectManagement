@@ -34,6 +34,19 @@ public sealed record FaceModelReadiness(
     DateTimeOffset CheckedAtUtc,
     IReadOnlyList<FaceReadinessCheck> Checks);
 
+/// <summary>
+/// Readiness for detector-only classification assistance. It deliberately excludes the
+/// People feature switch, face worker, embedding model, database schema and identity cache.
+/// </summary>
+public sealed record FaceDetectorReadiness(
+    bool IsEnabled,
+    bool IsReady,
+    FaceReadinessState State,
+    string Message,
+    string? DetectorPath,
+    DateTimeOffset CheckedAtUtc,
+    IReadOnlyList<FaceReadinessCheck> Checks);
+
 public sealed record FaceQualitySignals(
     double Resolution,
     double Sharpness,
@@ -74,6 +87,13 @@ public interface IFaceModelReadinessService
 {
     Task<FaceModelReadiness> CheckAsync(CancellationToken cancellationToken);
     Task<FaceModelReadiness> CheckAsync(bool forceRefresh, CancellationToken cancellationToken);
+    Task<FaceDetectorReadiness> CheckDetectorAsync(CancellationToken cancellationToken);
+    Task<FaceDetectorReadiness> CheckDetectorAsync(bool forceRefresh, CancellationToken cancellationToken);
+}
+
+public interface IFacePresenceAnalysisEngine
+{
+    Task<FacePresenceResult> AnalysePresenceAsync(byte[] imageBytes, CancellationToken cancellationToken);
 }
 
 public interface IFaceAnalysisEngine

@@ -11,7 +11,7 @@ namespace ProjectManagement.Features.MediaLibrary.Services;
 /// Local ONNX face pipeline. Supported detector and embedder layouts are explicit;
 /// arbitrary model files are never interpreted heuristically.
 /// </summary>
-public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IDisposable
+public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IFacePresenceAnalysisEngine, IDisposable
 {
     private static readonly IReadOnlyList<FacePoint> SFaceDestinationLandmarks = new[]
     {
@@ -75,7 +75,7 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IDisposable
             using var bitmap = SKBitmap.Decode(encoded)
                 ?? throw new InvalidDataException("The image could not be decoded for face analysis.");
 
-            var detections = Detect(bitmap);
+            var detections = Detect(bitmap, _options.People.MinimumDetectionConfidence);
             var selected = FaceGeometry.NonMaximumSuppression(
                 detections,
                 detection => detection.Rectangle,
@@ -138,15 +138,92 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IDisposable
         }
     }
 
-    private IReadOnlyList<RawFaceDetection> Detect(SKBitmap source)
+    public async Task<FacePresenceResult> AnalysePresenceAsync(
+        byte[] imageBytes,
+        CancellationToken cancellationToken)
+    {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(nameof(OnnxFaceAnalysisEngine));
+        }
+        ArgumentNullException.ThrowIfNull(imageBytes);
+        if (imageBytes.Length == 0)
+        {
+            throw new InvalidDataException("The image is empty.");
+        }
+
+        var readiness = await _readiness.CheckDetectorAsync(cancellationToken);
+        if (!readiness.IsReady || string.IsNullOrWhiteSpace(readiness.DetectorPath))
+        {
+            throw new InvalidOperationException(readiness.Message);
+        }
+
+        await EnsureDetectorSessionAsync(readiness.DetectorPath, cancellationToken);
+        await _analysisGate.WaitAsync(cancellationToken);
+        try
+        {
+            using var encoded = SKData.CreateCopy(imageBytes);
+            using var bitmap = SKBitmap.Decode(encoded)
+                ?? throw new InvalidDataException("The image could not be decoded for face-presence analysis.");
+            var detections = Detect(bitmap, _options.Classification.FacePresenceMinimumConfidence);
+            var selected = FaceGeometry.NonMaximumSuppression(
+                detections,
+                detection => detection.Rectangle,
+                detection => detection.Confidence,
+                _options.People.NonMaximumSuppressionThreshold,
+                _options.People.MaximumFacesPerAsset);
+            if (selected.Count == 0)
+            {
+                return new FacePresenceResult(true, false, 0, 0, 0, 0, 0, false);
+            }
+
+            var usable = selected
+                .Select(detection => new
+                {
+                    Detection = detection,
+                    Rectangle = FaceGeometry.ClampRectangle(detection.Rectangle, bitmap.Width, bitmap.Height)
+                })
+                .Where(item => item.Rectangle.Width > 0 && item.Rectangle.Height > 0)
+                .ToArray();
+            if (usable.Length == 0)
+            {
+                return new FacePresenceResult(true, false, 0, 0, 0, 0, 0, false);
+            }
+
+            var best = usable
+                .OrderByDescending(item => item.Rectangle.Width * item.Rectangle.Height)
+                .ThenByDescending(item => item.Detection.Confidence)
+                .First();
+            var areaRatio = best.Rectangle.Width * best.Rectangle.Height
+                            / (double)Math.Max(1, bitmap.Width * bitmap.Height);
+            return new FacePresenceResult(
+                true,
+                true,
+                usable.Length,
+                usable.Max(item => item.Detection.Confidence),
+                best.Rectangle.Width,
+                best.Rectangle.Height,
+                areaRatio,
+                best.Detection.Landmarks is { Count: >= 5 });
+        }
+        finally
+        {
+            _analysisGate.Release();
+        }
+    }
+
+    private IReadOnlyList<RawFaceDetection> Detect(SKBitmap source, double minimumConfidence)
     {
         var model = _options.People.Detector;
         return model.Adapter.Equals("YuNet", StringComparison.OrdinalIgnoreCase)
-            ? DetectYuNet(source, model)
-            : DetectDecoded(source, model);
+            ? DetectYuNet(source, model, minimumConfidence)
+            : DetectDecoded(source, model, minimumConfidence);
     }
 
-    private IReadOnlyList<RawFaceDetection> DetectYuNet(SKBitmap source, FaceModelOptions model)
+    private IReadOnlyList<RawFaceDetection> DetectYuNet(
+        SKBitmap source,
+        FaceModelOptions model,
+        double minimumConfidence)
     {
         var prepared = PrepareYuNetInput(source);
         using var inputBitmap = prepared.Bitmap;
@@ -184,7 +261,7 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IDisposable
                     var classificationScore = Math.Clamp(classification[index], 0, 1);
                     var objectnessScore = Math.Clamp(objectness[index], 0, 1);
                     var score = Math.Sqrt(classificationScore * objectnessScore);
-                    if (score < _options.People.MinimumDetectionConfidence)
+                    if (score < minimumConfidence)
                     {
                         continue;
                     }
@@ -218,7 +295,10 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IDisposable
             .ToList();
     }
 
-    private IReadOnlyList<RawFaceDetection> DetectDecoded(SKBitmap source, FaceModelOptions model)
+    private IReadOnlyList<RawFaceDetection> DetectDecoded(
+        SKBitmap source,
+        FaceModelOptions model,
+        double minimumConfidence)
     {
         using var resized = source.Resize(
             new SKImageInfo(model.InputWidth, model.InputHeight),
@@ -244,7 +324,7 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IDisposable
         for (var index = 0; index < count && detections.Count < _options.People.DetectorTopK; index++)
         {
             var score = scoreValues[index];
-            if (score < _options.People.MinimumDetectionConfidence)
+            if (score < minimumConfidence)
             {
                 continue;
             }
@@ -392,7 +472,10 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IDisposable
         FaceModelReadiness readiness,
         CancellationToken cancellationToken)
     {
-        if (_detector is not null && _embedder is not null)
+        await EnsureDetectorSessionAsync(
+            readiness.DetectorPath ?? throw new InvalidOperationException("Detector path is unavailable."),
+            cancellationToken);
+        if (_embedder is not null)
         {
             return;
         }
@@ -400,15 +483,28 @@ public sealed class OnnxFaceAnalysisEngine : IFaceAnalysisEngine, IDisposable
         await _sessionGate.WaitAsync(cancellationToken);
         try
         {
-            if (_detector is null)
-            {
-                _detector = CreateSession(readiness.DetectorPath!);
-            }
+            _embedder ??= CreateSession(
+                readiness.EmbedderPath ?? throw new InvalidOperationException("Embedder path is unavailable."));
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+    }
 
-            if (_embedder is null)
-            {
-                _embedder = CreateSession(readiness.EmbedderPath!);
-            }
+    private async Task EnsureDetectorSessionAsync(
+        string detectorPath,
+        CancellationToken cancellationToken)
+    {
+        if (_detector is not null)
+        {
+            return;
+        }
+
+        await _sessionGate.WaitAsync(cancellationToken);
+        try
+        {
+            _detector ??= CreateSession(detectorPath);
         }
         finally
         {

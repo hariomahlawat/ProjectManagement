@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Options;
 
 namespace ProjectManagement.Features.MediaLibrary.Options;
@@ -196,6 +197,10 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
         if (Invalid(classification.PhotographThreshold)) failures.Add("MediaLibrary:Classification:PhotographThreshold must be between 0 and 1.");
         if (Invalid(classification.NaturalPhotoAutoAcceptThreshold)) failures.Add("MediaLibrary:Classification:NaturalPhotoAutoAcceptThreshold must be between 0 and 1.");
         if (classification.NaturalPhotoAutoAcceptThreshold < classification.PhotographThreshold) failures.Add("MediaLibrary:Classification:NaturalPhotoAutoAcceptThreshold cannot be below PhotographThreshold.");
+        if (Invalid(classification.MinimumScoreMargin)) failures.Add("MediaLibrary:Classification:MinimumScoreMargin must be between 0 and 1.");
+        if (Invalid(classification.PhotographMinimumScoreMargin)) failures.Add("MediaLibrary:Classification:PhotographMinimumScoreMargin must be between 0 and 1.");
+        if (classification.PhotographMinimumScoreMargin < classification.MinimumScoreMargin) failures.Add("MediaLibrary:Classification:PhotographMinimumScoreMargin cannot be below MinimumScoreMargin.");
+        if (Invalid(classification.StrongConflictScore)) failures.Add("MediaLibrary:Classification:StrongConflictScore must be between 0 and 1.");
         if (Invalid(classification.ScreenshotThreshold) || Invalid(classification.DocumentThreshold) || Invalid(classification.DiagramThreshold) || Invalid(classification.PresentationThreshold) || Invalid(classification.GraphicThreshold)) failures.Add("All media classification thresholds must be between 0 and 1.");
         if (Invalid(classification.FacePresenceMinimumConfidence)) failures.Add("MediaLibrary:Classification:FacePresenceMinimumConfidence must be between 0 and 1.");
         if (classification.FacePresenceMinimumPixels is < 24 or > 2048) failures.Add("MediaLibrary:Classification:FacePresenceMinimumPixels must be between 24 and 2048.");
@@ -263,9 +268,35 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
         {
             failures.Add($"MediaLibrary:People:{label}:Sha256 must contain the approved 64-character hexadecimal SHA-256 checksum.");
         }
-        if (string.IsNullOrWhiteSpace(model.License)) failures.Add($"MediaLibrary:People:{label}:License is required.");
-        if (string.IsNullOrWhiteSpace(model.Publisher)) failures.Add($"MediaLibrary:People:{label}:Publisher is required.");
-        if (string.IsNullOrWhiteSpace(model.ApprovedArtifactId)) failures.Add($"MediaLibrary:People:{label}:ApprovedArtifactId is required.");
+        if (string.IsNullOrWhiteSpace(model.License))
+        {
+            failures.Add($"MediaLibrary:People:{label}:License is required.");
+        }
+
+        var hasSourceUrl = !string.IsNullOrWhiteSpace(model.SourceUrl);
+        var hasValidSourceUrl = hasSourceUrl
+                                && Uri.TryCreate(model.SourceUrl, UriKind.Absolute, out var sourceUri)
+                                && (string.Equals(sourceUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                                    || string.Equals(sourceUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase));
+        if (hasSourceUrl && !hasValidSourceUrl)
+        {
+            failures.Add($"MediaLibrary:People:{label}:SourceUrl must be an absolute HTTP or HTTPS URL.");
+        }
+
+        var hasOfflineProvenance = !string.IsNullOrWhiteSpace(model.Publisher)
+                                   && !string.IsNullOrWhiteSpace(model.ApprovedArtifactId)
+                                   && DateOnly.TryParseExact(
+                                       model.AcquiredOn,
+                                       "yyyy-MM-dd",
+                                       CultureInfo.InvariantCulture,
+                                       DateTimeStyles.None,
+                                       out _);
+        if (!hasValidSourceUrl && !hasOfflineProvenance)
+        {
+            failures.Add(
+                $"MediaLibrary:People:{label} requires either SourceUrl or complete offline provenance " +
+                "(Publisher, ApprovedArtifactId and AcquiredOn in yyyy-MM-dd format).");
+        }
         if (model.InputWidth is < 32 or > 4096 || model.InputHeight is < 32 or > 4096)
             failures.Add($"MediaLibrary:People:{label} input dimensions must be between 32 and 4096 pixels.");
         if (model.InputScale <= 0 || !float.IsFinite(model.InputScale))

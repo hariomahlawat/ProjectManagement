@@ -162,7 +162,7 @@ public sealed class MediaProcessingWorker : BackgroundService
             ? db.ProcessingJobs.FromSqlInterpolated($@"
                 SELECT *
                 FROM ""MediaProcessingJobs""
-                WHERE ""JobType"" = 'DetectFaces'
+                WHERE ""JobType"" IN ('DetectFaces', 'GenerateFaceEmbeddings', 'AssignFaceCluster')
                   AND (
                         ""Status"" = 'Pending'
                         OR (""Status"" = 'Running' AND ""LockExpiresAtUtc"" IS NOT NULL AND ""LockExpiresAtUtc"" < {now})
@@ -171,17 +171,30 @@ public sealed class MediaProcessingWorker : BackgroundService
                 ORDER BY COALESCE(""AvailableAfterUtc"", ""CreatedAtUtc""), ""Id""
                 FOR UPDATE SKIP LOCKED
                 LIMIT 1")
-            : db.ProcessingJobs.FromSqlInterpolated($@"
-                SELECT *
-                FROM ""MediaProcessingJobs""
-                WHERE (
-                        ""Status"" = 'Pending'
-                        OR (""Status"" = 'Running' AND ""LockExpiresAtUtc"" IS NOT NULL AND ""LockExpiresAtUtc"" < {now})
-                      )
-                  AND (""AvailableAfterUtc"" IS NULL OR ""AvailableAfterUtc"" <= {now})
-                ORDER BY COALESCE(""AvailableAfterUtc"", ""CreatedAtUtc""), ""Id""
-                FOR UPDATE SKIP LOCKED
-                LIMIT 1");
+            : _options.IsPeopleWorkerEnabled
+                ? db.ProcessingJobs.FromSqlInterpolated($@"
+                    SELECT *
+                    FROM ""MediaProcessingJobs""
+                    WHERE (
+                            ""Status"" = 'Pending'
+                            OR (""Status"" = 'Running' AND ""LockExpiresAtUtc"" IS NOT NULL AND ""LockExpiresAtUtc"" < {now})
+                          )
+                      AND (""AvailableAfterUtc"" IS NULL OR ""AvailableAfterUtc"" <= {now})
+                    ORDER BY COALESCE(""AvailableAfterUtc"", ""CreatedAtUtc""), ""Id""
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT 1")
+                : db.ProcessingJobs.FromSqlInterpolated($@"
+                    SELECT *
+                    FROM ""MediaProcessingJobs""
+                    WHERE ""JobType"" NOT IN ('DetectFaces', 'GenerateFaceEmbeddings', 'AssignFaceCluster')
+                      AND (
+                            ""Status"" = 'Pending'
+                            OR (""Status"" = 'Running' AND ""LockExpiresAtUtc"" IS NOT NULL AND ""LockExpiresAtUtc"" < {now})
+                          )
+                      AND (""AvailableAfterUtc"" IS NULL OR ""AvailableAfterUtc"" <= {now})
+                    ORDER BY COALESCE(""AvailableAfterUtc"", ""CreatedAtUtc""), ""Id""
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT 1");
         var claimed = await query.ToListAsync(cancellationToken);
         var job = claimed.SingleOrDefault();
 
@@ -206,6 +219,8 @@ public sealed class MediaProcessingWorker : BackgroundService
 
     private async Task ProcessAsync(ClaimedJob job, CancellationToken cancellationToken)
     {
+        using var leaseCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var leaseTask = RenewLeaseLoopAsync(job.Id, leaseCancellation.Token);
         try
         {
             using (var scope = _scopeFactory.CreateScope())
@@ -216,11 +231,22 @@ public sealed class MediaProcessingWorker : BackgroundService
 
             using var completionScope = _scopeFactory.CreateScope();
             var db = completionScope.ServiceProvider.GetRequiredService<MediaLibraryDbContext>();
-            var entity = await db.ProcessingJobs.SingleOrDefaultAsync(item => item.Id == job.Id, cancellationToken);
+            var entity = await db.ProcessingJobs.SingleOrDefaultAsync(
+                item => item.Id == job.Id,
+                cancellationToken);
             if (entity is null)
             {
-                _logger.LogWarning("Media processing job {JobId} disappeared before completion could be recorded", job.Id);
+                _logger.LogWarning(
+                    "Media processing job {JobId} disappeared before completion could be recorded",
+                    job.Id);
                 return;
+            }
+
+            if (entity.Status != MediaProcessingJobStatus.Running
+                || !string.Equals(entity.LockedBy, _workerId, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Worker lease for media job {job.Id} was lost before completion.");
             }
 
             entity.Status = MediaProcessingJobStatus.Completed;
@@ -243,6 +269,69 @@ public sealed class MediaProcessingWorker : BackgroundService
             await RecordFailureAsync(job, ex);
             _runtime.MarkFailed(job.Id, ex);
         }
+        finally
+        {
+            leaseCancellation.Cancel();
+            try
+            {
+                await leaseTask;
+            }
+            catch (OperationCanceledException) when (leaseCancellation.IsCancellationRequested)
+            {
+                // Normal lease-loop shutdown.
+            }
+            catch (Exception exception)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "Lease-renewal loop for media job {JobId} ended unexpectedly.",
+                    job.Id);
+            }
+        }
+    }
+
+    private async Task RenewLeaseLoopAsync(long jobId, CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(5));
+        while (await timer.WaitForNextTickAsync(cancellationToken))
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<MediaLibraryDbContext>();
+                var now = DateTimeOffset.UtcNow;
+                var renewed = await db.ProcessingJobs
+                    .Where(job => job.Id == jobId
+                                  && job.Status == MediaProcessingJobStatus.Running
+                                  && job.LockedBy == _workerId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(job => job.LockExpiresAtUtc, now.AddMinutes(15))
+                        .SetProperty(job => job.UpdatedAtUtc, now), cancellationToken);
+                if (renewed == 0)
+                {
+                    _logger.LogWarning(
+                        "Could not renew lease for media job {JobId}; the job is no longer owned by worker {WorkerId}",
+                        jobId,
+                        _workerId);
+                    return;
+                }
+
+                _runtime.Heartbeat($"Processing job {jobId}");
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                // A transient database outage must not terminate processing immediately. The
+                // completion path still verifies ownership before committing the job result.
+                _logger.LogWarning(
+                    exception,
+                    "Could not renew the lease for media job {JobId}; retrying on the next interval.",
+                    jobId);
+            }
+        }
     }
 
     private async Task ReleaseCancelledJobAsync(long jobId)
@@ -252,7 +341,12 @@ public sealed class MediaProcessingWorker : BackgroundService
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<MediaLibraryDbContext>();
             var entity = await db.ProcessingJobs.SingleOrDefaultAsync(item => item.Id == jobId, CancellationToken.None);
-            if (entity is null) return;
+            if (entity is null
+                || entity.Status != MediaProcessingJobStatus.Running
+                || !string.Equals(entity.LockedBy, _workerId, StringComparison.Ordinal))
+            {
+                return;
+            }
 
             var now = DateTimeOffset.UtcNow;
             entity.Status = MediaProcessingJobStatus.Pending;
@@ -280,6 +374,16 @@ public sealed class MediaProcessingWorker : BackgroundService
             _logger.LogError(ex, "Media job {JobId} failed but its database row no longer exists", job.Id);
             return;
         }
+        if (entity.Status != MediaProcessingJobStatus.Running
+            || !string.Equals(entity.LockedBy, _workerId, StringComparison.Ordinal))
+        {
+            _logger.LogWarning(
+                ex,
+                "Media job {JobId} failed after worker {WorkerId} lost ownership; the current owner state was not overwritten.",
+                job.Id,
+                _workerId);
+            return;
+        }
 
         var now = DateTimeOffset.UtcNow;
         var permanent = MediaProcessingFailurePolicy.IsPermanent(ex);
@@ -296,14 +400,14 @@ public sealed class MediaProcessingWorker : BackgroundService
         entity.FailureMessage = failureMessage;
         entity.UpdatedAtUtc = now;
 
-        if (sourceUnavailable || job.JobType == MediaProcessingJobType.DetectFaces)
+        if (sourceUnavailable || IsFaceJobType(job.JobType))
         {
             var asset = await db.Assets.SingleOrDefaultAsync(
                 item => item.Id == job.MediaAssetId,
                 CancellationToken.None);
             if (asset is not null)
             {
-                if (job.JobType == MediaProcessingJobType.DetectFaces)
+                if (IsFaceJobType(job.JobType))
                 {
                     asset.FaceAnalysisStatus = MediaProcessingStatus.Failed;
                     asset.FaceProcessingFailureReason = failureMessage;
@@ -351,6 +455,12 @@ public sealed class MediaProcessingWorker : BackgroundService
                 entity.AvailableAfterUtc);
         }
     }
+
+
+    private static bool IsFaceJobType(MediaProcessingJobType jobType)
+        => jobType is MediaProcessingJobType.DetectFaces
+            or MediaProcessingJobType.GenerateFaceEmbeddings
+            or MediaProcessingJobType.AssignFaceCluster;
 
     private static bool IsCatalogueInfrastructureFailure(Exception exception)
         => exception is NpgsqlException

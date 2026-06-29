@@ -19,6 +19,8 @@ public sealed record ClassificationMetrics(
     double Entropy,
     double EdgeDensity,
     double SpatialFlatness,
+    double ExactFlatness,
+    double MicroVariationRatio,
     double LightBackgroundRatio,
     double ColourDiversity,
     double LuminanceVariance,

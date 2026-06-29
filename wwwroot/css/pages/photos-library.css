@@ -819,3 +819,29 @@
 .photos-viewer__people a:hover {
     background: rgba(255, 255, 255, .18);
 }
+
+/* Phase 8.4 — compact single-item collections */
+.photos-grid--single-portrait .photos-tile {
+    width: min(310px, 28vw);
+    height: clamp(300px, 36vw, 410px);
+}
+
+.photos-grid--single-landscape .photos-tile {
+    width: min(780px, 64vw);
+    height: clamp(230px, 22vw, 350px);
+}
+
+.photos-grid--single-square .photos-tile {
+    width: min(390px, 36vw);
+    height: clamp(285px, 32vw, 390px);
+}
+
+@media (max-width: 767.98px) {
+    .photos-grid--single-portrait .photos-tile,
+    .photos-grid--single-landscape .photos-tile,
+    .photos-grid--single-square .photos-tile {
+        width: 100%;
+        height: auto;
+        max-height: 390px;
+    }
+}

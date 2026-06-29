@@ -12,17 +12,20 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
     private readonly ApplicationDbContext _applicationDb;
     private readonly MediaLibraryDbContext _mediaDb;
     private readonly MediaLibraryOptions _options;
+    private readonly IMediaContentChangeInvalidationService _contentInvalidation;
     private readonly ILogger<PrismMediaCatalogueSynchronizer> _logger;
 
     public PrismMediaCatalogueSynchronizer(
         ApplicationDbContext applicationDb,
         MediaLibraryDbContext mediaDb,
         IOptions<MediaLibraryOptions> options,
+        IMediaContentChangeInvalidationService contentInvalidation,
         ILogger<PrismMediaCatalogueSynchronizer> logger)
     {
         _applicationDb = applicationDb ?? throw new ArgumentNullException(nameof(applicationDb));
         _mediaDb = mediaDb ?? throw new ArgumentNullException(nameof(mediaDb));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _contentInvalidation = contentInvalidation ?? throw new ArgumentNullException(nameof(contentInvalidation));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -43,6 +46,7 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
             var existing = await _mediaDb.Assets
                 .Where(asset => asset.SourceId == source.Id)
                 .ToDictionaryAsync(asset => asset.SourceEntityId, StringComparer.Ordinal, cancellationToken);
+            var contentChanges = new Dictionary<long, MediaContentChangeSnapshot>();
 
             var photos = await _applicationDb.ProjectPhotos
                 .AsNoTracking()
@@ -67,7 +71,7 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
 
             foreach (var row in photos)
             {
-                Upsert(existing, source.Id, scanId, now, new AssetValues(
+                Upsert(existing, contentChanges, source.Id, scanId, now, new AssetValues(
                     $"project-photo:{row.Id}",
                     row.ProjectId.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     MediaAssetOrigin.ProjectPhoto,
@@ -116,7 +120,7 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
 
             foreach (var row in videos)
             {
-                var entity = Upsert(existing, source.Id, scanId, now, new AssetValues(
+                var entity = Upsert(existing, contentChanges, source.Id, scanId, now, new AssetValues(
                     $"project-video:{row.Id}",
                     row.ProjectId.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     MediaAssetOrigin.ProjectVideo,
@@ -164,7 +168,7 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
             foreach (var row in visitPhotos)
             {
                 var date = new DateTimeOffset(row.DateOfVisit.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-                Upsert(existing, source.Id, scanId, now, new AssetValues(
+                Upsert(existing, contentChanges, source.Id, scanId, now, new AssetValues(
                     $"visit-photo:{row.Id}",
                     row.VisitId.ToString(),
                     MediaAssetOrigin.VisitPhoto,
@@ -212,7 +216,7 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
             foreach (var row in eventPhotos)
             {
                 var date = new DateTimeOffset(row.DateOfEvent.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-                Upsert(existing, source.Id, scanId, now, new AssetValues(
+                Upsert(existing, contentChanges, source.Id, scanId, now, new AssetValues(
                     $"event-photo:{row.Id}",
                     row.EventId.ToString(),
                     MediaAssetOrigin.SocialMediaEventPhoto,
@@ -243,9 +247,17 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
                 stale.LastSeenAtUtc = now;
             }
 
+            await _contentInvalidation.RetireDerivedIntelligenceAsync(
+                contentChanges.Values.ToArray(),
+                now,
+                cancellationToken);
             await _mediaDb.SaveChangesAsync(cancellationToken);
 
-            await EnsurePhotoProcessingJobsAsync(source.Id, now, cancellationToken);
+            await EnsurePhotoProcessingJobsAsync(
+                source.Id,
+                contentChanges.Keys.ToHashSet(),
+                now,
+                cancellationToken);
 
             source.IndexedAssetCount = await _mediaDb.Assets.CountAsync(
                 asset => asset.SourceId == source.Id && asset.IsAvailable && !asset.IsDeleted,
@@ -270,6 +282,7 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
 
     private MediaAsset Upsert(
         IDictionary<string, MediaAsset> existing,
+        IDictionary<long, MediaContentChangeSnapshot> contentChanges,
         Guid sourceId,
         Guid scanId,
         DateTimeOffset now,
@@ -295,29 +308,17 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
         }
 
         var contentChanged = !string.Equals(asset.QuickFingerprint, values.Fingerprint, StringComparison.Ordinal);
-        if (contentChanged && asset.Id != 0 && values.Kind == MediaAssetKind.Photo)
+        if (contentChanged
+            && asset.Id != 0
+            && (asset.Kind == MediaAssetKind.Photo || values.Kind == MediaAssetKind.Photo))
         {
-            asset.CacheVersion++;
-            asset.ContentHash = null;
-            asset.DerivativeStatus = MediaProcessingStatus.Pending;
-            asset.AnalysisStatus = _options.Classification.Enabled
-                ? MediaProcessingStatus.Pending
-                : MediaProcessingStatus.NotRequested;
-            if (!asset.ClassificationIsManual)
-            {
-                asset.Classification = MediaClassification.Unknown;
-                asset.ClassificationConfidence = null;
-                asset.AnalysisVersion = null;
-                asset.ClassifierVersion = null;
-                asset.AnalysisSignalsJson = null;
-                asset.AnalysedAtUtc = null;
-                asset.ClassifiedAtUtc = null;
-            }
-            asset.FaceAnalysisStatus = MediaProcessingStatus.NotRequested;
-            asset.FaceAnalysisVersion = null;
-            asset.FaceAnalysedAtUtc = null;
-            asset.FaceProcessingFailureReason = null;
-            asset.ProcessingFailureReason = null;
+            contentChanges.TryAdd(
+                asset.Id,
+                _contentInvalidation.ResetAsset(
+                    asset,
+                    values.Fingerprint,
+                    values.Kind,
+                    _options.Classification.Enabled));
         }
 
         asset.ParentEntityId = values.ParentEntityId;
@@ -364,8 +365,10 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
         return asset;
     }
 
+
     private async Task EnsurePhotoProcessingJobsAsync(
         Guid sourceId,
+        IReadOnlySet<long> contentChangedAssetIds,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -381,81 +384,147 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
                                         || asset.AnalysisStatus == MediaProcessingStatus.Pending
                                         || asset.AnalysisStatus == MediaProcessingStatus.Failed
                                         || asset.ClassifierVersion != MediaClassifier.ClassifierVersion))))
-            .Select(asset => asset.Id)
+            .Select(asset => new
+            {
+                asset.Id,
+                NeedsDerivatives = asset.DerivativeStatus == MediaProcessingStatus.Pending,
+                NeedsClassification = _options.Classification.Enabled
+                                      && !asset.ClassificationIsManual
+                                      && (asset.AnalysisStatus == MediaProcessingStatus.NotRequested
+                                          || asset.AnalysisStatus == MediaProcessingStatus.Pending
+                                          || asset.AnalysisStatus == MediaProcessingStatus.Failed
+                                          || asset.ClassifierVersion != MediaClassifier.ClassifierVersion),
+                ClassifierIsStale = _options.Classification.Enabled
+                                    && !asset.ClassificationIsManual
+                                    && asset.ClassifierVersion != MediaClassifier.ClassifierVersion
+            })
             .ToListAsync(cancellationToken);
 
-        if (candidates.Count == 0) return;
+        if (candidates.Count == 0)
+        {
+            return;
+        }
 
-        await _mediaDb.Assets
-            .Where(asset => candidates.Contains(asset.Id)
-                            && !asset.ClassificationIsManual
-                            && asset.ClassifierVersion != MediaClassifier.ClassifierVersion)
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(asset => asset.AnalysisStatus, MediaProcessingStatus.Pending)
-                .SetProperty(asset => asset.Classification, MediaClassification.Unknown)
-                .SetProperty(asset => asset.ClassificationConfidence, (double?)null)
-                .SetProperty(asset => asset.AnalysisVersion, (string?)null)
-                .SetProperty(asset => asset.ClassifierVersion, (string?)null)
-                .SetProperty(asset => asset.AnalysisSignalsJson, (string?)null)
-                .SetProperty(asset => asset.AnalysedAtUtc, (DateTimeOffset?)null)
-                .SetProperty(asset => asset.ClassifiedAtUtc, (DateTimeOffset?)null),
-                cancellationToken);
+        var staleIds = candidates
+            .Where(candidate => candidate.ClassifierIsStale)
+            .Select(candidate => candidate.Id)
+            .ToArray();
+        if (staleIds.Length > 0)
+        {
+            var refreshToken = Guid.NewGuid();
+            await _mediaDb.Assets
+                .Where(asset => staleIds.Contains(asset.Id) && !asset.ClassificationIsManual)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(asset => asset.PredictedClassification, MediaClassification.Unknown)
+                    .SetProperty(asset => asset.PredictedClassificationScore, 0m)
+                    .SetProperty(asset => asset.AnalysisStatus, MediaProcessingStatus.Pending)
+                    .SetProperty(asset => asset.Classification, MediaClassification.Unknown)
+                    .SetProperty(asset => asset.ClassificationConfidence, (double?)null)
+                    .SetProperty(asset => asset.ClassificationDecisionStatus, MediaClassificationDecisionStatus.NotProcessed)
+                    .SetProperty(asset => asset.ClassificationDecisionReasonCode, "CLASSIFIER_VERSION_CHANGED")
+                    .SetProperty(asset => asset.AnalysisVersion, (string?)null)
+                    .SetProperty(asset => asset.ClassifierVersion, (string?)null)
+                    .SetProperty(asset => asset.AnalysisSignalsJson, (string?)null)
+                    .SetProperty(asset => asset.AutomaticClassificationSignalsJson, (string?)null)
+                    .SetProperty(asset => asset.AutomaticClassificationScoresJson, (string?)null)
+                    .SetProperty(asset => asset.AutomaticClassificationMetricsJson, (string?)null)
+                    .SetProperty(asset => asset.AnalysedAtUtc, (DateTimeOffset?)null)
+                    .SetProperty(asset => asset.ClassifiedAtUtc, (DateTimeOffset?)null)
+                    .SetProperty(asset => asset.ProcessingFailureReason, (string?)null)
+                    .SetProperty(asset => asset.ClassificationConcurrencyToken, refreshToken),
+                    cancellationToken);
+        }
 
+        var analyseIds = candidates
+            .Where(candidate => candidate.NeedsDerivatives)
+            .Select(candidate => candidate.Id)
+            .ToArray();
+        var classifyIds = candidates
+            .Where(candidate => !candidate.NeedsDerivatives && candidate.NeedsClassification)
+            .Select(candidate => candidate.Id)
+            .ToArray();
+        var staleSet = staleIds.ToHashSet();
+        var analyseForceSet = contentChangedAssetIds.Concat(staleSet).ToHashSet();
+
+        await QueueJobsAsync(
+            analyseIds,
+            MediaProcessingJobType.AnalyseAsset,
+            analyseForceSet,
+            now,
+            cancellationToken);
+        await QueueJobsAsync(
+            classifyIds,
+            MediaProcessingJobType.ClassifyMedia,
+            staleSet,
+            now,
+            cancellationToken);
+        await _mediaDb.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task QueueJobsAsync(
+        IReadOnlyCollection<long> assetIds,
+        MediaProcessingJobType jobType,
+        IReadOnlySet<long> forceRequeueAssetIds,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (assetIds.Count == 0)
+        {
+            return;
+        }
+
+        var uniqueIds = assetIds.Distinct().ToArray();
         var existingJobs = await _mediaDb.ProcessingJobs
-            .Where(job => candidates.Contains(job.MediaAssetId)
-                          && job.JobType == MediaProcessingJobType.AnalyseAsset)
+            .Where(job => uniqueIds.Contains(job.MediaAssetId) && job.JobType == jobType)
             .ToDictionaryAsync(job => job.MediaAssetId, cancellationToken);
 
-        foreach (var assetId in candidates)
+        foreach (var assetId in uniqueIds)
         {
-            if (existingJobs.TryGetValue(assetId, out var existingJob))
+            if (!existingJobs.TryGetValue(assetId, out var job))
             {
-                // Completed jobs are only requeued when the asset state itself was reset
-                // to Pending because its source fingerprint changed. Permanent failures are
-                // never revived by routine reconciliation.
-                if (existingJob.Status == MediaProcessingJobStatus.Completed)
+                _mediaDb.ProcessingJobs.Add(new MediaProcessingJob
                 {
-                    existingJob.Status = MediaProcessingJobStatus.Pending;
-                    existingJob.AttemptCount = 0;
-                    existingJob.AvailableAfterUtc = now;
-                    existingJob.StartedAtUtc = null;
-                    existingJob.CompletedAtUtc = null;
-                    existingJob.LockedBy = null;
-                    existingJob.LockExpiresAtUtc = null;
-                    existingJob.FailureCode = null;
-                    existingJob.FailureMessage = null;
-                    existingJob.UpdatedAtUtc = now;
-                }
-                else if (existingJob.Status is MediaProcessingJobStatus.Failed or MediaProcessingJobStatus.DeadLetter
-                         && MediaProcessingFailurePolicy.IsRecoverableFailureCode(existingJob.FailureCode))
-                {
-                    existingJob.Status = MediaProcessingJobStatus.Pending;
-                    existingJob.AttemptCount = 0;
-                    existingJob.AvailableAfterUtc = now;
-                    existingJob.StartedAtUtc = null;
-                    existingJob.CompletedAtUtc = null;
-                    existingJob.LockedBy = null;
-                    existingJob.LockExpiresAtUtc = null;
-                    existingJob.FailureCode = null;
-                    existingJob.FailureMessage = null;
-                    existingJob.UpdatedAtUtc = now;
-                }
+                    MediaAssetId = assetId,
+                    JobType = jobType,
+                    Status = MediaProcessingJobStatus.Pending,
+                    AvailableAfterUtc = now,
+                    CreatedAtUtc = now,
+                    UpdatedAtUtc = now,
+                    MaxAttempts = _options.Processing.MaxAttempts
+                });
                 continue;
             }
 
-            _mediaDb.ProcessingJobs.Add(new MediaProcessingJob
+            if (job.Status == MediaProcessingJobStatus.Running
+                && job.LockExpiresAtUtc is { } lockExpiry
+                && lockExpiry > now)
             {
-                MediaAssetId = assetId,
-                JobType = MediaProcessingJobType.AnalyseAsset,
-                Status = MediaProcessingJobStatus.Pending,
-                AvailableAfterUtc = now,
-                CreatedAtUtc = now,
-                UpdatedAtUtc = now,
-                MaxAttempts = 5
-            });
-        }
+                // Changed/stale assets have a new classification concurrency token. An in-flight
+                // processor will yield and its worker will retry the same job safely.
+                continue;
+            }
 
-        await _mediaDb.SaveChangesAsync(cancellationToken);
+            var mayRequeue = job.Status is MediaProcessingJobStatus.Pending or MediaProcessingJobStatus.Completed
+                             || forceRequeueAssetIds.Contains(assetId)
+                             || (job.Status is MediaProcessingJobStatus.Failed or MediaProcessingJobStatus.DeadLetter
+                                 && MediaProcessingFailurePolicy.IsRecoverableFailureCode(job.FailureCode));
+            if (!mayRequeue)
+            {
+                continue;
+            }
+
+            job.Status = MediaProcessingJobStatus.Pending;
+            job.AttemptCount = 0;
+            job.MaxAttempts = _options.Processing.MaxAttempts;
+            job.AvailableAfterUtc = now;
+            job.StartedAtUtc = null;
+            job.CompletedAtUtc = null;
+            job.LockedBy = null;
+            job.LockExpiresAtUtc = null;
+            job.FailureCode = null;
+            job.FailureMessage = null;
+            job.UpdatedAtUtc = now;
+        }
     }
 
     private static DateTimeOffset ToUtcOffset(DateTime value)
@@ -463,6 +532,7 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
 
     private static string Trim(string value, int maxLength)
         => value.Length <= maxLength ? value : value[..maxLength];
+
 
     private sealed record AssetValues(
         string SourceEntityId,
