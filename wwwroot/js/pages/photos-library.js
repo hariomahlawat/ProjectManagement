@@ -432,3 +432,39 @@
     syncViewerWithHash();
 
 })();
+
+// Near-real-time catalogue visibility. The scanner remains the durable source of truth;
+// this light poll only refreshes the page when the rendered catalogue version changes.
+(() => {
+    const root = document.querySelector('[data-photos-library][data-auto-refresh-url]');
+    if (!root) return;
+
+    let currentVersion = root.dataset.libraryVersion || '';
+    let checking = false;
+
+    const checkForUpdates = async () => {
+        if (checking || document.hidden || document.body.classList.contains('photos-viewer-open')) return;
+        checking = true;
+        try {
+            const response = await fetch(root.dataset.autoRefreshUrl, {
+                headers: { 'X-Requested-With': 'PhotosCataloguePoll' },
+                cache: 'no-store'
+            });
+            if (!response.ok) return;
+            const html = await response.text();
+            const documentCopy = new DOMParser().parseFromString(html, 'text/html');
+            const nextRoot = documentCopy.querySelector('[data-photos-library]');
+            const nextVersion = nextRoot?.dataset.libraryVersion || '';
+            if (nextVersion && nextVersion !== currentVersion) {
+                currentVersion = nextVersion;
+                window.location.reload();
+            }
+        } catch {
+            // Polling is enhancement-only. Normal navigation remains fully functional.
+        } finally {
+            checking = false;
+        }
+    };
+
+    window.setInterval(checkForUpdates, 15000);
+})();

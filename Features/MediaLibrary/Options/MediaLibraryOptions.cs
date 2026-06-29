@@ -60,7 +60,22 @@ public sealed class MediaCatalogueOptions
 {
     public bool Enabled { get; set; } = true;
     public bool SynchronizePrismMedia { get; set; } = true;
+    /// <summary>
+    /// Preferred near-real-time polling interval for PRISM-owned media. This is a
+    /// reconciliation safety net; catalogue visibility never waits for classification.
+    /// </summary>
+    public int SynchronizeIntervalSeconds { get; set; } = 15;
+
+    /// <summary>
+    /// Legacy configuration retained for backward compatibility. It is used only when
+    /// SynchronizeIntervalSeconds is not positive.
+    /// </summary>
     public int SynchronizeIntervalMinutes { get; set; } = 30;
+
+    public TimeSpan GetSynchronizeInterval()
+        => SynchronizeIntervalSeconds > 0
+            ? TimeSpan.FromSeconds(SynchronizeIntervalSeconds)
+            : TimeSpan.FromMinutes(Math.Max(1, SynchronizeIntervalMinutes));
 }
 
 public sealed class ExternalMediaSourcesOptions

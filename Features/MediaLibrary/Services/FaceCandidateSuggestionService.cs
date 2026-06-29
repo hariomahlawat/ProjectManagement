@@ -192,7 +192,8 @@ public sealed class FaceCandidateSuggestionService : IFaceCandidateSuggestionSer
         catch (Exception exception)
         {
             var message = Trim(exception.GetBaseException().Message, 2048);
-            foreach (var face in faces)
+            var searchableFaceIds = inputs.Select(input => input.FaceId).ToHashSet();
+            foreach (var face in faces.Where(face => searchableFaceIds.Contains(face.Id)))
             {
                 face.CandidateSearchStatus = FaceCandidateSearchStatus.Failed;
                 face.CandidateSearchFailureReason = message;

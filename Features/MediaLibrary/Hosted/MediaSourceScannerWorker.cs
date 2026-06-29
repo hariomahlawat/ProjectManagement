@@ -59,10 +59,8 @@ public sealed class MediaSourceScannerWorker : BackgroundService
                 _logger.LogError(ex, "Media source scanner cycle failed");
             }
 
-            var delay = _options.IsExternalSourceFeatureEnabled
-                ? _options.ExternalSources.IdleDelaySeconds
-                : 60;
-            await Task.Delay(TimeSpan.FromSeconds(Math.Max(1, delay)), stoppingToken);
+            var delay = GetCycleDelay();
+            await Task.Delay(delay, stoppingToken);
         }
     }
 
@@ -115,7 +113,7 @@ public sealed class MediaSourceScannerWorker : BackgroundService
         }
 
         if (prismSource is not null
-            && IsDue(prismSource, _options.Catalogue.SynchronizeIntervalMinutes))
+            && IsDue(prismSource, _options.Catalogue.GetSynchronizeInterval()))
         {
             using var prismScope = _scopeFactory.CreateScope();
             var synchronizer = prismScope.ServiceProvider.GetRequiredService<IPrismMediaCatalogueSynchronizer>();
@@ -131,7 +129,7 @@ public sealed class MediaSourceScannerWorker : BackgroundService
 
         foreach (var source in externalSources)
         {
-            if (!IsDue(source, source.ScanIntervalMinutes))
+            if (!IsDue(source, TimeSpan.FromMinutes(Math.Max(1, source.ScanIntervalMinutes))))
             {
                 continue;
             }
@@ -142,7 +140,26 @@ public sealed class MediaSourceScannerWorker : BackgroundService
         }
     }
 
-    private static bool IsDue(MediaLibrarySource source, int intervalMinutes)
+    private TimeSpan GetCycleDelay()
+    {
+        var candidates = new List<TimeSpan>();
+
+        if (_options.Catalogue.SynchronizePrismMedia)
+        {
+            candidates.Add(_options.Catalogue.GetSynchronizeInterval());
+        }
+
+        if (_options.IsExternalSourceFeatureEnabled)
+        {
+            candidates.Add(TimeSpan.FromSeconds(Math.Max(1, _options.ExternalSources.IdleDelaySeconds)));
+        }
+
+        return candidates.Count == 0
+            ? TimeSpan.FromSeconds(60)
+            : candidates.Min();
+    }
+
+    private static bool IsDue(MediaLibrarySource source, TimeSpan interval)
     {
         if (source.ScanRequestedAtUtc.HasValue
             && (!source.LastScanStartedAtUtc.HasValue || source.ScanRequestedAtUtc > source.LastScanStartedAtUtc))
@@ -154,7 +171,7 @@ public sealed class MediaSourceScannerWorker : BackgroundService
                           ?? source.LastScanCompletedAtUtc
                           ?? source.LastScanStartedAtUtc;
         return !lastAttempt.HasValue
-               || lastAttempt.Value.AddMinutes(Math.Max(1, intervalMinutes)) <= DateTimeOffset.UtcNow;
+               || lastAttempt.Value.Add(interval) <= DateTimeOffset.UtcNow;
     }
 
     private async Task TryMigrateAsync(CancellationToken cancellationToken)

@@ -52,9 +52,16 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
         }
 
         if (options.Catalogue.SynchronizePrismMedia
+            && options.Catalogue.SynchronizeIntervalSeconds is < 5 or > 3600)
+        {
+            failures.Add("MediaLibrary:Catalogue:SynchronizeIntervalSeconds must be between 5 and 3600.");
+        }
+
+        if (options.Catalogue.SynchronizePrismMedia
+            && options.Catalogue.SynchronizeIntervalSeconds <= 0
             && options.Catalogue.SynchronizeIntervalMinutes is < 1 or > 10080)
         {
-            failures.Add("MediaLibrary:Catalogue:SynchronizeIntervalMinutes must be between 1 and 10080.");
+            failures.Add("MediaLibrary:Catalogue:SynchronizeIntervalMinutes must be between 1 and 10080 when the seconds setting is disabled.");
         }
 
         if (options.IsExternalSourceFeatureEnabled)

@@ -27,7 +27,7 @@
     <link rel="stylesheet" href="~/css/pages/photos-library.css" asp-append-version="true" />
 }
 
-<div class="photos-library" data-photos-library>
+<div class="photos-library" data-photos-library data-library-version="@($"{Model.Stats.Photos}:{Model.Stats.Videos}:{Model.Stats.Collections}:{Model.Groups.Sum(g => g.Items.Count)}")" data-auto-refresh-url="@Url.Page("./Index", new { Model.Q, Model.Source, Model.Kind, Model.Classification, Model.ProjectId, Model.PersonId, Model.Year, Model.PageNumber })">
     <header class="photos-library__header">
         <div class="photos-library__title-block">
             <span class="photos-library__eyebrow">Unified organisational media</span>
@@ -35,25 +35,29 @@
                 <h1>Photos</h1>
             </div>
             <p>Project photographs, videos, visits and events in one library.</p>
+            <div class="photos-library__live" role="status" aria-live="polite">
+                <span class="photos-library__live-dot" aria-hidden="true"></span>
+                <span>PRISM media updates automatically</span>
+            </div>
         </div>
 
-        <div class="d-flex align-items-center gap-2">
+        <div class="photos-library__actions">
             @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
             {
                 @if (Model.PeopleFeatureEnabled)
                 {
-                    <a asp-page="/Photos/People/Index" class="btn btn-outline-secondary">
+                    <a asp-page="/Photos/People/Index" class="photos-action">
                         <i class="bi bi-people" aria-hidden="true"></i> People
                     </a>
                 }
-                <a asp-page="/Admin/MediaIntelligence/Index" class="btn btn-outline-secondary">
+                <a asp-page="/Admin/MediaIntelligence/Index" class="photos-action">
                     <i class="bi bi-cpu" aria-hidden="true"></i> Intelligence
                 </a>
-                <a asp-page="/Admin/MediaSources/Index" class="btn btn-outline-secondary">
+                <a asp-page="/Admin/MediaSources/Index" class="photos-action">
                     <i class="bi bi-hdd-network" aria-hidden="true"></i> Sources
                 </a>
             }
-            <button class="btn btn-primary photos-library__filter-toggle"
+            <button class="photos-action photos-action--primary photos-library__filter-toggle"
                     type="button"
                     data-bs-toggle="offcanvas"
                     data-bs-target="#photosFilters"
