@@ -1,3 +1,5 @@
+using ProjectManagement.Features.MediaLibrary.Domain;
+
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
 public sealed record MediaPeopleIndexQuery(
