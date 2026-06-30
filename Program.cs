@@ -77,7 +77,6 @@ using ProjectManagement.Utilities;
 using ProjectManagement.Utilities.Reporting;
 using System;
 using System.Collections.Generic;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Data.Common;
@@ -1337,15 +1336,27 @@ notificationsApi.MapGet("", async ([AsParameters] NotificationListRequest reques
         return Results.Unauthorized();
     }
 
+    var status = request.Status?.Trim().ToLowerInvariant();
     var options = new NotificationListOptions
     {
         Limit = request.Limit,
-        OnlyUnread = request.UnreadOnly ?? false,
+        OnlyUnread = request.UnreadOnly ?? string.Equals(status, "unread", StringComparison.Ordinal),
+        OnlyRead = string.Equals(status, "read", StringComparison.Ordinal),
+        OnlyMuted = string.Equals(status, "muted", StringComparison.Ordinal),
+        IncludeMuted = request.IncludeMuted ?? false,
         ProjectId = request.ProjectId,
+        Cursor = request.Cursor,
+        Search = request.Search,
+        Module = request.Module,
+        IncludeFilterOptions = request.IncludeFilterOptions ?? true,
     };
 
-    var items = await notifications.ListAsync(httpContext.User, userId, options, cancellationToken);
-    return Results.Ok(items);
+    var page = await notifications.ListPageAsync(
+        httpContext.User,
+        userId,
+        options,
+        cancellationToken);
+    return Results.Ok(page);
 });
 
 notificationsApi.MapGet("/count", async (HttpContext httpContext,
@@ -1362,82 +1373,286 @@ notificationsApi.MapGet("/count", async (HttpContext httpContext,
     return Results.Ok(new NotificationCountDto(unread));
 });
 
+notificationsApi.MapPost("/read", async (NotificationIdsRequest request,
+                                          HttpContext httpContext,
+                                          IAntiforgery antiforgery,
+                                          UserNotificationService notifications,
+                                          IHubContext<NotificationsHub, INotificationsClient> hubContext,
+                                          CancellationToken cancellationToken) =>
+{
+    var validationFailure = await ValidateAntiforgeryRequestAsync(antiforgery, httpContext);
+    if (validationFailure is not null)
+    {
+        return validationFailure;
+    }
+
+    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (string.IsNullOrEmpty(userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    var result = await notifications.MarkManyReadAsync(
+        httpContext.User,
+        userId,
+        request.Ids ?? Array.Empty<int>(),
+        cancellationToken);
+
+    return await HandleNotificationReadMutationAsync(
+        result,
+        httpContext.User,
+        userId,
+        notifications,
+        hubContext,
+        cancellationToken);
+});
+
+notificationsApi.MapPost("/unread", async (NotificationIdsRequest request,
+                                            HttpContext httpContext,
+                                            IAntiforgery antiforgery,
+                                            UserNotificationService notifications,
+                                            IHubContext<NotificationsHub, INotificationsClient> hubContext,
+                                            CancellationToken cancellationToken) =>
+{
+    var validationFailure = await ValidateAntiforgeryRequestAsync(antiforgery, httpContext);
+    if (validationFailure is not null)
+    {
+        return validationFailure;
+    }
+
+    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (string.IsNullOrEmpty(userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    var result = await notifications.MarkManyUnreadAsync(
+        httpContext.User,
+        userId,
+        request.Ids ?? Array.Empty<int>(),
+        cancellationToken);
+
+    return await HandleNotificationReadMutationAsync(
+        result,
+        httpContext.User,
+        userId,
+        notifications,
+        hubContext,
+        cancellationToken);
+});
+
+notificationsApi.MapPost("/read-all", async (HttpContext httpContext,
+                                              IAntiforgery antiforgery,
+                                              UserNotificationService notifications,
+                                              IHubContext<NotificationsHub, INotificationsClient> hubContext,
+                                              CancellationToken cancellationToken) =>
+{
+    var validationFailure = await ValidateAntiforgeryRequestAsync(antiforgery, httpContext);
+    if (validationFailure is not null)
+    {
+        return validationFailure;
+    }
+
+    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (string.IsNullOrEmpty(userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    var result = await notifications.MarkAllReadAsync(
+        httpContext.User,
+        userId,
+        cancellationToken);
+
+    return await HandleNotificationReadMutationAsync(
+        result,
+        httpContext.User,
+        userId,
+        notifications,
+        hubContext,
+        cancellationToken);
+});
+
+notificationsApi.MapPost("/seen", async (NotificationIdsRequest request,
+                                          HttpContext httpContext,
+                                          IAntiforgery antiforgery,
+                                          UserNotificationService notifications,
+                                          IHubContext<NotificationsHub, INotificationsClient> hubContext,
+                                          CancellationToken cancellationToken) =>
+{
+    var validationFailure = await ValidateAntiforgeryRequestAsync(antiforgery, httpContext);
+    if (validationFailure is not null)
+    {
+        return validationFailure;
+    }
+
+    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (string.IsNullOrEmpty(userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    var result = await notifications.MarkSeenAsync(
+        httpContext.User,
+        userId,
+        request.Ids ?? Array.Empty<int>(),
+        cancellationToken);
+
+    if (result.Result == NotificationOperationResult.NotFound)
+    {
+        return Results.NotFound();
+    }
+
+    if (result.Result == NotificationOperationResult.Forbidden)
+    {
+        return Results.Forbid();
+    }
+
+    var dto = new NotificationSeenDto(
+        result.NotificationIds,
+        result.SeenUtc,
+        result.NotificationIds.Count);
+    await hubContext.Clients.User(userId).ReceiveNotificationSeen(dto);
+    return Results.Ok(dto);
+});
+
+// SECTION: Backward-compatible single-item endpoints used by older cached clients.
 notificationsApi.MapPost("/{id:int}/read", async (int id,
                                                    HttpContext httpContext,
+                                                   IAntiforgery antiforgery,
                                                    UserNotificationService notifications,
                                                    IHubContext<NotificationsHub, INotificationsClient> hubContext,
                                                    CancellationToken cancellationToken) =>
 {
+    var validationFailure = await ValidateAntiforgeryRequestAsync(antiforgery, httpContext);
+    if (validationFailure is not null)
+    {
+        return validationFailure;
+    }
+
     var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
     if (string.IsNullOrEmpty(userId))
     {
         return Results.Unauthorized();
     }
 
-    var result = await notifications.MarkReadAsync(httpContext.User, userId, id, cancellationToken);
+    var result = await notifications.MarkManyReadAsync(
+        httpContext.User,
+        userId,
+        new[] { id },
+        cancellationToken);
 
-    return await HandleNotificationOperationResultAsync(result, httpContext.User, userId, notifications, hubContext, cancellationToken);
+    return await HandleNotificationReadMutationAsync(
+        result,
+        httpContext.User,
+        userId,
+        notifications,
+        hubContext,
+        cancellationToken);
 });
 
 notificationsApi.MapDelete("/{id:int}/read", async (int id,
                                                       HttpContext httpContext,
+                                                      IAntiforgery antiforgery,
                                                       UserNotificationService notifications,
                                                       IHubContext<NotificationsHub, INotificationsClient> hubContext,
                                                       CancellationToken cancellationToken) =>
 {
+    var validationFailure = await ValidateAntiforgeryRequestAsync(antiforgery, httpContext);
+    if (validationFailure is not null)
+    {
+        return validationFailure;
+    }
+
     var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
     if (string.IsNullOrEmpty(userId))
     {
         return Results.Unauthorized();
     }
 
-    var result = await notifications.MarkUnreadAsync(httpContext.User, userId, id, cancellationToken);
+    var result = await notifications.MarkManyUnreadAsync(
+        httpContext.User,
+        userId,
+        new[] { id },
+        cancellationToken);
 
-    return await HandleNotificationOperationResultAsync(result, httpContext.User, userId, notifications, hubContext, cancellationToken);
+    return await HandleNotificationReadMutationAsync(
+        result,
+        httpContext.User,
+        userId,
+        notifications,
+        hubContext,
+        cancellationToken);
 });
 
 notificationsApi.MapPost("/projects/{projectId:int}/mute", async (int projectId,
                                                                    HttpContext httpContext,
+                                                                   IAntiforgery antiforgery,
                                                                    UserNotificationService notifications,
+                                                                   IHubContext<NotificationsHub, INotificationsClient> hubContext,
                                                                    CancellationToken cancellationToken) =>
 {
+    var validationFailure = await ValidateAntiforgeryRequestAsync(antiforgery, httpContext);
+    if (validationFailure is not null)
+    {
+        return validationFailure;
+    }
+
     var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
     if (string.IsNullOrEmpty(userId))
     {
         return Results.Unauthorized();
     }
 
-    var result = await notifications.SetProjectMuteAsync(httpContext.User, userId, projectId, true, cancellationToken);
+    var result = await notifications.SetProjectMuteDetailedAsync(
+        httpContext.User,
+        userId,
+        projectId,
+        muted: true,
+        cancellationToken);
 
-    return result switch
-    {
-        NotificationOperationResult.Success => Results.NoContent(),
-        NotificationOperationResult.NotFound => Results.NotFound(),
-        NotificationOperationResult.Forbidden => Results.Forbid(),
-        _ => Results.BadRequest()
-    };
+    return await HandleProjectMuteMutationAsync(
+        result,
+        httpContext.User,
+        userId,
+        notifications,
+        hubContext,
+        cancellationToken);
 });
 
 notificationsApi.MapDelete("/projects/{projectId:int}/mute", async (int projectId,
                                                                       HttpContext httpContext,
+                                                                      IAntiforgery antiforgery,
                                                                       UserNotificationService notifications,
+                                                                      IHubContext<NotificationsHub, INotificationsClient> hubContext,
                                                                       CancellationToken cancellationToken) =>
 {
+    var validationFailure = await ValidateAntiforgeryRequestAsync(antiforgery, httpContext);
+    if (validationFailure is not null)
+    {
+        return validationFailure;
+    }
+
     var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
     if (string.IsNullOrEmpty(userId))
     {
         return Results.Unauthorized();
     }
 
-    var result = await notifications.SetProjectMuteAsync(httpContext.User, userId, projectId, false, cancellationToken);
+    var result = await notifications.SetProjectMuteDetailedAsync(
+        httpContext.User,
+        userId,
+        projectId,
+        muted: false,
+        cancellationToken);
 
-    return result switch
-    {
-        NotificationOperationResult.Success => Results.NoContent(),
-        NotificationOperationResult.NotFound => Results.NotFound(),
-        NotificationOperationResult.Forbidden => Results.Forbid(),
-        _ => Results.BadRequest()
-    };
+    return await HandleProjectMuteMutationAsync(
+        result,
+        httpContext.User,
+        userId,
+        notifications,
+        hubContext,
+        cancellationToken);
 });
 
 var projectsApi = app.MapGroup("/api/projects").RequireAuthorization();
@@ -3129,33 +3344,85 @@ static string BuildDirectiveWithExtras(
     return string.Join(" ", normalizedSources);
 }
 
-static async Task<IResult> HandleNotificationOperationResultAsync(
-    NotificationOperationResult result,
-    ClaimsPrincipal principal,
-    string userId,
-    UserNotificationService notifications,
-    IHubContext<NotificationsHub, INotificationsClient> hubContext,
-    CancellationToken cancellationToken)
+static async Task<IResult?> ValidateAntiforgeryRequestAsync(
+    IAntiforgery antiforgery,
+    HttpContext httpContext)
 {
-    return result switch
+    try
     {
-        NotificationOperationResult.Success => await SendUnreadCountAsync(principal, userId, notifications, hubContext, cancellationToken),
-        NotificationOperationResult.NotFound => Results.NotFound(),
-        NotificationOperationResult.Forbidden => Results.Forbid(),
-        _ => Results.BadRequest(),
-    };
+        await antiforgery.ValidateRequestAsync(httpContext);
+        return null;
+    }
+    catch (AntiforgeryValidationException)
+    {
+        return Results.BadRequest(new
+        {
+            error = "The security token is missing or expired. Refresh the page and try again."
+        });
+    }
 }
 
-static async Task<IResult> SendUnreadCountAsync(
+static async Task<IResult> HandleNotificationReadMutationAsync(
+    NotificationReadMutationResult result,
     ClaimsPrincipal principal,
     string userId,
     UserNotificationService notifications,
     IHubContext<NotificationsHub, INotificationsClient> hubContext,
     CancellationToken cancellationToken)
 {
+    if (result.Result == NotificationOperationResult.NotFound)
+    {
+        return Results.NotFound();
+    }
+
+    if (result.Result == NotificationOperationResult.Forbidden)
+    {
+        return Results.Forbid();
+    }
+
     var unread = await notifications.CountUnreadAsync(principal, userId, cancellationToken);
+    var dto = new NotificationMutationDto(
+        result.NotificationIds,
+        result.IsRead,
+        result.ReadUtc,
+        result.SeenUtc,
+        result.AppliesToAll,
+        result.AffectedCount,
+        unread);
+
+    await hubContext.Clients.User(userId).ReceiveNotificationStateChanged(dto);
     await hubContext.Clients.User(userId).ReceiveUnreadCount(unread);
-    return Results.NoContent();
+    return Results.Ok(dto);
+}
+
+static async Task<IResult> HandleProjectMuteMutationAsync(
+    NotificationProjectMuteResult result,
+    ClaimsPrincipal principal,
+    string userId,
+    UserNotificationService notifications,
+    IHubContext<NotificationsHub, INotificationsClient> hubContext,
+    CancellationToken cancellationToken)
+{
+    if (result.Result == NotificationOperationResult.NotFound)
+    {
+        return Results.NotFound();
+    }
+
+    if (result.Result == NotificationOperationResult.Forbidden)
+    {
+        return Results.Forbid();
+    }
+
+    var unread = await notifications.CountUnreadAsync(principal, userId, cancellationToken);
+    var dto = new NotificationProjectMuteDto(
+        result.ProjectId,
+        result.IsMuted,
+        result.ChangedNotificationIds,
+        unread);
+
+    await hubContext.Clients.User(userId).ReceiveProjectMuteChanged(dto);
+    await hubContext.Clients.User(userId).ReceiveUnreadCount(unread);
+    return Results.Ok(dto);
 }
 
 static bool IsProjectArchiveActor(ClaimsPrincipal principal) =>

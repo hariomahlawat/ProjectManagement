@@ -80,10 +80,9 @@ public sealed class StageNotificationService : IStageNotificationService
             var route = BuildRoute(stage.ProjectId, stage.StageCode);
             var title = string.Format(
                 CultureInfo.InvariantCulture,
-                "{0} stage {1} {2}",
-                projectName,
+                "{0} stage {1}",
                 stage.StageCode,
-                stage.Status.ToString());
+                ToDisplayStatus(stage.Status));
 
             var summary = string.Format(
                 CultureInfo.InvariantCulture,
@@ -119,12 +118,7 @@ public sealed class StageNotificationService : IStageNotificationService
                 route: route,
                 title: title,
                 summary: summary,
-                fingerprint: string.Format(
-                    CultureInfo.InvariantCulture,
-                    "stage:{0}:{1}:{2}",
-                    stage.ProjectId,
-                    stage.StageCode,
-                    stage.Status),
+                fingerprint: null,
                 cancellationToken: cancellationToken);
         }
         catch (OperationCanceledException)
@@ -179,6 +173,18 @@ public sealed class StageNotificationService : IStageNotificationService
 
         return string.Format(CultureInfo.InvariantCulture, "Project {0}", project.Id);
     }
+
+
+    private static string ToDisplayStatus(StageStatus status)
+        => status switch
+        {
+            StageStatus.NotStarted => "not started",
+            StageStatus.InProgress => "in progress",
+            StageStatus.Completed => "completed",
+            StageStatus.Skipped => "skipped",
+            StageStatus.Blocked => "blocked",
+            _ => status.ToString(),
+        };
 
     private static string BuildRoute(int projectId, string stageCode)
     {

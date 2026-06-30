@@ -1,165 +1,234 @@
 @page
-@using System.Text.Encodings.Web
 @using System.Text.Json
 @model ProjectManagement.Pages.Notifications.IndexModel
 @{
     ViewData["Title"] = "Notification Centre";
-    var serializerOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+    ViewData["PageShell"] = "wide";
+    var bootstrap = new
     {
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        items = Model.ViewModel.Notifications,
+        totalCount = Model.ViewModel.TotalCount,
+        unreadCount = Model.ViewModel.UnreadCount,
+        nextCursor = Model.ViewModel.NextCursor,
+        hasMore = Model.ViewModel.HasMore,
+        projects = Model.ViewModel.Projects,
+        modules = Model.ViewModel.Modules,
     };
-    var initialJson = JsonSerializer.Serialize(Model.ViewModel.Notifications, serializerOptions);
+    var bootstrapJson = JsonSerializer.Serialize(
+        bootstrap,
+        new JsonSerializerOptions(JsonSerializerDefaults.Web));
 }
-<section class="py-4 py-md-5">
-    <div class="container-lg">
-        <header class="mb-4">
-            <h1 class="display-6 fw-semibold mb-2">Notification Centre</h1>
-            <p class="lead mb-0 text-muted">Review notifications, focus on what matters, and take action in bulk.</p>
-        </header>
+<section class="notification-centre py-4" data-notification-center
+         data-api-base="@Model.ViewModel.ApiBaseUrl"
+         data-unread-url="@Model.ViewModel.UnreadCountUrl"
+         data-hub-url="@Model.ViewModel.HubUrl"
+         data-notification-limit="@Model.ViewModel.PageSize"
+         data-unread-count="@Model.ViewModel.UnreadCount"
+         data-notification-center-url="@Model.ViewModel.NotificationCenterUrl">
+    <script type="application/json" data-notification-bootstrap>@Html.Raw(bootstrapJson)</script>
 
-        <div class="card shadow-sm mb-4" role="region" aria-labelledby="notificationFiltersHeading">
-            <div class="card-body">
-                <h2 id="notificationFiltersHeading" class="h5 fw-semibold">Filters</h2>
-                <form class="row g-3 align-items-end mt-1" data-notification-filters>
-                    <div class="col-12 col-md-4">
-                        <label class="form-label" for="notificationStatusFilter">Status</label>
-                        <select id="notificationStatusFilter" class="form-select" data-filter-status>
-                            <option value="all" selected>All notifications</option>
-                            <option value="unread">Unread only</option>
-                            <option value="muted">Muted projects</option>
-                        </select>
-                    </div>
-                    <div class="col-12 col-md-4">
-                        <label class="form-label" for="notificationProjectFilter">Project</label>
-                        <select id="notificationProjectFilter" class="form-select" data-filter-project>
-                            <option value="">All projects</option>
-                            @foreach (var project in Model.ViewModel.Projects)
-                            {
-                                <option value="@project.Id">@project.Label</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="col-12 col-md-4">
-                        <label class="form-label" for="notificationSearch">Search</label>
-                        <input type="search" id="notificationSearch" class="form-control" data-filter-search placeholder="Search title or summary" />
-                    </div>
-                </form>
+    <header class="notification-centre__hero">
+        <div>
+            <span class="notification-centre__kicker">Personal activity inbox</span>
+            <h1 class="notification-centre__title">Notification Centre</h1>
+            <p class="notification-centre__lead">Review updates, resolve action items and control project-level alerts.</p>
+        </div>
+        <div class="notification-centre__metrics" aria-label="Notification summary">
+            <div class="notification-centre__metric">
+                <span class="notification-centre__metric-value" data-notification-unread-count>@Model.ViewModel.UnreadCount</span>
+                <span class="notification-centre__metric-label">Unread</span>
+            </div>
+            <div class="notification-centre__metric">
+                <span class="notification-centre__metric-value" data-notification-total-count>@Model.ViewModel.TotalCount</span>
+                <span class="notification-centre__metric-label">Matching</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="notification-centre__toolbar" role="region" aria-labelledby="notificationFiltersHeading">
+        <div class="notification-centre__toolbar-heading">
+            <h2 id="notificationFiltersHeading">Find notifications</h2>
+            <button type="button" class="btn btn-sm btn-link" data-notification-action="clear-filters">Clear filters</button>
+        </div>
+        <form class="notification-centre__filters" data-notification-filters>
+            <div class="notification-filter notification-filter--search">
+                <label class="visually-hidden" for="notificationSearch">Search notifications</label>
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <input type="search" id="notificationSearch" class="form-control" data-filter-search
+                       placeholder="Search title, details or project" autocomplete="off" />
+            </div>
+            <div class="notification-filter">
+                <label class="form-label" for="notificationStatusFilter">Status</label>
+                <select id="notificationStatusFilter" class="form-select" data-filter-status>
+                    <option value="all" selected>All</option>
+                    <option value="unread">Unread</option>
+                    <option value="read">Read</option>
+                    <option value="muted">Muted projects</option>
+                </select>
+            </div>
+            <div class="notification-filter">
+                <label class="form-label" for="notificationProjectFilter">Project</label>
+                <select id="notificationProjectFilter" class="form-select" data-filter-project>
+                    <option value="">All projects</option>
+                    @foreach (var project in Model.ViewModel.Projects)
+                    {
+                        <option value="@project.Id">@project.Label@(project.IsMuted ? " — muted" : string.Empty)</option>
+                    }
+                </select>
+            </div>
+            <div class="notification-filter">
+                <label class="form-label" for="notificationModuleFilter">Module</label>
+                <select id="notificationModuleFilter" class="form-select" data-filter-module>
+                    <option value="">All modules</option>
+                    @foreach (var module in Model.ViewModel.Modules)
+                    {
+                        <option value="@module">@module</option>
+                    }
+                </select>
+            </div>
+        </form>
+    </div>
+
+    <div class="notification-centre__panel">
+        <div class="notification-centre__actions">
+            <div class="d-flex align-items-center gap-2">
+                <input class="form-check-input mt-0" type="checkbox" data-select-all aria-label="Select all loaded notifications" />
+                <span class="small fw-semibold" data-selection-count>0 selected</span>
+            </div>
+            <div class="notification-centre__bulk-buttons" role="group" aria-label="Bulk notification actions">
+                <button type="button" class="btn btn-sm btn-outline-primary" data-notification-bulk="mark-read" disabled>
+                    <i class="bi bi-envelope-open" aria-hidden="true"></i> Mark read
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-notification-bulk="mark-unread" disabled>
+                    <i class="bi bi-envelope" aria-hidden="true"></i> Mark unread
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-primary" data-notification-action="mark-all-read"
+                        @(Model.ViewModel.UnreadCount == 0 ? "disabled" : null)>
+                    <i class="bi bi-check2-all" aria-hidden="true"></i> Mark all read
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-notification-bulk="mute-project" disabled>
+                    <i class="bi bi-bell-slash" aria-hidden="true"></i> Mute project
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-notification-bulk="unmute-project" disabled>
+                    <i class="bi bi-bell" aria-hidden="true"></i> Unmute project
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-dark" data-notification-action="refresh" title="Refresh notifications">
+                    <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                    <span class="visually-hidden">Refresh notifications</span>
+                </button>
             </div>
         </div>
 
-        <div class="card shadow-sm" data-notification-center
-             data-api-base="@Model.ViewModel.ApiBaseUrl"
-             data-unread-url="@Model.ViewModel.UnreadCountUrl"
-             data-hub-url="@Model.ViewModel.HubUrl"
-             data-notification-limit="@Model.ViewModel.PageSize"
-             data-notifications='@Html.Raw(initialJson)'
-             data-unread-count="@Model.ViewModel.UnreadCount"
-             data-notification-center-url="@Model.ViewModel.NotificationCenterUrl">
-            <div class="card-header bg-white d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-3">
-                <div>
-                    <h2 class="h5 fw-semibold mb-1">Notifications</h2>
-                    <p class="mb-0 text-muted small">Newest first. Select rows to apply bulk actions.</p>
-                </div>
-                <div class="d-flex flex-wrap gap-2" role="group" aria-label="Bulk notification actions">
-                    <button type="button" class="btn btn-outline-primary btn-sm" data-notification-bulk="mark-read" disabled>Mark selected as read</button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-notification-bulk="mark-unread" disabled>Mark selected as unread</button>
-                    <button type="button" class="btn btn-outline-danger btn-sm" data-notification-bulk="mute-project" disabled>Mute project</button>
-                    <button type="button" class="btn btn-outline-success btn-sm" data-notification-bulk="unmute-project" disabled>Unmute project</button>
-                    <button type="button" class="btn btn-outline-dark btn-sm" data-notification-action="refresh">
-                        <span class="bi bi-arrow-clockwise" aria-hidden="true"></span>
-                        <span class="visually-hidden">Refresh list</span>
-                    </button>
-                </div>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive" role="region" aria-live="polite" data-notification-center-list>
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th scope="col" class="text-center notifications-table__select-col">
-                                    <input class="form-check-input" type="checkbox" data-select-all aria-label="Select all notifications" />
-                                </th>
-                                <th scope="col">Notification</th>
-                                <th scope="col" class="text-nowrap">Received</th>
-                                <th scope="col" class="text-nowrap">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody data-notification-tbody>
-                            @foreach (var item in Model.ViewModel.Notifications)
+        <div class="notification-centre__loading" data-notification-loading hidden>
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <span>Loading notifications…</span>
+        </div>
+
+        <div class="notification-centre__list" data-notification-center-list aria-live="polite">
+            <div data-notification-rows>
+                @foreach (var item in Model.ViewModel.Notifications)
+                {
+                    <article class="notification-card @(item.IsRead ? "is-read" : "is-unread")"
+                             data-notification-row
+                             data-notification-id="@item.Id"
+                             data-project-id="@(item.ProjectId?.ToString() ?? string.Empty)"
+                             data-read="@(item.IsRead ? "true" : "false")"
+                             data-muted="@(item.IsProjectMuted ? "true" : "false")">
+                        <div class="notification-card__select">
+                            <input class="form-check-input" type="checkbox" value="@item.Id"
+                                   data-notification-select aria-label="Select notification" />
+                        </div>
+                        <div class="notification-card__icon" aria-hidden="true"><i class="@item.IconCssClass"></i></div>
+                        <div class="notification-card__body">
+                            <div class="notification-card__context">
+                                <span data-notification-category>@item.Category</span>
+                                @if (!string.IsNullOrWhiteSpace(item.ProjectName))
+                                {
+                                    <span aria-hidden="true">•</span>
+                                    <span data-notification-project>@item.ProjectName</span>
+                                }
+                                @if (item.IsActionRequired)
+                                {
+                                    <span class="notification-card__action-badge" data-notification-action-required>Action required</span>
+                                }
+                            </div>
+                            <a class="notification-card__title" href="@(string.IsNullOrWhiteSpace(item.Route) ? Model.ViewModel.NotificationCenterUrl : item.Route)"
+                               data-notification-link data-notification-title>
+                                @(string.IsNullOrWhiteSpace(item.Title) ? "Notification" : item.Title)
+                            </a>
+                            @if (!string.IsNullOrWhiteSpace(item.Summary))
                             {
-                                <tr data-notification-row data-notification-id="@item.Id" data-project-id="@(item.ProjectId?.ToString() ?? string.Empty)" data-read="@(item.IsRead ? "true" : "false")">
-                                    <td class="text-center">
-                                        <input class="form-check-input" type="checkbox" value="@item.Id" data-notification-select aria-label="Select notification" />
-                                    </td>
-                                    <td>
-                                        <div class="fw-semibold">@(string.IsNullOrWhiteSpace(item.Title) ? "Notification" : item.Title)</div>
-                                        @if (!string.IsNullOrWhiteSpace(item.Summary))
-                                        {
-                                            <p class="mb-0 text-muted small">@item.Summary</p>
-                                        }
-                                        <div class="mt-2 d-flex align-items-center gap-2 small text-muted">
-                                            <a class="text-decoration-none" href="@(string.IsNullOrWhiteSpace(item.Route) ? Model.ViewModel.NotificationCenterUrl : item.Route)" data-notification-link>Open</a>
-                                            @if (item.ProjectId.HasValue)
-                                            {
-                                                <span aria-hidden="true">•</span>
-                                                <span>Project: @(string.IsNullOrWhiteSpace(item.ProjectName) ? $"#{item.ProjectId.Value}" : item.ProjectName)</span>
-                                            }
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <time datetime="@item.CreatedUtc.ToString("O")" data-notification-created>@item.CreatedDisplayIst</time>
-                                    </td>
-                                    <td>
-                                        <span class="badge rounded-pill @(item.IsRead ? "bg-secondary-subtle text-secondary" : "bg-primary")" data-notification-state>
-                                            @(item.IsRead ? "Read" : "Unread")
-                                        </span>
-                                        @if (item.IsProjectMuted)
-                                        {
-                                            <span class="badge rounded-pill bg-warning-subtle text-warning ms-1" data-notification-muted>Muted</span>
-                                        }
-                                    </td>
-                                </tr>
+                                <p class="notification-card__summary" data-notification-summary>@item.Summary</p>
                             }
-                        </tbody>
-                    </table>
-                    <div class="p-4 text-center text-muted" data-notification-empty @(Model.ViewModel.Notifications.Count == 0 ? null : "hidden")>
-                        <p class="mb-1">No notifications match the selected filters.</p>
-                        <p class="mb-0 small">Adjust the filters or check back later.</p>
-                    </div>
-                </div>
+                            <div class="notification-card__meta">
+                                <time datetime="@item.CreatedUtc.ToString("O")" title="@item.CreatedDisplayIst" data-notification-created>@item.CreatedDisplayIst</time>
+                                @if (!string.IsNullOrWhiteSpace(item.ActorDisplayName))
+                                {
+                                    <span aria-hidden="true">•</span>
+                                    <span data-notification-actor>@item.ActorDisplayName</span>
+                                }
+                                <span class="notification-card__muted" data-notification-muted @(item.IsProjectMuted ? null : "hidden")>
+                                    <i class="bi bi-bell-slash" aria-hidden="true"></i> Muted
+                                </span>
+                            </div>
+                        </div>
+                        <div class="notification-card__state">
+                            <span class="notification-state-pill @(item.IsRead ? "is-read" : "is-unread")" data-notification-state>
+                                @(item.IsRead ? "Read" : "Unread")
+                            </span>
+                        </div>
+                    </article>
+                }
             </div>
-            <div class="card-footer bg-white d-flex flex-column flex-md-row justify-content-md-between align-items-md-center gap-2">
-                <div class="small text-muted" data-notification-summary role="status" aria-live="polite">
-                    Showing @Model.ViewModel.Notifications.Count notification@(Model.ViewModel.Notifications.Count == 1 ? string.Empty : "s").
-                </div>
-                <div class="d-flex align-items-center gap-2 small text-muted">
-                    <span>Unread:</span>
-                    <span class="badge bg-danger" data-notification-unread>@Model.ViewModel.UnreadCount</span>
-                </div>
+
+            <div class="notification-centre__empty" data-notification-empty @(Model.ViewModel.Notifications.Count == 0 ? null : "hidden")>
+                <i class="bi bi-inbox" aria-hidden="true"></i>
+                <h3>No notifications found</h3>
+                <p>Adjust the filters or check back when new activity occurs.</p>
             </div>
+        </div>
+
+        <div class="notification-centre__footer">
+            <div>
+                <span data-notification-list-summary>
+                    Showing @Model.ViewModel.Notifications.Count of @Model.ViewModel.TotalCount notifications
+                </span>
+                <span class="notification-centre__status" data-notification-status role="status" aria-live="polite"></span>
+            </div>
+            <button type="button" class="btn btn-outline-primary btn-sm" data-notification-load-more
+                    @(Model.ViewModel.HasMore ? null : "hidden")>
+                Load more
+            </button>
         </div>
     </div>
-</section>
 
-<template data-notification-row-template>
-    <tr data-notification-row>
-        <td class="text-center">
-            <input class="form-check-input" type="checkbox" data-notification-select aria-label="Select notification" />
-        </td>
-        <td>
-            <div class="fw-semibold" data-notification-title>Notification</div>
-            <p class="mb-0 text-muted small" data-notification-summary hidden></p>
-            <div class="mt-2 d-flex align-items-center gap-2 small text-muted">
-                <a class="text-decoration-none" href="@Model.ViewModel.NotificationCenterUrl" data-notification-link>Open</a>
-                <span data-notification-project hidden></span>
+    <template data-notification-row-template>
+        <article class="notification-card is-unread" data-notification-row>
+            <div class="notification-card__select">
+                <input class="form-check-input" type="checkbox" data-notification-select aria-label="Select notification" />
             </div>
-        </td>
-        <td>
-            <time data-notification-created datetime=""></time>
-        </td>
-        <td>
-            <span class="badge rounded-pill" data-notification-state>Unread</span>
-            <span class="badge rounded-pill bg-warning-subtle text-warning ms-1" data-notification-muted hidden>Muted</span>
-        </td>
-    </tr>
-</template>
+            <div class="notification-card__icon" aria-hidden="true"><i data-notification-icon class="bi bi-bell"></i></div>
+            <div class="notification-card__body">
+                <div class="notification-card__context">
+                    <span data-notification-category>General</span>
+                    <span data-notification-project-separator aria-hidden="true">•</span>
+                    <span data-notification-project></span>
+                    <span class="notification-card__action-badge" data-notification-action-required hidden>Action required</span>
+                </div>
+                <a class="notification-card__title" href="#" data-notification-link data-notification-title>Notification</a>
+                <p class="notification-card__summary" data-notification-summary></p>
+                <div class="notification-card__meta">
+                    <time data-notification-created datetime=""></time>
+                    <span data-notification-actor-separator aria-hidden="true">•</span>
+                    <span data-notification-actor></span>
+                    <span class="notification-card__muted" data-notification-muted hidden>
+                        <i class="bi bi-bell-slash" aria-hidden="true"></i> Muted
+                    </span>
+                </div>
+            </div>
+            <div class="notification-card__state">
+                <span class="notification-state-pill is-unread" data-notification-state>Unread</span>
+            </div>
+        </article>
+    </template>
+</section>

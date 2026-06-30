@@ -12,14 +12,16 @@ public sealed class NotificationRetentionOptions
 
     public int? MaxPerUser { get; set; }
 
+    public TimeSpan? CompletedDispatchMaxAge { get; set; } = TimeSpan.FromDays(14);
+
+    public TimeSpan? DeadLetterMaxAge { get; set; } = TimeSpan.FromDays(90);
+
     internal TimeSpan GetSweepIntervalOrDefault()
-    {
-        return SweepInterval > TimeSpan.Zero ? SweepInterval : DefaultSweepInterval;
-    }
+        => SweepInterval > TimeSpan.Zero ? SweepInterval : DefaultSweepInterval;
 
     internal bool IsRetentionEnabled()
-    {
-        return (MaxAge.HasValue && MaxAge.Value > TimeSpan.Zero)
-            || (MaxPerUser.HasValue && MaxPerUser.Value > 0);
-    }
+        => (MaxAge.HasValue && MaxAge.Value > TimeSpan.Zero)
+           || (MaxPerUser.HasValue && MaxPerUser.Value > 0)
+           || (CompletedDispatchMaxAge.HasValue && CompletedDispatchMaxAge.Value > TimeSpan.Zero)
+           || (DeadLetterMaxAge.HasValue && DeadLetterMaxAge.Value > TimeSpan.Zero);
 }

@@ -1398,6 +1398,9 @@ namespace ProjectManagement.Data
             builder.Entity<Notification>(e =>
             {
                 e.Property(x => x.RecipientUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.Kind)
+                    .HasConversion<string>()
+                    .HasMaxLength(64);
                 e.Property(x => x.Module).HasMaxLength(64);
                 e.Property(x => x.EventType).HasMaxLength(128);
                 e.Property(x => x.ScopeType).HasMaxLength(64);
@@ -1408,30 +1411,36 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Route).HasMaxLength(2048);
                 e.Property(x => x.Title).HasMaxLength(200);
                 e.Property(x => x.Summary).HasMaxLength(2000);
-                e.HasIndex(x => new { x.RecipientUserId, x.CreatedUtc });
+                e.HasIndex(x => new { x.RecipientUserId, x.CreatedUtc, x.Id });
                 e.HasIndex(x => new { x.RecipientUserId, x.SeenUtc, x.CreatedUtc });
                 e.HasIndex(x => new { x.RecipientUserId, x.ReadUtc, x.CreatedUtc });
-                var fingerprintIndex = e.HasIndex(x => x.Fingerprint);
+                var fingerprintIndex = e.HasIndex(x => new { x.RecipientUserId, x.Fingerprint })
+                    .IsUnique();
+                var sourceDispatchIndex = e.HasIndex(x => x.SourceDispatchId)
+                    .IsUnique();
 
                 if (Database.IsSqlServer())
                 {
                     fingerprintIndex.HasFilter("[Fingerprint] IS NOT NULL");
+                    sourceDispatchIndex.HasFilter("[SourceDispatchId] IS NOT NULL");
                     e.Property(x => x.CreatedUtc).HasDefaultValueSql("GETUTCDATE()");
                 }
                 else if (Database.IsNpgsql())
                 {
                     fingerprintIndex.HasFilter("\"Fingerprint\" IS NOT NULL");
+                    sourceDispatchIndex.HasFilter("\"SourceDispatchId\" IS NOT NULL");
                     e.Property(x => x.CreatedUtc).HasDefaultValueSql("now() at time zone 'utc'");
                 }
                 else
                 {
                     fingerprintIndex.HasFilter("Fingerprint IS NOT NULL");
+                    sourceDispatchIndex.HasFilter("SourceDispatchId IS NOT NULL");
                     e.Property(x => x.CreatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
                 }
 
                 e.HasOne(x => x.SourceDispatch)
-                    .WithMany()
-                    .HasForeignKey(x => x.SourceDispatchId)
+                    .WithOne()
+                    .HasForeignKey<Notification>(x => x.SourceDispatchId)
                     .OnDelete(DeleteBehavior.SetNull);
             });
 
@@ -1452,6 +1461,7 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Route).HasMaxLength(2048);
                 e.Property(x => x.Title).HasMaxLength(200);
                 e.Property(x => x.Summary).HasMaxLength(2000);
+                e.Property(x => x.LockToken).HasMaxLength(64);
 
                 var payloadProperty = e.Property(x => x.PayloadJson).IsRequired();
 
@@ -1466,6 +1476,8 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Error).HasMaxLength(2000);
                 e.Property(x => x.AttemptCount).HasDefaultValue(0);
                 e.HasIndex(x => x.DispatchedUtc);
+                e.HasIndex(x => new { x.DispatchedUtc, x.DeadLetteredUtc, x.LockedUntilUtc });
+                e.HasIndex(x => x.LockToken);
                 e.HasIndex(x => new { x.RecipientUserId, x.Kind, x.DispatchedUtc });
                 e.HasIndex(x => new { x.Module, x.EventType, x.DispatchedUtc });
                 e.HasIndex(x => new { x.ScopeType, x.ScopeId, x.DispatchedUtc });

@@ -33,6 +33,9 @@ public sealed class DocumentNotificationServiceTests
         Assert.Equal("Document", evt.ScopeType);
         Assert.Equal("30", evt.ScopeId);
         Assert.Equal("/Projects/12/Documents", evt.Route);
+        Assert.Equal("Document published", evt.Title);
+        Assert.Equal("Spec", evt.Summary);
+        Assert.Null(evt.Fingerprint);
         Assert.Contains((NotificationKind.DocumentPublished, "hod-7", 12), preferences.Calls);
         Assert.Contains((NotificationKind.DocumentPublished, "po-7", 12), preferences.Calls);
     }

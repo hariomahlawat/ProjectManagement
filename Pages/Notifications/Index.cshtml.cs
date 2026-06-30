@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
@@ -35,38 +34,28 @@ public sealed class IndexModel : PageModel
             return Challenge();
         }
 
-        const int pageSize = 50;
-        var options = new NotificationListOptions
-        {
-            Limit = pageSize,
-        };
-
-        var notifications = await _notifications.ListAsync(User, userId, options, cancellationToken);
-        var unreadCount = await _notifications.CountUnreadAsync(User, userId, cancellationToken);
-
-        var displayItems = notifications
-            .Select(NotificationDisplayModel.FromContract)
-            .ToList();
-
-        var projectOptions = displayItems
-            .Where(n => n.ProjectId.HasValue)
-            .GroupBy(n => n.ProjectId!.Value)
-            .Select(group =>
+        const int pageSize = 30;
+        var page = await _notifications.ListPageAsync(
+            User,
+            userId,
+            new NotificationListOptions
             {
-                var label = group
-                    .Select(item => item.ProjectName)
-                    .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name))
-                    ?? $"Project #{group.Key}";
-                return new ProjectFilterOption(group.Key, label);
-            })
-            .OrderBy(option => option.Label, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+                Limit = pageSize,
+                IncludeMuted = true,
+            },
+            cancellationToken);
 
         ViewModel = new NotificationIndexViewModel
         {
-            Notifications = displayItems,
-            Projects = projectOptions,
-            UnreadCount = unreadCount,
+            Notifications = page.Items.Select(NotificationDisplayModel.FromContract).ToList(),
+            Projects = page.Projects
+                .Select(project => new ProjectFilterOption(project.Id, project.Label, project.IsMuted))
+                .ToList(),
+            Modules = page.Modules,
+            UnreadCount = page.UnreadCount,
+            TotalCount = page.TotalCount,
+            NextCursor = page.NextCursor,
+            HasMore = page.HasMore,
             ApiBaseUrl = Url.Content("~/api/notifications"),
             UnreadCountUrl = Url.Content("~/api/notifications/count"),
             HubUrl = Url.Content("~/hubs/notifications"),

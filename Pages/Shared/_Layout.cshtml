@@ -1,7 +1,15 @@
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Antiforgery
 @using ProjectManagement.Models
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
+@inject IAntiforgery Antiforgery
+@{
+    var layoutSignedIn = SignInManager.IsSignedIn(User);
+    var antiforgeryToken = layoutSignedIn
+        ? Antiforgery.GetAndStoreTokens(Context).RequestToken
+        : null;
+}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,6 +17,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#10213f" />
     <meta name="color-scheme" content="light" />
+    @if (!string.IsNullOrWhiteSpace(antiforgeryToken))
+    {
+        <meta name="csrf-token" content="@antiforgeryToken" />
+    }
     @{
         var pageTitle = ViewData["Title"]?.ToString();
         var documentTitle = string.Equals(pageTitle, "PRISM ERP", StringComparison.OrdinalIgnoreCase)
@@ -35,7 +47,7 @@
 </head>
 <body class="d-flex flex-column min-vh-100">
     @{
-        var signedIn = SignInManager.IsSignedIn(User);
+        var signedIn = layoutSignedIn;
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
         var currentArea = ViewContext.RouteData.Values["area"]?.ToString();
         var isOngoingProjectsPage = string.Equals(currentPage, "/Projects/Ongoing/Index", StringComparison.OrdinalIgnoreCase);

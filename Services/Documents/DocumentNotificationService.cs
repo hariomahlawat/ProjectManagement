@@ -152,16 +152,13 @@ public sealed class DocumentNotificationService : IDocumentNotificationService
             var route = BuildRoute(project.Id);
             var title = string.Format(
                 CultureInfo.InvariantCulture,
-                "{0} document {1} {2}",
-                projectName,
-                document.Title,
+                "Document {0}",
                 actionVerb);
 
             var summary = string.Format(
                 CultureInfo.InvariantCulture,
-                "Document {0} was {1}.",
-                document.Title,
-                actionVerb);
+                "{0}",
+                document.Title);
 
             var payload = new DocumentNotificationPayload(
                 document.Id,
@@ -187,12 +184,10 @@ public sealed class DocumentNotificationService : IDocumentNotificationService
                 route: route,
                 title: title,
                 summary: summary,
-                fingerprint: string.Format(
-                    CultureInfo.InvariantCulture,
-                    "document:{0}:{1}:{2}",
-                    document.Id,
-                    document.FileStamp,
-                    eventType),
+                // A document can legitimately move through the same lifecycle state more than
+                // once (for example archive -> restore -> archive). The outbox row itself is the
+                // event identity, so a state-derived fingerprint would suppress a later valid event.
+                fingerprint: null,
                 cancellationToken: cancellationToken);
         }
         catch (OperationCanceledException)

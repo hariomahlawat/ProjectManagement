@@ -3788,6 +3788,9 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("timestamp without time zone")
                         .HasDefaultValueSql("now() at time zone 'utc'");
 
+                    b.Property<DateTime?>("DeliveredUtc")
+                        .HasColumnType("timestamp without time zone");
+
                     b.Property<string>("EventType")
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
@@ -3795,6 +3798,10 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("Fingerprint")
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Kind")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("Module")
                         .HasMaxLength(64)
@@ -3839,12 +3846,15 @@ namespace ProjectManagement.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Fingerprint")
+                    b.HasIndex("SourceDispatchId")
+                        .IsUnique()
+                        .HasFilter("\"SourceDispatchId\" IS NOT NULL");
+
+                    b.HasIndex("RecipientUserId", "CreatedUtc", "Id");
+
+                    b.HasIndex("RecipientUserId", "Fingerprint")
+                        .IsUnique()
                         .HasFilter("\"Fingerprint\" IS NOT NULL");
-
-                    b.HasIndex("SourceDispatchId");
-
-                    b.HasIndex("RecipientUserId", "CreatedUtc");
 
                     b.HasIndex("RecipientUserId", "ReadUtc", "CreatedUtc");
 
@@ -3873,6 +3883,9 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTime>("CreatedUtc")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<DateTime?>("DeadLetteredUtc")
+                        .HasColumnType("timestamp without time zone");
+
                     b.Property<DateTime?>("DispatchedUtc")
                         .HasColumnType("timestamp without time zone");
 
@@ -3890,6 +3903,10 @@ namespace ProjectManagement.Migrations
 
                     b.Property<string>("Kind")
                         .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("LockToken")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
@@ -3938,7 +3955,11 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("Fingerprint");
 
+                    b.HasIndex("LockToken");
+
                     b.HasIndex("ActorUserId", "DispatchedUtc");
+
+                    b.HasIndex("DispatchedUtc", "DeadLetteredUtc", "LockedUntilUtc");
 
                     b.HasIndex("ProjectId", "DispatchedUtc");
 
@@ -7236,8 +7257,8 @@ namespace ProjectManagement.Migrations
             modelBuilder.Entity("ProjectManagement.Models.Notifications.Notification", b =>
                 {
                     b.HasOne("ProjectManagement.Models.Notifications.NotificationDispatch", "SourceDispatch")
-                        .WithMany()
-                        .HasForeignKey("SourceDispatchId")
+                        .WithOne()
+                        .HasForeignKey("ProjectManagement.Models.Notifications.Notification", "SourceDispatchId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("SourceDispatch");

@@ -49,7 +49,7 @@ public sealed class NotificationRetentionService : BackgroundService
                     var removed = await RunOnceAsync(stoppingToken);
                     if (removed > 0)
                     {
-                        _logger.LogInformation("Notification retention removed {RemovedCount} notifications.", removed);
+                        _logger.LogInformation("Notification retention removed {RemovedCount} notification records.", removed);
                     }
                 }
             }
@@ -139,14 +139,52 @@ public sealed class NotificationRetentionService : BackgroundService
             }
         }
 
-        if (removals.Count == 0)
+        var removedCount = removals.Count;
+        if (removals.Count > 0)
+        {
+            db.Notifications.RemoveRange(removals);
+        }
+
+        if (options.CompletedDispatchMaxAge is TimeSpan completedDispatchMaxAge
+            && completedDispatchMaxAge > TimeSpan.Zero)
+        {
+            var completedCutoff = nowUtc - completedDispatchMaxAge;
+            var completedDispatches = await db.NotificationDispatches
+                .Where(dispatch =>
+                    dispatch.DispatchedUtc != null
+                    && dispatch.DispatchedUtc < completedCutoff)
+                .ToListAsync(cancellationToken);
+
+            if (completedDispatches.Count > 0)
+            {
+                db.NotificationDispatches.RemoveRange(completedDispatches);
+                removedCount += completedDispatches.Count;
+            }
+        }
+
+        if (options.DeadLetterMaxAge is TimeSpan deadLetterMaxAge
+            && deadLetterMaxAge > TimeSpan.Zero)
+        {
+            var deadLetterCutoff = nowUtc - deadLetterMaxAge;
+            var deadLetters = await db.NotificationDispatches
+                .Where(dispatch =>
+                    dispatch.DeadLetteredUtc != null
+                    && dispatch.DeadLetteredUtc < deadLetterCutoff)
+                .ToListAsync(cancellationToken);
+
+            if (deadLetters.Count > 0)
+            {
+                db.NotificationDispatches.RemoveRange(deadLetters);
+                removedCount += deadLetters.Count;
+            }
+        }
+
+        if (removedCount == 0)
         {
             return 0;
         }
 
-        db.Notifications.RemoveRange(removals);
         await db.SaveChangesAsync(cancellationToken);
-
-        return removals.Count;
+        return removedCount;
     }
 }
