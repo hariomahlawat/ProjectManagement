@@ -11,7 +11,7 @@ namespace ProjectManagement.Services.Notifications;
 /// </summary>
 public static class NotificationContentFormatter
 {
-    private const int SummaryDisplayMaxLength = 96;
+    private const int SummaryDisplayMaxLength = 112;
 
     private static readonly Regex WhitespaceRegex = new("\\s+", RegexOptions.Compiled);
     private static readonly Regex StageTransitionRegex = new(
@@ -29,6 +29,21 @@ public static class NotificationContentFormatter
     private static readonly Regex GeneratedDocumentSuffixRegex = new(
         @"^(?<label>.*?\S)\s*[-–]\s*(?<ordinal>\d+)[-_](?<generated>\d{8,}(?:[_-]\d+){1,}.*)$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex DocumentReferenceTailRegex = new(
+        @"(?:^|[_-])(?<reference>\d{5,})[_-](?<part>\d{1,3})[_-](?<year>20\d{2})(?:\.[A-Za-z0-9]{1,10})?$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex ProjectOfficerTransitionRegex = new(
+        @"(?:project\s+officer\s+assignment\s+)?(?:changed|updated)\s+from\s+(?<from>.+?)\s+to\s+(?<to>.+?)(?:\.|$)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex ProjectOfficerAssignedRegex = new(
+        @"^assigned\s+to\s+(?<to>.+?)(?:\.|$)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex ProjectOfficerUnassignedRegex = new(
+        @"^removed\s+(?<from>.+?)\s+as\s+project\s+officer(?:\.|$)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex ReviewSuffixRegex = new(
+        @"\s*Review\s+the\s+project\s+overview.*$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
     private static readonly Regex CamelCaseBoundaryRegex = new(
         @"(?<=[a-z0-9])(?=[A-Z])",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -46,6 +61,17 @@ public static class NotificationContentFormatter
             || (!kind.HasValue && LooksLikeStage(module, eventType, storedTitle, storedSummary)))
         {
             return FormatStage(scopeId, projectName, storedTitle, storedSummary);
+        }
+
+        if (kind == NotificationKind.ProjectAssignmentChanged
+            || Contains(eventType, "ProjectOfficerAssignment"))
+        {
+            return FormatProjectOfficerAssignment(storedTitle, storedSummary);
+        }
+
+        if (kind == NotificationKind.RoleAssignmentsChanged)
+        {
+            return FormatRoleAssignment(storedSummary);
         }
 
         var documentAction = ResolveDocumentAction(kind, module, eventType, storedTitle, storedSummary);
@@ -101,6 +127,91 @@ public static class NotificationContentFormatter
         return new NotificationContent(title, NullIfEmpty(summary), null);
     }
 
+    private static NotificationContent FormatProjectOfficerAssignment(
+        string? storedTitle,
+        string? storedSummary)
+    {
+        var summary = ReviewSuffixRegex.Replace(Collapse(storedSummary), string.Empty).Trim();
+
+        var assigned = ProjectOfficerAssignedRegex.Match(summary);
+        if (assigned.Success)
+        {
+            var assignedOfficer = CleanAssignmentParty(assigned.Groups["to"].Value);
+            return new NotificationContent(
+                "Project officer assigned",
+                $"Assigned to {assignedOfficer}.",
+                null);
+        }
+
+        var unassigned = ProjectOfficerUnassignedRegex.Match(summary);
+        if (unassigned.Success)
+        {
+            var previousOfficer = CleanAssignmentParty(unassigned.Groups["from"].Value);
+            return new NotificationContent(
+                "Project officer unassigned",
+                $"Removed {previousOfficer} as project officer.",
+                null);
+        }
+
+        var match = ProjectOfficerTransitionRegex.Match(summary);
+        if (!match.Success)
+        {
+            var title = Collapse(storedTitle);
+            if (!title.StartsWith("Project officer", StringComparison.OrdinalIgnoreCase))
+            {
+                title = "Project officer assignment updated";
+            }
+
+            return new NotificationContent(
+                CapitalizeFirst(title),
+                NullIfEmpty(summary),
+                null);
+        }
+
+        var previous = CleanAssignmentParty(match.Groups["from"].Value);
+        var current = CleanAssignmentParty(match.Groups["to"].Value);
+        var previousUnassigned = IsUnassigned(previous);
+        var currentUnassigned = IsUnassigned(current);
+
+        if (previousUnassigned && !currentUnassigned)
+        {
+            return new NotificationContent(
+                "Project officer assigned",
+                $"Assigned to {current}.",
+                null);
+        }
+
+        if (!previousUnassigned && currentUnassigned)
+        {
+            return new NotificationContent(
+                "Project officer unassigned",
+                $"Removed {previous} as project officer.",
+                null);
+        }
+
+        if (!previousUnassigned && !currentUnassigned)
+        {
+            return new NotificationContent(
+                "Project officer changed",
+                $"Changed from {previous} to {current}.",
+                null);
+        }
+
+        return new NotificationContent(
+            "Project officer assignment updated",
+            null,
+            null);
+    }
+
+    private static NotificationContent FormatRoleAssignment(string? storedSummary)
+    {
+        var summary = ReviewSuffixRegex.Replace(Collapse(storedSummary), string.Empty).Trim();
+        return new NotificationContent(
+            "Project roles updated",
+            NullIfEmpty(summary),
+            null);
+    }
+
     private static NotificationContent FormatDocument(
         string title,
         string? projectName,
@@ -138,6 +249,7 @@ public static class NotificationContentFormatter
             title = "Notification";
         }
 
+        title = CapitalizeFirst(title);
         var summary = Collapse(storedSummary);
         return new NotificationContent(title, NullIfEmpty(summary), null);
     }
@@ -250,7 +362,24 @@ public static class NotificationContentFormatter
         {
             var label = generatedSuffix.Groups["label"].Value.Trim();
             var ordinal = generatedSuffix.Groups["ordinal"].Value;
-            normalized = string.Format(CultureInfo.InvariantCulture, "{0} – {1}", label, ordinal);
+            var generated = generatedSuffix.Groups["generated"].Value.Trim();
+            var reference = DocumentReferenceTailRegex.Match(generated);
+
+            normalized = reference.Success
+                ? string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0} – {1} · {2}/{3}/{4}",
+                    label,
+                    ordinal,
+                    reference.Groups["reference"].Value,
+                    reference.Groups["part"].Value,
+                    reference.Groups["year"].Value)
+                : string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0} – {1} · {2}",
+                    label,
+                    ordinal,
+                    CompactIdentifier(generated));
         }
 
         if (normalized.Length <= SummaryDisplayMaxLength)
@@ -258,11 +387,25 @@ public static class NotificationContentFormatter
             return normalized;
         }
 
-        const int trailingLength = 24;
+        const int trailingLength = 30;
         var leadingLength = SummaryDisplayMaxLength - trailingLength - 1;
         return normalized[..leadingLength].TrimEnd()
             + "…"
             + normalized[^trailingLength..].TrimStart();
+    }
+
+    private static string CompactIdentifier(string value)
+    {
+        var normalized = Collapse(value);
+        const int maxLength = 28;
+        if (normalized.Length <= maxLength)
+        {
+            return normalized;
+        }
+
+        const int trailingLength = 14;
+        var leadingLength = maxLength - trailingLength - 1;
+        return normalized[..leadingLength] + "…" + normalized[^trailingLength..];
     }
 
     private static string ResolveStageCode(string? scopeId, string? title, string? summary)
@@ -368,6 +511,15 @@ public static class NotificationContentFormatter
             .Trim();
     }
 
+    private static string CleanAssignmentParty(string value)
+        => Collapse(value).Trim(' ', '.', ',', ';', ':');
+
+    private static bool IsUnassigned(string? value)
+        => string.IsNullOrWhiteSpace(value)
+            || value.Equals("Unassigned", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("None", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("Not assigned", StringComparison.OrdinalIgnoreCase);
+
     private static string HumanizeToken(string? value)
     {
         var normalized = Collapse(value).Replace('_', ' ');
@@ -395,6 +547,10 @@ public static class NotificationContentFormatter
 
     private static bool ContainsAny(string value, params string[] candidates)
         => Array.Exists(candidates, candidate => value.Contains(candidate, StringComparison.OrdinalIgnoreCase));
+
+    private static bool Contains(string? value, string fragment)
+        => !string.IsNullOrWhiteSpace(value)
+            && value.Contains(fragment, StringComparison.OrdinalIgnoreCase);
 
     private static string CapitalizeFirst(string value)
     {

@@ -932,6 +932,7 @@
       this.summary = root.querySelector('[data-notification-list-summary]');
       this.status = root.querySelector('[data-notification-status]');
       this.totalCountElements = Array.from(root.querySelectorAll('[data-notification-total-count]'));
+      this.totalLabelElements = Array.from(root.querySelectorAll('[data-notification-total-label]'));
       this.unreadCountElements = Array.from(root.querySelectorAll('[data-notification-unread-count]'));
       this.loadMoreButton = root.querySelector('[data-notification-load-more]');
       this.selectAll = root.querySelector('[data-select-all]');
@@ -939,6 +940,8 @@
       this.bulkButtons = Array.from(root.querySelectorAll('[data-notification-bulk]'));
       this.markAllButton = root.querySelector('[data-notification-action="mark-all-read"]');
       this.filtersForm = root.querySelector('[data-notification-filters]');
+      this.clearFiltersButton = root.querySelector('[data-notification-action="clear-filters"]');
+      this.activeFilterChips = root.querySelector('[data-active-filter-chips]');
       this.defaultActions = root.querySelector('[data-default-actions]');
       this.selectionActions = root.querySelector('[data-selection-actions]');
       this.folderButtons = Array.from(root.querySelectorAll('[data-notification-folder]'));
@@ -987,6 +990,13 @@
         if (folder && this.root.contains(folder)) {
           event.preventDefault();
           this.setFolder(folder.dataset.notificationFolder);
+          return;
+        }
+
+        const filterChip = event.target.closest('[data-notification-filter-chip]');
+        if (filterChip && this.root.contains(filterChip)) {
+          event.preventDefault();
+          this.clearSingleFilter(filterChip.dataset.notificationFilterChip);
           return;
         }
 
@@ -1085,6 +1095,7 @@
       });
 
       if (this.filtersForm) {
+        this.filtersForm.addEventListener('submit', event => event.preventDefault());
         const status = this.filtersForm.querySelector('[data-filter-status]');
         const project = this.filtersForm.querySelector('[data-filter-project]');
         const module = this.filtersForm.querySelector('[data-filter-module]');
@@ -1092,18 +1103,22 @@
 
         status?.addEventListener('change', () => {
           this.filters.status = status.value || 'all';
+          this.renderFilterState();
           this.refresh();
         });
         project?.addEventListener('change', () => {
           this.filters.projectId = project.value || '';
+          this.renderFilterState();
           this.refresh();
         });
         module?.addEventListener('change', () => {
           this.filters.module = module.value || '';
+          this.renderFilterState();
           this.refresh();
         });
         search?.addEventListener('input', debounce(() => {
           this.filters.search = search.value.trim();
+          this.renderFilterState();
           this.refresh();
         }, SEARCH_DEBOUNCE_MS));
       }
@@ -1128,6 +1143,7 @@
       }
 
       this.updateFolderNavigation();
+      this.renderFilterState();
       this.refresh();
     }
 
@@ -1209,20 +1225,136 @@
       this.render();
     }
 
+    hasActiveFilters() {
+      return this.filters.folder !== 'inbox'
+        || this.filters.status !== 'all'
+        || Boolean(this.filters.projectId)
+        || Boolean(this.filters.module)
+        || Boolean(this.filters.search);
+    }
+
     clearFilters() {
+      this.filters.folder = 'inbox';
+      this.root.dataset.activeFolder = 'inbox';
       this.filters.status = 'all';
       this.filters.projectId = '';
       this.filters.module = '';
       this.filters.search = '';
+      this.syncFilterControls();
+      this.selectedIds.clear();
+      this.updateFolderNavigation();
+      this.renderFilterState();
+      this.refresh();
+    }
+
+    clearSingleFilter(key) {
+      switch (key) {
+        case 'folder':
+          this.filters.folder = 'inbox';
+          this.root.dataset.activeFolder = 'inbox';
+          break;
+        case 'status':
+          this.filters.status = 'all';
+          break;
+        case 'project':
+          this.filters.projectId = '';
+          break;
+        case 'module':
+          this.filters.module = '';
+          break;
+        case 'search':
+          this.filters.search = '';
+          break;
+        default:
+          return;
+      }
+
+      this.syncFilterControls();
+      this.selectedIds.clear();
+      this.updateFolderNavigation();
+      this.renderFilterState();
+      this.refresh();
+    }
+
+    syncFilterControls() {
       const status = this.filtersForm?.querySelector('[data-filter-status]');
       const project = this.filtersForm?.querySelector('[data-filter-project]');
       const module = this.filtersForm?.querySelector('[data-filter-module]');
       const search = this.filtersForm?.querySelector('[data-filter-search]');
-      if (status) status.value = 'all';
-      if (project) project.value = '';
-      if (module) module.value = '';
-      if (search) search.value = '';
-      this.refresh();
+      if (status) status.value = this.filters.status;
+      if (project) project.value = this.filters.projectId;
+      if (module) module.value = this.filters.module;
+      if (search) search.value = this.filters.search;
+    }
+
+    selectedOptionText(selector) {
+      const select = this.filtersForm?.querySelector(selector);
+      return select?.selectedOptions?.[0]?.textContent?.trim() || '';
+    }
+
+    folderLabel() {
+      const active = this.folderButtons.find(button => button.dataset.notificationFolder === this.filters.folder);
+      const label = active?.querySelector('span:not(.notification-folder__count)');
+      return label?.textContent?.trim() || 'Inbox';
+    }
+
+    renderFilterState() {
+      const active = this.hasActiveFilters();
+      if (this.clearFiltersButton) {
+        this.clearFiltersButton.disabled = !active;
+        const label = active ? 'Clear search and filters' : 'No active filters';
+        this.clearFiltersButton.title = label;
+        this.clearFiltersButton.setAttribute('aria-label', label);
+      }
+
+      this.totalLabelElements.forEach(element => {
+        element.textContent = active
+          ? 'matching'
+          : (this.totalCount === 1 ? 'notification' : 'notifications');
+      });
+
+      if (!this.activeFilterChips) {
+        return;
+      }
+
+      this.activeFilterChips.innerHTML = '';
+      const chips = [];
+      if (this.filters.folder !== 'inbox') {
+        chips.push({ key: 'folder', label: this.folderLabel() });
+      }
+      if (this.filters.status !== 'all') {
+        chips.push({ key: 'status', label: this.selectedOptionText('[data-filter-status]') || this.filters.status });
+      }
+      if (this.filters.projectId) {
+        chips.push({ key: 'project', label: this.selectedOptionText('[data-filter-project]') || 'Project' });
+      }
+      if (this.filters.module) {
+        chips.push({ key: 'module', label: this.selectedOptionText('[data-filter-module]') || this.filters.module });
+      }
+      if (this.filters.search) {
+        chips.push({ key: 'search', label: `Search: “${this.filters.search}”` });
+      }
+
+      chips.forEach(chip => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'notification-inbox__filter-chip';
+        button.dataset.notificationFilterChip = chip.key;
+        button.title = `Remove ${chip.label} filter`;
+        button.setAttribute('aria-label', `Remove ${chip.label} filter`);
+
+        const label = document.createElement('span');
+        label.textContent = chip.label;
+        button.appendChild(label);
+
+        const icon = document.createElement('i');
+        icon.className = 'bi bi-x';
+        icon.setAttribute('aria-hidden', 'true');
+        button.appendChild(icon);
+        this.activeFilterChips.appendChild(button);
+      });
+
+      this.activeFilterChips.hidden = chips.length === 0;
     }
 
     async markAllRead() {
@@ -1355,11 +1487,7 @@
     }
 
     handleNewNotification(notification) {
-      const hasActiveFilter = this.filters.folder !== 'inbox'
-        || this.filters.status !== 'all'
-        || this.filters.projectId
-        || this.filters.module
-        || this.filters.search;
+      const hasActiveFilter = this.hasActiveFilters();
 
       if (!hasActiveFilter && !notification.isProjectMuted) {
         const isExisting = this.items.some(item => item.id === notification.id);
@@ -1502,8 +1630,11 @@
       setHidden(this.empty, this.items.length !== 0);
       this.totalCountElements.forEach(element => setText(element, this.totalCount));
       if (this.summary) {
-        this.summary.textContent = `Showing ${this.items.length} of ${this.totalCount}`;
+        this.summary.textContent = this.totalCount === 0
+          ? '0 of 0'
+          : `1–${this.items.length} of ${this.totalCount}`;
       }
+      this.renderFilterState();
       if (this.loadMoreButton) {
         this.loadMoreButton.hidden = !this.hasMore;
       }
@@ -1527,7 +1658,12 @@
       }
 
       setIcon(row.querySelector('[data-notification-icon]'), notification.iconCssClass);
-      setText(row.querySelector('[data-notification-project]'), notification.projectName || notification.category);
+      const project = row.querySelector('[data-notification-project]');
+      const projectLabel = notification.projectName || notification.category;
+      setText(project, projectLabel);
+      if (projectLabel) {
+        project?.setAttribute('title', projectLabel);
+      }
       setText(row.querySelector('[data-notification-category]'), notification.category);
       setHidden(row.querySelector('[data-notification-action-required]'), !notification.isActionRequired);
       setHidden(row.querySelector('[data-notification-muted]'), !notification.isProjectMuted);
@@ -1554,6 +1690,11 @@
       const actor = row.querySelector('[data-notification-actor]');
       setText(actor, notification.actorDisplayName);
       setHidden(actor, !notification.actorDisplayName);
+      if (notification.actorDisplayName) {
+        actor?.setAttribute('title', notification.actorDisplayName);
+      } else {
+        actor?.removeAttribute('title');
+      }
 
       setTimeElement(row.querySelector('[data-notification-created]'), notification);
       setHidden(row.querySelector('[data-notification-unread-dot]'), notification.isRead);

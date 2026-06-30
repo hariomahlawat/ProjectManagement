@@ -234,8 +234,9 @@ async function createCenter() {
       <script type="application/json" data-notification-bootstrap>${JSON.stringify(bootstrap)}</script>
       <span data-notification-unread-count>1</span>
       <span data-notification-total-count>2</span>
-      <button data-notification-folder="inbox" class="is-active"><span data-folder-count data-folder-key="inbox" data-folder-count-mode="unread">1</span></button>
-      <button data-notification-folder="documents"><span data-folder-count data-folder-key="documents" data-folder-count-mode="unread"></span></button>
+      <span data-notification-total-label>notifications</span>
+      <button data-notification-folder="inbox" class="is-active"><span>Inbox</span><span data-folder-count data-folder-key="inbox" data-folder-count-mode="unread">1</span></button>
+      <button data-notification-folder="documents"><span>Documents</span><span data-folder-count data-folder-key="documents" data-folder-count-mode="unread"></span></button>
       <div data-default-actions><button data-notification-action="refresh"></button><button data-notification-action="mark-all-read"></button></div>
       <div data-selection-actions hidden>
         <span data-selection-count></span>
@@ -251,8 +252,9 @@ async function createCenter() {
         <select data-filter-status><option value="all">All</option><option value="unread">Unread</option><option value="read">Read</option></select>
         <select data-filter-project><option value="">All projects</option></select>
         <select data-filter-module><option value="">All modules</option></select>
-        <button type="button" data-notification-action="clear-filters"></button>
+        <button type="button" data-notification-action="clear-filters" disabled></button>
       </form>
+      <div data-active-filter-chips hidden></div>
       <div data-notification-loading hidden></div>
       <div data-notification-rows></div>
       <div data-notification-empty hidden></div>
@@ -387,3 +389,37 @@ test('Notification Centre row quick action sends one protected bulk mutation', a
 
   dom.window.close();
 });
+
+test('Notification Centre exposes active filters as removable chips', async () => {
+  const fixture = await createCenter();
+  const { dom, window, document } = fixture;
+
+  document.querySelector('[data-notification-folder="documents"]')
+    .dispatchEvent(new window.MouseEvent('click', { bubbles: true, button: 0 }));
+  await new Promise(resolve => window.setTimeout(resolve, 0));
+
+  const chip = document.querySelector('[data-notification-filter-chip="folder"]');
+  assert.ok(chip);
+  assert.equal(chip.textContent.trim(), 'Documents');
+  assert.equal(document.querySelector('[data-notification-total-label]').textContent, 'matching');
+  assert.equal(document.querySelector('[data-notification-action="clear-filters"]').disabled, false);
+
+  chip.dispatchEvent(new window.MouseEvent('click', { bubbles: true, button: 0 }));
+  await new Promise(resolve => window.setTimeout(resolve, 0));
+
+  assert.ok(document.querySelector('[data-notification-folder="inbox"]').classList.contains('is-active'));
+  assert.equal(document.querySelector('[data-notification-total-label]').textContent, 'notifications');
+  assert.equal(document.querySelector('[data-active-filter-chips]').hidden, true);
+
+  dom.window.close();
+});
+
+test('Notification Centre uses a compact inbox range', async () => {
+  const fixture = await createCenter();
+  const { dom, document } = fixture;
+
+  assert.equal(document.querySelector('[data-notification-list-summary]').textContent, '1–2 of 2');
+
+  dom.window.close();
+});
+

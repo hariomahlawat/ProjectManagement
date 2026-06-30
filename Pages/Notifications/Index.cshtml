@@ -46,14 +46,13 @@
 
     <header class="notification-inbox__page-header">
         <div>
-            <span class="notification-inbox__kicker">Personal activity inbox</span>
             <h1 class="notification-inbox__title">Notification Centre</h1>
-            <p class="notification-inbox__subtitle">Updates, approvals, assignments and project activity in one place.</p>
+            <p class="notification-inbox__subtitle">Review approvals, assignments, mentions and project updates requiring your attention.</p>
         </div>
         <div class="notification-inbox__summary" aria-label="Notification summary">
             <span><strong data-notification-unread-count>@Model.ViewModel.UnreadCount</strong> unread</span>
             <span aria-hidden="true">·</span>
-            <span><strong data-notification-total-count>@Model.ViewModel.TotalCount</strong> matching</span>
+            <span><strong data-notification-total-count>@Model.ViewModel.TotalCount</strong> <span data-notification-total-label>@(Model.ViewModel.TotalCount == 1 ? "notification" : "notifications")</span></span>
         </div>
     </header>
 
@@ -130,34 +129,40 @@
                     </div>
 
                     <div class="notification-inbox__default-actions" data-default-actions>
-                        <button type="button" class="notification-inbox__icon-button" data-notification-action="refresh" title="Refresh notifications" aria-label="Refresh notifications">
+                        <button type="button" class="notification-inbox__toolbar-button" data-notification-action="refresh" title="Refresh notifications" aria-label="Refresh notifications">
                             <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                            <span>Refresh</span>
                         </button>
-                        <button type="button" class="notification-inbox__icon-button" data-notification-action="mark-all-read"
+                        <button type="button" class="notification-inbox__toolbar-button" data-notification-action="mark-all-read"
                                 title="@markAllLabel" aria-label="@markAllLabel"
                                 @(Model.ViewModel.UnreadCount == 0 ? "disabled" : null)>
                             <i class="bi bi-check2-all" aria-hidden="true"></i>
+                            <span>Mark all read</span>
                         </button>
                     </div>
 
                     <div class="notification-inbox__selection-actions" data-selection-actions hidden>
                         <span class="notification-inbox__selection-count" data-selection-count>0 selected</span>
-                        <button type="button" class="notification-inbox__icon-button" data-notification-bulk="mark-read" title="Mark selected as read" aria-label="Mark selected as read" disabled>
+                        <button type="button" class="notification-inbox__toolbar-button" data-notification-bulk="mark-read" title="Mark selected as read" aria-label="Mark selected as read" disabled>
                             <i class="bi bi-envelope-open" aria-hidden="true"></i>
+                            <span>Mark read</span>
                         </button>
-                        <button type="button" class="notification-inbox__icon-button" data-notification-bulk="mark-unread" title="Mark selected as unread" aria-label="Mark selected as unread" disabled>
+                        <button type="button" class="notification-inbox__toolbar-button" data-notification-bulk="mark-unread" title="Mark selected as unread" aria-label="Mark selected as unread" disabled>
                             <i class="bi bi-envelope" aria-hidden="true"></i>
+                            <span>Mark unread</span>
                         </button>
-                        <button type="button" class="notification-inbox__icon-button" data-notification-bulk="mute-project" title="Mute selected projects" aria-label="Mute selected projects" disabled>
+                        <button type="button" class="notification-inbox__toolbar-button" data-notification-bulk="mute-project" title="Mute selected projects" aria-label="Mute selected projects" disabled>
                             <i class="bi bi-bell-slash" aria-hidden="true"></i>
+                            <span>Mute</span>
                         </button>
-                        <button type="button" class="notification-inbox__icon-button" data-notification-bulk="unmute-project" title="Unmute selected projects" aria-label="Unmute selected projects" disabled>
+                        <button type="button" class="notification-inbox__toolbar-button" data-notification-bulk="unmute-project" title="Unmute selected projects" aria-label="Unmute selected projects" disabled>
                             <i class="bi bi-bell" aria-hidden="true"></i>
+                            <span>Unmute</span>
                         </button>
                     </div>
 
                     <span class="notification-inbox__range" data-notification-list-summary>
-                        Showing @Model.ViewModel.Notifications.Count of @Model.ViewModel.TotalCount
+                        @(Model.ViewModel.TotalCount == 0 ? "0 of 0" : $"1–{Model.ViewModel.Notifications.Count} of {Model.ViewModel.TotalCount}")
                     </span>
                 </div>
 
@@ -170,7 +175,7 @@
                     </div>
                     <label class="visually-hidden" for="notificationStatusFilter">Read status</label>
                     <select id="notificationStatusFilter" class="form-select" data-filter-status>
-                        <option value="all" selected>All states</option>
+                        <option value="all" selected>All statuses</option>
                         <option value="unread">Unread</option>
                         <option value="read">Read</option>
                     </select>
@@ -190,11 +195,13 @@
                             <option value="@module">@module</option>
                         }
                     </select>
-                    <button type="button" class="notification-inbox__clear-button" data-notification-action="clear-filters" title="Clear search and filters">
+                    <button type="button" class="notification-inbox__clear-button" data-notification-action="clear-filters"
+                            title="No active filters" aria-label="No active filters" disabled>
                         <i class="bi bi-x-lg" aria-hidden="true"></i>
                         <span class="visually-hidden">Clear search and filters</span>
                     </button>
                 </form>
+                <div class="notification-inbox__active-filters" data-active-filter-chips hidden aria-label="Active filters"></div>
             </div>
 
             <div class="notification-inbox__loading" data-notification-loading hidden>
@@ -219,7 +226,7 @@
                             <div class="notification-inbox-row__icon" aria-hidden="true"><i class="@item.IconCssClass"></i></div>
                             <div class="notification-inbox-row__source">
                                 <span class="notification-inbox-row__unread-dot" data-notification-unread-dot aria-hidden="true"></span>
-                                <span class="notification-inbox-row__project" data-notification-project>@(string.IsNullOrWhiteSpace(item.ProjectName) ? item.Category : item.ProjectName)</span>
+                                <span class="notification-inbox-row__project" title="@(string.IsNullOrWhiteSpace(item.ProjectName) ? item.Category : item.ProjectName)" data-notification-project>@(string.IsNullOrWhiteSpace(item.ProjectName) ? item.Category : item.ProjectName)</span>
                                 <span class="notification-inbox-row__category" data-notification-category>@item.Category</span>
                             </div>
                             <div class="notification-inbox-row__message">
@@ -233,21 +240,21 @@
                                           title="@(string.IsNullOrWhiteSpace(item.SummaryTooltip) ? item.Summary : item.SummaryTooltip)"
                                           data-notification-summary>@item.Summary</span>
                                 }
-                                <span class="notification-inbox-row__meta">
-                                    @if (!string.IsNullOrWhiteSpace(item.ActorDisplayName))
-                                    {
-                                        <span data-notification-actor>@item.ActorDisplayName</span>
-                                    }
-                                    else
-                                    {
-                                        <span data-notification-actor hidden></span>
-                                    }
-                                    <span class="notification-inbox-row__action-required" data-notification-action-required @(item.IsActionRequired ? null : "hidden")>
-                                        <i class="bi bi-exclamation-circle" aria-hidden="true"></i> Action required
-                                    </span>
-                                    <span class="notification-inbox-row__muted" data-notification-muted @(item.IsProjectMuted ? null : "hidden")>
-                                        <i class="bi bi-bell-slash" aria-hidden="true"></i> Muted
-                                    </span>
+                            </div>
+                            <div class="notification-inbox-row__actor">
+                                @if (!string.IsNullOrWhiteSpace(item.ActorDisplayName))
+                                {
+                                    <span title="@item.ActorDisplayName" data-notification-actor>@item.ActorDisplayName</span>
+                                }
+                                else
+                                {
+                                    <span data-notification-actor hidden></span>
+                                }
+                                <span class="notification-inbox-row__action-required" data-notification-action-required @(item.IsActionRequired ? null : "hidden")>
+                                    <i class="bi bi-exclamation-circle" aria-hidden="true"></i> Action required
+                                </span>
+                                <span class="notification-inbox-row__muted" data-notification-muted @(item.IsProjectMuted ? null : "hidden")>
+                                    <i class="bi bi-bell-slash" aria-hidden="true"></i> Muted
                                 </span>
                             </div>
                             <div class="notification-inbox-row__time">
@@ -307,14 +314,14 @@
                 <a class="notification-inbox-row__title" href="#" data-notification-link data-notification-title>Notification</a>
                 <span class="notification-inbox-row__separator" data-notification-summary-separator aria-hidden="true">—</span>
                 <span class="notification-inbox-row__preview" data-notification-summary></span>
-                <span class="notification-inbox-row__meta">
-                    <span data-notification-actor></span>
-                    <span class="notification-inbox-row__action-required" data-notification-action-required hidden>
-                        <i class="bi bi-exclamation-circle" aria-hidden="true"></i> Action required
-                    </span>
-                    <span class="notification-inbox-row__muted" data-notification-muted hidden>
-                        <i class="bi bi-bell-slash" aria-hidden="true"></i> Muted
-                    </span>
+            </div>
+            <div class="notification-inbox-row__actor">
+                <span data-notification-actor></span>
+                <span class="notification-inbox-row__action-required" data-notification-action-required hidden>
+                    <i class="bi bi-exclamation-circle" aria-hidden="true"></i> Action required
+                </span>
+                <span class="notification-inbox-row__muted" data-notification-muted hidden>
+                    <i class="bi bi-bell-slash" aria-hidden="true"></i> Muted
                 </span>
             </div>
             <div class="notification-inbox-row__time">

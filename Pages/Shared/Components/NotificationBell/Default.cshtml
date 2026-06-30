@@ -8,6 +8,8 @@
     var markAllLabel = Model.UnreadCount == 0
         ? "No unread notifications"
         : "Mark all notifications as read";
+    var isNotificationCentrePage = Context.Request.Path.StartsWithSegments(
+        new Microsoft.AspNetCore.Http.PathString(Model.NotificationCenterUrl));
 }
 <div class="dropdown notification-bell"
      data-notification-bell
@@ -39,7 +41,7 @@
 
     <div class="dropdown-menu dropdown-menu-end shadow-lg p-0 notification-bell__dropdown"
          aria-labelledby="notificationDropdown">
-        <div class="notification-menu" data-notification-menu>
+        <div class="notification-menu @(isNotificationCentrePage ? "is-centre-page" : string.Empty)" data-notification-menu>
             <div class="notification-menu__header">
                 <div>
                     <h2 class="notification-menu__heading">Notifications</h2>
@@ -143,12 +145,15 @@
                 </ul>
             </div>
 
-            <div class="notification-menu__footer">
-                <a class="notification-menu__centre-link" href="@Model.NotificationCenterUrl">
-                    Open Notification Centre
-                    <i class="bi bi-arrow-right" aria-hidden="true"></i>
-                </a>
-            </div>
+            @if (!isNotificationCentrePage)
+            {
+                <div class="notification-menu__footer">
+                    <a class="notification-menu__centre-link" href="@Model.NotificationCenterUrl">
+                        Open Notification Centre
+                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    </a>
+                </div>
+            }
             <div class="notification-menu__status" data-notification-status role="status" aria-live="polite"></div>
         </div>
 

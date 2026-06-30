@@ -10584,19 +10584,6 @@ main[role="main"].analytics-main > .pm-page-shell {
     display: none;
 }
 
-.notification-inbox-row__meta {
-    display: inline-flex;
-    align-items: center;
-    gap: .4rem;
-    flex: 0 0 auto;
-    color: var(--pm-text-muted);
-    font-size: .66rem;
-}
-
-.notification-inbox-row__meta [data-notification-actor]:not(:empty)::before {
-    content: "· ";
-}
-
 .notification-inbox-row__action-required,
 .notification-inbox-row__muted {
     display: inline-flex;
@@ -10620,8 +10607,7 @@ main[role="main"].analytics-main > .pm-page-shell {
 }
 
 .notification-inbox-row__action-required[hidden],
-.notification-inbox-row__muted[hidden],
-.notification-inbox-row__meta [data-notification-actor][hidden] {
+.notification-inbox-row__muted[hidden] {
     display: none;
 }
 
@@ -10886,10 +10872,6 @@ main[role="main"].analytics-main > .pm-page-shell {
         display: none;
     }
 
-    .notification-inbox-row__meta {
-        margin-left: .3rem;
-    }
-
     .notification-inbox-row__time {
         grid-column: 4;
         grid-row: 1;
@@ -10925,12 +10907,273 @@ main[role="main"].analytics-main > .pm-page-shell {
         text-overflow: ellipsis;
     }
 
-    .notification-inbox-row__meta {
-        display: none;
-    }
-
     .notification-inbox-row__quick-actions .notification-inbox__icon-button:nth-child(2),
     .notification-inbox-row__quick-actions .notification-inbox__icon-button:nth-child(3) {
         display: none;
+    }
+}
+
+/* ============================================================
+   Notification Centre v5 — production inbox refinements
+   ============================================================ */
+.notification-inbox__page-header {
+    align-items: center;
+    margin-bottom: .7rem;
+}
+
+.notification-inbox__title {
+    font-size: clamp(1.5rem, 2vw, 1.85rem);
+}
+
+.notification-inbox__subtitle {
+    max-width: 48rem;
+    font-size: .8rem;
+}
+
+.notification-inbox__default-actions,
+.notification-inbox__selection-actions {
+    gap: .3rem;
+}
+
+.notification-inbox__toolbar-button {
+    min-height: 2.15rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .38rem;
+    padding: 0 .62rem;
+    border: 1px solid transparent;
+    border-radius: .58rem;
+    color: var(--pm-text-secondary);
+    background: transparent;
+    font-size: .72rem;
+    font-weight: 650;
+    line-height: 1;
+    white-space: nowrap;
+    transition: color .14s ease, background-color .14s ease, border-color .14s ease, opacity .14s ease;
+}
+
+.notification-inbox__toolbar-button > i {
+    font-size: .88rem;
+}
+
+.notification-inbox__toolbar-button:hover,
+.notification-inbox__toolbar-button:focus-visible {
+    color: var(--bs-primary);
+    border-color: color-mix(in srgb, var(--bs-primary) 13%, transparent);
+    background: color-mix(in srgb, var(--bs-primary) 9%, transparent);
+}
+
+.notification-inbox__toolbar-button:disabled,
+.notification-inbox__toolbar-button[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: .34;
+}
+
+.notification-inbox__toolbar-button[aria-busy="true"] i {
+    animation: notification-action-pulse .8s ease-in-out infinite alternate;
+}
+
+.notification-inbox__clear-button:disabled {
+    cursor: default;
+    opacity: .26;
+}
+
+.notification-inbox__active-filters {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    min-height: 2rem;
+    padding: 0 .75rem .62rem 2.95rem;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.notification-inbox__active-filters[hidden] {
+    display: none;
+}
+
+.notification-inbox__filter-chip {
+    min-height: 1.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    flex: 0 0 auto;
+    padding: .2rem .42rem .2rem .55rem;
+    border: 1px solid color-mix(in srgb, var(--bs-primary) 17%, transparent);
+    border-radius: 999px;
+    color: color-mix(in srgb, var(--bs-primary) 78%, var(--pm-text));
+    background: color-mix(in srgb, var(--bs-primary) 8%, var(--pm-card));
+    font-size: .67rem;
+    font-weight: 650;
+    line-height: 1.15;
+    white-space: nowrap;
+}
+
+.notification-inbox__filter-chip:hover,
+.notification-inbox__filter-chip:focus-visible {
+    color: var(--bs-primary);
+    background: color-mix(in srgb, var(--bs-primary) 13%, var(--pm-card));
+}
+
+.notification-inbox__filter-chip i {
+    font-size: .78rem;
+}
+
+.notification-inbox__date-group {
+    padding: .4rem .8rem .34rem 6.55rem;
+    font-size: .66rem;
+    letter-spacing: .025em;
+    text-transform: none;
+}
+
+.notification-inbox-row {
+    grid-template-columns: 2rem 2.2rem minmax(15rem, 17.5rem) minmax(16rem, 1fr) minmax(7.75rem, 9.5rem) 5.8rem 6.6rem;
+}
+
+.notification-inbox-row__project {
+    font-size: .78rem;
+}
+
+.notification-inbox-row__message {
+    min-width: 0;
+}
+
+.notification-inbox-row__actor {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: .32rem;
+    overflow: hidden;
+    color: var(--pm-text-muted);
+    font-size: .68rem;
+    white-space: nowrap;
+}
+
+.notification-inbox-row__actor > [data-notification-actor] {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.notification-inbox-row__actor > [data-notification-actor][hidden],
+.notification-inbox-row__actor .notification-inbox-row__action-required[hidden],
+.notification-inbox-row__actor .notification-inbox-row__muted[hidden] {
+    display: none;
+}
+
+.notification-menu.is-centre-page .notification-menu__status {
+    bottom: .75rem;
+}
+
+@media (max-width: 1399.98px) {
+    .notification-inbox-row {
+        grid-template-columns: 1.9rem 2.1rem minmax(13rem, 15.5rem) minmax(13rem, 1fr) minmax(7rem, 8.5rem) 5.6rem 6.3rem;
+        gap: .48rem;
+    }
+
+    .notification-inbox__date-group {
+        padding-left: 6.2rem;
+    }
+}
+
+@media (max-width: 1199.98px) {
+    .notification-inbox-row {
+        grid-template-columns: 1.8rem 2.05rem minmax(10.5rem, 13rem) minmax(11rem, 1fr) minmax(6rem, 7rem) 5.3rem 4.6rem;
+        gap: .4rem;
+    }
+
+    .notification-inbox__date-group {
+        padding-left: 5.8rem;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .notification-inbox__toolbar-button {
+        width: 2.15rem;
+        padding: 0;
+        border-radius: 50%;
+    }
+
+    .notification-inbox__toolbar-button > span {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    .notification-inbox-row {
+        grid-template-columns: 1.8rem 2.05rem minmax(9rem, 11.5rem) minmax(10rem, 1fr) minmax(5.75rem, 7rem) 5.25rem;
+    }
+
+    .notification-inbox-row__quick-actions {
+        position: absolute;
+        right: .4rem;
+        width: 6.5rem;
+        background: inherit;
+    }
+
+    .notification-inbox__date-group {
+        padding-left: 5.8rem;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .notification-inbox__active-filters {
+        padding-left: .65rem;
+    }
+
+    .notification-inbox-row {
+        min-height: 5.55rem;
+        grid-template-columns: 1.6rem 2.05rem minmax(0, 1fr) 4.8rem;
+        grid-template-rows: auto auto auto;
+    }
+
+    .notification-inbox-row__select,
+    .notification-inbox-row__icon {
+        grid-row: 1 / span 3;
+    }
+
+    .notification-inbox-row__message {
+        grid-column: 3 / 5;
+        grid-row: 2;
+    }
+
+    .notification-inbox-row__actor {
+        grid-column: 3 / 5;
+        grid-row: 3;
+        min-height: 1rem;
+        font-size: .64rem;
+    }
+
+    .notification-inbox-row__time {
+        grid-column: 4;
+        grid-row: 1;
+    }
+
+    .notification-inbox__date-group {
+        padding-left: 5.65rem;
+    }
+}
+
+@media (max-width: 479.98px) {
+    .notification-inbox-row__actor {
+        display: none;
+    }
+
+    .notification-inbox-row {
+        min-height: 5rem;
+        grid-template-rows: auto auto;
+    }
+
+    .notification-inbox-row__select,
+    .notification-inbox-row__icon {
+        grid-row: 1 / span 2;
     }
 }
