@@ -41,6 +41,30 @@ public sealed class DocumentNotificationServiceTests
     }
 
     [Fact]
+    public async Task NotifyDocumentPublishedAsync_ExcludesTheActorFromRoutineRecipients()
+    {
+        var publisher = new RecordingNotificationPublisher();
+        var preferences = new TestPreferenceService();
+        var service = new DocumentNotificationService(publisher, preferences, NullLogger<DocumentNotificationService>.Instance);
+
+        var project = new Project { Id = 13, Name = "Sigma", LeadPoUserId = "po-13", HodUserId = "hod-13" };
+        var document = new ProjectDocument
+        {
+            Id = 35,
+            ProjectId = 13,
+            Title = "Acceptance report",
+            Status = ProjectDocumentStatus.Published,
+            Project = project,
+        };
+
+        await service.NotifyDocumentPublishedAsync(document, project, "hod-13");
+
+        var evt = Assert.Single(publisher.Events);
+        Assert.Equal(new[] { "po-13" }, evt.Recipients);
+        Assert.DoesNotContain("hod-13", evt.Recipients);
+    }
+
+    [Fact]
     public async Task NotifyDocumentArchivedAsync_ExcludesOptedOut()
     {
         var publisher = new RecordingNotificationPublisher();

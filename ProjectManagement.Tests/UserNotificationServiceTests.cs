@@ -224,6 +224,106 @@ public sealed class UserNotificationServiceTests
         Assert.NotNull((await context.Notifications.SingleAsync()).ReadUtc);
     }
 
+    [Fact]
+    public async Task ProjectAsync_RewritesLegacyStageAndDocumentTextForDisplay()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"user-notification-tests-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var clock = new TestClock(new DateTimeOffset(2026, 6, 30, 12, 0, 0, TimeSpan.Zero));
+        var service = new UserNotificationService(context, clock);
+
+        context.Projects.Add(new Project
+        {
+            Id = 42,
+            Name = "Project Nebula",
+            LeadPoUserId = "user-1",
+        });
+        await context.SaveChangesAsync();
+
+        var notifications = new[]
+        {
+            new Notification
+            {
+                Id = 1,
+                RecipientUserId = "user-1",
+                ProjectId = 42,
+                Kind = NotificationKind.StageStatusChanged,
+                ScopeId = "42:TEC",
+                Title = "Project Nebula stage TEC Completed",
+                Summary = "Stage TEC moved from NotStarted to Completed.",
+                CreatedUtc = clock.UtcNow.UtcDateTime,
+            },
+            new Notification
+            {
+                Id = 2,
+                RecipientUserId = "user-1",
+                ProjectId = 42,
+                Kind = NotificationKind.DocumentPublished,
+                Title = "Project Nebula document noting sheets - 1-3676667439909_127133026_2_2026 published",
+                Summary = "Document noting sheets - 1-3676667439909_127133026_2_2026 was published.",
+                CreatedUtc = clock.UtcNow.UtcDateTime.AddMinutes(-1),
+            },
+        };
+
+        var results = await service.ProjectAsync(CreatePrincipal("user-1"), "user-1", notifications, default);
+
+        Assert.Collection(
+            results,
+            stage =>
+            {
+                Assert.Equal("TEC stage completed", stage.Title);
+                Assert.Equal("Status changed from Not started to Completed.", stage.Summary);
+            },
+            document =>
+            {
+                Assert.Equal("Document published", document.Title);
+                Assert.Equal("noting sheets – 1", document.Summary);
+                Assert.NotNull(document.SummaryTooltip);
+            });
+    }
+
+    [Fact]
+    public async Task ListPageAsync_ExcludesRoutineNotificationsGeneratedByTheRecipient()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"user-notification-tests-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var clock = new TestClock(new DateTimeOffset(2026, 6, 30, 12, 0, 0, TimeSpan.Zero));
+        var service = new UserNotificationService(context, clock);
+        var principal = CreatePrincipal("user-1");
+
+        context.Projects.Add(new Project { Id = 1, Name = "Project", LeadPoUserId = "user-1" });
+        context.Notifications.AddRange(
+            new Notification
+            {
+                RecipientUserId = "user-1",
+                ActorUserId = "user-1",
+                ProjectId = 1,
+                Kind = NotificationKind.StageStatusChanged,
+                CreatedUtc = clock.UtcNow.UtcDateTime,
+            },
+            new Notification
+            {
+                RecipientUserId = "user-1",
+                ActorUserId = "other-user",
+                ProjectId = 1,
+                Kind = NotificationKind.StageStatusChanged,
+                CreatedUtc = clock.UtcNow.UtcDateTime.AddMinutes(-1),
+            });
+        await context.SaveChangesAsync();
+
+        var page = await service.ListPageAsync(principal, "user-1", new NotificationListOptions());
+
+        Assert.Single(page.Items);
+        Assert.Equal("other-user", page.Items[0].ActorUserId);
+        Assert.Equal(1, page.UnreadCount);
+    }
+
     private static ClaimsPrincipal CreatePrincipal(string userId)
     {
         var identity = new ClaimsIdentity(

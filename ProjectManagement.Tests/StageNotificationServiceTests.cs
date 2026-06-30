@@ -34,9 +34,27 @@ public sealed class StageNotificationServiceTests
         Assert.Equal("7:AON", evt.ScopeId);
         Assert.Equal("/projects/overview/7?timeline-stage=AON#timeline", evt.Route);
         Assert.Equal("AON stage in progress", evt.Title);
+        Assert.Equal("Status changed from Not started to In progress.", evt.Summary);
         Assert.Null(evt.Fingerprint);
         Assert.Contains((NotificationKind.StageStatusChanged, "po-3", 7), preferences.Calls);
         Assert.Contains((NotificationKind.StageStatusChanged, "hod-3", 7), preferences.Calls);
+    }
+
+    [Fact]
+    public async Task NotifyStageStatusChangedAsync_ExcludesTheActorFromRoutineRecipients()
+    {
+        var publisher = new RecordingNotificationPublisher();
+        var preferences = new TestPreferenceService();
+        var service = new StageNotificationService(publisher, preferences, NullLogger<StageNotificationService>.Instance);
+
+        var project = new Project { Id = 11, Name = "Omega", LeadPoUserId = "po-11", HodUserId = "hod-11" };
+        var stage = new ProjectStage { Id = 31, ProjectId = 11, Project = project, StageCode = "TEC", Status = StageStatus.Completed };
+
+        await service.NotifyStageStatusChangedAsync(stage, project, StageStatus.InProgress, "po-11");
+
+        var evt = Assert.Single(publisher.Events);
+        Assert.Equal(new[] { "hod-11" }, evt.Recipients);
+        Assert.DoesNotContain("po-11", evt.Recipients);
     }
 
     [Fact]

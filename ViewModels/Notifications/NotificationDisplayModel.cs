@@ -19,6 +19,7 @@ public sealed record NotificationDisplayModel
     public string? Route { get; init; }
     public string? Title { get; init; }
     public string? Summary { get; init; }
+    public string? SummaryTooltip { get; init; }
     public DateTime CreatedUtc { get; init; }
     public DateTime? DeliveredUtc { get; init; }
     public string CreatedDisplayIst { get; init; } = string.Empty;
@@ -48,6 +49,7 @@ public sealed record NotificationDisplayModel
             Route = notification.Route,
             Title = notification.Title,
             Summary = notification.Summary,
+            SummaryTooltip = notification.SummaryTooltip,
             CreatedUtc = notification.CreatedUtc,
             DeliveredUtc = notification.DeliveredUtc,
             CreatedDisplayIst = string.IsNullOrWhiteSpace(notification.CreatedDisplayIst)

@@ -4,7 +4,7 @@
   const CSRF_HEADER = 'X-CSRF-TOKEN';
   const POLL_INTERVAL_MS = 60_000;
   const SEARCH_DEBOUNCE_MS = 300;
-  const STATUS_CLEAR_MS = 4_500;
+  const STATUS_CLEAR_MS = 3_000;
   const IST_FORMATTER = new Intl.DateTimeFormat('en-IN', {
     day: '2-digit',
     month: 'short',
@@ -12,6 +12,12 @@
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
+    timeZone: 'Asia/Kolkata'
+  });
+  const IST_DATE_PARTS_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
     timeZone: 'Asia/Kolkata'
   });
 
@@ -82,6 +88,7 @@
       route: raw?.route ?? raw?.Route ?? null,
       title: raw?.title ?? raw?.Title ?? 'Notification',
       summary: raw?.summary ?? raw?.Summary ?? null,
+      summaryTooltip: raw?.summaryTooltip ?? raw?.SummaryTooltip ?? null,
       createdUtc,
       createdDisplayIst: raw?.createdDisplayIst ?? raw?.CreatedDisplayIst ?? formatExactIst(createdUtc),
       deliveredUtc: raw?.deliveredUtc ?? raw?.DeliveredUtc ?? null,
@@ -169,6 +176,68 @@
     element.setAttribute('datetime', notification.createdUtc || '');
     element.textContent = formatRelativeTime(notification.createdUtc);
     element.title = notification.createdDisplayIst || formatExactIst(notification.createdUtc);
+  }
+
+  function dateParts(value) {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    const parts = Object.fromEntries(
+      IST_DATE_PARTS_FORMATTER.formatToParts(date)
+        .filter(part => part.type !== 'literal')
+        .map(part => [part.type, asInteger(part.value)]));
+
+    if (!parts.year || !parts.month || !parts.day) {
+      return null;
+    }
+
+    return parts;
+  }
+
+  function notificationDateGroup(value) {
+    const item = dateParts(value);
+    const today = dateParts(new Date());
+    if (!item || !today) {
+      return { key: 'earlier', label: 'Earlier' };
+    }
+
+    const itemDay = Date.UTC(item.year, item.month - 1, item.day);
+    const todayDay = Date.UTC(today.year, today.month - 1, today.day);
+    const difference = Math.round((todayDay - itemDay) / 86_400_000);
+
+    if (difference <= 0) {
+      return { key: 'today', label: 'Today' };
+    }
+
+    if (difference === 1) {
+      return { key: 'yesterday', label: 'Yesterday' };
+    }
+
+    return { key: 'earlier', label: 'Earlier' };
+  }
+
+  function appendDateGroup(container, group, className, tagName = 'div') {
+    const heading = document.createElement(tagName);
+    heading.className = className;
+    heading.dataset.notificationDateGroup = group.key;
+    heading.setAttribute('role', 'heading');
+    heading.setAttribute('aria-level', '2');
+    heading.textContent = group.label;
+    container.appendChild(heading);
+  }
+
+  function statusToneClass(tone) {
+    if (tone === 'danger' || tone === 'error') {
+      return 'is-error';
+    }
+
+    if (tone === 'success') {
+      return 'is-success';
+    }
+
+    return 'is-muted';
   }
 
   function setIcon(element, cssClass) {
@@ -490,6 +559,8 @@
       this.unreadCount = root.querySelector('[data-notification-unread-count]');
       this.headerCount = root.querySelector('[data-notification-header-count]');
       this.markAllButton = root.querySelector('[data-notification-action="mark-all-read"]');
+      this.trigger = root.querySelector('.notification-bell__trigger');
+      this.dropdownMenu = root.querySelector('.notification-bell__dropdown');
       this.statusTimer = null;
 
       this.bind();
@@ -521,8 +592,7 @@
         }
       });
 
-      const dropdown = this.root.querySelector('.notification-bell__trigger');
-      dropdown?.addEventListener('shown.bs.dropdown', () => {
+      this.trigger?.addEventListener('shown.bs.dropdown', () => {
         const unseenIds = this.items
           .filter(item => !item.isSeen && !item.isProjectMuted)
           .slice(0, this.limit)
@@ -563,21 +633,25 @@
     }
 
     async markAllRead() {
-      this.markAllButton?.setAttribute('disabled', 'disabled');
+      if (!this.markAllButton || this.runtime.unreadCount <= 0) {
+        return;
+      }
+
+      this.markAllButton.disabled = true;
+      this.markAllButton.setAttribute('aria-busy', 'true');
       this.setStatus('Marking all as read…', 'muted');
       try {
         const mutation = await this.runtime.markAllRead();
         this.setStatus(
           mutation.affectedCount > 0
-            ? `${mutation.affectedCount} marked as read`
+            ? 'All notifications marked as read'
             : 'No unread notifications',
           'success');
       } catch (error) {
         this.setStatus(error.message || 'Unable to update notifications.', 'danger');
       } finally {
-        if (this.markAllButton) {
-          this.markAllButton.disabled = this.runtime.unreadCount <= 0;
-        }
+        this.markAllButton.removeAttribute('aria-busy');
+        this.updateMarkAllButton(this.runtime.unreadCount);
       }
     }
 
@@ -589,6 +663,7 @@
       }
 
       button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
       try {
         if (notification.isRead) {
           await this.runtime.markUnread([id]);
@@ -599,25 +674,47 @@
         this.setStatus(error.message || 'Unable to update notification.', 'danger');
       } finally {
         button.disabled = false;
+        button.removeAttribute('aria-busy');
       }
+    }
+
+    hideDropdown() {
+      if (!this.trigger) {
+        return;
+      }
+
+      if (window.bootstrap?.Dropdown) {
+        window.bootstrap.Dropdown.getOrCreateInstance(this.trigger).hide();
+        return;
+      }
+
+      this.trigger.setAttribute('aria-expanded', 'false');
+      this.trigger.classList.remove('show');
+      this.dropdownMenu?.classList.remove('show');
     }
 
     openNotification(event, link) {
       const row = link.closest('[data-notification-item]');
       const id = asInteger(row?.dataset.notificationId);
       const notification = this.items.find(item => item.id === id);
-      if (!notification || notification.isRead) {
-        return;
-      }
-
       const route = safeRoute(link.getAttribute('href'), this.centerUrl);
       const modifiedClick = event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0;
+
       if (modifiedClick) {
-        this.runtime.markRead([id], { keepalive: true }).catch(() => {});
+        if (notification && !notification.isRead) {
+          this.runtime.markRead([id], { keepalive: true }).catch(() => {});
+        }
         return;
       }
 
       event.preventDefault();
+      this.hideDropdown();
+
+      if (!notification || notification.isRead) {
+        window.location.assign(route);
+        return;
+      }
+
       Promise.race([
         this.runtime.markRead([id]),
         new Promise(resolve => window.setTimeout(resolve, 500))
@@ -693,9 +790,22 @@
       setText(this.unreadCount, count);
       setText(this.headerCount, count);
       this.unreadBadge?.classList.toggle('d-none', count <= 0);
-      if (this.markAllButton) {
-        this.markAllButton.disabled = count <= 0;
+      this.updateMarkAllButton(count);
+    }
+
+    updateMarkAllButton(count) {
+      if (!this.markAllButton) {
+        return;
       }
+
+      const disabled = count <= 0;
+      const label = disabled
+        ? 'No unread notifications'
+        : 'Mark all notifications as read';
+      this.markAllButton.disabled = disabled;
+      this.markAllButton.setAttribute('aria-disabled', String(disabled));
+      this.markAllButton.setAttribute('aria-label', label);
+      this.markAllButton.title = label;
     }
 
     render() {
@@ -709,7 +819,14 @@
         .slice(0, this.limit);
 
       this.list.innerHTML = '';
+      let currentGroup = null;
       visible.forEach(notification => {
+        const group = notificationDateGroup(notification.createdUtc);
+        if (group.key !== currentGroup) {
+          appendDateGroup(this.list, group, 'notification-menu__date-group', 'li');
+          currentGroup = group.key;
+        }
+
         const row = this.template.content.firstElementChild.cloneNode(true);
         this.populateRow(row, notification);
         this.list.appendChild(row);
@@ -734,6 +851,14 @@
       const summary = row.querySelector('[data-notification-summary]');
       setText(summary, notification.summary);
       setHidden(summary, !notification.summary);
+      if (summary) {
+        const tooltip = notification.summaryTooltip || notification.summary || '';
+        if (tooltip) {
+          summary.title = tooltip;
+        } else {
+          summary.removeAttribute('title');
+        }
+      }
 
       const actor = row.querySelector('[data-notification-actor]');
       const actorSeparator = row.querySelector('[data-notification-actor-separator]');
@@ -752,7 +877,7 @@
         const label = notification.isRead ? 'Mark as unread' : 'Mark as read';
         button.title = label;
         button.setAttribute('aria-label', label);
-        setIcon(button.querySelector('.bi'), notification.isRead ? 'bi bi-envelope-open' : 'bi bi-envelope');
+        setIcon(button.querySelector('.bi'), notification.isRead ? 'bi bi-envelope-open' : 'bi bi-envelope-check');
       }
 
       setHidden(row.querySelector('[data-notification-unread-dot]'), notification.isRead);
@@ -765,10 +890,11 @@
 
       window.clearTimeout(this.statusTimer);
       this.status.textContent = message || '';
-      this.status.className = `notification-menu__status text-${tone}`;
+      this.status.className = `notification-menu__status ${statusToneClass(tone)}`;
       if (message) {
         this.statusTimer = window.setTimeout(() => {
           this.status.textContent = '';
+          this.status.className = 'notification-menu__status';
         }, STATUS_CLEAR_MS);
       }
     }
@@ -998,13 +1124,13 @@
         this.selectedIds.clear();
         this.setStatus(
           result.affectedCount > 0
-            ? `${result.affectedCount} notification${result.affectedCount === 1 ? '' : 's'} marked read.`
+            ? 'All notifications marked as read.'
             : 'No unread notifications remain.',
           'success');
       } catch (error) {
         this.setStatus(error.message || 'Unable to mark all notifications as read.', 'danger');
       } finally {
-        this.markAllButton.disabled = this.runtime.unreadCount <= 0;
+        this.setUnreadCount(this.runtime.unreadCount);
         this.renderSelection();
       }
     }
@@ -1177,7 +1303,14 @@
     setUnreadCount(count) {
       setText(this.unreadCountElement, count);
       if (this.markAllButton) {
-        this.markAllButton.disabled = count <= 0;
+        const disabled = count <= 0;
+        const label = disabled
+          ? 'No unread notifications'
+          : 'Mark all notifications as read';
+        this.markAllButton.disabled = disabled;
+        this.markAllButton.setAttribute('aria-disabled', String(disabled));
+        this.markAllButton.setAttribute('aria-label', label);
+        this.markAllButton.title = label;
       }
     }
 
@@ -1187,7 +1320,14 @@
       }
 
       this.rows.innerHTML = '';
+      let currentGroup = null;
       this.items.forEach(notification => {
+        const group = notificationDateGroup(notification.createdUtc);
+        if (group.key !== currentGroup) {
+          appendDateGroup(this.rows, group, 'notification-centre__date-group');
+          currentGroup = group.key;
+        }
+
         const row = this.template.content.firstElementChild.cloneNode(true);
         this.populateRow(row, notification);
         this.rows.appendChild(row);
@@ -1237,6 +1377,14 @@
       const summary = row.querySelector('[data-notification-summary]');
       setText(summary, notification.summary);
       setHidden(summary, !notification.summary);
+      if (summary) {
+        const tooltip = notification.summaryTooltip || notification.summary || '';
+        if (tooltip) {
+          summary.title = tooltip;
+        } else {
+          summary.removeAttribute('title');
+        }
+      }
 
       const actor = row.querySelector('[data-notification-actor]');
       const actorSeparator = row.querySelector('[data-notification-actor-separator]');
@@ -1334,10 +1482,11 @@
 
       window.clearTimeout(this.statusTimer);
       this.status.textContent = message || '';
-      this.status.className = `notification-centre__status text-${tone}`;
+      this.status.className = `notification-centre__status ${statusToneClass(tone)}`;
       if (message) {
         this.statusTimer = window.setTimeout(() => {
           this.status.textContent = '';
+          this.status.className = 'notification-centre__status';
         }, STATUS_CLEAR_MS);
       }
     }

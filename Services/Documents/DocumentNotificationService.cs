@@ -128,11 +128,12 @@ public sealed class DocumentNotificationService : IDocumentNotificationService
             var recipients = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             AddRecipient(recipients, project.LeadPoUserId);
             AddRecipient(recipients, project.HodUserId);
+            recipients.Remove(actorUserId.Trim());
 
             if (recipients.Count == 0)
             {
                 _logger.LogInformation(
-                    "No recipients resolved for document notification {Kind} on document {DocumentId}.",
+                    "No recipients other than the actor resolved for document notification {Kind} on document {DocumentId}.",
                     kind,
                     document.Id);
                 return;
@@ -155,10 +156,7 @@ public sealed class DocumentNotificationService : IDocumentNotificationService
                 "Document {0}",
                 actionVerb);
 
-            var summary = string.Format(
-                CultureInfo.InvariantCulture,
-                "{0}",
-                document.Title);
+            var summary = GetDocumentLabel(document);
 
             var payload = new DocumentNotificationPayload(
                 document.Id,
@@ -234,6 +232,21 @@ public sealed class DocumentNotificationService : IDocumentNotificationService
         }
 
         return string.Format(CultureInfo.InvariantCulture, "Project {0}", project.Id);
+    }
+
+    private static string GetDocumentLabel(ProjectDocument document)
+    {
+        if (!string.IsNullOrWhiteSpace(document.Title))
+        {
+            return document.Title.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(document.OriginalFileName))
+        {
+            return document.OriginalFileName.Trim();
+        }
+
+        return string.Format(CultureInfo.InvariantCulture, "Document {0}", document.Id);
     }
 
     private static string BuildRoute(int projectId)

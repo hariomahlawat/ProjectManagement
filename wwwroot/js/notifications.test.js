@@ -157,3 +157,40 @@ test('a missing antiforgery token blocks mutation before any request is sent', a
 
   dom.window.close();
 });
+
+test('bell groups notifications by date and exposes the full summary as a tooltip', async () => {
+  const fixture = await createBell({
+    items: [notification({
+      summary: 'noting sheets – 1',
+      summaryTooltip: 'noting sheets - 1-3676667439909_127133026_2_2026.pdf'
+    })]
+  });
+  const { dom, document } = fixture;
+
+  assert.ok(document.querySelector('[data-notification-date-group]'));
+  assert.equal(
+    document.querySelector('[data-notification-summary]').getAttribute('title'),
+    'noting sheets - 1-3676667439909_127133026_2_2026.pdf');
+
+  dom.window.close();
+});
+
+test('opening a bell notification closes the dropdown before navigation', async () => {
+  const fixture = await createBell();
+  const { dom, window, document } = fixture;
+  let hideCalls = 0;
+
+  window.bootstrap = {
+    Dropdown: {
+      getOrCreateInstance: () => ({ hide: () => { hideCalls += 1; } })
+    }
+  };
+  // Keep the read request pending so JSDOM is not asked to perform the eventual navigation.
+  window.fetch = () => new Promise(() => {});
+
+  document.querySelector('[data-notification-link]')
+    .dispatchEvent(new window.MouseEvent('click', { bubbles: true, button: 0 }));
+
+  assert.equal(hideCalls, 1);
+  dom.window.close();
+});

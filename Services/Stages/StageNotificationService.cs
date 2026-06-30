@@ -55,11 +55,12 @@ public sealed class StageNotificationService : IStageNotificationService
             var recipients = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             AddRecipient(recipients, project.LeadPoUserId);
             AddRecipient(recipients, project.HodUserId);
+            recipients.Remove(actorUserId.Trim());
 
             if (recipients.Count == 0)
             {
                 _logger.LogInformation(
-                    "No recipients resolved for stage notification on project {ProjectId} stage {StageCode}.",
+                    "No recipients other than the actor resolved for stage notification on project {ProjectId} stage {StageCode}.",
                     stage.ProjectId,
                     stage.StageCode);
                 return;
@@ -86,10 +87,9 @@ public sealed class StageNotificationService : IStageNotificationService
 
             var summary = string.Format(
                 CultureInfo.InvariantCulture,
-                "Stage {0} moved from {1} to {2}.",
-                stage.StageCode,
-                previousStatus,
-                stage.Status);
+                "Status changed from {0} to {1}.",
+                ToSentenceStatus(previousStatus),
+                ToSentenceStatus(stage.Status));
 
             var payload = new StageNotificationPayload(
                 stage.Id,
@@ -185,6 +185,14 @@ public sealed class StageNotificationService : IStageNotificationService
             StageStatus.Blocked => "blocked",
             _ => status.ToString(),
         };
+
+    private static string ToSentenceStatus(StageStatus status)
+    {
+        var display = ToDisplayStatus(status);
+        return string.IsNullOrEmpty(display)
+            ? display
+            : char.ToUpperInvariant(display[0]) + display[1..];
+    }
 
     private static string BuildRoute(int projectId, string stageCode)
     {

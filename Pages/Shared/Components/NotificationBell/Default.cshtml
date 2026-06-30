@@ -5,6 +5,9 @@
         Model.Notifications,
         new JsonSerializerOptions(JsonSerializerDefaults.Web));
     var unreadClass = Model.UnreadCount > 0 ? string.Empty : "d-none";
+    var markAllLabel = Model.UnreadCount == 0
+        ? "No unread notifications"
+        : "Mark all notifications as read";
 }
 <div class="dropdown notification-bell"
      data-notification-bell
@@ -55,8 +58,8 @@
                     <button type="button"
                             class="btn btn-sm notification-icon-button"
                             data-notification-action="mark-all-read"
-                            title="Mark all notifications as read"
-                            aria-label="Mark all notifications as read"
+                            title="@markAllLabel"
+                            aria-label="@markAllLabel"
                             @(Model.UnreadCount == 0 ? "disabled" : null)>
                         <span aria-hidden="true" class="bi bi-check2-all"></span>
                     </button>
@@ -107,7 +110,9 @@
                                         </span>
                                         @if (!string.IsNullOrWhiteSpace(item.Summary))
                                         {
-                                            <span class="notification-menu__summary" data-notification-summary>@item.Summary</span>
+                                            <span class="notification-menu__summary"
+                                                  title="@(string.IsNullOrWhiteSpace(item.SummaryTooltip) ? item.Summary : item.SummaryTooltip)"
+                                                  data-notification-summary>@item.Summary</span>
                                         }
                                         <span class="notification-menu__meta">
                                             <time datetime="@item.CreatedUtc.ToString("O")"
@@ -129,7 +134,7 @@
                                             data-notification-id="@item.Id"
                                             title="@(item.IsRead ? "Mark as unread" : "Mark as read")"
                                             aria-label="@(item.IsRead ? "Mark as unread" : "Mark as read")">
-                                        <span aria-hidden="true" class="bi @(item.IsRead ? "bi-envelope-open" : "bi-envelope")"></span>
+                                        <span aria-hidden="true" class="bi @(item.IsRead ? "bi-envelope-open" : "bi-envelope-check")"></span>
                                     </button>
                                 </div>
                             </div>
@@ -143,8 +148,8 @@
                     Open Notification Centre
                     <i class="bi bi-arrow-right" aria-hidden="true"></i>
                 </a>
-                <div class="notification-menu__status" data-notification-status role="status" aria-live="polite"></div>
             </div>
+            <div class="notification-menu__status" data-notification-status role="status" aria-live="polite"></div>
         </div>
 
         <template data-notification-item-template>
@@ -171,7 +176,7 @@
                                 data-notification-id=""
                                 title="Mark as read"
                                 aria-label="Mark as read">
-                            <span aria-hidden="true" class="bi bi-envelope"></span>
+                            <span aria-hidden="true" class="bi bi-envelope-check"></span>
                         </button>
                     </div>
                 </div>

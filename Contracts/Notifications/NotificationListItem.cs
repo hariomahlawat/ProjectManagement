@@ -26,4 +26,5 @@ public sealed record NotificationListItem(
     string IconCssClass = "bi bi-bell",
     string Priority = "Normal",
     bool IsActionRequired = false,
-    DateTime? DeliveredUtc = null);
+    DateTime? DeliveredUtc = null,
+    string? SummaryTooltip = null);

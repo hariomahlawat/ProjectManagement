@@ -22,6 +22,16 @@ public sealed class UserNotificationService
     private const int MaximumPageSize = 100;
     private const int MaximumSearchLength = 120;
 
+    private static readonly NotificationKind[] SuppressedSelfNotificationKinds =
+    {
+        NotificationKind.StageStatusChanged,
+        NotificationKind.DocumentPublished,
+        NotificationKind.DocumentReplaced,
+        NotificationKind.DocumentArchived,
+        NotificationKind.DocumentRestored,
+        NotificationKind.DocumentDeleted,
+    };
+
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
 
@@ -81,6 +91,7 @@ public sealed class UserNotificationService
 
         var items = await ProjectNotificationsAsync(
             rows,
+            userId,
             projectMap,
             mutedProjectIds,
             cancellationToken);
@@ -140,6 +151,7 @@ public sealed class UserNotificationService
 
         return await ProjectNotificationsAsync(
             notifications,
+            userId,
             accessibleProjects,
             mutedProjectIds,
             cancellationToken);
@@ -147,6 +159,7 @@ public sealed class UserNotificationService
 
     private async Task<IReadOnlyList<NotificationListItem>> ProjectNotificationsAsync(
         IReadOnlyCollection<Notification> notifications,
+        string userId,
         IReadOnlyDictionary<int, string> accessibleProjects,
         IReadOnlyCollection<int> mutedProjectIds,
         CancellationToken cancellationToken)
@@ -193,6 +206,13 @@ public sealed class UserNotificationService
                      .OrderByDescending(row => row.CreatedUtc)
                      .ThenByDescending(row => row.Id))
         {
+            if (string.Equals(notification.ActorUserId, userId, StringComparison.Ordinal)
+                && notification.Kind.HasValue
+                && SuppressedSelfNotificationKinds.Contains(notification.Kind.Value))
+            {
+                continue;
+            }
+
             string? projectName = null;
             if (notification.ProjectId is int projectId
                 && !accessibleProjects.TryGetValue(projectId, out projectName))
@@ -204,6 +224,13 @@ public sealed class UserNotificationService
                 notification.Kind,
                 notification.Module,
                 notification.EventType);
+            var content = NotificationContentFormatter.Format(
+                notification.Kind,
+                notification.EventType,
+                notification.ScopeId,
+                projectName,
+                notification.Title,
+                notification.Summary);
             actorNames.TryGetValue(notification.ActorUserId ?? string.Empty, out var actorDisplayName);
 
             results.Add(new NotificationListItem(
@@ -216,8 +243,8 @@ public sealed class UserNotificationService
                 projectName,
                 notification.ActorUserId,
                 NotificationPublisher.NormalizeRouteSegments(notification.Route),
-                notification.Title,
-                notification.Summary,
+                content.Title,
+                content.Summary,
                 EnsureUtc(notification.CreatedUtc),
                 TimeFmt.ToIst(EnsureUtc(notification.CreatedUtc)),
                 notification.SeenUtc.HasValue ? EnsureUtc(notification.SeenUtc.Value) : null,
@@ -229,7 +256,8 @@ public sealed class UserNotificationService
                 presentation.IconCssClass,
                 presentation.Priority,
                 presentation.IsActionRequired,
-                notification.DeliveredUtc.HasValue ? EnsureUtc(notification.DeliveredUtc.Value) : null));
+                notification.DeliveredUtc.HasValue ? EnsureUtc(notification.DeliveredUtc.Value) : null,
+                content.SummaryTooltip));
         }
 
         return results;
@@ -628,6 +656,10 @@ public sealed class UserNotificationService
     {
         var rows = await _db.Notifications
             .Where(n => n.RecipientUserId == userId && ids.Contains(n.Id))
+            .Where(n => n.ActorUserId == null
+                || n.ActorUserId != userId
+                || !n.Kind.HasValue
+                || !SuppressedSelfNotificationKinds.Contains(n.Kind.Value))
             .ToListAsync(cancellationToken);
 
         if (rows.Count == 0)
@@ -658,7 +690,11 @@ public sealed class UserNotificationService
     {
         var query = _db.Notifications
             .AsNoTracking()
-            .Where(n => n.RecipientUserId == userId);
+            .Where(n => n.RecipientUserId == userId)
+            .Where(n => n.ActorUserId == null
+                || n.ActorUserId != userId
+                || !n.Kind.HasValue
+                || !SuppressedSelfNotificationKinds.Contains(n.Kind.Value));
 
         if (accessibleProjectIds.Count == 0)
         {
