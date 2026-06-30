@@ -6,8 +6,8 @@ using ProjectManagement.Models.Notifications;
 namespace ProjectManagement.Services.Notifications;
 
 /// <summary>
-/// Produces concise, user-facing notification text from both current and legacy rows.
-/// This keeps historical notifications readable without mutating durable audit data.
+/// Produces concise, user-facing notification text from current and retained legacy rows.
+/// Durable notification data remains unchanged; presentation is normalised at read time.
 /// </summary>
 public static class NotificationContentFormatter
 {
@@ -35,22 +35,26 @@ public static class NotificationContentFormatter
 
     public static NotificationContent Format(
         NotificationKind? kind,
+        string? module,
         string? eventType,
         string? scopeId,
         string? projectName,
         string? storedTitle,
         string? storedSummary)
     {
-        return kind switch
+        if (kind == NotificationKind.StageStatusChanged
+            || (!kind.HasValue && LooksLikeStage(module, eventType, storedTitle, storedSummary)))
         {
-            NotificationKind.StageStatusChanged => FormatStage(scopeId, projectName, storedTitle, storedSummary),
-            NotificationKind.DocumentPublished => FormatDocument("Document published", projectName, storedTitle, storedSummary),
-            NotificationKind.DocumentReplaced => FormatDocument("Document updated", projectName, storedTitle, storedSummary),
-            NotificationKind.DocumentArchived => FormatDocument("Document archived", projectName, storedTitle, storedSummary),
-            NotificationKind.DocumentRestored => FormatDocument("Document restored", projectName, storedTitle, storedSummary),
-            NotificationKind.DocumentDeleted => FormatDocument("Document deleted", projectName, storedTitle, storedSummary),
-            _ => FormatGeneral(eventType, projectName, storedTitle, storedSummary),
-        };
+            return FormatStage(scopeId, projectName, storedTitle, storedSummary);
+        }
+
+        var documentAction = ResolveDocumentAction(kind, module, eventType, storedTitle, storedSummary);
+        if (documentAction is not null)
+        {
+            return FormatDocument(documentAction, projectName, storedTitle, storedSummary);
+        }
+
+        return FormatGeneral(eventType, projectName, storedTitle, storedSummary);
     }
 
     private static NotificationContent FormatStage(
@@ -66,19 +70,20 @@ public static class NotificationContentFormatter
             ?? ResolveStatusFromTitle(titleWithoutProject, stageCode)
             ?? "updated";
 
+        var statusText = HumanizeToken(currentStatus).ToLowerInvariant();
         var title = string.IsNullOrWhiteSpace(stageCode)
-            ? $"Stage {ToTitleStatus(currentStatus)}"
-            : $"{stageCode} stage {ToTitleStatus(currentStatus)}";
+            ? $"Stage {statusText}"
+            : $"{stageCode} stage {statusText}";
 
-        string? summary = null;
+        string? summary;
         if (!string.IsNullOrWhiteSpace(transition.Previous)
             && !string.IsNullOrWhiteSpace(transition.Current))
         {
             summary = string.Format(
                 CultureInfo.InvariantCulture,
                 "Status changed from {0} to {1}.",
-                ToSentenceStatus(transition.Previous),
-                ToSentenceStatus(transition.Current));
+                HumanizeToken(transition.Previous),
+                HumanizeToken(transition.Current));
         }
         else
         {
@@ -86,7 +91,7 @@ public static class NotificationContentFormatter
             if (!string.IsNullOrWhiteSpace(stageCode))
             {
                 summary = Regex.Replace(
-                    summary ?? string.Empty,
+                    summary,
                     $@"^stage\s+{Regex.Escape(stageCode)}\s+",
                     string.Empty,
                     RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Trim();
@@ -108,7 +113,7 @@ public static class NotificationContentFormatter
             return new NotificationContent(title, null, null);
         }
 
-        var displayLabel = CompactDocumentLabel(fullLabel);
+        var displayLabel = CapitalizeFirst(CompactDocumentLabel(fullLabel));
         var tooltip = string.Equals(displayLabel, fullLabel, StringComparison.Ordinal)
             ? null
             : fullLabel;
@@ -135,6 +140,67 @@ public static class NotificationContentFormatter
 
         var summary = Collapse(storedSummary);
         return new NotificationContent(title, NullIfEmpty(summary), null);
+    }
+
+    private static string? ResolveDocumentAction(
+        NotificationKind? kind,
+        string? module,
+        string? eventType,
+        string? storedTitle,
+        string? storedSummary)
+    {
+        if (kind.HasValue)
+        {
+            return kind.Value switch
+            {
+                NotificationKind.DocumentPublished => "Document published",
+                NotificationKind.DocumentReplaced => "Document updated",
+                NotificationKind.DocumentArchived => "Document archived",
+                NotificationKind.DocumentRestored => "Document restored",
+                NotificationKind.DocumentDeleted => "Document deleted",
+                _ => null,
+            };
+        }
+
+        var combined = string.Join(
+            " ",
+            Collapse(module),
+            Collapse(eventType),
+            Collapse(storedTitle),
+            Collapse(storedSummary));
+        if (!combined.Contains("document", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (ContainsAny(combined, "deleted", "delete")) return "Document deleted";
+        if (ContainsAny(combined, "restored", "restore")) return "Document restored";
+        if (ContainsAny(combined, "archived", "archive")) return "Document archived";
+        if (ContainsAny(combined, "replaced", "replace", "updated", "update")) return "Document updated";
+        if (ContainsAny(combined, "published", "publish")) return "Document published";
+
+        return "Document updated";
+    }
+
+    private static bool LooksLikeStage(
+        string? module,
+        string? eventType,
+        string? storedTitle,
+        string? storedSummary)
+    {
+        var combined = string.Join(
+            " ",
+            Collapse(module),
+            Collapse(eventType),
+            Collapse(storedTitle),
+            Collapse(storedSummary));
+
+        return combined.Contains("stage", StringComparison.OrdinalIgnoreCase)
+            && (combined.Contains("status", StringComparison.OrdinalIgnoreCase)
+                || combined.Contains("moved", StringComparison.OrdinalIgnoreCase)
+                || combined.Contains("completed", StringComparison.OrdinalIgnoreCase)
+                || combined.Contains("inprogress", StringComparison.OrdinalIgnoreCase)
+                || combined.Contains("notstarted", StringComparison.OrdinalIgnoreCase));
     }
 
     private static string ResolveDocumentLabel(
@@ -327,11 +393,18 @@ public static class NotificationContentFormatter
         };
     }
 
-    private static string ToTitleStatus(string value)
-        => HumanizeToken(value).ToLowerInvariant();
+    private static bool ContainsAny(string value, params string[] candidates)
+        => Array.Exists(candidates, candidate => value.Contains(candidate, StringComparison.OrdinalIgnoreCase));
 
-    private static string ToSentenceStatus(string value)
-        => HumanizeToken(value);
+    private static string CapitalizeFirst(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return char.ToUpperInvariant(value[0]) + value[1..];
+    }
 
     private static string ToSentenceCase(string value)
     {

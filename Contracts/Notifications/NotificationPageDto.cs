@@ -10,9 +10,15 @@ public sealed record NotificationPageDto(
     string? NextCursor,
     bool HasMore,
     IReadOnlyList<NotificationProjectOptionDto> Projects,
-    IReadOnlyList<string> Modules);
+    IReadOnlyList<string> Modules,
+    IReadOnlyList<NotificationFolderCountDto> Folders);
 
 public sealed record NotificationProjectOptionDto(int Id, string Label, bool IsMuted);
+
+public sealed record NotificationFolderCountDto(
+    string Key,
+    int TotalCount,
+    int UnreadCount);
 
 public sealed record NotificationIdsRequest(IReadOnlyCollection<int>? Ids);
 

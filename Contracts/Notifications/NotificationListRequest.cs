@@ -10,5 +10,6 @@ public sealed record NotificationListRequest(
     [property: FromQuery(Name = "status")] string? Status,
     [property: FromQuery(Name = "search")] string? Search,
     [property: FromQuery(Name = "module")] string? Module,
+    [property: FromQuery(Name = "folder")] string? Folder,
     [property: FromQuery(Name = "includeMuted")] bool? IncludeMuted,
     [property: FromQuery(Name = "includeFilterOptions")] bool? IncludeFilterOptions);

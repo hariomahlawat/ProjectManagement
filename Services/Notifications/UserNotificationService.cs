@@ -32,6 +32,79 @@ public sealed class UserNotificationService
         NotificationKind.DocumentDeleted,
     };
 
+    private static readonly NotificationKind[] ActionRequiredKinds =
+    {
+        NotificationKind.MentionedInRemark,
+        NotificationKind.PlanSubmitted,
+        NotificationKind.PlanRejected,
+        NotificationKind.StageAssigned,
+        NotificationKind.RoleAssignmentsChanged,
+        NotificationKind.ProjectAssignmentChanged,
+        NotificationKind.TrainingDeleteRequested,
+        NotificationKind.TrainingDeleteRejected,
+        NotificationKind.ActivityDeleteRequested,
+        NotificationKind.ActivityDeleteRejected,
+        NotificationKind.ActionTaskAssigned,
+        NotificationKind.ActionTaskBlocked,
+        NotificationKind.ActionTaskSubmittedForClosure,
+        NotificationKind.ActionTaskDueDateChanged,
+    };
+
+    private static readonly NotificationKind[] ApprovalKinds =
+    {
+        NotificationKind.PlanSubmitted,
+        NotificationKind.PlanApproved,
+        NotificationKind.PlanRejected,
+        NotificationKind.TrainingDeleteRequested,
+        NotificationKind.TrainingDeleteApproved,
+        NotificationKind.TrainingDeleteRejected,
+        NotificationKind.ActivityDeleteRequested,
+        NotificationKind.ActivityDeleteApproved,
+        NotificationKind.ActivityDeleteRejected,
+    };
+
+    private static readonly NotificationKind[] CollaborationKinds =
+    {
+        NotificationKind.RemarkCreated,
+        NotificationKind.MentionedInRemark,
+    };
+
+    private static readonly NotificationKind[] AssignmentKinds =
+    {
+        NotificationKind.StageAssigned,
+        NotificationKind.RoleAssignmentsChanged,
+        NotificationKind.ProjectAssignmentChanged,
+    };
+
+    private static readonly NotificationKind[] LifecycleKinds =
+    {
+        NotificationKind.StageStatusChanged,
+        NotificationKind.StageAssigned,
+    };
+
+    private static readonly NotificationKind[] DocumentKinds =
+    {
+        NotificationKind.DocumentPublished,
+        NotificationKind.DocumentReplaced,
+        NotificationKind.DocumentArchived,
+        NotificationKind.DocumentRestored,
+        NotificationKind.DocumentDeleted,
+    };
+
+    private static readonly NotificationKind[] ActionTaskKinds =
+    {
+        NotificationKind.ActionTaskAssigned,
+        NotificationKind.ActionTaskProgressUpdated,
+        NotificationKind.ActionTaskStatusChanged,
+        NotificationKind.ActionTaskBlocked,
+        NotificationKind.ActionTaskSubmittedForClosure,
+        NotificationKind.ActionTaskClosed,
+        NotificationKind.ActionTaskDueDateChanged,
+        NotificationKind.ActionTaskMovedToBacklog,
+        NotificationKind.ActionTaskRemovedFromSprint,
+        NotificationKind.ActionTaskAddedToSprint,
+    };
+
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
 
@@ -108,6 +181,13 @@ public sealed class UserNotificationService
                 mutedProjectIds,
                 cancellationToken)
             : NotificationFilterOptions.Empty;
+        var folderCounts = options.IncludeFilterOptions
+            ? await GetFolderCountsAsync(
+                userId,
+                accessibleProjectIds,
+                mutedProjectIds,
+                cancellationToken)
+            : Array.Empty<NotificationFolderCountDto>();
 
         var nextCursor = hasMore && rows.Count > 0
             ? NotificationCursor.Encode(rows[^1].CreatedUtc, rows[^1].Id)
@@ -120,7 +200,8 @@ public sealed class UserNotificationService
             nextCursor,
             hasMore,
             filterOptions.Projects,
-            filterOptions.Modules);
+            filterOptions.Modules,
+            folderCounts);
     }
 
     public async Task<IReadOnlyList<NotificationListItem>> ProjectAsync(
@@ -226,6 +307,7 @@ public sealed class UserNotificationService
                 notification.EventType);
             var content = NotificationContentFormatter.Format(
                 notification.Kind,
+                notification.Module,
                 notification.EventType,
                 notification.ScopeId,
                 projectName,
@@ -712,6 +794,8 @@ public sealed class UserNotificationService
         IReadOnlyDictionary<int, string> projectMap,
         IReadOnlyCollection<int> mutedProjectIds)
     {
+        query = ApplyFolderFilter(query, options.Folder, mutedProjectIds);
+
         if (options.ProjectId.HasValue)
         {
             query = query.Where(n => n.ProjectId == options.ProjectId.Value);
@@ -732,22 +816,17 @@ public sealed class UserNotificationService
             query = query.Where(n => n.ReadUtc != null);
         }
 
-        if (options.OnlyMuted)
+        var folder = NormalizeFolder(options.Folder);
+        if (folder is null)
         {
-            if (mutedProjectIds.Count == 0)
+            if (options.OnlyMuted)
             {
-                return query.Where(_ => false);
+                query = FilterMuted(query, mutedProjectIds, onlyMuted: true);
             }
-
-            query = query.Where(n =>
-                n.ProjectId.HasValue
-                && mutedProjectIds.Contains(n.ProjectId.Value));
-        }
-        else if (!options.IncludeMuted && mutedProjectIds.Count > 0)
-        {
-            query = query.Where(n =>
-                !n.ProjectId.HasValue
-                || !mutedProjectIds.Contains(n.ProjectId.Value));
+            else if (!options.IncludeMuted)
+            {
+                query = FilterMuted(query, mutedProjectIds, onlyMuted: false);
+            }
         }
 
         var search = NormalizeSearch(options.Search);
@@ -769,6 +848,113 @@ public sealed class UserNotificationService
         }
 
         return query;
+    }
+
+    private static IQueryable<Notification> ApplyFolderFilter(
+        IQueryable<Notification> query,
+        string? requestedFolder,
+        IReadOnlyCollection<int> mutedProjectIds)
+    {
+        return NormalizeFolder(requestedFolder) switch
+        {
+            "inbox" => FilterMuted(query, mutedProjectIds, onlyMuted: false),
+            "all" => query,
+            "unread" => FilterMuted(query.Where(n => n.ReadUtc == null), mutedProjectIds, onlyMuted: false),
+            "action" => FilterMuted(FilterByKinds(query, ActionRequiredKinds), mutedProjectIds, onlyMuted: false),
+            "approvals" => FilterMuted(FilterByKinds(query, ApprovalKinds), mutedProjectIds, onlyMuted: false),
+            "collaboration" => FilterMuted(FilterByKinds(query, CollaborationKinds), mutedProjectIds, onlyMuted: false),
+            "assignments" => FilterMuted(FilterByKinds(query, AssignmentKinds), mutedProjectIds, onlyMuted: false),
+            "lifecycle" => FilterMuted(FilterByKinds(query, LifecycleKinds), mutedProjectIds, onlyMuted: false),
+            "documents" => FilterMuted(FilterByKinds(query, DocumentKinds), mutedProjectIds, onlyMuted: false),
+            "tasks" => FilterMuted(FilterByKinds(query, ActionTaskKinds), mutedProjectIds, onlyMuted: false),
+            "muted" => FilterMuted(query, mutedProjectIds, onlyMuted: true),
+            _ => query,
+        };
+    }
+
+    private static IQueryable<Notification> FilterByKinds(
+        IQueryable<Notification> query,
+        NotificationKind[] kinds)
+        => query.Where(n => n.Kind.HasValue && kinds.Contains(n.Kind.Value));
+
+    private static IQueryable<Notification> FilterMuted(
+        IQueryable<Notification> query,
+        IReadOnlyCollection<int> mutedProjectIds,
+        bool onlyMuted)
+    {
+        if (mutedProjectIds.Count == 0)
+        {
+            return onlyMuted ? query.Where(_ => false) : query;
+        }
+
+        return onlyMuted
+            ? query.Where(n => n.ProjectId.HasValue && mutedProjectIds.Contains(n.ProjectId.Value))
+            : query.Where(n => !n.ProjectId.HasValue || !mutedProjectIds.Contains(n.ProjectId.Value));
+    }
+
+    private async Task<IReadOnlyList<NotificationFolderCountDto>> GetFolderCountsAsync(
+        string userId,
+        IReadOnlyCollection<int> accessibleProjectIds,
+        IReadOnlyCollection<int> mutedProjectIds,
+        CancellationToken cancellationToken)
+    {
+        var mutedIds = mutedProjectIds.ToArray();
+        var aggregates = await BuildAccessibleQuery(userId, accessibleProjectIds)
+            .Select(notification => new
+            {
+                notification.Kind,
+                IsRead = notification.ReadUtc != null,
+                IsMuted = notification.ProjectId.HasValue
+                    && mutedIds.Contains(notification.ProjectId.Value),
+            })
+            .GroupBy(row => new { row.Kind, row.IsRead, row.IsMuted })
+            .Select(group => new
+            {
+                group.Key.Kind,
+                group.Key.IsRead,
+                group.Key.IsMuted,
+                Count = group.Count(),
+            })
+            .ToListAsync(cancellationToken);
+
+        int CountFolder(
+            IReadOnlyCollection<NotificationKind>? kinds,
+            bool unreadOnly = false,
+            bool includeMuted = false,
+            bool onlyMuted = false)
+            => aggregates
+                .Where(row => !unreadOnly || !row.IsRead)
+                .Where(row => onlyMuted ? row.IsMuted : includeMuted || !row.IsMuted)
+                .Where(row => kinds is null || (row.Kind.HasValue && kinds.Contains(row.Kind.Value)))
+                .Sum(row => row.Count);
+
+        NotificationFolderCountDto Build(
+            string key,
+            IReadOnlyCollection<NotificationKind>? kinds = null,
+            bool includeMuted = false,
+            bool onlyMuted = false)
+            => new(
+                key,
+                CountFolder(kinds, includeMuted: includeMuted, onlyMuted: onlyMuted),
+                CountFolder(kinds, unreadOnly: true, includeMuted: includeMuted, onlyMuted: onlyMuted));
+
+        return new[]
+        {
+            Build("inbox"),
+            new NotificationFolderCountDto(
+                "unread",
+                CountFolder(null, unreadOnly: true),
+                CountFolder(null, unreadOnly: true)),
+            Build("action", ActionRequiredKinds),
+            Build("approvals", ApprovalKinds),
+            Build("collaboration", CollaborationKinds),
+            Build("assignments", AssignmentKinds),
+            Build("lifecycle", LifecycleKinds),
+            Build("documents", DocumentKinds),
+            Build("tasks", ActionTaskKinds),
+            Build("all", includeMuted: true),
+            Build("muted", includeMuted: true, onlyMuted: true),
+        };
     }
 
     private async Task<NotificationFilterOptions> GetFilterOptionsAsync(
@@ -872,6 +1058,30 @@ public sealed class UserNotificationService
             ? Array.Empty<int>()
             : ids.Where(id => id > 0).Distinct().Take(500).ToArray();
 
+    private static string? NormalizeFolder(string? folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            return null;
+        }
+
+        return folder.Trim().ToLowerInvariant() switch
+        {
+            "inbox" => "inbox",
+            "all" => "all",
+            "unread" => "unread",
+            "action" => "action",
+            "approvals" => "approvals",
+            "collaboration" => "collaboration",
+            "assignments" => "assignments",
+            "lifecycle" => "lifecycle",
+            "documents" => "documents",
+            "tasks" => "tasks",
+            "muted" => "muted",
+            _ => null,
+        };
+    }
+
     private static string? NormalizeSearch(string? search)
     {
         if (string.IsNullOrWhiteSpace(search))
@@ -973,6 +1183,8 @@ public sealed class NotificationListOptions
     public int? ProjectId { get; set; }
 
     public string? Module { get; set; }
+
+    public string? Folder { get; set; }
 
     public string? Search { get; set; }
 

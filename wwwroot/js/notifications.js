@@ -56,6 +56,20 @@
     return Number.isFinite(parsed) ? parsed : fallback;
   }
 
+  function formatCompactCount(value) {
+    const count = Math.max(0, asInteger(value));
+    if (count > 999) {
+      return '999+';
+    }
+
+    return String(count);
+  }
+
+  function isModifiedActivation(event) {
+    const button = typeof event?.button === 'number' ? event.button : 0;
+    return Boolean(event?.ctrlKey || event?.metaKey || event?.shiftKey || event?.altKey || button !== 0);
+  }
+
   function safeRoute(route, fallback) {
     if (typeof route !== 'string') {
       return fallback;
@@ -116,7 +130,12 @@
         label: project?.label ?? project?.Label ?? '',
         isMuted: Boolean(project?.isMuted ?? project?.IsMuted)
       })),
-      modules: asArray(raw?.modules ?? raw?.Modules).map(String)
+      modules: asArray(raw?.modules ?? raw?.Modules).map(String),
+      folders: asArray(raw?.folders ?? raw?.Folders).map(folder => ({
+        key: String(folder?.key ?? folder?.Key ?? '').toLowerCase(),
+        totalCount: asInteger(folder?.totalCount ?? folder?.TotalCount),
+        unreadCount: asInteger(folder?.unreadCount ?? folder?.UnreadCount)
+      })).filter(folder => folder.key)
     };
   }
 
@@ -698,7 +717,7 @@
       const id = asInteger(row?.dataset.notificationId);
       const notification = this.items.find(item => item.id === id);
       const route = safeRoute(link.getAttribute('href'), this.centerUrl);
-      const modifiedClick = event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0;
+      const modifiedClick = isModifiedActivation(event);
 
       if (modifiedClick) {
         if (notification && !notification.isRead) {
@@ -787,7 +806,7 @@
     }
 
     setUnreadCount(count) {
-      setText(this.unreadCount, count);
+      setText(this.unreadCount, formatCompactCount(count));
       setText(this.headerCount, count);
       this.unreadBadge?.classList.toggle('d-none', count <= 0);
       this.updateMarkAllButton(count);
@@ -912,18 +931,23 @@
       this.loading = root.querySelector('[data-notification-loading]');
       this.summary = root.querySelector('[data-notification-list-summary]');
       this.status = root.querySelector('[data-notification-status]');
-      this.totalCountElement = root.querySelector('[data-notification-total-count]');
-      this.unreadCountElement = root.querySelector('[data-notification-unread-count]');
+      this.totalCountElements = Array.from(root.querySelectorAll('[data-notification-total-count]'));
+      this.unreadCountElements = Array.from(root.querySelectorAll('[data-notification-unread-count]'));
       this.loadMoreButton = root.querySelector('[data-notification-load-more]');
       this.selectAll = root.querySelector('[data-select-all]');
       this.selectionCount = root.querySelector('[data-selection-count]');
       this.bulkButtons = Array.from(root.querySelectorAll('[data-notification-bulk]'));
       this.markAllButton = root.querySelector('[data-notification-action="mark-all-read"]');
       this.filtersForm = root.querySelector('[data-notification-filters]');
+      this.defaultActions = root.querySelector('[data-default-actions]');
+      this.selectionActions = root.querySelector('[data-selection-actions]');
+      this.folderButtons = Array.from(root.querySelectorAll('[data-notification-folder]'));
+      this.folderCountElements = Array.from(root.querySelectorAll('[data-folder-count]'));
       this.statusTimer = null;
-      this.newNotificationRefresh = debounce(() => this.refresh({ silent: true }), 500);
+      this.newNotificationRefresh = debounce(() => this.refresh({ silent: true }), 450);
       this.selectedIds = new Set();
       this.filters = {
+        folder: root.dataset.activeFolder || 'inbox',
         status: 'all',
         projectId: '',
         module: '',
@@ -937,8 +961,10 @@
       this.hasMore = initial.hasMore;
       this.projects = initial.projects;
       this.modules = initial.modules;
+      this.folders = initial.folders;
 
       this.bind();
+      this.updateFolderNavigation();
       this.render();
     }
 
@@ -952,11 +978,26 @@
           } else {
             this.selectedIds.delete(id);
           }
-          this.updateBulkState();
+          this.renderSelection();
         }
       });
 
       this.root.addEventListener('click', event => {
+        const folder = event.target.closest('[data-notification-folder]');
+        if (folder && this.root.contains(folder)) {
+          event.preventDefault();
+          this.setFolder(folder.dataset.notificationFolder);
+          return;
+        }
+
+        const rowAction = event.target.closest('[data-notification-row-action]');
+        if (rowAction && this.root.contains(rowAction)) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.handleRowAction(rowAction);
+          return;
+        }
+
         const bulk = event.target.closest('[data-notification-bulk]');
         if (bulk && this.root.contains(bulk)) {
           event.preventDefault();
@@ -977,9 +1018,52 @@
           return;
         }
 
+        const openNew = event.target.closest('[data-notification-open-new]');
+        if (openNew && this.root.contains(openNew)) {
+          const row = openNew.closest('[data-notification-row]');
+          const id = asInteger(row?.dataset.notificationId);
+          const notification = this.items.find(item => item.id === id);
+          if (notification && !notification.isRead) {
+            this.runtime.markRead([id], { keepalive: true }).catch(() => {});
+          }
+          return;
+        }
+
         const link = event.target.closest('[data-notification-link]');
         if (link && this.root.contains(link)) {
           this.openNotification(event, link);
+          return;
+        }
+
+        const row = event.target.closest('[data-notification-row]');
+        if (row && this.root.contains(row)
+            && !event.target.closest('a, button, input, label, select, textarea')) {
+          const rowLink = row.querySelector('[data-notification-link]');
+          if (rowLink) {
+            this.openNotification(event, rowLink);
+          }
+        }
+      });
+
+      this.root.addEventListener('keydown', event => {
+        const row = event.target.closest('[data-notification-row]');
+        if (!row || !this.root.contains(row)
+            || event.target.closest('a, button, input, select, textarea')) {
+          return;
+        }
+
+        if (event.key === 'Enter') {
+          const link = row.querySelector('[data-notification-link]');
+          if (link) {
+            this.openNotification(event, link);
+          }
+        } else if (event.key === ' ') {
+          event.preventDefault();
+          const checkbox = row.querySelector('[data-notification-select]');
+          if (checkbox) {
+            checkbox.checked = !checkbox.checked;
+            checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+          }
         }
       });
 
@@ -1025,15 +1109,38 @@
       }
     }
 
+    setFolder(folder) {
+      const normalized = String(folder || 'inbox').toLowerCase();
+      if (normalized === this.filters.folder) {
+        return;
+      }
+
+      this.filters.folder = normalized;
+      this.root.dataset.activeFolder = normalized;
+      this.selectedIds.clear();
+
+      if (normalized === 'unread' || normalized === 'muted') {
+        this.filters.status = 'all';
+        const status = this.filtersForm?.querySelector('[data-filter-status]');
+        if (status) {
+          status.value = 'all';
+        }
+      }
+
+      this.updateFolderNavigation();
+      this.refresh();
+    }
+
     queryParameters(cursor = null) {
       return {
         limit: this.pageSize,
         cursor,
+        folder: this.filters.folder,
         status: this.filters.status === 'all' ? '' : this.filters.status,
         projectId: this.filters.projectId,
         module: this.filters.module,
         search: this.filters.search,
-        includeMuted: true,
+        includeMuted: this.filters.folder === 'all' || this.filters.folder === 'muted',
         includeFilterOptions: cursor == null
       };
     }
@@ -1060,7 +1167,7 @@
     }
 
     async loadMore() {
-      if (!this.hasMore || !this.nextCursor) {
+      if (!this.hasMore || !this.nextCursor || !this.loadMoreButton) {
         return;
       }
 
@@ -1092,14 +1199,21 @@
       if (!append) {
         this.projects = page.projects;
         this.modules = page.modules;
+        if (page.folders.length > 0) {
+          this.folders = page.folders;
+        }
         this.updateFilterOptions();
+        this.updateFolderNavigation();
       }
       this.runtime.setUnreadCount(page.unreadCount);
       this.render();
     }
 
     clearFilters() {
-      this.filters = { status: 'all', projectId: '', module: '', search: '' };
+      this.filters.status = 'all';
+      this.filters.projectId = '';
+      this.filters.module = '';
+      this.filters.search = '';
       const status = this.filtersForm?.querySelector('[data-filter-status]');
       const project = this.filtersForm?.querySelector('[data-filter-project]');
       const module = this.filtersForm?.querySelector('[data-filter-module]');
@@ -1111,13 +1225,13 @@
       this.refresh();
     }
 
-
     async markAllRead() {
       if (!this.markAllButton || this.runtime.unreadCount <= 0) {
         return;
       }
 
       this.markAllButton.disabled = true;
+      this.markAllButton.setAttribute('aria-busy', 'true');
       this.setStatus('Marking all notifications as read…', 'muted');
       try {
         const result = await this.runtime.markAllRead();
@@ -1127,9 +1241,11 @@
             ? 'All notifications marked as read.'
             : 'No unread notifications remain.',
           'success');
+        this.newNotificationRefresh();
       } catch (error) {
         this.setStatus(error.message || 'Unable to mark all notifications as read.', 'danger');
       } finally {
+        this.markAllButton.removeAttribute('aria-busy');
         this.setUnreadCount(this.runtime.unreadCount);
         this.renderSelection();
       }
@@ -1165,6 +1281,7 @@
           }
           this.setStatus(`${projects.length} project${projects.length === 1 ? '' : 's'} ${muted ? 'muted' : 'unmuted'}.`, 'success');
         }
+        this.newNotificationRefresh();
       } catch (error) {
         this.setStatus(error.message || 'Unable to update notifications.', 'danger');
       } finally {
@@ -1173,22 +1290,62 @@
       }
     }
 
+    async handleRowAction(button) {
+      const row = button.closest('[data-notification-row]');
+      const id = asInteger(row?.dataset.notificationId);
+      const notification = this.items.find(item => item.id === id);
+      if (!notification) {
+        return;
+      }
+
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      try {
+        if (button.dataset.notificationRowAction === 'toggle-read') {
+          if (notification.isRead) {
+            await this.runtime.markUnread([id]);
+            this.setStatus('Notification marked unread.', 'success');
+          } else {
+            await this.runtime.markRead([id]);
+            this.setStatus('Notification marked read.', 'success');
+          }
+        } else if (button.dataset.notificationRowAction === 'toggle-mute') {
+          if (notification.projectId == null) {
+            throw new Error('This notification is not linked to a project.');
+          }
+          await this.runtime.muteProject(notification.projectId, !notification.isProjectMuted);
+          this.setStatus(notification.isProjectMuted ? 'Project muted.' : 'Project unmuted.', 'success');
+        }
+        this.newNotificationRefresh();
+      } catch (error) {
+        this.setStatus(error.message || 'Unable to update notification.', 'danger');
+      } finally {
+        if (button.isConnected) {
+          button.disabled = false;
+          button.removeAttribute('aria-busy');
+        }
+      }
+    }
+
     openNotification(event, link) {
       const row = link.closest('[data-notification-row]');
       const id = asInteger(row?.dataset.notificationId);
       const notification = this.items.find(item => item.id === id);
-      if (!notification || notification.isRead) {
-        return;
-      }
-
       const route = safeRoute(link.getAttribute('href'), this.centerUrl);
-      const modifiedClick = event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0;
-      if (modifiedClick) {
-        this.runtime.markRead([id], { keepalive: true }).catch(() => {});
+
+      if (isModifiedActivation(event)) {
+        if (notification && !notification.isRead) {
+          this.runtime.markRead([id], { keepalive: true }).catch(() => {});
+        }
         return;
       }
 
       event.preventDefault();
+      if (!notification || notification.isRead) {
+        window.location.assign(route);
+        return;
+      }
+
       Promise.race([
         this.runtime.markRead([id]),
         new Promise(resolve => window.setTimeout(resolve, 500))
@@ -1198,28 +1355,27 @@
     }
 
     handleNewNotification(notification) {
-      const hasActiveFilter = this.filters.status !== 'all'
+      const hasActiveFilter = this.filters.folder !== 'inbox'
+        || this.filters.status !== 'all'
         || this.filters.projectId
         || this.filters.module
         || this.filters.search;
 
-      if (hasActiveFilter) {
-        this.newNotificationRefresh();
-        return;
+      if (!hasActiveFilter && !notification.isProjectMuted) {
+        const isExisting = this.items.some(item => item.id === notification.id);
+        this.items = [notification, ...this.items.filter(item => item.id !== notification.id)]
+          .sort((a, b) => new Date(b.createdUtc) - new Date(a.createdUtc));
+        if (!isExisting) {
+          this.totalCount += 1;
+        }
+        this.render();
       }
 
-      const isExisting = this.items.some(item => item.id === notification.id);
-      this.items = [notification, ...this.items.filter(item => item.id !== notification.id)]
-        .sort((a, b) => new Date(b.createdUtc) - new Date(a.createdUtc));
-      if (!isExisting) {
-        this.totalCount += 1;
-      }
-      this.render();
+      this.newNotificationRefresh();
     }
 
     handleNotificationList() {
-      // The full-list hub message is intended for compact bell clients. The centre keeps its
-      // server-side filters and cursor state and therefore refreshes instead of replacing rows.
+      // The centre keeps its server-side folder, filter and cursor state.
     }
 
     handleStateMutation(mutation) {
@@ -1237,18 +1393,16 @@
         }
       });
 
-      if (mutation.appliesToAll && this.filters.status === 'unread' && mutation.isRead) {
-        this.items = this.items.filter(item => item.isProjectMuted);
-        this.totalCount = Math.max(0, this.totalCount - mutation.affectedCount);
-        this.nextCursor = null;
-        this.hasMore = this.totalCount > this.items.length;
-        this.newNotificationRefresh();
-      } else if (mutation.appliesToAll && this.filters.status === 'read' && mutation.isRead) {
-        // Previously-unread rows now qualify for this server-side filter. Refresh rather than
-        // presenting an incomplete local projection.
-        this.newNotificationRefresh();
-      } else if ((this.filters.status === 'unread' && mutation.isRead)
-          || (this.filters.status === 'read' && !mutation.isRead)) {
+      const folderRequiresUnread = this.filters.folder === 'unread';
+      if ((folderRequiresUnread || this.filters.status === 'unread') && mutation.isRead) {
+        const removed = mutation.appliesToAll
+          ? this.items.filter(item => !item.isProjectMuted).length
+          : this.items.filter(item => ids.has(item.id)).length;
+        this.items = mutation.appliesToAll
+          ? this.items.filter(item => item.isProjectMuted)
+          : this.items.filter(item => !ids.has(item.id));
+        this.totalCount = Math.max(0, this.totalCount - removed);
+      } else if (this.filters.status === 'read' && !mutation.isRead) {
         const removed = this.items.filter(item => ids.has(item.id)).length;
         this.items = this.items.filter(item => !ids.has(item.id));
         this.totalCount = Math.max(0, this.totalCount - removed);
@@ -1256,6 +1410,7 @@
 
       this.selectedIds = new Set(Array.from(this.selectedIds).filter(id => this.items.some(item => item.id === id)));
       this.render();
+      this.newNotificationRefresh();
     }
 
     handleSeenMutation(mutation) {
@@ -1285,23 +1440,23 @@
         : project);
       this.updateFilterOptions();
 
-      if (this.filters.status === 'muted' && !mutation.isMuted) {
+      if (this.filters.folder === 'inbox' && mutation.isMuted) {
         const removed = this.items.filter(item => item.projectId === mutation.projectId).length;
         this.items = this.items.filter(item => item.projectId !== mutation.projectId);
         this.totalCount = Math.max(0, this.totalCount - removed);
-      } else if (this.filters.status === 'unread' && mutation.changedNotificationIds.length > 0) {
-        const changed = new Set(mutation.changedNotificationIds);
-        const removed = this.items.filter(item => changed.has(item.id)).length;
-        this.items = this.items.filter(item => !changed.has(item.id));
+      } else if (this.filters.folder === 'muted' && !mutation.isMuted) {
+        const removed = this.items.filter(item => item.projectId === mutation.projectId).length;
+        this.items = this.items.filter(item => item.projectId !== mutation.projectId);
         this.totalCount = Math.max(0, this.totalCount - removed);
       }
 
       this.selectedIds = new Set(Array.from(this.selectedIds).filter(id => this.items.some(item => item.id === id)));
       this.render();
+      this.newNotificationRefresh();
     }
 
     setUnreadCount(count) {
-      setText(this.unreadCountElement, count);
+      this.unreadCountElements.forEach(element => setText(element, count));
       if (this.markAllButton) {
         const disabled = count <= 0;
         const label = disabled
@@ -1312,6 +1467,17 @@
         this.markAllButton.setAttribute('aria-label', label);
         this.markAllButton.title = label;
       }
+
+      const inbox = this.folders.find(folder => folder.key === 'inbox');
+      if (inbox) {
+        inbox.unreadCount = count;
+      }
+      const unread = this.folders.find(folder => folder.key === 'unread');
+      if (unread) {
+        unread.totalCount = count;
+        unread.unreadCount = count;
+      }
+      this.updateFolderNavigation();
     }
 
     render() {
@@ -1324,7 +1490,7 @@
       this.items.forEach(notification => {
         const group = notificationDateGroup(notification.createdUtc);
         if (group.key !== currentGroup) {
-          appendDateGroup(this.rows, group, 'notification-centre__date-group');
+          appendDateGroup(this.rows, group, 'notification-inbox__date-group');
           currentGroup = group.key;
         }
 
@@ -1334,14 +1500,15 @@
       });
 
       setHidden(this.empty, this.items.length !== 0);
-      setText(this.totalCountElement, this.totalCount);
+      this.totalCountElements.forEach(element => setText(element, this.totalCount));
       if (this.summary) {
-        this.summary.textContent = `Showing ${this.items.length} of ${this.totalCount} notification${this.totalCount === 1 ? '' : 's'}`;
+        this.summary.textContent = `Showing ${this.items.length} of ${this.totalCount}`;
       }
       if (this.loadMoreButton) {
         this.loadMoreButton.hidden = !this.hasMore;
       }
       this.renderSelection();
+      this.updateFolderNavigation();
     }
 
     populateRow(row, notification) {
@@ -1351,6 +1518,7 @@
       row.dataset.muted = String(notification.isProjectMuted);
       row.classList.toggle('is-read', notification.isRead);
       row.classList.toggle('is-unread', !notification.isRead);
+      row.classList.toggle('is-muted', notification.isProjectMuted);
 
       const checkbox = row.querySelector('[data-notification-select]');
       if (checkbox) {
@@ -1359,24 +1527,21 @@
       }
 
       setIcon(row.querySelector('[data-notification-icon]'), notification.iconCssClass);
+      setText(row.querySelector('[data-notification-project]'), notification.projectName || notification.category);
       setText(row.querySelector('[data-notification-category]'), notification.category);
-
-      const project = row.querySelector('[data-notification-project]');
-      const projectSeparator = row.querySelector('[data-notification-project-separator]');
-      setText(project, notification.projectName);
-      setHidden(project, !notification.projectName);
-      setHidden(projectSeparator, !notification.projectName);
-
-      const actionRequired = row.querySelector('[data-notification-action-required]');
-      setHidden(actionRequired, !notification.isActionRequired);
+      setHidden(row.querySelector('[data-notification-action-required]'), !notification.isActionRequired);
+      setHidden(row.querySelector('[data-notification-muted]'), !notification.isProjectMuted);
 
       const title = row.querySelector('[data-notification-title]');
       setText(title, notification.title || 'Notification');
-      title?.setAttribute('href', safeRoute(notification.route, this.centerUrl));
+      const route = safeRoute(notification.route, this.centerUrl);
+      title?.setAttribute('href', route);
 
       const summary = row.querySelector('[data-notification-summary]');
+      const summarySeparator = row.querySelector('[data-notification-summary-separator]');
       setText(summary, notification.summary);
       setHidden(summary, !notification.summary);
+      setHidden(summarySeparator, !notification.summary);
       if (summary) {
         const tooltip = notification.summaryTooltip || notification.summary || '';
         if (tooltip) {
@@ -1387,20 +1552,37 @@
       }
 
       const actor = row.querySelector('[data-notification-actor]');
-      const actorSeparator = row.querySelector('[data-notification-actor-separator]');
       setText(actor, notification.actorDisplayName);
       setHidden(actor, !notification.actorDisplayName);
-      setHidden(actorSeparator, !notification.actorDisplayName);
 
       setTimeElement(row.querySelector('[data-notification-created]'), notification);
-      setHidden(row.querySelector('[data-notification-muted]'), !notification.isProjectMuted);
+      setHidden(row.querySelector('[data-notification-unread-dot]'), notification.isRead);
+
+      const readButton = row.querySelector('[data-notification-row-action="toggle-read"]');
+      if (readButton) {
+        const label = notification.isRead ? 'Mark as unread' : 'Mark as read';
+        readButton.title = label;
+        readButton.setAttribute('aria-label', label);
+        setIcon(readButton.querySelector('.bi'), notification.isRead ? 'bi bi-envelope' : 'bi bi-envelope-open');
+      }
+
+      const muteButton = row.querySelector('[data-notification-row-action="toggle-mute"]');
+      if (muteButton) {
+        setHidden(muteButton, notification.projectId == null);
+        const label = notification.isProjectMuted ? 'Unmute project' : 'Mute project';
+        muteButton.title = label;
+        muteButton.setAttribute('aria-label', label);
+        setIcon(muteButton.querySelector('.bi'), notification.isProjectMuted ? 'bi bi-bell' : 'bi bi-bell-slash');
+      }
+
+      const openNew = row.querySelector('[data-notification-open-new]');
+      openNew?.setAttribute('href', route);
 
       const state = row.querySelector('[data-notification-state]');
-      if (state) {
-        state.textContent = notification.isRead ? 'Read' : 'Unread';
-        state.classList.toggle('is-read', notification.isRead);
-        state.classList.toggle('is-unread', !notification.isRead);
-      }
+      setText(state, notification.isRead ? 'Read' : 'Unread');
+      row.setAttribute(
+        'aria-label',
+        `${notification.isRead ? 'Read' : 'Unread'} notification: ${notification.title || 'Notification'}`);
     }
 
     renderSelection() {
@@ -1415,6 +1597,9 @@
         this.selectAll.indeterminate = selectedLoaded > 0 && selectedLoaded < loadedIds.length;
       }
 
+      const hasSelection = this.selectedIds.size > 0;
+      setHidden(this.defaultActions, hasSelection);
+      setHidden(this.selectionActions, !hasSelection);
       setText(this.selectionCount, `${this.selectedIds.size} selected`);
       this.updateBulkState();
     }
@@ -1471,6 +1656,27 @@
       }
     }
 
+    updateFolderNavigation() {
+      this.folderButtons.forEach(button => {
+        const active = button.dataset.notificationFolder === this.filters.folder;
+        button.classList.toggle('is-active', active);
+        if (active) {
+          button.setAttribute('aria-current', 'page');
+        } else {
+          button.removeAttribute('aria-current');
+        }
+      });
+
+      this.folderCountElements.forEach(element => {
+        const folder = this.folders.find(item => item.key === element.dataset.folderKey);
+        const mode = element.dataset.folderCountMode || 'unread';
+        const count = folder
+          ? (mode === 'total' ? folder.totalCount : folder.unreadCount)
+          : 0;
+        element.textContent = count > 0 ? formatCompactCount(count) : '';
+      });
+    }
+
     setLoading(loading) {
       setHidden(this.loading, !loading);
     }
@@ -1482,11 +1688,11 @@
 
       window.clearTimeout(this.statusTimer);
       this.status.textContent = message || '';
-      this.status.className = `notification-centre__status ${statusToneClass(tone)}`;
+      this.status.className = `notification-inbox__status ${statusToneClass(tone)}`;
       if (message) {
         this.statusTimer = window.setTimeout(() => {
           this.status.textContent = '';
-          this.status.className = 'notification-centre__status';
+          this.status.className = 'notification-inbox__status';
         }, STATUS_CLEAR_MS);
       }
     }

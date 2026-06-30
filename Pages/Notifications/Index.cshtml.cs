@@ -41,7 +41,8 @@ public sealed class IndexModel : PageModel
             new NotificationListOptions
             {
                 Limit = pageSize,
-                IncludeMuted = true,
+                Folder = "inbox",
+                IncludeMuted = false,
             },
             cancellationToken);
 
@@ -52,6 +53,12 @@ public sealed class IndexModel : PageModel
                 .Select(project => new ProjectFilterOption(project.Id, project.Label, project.IsMuted))
                 .ToList(),
             Modules = page.Modules,
+            Folders = page.Folders
+                .Select(folder => new NotificationFolderOption(
+                    folder.Key,
+                    folder.TotalCount,
+                    folder.UnreadCount))
+                .ToList(),
             UnreadCount = page.UnreadCount,
             TotalCount = page.TotalCount,
             NextCursor = page.NextCursor,

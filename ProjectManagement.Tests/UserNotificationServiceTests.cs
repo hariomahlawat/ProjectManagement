@@ -280,7 +280,7 @@ public sealed class UserNotificationServiceTests
             document =>
             {
                 Assert.Equal("Document published", document.Title);
-                Assert.Equal("noting sheets – 1", document.Summary);
+                Assert.Equal("Noting sheets – 1", document.Summary);
                 Assert.NotNull(document.SummaryTooltip);
             });
     }
@@ -322,6 +322,154 @@ public sealed class UserNotificationServiceTests
         Assert.Single(page.Items);
         Assert.Equal("other-user", page.Items[0].ActorUserId);
         Assert.Equal(1, page.UnreadCount);
+    }
+
+
+    [Fact]
+    public async Task ListPageAsync_FiltersGmailFoldersAndReturnsFolderCounts()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"user-notification-tests-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var clock = new TestClock(new DateTimeOffset(2026, 6, 30, 12, 0, 0, TimeSpan.Zero));
+        var service = new UserNotificationService(context, clock);
+        var principal = CreatePrincipal("user-1");
+        var now = clock.UtcNow.UtcDateTime;
+
+        context.Projects.AddRange(
+            new Project { Id = 1, Name = "Active Project", LeadPoUserId = "user-1" },
+            new Project { Id = 2, Name = "Muted Project", LeadPoUserId = "user-1" });
+        context.UserProjectMutes.Add(new UserProjectMute { UserId = "user-1", ProjectId = 2 });
+        context.Notifications.AddRange(
+            new Notification
+            {
+                Id = 1,
+                RecipientUserId = "user-1",
+                ProjectId = 1,
+                Kind = NotificationKind.StageStatusChanged,
+                CreatedUtc = now,
+            },
+            new Notification
+            {
+                Id = 2,
+                RecipientUserId = "user-1",
+                ProjectId = 1,
+                Kind = NotificationKind.DocumentPublished,
+                CreatedUtc = now.AddMinutes(-1),
+                ReadUtc = now,
+            },
+            new Notification
+            {
+                Id = 3,
+                RecipientUserId = "user-1",
+                ProjectId = 1,
+                Kind = NotificationKind.PlanSubmitted,
+                CreatedUtc = now.AddMinutes(-2),
+            },
+            new Notification
+            {
+                Id = 4,
+                RecipientUserId = "user-1",
+                ProjectId = 2,
+                Kind = NotificationKind.StageStatusChanged,
+                CreatedUtc = now.AddMinutes(-3),
+            });
+        await context.SaveChangesAsync();
+
+        var inbox = await service.ListPageAsync(
+            principal,
+            "user-1",
+            new NotificationListOptions { Folder = "inbox" });
+        var approvals = await service.ListPageAsync(
+            principal,
+            "user-1",
+            new NotificationListOptions { Folder = "approvals" });
+        var muted = await service.ListPageAsync(
+            principal,
+            "user-1",
+            new NotificationListOptions { Folder = "muted" });
+
+        Assert.Equal(new[] { 1, 2, 3 }, inbox.Items.Select(item => item.Id));
+        Assert.Single(approvals.Items);
+        Assert.Equal(3, approvals.Items[0].Id);
+        Assert.Single(muted.Items);
+        Assert.Equal(4, muted.Items[0].Id);
+
+        var inboxCount = Assert.Single(inbox.Folders.Where(folder => folder.Key == "inbox"));
+        var unreadCount = Assert.Single(inbox.Folders.Where(folder => folder.Key == "unread"));
+        var documentCount = Assert.Single(inbox.Folders.Where(folder => folder.Key == "documents"));
+        var mutedCount = Assert.Single(inbox.Folders.Where(folder => folder.Key == "muted"));
+
+        Assert.Equal(3, inboxCount.TotalCount);
+        Assert.Equal(2, inboxCount.UnreadCount);
+        Assert.Equal(2, unreadCount.TotalCount);
+        Assert.Equal(1, documentCount.TotalCount);
+        Assert.Equal(1, mutedCount.TotalCount);
+    }
+
+    [Fact]
+    public async Task ProjectAsync_InfersLegacyStageAndDocumentKindsWhenKindIsMissing()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"user-notification-tests-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var clock = new TestClock(new DateTimeOffset(2026, 6, 30, 12, 0, 0, TimeSpan.Zero));
+        var service = new UserNotificationService(context, clock);
+
+        context.Projects.Add(new Project
+        {
+            Id = 42,
+            Name = "Project Nebula",
+            LeadPoUserId = "user-1",
+        });
+        await context.SaveChangesAsync();
+
+        var results = await service.ProjectAsync(
+            CreatePrincipal("user-1"),
+            "user-1",
+            new[]
+            {
+                new Notification
+                {
+                    Id = 1,
+                    RecipientUserId = "user-1",
+                    ProjectId = 42,
+                    Module = "Stages",
+                    EventType = "StageStatusChanged",
+                    ScopeId = "42:TEC",
+                    Title = "Project Nebula stage TEC Completed",
+                    Summary = "Stage TEC moved from NotStarted to Completed.",
+                    CreatedUtc = clock.UtcNow.UtcDateTime,
+                },
+                new Notification
+                {
+                    Id = 2,
+                    RecipientUserId = "user-1",
+                    ProjectId = 42,
+                    Module = "Documents",
+                    EventType = "DocumentPublished",
+                    Title = "Project Nebula document noting sheets - 1-3676667439909_127133026_2_2026 published",
+                    Summary = "Document noting sheets - 1-3676667439909_127133026_2_2026 was published.",
+                    CreatedUtc = clock.UtcNow.UtcDateTime.AddMinutes(-1),
+                },
+            });
+
+        Assert.Collection(
+            results,
+            stage =>
+            {
+                Assert.Equal("TEC stage completed", stage.Title);
+                Assert.Equal("Status changed from Not started to Completed.", stage.Summary);
+            },
+            document =>
+            {
+                Assert.Equal("Document published", document.Title);
+                Assert.Equal("Noting sheets – 1", document.Summary);
+            });
     }
 
     private static ClaimsPrincipal CreatePrincipal(string userId)

@@ -1348,6 +1348,7 @@ notificationsApi.MapGet("", async ([AsParameters] NotificationListRequest reques
         Cursor = request.Cursor,
         Search = request.Search,
         Module = request.Module,
+        Folder = request.Folder,
         IncludeFilterOptions = request.IncludeFilterOptions ?? true,
     };
 
