@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Services.Stages;
@@ -157,15 +158,33 @@ public class BackfillApplyModel : PageModel
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogError(ex,
-                "Database rejected stage backfill for project {ProjectId}. Ensure the latest ProjectStages constraint migration has been applied.",
-                input.ProjectId);
+            var postgres = FindPostgresException(ex);
+            _logger.LogError(
+                ex,
+                "Database rejected stage backfill for project {ProjectId}. SqlState={SqlState}; Constraint={Constraint}; Table={Table}.",
+                input.ProjectId,
+                postgres?.SqlState,
+                postgres?.ConstraintName,
+                postgres?.TableName);
 
-            return StatusCode(StatusCodes.Status409Conflict, new
+            if (string.Equals(
+                    postgres?.ConstraintName,
+                    "CK_ProjectStages_CompletedHasDate",
+                    StringComparison.Ordinal))
+            {
+                return StatusCode(StatusCodes.Status409Conflict, new
+                {
+                    ok = false,
+                    error = "database-rule-conflict",
+                    message = "The stage dates could not be saved because the project-stage database upgrade did not complete. Restart the application and contact the administrator if the problem persists."
+                });
+            }
+
+            return StatusCode(StatusCodes.Status500InternalServerError, new
             {
                 ok = false,
-                error = "database-rule-conflict",
-                message = "The stage dates could not be saved because the database rules are out of date. Apply the latest database migration and try again."
+                error = "database-error",
+                message = "The stage dates could not be saved. No changes were committed."
             });
         }
         catch (OperationCanceledException)
@@ -181,6 +200,19 @@ public class BackfillApplyModel : PageModel
                 error = "server-error"
             });
         }
+    }
+
+    private static PostgresException? FindPostgresException(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is PostgresException postgres)
+            {
+                return postgres;
+            }
+        }
+
+        return null;
     }
 
     private static UnprocessableEntityObjectResult ValidationFailure(IEnumerable<string> details)

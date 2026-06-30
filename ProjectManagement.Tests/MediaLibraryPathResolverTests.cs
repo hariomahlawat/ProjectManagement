@@ -10,18 +10,31 @@ public sealed class MediaLibraryPathResolverTests
     [Fact]
     public void ResolveAssetPath_AllowsFileWithinLocalRoot()
     {
-        var root = Path.Combine(Path.GetTempPath(), "prism-media", Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "prism-media",
+            Guid.NewGuid().ToString("N"));
 
-        var result = _resolver.ResolveAssetPath(root, Path.Combine("Events", "photo.jpg"));
+        var relativeAssetPath = Path.Combine("Events", "photo.jpg");
+        var result = _resolver.ResolveAssetPath(root, relativeAssetPath);
 
-        Assert.True(result.StartsWith(Path.GetFullPath(root), StringComparison.OrdinalIgnoreCase));
-        Assert.True(result.EndsWith(Path.Combine("Events", "photo.jpg"), StringComparison.OrdinalIgnoreCase));
+        Assert.StartsWith(
+            Path.GetFullPath(root),
+            result,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(
+            relativeAssetPath,
+            result,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public void ResolveAssetPath_RejectsTraversalOutsideRoot()
     {
-        var root = Path.Combine(Path.GetTempPath(), "prism-media", Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "prism-media",
+            Guid.NewGuid().ToString("N"));
 
         Assert.Throws<InvalidOperationException>(() =>
             _resolver.ResolveAssetPath(root, Path.Combine("..", "secret.jpg")));
@@ -30,13 +43,15 @@ public sealed class MediaLibraryPathResolverTests
     [Fact]
     public void ResolveAssetPath_RejectsAbsoluteAssetPath()
     {
-        var root = Path.Combine(Path.GetTempPath(), "prism-media", Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "prism-media",
+            Guid.NewGuid().ToString("N"));
         var absolute = Path.Combine(Path.GetPathRoot(root)!, "outside", "photo.jpg");
 
         Assert.Throws<InvalidOperationException>(() =>
             _resolver.ResolveAssetPath(root, absolute));
     }
-
 
     [Fact]
     public void ResolveAssetPath_UsesCaseSensitiveBoundaryOnNonWindowsSystems()
@@ -46,7 +61,10 @@ public sealed class MediaLibraryPathResolverTests
             return;
         }
 
-        var parent = Path.Combine(Path.GetTempPath(), "prism-media", Guid.NewGuid().ToString("N"));
+        var parent = Path.Combine(
+            Path.GetTempPath(),
+            "prism-media",
+            Guid.NewGuid().ToString("N"));
         var root = Path.Combine(parent, "Photos");
         var siblingWithDifferentCase = Path.Combine("..", "photos", "secret.jpg");
 

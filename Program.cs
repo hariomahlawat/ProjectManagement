@@ -758,12 +758,11 @@ var developmentLoopbackOrigins = builder.Environment.IsDevelopment()
 var app = builder.Build();
 
 // SECTION: Database startup policy
-// Migrations and initial data seeding are intentionally controlled independently.
-// - Development always applies pending migrations.
-// - Other environments apply migrations only when Database:ApplyMigrationsOnStartup is true.
-// - Seeders run only when Database:RunSeedersOnStartup is true.
-var applyMigrationsOnStartup = app.Environment.IsDevelopment()
-    || app.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup");
+// Pending EF Core migrations are always applied before the application accepts requests.
+// This single-instance IIS deployment uses a PostgreSQL advisory lock during migration so
+// overlapping application-pool starts cannot execute the same migration concurrently.
+// Seeders remain independently controlled because they alter application data, not schema.
+const bool applyMigrationsOnStartup = true;
 var runSeedersOnStartup = app.Configuration.GetValue<bool>("Database:RunSeedersOnStartup");
 
 app.Logger.LogInformation(
@@ -792,51 +791,12 @@ using (var scope = app.Services.CreateScope())
             connection.DataSource,
             connection.Database);
 
-        pendingMigrations = (await db.Database.GetPendingMigrationsAsync()).ToList();
-        if (pendingMigrations.Count > 0)
-        {
-            var message = $"Database has {pendingMigrations.Count} pending migration(s): {string.Join(", ", pendingMigrations)}";
-            app.Logger.LogCritical(message);
-
-            if (!applyMigrationsOnStartup)
-            {
-                throw new InvalidOperationException(
-                    message +
-                    ". Automatic migration is disabled. Set Database:ApplyMigrationsOnStartup=true " +
-                    "or apply the migrations manually before starting the application.");
-            }
-
-            app.Logger.LogWarning(
-                "Applying {Count} pending database migration(s) automatically: {Migrations}",
-                pendingMigrations.Count,
-                string.Join(", ", pendingMigrations));
-
-            try
-            {
-                await db.Database.MigrateAsync();
-            }
-            catch (Exception ex)
-            {
-                app.Logger.LogCritical(
-                    ex,
-                    "Automatic database migration failed. Application startup is being aborted.");
-                throw;
-            }
-
-            app.Logger.LogInformation("Automatic database migration completed successfully.");
-            pendingMigrations = (await db.Database.GetPendingMigrationsAsync()).ToList();
-        }
+        pendingMigrations = await ApplyPendingMigrationsAsync(db, app.Logger);
 
         var applied = (await db.Database.GetAppliedMigrationsAsync()).ToList();
         latestAppliedMigration = applied.Count > 0 ? applied[^1] : "(none)";
 
-        if (pendingMigrations.Count > 0)
-        {
-            var message = $"Database still has {pendingMigrations.Count} pending migration(s): {string.Join(", ", pendingMigrations)}";
-            app.Logger.LogCritical(message);
-            throw new InvalidOperationException(message);
-        }
-
+        await EnsureProjectStageCompletionConstraintAsync(db, app.Logger);
         await EnsureNotebookVersionSchemaAsync(db, app.Logger);
         await EnsureDocRepoFavouritesSchemaAsync(db, app.Logger);
         await ProjectDocumentSearchVectorMaintenance.EnsureUpToDateAsync(db);
@@ -2811,26 +2771,9 @@ using (var scope = app.Services.CreateScope())
             ");
         }
 
-        if (projectStagesExists)
-        {
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ALTER COLUMN ""ActualStart"" DROP NOT NULL;
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ALTER COLUMN ""CompletedOn"" DROP NOT NULL;
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                DROP CONSTRAINT IF EXISTS ""CK_ProjectStages_CompletedHasDate"";
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ADD CONSTRAINT ""CK_ProjectStages_CompletedHasDate""
-                CHECK (""Status"" <> 'Completed' OR (""CompletedOn"" IS NOT NULL AND ""ActualStart"" IS NOT NULL) OR ""RequiresBackfill"" IS TRUE);
-            ");
-        }
+        // ProjectStages nullability and completion constraints are owned exclusively by
+        // EF Core migrations. Do not recreate them here: doing so can silently reverse a
+        // successfully applied migration and leave production schema rules out of sync.
         var migrations = await db.Database.GetAppliedMigrationsAsync();
         if (!migrations.Contains("20250909153316_UseXminForTodoItem"))
         {
@@ -2852,6 +2795,194 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+
+static async Task<List<string>> ApplyPendingMigrationsAsync(
+    ApplicationDbContext db,
+    ILogger logger)
+{
+    NpgsqlConnection? migrationLockConnection = null;
+
+    try
+    {
+        if (db.Database.IsNpgsql())
+        {
+            var connectionString = db.Database.GetConnectionString();
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new InvalidOperationException(
+                    "A PostgreSQL connection string is required to acquire the migration lock.");
+            }
+
+            migrationLockConnection = new NpgsqlConnection(connectionString);
+            await migrationLockConnection.OpenAsync();
+
+            var lockAcquired = false;
+            var lockDeadline = DateTimeOffset.UtcNow.AddMinutes(2);
+            while (!lockAcquired && DateTimeOffset.UtcNow < lockDeadline)
+            {
+                await using var lockCommand = migrationLockConnection.CreateCommand();
+                lockCommand.CommandText =
+                    "SELECT pg_try_advisory_lock(hashtextextended('PRISM_ERP_EF_MIGRATIONS', 0));";
+
+                var result = await lockCommand.ExecuteScalarAsync();
+                lockAcquired = result is bool acquired && acquired;
+                if (!lockAcquired)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(1));
+                }
+            }
+
+            if (!lockAcquired)
+            {
+                throw new TimeoutException(
+                    "Timed out waiting for another application instance to finish database migration.");
+            }
+
+            logger.LogInformation("Acquired the PostgreSQL migration advisory lock.");
+        }
+
+        var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
+        if (pending.Count > 0)
+        {
+            logger.LogWarning(
+                "Applying {Count} pending database migration(s) automatically: {Migrations}",
+                pending.Count,
+                string.Join(", ", pending));
+
+            try
+            {
+                await db.Database.MigrateAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogCritical(
+                    ex,
+                    "Automatic database migration failed. Application startup is being aborted before requests are accepted.");
+                throw;
+            }
+
+            logger.LogInformation("Automatic database migration completed successfully.");
+        }
+        else
+        {
+            logger.LogInformation("Database schema is current; no pending migrations were found.");
+        }
+
+        pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
+        if (pending.Count > 0)
+        {
+            var message =
+                $"Database still has {pending.Count} pending migration(s) after automatic migration: " +
+                string.Join(", ", pending);
+            logger.LogCritical(message);
+            throw new InvalidOperationException(message);
+        }
+
+        return pending;
+    }
+    finally
+    {
+        if (migrationLockConnection is not null)
+        {
+            try
+            {
+                if (migrationLockConnection.State == ConnectionState.Open)
+                {
+                    await using var unlockCommand = migrationLockConnection.CreateCommand();
+                    unlockCommand.CommandText =
+                        "SELECT pg_advisory_unlock(hashtextextended('PRISM_ERP_EF_MIGRATIONS', 0));";
+                    await unlockCommand.ExecuteNonQueryAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Unable to explicitly release the PostgreSQL migration advisory lock.");
+            }
+            finally
+            {
+                await migrationLockConnection.DisposeAsync();
+            }
+        }
+    }
+}
+
+static async Task EnsureProjectStageCompletionConstraintAsync(
+    ApplicationDbContext db,
+    ILogger logger)
+{
+    if (!db.Database.IsRelational())
+    {
+        return;
+    }
+
+    const string constraintName = "CK_ProjectStages_CompletedHasDate";
+
+    if (db.Database.IsNpgsql())
+    {
+        var connection = db.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+        {
+            await connection.OpenAsync();
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT pg_get_constraintdef(c.oid)
+                FROM pg_constraint AS c
+                WHERE c.conrelid = '"ProjectStages"'::regclass
+                  AND c.conname = 'CK_ProjectStages_CompletedHasDate';
+                """;
+
+            var definition = await command.ExecuteScalarAsync() as string;
+            var normalized = string.Concat(
+                (definition ?? string.Empty)
+                    .Where(character => !char.IsWhiteSpace(character)))
+                .Replace("(", string.Empty, StringComparison.Ordinal)
+                .Replace(")", string.Empty, StringComparison.Ordinal);
+
+            var hasCorrectCompletionRule = normalized.Contains(
+                "\"CompletedOn\"ISNOTNULL",
+                StringComparison.OrdinalIgnoreCase);
+            var incorrectlyRequiresActualStart = normalized.Contains(
+                "\"ActualStart\"ISNOTNULL",
+                StringComparison.OrdinalIgnoreCase);
+            var permitsBackfill = normalized.Contains(
+                "\"RequiresBackfill\"ISTRUE",
+                StringComparison.OrdinalIgnoreCase);
+
+            if (!hasCorrectCompletionRule || incorrectlyRequiresActualStart || !permitsBackfill)
+            {
+                var message =
+                    $"Database constraint {constraintName} is missing or incompatible after migration. " +
+                    $"Current definition: {definition ?? "(missing)"}";
+                logger.LogCritical(message);
+                throw new InvalidOperationException(message);
+            }
+
+            logger.LogInformation(
+                "Validated database constraint {ConstraintName}: completed stages require CompletedOn unless backfill remains pending; ActualStart is optional.",
+                constraintName);
+        }
+        finally
+        {
+            if (shouldClose)
+            {
+                await connection.CloseAsync();
+            }
+        }
+
+        return;
+    }
+
+    // Other relational providers rely on the migration and EF model. PostgreSQL is the
+    // deployed provider and receives the additional fail-fast structural validation above.
+    logger.LogInformation(
+        "Project stage completion constraint validation is migration-owned for provider {Provider}.",
+        db.Database.ProviderName);
+}
 
 static async Task EnsureNotebookVersionSchemaAsync(ApplicationDbContext db, ILogger logger)
 {
