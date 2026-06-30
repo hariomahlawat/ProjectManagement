@@ -183,10 +183,27 @@ public interface IMediaSourceBootstrapper
     Task EnsureConfiguredSourcesAsync(CancellationToken cancellationToken);
 }
 
+public interface IPrismMediaSynchronizationGate
+{
+    ValueTask<IDisposable> EnterAsync(CancellationToken cancellationToken);
+}
+
 public interface IPrismMediaCatalogueSynchronizer
 {
     Task SynchronizeAsync(CancellationToken cancellationToken);
 }
+
+public interface IPrismMediaIngestionCoordinator
+{
+    Task<PrismMediaIngestionResult> ReconcileAfterSourceChangeAsync(
+        string reason,
+        CancellationToken cancellationToken);
+}
+
+public sealed record PrismMediaIngestionResult(
+    bool Succeeded,
+    string Status,
+    string? Error = null);
 
 public interface IExternalMediaSourceScanner
 {

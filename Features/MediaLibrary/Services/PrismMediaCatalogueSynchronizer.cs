@@ -14,6 +14,7 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
     private readonly MediaLibraryOptions _options;
     private readonly IMediaContentChangeInvalidationService _contentInvalidation;
     private readonly IPrismMediaSourceSnapshotService _sourceSnapshot;
+    private readonly IPrismMediaSynchronizationGate _synchronizationGate;
     private readonly ILogger<PrismMediaCatalogueSynchronizer> _logger;
 
     public PrismMediaCatalogueSynchronizer(
@@ -22,6 +23,7 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
         IOptions<MediaLibraryOptions> options,
         IMediaContentChangeInvalidationService contentInvalidation,
         IPrismMediaSourceSnapshotService sourceSnapshot,
+        IPrismMediaSynchronizationGate synchronizationGate,
         ILogger<PrismMediaCatalogueSynchronizer> logger)
     {
         _applicationDb = applicationDb ?? throw new ArgumentNullException(nameof(applicationDb));
@@ -29,11 +31,14 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _contentInvalidation = contentInvalidation ?? throw new ArgumentNullException(nameof(contentInvalidation));
         _sourceSnapshot = sourceSnapshot ?? throw new ArgumentNullException(nameof(sourceSnapshot));
+        _synchronizationGate = synchronizationGate ?? throw new ArgumentNullException(nameof(synchronizationGate));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task SynchronizeAsync(CancellationToken cancellationToken)
     {
+        using var synchronizationLease = await _synchronizationGate.EnterAsync(cancellationToken);
+
         var source = await _mediaDb.Sources
             .SingleAsync(item => item.Key == MediaSourceBootstrapper.PrismSourceKey, cancellationToken);
 

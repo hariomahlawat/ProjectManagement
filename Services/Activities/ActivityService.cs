@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Contracts.Activities;
+using ProjectManagement.Features.MediaLibrary.Services;
 using ProjectManagement.Models.Activities;
 
 namespace ProjectManagement.Services.Activities;
@@ -16,6 +17,7 @@ public sealed class ActivityService : IActivityService
     private readonly IActivityAttachmentManager _attachmentManager;
     private readonly IUserContext _userContext;
     private readonly IClock _clock;
+    private readonly IPrismMediaIngestionCoordinator _mediaIngestion;
     private readonly ILogger<ActivityService> _logger;
 
     public ActivityService(IActivityRepository activityRepository,
@@ -23,6 +25,7 @@ public sealed class ActivityService : IActivityService
                            IActivityAttachmentManager attachmentManager,
                            IUserContext userContext,
                            IClock clock,
+                           IPrismMediaIngestionCoordinator mediaIngestion,
                            ILogger<ActivityService> logger)
     {
         _activityRepository = activityRepository;
@@ -30,6 +33,7 @@ public sealed class ActivityService : IActivityService
         _attachmentManager = attachmentManager;
         _userContext = userContext;
         _clock = clock;
+        _mediaIngestion = mediaIngestion ?? throw new ArgumentNullException(nameof(mediaIngestion));
         _logger = logger;
     }
 
@@ -79,6 +83,7 @@ public sealed class ActivityService : IActivityService
         activity.LastModifiedAtUtc = _clock.UtcNow;
 
         await _activityRepository.UpdateAsync(activity, cancellationToken);
+        await ReconcilePhotosAsync($"activity {activity.Id} metadata updated", cancellationToken);
         return activity;
     }
 
@@ -103,6 +108,7 @@ public sealed class ActivityService : IActivityService
         activity.LastModifiedByUserId = userId;
 
         await _activityRepository.UpdateAsync(activity, cancellationToken);
+        await ReconcilePhotosAsync($"activity {activity.Id} deleted", cancellationToken);
     }
 
     public async Task<Activity?> GetAsync(int activityId, CancellationToken cancellationToken = default)
@@ -186,6 +192,13 @@ public sealed class ActivityService : IActivityService
         activity.LastModifiedAtUtc = _clock.UtcNow;
         await _activityRepository.UpdateAsync(activity, cancellationToken);
 
+        if (ActivityAttachmentClassifier.IsPhoto(attachment.OriginalFileName, attachment.ContentType))
+        {
+            await ReconcilePhotosAsync(
+                $"activity photo {attachment.Id} added to activity {activity.Id}",
+                cancellationToken);
+        }
+
         return attachment;
     }
 
@@ -204,6 +217,9 @@ public sealed class ActivityService : IActivityService
         }
 
         EnsureCanManageAttachment(activity, attachment);
+        var removedPhoto = ActivityAttachmentClassifier.IsPhoto(
+            attachment.OriginalFileName,
+            attachment.ContentType);
 
         try
         {
@@ -218,6 +234,26 @@ public sealed class ActivityService : IActivityService
         activity.LastModifiedByUserId = RequireUserId();
         activity.LastModifiedAtUtc = _clock.UtcNow;
         await _activityRepository.UpdateAsync(activity, cancellationToken);
+
+        if (removedPhoto)
+        {
+            await ReconcilePhotosAsync(
+                $"activity photo {attachment.Id} removed from activity {activity.Id}",
+                cancellationToken);
+        }
+    }
+
+    private async Task ReconcilePhotosAsync(string reason, CancellationToken cancellationToken)
+    {
+        var result = await _mediaIngestion.ReconcileAfterSourceChangeAsync(reason, cancellationToken);
+        if (!result.Succeeded && !string.Equals(result.Status, "Disabled", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(
+                "Activity operation completed, but Photos ingestion was deferred. Reason={Reason}; Status={Status}; Error={Error}",
+                reason,
+                result.Status,
+                result.Error);
+        }
     }
 
     private string RequireUserId()
