@@ -312,8 +312,8 @@
                     <select asp-for="StageFlow"
                             class="form-select form-select-sm"
                             data-stage-flow-select>
-                        <option value="forward">Early → Later</option>
                         <option value="reverse">Later → Early</option>
+                        <option value="forward">Early → Later</option>
                     </select>
                 </div>
             }
@@ -331,7 +331,7 @@
                    asp-route-ProjectOfficerId=""
                    asp-route-Search=""
                    asp-route-StageBucket=""
-                   asp-route-StageFlow="forward"
+                   asp-route-StageFlow="reverse"
                    asp-route-View="@Model.View"
                    class="cmdbar__link-button">
                     Clear filters
@@ -544,11 +544,16 @@ else
                         <!-- SECTION: Complete lifecycle timeline -->
                         <section class="briefing-timeline" aria-label="Project lifecycle timeline">
                             @{
-                                var currentStageIsProlonged = presentStage.DaysSinceStartOrLastCompletion.HasValue
-                                    && presentStage.DaysSinceStartOrLastCompletion.Value >= 90;
+                                var currentStageIsProlonged = item.IsCurrentStageProlonged;
+                                var currentStageProlongedText = string.Equals(
+                                    cur.Code,
+                                    StageCodes.DEVP,
+                                    StringComparison.OrdinalIgnoreCase)
+                                    ? "Development stage prolonged (6 months+)"
+                                    : "Current stage prolonged";
                                 var priorStagesMissingCompletion = item.Stages
                                     .Take(Math.Max(currentIdx, 0))
-                                    .Count(stage => stage.Status != StageStatus.Completed);
+                                    .Count(stage => stage.Status is not StageStatus.Completed and not StageStatus.Skipped);
                             }
                             @if (currentStageIsProlonged || priorStagesMissingCompletion > 0)
                             {
@@ -557,7 +562,7 @@ else
                                     {
                                         <span class="briefing-timeline__alert briefing-timeline__alert--warning">
                                             <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
-                                            Current stage prolonged
+                                            @currentStageProlongedText
                                         </span>
                                     }
                                     @if (priorStagesMissingCompletion > 0)
@@ -575,17 +580,20 @@ else
                                     var stage = item.Stages[i];
                                     var isCurrent = i == currentIdx;
                                     var isCompleted = stage.Status == StageStatus.Completed;
-                                    var isPastMissing = i < currentIdx && !isCompleted;
+                                    var isSkipped = stage.Status == StageStatus.Skipped;
+                                    var isPastMissing = i < currentIdx && !isCompleted && !isSkipped;
                                     var isFuture = i > currentIdx;
                                     var historicalDuration = stage.ActualDurationDays;
                                     var stageStateClass = isCompleted
                                         ? "is-complete"
-                                        : isPastMissing
-                                            ? "is-past-missing"
-                                            : isCurrent
-                                                ? "is-current"
-                                                : "is-future";
-                                    var isCurrentProlonged = isCurrent && presentStage.DaysSinceStartOrLastCompletion.HasValue && presentStage.DaysSinceStartOrLastCompletion.Value >= 90;
+                                        : isSkipped
+                                            ? "is-skipped"
+                                            : isPastMissing
+                                                ? "is-past-missing"
+                                                : isCurrent
+                                                    ? "is-current"
+                                                    : "is-future";
+                                    var isCurrentProlonged = isCurrent && item.IsCurrentStageProlonged;
 
                                     <div class="briefing-stage @stageStateClass @(isCurrentProlonged ? "is-prolonged" : string.Empty)"
                                          role="listitem"
@@ -593,7 +601,11 @@ else
                                         <div class="briefing-stage__node" title="@stage.Name">@StageNodeLabel(stage.Code)</div>
                                         <div class="briefing-stage__detail">
                                             <span class="briefing-stage__name" title="@stage.Name">@stage.Name</span>
-                                            @if (isCompleted)
+                                            @if (isSkipped)
+                                            {
+                                                <span class="briefing-stage__date briefing-stage__date--skipped">Skipped</span>
+                                            }
+                                            else if (isCompleted)
                                             {
                                                 <span class="briefing-stage__date">@(stage.ActualCompletedOn?.ToString("dd MMM yyyy") ?? "Date not recorded")</span>
                                             }
@@ -836,8 +848,19 @@ else
                                 <td class="col-age">
                                     @if (row.DaysInCurrentStage.HasValue)
                                     {
-                                        var stageAgeClass = row.DaysInCurrentStage.Value >= 90 ? "is-danger" : row.DaysInCurrentStage.Value >= 45 ? "is-warning" : string.Empty;
-                                        <span class="stage-age @stageAgeClass">@row.DaysInCurrentStage d</span>
+                                        var stageAgeClass = row.IsCurrentStageProlonged
+                                            ? "is-danger"
+                                            : row.IsCurrentStageApproachingProlonged
+                                                ? "is-warning"
+                                                : string.Empty;
+                                        var stageAgeTitle = row.IsCurrentStageProlonged
+                                            ? string.Equals(row.CurrentStageCode, StageCodes.DEVP, StringComparison.OrdinalIgnoreCase)
+                                                ? "Development stage has reached six months"
+                                                : "Current stage has reached 90 days"
+                                            : row.IsCurrentStageApproachingProlonged
+                                                ? "Current stage is approaching its prolonged threshold"
+                                                : null;
+                                        <span class="stage-age @stageAgeClass" title="@stageAgeTitle">@row.DaysInCurrentStage d</span>
                                     }
                                     else
                                     {

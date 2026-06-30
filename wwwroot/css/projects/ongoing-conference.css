@@ -356,6 +356,13 @@
     background: #f7fbf8;
 }
 
+.briefing-stage.is-skipped .briefing-stage__node {
+    color: #5f6f84;
+    border-color: #9ba8ba;
+    border-style: dashed;
+    background: #f1f4f8;
+}
+
 .briefing-stage.is-current .briefing-stage__node {
     color: #fff;
     border-color: var(--oc-primary);
@@ -400,6 +407,11 @@
 .briefing-stage__pdc {
     color: #52647e;
     font-weight: 650;
+}
+
+.briefing-stage__date--skipped {
+    color: #5f6f84;
+    font-weight: 750;
 }
 
 .briefing-connector {

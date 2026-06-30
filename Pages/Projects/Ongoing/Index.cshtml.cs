@@ -66,7 +66,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
 
         // SECTION: Timeline stage flow selector
         [BindProperty(SupportsGet = true)]
-        public string StageFlow { get; set; } = "forward";
+        public string StageFlow { get; set; } = "reverse";
 
         public IReadOnlyList<SelectListItem> ProjectCategoryOptions { get; private set; }
             = Array.Empty<SelectListItem>();
@@ -408,14 +408,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
 
         // SECTION: Stage flow normalization
         private static string NormalizeStageFlow(string? value)
-        {
-            if (string.Equals(value, "reverse", StringComparison.OrdinalIgnoreCase))
-            {
-                return "reverse";
-            }
-
-            return "forward";
-        }
+            => OngoingStagePresentationPolicy.NormalizeStageFlow(value);
 
         // SECTION: IST helper (yyyy-MM-dd)
         private static string ResolveTodayIstIso(DateTimeOffset utcNow)
