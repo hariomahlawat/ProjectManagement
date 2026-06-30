@@ -68,6 +68,9 @@ public sealed class FaceReviewService : IFaceReviewService
             await ValidateUnassignedFaceAsync(selectedFaces[0], cancellationToken);
         }
 
+        var initialTrustedReferenceFaceId = await SelectInitialTrustedReferenceAsync(
+            selectedFaces,
+            cancellationToken);
         var now = DateTimeOffset.UtcNow;
         var person = new MediaPerson
         {
@@ -86,14 +89,15 @@ public sealed class FaceReviewService : IFaceReviewService
         {
             _db.Persons.Add(person);
             await _db.SaveChangesAsync(cancellationToken);
-            foreach (var faceId in selectedFaces)
+            for (var index = 0; index < selectedFaces.Count; index++)
             {
                 await AssignCoreAsync(
-                    faceId,
+                    selectedFaces[index],
                     person,
                     userId,
                     null,
                     FaceAssignmentType.ManualAssignment,
+                    trustAsReference: selectedFaces[index] == initialTrustedReferenceFaceId,
                     cancellationToken);
             }
 
@@ -160,6 +164,7 @@ public sealed class FaceReviewService : IFaceReviewService
                     userId,
                     confidence,
                     FaceAssignmentType.HumanConfirmed,
+                    trustAsReference: false,
                     cancellationToken);
             }
 
@@ -620,6 +625,114 @@ public sealed class FaceReviewService : IFaceReviewService
         await SaveWithConflictTranslationAsync(cancellationToken);
     }
 
+    public async Task SetReferenceStatusAsync(
+        Guid personId,
+        Guid faceId,
+        FaceReferenceStatus referenceStatus,
+        string userId,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        ValidateUserId(userId);
+        var governanceReason = RequireReason(reason);
+        if (referenceStatus == FaceReferenceStatus.NotReference)
+        {
+            throw new ArgumentException(
+                "Choose TrustedReference or Excluded for an explicit governance change.",
+                nameof(referenceStatus));
+        }
+
+        await ExecuteTransactionalAsync(async () =>
+        {
+            var person = await RequireActivePersonAsync(personId, cancellationToken);
+            var assignment = await _db.PersonFaces
+                .Include(item => item.MediaFace)
+                    .ThenInclude(face => face.MediaAsset)
+                .SingleOrDefaultAsync(item => item.MediaPersonId == personId
+                                              && item.MediaFaceId == faceId
+                                              && item.RemovedAtUtc == null,
+                    cancellationToken)
+                ?? throw new FaceIdentityConflictException(
+                    "The appearance is no longer actively assigned to this person.");
+
+            if (assignment.ReferenceStatus == referenceStatus)
+            {
+                return;
+            }
+
+            if (referenceStatus == FaceReferenceStatus.TrustedReference)
+            {
+                var face = assignment.MediaFace;
+                if (face.IsSuppressed
+                    || face.QualityStatus != FaceQualityStatus.EmbeddingEligible
+                    || face.QualityScore < _options.CandidateMinimumTrustedReferenceQuality
+                    || !face.MediaAsset.IsAvailable
+                    || face.MediaAsset.IsDeleted
+                    || face.MediaAsset.IsArchived)
+                {
+                    throw new FaceIdentityConflictException(
+                        "Only an available, embedding-eligible, sufficiently clear face can be trusted for matching.");
+                }
+
+                var hasCurrentEmbedding = await _db.FaceEmbeddings.AsNoTracking().AnyAsync(
+                    embedding => embedding.MediaFaceId == faceId
+                                 && embedding.InvalidatedAtUtc == null
+                                 && embedding.ModelKey == _options.Embedder.Key
+                                 && embedding.ModelVersion == _options.Embedder.Version
+                                 && embedding.Dimension == _options.Embedder.EmbeddingDimension,
+                    cancellationToken);
+                if (!hasCurrentEmbedding)
+                {
+                    throw new FaceIdentityConflictException(
+                        "This appearance does not have a current valid embedding and cannot be used for matching.");
+                }
+            }
+            else
+            {
+                var otherTrustedReferenceExists = await _db.PersonFaces.AsNoTracking().AnyAsync(
+                    item => item.MediaPersonId == personId
+                            && item.MediaFaceId != faceId
+                            && item.RemovedAtUtc == null
+                            && item.ReferenceStatus == FaceReferenceStatus.TrustedReference,
+                    cancellationToken);
+                if (!otherTrustedReferenceExists)
+                {
+                    throw new FaceIdentityConflictException(
+                        "Promote another trusted reference before excluding the last matching reference for this person.");
+                }
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            assignment.ReferenceStatus = referenceStatus;
+            assignment.ReferenceChangedByUserId = userId;
+            assignment.ReferenceChangedAtUtc = now;
+            assignment.ReferenceChangeReason = governanceReason;
+            assignment.ConcurrencyToken = Guid.NewGuid();
+            person.UpdatedAtUtc = now;
+            person.ConcurrencyToken = Guid.NewGuid();
+
+            _db.IdentityAudits.Add(new MediaIdentityAudit
+            {
+                FaceId = faceId,
+                PersonId = personId,
+                Action = referenceStatus == FaceReferenceStatus.TrustedReference
+                    ? "ReferenceTrusted"
+                    : "ReferenceExcluded",
+                PerformedByUserId = userId,
+                Notes = governanceReason,
+                MetadataJson = JsonSerializer.Serialize(new
+                {
+                    ReferenceStatus = referenceStatus.ToString(),
+                    assignment.MediaFace.QualityScore
+                }),
+                PerformedAtUtc = now
+            });
+            await _db.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
+
+        await RefreshCandidatesAfterIdentityChangeAsync(cancellationToken);
+    }
+
     public Task RemoveAssignmentAsync(
         Guid faceId,
         Guid personId,
@@ -680,6 +793,7 @@ public sealed class FaceReviewService : IFaceReviewService
                     MediaFaceId = assignment.MediaFaceId,
                     AssignmentType = FaceAssignmentType.ManualAssignment,
                     AssignmentConfidence = assignment.AssignmentConfidence,
+                    ReferenceStatus = FaceReferenceStatus.NotReference,
                     AssignedByUserId = userId,
                     AssignedAtUtc = now,
                     ConcurrencyToken = Guid.NewGuid()
@@ -753,6 +867,9 @@ public sealed class FaceReviewService : IFaceReviewService
                 selectedFaces,
                 cancellationToken);
             await EnsureDistinctPhotographsAsync(selectedFaces, cancellationToken);
+            var initialTrustedReferenceFaceId = await SelectInitialTrustedReferenceAsync(
+                selectedFaces,
+                cancellationToken);
 
             var now = DateTimeOffset.UtcNow;
             var newPerson = new MediaPerson
@@ -786,6 +903,14 @@ public sealed class FaceReviewService : IFaceReviewService
                     MediaFaceId = assignment.MediaFaceId,
                     AssignmentType = FaceAssignmentType.ManualAssignment,
                     AssignmentConfidence = assignment.AssignmentConfidence,
+                    ReferenceStatus = assignment.MediaFaceId == initialTrustedReferenceFaceId
+                        ? FaceReferenceStatus.TrustedReference
+                        : FaceReferenceStatus.NotReference,
+                    ReferenceChangedByUserId = assignment.MediaFaceId == initialTrustedReferenceFaceId ? userId : null,
+                    ReferenceChangedAtUtc = assignment.MediaFaceId == initialTrustedReferenceFaceId ? now : null,
+                    ReferenceChangeReason = assignment.MediaFaceId == initialTrustedReferenceFaceId
+                        ? "Initial trusted reference selected when the person was split."
+                        : null,
                     AssignedByUserId = userId,
                     AssignedAtUtc = now,
                     ConcurrencyToken = Guid.NewGuid()
@@ -972,6 +1097,10 @@ public sealed class FaceReviewService : IFaceReviewService
                     MediaFaceId = sourceAssignment.MediaFaceId,
                     AssignmentType = FaceAssignmentType.ManualAssignment,
                     AssignmentConfidence = sourceAssignment.AssignmentConfidence,
+                    ReferenceStatus = sourceAssignment.ReferenceStatus,
+                    ReferenceChangedByUserId = sourceAssignment.ReferenceChangedByUserId,
+                    ReferenceChangedAtUtc = sourceAssignment.ReferenceChangedAtUtc,
+                    ReferenceChangeReason = sourceAssignment.ReferenceChangeReason,
                     AssignedByUserId = userId,
                     AssignedAtUtc = now,
                     ConcurrencyToken = Guid.NewGuid()
@@ -1064,12 +1193,36 @@ public sealed class FaceReviewService : IFaceReviewService
         string userId,
         double? confidence,
         FaceAssignmentType assignmentType,
+        bool trustAsReference,
         CancellationToken cancellationToken)
     {
         EnsureActive(person);
         var face = await _db.Faces
+            .Include(item => item.MediaAsset)
             .SingleOrDefaultAsync(item => item.Id == faceId && !item.IsSuppressed, cancellationToken)
             ?? throw new KeyNotFoundException("The detected face is unavailable or has been suppressed.");
+        var pendingEvidence = assignmentType == FaceAssignmentType.HumanConfirmed
+            ? await _db.FaceReviewDecisions
+                .AsNoTracking()
+                .Where(decision => decision.MediaFaceId == faceId
+                                   && decision.CandidatePersonId == person.Id
+                                   && decision.Decision == FaceReviewDecisionType.Pending)
+                .OrderByDescending(decision => decision.CreatedAtUtc)
+                .Select(decision => new
+                {
+                    decision.Similarity,
+                    decision.BestReferenceSimilarity,
+                    decision.MeanTopSimilarity,
+                    decision.ReferenceCount,
+                    decision.MarginToNext,
+                    decision.MarginAvailable,
+                    decision.ConfidenceLevel,
+                    decision.ModelKey,
+                    decision.ModelVersion
+                })
+                .FirstOrDefaultAsync(cancellationToken)
+            : null;
+        var effectiveConfidence = pendingEvidence?.Similarity;
         var now = DateTimeOffset.UtcNow;
         var activeAssignments = await _db.PersonFaces
             .Where(assignment => assignment.MediaFaceId == faceId && assignment.RemovedAtUtc == null)
@@ -1099,7 +1252,15 @@ public sealed class FaceReviewService : IFaceReviewService
             MediaFaceId = faceId,
             MediaPersonId = person.Id,
             AssignmentType = assignmentType,
-            AssignmentConfidence = confidence,
+            AssignmentConfidence = effectiveConfidence,
+            ReferenceStatus = trustAsReference
+                ? FaceReferenceStatus.TrustedReference
+                : FaceReferenceStatus.NotReference,
+            ReferenceChangedByUserId = trustAsReference ? userId : null,
+            ReferenceChangedAtUtc = trustAsReference ? now : null,
+            ReferenceChangeReason = trustAsReference
+                ? "Initial trusted reference selected when the person was created."
+                : null,
             AssignedByUserId = userId,
             AssignedAtUtc = now,
             ConcurrencyToken = Guid.NewGuid()
@@ -1119,6 +1280,21 @@ public sealed class FaceReviewService : IFaceReviewService
         face.UpdatedAtUtc = now;
         face.ConcurrencyToken = Guid.NewGuid();
         await ResolvePendingDecisionsAsync(faceId, person.Id, userId, now, cancellationToken);
+        var assignmentMethod = pendingEvidence is null
+            ? "manual reviewer assignment"
+            : pendingEvidence.ConfidenceLevel == FaceCandidateConfidenceLevel.Strong
+                ? "strong known-person candidate"
+                : "possible known-person match";
+        var separationText = pendingEvidence?.MarginAvailable == true
+                             && pendingEvidence.MarginToNext.HasValue
+            ? pendingEvidence.MarginToNext.Value.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)
+            : "unavailable";
+        var auditNotes = pendingEvidence is null
+            ? $"Confirmed by manual reviewer assignment in '{face.MediaAsset.ContextTitle}'."
+            : $"Confirmed from a {assignmentMethod} in '{face.MediaAsset.ContextTitle}'. "
+              + $"Similarity {pendingEvidence.Similarity:0.000}; trusted references {pendingEvidence.ReferenceCount}; "
+              + $"separation {separationText}.";
+
         _db.IdentityAudits.Add(new MediaIdentityAudit
         {
             FaceId = faceId,
@@ -1127,9 +1303,23 @@ public sealed class FaceReviewService : IFaceReviewService
             NewPersonId = person.Id,
             Action = previousPersonId.HasValue ? "FaceReassigned" : "FaceAssigned",
             PerformedByUserId = userId,
-            MetadataJson = confidence.HasValue
-                ? JsonSerializer.Serialize(new { Similarity = confidence.Value })
-                : null,
+            Notes = TrimTo(auditNotes, 1024),
+            MetadataJson = JsonSerializer.Serialize(new
+            {
+                SourceAssetId = face.MediaAssetId,
+                SourceTitle = face.MediaAsset.ContextTitle,
+                SourceSubtitle = face.MediaAsset.ContextSubtitle,
+                AssignmentMethod = assignmentMethod,
+                Similarity = pendingEvidence?.Similarity,
+                BestReferenceSimilarity = pendingEvidence?.BestReferenceSimilarity,
+                MeanTopSimilarity = pendingEvidence?.MeanTopSimilarity,
+                ReferenceCount = pendingEvidence?.ReferenceCount ?? 0,
+                MarginToNext = pendingEvidence?.MarginToNext,
+                MarginAvailable = pendingEvidence?.MarginAvailable ?? false,
+                ConfidenceLevel = pendingEvidence?.ConfidenceLevel.ToString(),
+                ModelKey = pendingEvidence?.ModelKey,
+                ModelVersion = pendingEvidence?.ModelVersion
+            }),
             PerformedAtUtc = now
         });
     }
@@ -1240,6 +1430,38 @@ public sealed class FaceReviewService : IFaceReviewService
         }
     }
 
+
+    private async Task<Guid?> SelectInitialTrustedReferenceAsync(
+        IReadOnlyCollection<Guid> faceIds,
+        CancellationToken cancellationToken)
+    {
+        if (faceIds.Count == 0)
+        {
+            return null;
+        }
+
+        var modelKey = _options.Embedder.Key;
+        var modelVersion = _options.Embedder.Version;
+        var dimension = _options.Embedder.EmbeddingDimension;
+        return await _db.Faces
+            .AsNoTracking()
+            .Where(face => faceIds.Contains(face.Id)
+                           && !face.IsSuppressed
+                           && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
+                           && face.QualityScore >= _options.CandidateMinimumTrustedReferenceQuality
+                           && face.MediaAsset.IsAvailable
+                           && !face.MediaAsset.IsDeleted
+                           && !face.MediaAsset.IsArchived
+                           && face.Embeddings.Any(embedding =>
+                               embedding.InvalidatedAtUtc == null
+                               && embedding.ModelKey == modelKey
+                               && embedding.ModelVersion == modelVersion
+                               && embedding.Dimension == dimension))
+            .OrderByDescending(face => face.QualityScore)
+            .ThenBy(face => face.SequenceNumber)
+            .Select(face => (Guid?)face.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
 
     private async Task<List<MediaPersonFace>> RequireActiveAssignmentsAsync(
         Guid sourcePersonId,
@@ -1485,6 +1707,9 @@ public sealed class FaceReviewService : IFaceReviewService
             ? cleaned[..Math.Min(cleaned.Length, maximumLength)]
             : null;
     }
+
+    private static string TrimTo(string value, int maxLength)
+        => value.Length <= maxLength ? value : value[..maxLength];
 
     private static void ValidateUserId(string userId)
     {

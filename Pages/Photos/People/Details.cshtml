@@ -1,4 +1,6 @@
 @page "{id:guid}"
+@using System.Globalization
+@using ProjectManagement.Features.MediaLibrary.Domain
 @model ProjectManagement.Pages.Photos.People.DetailsModel
 @{
     ViewData["Title"] = Model.Person.DisplayName;
@@ -36,6 +38,7 @@
             <p>
                 @Model.Person.ConfirmedFaceCount confirmed appearance@(Model.Person.ConfirmedFaceCount == 1 ? string.Empty : "s")
                 in @Model.Person.PhotoCount photo@(Model.Person.PhotoCount == 1 ? string.Empty : "s")
+                · @Model.Person.TrustedReferenceCount trusted matching reference@(Model.Person.TrustedReferenceCount == 1 ? string.Empty : "s")
                 @if (firstSeen.HasValue && lastSeen.HasValue)
                 {
                     if (firstSeen.Value.Date == lastSeen.Value.Date)
@@ -64,6 +67,19 @@
     @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
     {
         <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+    }
+
+    @if (Model.Person.TrustedReferenceCount == 0)
+    {
+        <div class="alert alert-warning" role="alert">
+            <strong>No trusted matching reference.</strong> This person remains fully confirmed, but PRISM will not use these appearances for future identity suggestions until a clear, verified face is explicitly trusted.
+        </div>
+    }
+    else if (Model.Person.ConfirmedFaceCount > Model.Person.TrustedReferenceCount)
+    {
+        <div class="alert alert-info" role="status">
+            Only the @Model.Person.TrustedReferenceCount explicitly trusted reference@(Model.Person.TrustedReferenceCount == 1 ? string.Empty : "s") influence future matching. Other confirmed appearances remain part of this person but do not train or expand the reference set automatically.
+        </div>
     }
 
     <section class="person-governance" aria-labelledby="identityGovernanceTitle">
@@ -145,26 +161,48 @@
             <div class="person-photo-grid" role="list">
                 @foreach (var photo in Model.Person.Photos)
                 {
+                    var left = Math.Clamp(photo.FaceLeft * 100d, 0d, 100d).ToString("0.###", CultureInfo.InvariantCulture);
+                    var top = Math.Clamp(photo.FaceTop * 100d, 0d, 100d).ToString("0.###", CultureInfo.InvariantCulture);
+                    var width = Math.Clamp(photo.FaceWidth * 100d, 0d, 100d).ToString("0.###", CultureInfo.InvariantCulture);
+                    var height = Math.Clamp(photo.FaceHeight * 100d, 0d, 100d).ToString("0.###", CultureInfo.InvariantCulture);
                     <article class="person-photo-card @(photo.IsRepresentative ? "is-representative" : null)" role="listitem">
                         <label class="person-photo-card__select" title="Select this appearance for correction">
                             <input type="checkbox" value="@photo.FaceId" data-person-face-select />
                             <span class="visually-hidden">Select appearance from @photo.ContextTitle</span>
                         </label>
-                        <a href="@Url.Page("/Photos/Media", new { id = photo.AssetId, variant = "preview" })"
-                           target="_blank" rel="noopener" class="person-photo-card__image">
-                            <img src="@Url.Page("/Photos/Media", new { id = photo.AssetId, variant = "thumb" })"
-                                 alt="@photo.ContextTitle" loading="lazy" decoding="async" />
-                            @if (photo.IsRepresentative)
-                            {
-                                <span><i class="bi bi-star-fill"></i> Cover</span>
-                            }
-                        </a>
+                        <div class="person-photo-card__visuals">
+                            <div class="person-photo-card__face-crop">
+                                <img src="@Url.Page("/Photos/FaceThumbnail", new { id = photo.FaceId })"
+                                     alt="Confirmed face from @photo.ContextTitle" loading="lazy" decoding="async" />
+                                @if (photo.IsRepresentative)
+                                {
+                                    <span class="person-photo-card__cover"><i class="bi bi-star-fill"></i> Cover</span>
+                                }
+                                @if (photo.ReferenceStatus == FaceReferenceStatus.TrustedReference)
+                                {
+                                    <span class="person-photo-card__reference is-trusted"><i class="bi bi-shield-check"></i> Trusted reference</span>
+                                }
+                                else if (photo.ReferenceStatus == FaceReferenceStatus.Excluded)
+                                {
+                                    <span class="person-photo-card__reference is-excluded"><i class="bi bi-shield-x"></i> Excluded from matching</span>
+                                }
+                            </div>
+                            <a href="@Url.Page("/Photos/Media", new { id = photo.AssetId, variant = "preview" })"
+                               target="_blank" rel="noopener" class="person-photo-card__context"
+                               title="Open the complete photograph">
+                                <img src="@Url.Page("/Photos/Media", new { id = photo.AssetId, variant = "thumb" })"
+                                     alt="Context photograph: @photo.ContextTitle" loading="lazy" decoding="async" />
+                                <span class="person-photo-card__face-box"
+                                      style="left:@left%;top:@top%;width:@width%;height:@height%;"></span>
+                                <span class="person-photo-card__context-label">Photograph context <i class="bi bi-arrow-up-right"></i></span>
+                            </a>
+                        </div>
                         <div class="person-photo-card__body">
                             <strong>@photo.ContextTitle</strong>
                             <span>@photo.ContextSubtitle</span>
                             <small>@photo.MediaDateUtc.ToLocalTime().ToString("dd MMM yyyy") · @photo.SourceLabel</small>
                             <span class="person-photo-card__quality" title="Face-image quality used for processing; this is not identity confidence.">
-                                Face quality @(Math.Round(photo.FaceQualityScore * 100))%
+                                Face quality @(Math.Round(photo.FaceQualityScore * 100))% · @photo.AssignmentType
                             </span>
                             <div class="person-photo-card__actions">
                                 @if (!photo.IsRepresentative)
@@ -175,6 +213,33 @@
                                         <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-star"></i> Use as cover</button>
                                     </form>
                                 }
+                                <details class="person-reference-menu">
+                                    <summary class="btn btn-sm @(photo.ReferenceStatus == FaceReferenceStatus.TrustedReference ? "btn-outline-success" : "btn-outline-primary")">
+                                        <i class="bi bi-shield-check"></i> Matching reference
+                                    </summary>
+                                    <form method="post" asp-page-handler="Reference" class="person-correction-menu person-reference-form">
+                                        <input type="hidden" name="id" value="@Model.Person.Id" />
+                                        <input type="hidden" name="faceId" value="@photo.FaceId" />
+                                        @if (photo.ReferenceStatus == FaceReferenceStatus.TrustedReference)
+                                        {
+                                            <input type="hidden" name="referenceAction" value="exclude" />
+                                            <strong>Exclude from matching</strong>
+                                            <p>This appearance remains confirmed but will no longer influence future suggestions.</p>
+                                            <textarea class="form-control form-control-sm" name="reason" maxlength="1024" rows="2"
+                                                      placeholder="Why should this face no longer be a matching reference?" required></textarea>
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Exclude reference</button>
+                                        }
+                                        else
+                                        {
+                                            <input type="hidden" name="referenceAction" value="trust" />
+                                            <strong>Trust for matching</strong>
+                                            <p>Use this clear, verified face as evidence for future known-person suggestions.</p>
+                                            <textarea class="form-control form-control-sm" name="reason" maxlength="1024" rows="2"
+                                                      placeholder="Why is this appearance suitable as a trusted reference?" required></textarea>
+                                            <button type="submit" class="btn btn-sm btn-primary">Trust reference</button>
+                                        }
+                                    </form>
+                                </details>
                                 <details>
                                     <summary class="btn btn-sm btn-outline-danger"><i class="bi bi-person-x"></i> Correct appearance</summary>
                                     <div class="person-correction-menu">

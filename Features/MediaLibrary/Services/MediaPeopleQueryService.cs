@@ -147,7 +147,14 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                     MediaDateUtc = asset.MediaDateUtc,
                     Width = asset.Width,
                     Height = asset.Height,
-                    FaceQualityScore = face.QualityScore
+                    FaceQualityScore = face.QualityScore,
+                    assignment.ReferenceStatus,
+                    assignment.AssignmentType,
+                    assignment.AssignmentConfidence,
+                    FaceLeft = face.Left,
+                    FaceTop = face.Top,
+                    FaceWidth = face.Width,
+                    FaceHeight = face.Height
                 })
             .ToListAsync(cancellationToken);
 
@@ -162,7 +169,14 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                 row.Width,
                 row.Height,
                 row.FaceQualityScore,
-                person.RepresentativeFaceId == row.FaceId))
+                person.RepresentativeFaceId == row.FaceId,
+                row.ReferenceStatus,
+                row.AssignmentType,
+                row.AssignmentConfidence,
+                row.FaceLeft,
+                row.FaceTop,
+                row.FaceWidth,
+                row.FaceHeight))
             .ToList();
         var mergeTargets = await GetPersonOptionsAsync(cancellationToken);
         mergeTargets = mergeTargets.Where(item => item.Id != personId).ToList();
@@ -209,6 +223,7 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             person.ConcurrencyToken,
             assignments.Count,
             assignments.Select(item => item.AssetId).Distinct().Count(),
+            assignments.Count(item => item.ReferenceStatus == FaceReferenceStatus.TrustedReference),
             assignments.Count == 0 ? null : assignments.Min(item => item.MediaDateUtc),
             assignments.Count == 0 ? null : assignments.Max(item => item.MediaDateUtc),
             assignments,
@@ -304,6 +319,12 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                         DisplayName = person.DisplayName,
                         RepresentativeFaceId = person.RepresentativeFaceId,
                         Similarity = decision.Similarity,
+                        BestReferenceSimilarity = decision.BestReferenceSimilarity,
+                        MeanTopSimilarity = decision.MeanTopSimilarity,
+                        ReferenceCount = decision.ReferenceCount,
+                        MarginToNext = decision.MarginToNext,
+                        MarginAvailable = decision.MarginAvailable,
+                        ConfidenceLevel = decision.ConfidenceLevel,
                         ConcurrencyToken = decision.ConcurrencyToken
                     })
                 .ToListAsync(cancellationToken);
@@ -320,6 +341,12 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                         candidate.DisplayName,
                         candidate.RepresentativeFaceId,
                         candidate.Similarity,
+                        candidate.BestReferenceSimilarity,
+                        candidate.MeanTopSimilarity,
+                        candidate.ReferenceCount,
+                        candidate.MarginToNext,
+                        candidate.MarginAvailable,
+                        candidate.ConfidenceLevel,
                         candidate.ConcurrencyToken))
                     .ToList()));
         var items = faceRows
@@ -516,27 +543,13 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                                && decision.Decision == FaceReviewDecisionType.Ignored));
     }
 
-    private IReadOnlyList<FaceReviewCandidateItem> BuildCandidateItems(
+    private static IReadOnlyList<FaceReviewCandidateItem> BuildCandidateItems(
         IReadOnlyList<ReviewCandidateRow> candidates)
     {
-        var ordered = candidates
+        return candidates
             .OrderByDescending(candidate => candidate.Similarity ?? double.NegativeInfinity)
             .ThenBy(candidate => candidate.DisplayName)
-            .ToList();
-        var results = new List<FaceReviewCandidateItem>(ordered.Count);
-        for (var index = 0; index < ordered.Count; index++)
-        {
-            var candidate = ordered[index];
-            var nextSimilarity = index + 1 < ordered.Count ? ordered[index + 1].Similarity : null;
-            var margin = candidate.Similarity.HasValue && nextSimilarity.HasValue
-                ? candidate.Similarity.Value - nextSimilarity.Value
-                : candidate.Similarity;
-            var isStrong = candidate.Similarity >= _options.CandidateStrongSimilarityThreshold
-                           && (!margin.HasValue || margin.Value >= _options.CandidateMinimumMargin);
-            var isAmbiguous = index == 0
-                              && candidate.Similarity >= _options.CandidateSimilarityThreshold
-                              && !isStrong;
-            results.Add(new FaceReviewCandidateItem(
+            .Select((candidate, index) => new FaceReviewCandidateItem(
                 candidate.DecisionId,
                 candidate.PersonId,
                 candidate.DisplayName,
@@ -544,12 +557,15 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
                 candidate.Similarity,
                 candidate.ConcurrencyToken,
                 index + 1,
-                margin,
-                isStrong,
-                isAmbiguous));
-        }
-
-        return results;
+                candidate.MarginToNext,
+                candidate.MarginAvailable,
+                candidate.ReferenceCount,
+                candidate.BestReferenceSimilarity,
+                candidate.MeanTopSimilarity,
+                candidate.ConfidenceLevel,
+                candidate.ConfidenceLevel == FaceCandidateConfidenceLevel.Strong,
+                candidate.ConfidenceLevel == FaceCandidateConfidenceLevel.Possible))
+            .ToList();
     }
 
     private static string IdentityActionLabel(string action)
@@ -570,6 +586,9 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
             "PersonHidden" => "Person hidden",
             "PersonRestored" => "Person restored",
             "RepresentativeFaceChanged" => "Cover appearance changed",
+            "ReferenceTrusted" => "Appearance trusted for matching",
+            "ReferenceRemoved" => "Appearance removed from matching references",
+            "ReferenceExcluded" => "Appearance excluded from matching",
             "FaceSuppressed" => "Invalid face detection removed",
             "FaceLeftUnidentified" => "Face left unidentified",
             "CandidateRejected" => "Identity suggestion rejected",
@@ -597,6 +616,12 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
         string DisplayName,
         Guid? RepresentativeFaceId,
         double? Similarity,
+        double? BestReferenceSimilarity,
+        double? MeanTopSimilarity,
+        int ReferenceCount,
+        double? MarginToNext,
+        bool MarginAvailable,
+        FaceCandidateConfidenceLevel ConfidenceLevel,
         Guid ConcurrencyToken);
 }
 
@@ -624,6 +649,13 @@ internal sealed class MediaPersonPhotoDatabaseRow
     public int? Width { get; init; }
     public int? Height { get; init; }
     public double FaceQualityScore { get; init; }
+    public FaceReferenceStatus ReferenceStatus { get; init; }
+    public FaceAssignmentType AssignmentType { get; init; }
+    public double? AssignmentConfidence { get; init; }
+    public double FaceLeft { get; init; }
+    public double FaceTop { get; init; }
+    public double FaceWidth { get; init; }
+    public double FaceHeight { get; init; }
 }
 
 internal sealed class ReviewFaceDatabaseRow
@@ -646,5 +678,11 @@ internal sealed class ReviewCandidateDatabaseRow
     public string DisplayName { get; init; } = string.Empty;
     public Guid? RepresentativeFaceId { get; init; }
     public double? Similarity { get; init; }
+    public double? BestReferenceSimilarity { get; init; }
+    public double? MeanTopSimilarity { get; init; }
+    public int ReferenceCount { get; init; }
+    public double? MarginToNext { get; init; }
+    public bool MarginAvailable { get; init; }
+    public FaceCandidateConfidenceLevel ConfidenceLevel { get; init; }
     public Guid ConcurrencyToken { get; init; }
 }

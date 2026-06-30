@@ -266,8 +266,15 @@ public sealed class MediaProcessingWorker : BackgroundService
         }
         catch (Exception ex)
         {
-            await RecordFailureAsync(job, ex);
-            _runtime.MarkFailed(job.Id, ex);
+            var sourceUnavailable = await RecordFailureAsync(job, ex);
+            if (sourceUnavailable)
+            {
+                _runtime.MarkUnavailable(job.Id);
+            }
+            else
+            {
+                _runtime.MarkFailed(job.Id, ex);
+            }
         }
         finally
         {
@@ -364,7 +371,7 @@ public sealed class MediaProcessingWorker : BackgroundService
         }
     }
 
-    private async Task RecordFailureAsync(ClaimedJob job, Exception ex)
+    private async Task<bool> RecordFailureAsync(ClaimedJob job, Exception ex)
     {
         using var failureScope = _scopeFactory.CreateScope();
         var db = failureScope.ServiceProvider.GetRequiredService<MediaLibraryDbContext>();
@@ -372,7 +379,7 @@ public sealed class MediaProcessingWorker : BackgroundService
         if (entity is null)
         {
             _logger.LogError(ex, "Media job {JobId} failed but its database row no longer exists", job.Id);
-            return;
+            return false;
         }
         if (entity.Status != MediaProcessingJobStatus.Running
             || !string.Equals(entity.LockedBy, _workerId, StringComparison.Ordinal))
@@ -382,20 +389,28 @@ public sealed class MediaProcessingWorker : BackgroundService
                 "Media job {JobId} failed after worker {WorkerId} lost ownership; the current owner state was not overwritten.",
                 job.Id,
                 _workerId);
-            return;
+            return false;
         }
 
         var now = DateTimeOffset.UtcNow;
         var permanent = MediaProcessingFailurePolicy.IsPermanent(ex);
         var sourceUnavailable = MediaProcessingFailurePolicy.IsSourceUnavailable(ex);
-        var deadLetter = permanent || job.AttemptCount >= Math.Max(1, job.MaxAttempts);
-        entity.Status = deadLetter
-            ? MediaProcessingJobStatus.DeadLetter
-            : MediaProcessingJobStatus.Pending;
-        entity.AvailableAfterUtc = deadLetter ? now : now.Add(GetRetryDelay(job.AttemptCount));
+        var deadLetter = !sourceUnavailable
+                         && (permanent || job.AttemptCount >= Math.Max(1, job.MaxAttempts));
+        entity.Status = sourceUnavailable
+            ? MediaProcessingJobStatus.Completed
+            : deadLetter
+                ? MediaProcessingJobStatus.DeadLetter
+                : MediaProcessingJobStatus.Pending;
+        entity.CompletedAtUtc = sourceUnavailable ? now : null;
+        entity.AvailableAfterUtc = sourceUnavailable || deadLetter
+            ? now
+            : now.Add(GetRetryDelay(job.AttemptCount));
         entity.LockedBy = null;
         entity.LockExpiresAtUtc = null;
-        entity.FailureCode = ex.GetType().Name;
+        entity.FailureCode = sourceUnavailable
+            ? "SourceUnavailable"
+            : ex.GetType().Name;
         var failureMessage = Trim(ex.GetBaseException().Message, 2048);
         entity.FailureMessage = failureMessage;
         entity.UpdatedAtUtc = now;
@@ -434,7 +449,14 @@ public sealed class MediaProcessingWorker : BackgroundService
 
         await db.SaveChangesAsync(CancellationToken.None);
 
-        if (deadLetter)
+        if (sourceUnavailable)
+        {
+            _logger.LogInformation(
+                "Media job {JobId} completed without processing because its source is unavailable: {Message}",
+                job.Id,
+                failureMessage);
+        }
+        else if (deadLetter)
         {
             _logger.LogError(
                 ex,
@@ -454,6 +476,8 @@ public sealed class MediaProcessingWorker : BackgroundService
                 job.MaxAttempts,
                 entity.AvailableAfterUtc);
         }
+
+        return sourceUnavailable;
     }
 
 

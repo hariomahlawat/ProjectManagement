@@ -250,12 +250,22 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
             failures.Add("MediaLibrary:People:CandidateLimit must be between 1 and 20.");
         if (people.CandidateSimilarityThreshold is < -1 or > 1)
             failures.Add("MediaLibrary:People:CandidateSimilarityThreshold must be between -1 and 1.");
+        if (people.CandidateSingleReferenceSimilarityThreshold is < -1 or > 1)
+            failures.Add("MediaLibrary:People:CandidateSingleReferenceSimilarityThreshold must be between -1 and 1.");
+        if (people.CandidateSingleReferenceSimilarityThreshold < people.CandidateSimilarityThreshold)
+            failures.Add("MediaLibrary:People:CandidateSingleReferenceSimilarityThreshold cannot be below CandidateSimilarityThreshold.");
         if (people.CandidateStrongSimilarityThreshold is < -1 or > 1)
             failures.Add("MediaLibrary:People:CandidateStrongSimilarityThreshold must be between -1 and 1.");
         if (people.CandidateStrongSimilarityThreshold < people.CandidateSimilarityThreshold)
             failures.Add("MediaLibrary:People:CandidateStrongSimilarityThreshold cannot be below CandidateSimilarityThreshold.");
+        if (people.CandidateStrongMeanSimilarityThreshold is < -1 or > 1)
+            failures.Add("MediaLibrary:People:CandidateStrongMeanSimilarityThreshold must be between -1 and 1.");
         if (people.CandidateMinimumMargin is < 0 or > 1)
             failures.Add("MediaLibrary:People:CandidateMinimumMargin must be between 0 and 1.");
+        if (people.CandidateMinimumTrustedReferencesForStrong is < 2 or > 20)
+            failures.Add("MediaLibrary:People:CandidateMinimumTrustedReferencesForStrong must be between 2 and 20.");
+        if (people.CandidateMinimumTrustedReferenceQuality is < 0 or > 1)
+            failures.Add("MediaLibrary:People:CandidateMinimumTrustedReferenceQuality must be between 0 and 1.");
         if (people.CandidateRefreshBatchSize is < 1 or > 10_000)
             failures.Add("MediaLibrary:People:CandidateRefreshBatchSize must be between 1 and 10000.");
         if (people.CandidateRefreshIdleDelaySeconds is < 1 or > 3600)

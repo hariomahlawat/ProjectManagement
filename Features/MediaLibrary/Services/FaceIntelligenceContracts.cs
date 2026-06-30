@@ -79,7 +79,10 @@ public sealed record FaceCandidate(
     double Similarity,
     double BestReferenceSimilarity = 0d,
     double MeanTopSimilarity = 0d,
-    int ReferenceCount = 0);
+    int ReferenceCount = 0,
+    double? MarginToNext = null,
+    bool MarginAvailable = false,
+    FaceCandidateConfidenceLevel ConfidenceLevel = FaceCandidateConfidenceLevel.None);
 
 public sealed record FaceCandidateSearchInput(
     Guid FaceId,
@@ -270,6 +273,14 @@ public interface IFaceReviewService
         Guid personId,
         Guid faceId,
         string userId,
+        CancellationToken cancellationToken);
+
+    Task SetReferenceStatusAsync(
+        Guid personId,
+        Guid faceId,
+        FaceReferenceStatus referenceStatus,
+        string userId,
+        string reason,
         CancellationToken cancellationToken);
 
     Task RemoveAssignmentAsync(

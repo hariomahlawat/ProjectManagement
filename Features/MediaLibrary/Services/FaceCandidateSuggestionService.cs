@@ -245,16 +245,18 @@ public sealed class FaceCandidateSuggestionService : IFaceCandidateSuggestionSer
                 _db.FaceReviewDecisions.Remove(stale);
             }
 
-            for (var index = 0; index < candidates.Count; index++)
+            foreach (var candidate in candidates)
             {
-                var candidate = candidates[index];
-                var nextSimilarity = index + 1 < candidates.Count
-                    ? candidates[index + 1].Similarity
-                    : (double?)null;
-                var note = BuildEvidenceNote(candidate, nextSimilarity);
+                var note = BuildEvidenceNote(candidate);
                 if (currentPending.TryGetValue(candidate.PersonId, out var existing))
                 {
                     existing.Similarity = candidate.Similarity;
+                    existing.BestReferenceSimilarity = candidate.BestReferenceSimilarity;
+                    existing.MeanTopSimilarity = candidate.MeanTopSimilarity;
+                    existing.ReferenceCount = candidate.ReferenceCount;
+                    existing.MarginToNext = candidate.MarginToNext;
+                    existing.MarginAvailable = candidate.MarginAvailable;
+                    existing.ConfidenceLevel = candidate.ConfidenceLevel;
                     existing.Notes = note;
                     existing.ConcurrencyToken = Guid.NewGuid();
                     continue;
@@ -266,6 +268,12 @@ public sealed class FaceCandidateSuggestionService : IFaceCandidateSuggestionSer
                     CandidatePersonId = candidate.PersonId,
                     Decision = FaceReviewDecisionType.Pending,
                     Similarity = candidate.Similarity,
+                    BestReferenceSimilarity = candidate.BestReferenceSimilarity,
+                    MeanTopSimilarity = candidate.MeanTopSimilarity,
+                    ReferenceCount = candidate.ReferenceCount,
+                    MarginToNext = candidate.MarginToNext,
+                    MarginAvailable = candidate.MarginAvailable,
+                    ConfidenceLevel = candidate.ConfidenceLevel,
                     ModelKey = input.ModelKey,
                     ModelVersion = input.ModelVersion,
                     Notes = note,
@@ -290,18 +298,20 @@ public sealed class FaceCandidateSuggestionService : IFaceCandidateSuggestionSer
         return inputs.Count;
     }
 
-    private string BuildEvidenceNote(FaceCandidate candidate, double? nextSimilarity)
+    private static string BuildEvidenceNote(FaceCandidate candidate)
     {
-        var margin = nextSimilarity.HasValue
-            ? candidate.Similarity - nextSimilarity.Value
-            : candidate.Similarity;
-        var strength = candidate.Similarity >= _options.CandidateStrongSimilarityThreshold
-                       && margin >= _options.CandidateMinimumMargin
-            ? "strong"
-            : "review";
-        return $"Aggregate {candidate.Similarity:0.000}; best reference {candidate.BestReferenceSimilarity:0.000}; "
-               + $"top-reference mean {candidate.MeanTopSimilarity:0.000}; references {candidate.ReferenceCount}; "
-               + $"margin {margin:0.000}; classification {strength}.";
+        var margin = candidate.MarginAvailable && candidate.MarginToNext.HasValue
+            ? candidate.MarginToNext.Value.ToString("0.000")
+            : "not available";
+        var level = candidate.ConfidenceLevel switch
+        {
+            FaceCandidateConfidenceLevel.Strong => "strong candidate",
+            FaceCandidateConfidenceLevel.Possible => "possible match",
+            _ => "not suggested"
+        };
+        return $"Aggregate {candidate.Similarity:0.000}; best trusted reference {candidate.BestReferenceSimilarity:0.000}; "
+               + $"top-reference mean {candidate.MeanTopSimilarity:0.000}; trusted references {candidate.ReferenceCount}; "
+               + $"margin {margin}; evidence {level}. Similarity is a ranking signal, not an identity probability.";
     }
 
     private static string Trim(string value, int maxLength)

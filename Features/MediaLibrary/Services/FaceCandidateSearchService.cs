@@ -7,9 +7,8 @@ using ProjectManagement.Features.MediaLibrary.Options;
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
 /// <summary>
-/// Bounded, model-compatible candidate search. Batch searches load the confirmed reference
-/// set once, then score multiple new faces in memory. Similarity is review evidence only and
-/// never confirms an identity automatically.
+/// Bounded, model-compatible, open-set candidate search. Only explicitly trusted reference
+/// appearances are loaded. Similarity is review evidence only and never confirms identity.
 /// </summary>
 public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
 {
@@ -111,6 +110,7 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
                     modelGroup.Key.ModelKey,
                     modelGroup.Key.ModelVersion,
                     modelGroup.Key.Dimension,
+                    _options.CandidateMinimumTrustedReferenceQuality,
                     maximumReferences)
                 .ToListAsync(cancellationToken);
 
@@ -191,7 +191,9 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
                 var alreadyPresent = assignedByAsset.GetValueOrDefault(input.AssetId)
                                      ?? new HashSet<Guid>();
 
-                var candidates = references.Values
+                // Rank every eligible known person before applying the open-set gate. The
+                // runner-up used for margin may therefore be below the display threshold.
+                var ranked = references.Values
                     .Where(reference => !rejected.Contains(reference.PersonId)
                                         && !alreadyPresent.Contains(reference.PersonId))
                     .Select(reference =>
@@ -209,12 +211,44 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
                             score.MeanTopSimilarity,
                             score.ReferenceCount);
                     })
-                    .Where(candidate => candidate.Similarity >= _options.CandidateSimilarityThreshold)
                     .OrderByDescending(candidate => candidate.Similarity)
                     .ThenByDescending(candidate => candidate.ReferenceCount)
                     .ThenBy(candidate => candidate.DisplayName)
-                    .Take(Math.Clamp(_options.CandidateLimit, 1, 20))
                     .ToList();
+
+                var candidates = new List<FaceCandidate>();
+                for (var index = 0; index < ranked.Count; index++)
+                {
+                    var candidate = ranked[index];
+                    // Only the top-ranked person has a meaningful best-vs-runner-up
+                    // separation. Lower-ranked alternatives remain possible review choices
+                    // but can never inherit a misleading strong label from the gap below them.
+                    var nextPersonSimilarity = index == 0 && ranked.Count > 1
+                        ? ranked[1].Similarity
+                        : (double?)null;
+                    var evidence = FaceCandidateEvidencePolicy.Evaluate(
+                        candidate.Similarity,
+                        candidate.BestReferenceSimilarity,
+                        candidate.MeanTopSimilarity,
+                        candidate.ReferenceCount,
+                        nextPersonSimilarity,
+                        _options);
+                    if (!evidence.ShouldSuggest)
+                    {
+                        continue;
+                    }
+
+                    candidates.Add(candidate with
+                    {
+                        MarginToNext = evidence.MarginToNext,
+                        MarginAvailable = evidence.MarginAvailable,
+                        ConfidenceLevel = evidence.ConfidenceLevel
+                    });
+                    if (candidates.Count >= Math.Clamp(_options.CandidateLimit, 1, 20))
+                    {
+                        break;
+                    }
+                }
 
                 results[input.FaceId] = candidates;
             }
@@ -224,8 +258,8 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
     }
 
     /// <summary>
-    /// Builds a PostgreSQL-translatable query for active, model-compatible reference faces.
-    /// Only references whose source media remains available are included.
+    /// Builds a PostgreSQL-translatable query for active, model-compatible, explicitly
+    /// trusted reference faces whose source media remains available.
     /// </summary>
     internal static IQueryable<CandidateReferenceDatabaseRow> BuildReferenceRowsQuery(
         MediaLibraryDbContext db,
@@ -233,6 +267,7 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
         string modelKey,
         string modelVersion,
         int dimension,
+        double minimumReferenceQuality,
         int maximumReferences)
     {
         ArgumentNullException.ThrowIfNull(db);
@@ -248,11 +283,13 @@ public sealed class FaceCandidateSearchService : IFaceCandidateSearchService
             join reference in db.FaceEmbeddings.AsNoTracking()
                 on face.Id equals reference.MediaFaceId
             where assignment.RemovedAtUtc == null
+                  && assignment.ReferenceStatus == FaceReferenceStatus.TrustedReference
                   && (excludedFaceId == Guid.Empty || assignment.MediaFaceId != excludedFaceId)
                   && !person.IsHidden
                   && person.Status == MediaPersonStatus.Confirmed
                   && !face.IsSuppressed
                   && face.QualityStatus == FaceQualityStatus.EmbeddingEligible
+                  && face.QualityScore >= minimumReferenceQuality
                   && asset.IsAvailable
                   && !asset.IsDeleted
                   && !asset.IsArchived

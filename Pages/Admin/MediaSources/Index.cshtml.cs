@@ -120,6 +120,9 @@ public sealed class IndexModel : PageModel
     public int PrismSourceRecordCount { get; private set; }
     public int ActivitySourcePhotoCount { get; private set; }
     public long ActivityCataloguePhotoCount { get; private set; }
+    public long ActivityCatalogueRepresentationCount { get; private set; }
+    public long ActivityUnavailableCataloguePhotoCount { get; private set; }
+    public int SourceUnavailableJobs { get; private set; }
     public int PendingIngestionEvents { get; private set; }
     public int ProcessingIngestionEvents { get; private set; }
     public int DeadLetterIngestionEvents { get; private set; }
@@ -785,12 +788,25 @@ public sealed class IndexModel : PageModel
             MissingFromCatalogue = consistency.MissingFromCatalogue;
             PrismOrphanedCatalogueCount = consistency.OrphanedCatalogueRecords;
 
+            ActivityCatalogueRepresentationCount = await _db.Assets.LongCountAsync(
+                asset => asset.Source.SourceType == MediaLibrarySourceType.Prism
+                         && asset.Origin == MediaAssetOrigin.ActivityPhoto
+                         && !asset.IsDeleted,
+                cancellationToken);
             ActivityCataloguePhotoCount = await _db.Assets.LongCountAsync(
                 asset => asset.Source.SourceType == MediaLibrarySourceType.Prism
                          && asset.Origin == MediaAssetOrigin.ActivityPhoto
                          && asset.IsAvailable
                          && !asset.IsDeleted,
                 cancellationToken);
+            ActivityUnavailableCataloguePhotoCount =
+                ActivityCatalogueRepresentationCount - ActivityCataloguePhotoCount;
+
+            Sources = Sources
+                .Select(source => source.Key == MediaSourceBootstrapper.PrismSourceKey
+                    ? source with { AssetCount = PrismAssetCount }
+                    : source)
+                .ToList();
 
             var now = DateTimeOffset.UtcNow;
             PendingJobs = await _db.ProcessingJobs.CountAsync(
@@ -805,7 +821,12 @@ public sealed class IndexModel : PageModel
                 job => job.Status == MediaProcessingJobStatus.Running,
                 cancellationToken);
             CompletedJobs = await _db.ProcessingJobs.CountAsync(
-                job => job.Status == MediaProcessingJobStatus.Completed,
+                job => job.Status == MediaProcessingJobStatus.Completed
+                       && job.FailureCode != "SourceUnavailable",
+                cancellationToken);
+            SourceUnavailableJobs = await _db.ProcessingJobs.CountAsync(
+                job => job.Status == MediaProcessingJobStatus.Completed
+                       && job.FailureCode == "SourceUnavailable",
                 cancellationToken);
             FailedJobs = await _db.ProcessingJobs.CountAsync(
                 job => job.Status == MediaProcessingJobStatus.Failed,

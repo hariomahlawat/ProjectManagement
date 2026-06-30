@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
+using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
 using ProjectManagement.Features.MediaLibrary.Services;
 
@@ -80,6 +81,33 @@ public sealed class DetailsModel : PageModel
             id,
             () => _review.SetRepresentativeFaceAsync(id, faceId, UserId, cancellationToken),
             "Cover appearance updated.");
+
+    public Task<IActionResult> OnPostReferenceAsync(
+        Guid id,
+        Guid faceId,
+        string referenceAction,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        var status = referenceAction?.Trim().ToLowerInvariant() switch
+        {
+            "trust" => FaceReferenceStatus.TrustedReference,
+            "exclude" => FaceReferenceStatus.Excluded,
+            _ => throw new ArgumentException("Choose a valid reference-governance action.")
+        };
+        return ExecuteAsync(
+            id,
+            () => _review.SetReferenceStatusAsync(
+                id,
+                faceId,
+                status,
+                UserId,
+                reason ?? string.Empty,
+                cancellationToken),
+            status == FaceReferenceStatus.TrustedReference
+                ? "Appearance is now a trusted matching reference."
+                : "Appearance has been excluded from matching references.");
+    }
 
     public Task<IActionResult> OnPostRemoveAssignmentAsync(
         Guid id,

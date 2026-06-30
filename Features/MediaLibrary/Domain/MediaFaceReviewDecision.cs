@@ -11,6 +11,12 @@ public sealed class MediaFaceReviewDecision
     public MediaPerson? CandidatePerson { get; set; }
     public FaceReviewDecisionType Decision { get; set; }
     public double? Similarity { get; set; }
+    public double? BestReferenceSimilarity { get; set; }
+    public double? MeanTopSimilarity { get; set; }
+    public int ReferenceCount { get; set; }
+    public double? MarginToNext { get; set; }
+    public bool MarginAvailable { get; set; }
+    public FaceCandidateConfidenceLevel ConfidenceLevel { get; set; } = FaceCandidateConfidenceLevel.None;
 
     [MaxLength(128)]
     public string ModelKey { get; set; } = string.Empty;

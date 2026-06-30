@@ -24,6 +24,7 @@ public interface IMediaProcessingRuntimeState
     void Heartbeat(string state);
     void MarkClaimed(long jobId, long assetId);
     void MarkCompleted(long jobId);
+    void MarkUnavailable(long jobId);
     void MarkFailed(long jobId, Exception exception);
     void MarkIdle();
     MediaProcessingRuntimeSnapshot GetSnapshot();
@@ -103,6 +104,20 @@ public sealed class MediaProcessingRuntimeState : IMediaProcessingRuntimeState
             _lastHeartbeatUtc = now;
             _lastCompletedAtUtc = now;
             _completedSinceStart++;
+            if (_currentJobId == jobId)
+            {
+                _currentJobId = null;
+                _currentAssetId = null;
+            }
+            _state = "Running";
+        }
+    }
+
+    public void MarkUnavailable(long jobId)
+    {
+        lock (_sync)
+        {
+            _lastHeartbeatUtc = DateTimeOffset.UtcNow;
             if (_currentJobId == jobId)
             {
                 _currentJobId = null;

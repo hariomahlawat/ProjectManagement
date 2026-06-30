@@ -136,4 +136,26 @@ public enum FaceQualityStatus
 
 public enum MediaPersonStatus { Unreviewed = 0, Confirmed = 1, Hidden = 2, Merged = 3, Archived = 4 }
 public enum FaceAssignmentType { AutomaticCandidate = 0, HumanConfirmed = 1, HumanRejected = 2, ManualAssignment = 3 }
+
+/// <summary>
+/// Controls whether a confirmed appearance is allowed to influence future biometric matching.
+/// Human confirmation and biometric reference trust are deliberately separate decisions.
+/// </summary>
+public enum FaceReferenceStatus
+{
+    NotReference = 0,
+    TrustedReference = 1,
+    Excluded = 2
+}
+
+/// <summary>
+/// Human-readable review evidence band. This is not a probability and never confirms identity.
+/// </summary>
+public enum FaceCandidateConfidenceLevel
+{
+    None = 0,
+    Possible = 1,
+    Strong = 2
+}
+
 public enum FaceReviewDecisionType { Pending = 0, Confirmed = 1, Rejected = 2, Ignored = 3, NewPersonCreated = 4 }

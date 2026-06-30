@@ -134,6 +134,14 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
                     "PRISM startup catalogue reconciliation failed; targeted Activity backfill will continue");
             }
 
+            var converged = await CompleteConvergedActivityEventsAsync(cancellationToken);
+            if (converged > 0)
+            {
+                _logger.LogInformation(
+                    "Marked {Count} obsolete Activity media event(s) completed because the catalogue is already converged",
+                    converged);
+            }
+
             var queued = await EnqueueMissingActivityPhotosAsync(cancellationToken);
             if (queued > 0)
             {
@@ -180,6 +188,67 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
                 released);
             _signal.Pulse();
         }
+    }
+
+    private async Task<int> CompleteConvergedActivityEventsAsync(CancellationToken cancellationToken)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var applicationDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var mediaDb = scope.ServiceProvider.GetRequiredService<MediaLibraryDbContext>();
+
+        var catalogueRows = await mediaDb.Assets
+            .AsNoTracking()
+            .Where(asset => asset.Origin == MediaAssetOrigin.ActivityPhoto && !asset.IsDeleted)
+            .Select(asset => new { asset.SourceEntityId, asset.RelativePath })
+            .ToListAsync(cancellationToken);
+        if (catalogueRows.Count == 0)
+        {
+            return 0;
+        }
+
+        var sourceEntityIds = catalogueRows
+            .Select(row => row.SourceEntityId)
+            .ToHashSet(StringComparer.Ordinal);
+        var storageKeys = catalogueRows
+            .Where(row => !string.IsNullOrWhiteSpace(row.RelativePath))
+            .Select(row => row.RelativePath!)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var candidates = await applicationDb.PrismMediaOutboxMessages
+            .Where(message => message.EventType == PrismMediaOutboxEventType.ActivityPhotoUpsert
+                              && (message.Status == PrismMediaOutboxStatus.DeadLetter
+                                  || (message.Status == PrismMediaOutboxStatus.Pending
+                                      && message.LastError != null)))
+            .ToListAsync(cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        var completed = 0;
+        foreach (var message in candidates)
+        {
+            var represented = message.AttachmentId.HasValue
+                              && sourceEntityIds.Contains($"activity-photo:{message.AttachmentId.Value}");
+            represented = represented
+                          || (!string.IsNullOrWhiteSpace(message.StorageKey)
+                              && storageKeys.Contains(message.StorageKey));
+            if (!represented)
+            {
+                continue;
+            }
+
+            message.Status = PrismMediaOutboxStatus.Completed;
+            message.ProcessedAtUtc = now;
+            message.AvailableAfterUtc = now;
+            message.LockedBy = null;
+            message.LockExpiresAtUtc = null;
+            message.LastError = null;
+            completed++;
+        }
+
+        if (completed > 0)
+        {
+            await applicationDb.SaveChangesAsync(cancellationToken);
+        }
+
+        return completed;
     }
 
     private async Task<int> EnqueueMissingActivityPhotosAsync(CancellationToken cancellationToken)

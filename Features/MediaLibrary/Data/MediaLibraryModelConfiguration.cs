@@ -244,6 +244,9 @@ public static class MediaLibraryModelConfiguration
             entity.ToTable("MediaPersonFaces");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.AssignmentType).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.ReferenceStatus).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.ReferenceChangedByUserId).HasMaxLength(450);
+            entity.Property(x => x.ReferenceChangeReason).HasMaxLength(1024);
             entity.Property(x => x.AssignedByUserId).HasMaxLength(450).IsRequired();
             entity.Property(x => x.RemovedByUserId).HasMaxLength(450);
             entity.Property(x => x.RemovalReason).HasMaxLength(1024);
@@ -255,6 +258,8 @@ public static class MediaLibraryModelConfiguration
                 .HasDatabaseName("UX_MediaPersonFaces_OneActiveAssignmentPerFace");
             entity.HasIndex(x => new { x.MediaPersonId, x.RemovedAtUtc, x.AssignedAtUtc })
                 .HasDatabaseName("IX_MediaPersonFaces_ActivePersonTimeline");
+            entity.HasIndex(x => new { x.MediaPersonId, x.ReferenceStatus, x.RemovedAtUtc })
+                .HasDatabaseName("IX_MediaPersonFaces_TrustedReferences");
             entity.HasOne(x => x.MediaPerson)
                 .WithMany(x => x.FaceAssignments)
                 .HasForeignKey(x => x.MediaPersonId)
@@ -270,6 +275,7 @@ public static class MediaLibraryModelConfiguration
             entity.ToTable("MediaFaceReviewDecisions");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Decision).HasConversion<string>().HasMaxLength(32).IsRequired();
+            entity.Property(x => x.ConfidenceLevel).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(x => x.ModelKey).HasMaxLength(128).IsRequired();
             entity.Property(x => x.ModelVersion).HasMaxLength(128).IsRequired();
             entity.Property(x => x.DecidedByUserId).HasMaxLength(450);

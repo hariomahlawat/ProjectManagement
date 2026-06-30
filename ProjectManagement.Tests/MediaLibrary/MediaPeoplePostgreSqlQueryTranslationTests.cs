@@ -68,6 +68,7 @@ public sealed class MediaPeoplePostgreSqlQueryTranslationTests
                 "opencv-sface",
                 "2021dec",
                 128,
+                0.65d,
                 10_000)
             .ToQueryString();
 
@@ -75,6 +76,8 @@ public sealed class MediaPeoplePostgreSqlQueryTranslationTests
         Assert.Contains("MediaFaceEmbeddings", sql);
         Assert.Contains("MediaAssets", sql);
         Assert.Contains("ORDER BY", sql.ToUpperInvariant());
+        Assert.Contains("ReferenceStatus", sql);
+        Assert.Contains("TrustedReference", sql);
     }
 
     [Fact]

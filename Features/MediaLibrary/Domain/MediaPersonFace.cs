@@ -12,6 +12,20 @@ public sealed class MediaPersonFace
     public FaceAssignmentType AssignmentType { get; set; }
     public double? AssignmentConfidence { get; set; }
 
+    /// <summary>
+    /// Confirmed appearances do not automatically become biometric references. Only
+    /// explicitly trusted references may influence future candidate matching.
+    /// </summary>
+    public FaceReferenceStatus ReferenceStatus { get; set; } = FaceReferenceStatus.NotReference;
+
+    [MaxLength(450)]
+    public string? ReferenceChangedByUserId { get; set; }
+
+    public DateTimeOffset? ReferenceChangedAtUtc { get; set; }
+
+    [MaxLength(1024)]
+    public string? ReferenceChangeReason { get; set; }
+
     [Required, MaxLength(450)]
     public string AssignedByUserId { get; set; } = string.Empty;
 

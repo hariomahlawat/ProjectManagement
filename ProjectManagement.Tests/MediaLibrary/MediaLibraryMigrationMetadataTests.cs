@@ -61,4 +61,23 @@ public sealed class MediaLibraryMigrationMetadataTests
         Assert.Equal("20260629170000_AddIncrementalKnownPersonMatching", migrationAttribute.Id);
     }
 
+
+    [Fact]
+    public void IdentityReferenceGovernanceMigration_IsDiscoverableByMediaLibraryContext()
+    {
+        var migrationType = typeof(AddIdentityReferenceGovernance);
+
+        var contextAttribute = migrationType
+            .GetCustomAttributes(typeof(DbContextAttribute), inherit: false)
+            .Cast<DbContextAttribute>()
+            .Single();
+        var migrationAttribute = migrationType
+            .GetCustomAttributes(typeof(MigrationAttribute), inherit: false)
+            .Cast<MigrationAttribute>()
+            .Single();
+
+        Assert.Equal(typeof(MediaLibraryDbContext), contextAttribute.ContextType);
+        Assert.Equal("20260630113000_AddIdentityReferenceGovernance", migrationAttribute.Id);
+    }
+
 }

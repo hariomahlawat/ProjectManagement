@@ -42,6 +42,7 @@ public sealed record MediaPersonDetailsResult(
     Guid ConcurrencyToken,
     int ConfirmedFaceCount,
     int PhotoCount,
+    int TrustedReferenceCount,
     DateTimeOffset? FirstMediaDateUtc,
     DateTimeOffset? LatestMediaDateUtc,
     IReadOnlyList<MediaPersonPhotoItem> Photos,
@@ -58,7 +59,14 @@ public sealed record MediaPersonPhotoItem(
     int? Width,
     int? Height,
     double FaceQualityScore,
-    bool IsRepresentative);
+    bool IsRepresentative,
+    FaceReferenceStatus ReferenceStatus,
+    FaceAssignmentType AssignmentType,
+    double? AssignmentConfidence,
+    double FaceLeft,
+    double FaceTop,
+    double FaceWidth,
+    double FaceHeight);
 
 public sealed record MediaPersonOption(Guid Id, string DisplayName);
 
@@ -88,8 +96,13 @@ public sealed record FaceReviewCandidateItem(
     Guid ConcurrencyToken,
     int Rank = 0,
     double? MarginToNext = null,
+    bool MarginAvailable = false,
+    int ReferenceCount = 0,
+    double? BestReferenceSimilarity = null,
+    double? MeanTopSimilarity = null,
+    FaceCandidateConfidenceLevel ConfidenceLevel = FaceCandidateConfidenceLevel.None,
     bool IsStrong = false,
-    bool IsAmbiguous = false);
+    bool IsPossible = false);
 
 public sealed record FaceReviewQueueItem(
     Guid FaceId,

@@ -181,7 +181,8 @@
 
                 <div class="d-flex flex-wrap gap-3 small mt-3 pt-3 border-top">
                     <span><strong>Activity source photos:</strong> @Model.ActivitySourcePhotoCount</span>
-                    <span><strong>Activity catalogue photos:</strong> @Model.ActivityCataloguePhotoCount</span>
+                    <span><strong>Activity representations:</strong> @Model.ActivityCatalogueRepresentationCount</span>
+                    <span><strong>Activity availability:</strong> @Model.ActivityCataloguePhotoCount available · @Model.ActivityUnavailableCataloguePhotoCount unavailable</span>
                     <span><strong>Outbox worker:</strong> @(Model.OutboxRuntime.IsRunning ? "Running" : "Stopped")</span>
                     <span><strong>Backfill:</strong> @Model.OutboxRuntime.BackfillStatus</span>
                     @if (Model.OutboxRuntime.LastHeartbeatUtc.HasValue)
@@ -392,7 +393,7 @@
                     <div class="col-sm-6 col-xl-3">
                         <div class="small text-muted">This application runtime</div>
                         <div class="fw-semibold">@Model.ProcessingRuntime.CompletedSinceStart jobs completed</div>
-                        <div class="small text-muted">@Model.ProcessingRuntime.FailedSinceStart failed attempts</div>
+                        <div class="small text-muted">@Model.ProcessingRuntime.FailedSinceStart failed attempts · @Model.SourceUnavailableJobs source-unavailable outcomes</div>
                     </div>
                     <div class="col-sm-6 col-xl-3">
                         <div class="small text-muted">Derivative cache</div>

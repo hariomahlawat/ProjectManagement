@@ -181,9 +181,26 @@ public sealed class MediaPeopleOptions
     /// similarity gates, not probabilities. The lower threshold creates review-only
     /// suggestions; the strong threshold only changes presentation and never auto-confirms.
     /// </summary>
-    public double CandidateSimilarityThreshold { get; set; } = 0.38;
-    public double CandidateStrongSimilarityThreshold { get; set; } = 0.46;
-    public double CandidateMinimumMargin { get; set; } = 0.04;
+    /// <summary>Minimum aggregate similarity for a review-only known-person suggestion when two or more trusted references exist.</summary>
+    public double CandidateSimilarityThreshold { get; set; } = 0.58;
+
+    /// <summary>Stricter open-set gate used when a person has only one trusted reference.</summary>
+    public double CandidateSingleReferenceSimilarityThreshold { get; set; } = 0.70;
+
+    /// <summary>Absolute similarity floor for a strong candidate. Strong remains review-only.</summary>
+    public double CandidateStrongSimilarityThreshold { get; set; } = 0.72;
+
+    /// <summary>Minimum mean similarity across the strongest trusted references for a strong candidate.</summary>
+    public double CandidateStrongMeanSimilarityThreshold { get; set; } = 0.68;
+
+    /// <summary>Minimum best-vs-second-best person separation required for a strong candidate.</summary>
+    public double CandidateMinimumMargin { get; set; } = 0.08;
+
+    /// <summary>Strong evidence requires multiple independently trusted references.</summary>
+    public int CandidateMinimumTrustedReferencesForStrong { get; set; } = 2;
+
+    /// <summary>Low-quality confirmed appearances may never become matching references.</summary>
+    public double CandidateMinimumTrustedReferenceQuality { get; set; } = 0.65;
 
     /// <summary>Enables durable background matching of new embeddings to confirmed people.</summary>
     public bool CandidateSearchEnabled { get; set; } = true;
