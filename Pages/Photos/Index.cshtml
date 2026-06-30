@@ -18,7 +18,7 @@
         <div>
             <span class="photos-eyebrow">Unified organisational media</span>
             <h1>Photos</h1>
-            <p>Browse project photographs, visits, events and videos in one place.</p>
+            <p>Browse project photographs, visits, activities, events and videos in one place.</p>
         </div>
         <div class="photos-hero__actions">
             <button type="button" class="photos-action photos-action--quiet" data-photos-select-toggle><i class="bi bi-check2-circle"></i><span>Select</span></button>
@@ -48,7 +48,7 @@
         <form method="get" class="photos-search" role="search">
             <input type="hidden" name="View" value="@Model.View" />
             <i class="bi bi-search"></i>
-            <input type="search" name="Q" value="@Model.Q" placeholder="Search photos, projects, visits, events or people" autocomplete="off" data-photos-search />
+            <input type="search" name="Q" value="@Model.Q" placeholder="Search photos, projects, visits, activities, events or people" autocomplete="off" data-photos-search />
             <input type="hidden" name="Source" value="@Model.Source" /><input type="hidden" name="Kind" value="@Model.Kind" /><input type="hidden" name="Classification" value="@Model.Classification" />
             @if (Model.ProjectId.HasValue) { <input type="hidden" name="ProjectId" value="@Model.ProjectId" /> }
             @if (Model.PersonId.HasValue) { <input type="hidden" name="PersonId" value="@Model.PersonId" /> }
@@ -185,6 +185,7 @@
                     <option value="projects" selected="@(Model.Source == "projects")">Projects</option>
                     <option value="visits" selected="@(Model.Source == "visits")">Visits to SDD</option>
                     <option value="events" selected="@(Model.Source == "events")">Events</option>
+                    <option value="activities" selected="@(Model.Source == "activities")">Institutional activities</option>
                     @if (Model.ExternalSourcesEnabled)
                     {
                         <option value="external" selected="@(Model.Source == "external")">External folders</option>

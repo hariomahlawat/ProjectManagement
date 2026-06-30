@@ -1,3 +1,6 @@
+using ProjectManagement.Services.Activities;
+using ProjectManagement.Data;
+using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Services.Projects;
@@ -292,3 +295,59 @@ public sealed class SocialMediaPhotoMediaContentProvider : IMediaContentProvider
             $"No social-media photo asset is available for event {eventId}, photo {photoId}.");
     }
 }
+public sealed class ActivityPhotoMediaContentProvider : IMediaContentProvider
+{
+    private readonly ApplicationDbContext _db;
+    private readonly IActivityAttachmentStorage _storage;
+
+    public ActivityPhotoMediaContentProvider(
+        ApplicationDbContext db,
+        IActivityAttachmentStorage storage)
+    {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _storage = storage ?? throw new ArgumentNullException(nameof(storage));
+    }
+
+    public bool CanHandle(MediaAsset asset) => asset.Origin == MediaAssetOrigin.ActivityPhoto;
+
+    public async Task<MediaContentDescriptor?> ResolveAsync(
+        MediaAsset asset,
+        CancellationToken cancellationToken)
+    {
+        var suffix = asset.SourceEntityId.Split(':').LastOrDefault();
+        if (!int.TryParse(suffix, out var attachmentId))
+        {
+            return null;
+        }
+
+        var attachment = await _db.ActivityAttachments
+            .AsNoTracking()
+            .Where(item => item.Id == attachmentId
+                           && !item.Activity.IsDeleted
+                           && item.ContentType.ToLower().StartsWith("image/"))
+            .Select(item => new
+            {
+                item.StorageKey,
+                item.OriginalFileName,
+                item.ContentType,
+                item.FileSize,
+                item.UploadedAtUtc
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (attachment is null)
+        {
+            return null;
+        }
+
+        return new MediaContentDescriptor(
+            attachment.OriginalFileName,
+            attachment.ContentType,
+            attachment.FileSize,
+            attachment.UploadedAtUtc,
+            async ct => await _storage.OpenReadAsync(attachment.StorageKey, ct)
+                        ?? throw new MediaContentUnavailableException(
+                            $"Activity attachment {attachmentId} is no longer available."));
+    }
+}
+

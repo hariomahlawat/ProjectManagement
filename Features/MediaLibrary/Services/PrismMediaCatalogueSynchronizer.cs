@@ -245,6 +245,61 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
                     row.VersionStamp));
             }
 
+            var activityPhotos = await _applicationDb.ActivityAttachments
+                .AsNoTracking()
+                .Where(attachment => !attachment.Activity.IsDeleted
+                                     && attachment.ContentType.ToLower().StartsWith("image/"))
+                .Select(attachment => new
+                {
+                    attachment.Id,
+                    attachment.ActivityId,
+                    ActivityTitle = attachment.Activity.Title,
+                    ActivityType = attachment.Activity.ActivityType.Name,
+                    attachment.Activity.Location,
+                    attachment.Activity.ScheduledStartUtc,
+                    attachment.Activity.CreatedAtUtc,
+                    attachment.Activity.LastModifiedAtUtc,
+                    attachment.StorageKey,
+                    attachment.OriginalFileName,
+                    attachment.ContentType,
+                    attachment.FileSize,
+                    attachment.UploadedAtUtc,
+                    attachment.RowVersion
+                })
+                .ToListAsync(cancellationToken);
+
+            foreach (var row in activityPhotos)
+            {
+                var versionToken = Convert.ToHexString(row.RowVersion ?? Array.Empty<byte>());
+                var activityModified = row.LastModifiedAtUtc ?? row.CreatedAtUtc;
+                var mediaDate = row.ScheduledStartUtc ?? row.UploadedAtUtc;
+                var entity = Upsert(existing, contentChanges, source.Id, scanId, now, new AssetValues(
+                    $"activity-photo:{row.Id}",
+                    row.ActivityId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    MediaAssetOrigin.ActivityPhoto,
+                    MediaAssetKind.Photo,
+                    row.OriginalFileName,
+                    row.ContentType,
+                    $"activity:{row.ActivityId}",
+                    $"activity:{row.ActivityId}",
+                    row.ActivityTitle,
+                    string.IsNullOrWhiteSpace(row.ActivityType) ? "Institutional activity" : row.ActivityType,
+                    "Activity",
+                    row.ActivityTitle,
+                    row.Location,
+                    null,
+                    mediaDate,
+                    null,
+                    null,
+                    null,
+                    versionToken,
+                    false,
+                    row.UploadedAtUtc.UtcDateTime.Ticks,
+                    $"{versionToken}:{row.UploadedAtUtc.UtcDateTime.Ticks}:{activityModified.UtcDateTime.Ticks}:{row.StorageKey}"));
+                entity.FileSizeBytes = row.FileSize;
+                entity.FileModifiedAtUtc = row.UploadedAtUtc;
+            }
+
             foreach (var stale in existing.Values.Where(asset => asset.LastSeenScanId != scanId))
             {
                 stale.IsAvailable = false;

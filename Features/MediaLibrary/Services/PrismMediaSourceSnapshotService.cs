@@ -22,9 +22,10 @@ public sealed record PrismMediaSourceSnapshot(
     int ProjectVideoCount,
     int VisitPhotoCount,
     int EventPhotoCount,
+    int ActivityPhotoCount,
     DateTimeOffset? LatestChangeUtc)
 {
-    public int TotalCount => ProjectPhotoCount + ProjectVideoCount + VisitPhotoCount + EventPhotoCount;
+    public int TotalCount => ProjectPhotoCount + ProjectVideoCount + VisitPhotoCount + EventPhotoCount + ActivityPhotoCount;
 }
 
 public sealed class PrismMediaSourceSnapshotService : IPrismMediaSourceSnapshotService
@@ -78,6 +79,18 @@ public sealed class PrismMediaSourceSnapshotService : IPrismMediaSourceSnapshotS
             .SingleOrDefaultAsync(cancellationToken)
             ?? OffsetSourceAggregate.Empty;
 
+        var activityPhotos = await _db.ActivityAttachments
+            .AsNoTracking()
+            .Where(attachment => !attachment.Activity.IsDeleted
+                                 && attachment.ContentType.ToLower().StartsWith("image/"))
+            .GroupBy(_ => 1)
+            .Select(group => new ActivitySourceAggregate(
+                group.Count(),
+                group.Max(attachment => (DateTimeOffset?)attachment.UploadedAtUtc),
+                group.Max(attachment => attachment.Activity.LastModifiedAtUtc)))
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? ActivitySourceAggregate.Empty;
+
         var projectPhotoChange = ToUtcOffset(projectPhotos.LatestChangeUtc);
         var projectVideoChange = ToUtcOffset(projectVideos.LatestChangeUtc);
         var latestCandidates = new DateTimeOffset?[]
@@ -85,7 +98,9 @@ public sealed class PrismMediaSourceSnapshotService : IPrismMediaSourceSnapshotS
                 projectPhotoChange,
                 projectVideoChange,
                 visitPhotos.LatestChangeUtc,
-                eventPhotos.LatestChangeUtc
+                eventPhotos.LatestChangeUtc,
+                activityPhotos.LatestUploadUtc,
+                activityPhotos.LatestActivityChangeUtc
             }
             .Where(value => value.HasValue)
             .Select(value => value!.Value)
@@ -104,7 +119,10 @@ public sealed class PrismMediaSourceSnapshotService : IPrismMediaSourceSnapshotS
             visitPhotos.Count,
             visitPhotos.LatestChangeUtc?.UtcDateTime.Ticks ?? 0,
             eventPhotos.Count,
-            eventPhotos.LatestChangeUtc?.UtcDateTime.Ticks ?? 0);
+            eventPhotos.LatestChangeUtc?.UtcDateTime.Ticks ?? 0,
+            activityPhotos.Count,
+            activityPhotos.LatestUploadUtc?.UtcDateTime.Ticks ?? 0,
+            activityPhotos.LatestActivityChangeUtc?.UtcDateTime.Ticks ?? 0);
 
         var fingerprint = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(revisionMaterial)));
@@ -115,6 +133,7 @@ public sealed class PrismMediaSourceSnapshotService : IPrismMediaSourceSnapshotS
             projectVideos.Count,
             visitPhotos.Count,
             eventPhotos.Count,
+            activityPhotos.Count,
             latest);
     }
 
@@ -142,5 +161,13 @@ public sealed class PrismMediaSourceSnapshotService : IPrismMediaSourceSnapshotS
     private sealed record OffsetSourceAggregate(int Count, DateTimeOffset? LatestChangeUtc)
     {
         public static OffsetSourceAggregate Empty { get; } = new(0, null);
+    }
+
+    private sealed record ActivitySourceAggregate(
+        int Count,
+        DateTimeOffset? LatestUploadUtc,
+        DateTimeOffset? LatestActivityChangeUtc)
+    {
+        public static ActivitySourceAggregate Empty { get; } = new(0, null, null);
     }
 }

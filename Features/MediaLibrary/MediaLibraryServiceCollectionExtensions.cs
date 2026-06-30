@@ -59,6 +59,7 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaContentProvider, ProjectVideoMediaContentProvider>();
         services.AddScoped<IMediaContentProvider, VisitPhotoMediaContentProvider>();
         services.AddScoped<IMediaContentProvider, SocialMediaPhotoMediaContentProvider>();
+        services.AddScoped<IMediaContentProvider, ActivityPhotoMediaContentProvider>();
         services.AddScoped<IMediaContentProviderResolver, MediaContentProviderResolver>();
         services.AddScoped<IMediaMetadataReader, MediaMetadataReader>();
         services.AddScoped<IFacePresenceProbe, YuNetFacePresenceProbe>();

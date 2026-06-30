@@ -11,6 +11,7 @@ using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
 using ProjectManagement.Features.MediaLibrary.Services;
+using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Pages.Photos;
 
@@ -23,6 +24,7 @@ public sealed class IndexModel : PageModel
     private readonly IMediaLibraryQueryService _library;
     private readonly IPrismMediaSourceSnapshotService _sourceSnapshot;
     private readonly MediaLibraryOptions _mediaOptions;
+    private readonly IProtectedFileUrlBuilder _fileUrlBuilder;
     private readonly ILogger<IndexModel> _logger;
 
     public IndexModel(
@@ -31,6 +33,7 @@ public sealed class IndexModel : PageModel
         IMediaLibraryQueryService library,
         IPrismMediaSourceSnapshotService sourceSnapshot,
         IOptions<MediaLibraryOptions> mediaOptions,
+        IProtectedFileUrlBuilder fileUrlBuilder,
         ILogger<IndexModel> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
@@ -38,6 +41,7 @@ public sealed class IndexModel : PageModel
         _library = library ?? throw new ArgumentNullException(nameof(library));
         _sourceSnapshot = sourceSnapshot ?? throw new ArgumentNullException(nameof(sourceSnapshot));
         _mediaOptions = mediaOptions?.Value ?? throw new ArgumentNullException(nameof(mediaOptions));
+        _fileUrlBuilder = fileUrlBuilder ?? throw new ArgumentNullException(nameof(fileUrlBuilder));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -278,6 +282,7 @@ public sealed class IndexModel : PageModel
             MediaAssetOrigin.ProjectPhoto or MediaAssetOrigin.ProjectVideo => MediaSource.Project,
             MediaAssetOrigin.VisitPhoto => MediaSource.Visit,
             MediaAssetOrigin.SocialMediaEventPhoto => MediaSource.Event,
+            MediaAssetOrigin.ActivityPhoto => MediaSource.Activity,
             _ => MediaSource.ExternalFolder
         };
 
@@ -321,6 +326,14 @@ public sealed class IndexModel : PageModel
                 thumbnail = Url.Page("/SocialMedia/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "feed", v = version }) ?? display;
                 original = Url.Page("/SocialMedia/ViewPhoto", new { area = "ProjectOfficeReports", id = parentId, photoId = id, size = "original", v = version }) ?? display;
                 sourceUrl = Url.Page("/SocialMedia/Details", new { area = "ProjectOfficeReports", id = parentId });
+                break;
+
+            case MediaAssetOrigin.ActivityPhoto:
+                display = Url.Page("/Photos/Media", new { id = row.Id, variant = "preview", v = row.CacheVersion }) ?? string.Empty;
+                thumbnail = Url.Page("/Photos/Media", new { id = row.Id, variant = "thumb", v = row.CacheVersion }) ?? display;
+                original = Url.Page("/Photos/Media", new { id = row.Id, variant = "original", v = row.CacheVersion }) ?? display;
+                download = Url.Page("/Photos/Media", new { id = row.Id, variant = "original", download = true, v = row.CacheVersion });
+                sourceUrl = Url.Page("/Activities/Details", new { id = parentId });
                 break;
 
             default:
@@ -386,6 +399,7 @@ public sealed class IndexModel : PageModel
         {
             if (Source is "all" or "visits") items.AddRange(await LoadVisitPhotosAsync(cancellationToken));
             if (Source is "all" or "events") items.AddRange(await LoadSocialMediaPhotosAsync(cancellationToken));
+            if (Source is "all" or "activities") items.AddRange(await LoadActivityPhotosAsync(cancellationToken));
         }
 
         // Do not resurrect historical rows whose physical source was already proven
@@ -582,6 +596,66 @@ public sealed class IndexModel : PageModel
         }).ToList();
     }
 
+    private async Task<List<MediaItem>> LoadActivityPhotosAsync(CancellationToken cancellationToken)
+    {
+        if (ProjectId.HasValue) return new();
+        var rows = await _db.ActivityAttachments
+            .AsNoTracking()
+            .Where(attachment => !attachment.Activity.IsDeleted
+                                 && attachment.ContentType.ToLower().StartsWith("image/"))
+            .Select(attachment => new
+            {
+                attachment.Id,
+                attachment.ActivityId,
+                ActivityTitle = attachment.Activity.Title,
+                ActivityType = attachment.Activity.ActivityType.Name,
+                attachment.Activity.Location,
+                attachment.Activity.ScheduledStartUtc,
+                attachment.StorageKey,
+                attachment.OriginalFileName,
+                attachment.ContentType,
+                attachment.UploadedAtUtc,
+                attachment.RowVersion
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(row =>
+        {
+            var version = Convert.ToHexString(row.RowVersion ?? Array.Empty<byte>());
+            var inlineUrl = _fileUrlBuilder.CreateInlineUrl(
+                row.StorageKey,
+                row.OriginalFileName,
+                row.ContentType);
+            return new MediaItem
+            {
+                Id = $"activity-photo:{row.Id}",
+                Kind = MediaKind.Photo,
+                Source = MediaSource.Activity,
+                SourceLabel = "Activity",
+                ContextKey = $"activity:{row.ActivityId}",
+                CollectionKey = $"activity:{row.ActivityId}",
+                ContextTitle = row.ActivityTitle,
+                ContextSubtitle = string.IsNullOrWhiteSpace(row.ActivityType)
+                    ? "Institutional activity"
+                    : row.ActivityType,
+                Title = row.ActivityTitle,
+                Caption = row.Location,
+                OriginalFileName = row.OriginalFileName,
+                MediaDate = (row.ScheduledStartUtc ?? row.UploadedAtUtc).LocalDateTime,
+                ThumbnailUrl = inlineUrl,
+                DisplayUrl = inlineUrl,
+                OriginalUrl = inlineUrl,
+                DownloadUrl = _fileUrlBuilder.CreateDownloadUrl(
+                    row.StorageKey,
+                    row.OriginalFileName,
+                    row.ContentType),
+                SourceUrl = Url.Page("/Activities/Details", new { id = row.ActivityId }),
+                SortOrder = row.UploadedAtUtc.UtcDateTime.Ticks,
+                VersionToken = version
+            };
+        }).ToList();
+    }
+
     private bool MatchesSearch(MediaItem item)
         => Q is null || Contains(item.Title, Q) || Contains(item.Caption, Q)
            || Contains(item.ContextTitle, Q) || Contains(item.ContextSubtitle, Q)
@@ -615,6 +689,7 @@ public sealed class IndexModel : PageModel
         => value?.Trim().ToLowerInvariant() switch
         {
             "projects" => "projects", "visits" => "visits", "events" => "events",
+            "activities" => "activities",
             "external" or "nas" => "external", _ => "all"
         };
 
@@ -764,5 +839,5 @@ public sealed class IndexModel : PageModel
     }
 
     public enum MediaKind { Photo, Video }
-    public enum MediaSource { Project, Visit, Event, ExternalFolder }
+    public enum MediaSource { Project, Visit, Event, Activity, ExternalFolder }
 }

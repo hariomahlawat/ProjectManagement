@@ -68,6 +68,15 @@ public sealed class MediaCatalogueConsistencyService : IMediaCatalogueConsistenc
             expected.Add($"event-photo:{id}");
         }
 
+        foreach (var id in await _applicationDb.ActivityAttachments.AsNoTracking()
+                     .Where(attachment => !attachment.Activity.IsDeleted
+                                          && attachment.ContentType.ToLower().StartsWith("image/"))
+                     .Select(attachment => attachment.Id)
+                     .ToListAsync(cancellationToken))
+        {
+            expected.Add($"activity-photo:{id}");
+        }
+
         var catalogue = await _mediaDb.Assets.AsNoTracking()
             .Where(asset => asset.Origin != MediaAssetOrigin.ExternalFile && !asset.IsDeleted)
             .Select(asset => new

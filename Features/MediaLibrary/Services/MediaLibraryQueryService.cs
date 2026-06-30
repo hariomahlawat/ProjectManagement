@@ -423,6 +423,7 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                                                || asset.Origin == MediaAssetOrigin.ProjectVideo),
             "visits" => query.Where(asset => asset.Origin == MediaAssetOrigin.VisitPhoto),
             "events" => query.Where(asset => asset.Origin == MediaAssetOrigin.SocialMediaEventPhoto),
+            "activities" => query.Where(asset => asset.Origin == MediaAssetOrigin.ActivityPhoto),
             "external" => query.Where(asset => asset.Origin == MediaAssetOrigin.ExternalFile),
             _ => query
         };

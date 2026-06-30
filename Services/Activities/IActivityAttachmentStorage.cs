@@ -1,3 +1,4 @@
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -11,6 +12,11 @@ public interface IActivityAttachmentStorage
         CancellationToken cancellationToken = default);
 
     Task DeleteAsync(string storageKey, CancellationToken cancellationToken = default);
+
+    Task<Stream?> OpenReadAsync(
+        string storageKey,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<Stream?>(null);
 }
 
 public sealed record ActivityAttachmentStorageResult(

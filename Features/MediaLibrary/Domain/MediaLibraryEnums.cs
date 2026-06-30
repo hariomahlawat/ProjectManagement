@@ -16,6 +16,7 @@ public enum MediaAssetOrigin
     VisitPhoto = 2,
     SocialMediaEventPhoto = 3,
     ExternalFile = 4,
+    ActivityPhoto = 5,
 
     [Obsolete("Use ExternalFile. The value is retained for database compatibility.")]
     NetworkFile = ExternalFile
