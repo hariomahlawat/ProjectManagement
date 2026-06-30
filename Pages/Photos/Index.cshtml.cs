@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
@@ -24,7 +25,6 @@ public sealed class IndexModel : PageModel
     private readonly MediaLibraryDbContext _mediaDb;
     private readonly IMediaLibraryQueryService _library;
     private readonly IPrismMediaSourceSnapshotService _sourceSnapshot;
-    private readonly IMediaCatalogueConsistencyService _consistencyService;
     private readonly MediaLibraryOptions _mediaOptions;
     private readonly IProtectedFileUrlBuilder _fileUrlBuilder;
     private readonly ILogger<IndexModel> _logger;
@@ -34,7 +34,6 @@ public sealed class IndexModel : PageModel
         MediaLibraryDbContext mediaDb,
         IMediaLibraryQueryService library,
         IPrismMediaSourceSnapshotService sourceSnapshot,
-        IMediaCatalogueConsistencyService consistencyService,
         IOptions<MediaLibraryOptions> mediaOptions,
         IProtectedFileUrlBuilder fileUrlBuilder,
         ILogger<IndexModel> logger)
@@ -43,7 +42,6 @@ public sealed class IndexModel : PageModel
         _mediaDb = mediaDb ?? throw new ArgumentNullException(nameof(mediaDb));
         _library = library ?? throw new ArgumentNullException(nameof(library));
         _sourceSnapshot = sourceSnapshot ?? throw new ArgumentNullException(nameof(sourceSnapshot));
-        _consistencyService = consistencyService ?? throw new ArgumentNullException(nameof(consistencyService));
         _mediaOptions = mediaOptions?.Value ?? throw new ArgumentNullException(nameof(mediaOptions));
         _fileUrlBuilder = fileUrlBuilder ?? throw new ArgumentNullException(nameof(fileUrlBuilder));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -55,7 +53,11 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)] public string Kind { get; set; } = "all";
     [BindProperty(SupportsGet = true)] public string Classification { get; set; } = "all";
     [BindProperty(SupportsGet = true)] public int? ProjectId { get; set; }
+    // PersonId is retained for backwards-compatible links. New links use PersonIds so
+    // a user can browse one person or photographs containing a selected group.
     [BindProperty(SupportsGet = true)] public Guid? PersonId { get; set; }
+    [BindProperty(SupportsGet = true)] public Guid[] PersonIds { get; set; } = Array.Empty<Guid>();
+    [BindProperty(SupportsGet = true)] public string PeopleMatch { get; set; } = "all";
     [BindProperty(SupportsGet = true)] public int? Year { get; set; }
     [BindProperty(SupportsGet = true)] public int PageNumber { get; set; } = 1;
 
@@ -63,14 +65,17 @@ public sealed class IndexModel : PageModel
     public IReadOnlyList<MediaGroup> Groups { get; private set; } = Array.Empty<MediaGroup>();
     public IReadOnlyList<ProjectOption> Projects { get; private set; } = Array.Empty<ProjectOption>();
     public IReadOnlyList<PersonOption> People { get; private set; } = Array.Empty<PersonOption>();
+    public IReadOnlyList<PersonOption> SelectedPeople { get; private set; } = Array.Empty<PersonOption>();
     public IReadOnlyList<int> Years { get; private set; } = Array.Empty<int>();
     public LibraryStats Stats { get; private set; } = new();
     public bool HasPreviousPage { get; private set; }
     public bool HasNextPage { get; private set; }
     public int CurrentPage => Math.Max(1, PageNumber);
     public bool ExternalSourcesEnabled => _mediaOptions.IsExternalSourceFeatureEnabled;
-    public bool PeopleFeatureEnabled => _mediaOptions.People.Enabled
-                                        && (User.IsInRole("Admin") || User.IsInRole("HoD"));
+    public bool PeopleFeatureEnabled => _mediaOptions.People.Enabled;
+    public bool CanManagePeople => User.IsInRole("Admin") || User.IsInRole("HoD");
+    public bool IsPeopleGallery => PersonIds.Length > 0;
+    public bool MatchAllSelectedPeople => !string.Equals(PeopleMatch, "any", StringComparison.OrdinalIgnoreCase);
     public bool ExternalLibraryAvailable { get; private set; } = true;
     public string? ExternalLibraryWarning { get; private set; }
     public bool IsUsingCatalogue { get; private set; }
@@ -83,37 +88,35 @@ public sealed class IndexModel : PageModel
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         NormalizeRequest();
+        await LoadSelectedPeopleAsync(cancellationToken);
 
         var sourceSnapshot = await _sourceSnapshot.GetSnapshotAsync(cancellationToken);
         var catalogueFreshness = await GetCatalogueFreshnessAsync(sourceSnapshot, cancellationToken);
         SourceVisibleCount = sourceSnapshot.TotalCount;
         CatalogueBackedCount = catalogueFreshness.IndexedAssetCount;
-        var catalogueRepresentationsComplete = false;
-        try
-        {
-            var consistency = await _consistencyService.CheckAsync(cancellationToken);
-            CatalogueBackedCount = consistency.AvailableCatalogueRecords;
-            SourceVisibleCount = consistency.AvailableCatalogueRecords + consistency.MissingFromCatalogue;
-            catalogueRepresentationsComplete = consistency.MissingFromCatalogue == 0;
-        }
-        catch (Exception ex) when (ex is DbException or InvalidOperationException or TimeoutException)
-        {
-            _logger.LogDebug(ex, "Unable to calculate visible/catalogued PRISM media counts for the Photos status banner.");
-        }
         LibraryRevision = BuildLibraryRevision(sourceSnapshot, catalogueFreshness);
 
         var result = await _library.SearchAsync(
             new MediaLibraryQuery(
                 Q, Source, Kind, Classification, ProjectId,
-                PeopleFeatureEnabled ? PersonId : null,
-                Year, PageNumber, PageSize, PeopleFeatureEnabled),
+                null,
+                Year, PageNumber, PageSize, PeopleFeatureEnabled,
+                PeopleFeatureEnabled ? PersonIds : Array.Empty<Guid>(),
+                PeopleMatch,
+                CanManagePeople),
             cancellationToken);
 
+        var identityFilterRequiresCatalogue = PeopleFeatureEnabled && PersonIds.Length > 0;
         if (result.IsAvailable
-            && (catalogueFreshness.IsFresh
-                || catalogueRepresentationsComplete
-                || Source == "external"))
+            && result.HasPrismCatalogue
+            && (catalogueFreshness.IsFresh || Source == "external" || identityFilterRequiresCatalogue))
         {
+            if (!catalogueFreshness.IsFresh && identityFilterRequiresCatalogue)
+            {
+                CatalogueCatchUpPending = true;
+                await RequestCatalogueCatchUpAsync(catalogueFreshness.SourceId, cancellationToken);
+            }
+
             ApplyCatalogueResult(result);
             return;
         }
@@ -123,9 +126,7 @@ public sealed class IndexModel : PageModel
         // pass, read PRISM-owned media directly so uploads remain visible immediately.
         // The catalogue continues catching up in the background and later restores
         // classification and people enrichment.
-        CatalogueCatchUpPending = catalogueFreshness.HasSource
-                                  && !catalogueFreshness.IsFresh
-                                  && !catalogueRepresentationsComplete;
+        CatalogueCatchUpPending = result.HasPrismCatalogue && !catalogueFreshness.IsFresh;
         if (CatalogueCatchUpPending)
         {
             await RequestCatalogueCatchUpAsync(catalogueFreshness.SourceId, cancellationToken);
@@ -138,10 +139,16 @@ public sealed class IndexModel : PageModel
             fallbackWarnings.Add("The classification filter was cleared while new PRISM media is being catalogued.");
             Classification = "all";
         }
-        if (PersonId.HasValue)
+        if (PersonIds.Length > 0)
         {
-            fallbackWarnings.Add("The person filter was cleared while new PRISM media is being catalogued.");
-            PersonId = null;
+            // Never clear a people filter and show unrelated source media. Identity filters
+            // depend on the durable catalogue, so fail closed while it is unavailable.
+            ExternalLibraryAvailable = false;
+            ExternalLibraryWarning = "The people gallery is temporarily unavailable while identity intelligence is being catalogued. No unrelated photographs have been substituted.";
+            Items = Array.Empty<MediaItem>();
+            Groups = Array.Empty<MediaGroup>();
+            Stats = new LibraryStats();
+            return;
         }
 
         await LoadPrismFallbackAsync(catalogueFreshness.SourceId, cancellationToken);
@@ -206,7 +213,6 @@ public sealed class IndexModel : PageModel
 
             return new PrismCatalogueFreshness(
                 source.Id,
-                true,
                 isFresh,
                 source.ConfigurationFingerprint,
                 source.ScanStatus,
@@ -259,11 +265,7 @@ public sealed class IndexModel : PageModel
         => string.Concat(
             sourceSnapshot.Fingerprint,
             ":",
-            catalogueFreshness.CatalogueFingerprint ?? "none",
-            ":",
-            catalogueFreshness.IndexedAssetCount.ToString(CultureInfo.InvariantCulture),
-            ":",
-            catalogueFreshness.ScanStatus ?? "none");
+            catalogueFreshness.CatalogueFingerprint ?? "none");
 
     private void NormalizeRequest()
     {
@@ -278,9 +280,95 @@ public sealed class IndexModel : PageModel
         Kind = NormalizeKind(Kind);
         Classification = NormalizeClassification(Classification);
         Q = string.IsNullOrWhiteSpace(Q) ? null : Q.Trim();
+        PeopleMatch = string.Equals(PeopleMatch?.Trim(), "any", StringComparison.OrdinalIgnoreCase)
+            ? "any"
+            : "all";
+
         if (!PeopleFeatureEnabled)
         {
             PersonId = null;
+            PersonIds = Array.Empty<Guid>();
+            return;
+        }
+
+        var selected = new List<Guid>(capacity: 10);
+        if (PersonId.HasValue && PersonId.Value != Guid.Empty)
+        {
+            selected.Add(PersonId.Value);
+        }
+
+        foreach (var personId in PersonIds ?? Array.Empty<Guid>())
+        {
+            if (personId == Guid.Empty || selected.Contains(personId))
+            {
+                continue;
+            }
+
+            selected.Add(personId);
+            if (selected.Count == 10)
+            {
+                break;
+            }
+        }
+
+        PersonIds = selected.ToArray();
+        PersonId = null;
+        if (PersonIds.Length < 2)
+        {
+            PeopleMatch = "all";
+        }
+    }
+
+    private async Task LoadSelectedPeopleAsync(CancellationToken cancellationToken)
+    {
+        if (!PeopleFeatureEnabled || PersonIds.Length == 0)
+        {
+            SelectedPeople = Array.Empty<PersonOption>();
+            return;
+        }
+
+        try
+        {
+            var selectedIds = PersonIds;
+            var rows = await _mediaDb.Persons
+                .AsNoTracking()
+                .Where(person => selectedIds.Contains(person.Id)
+                                 && person.Status == MediaPersonStatus.Confirmed
+                                 && !person.IsHidden)
+                .Select(person => new PersonOption(
+                    person.Id,
+                    person.DisplayName,
+                    person.FaceAssignments
+                        .Where(assignment => assignment.RemovedAtUtc == null
+                                             && !assignment.MediaFace.IsSuppressed
+                                             && assignment.MediaFace.MediaAsset.IsAvailable
+                                             && !assignment.MediaFace.MediaAsset.IsDeleted
+                                             && !assignment.MediaFace.MediaAsset.IsArchived)
+                        .Select(assignment => assignment.MediaFace.MediaAssetId)
+                        .Distinct()
+                        .Count(),
+                    person.RepresentativeFaceId))
+                .ToListAsync(cancellationToken);
+
+            var rowsById = rows.ToDictionary(person => person.Id);
+            SelectedPeople = selectedIds
+                .Where(rowsById.ContainsKey)
+                .Select(personId => rowsById[personId])
+                .ToList();
+            PersonIds = SelectedPeople.Select(person => person.Id).ToArray();
+            if (PersonIds.Length < 2)
+            {
+                PeopleMatch = "all";
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is DbException or InvalidOperationException or TimeoutException)
+        {
+            _logger.LogWarning(exception, "Unable to load the selected people gallery header.");
+            SelectedPeople = Array.Empty<PersonOption>();
         }
     }
 
@@ -293,7 +381,28 @@ public sealed class IndexModel : PageModel
         ExternalLibraryAvailable = true;
         ExternalLibraryWarning = result.Warning;
         Projects = result.Projects.Select(project => new ProjectOption(project.Id, project.Name)).ToList();
-        People = result.People.Select(person => new PersonOption(person.Id, person.Name, person.PhotoCount)).ToList();
+        People = result.People
+            .Select(person => new PersonOption(
+                person.Id,
+                person.Name,
+                person.PhotoCount,
+                person.RepresentativeFaceId))
+            .ToList();
+
+        var peopleById = People.ToDictionary(person => person.Id);
+        var selectedById = SelectedPeople.ToDictionary(person => person.Id);
+        SelectedPeople = PersonIds
+            .Select(personId => peopleById.GetValueOrDefault(personId)
+                                ?? selectedById.GetValueOrDefault(personId))
+            .Where(person => person is not null)
+            .Select(person => person!)
+            .ToList();
+        PersonIds = SelectedPeople.Select(person => person.Id).ToArray();
+        if (PersonIds.Length < 2)
+        {
+            PeopleMatch = "all";
+        }
+
         Years = result.Years;
         Stats = new LibraryStats
         {
@@ -434,8 +543,8 @@ public sealed class IndexModel : PageModel
         }
 
         // Do not resurrect historical rows whose physical source was already proven
-        // unavailable. Restoration is performed only by the availability recovery workflow
-        // after the content provider successfully opens the underlying file.
+        // unavailable. A changed version is allowed through because it represents a new
+        // upload or replacement that the catalogue has not processed yet.
         if (prismSourceId.HasValue && items.Count > 0)
         {
             try
@@ -445,12 +554,15 @@ public sealed class IndexModel : PageModel
                     .Where(asset => asset.SourceId == prismSourceId.Value && !asset.IsDeleted)
                     .Select(asset => new CatalogueAssetState(
                         asset.SourceEntityId,
+                        asset.VersionToken,
                         asset.IsAvailable && asset.AvailabilityStatus == MediaAvailabilityStatus.Available))
                     .ToDictionaryAsync(state => state.SourceEntityId, StringComparer.Ordinal, cancellationToken);
 
                 items = items
                     .Where(item => !sourceStates.TryGetValue(item.Id, out var state)
-                                   || state.IsAvailable)
+                                   || state.IsAvailable
+                                   || (state.VersionToken is not null
+                                       && !string.Equals(state.VersionToken, item.VersionToken, StringComparison.Ordinal)))
                     .ToList();
             }
             catch (Exception ex) when (ex is DbException or InvalidOperationException or TimeoutException)
@@ -737,13 +849,79 @@ public sealed class IndexModel : PageModel
             _ => "all"
         };
 
+    public string BuildMediaTypeUrl(string kind)
+        => BuildPhotosUrl(PersonIds, kind: kind);
+
+    public string BuildPageUrl(int pageNumber)
+        => BuildPhotosUrl(PersonIds, pageNumber: pageNumber);
+
+    public string BuildPeopleMatchUrl(string matchMode)
+        => BuildPhotosUrl(PersonIds, peopleMatch: matchMode);
+
+    public string BuildRemovePersonUrl(Guid personId)
+        => BuildPhotosUrl(PersonIds.Where(id => id != personId));
+
+    public string BuildSinglePersonUrl(Guid personId)
+        => BuildPhotosUrl(new[] { personId }, view: "photos", peopleMatch: "all");
+
+    public string BuildClearPeopleUrl()
+        => BuildPhotosUrl(Array.Empty<Guid>());
+
+    public string BuildPeoplePickerUrl()
+    {
+        var values = new RouteValueDictionary
+        {
+            ["PeopleMatch"] = PersonIds.Length > 1 ? PeopleMatch : null
+        };
+        for (var index = 0; index < PersonIds.Length; index++)
+        {
+            values[$"SelectedIds[{index}]"] = PersonIds[index];
+        }
+
+        return Url.Page("/Photos/People/Index", values) ?? "/Photos/People";
+    }
+
+    private string BuildPhotosUrl(
+        IEnumerable<Guid> personIds,
+        string? kind = null,
+        int? pageNumber = null,
+        string? peopleMatch = null,
+        string? view = null)
+    {
+        var values = new RouteValueDictionary
+        {
+            ["View"] = view ?? View,
+            ["Q"] = Q,
+            ["Source"] = Source == "all" ? null : Source,
+            ["Kind"] = kind ?? Kind,
+            ["Classification"] = Classification == "all" ? null : Classification,
+            ["ProjectId"] = ProjectId,
+            ["Year"] = Year,
+            ["PeopleMatch"] = peopleMatch ?? PeopleMatch,
+            ["PageNumber"] = pageNumber is > 1 ? pageNumber : null
+        };
+
+        var index = 0;
+        foreach (var personId in personIds.Distinct().Take(10))
+        {
+            values[$"PersonIds[{index++}]"] = personId;
+        }
+
+        if (index < 2)
+        {
+            values["PeopleMatch"] = null;
+        }
+
+        return Url.Page("/Photos/Index", values) ?? "/Photos";
+    }
+
     public string SerializeViewerPeople(MediaItem item)
     {
         ArgumentNullException.ThrowIfNull(item);
         return JsonSerializer.Serialize(item.People.Select(person => new
         {
             name = person.Name,
-            url = Url.Page("/Photos/People/Details", new { id = person.Id }) ?? string.Empty
+            url = Url.Page("/Photos/Index", new { PersonIds = person.Id, View = "photos" }) ?? string.Empty
         }));
     }
 
@@ -807,18 +985,18 @@ public sealed class IndexModel : PageModel
 
     private sealed record CatalogueAssetState(
         string SourceEntityId,
+        string? VersionToken,
         bool IsAvailable);
 
     private sealed record PrismCatalogueFreshness(
         Guid? SourceId,
-        bool HasSource,
         bool IsFresh,
         string? CatalogueFingerprint,
         string? ScanStatus,
         DateTimeOffset? LastSuccessfulScanAtUtc,
         long IndexedAssetCount)
     {
-        public static PrismCatalogueFreshness Unavailable { get; } = new(null, false, false, null, null, null, 0);
+        public static PrismCatalogueFreshness Unavailable { get; } = new(null, false, null, null, null, 0);
     }
 
     public sealed class MediaItem
@@ -857,7 +1035,7 @@ public sealed class IndexModel : PageModel
 
     public sealed record MediaGroup(string Key, string Title, string Subtitle, DateTime Date, IReadOnlyList<MediaItem> Items);
     public sealed record ProjectOption(int Id, string Name);
-    public sealed record PersonOption(Guid Id, string Name, int PhotoCount);
+    public sealed record PersonOption(Guid Id, string Name, int PhotoCount, Guid? RepresentativeFaceId);
     public sealed record PersonSummary(Guid Id, string Name);
     public sealed class LibraryStats
     {

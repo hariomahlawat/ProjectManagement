@@ -57,6 +57,32 @@ public sealed class MediaPeoplePostgreSqlQueryTranslationTests
         Assert.Contains("ILIKE", sql.ToUpperInvariant());
     }
 
+    [Theory]
+    [InlineData("all")]
+    [InlineData("any")]
+    public void People_photo_gallery_filter_translates_for_postgresql(string matchMode)
+    {
+        using var db = CreateContext();
+        var selectedPeople = new[] { Guid.NewGuid(), Guid.NewGuid() };
+
+        var sql = MediaLibraryQueryService.ApplyPeopleFilter(
+                db.Assets.AsNoTracking(),
+                selectedPeople,
+                matchMode)
+            .ToQueryString();
+
+        Assert.Contains("MediaAssets", sql);
+        Assert.Contains("MediaFaces", sql);
+        Assert.Contains("MediaPersonFaces", sql);
+        Assert.Contains("EXISTS", sql.ToUpperInvariant());
+        if (matchMode == "all")
+        {
+            Assert.True(sql.ToUpperInvariant().Split(
+                new[] { "EXISTS" },
+                StringSplitOptions.None).Length >= 3);
+        }
+    }
+
     [Fact]
     public void Candidate_reference_query_translates_for_postgresql()
     {

@@ -65,14 +65,13 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                 baseQuery = baseQuery.Where(asset => asset.ProjectId == request.ProjectId.Value);
             }
 
-            if (request.IncludePeople && request.PersonId.HasValue)
+            var selectedPersonIds = NormalizeSelectedPeople(request);
+            if (request.IncludePeople && selectedPersonIds.Count > 0)
             {
-                var personId = request.PersonId.Value;
-                baseQuery = baseQuery.Where(asset => asset.Faces.Any(face =>
-                    !face.IsSuppressed
-                    && face.PersonAssignments.Any(assignment =>
-                        assignment.RemovedAtUtc == null
-                        && assignment.MediaPersonId == personId)));
+                baseQuery = ApplyPeopleFilter(
+                    baseQuery,
+                    selectedPersonIds,
+                    request.PeopleMatch);
             }
 
             if (!string.IsNullOrWhiteSpace(request.Query))
@@ -100,6 +99,7 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                         || (asset.RelativePath != null && EF.Functions.ILike(asset.RelativePath, pattern, "\\"))
                         || asset.Faces.Any(face => face.PersonAssignments.Any(assignment =>
                             assignment.RemovedAtUtc == null
+                            && assignment.MediaPerson.Status == MediaPersonStatus.Confirmed
                             && !assignment.MediaPerson.IsHidden
                             && EF.Functions.ILike(assignment.MediaPerson.DisplayName, pattern, "\\"))))
                     : metadataMatches;
@@ -177,14 +177,17 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                             .Select(item => new MediaLibraryPersonSummary(item.PersonId, item.DisplayName))
                             .ToList());
 
-                unidentifiedByAsset = await _db.Faces
-                    .AsNoTracking()
-                    .Where(face => assetIds.Contains(face.MediaAssetId)
-                                   && !face.IsSuppressed
-                                   && !face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null))
-                    .GroupBy(face => face.MediaAssetId)
-                    .Select(group => new { AssetId = group.Key, Count = group.Count() })
-                    .ToDictionaryAsync(item => item.AssetId, item => item.Count, cancellationToken);
+                if (request.IncludeUnidentifiedFaces)
+                {
+                    unidentifiedByAsset = await _db.Faces
+                        .AsNoTracking()
+                        .Where(face => assetIds.Contains(face.MediaAssetId)
+                                       && !face.IsSuppressed
+                                       && !face.PersonAssignments.Any(assignment => assignment.RemovedAtUtc == null))
+                        .GroupBy(face => face.MediaAssetId)
+                        .Select(group => new { AssetId = group.Key, Count = group.Count() })
+                        .ToDictionaryAsync(item => item.AssetId, item => item.Count, cancellationToken);
+                }
             }
 
             items = rows.Select(row => new MediaLibraryQueryItem(
@@ -320,23 +323,23 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                                                  && !assignment.MediaFace.MediaAsset.IsArchived)
                             .Select(assignment => assignment.MediaFace.MediaAssetId)
                             .Distinct()
-                            .Count()))
+                            .Count(),
+                        person.RepresentativeFaceId))
                     .ToListAsync(cancellationToken),
                 Array.Empty<MediaLibraryPersonOption>(),
                 warnings,
                 cancellationToken)
             : Array.Empty<MediaLibraryPersonOption>();
 
-        // Catalogue existence and catalogue health are separate concepts. A failed or
-        // catching-up scan must not make the application pretend the configured PRISM source
-        // does not exist; callers use freshness/health telemetry independently.
         var hasPrismCatalogue = await ExecuteOptionalAsync(
             MediaLibraryQueryOperation.PrismSourceStatus,
             async () => await _db.Sources
                 .AsNoTracking()
                 .AnyAsync(source => source.Key == MediaSourceBootstrapper.PrismSourceKey
                                     && !source.IsDeleted
-                                    && source.IsEnabled,
+                                    && source.IsEnabled
+                                    && source.LastSuccessfulScanAtUtc.HasValue
+                                    && source.ScanStatus == "Healthy",
                     cancellationToken),
             true,
             warnings,
@@ -416,6 +419,79 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
             diagnostic.Reference,
             diagnostic.Message,
             diagnostic.OccurredAtUtc);
+
+    private static IReadOnlyList<Guid> NormalizeSelectedPeople(MediaLibraryQuery request)
+    {
+        var selected = new List<Guid>(capacity: 10);
+
+        if (request.PersonId.HasValue && request.PersonId.Value != Guid.Empty)
+        {
+            selected.Add(request.PersonId.Value);
+        }
+
+        if (request.PersonIds is not null)
+        {
+            foreach (var personId in request.PersonIds)
+            {
+                if (personId == Guid.Empty || selected.Contains(personId))
+                {
+                    continue;
+                }
+
+                selected.Add(personId);
+                if (selected.Count == 10)
+                {
+                    break;
+                }
+            }
+        }
+
+        return selected;
+    }
+
+    internal static IQueryable<MediaAsset> ApplyPeopleFilter(
+        IQueryable<MediaAsset> query,
+        IReadOnlyList<Guid> personIds,
+        string? matchMode)
+    {
+        if (personIds.Count == 0)
+        {
+            return query;
+        }
+
+        var matchAll = !string.Equals(
+            matchMode?.Trim(),
+            "any",
+            StringComparison.OrdinalIgnoreCase);
+
+        if (!matchAll)
+        {
+            var selectedIds = personIds.ToArray();
+            return query.Where(asset => asset.Faces.Any(face =>
+                !face.IsSuppressed
+                && face.PersonAssignments.Any(assignment =>
+                    assignment.RemovedAtUtc == null
+                    && selectedIds.Contains(assignment.MediaPersonId)
+                    && assignment.MediaPerson.Status == MediaPersonStatus.Confirmed
+                    && !assignment.MediaPerson.IsHidden)));
+        }
+
+        // Build one correlated EXISTS predicate per person. This produces dependable
+        // PostgreSQL translation and exact "all selected people appear" semantics.
+        foreach (var personId in personIds)
+        {
+            var requiredPersonId = personId;
+            query = query.Where(asset => asset.Faces.Any(face =>
+                !face.IsSuppressed
+                && face.PersonAssignments.Any(assignment =>
+                    assignment.RemovedAtUtc == null
+                    && assignment.MediaPersonId == requiredPersonId
+                    && assignment.MediaPerson.Status == MediaPersonStatus.Confirmed
+                    && !assignment.MediaPerson.IsHidden)));
+        }
+
+        return query;
+    }
 
     private static IQueryable<MediaAsset> ApplySource(IQueryable<MediaAsset> query, string source)
         => source switch

@@ -400,14 +400,12 @@ public sealed class MediaPeopleQueryService : IMediaPeopleQueryService
     {
         ArgumentNullException.ThrowIfNull(db);
 
-        var peopleQuery = db.Persons
-            .AsNoTracking()
-            .Where(person => person.Status == MediaPersonStatus.Confirmed
-                             || person.Status == MediaPersonStatus.Hidden);
-        if (!includeHidden)
-        {
-            peopleQuery = peopleQuery.Where(person => !person.IsHidden);
-        }
+        var peopleQuery = db.Persons.AsNoTracking();
+        peopleQuery = includeHidden
+            ? peopleQuery.Where(person => person.Status == MediaPersonStatus.Confirmed
+                                          || person.Status == MediaPersonStatus.Hidden)
+            : peopleQuery.Where(person => person.Status == MediaPersonStatus.Confirmed
+                                          && !person.IsHidden);
 
         if (!string.IsNullOrWhiteSpace(query))
         {

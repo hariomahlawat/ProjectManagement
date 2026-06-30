@@ -12,7 +12,10 @@ public sealed record MediaLibraryQuery(
     int? Year,
     int PageNumber,
     int PageSize,
-    bool IncludePeople);
+    bool IncludePeople,
+    IReadOnlyList<Guid>? PersonIds = null,
+    string PeopleMatch = "all",
+    bool IncludeUnidentifiedFaces = false);
 
 public sealed record MediaLibraryPersonSummary(Guid Id, string DisplayName);
 
@@ -44,7 +47,7 @@ public sealed record MediaLibraryQueryItem(
     int UnidentifiedFaceCount);
 
 public sealed record MediaLibraryProjectOption(int Id, string Name);
-public sealed record MediaLibraryPersonOption(Guid Id, string Name, int PhotoCount);
+public sealed record MediaLibraryPersonOption(Guid Id, string Name, int PhotoCount, Guid? RepresentativeFaceId = null);
 public sealed record MediaLibraryStatistics(int Total, int Photos, int Videos, int Collections);
 
 public enum MediaLibraryQueryOperation
