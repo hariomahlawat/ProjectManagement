@@ -49,6 +49,13 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
         var asset = await _db.Assets
             .Include(item => item.Source)
             .SingleAsync(item => item.Id == assetId, cancellationToken);
+        if (!asset.IsAvailable || asset.IsDeleted)
+        {
+            throw new MediaProcessingSupersededException(
+                $"Media asset {assetId} is no longer available for face analysis.");
+        }
+
+        var processingCacheVersion = asset.CacheVersion;
         var content = await _resolver.ResolveAsync(asset, cancellationToken)
             ?? throw new MediaContentUnavailableException(
                 $"Media content is unavailable for face analysis of asset {asset.Id}.");
@@ -133,19 +140,15 @@ public sealed class FaceIntelligenceService : IFaceIntelligenceService
             await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
             await _db.Entry(asset).ReloadAsync(cancellationToken);
             var currentEligibility = _eligibility.Evaluate(asset);
-            if (!currentEligibility.IsEligible
+            if (!asset.IsAvailable
+                || asset.IsDeleted
+                || asset.CacheVersion != processingCacheVersion
+                || !currentEligibility.IsEligible
                 || !string.Equals(asset.ContentHash, actualContentHash, StringComparison.OrdinalIgnoreCase))
             {
-                asset.FaceAnalysisStatus = MediaProcessingStatus.NotRequested;
-                asset.FaceAnalysisVersion = null;
-                asset.FaceAnalysedAtUtc = null;
-                asset.FaceProcessingFailureReason = null;
-                await _db.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-                _logger.LogInformation(
-                    "Discarded face-analysis output for asset {AssetId} because eligibility or content changed during processing.",
-                    assetId);
-                return;
+                _db.ChangeTracker.Clear();
+                throw new MediaProcessingSupersededException(
+                    $"Face analysis for media asset {assetId} was superseded by source removal, content replacement or eligibility change.");
             }
 
             var trackedExisting = await _db.Faces

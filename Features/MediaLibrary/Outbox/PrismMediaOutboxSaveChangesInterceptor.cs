@@ -185,7 +185,11 @@ public sealed class PrismMediaOutboxSaveChangesInterceptor : SaveChangesIntercep
     }
 
     private static bool Changed(EntityEntry<Activity> entry, string propertyName)
-        => entry.Property(propertyName).IsModified;
+    {
+        var property = entry.Property(propertyName);
+        return property.IsModified
+               && !Equals(property.OriginalValue, property.CurrentValue);
+    }
 
     private static string BuildKey(PrismMediaOutboxMessage message)
         => string.Join('|',

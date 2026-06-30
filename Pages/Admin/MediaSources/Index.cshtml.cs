@@ -33,6 +33,7 @@ public sealed class IndexModel : PageModel
     private readonly IMediaAvailabilityRecoveryService _availabilityRecoveryService;
     private readonly IPrismMediaSourceSnapshotService _sourceSnapshot;
     private readonly IPrismMediaOutboxSignal _outboxSignal;
+    private readonly IPrismMediaOutboxRuntimeState _outboxRuntimeState;
 
     public IndexModel(
         MediaLibraryDbContext db,
@@ -49,7 +50,8 @@ public sealed class IndexModel : PageModel
         IMediaCacheHealthService cacheHealthService,
         IMediaAvailabilityRecoveryService availabilityRecoveryService,
         IPrismMediaSourceSnapshotService sourceSnapshot,
-        IPrismMediaOutboxSignal outboxSignal)
+        IPrismMediaOutboxSignal outboxSignal,
+        IPrismMediaOutboxRuntimeState outboxRuntimeState)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _applicationDb = applicationDb ?? throw new ArgumentNullException(nameof(applicationDb));
@@ -66,6 +68,7 @@ public sealed class IndexModel : PageModel
         _availabilityRecoveryService = availabilityRecoveryService ?? throw new ArgumentNullException(nameof(availabilityRecoveryService));
         _sourceSnapshot = sourceSnapshot ?? throw new ArgumentNullException(nameof(sourceSnapshot));
         _outboxSignal = outboxSignal ?? throw new ArgumentNullException(nameof(outboxSignal));
+        _outboxRuntimeState = outboxRuntimeState ?? throw new ArgumentNullException(nameof(outboxRuntimeState));
     }
 
     [BindProperty]
@@ -111,15 +114,23 @@ public sealed class IndexModel : PageModel
     public IReadOnlyList<MediaLibraryDiagnosticEvent> CatalogueDiagnostics { get; private set; } = Array.Empty<MediaLibraryDiagnosticEvent>();
     public int ExternalSourceCount => Sources.Count(source => source.Type == MediaLibrarySourceType.FileSystem);
     public long PrismAssetCount { get; private set; }
+    public int PrismCatalogueRecordCount { get; private set; }
+    public int PrismUnavailableCatalogueCount { get; private set; }
+    public int PrismOrphanedCatalogueCount { get; private set; }
     public int PrismSourceRecordCount { get; private set; }
     public int ActivitySourcePhotoCount { get; private set; }
     public long ActivityCataloguePhotoCount { get; private set; }
     public int PendingIngestionEvents { get; private set; }
     public int ProcessingIngestionEvents { get; private set; }
     public int DeadLetterIngestionEvents { get; private set; }
+    public int RetryableIngestionEvents { get; private set; }
+    public bool OutboxSchemaAvailable { get; private set; } = true;
+    public string? OutboxSchemaWarning { get; private set; }
     public DateTimeOffset? OldestPendingIngestionAtUtc { get; private set; }
     public string? LastIngestionError { get; private set; }
-    public long MissingFromCatalogue => Math.Max(0L, PrismSourceRecordCount - PrismAssetCount);
+    public PrismMediaOutboxRuntimeSnapshot OutboxRuntime { get; private set; }
+        = new(false, null, null, null, null, "Pending", null, null, null);
+    public int MissingFromCatalogue { get; private set; }
 
     [TempData]
     public string? StatusMessage { get; set; }
@@ -640,7 +651,9 @@ public sealed class IndexModel : PageModel
     {
         var now = DateTimeOffset.UtcNow;
         var reset = await _applicationDb.PrismMediaOutboxMessages
-            .Where(message => message.Status == PrismMediaOutboxStatus.DeadLetter)
+            .Where(message => message.Status == PrismMediaOutboxStatus.DeadLetter
+                              || (message.Status == PrismMediaOutboxStatus.Pending
+                                  && message.LastError != null))
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(message => message.Status, PrismMediaOutboxStatus.Pending)
                 .SetProperty(message => message.AttemptCount, 0)
@@ -654,36 +667,53 @@ public sealed class IndexModel : PageModel
 
         _outboxSignal.Pulse();
         StatusMessage = reset == 0
-            ? "No dead-lettered PRISM media ingestion events required retrying."
-            : $"Queued {reset:N0} PRISM media ingestion event(s) for retry.";
+            ? "No failed PRISM media ingestion events required retrying."
+            : $"Queued {reset:N0} PRISM media ingestion event(s) for immediate retry.";
         return RedirectToPage();
     }
 
     private async Task LoadIngestionStatusAsync(CancellationToken cancellationToken)
     {
+        OutboxRuntime = _outboxRuntimeState.GetSnapshot();
         var snapshot = await _sourceSnapshot.GetSnapshotAsync(cancellationToken);
         PrismSourceRecordCount = snapshot.TotalCount;
         ActivitySourcePhotoCount = snapshot.ActivityPhotoCount;
 
-        PendingIngestionEvents = await _applicationDb.PrismMediaOutboxMessages.CountAsync(
-            message => message.Status == PrismMediaOutboxStatus.Pending,
-            cancellationToken);
-        ProcessingIngestionEvents = await _applicationDb.PrismMediaOutboxMessages.CountAsync(
-            message => message.Status == PrismMediaOutboxStatus.Processing,
-            cancellationToken);
-        DeadLetterIngestionEvents = await _applicationDb.PrismMediaOutboxMessages.CountAsync(
-            message => message.Status == PrismMediaOutboxStatus.DeadLetter,
-            cancellationToken);
-        OldestPendingIngestionAtUtc = await _applicationDb.PrismMediaOutboxMessages
-            .Where(message => message.Status == PrismMediaOutboxStatus.Pending)
-            .OrderBy(message => message.OccurredAtUtc)
-            .Select(message => (DateTimeOffset?)message.OccurredAtUtc)
-            .FirstOrDefaultAsync(cancellationToken);
-        LastIngestionError = await _applicationDb.PrismMediaOutboxMessages
-            .Where(message => message.LastError != null)
-            .OrderByDescending(message => message.ProcessingStartedAtUtc ?? message.OccurredAtUtc)
-            .Select(message => message.LastError)
-            .FirstOrDefaultAsync(cancellationToken);
+        try
+        {
+            PendingIngestionEvents = await _applicationDb.PrismMediaOutboxMessages.CountAsync(
+                message => message.Status == PrismMediaOutboxStatus.Pending,
+                cancellationToken);
+            ProcessingIngestionEvents = await _applicationDb.PrismMediaOutboxMessages.CountAsync(
+                message => message.Status == PrismMediaOutboxStatus.Processing,
+                cancellationToken);
+            DeadLetterIngestionEvents = await _applicationDb.PrismMediaOutboxMessages.CountAsync(
+                message => message.Status == PrismMediaOutboxStatus.DeadLetter,
+                cancellationToken);
+            RetryableIngestionEvents = await _applicationDb.PrismMediaOutboxMessages.CountAsync(
+                message => message.Status == PrismMediaOutboxStatus.DeadLetter
+                           || (message.Status == PrismMediaOutboxStatus.Pending
+                               && message.LastError != null),
+                cancellationToken);
+            OldestPendingIngestionAtUtc = await _applicationDb.PrismMediaOutboxMessages
+                .Where(message => message.Status == PrismMediaOutboxStatus.Pending)
+                .OrderBy(message => message.OccurredAtUtc)
+                .Select(message => (DateTimeOffset?)message.OccurredAtUtc)
+                .FirstOrDefaultAsync(cancellationToken);
+            LastIngestionError = await _applicationDb.PrismMediaOutboxMessages
+                .Where(message => message.LastError != null)
+                .OrderByDescending(message => message.ProcessingStartedAtUtc ?? message.OccurredAtUtc)
+                .Select(message => message.LastError)
+                .FirstOrDefaultAsync(cancellationToken);
+            OutboxSchemaAvailable = true;
+            OutboxSchemaWarning = null;
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UndefinedTable)
+        {
+            OutboxSchemaAvailable = false;
+            OutboxSchemaWarning = "The PRISM media outbox table is missing. Apply the Phase 9G application migration before enabling Activity media ingestion.";
+            LastIngestionError = ex.MessageText;
+        }
     }
 
     private async Task LoadAsync(CancellationToken cancellationToken)
@@ -706,6 +736,10 @@ public sealed class IndexModel : PageModel
             FailedJobs = 0;
             DeadLetterJobs = 0;
             PrismAssetCount = 0;
+            PrismCatalogueRecordCount = 0;
+            PrismUnavailableCatalogueCount = 0;
+            PrismOrphanedCatalogueCount = 0;
+            MissingFromCatalogue = PrismSourceRecordCount;
             UnavailableAssetCount = 0;
             HistoricalAvailabilityCandidates = 0;
             LastAvailabilityCheckUtc = null;
@@ -743,12 +777,14 @@ public sealed class IndexModel : PageModel
                     source.LastError))
                 .ToListAsync(cancellationToken);
 
-            PrismAssetCount = await _db.Assets.LongCountAsync(
-                asset => asset.Source.SourceType == MediaLibrarySourceType.Prism
-                         && asset.IsAvailable
-                         && asset.AvailabilityStatus == MediaAvailabilityStatus.Available
-                         && !asset.IsDeleted,
-                cancellationToken);
+            var consistency = await _consistencyService.CheckAsync(cancellationToken);
+            PrismSourceRecordCount = consistency.PrismSourceRecords;
+            PrismCatalogueRecordCount = consistency.CatalogueRecords;
+            PrismAssetCount = consistency.AvailableCatalogueRecords;
+            PrismUnavailableCatalogueCount = consistency.UnavailableCatalogueRecords;
+            MissingFromCatalogue = consistency.MissingFromCatalogue;
+            PrismOrphanedCatalogueCount = consistency.OrphanedCatalogueRecords;
+
             ActivityCataloguePhotoCount = await _db.Assets.LongCountAsync(
                 asset => asset.Source.SourceType == MediaLibrarySourceType.Prism
                          && asset.Origin == MediaAssetOrigin.ActivityPhoto

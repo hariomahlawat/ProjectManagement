@@ -61,16 +61,17 @@ public sealed class MediaCatalogueOptions
     public bool Enabled { get; set; } = true;
     public bool SynchronizePrismMedia { get; set; } = true;
     /// <summary>
-    /// Preferred near-real-time polling interval for PRISM-owned media. This is a
-    /// reconciliation safety net; catalogue visibility never waits for classification.
+    /// Optional second-based override for full PRISM reconciliation. Normal source changes
+    /// use targeted outbox ingestion; complete scans are a repair safety net and should not
+    /// run every few seconds. Set to 0 to use SynchronizeIntervalMinutes.
     /// </summary>
-    public int SynchronizeIntervalSeconds { get; set; } = 15;
+    public int SynchronizeIntervalSeconds { get; set; }
 
     /// <summary>
     /// Legacy configuration retained for backward compatibility. It is used only when
     /// SynchronizeIntervalSeconds is not positive.
     /// </summary>
-    public int SynchronizeIntervalMinutes { get; set; } = 30;
+    public int SynchronizeIntervalMinutes { get; set; } = 10;
 
     public TimeSpan GetSynchronizeInterval()
         => SynchronizeIntervalSeconds > 0

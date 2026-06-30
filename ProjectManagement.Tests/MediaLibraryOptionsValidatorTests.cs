@@ -9,6 +9,18 @@ public sealed class MediaLibraryOptionsValidatorTests
     private readonly MediaLibraryOptionsValidator _validator = new();
 
     [Fact]
+    public void Validate_AllowsZeroSecondOverrideToUseLegacyMinuteInterval()
+    {
+        var options = new MediaLibraryOptions();
+        options.Catalogue.SynchronizeIntervalSeconds = 0;
+        options.Catalogue.SynchronizeIntervalMinutes = 10;
+
+        var result = _validator.Validate(Options.DefaultName, options);
+
+        Assert.False(result.Failed);
+    }
+
+    [Fact]
     public void Validate_AllowsNoExternalSources()
     {
         var options = new MediaLibraryOptions

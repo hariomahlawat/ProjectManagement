@@ -327,15 +327,16 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
                 cancellationToken)
             : Array.Empty<MediaLibraryPersonOption>();
 
+        // Catalogue existence and catalogue health are separate concepts. A failed or
+        // catching-up scan must not make the application pretend the configured PRISM source
+        // does not exist; callers use freshness/health telemetry independently.
         var hasPrismCatalogue = await ExecuteOptionalAsync(
             MediaLibraryQueryOperation.PrismSourceStatus,
             async () => await _db.Sources
                 .AsNoTracking()
                 .AnyAsync(source => source.Key == MediaSourceBootstrapper.PrismSourceKey
                                     && !source.IsDeleted
-                                    && source.IsEnabled
-                                    && source.LastSuccessfulScanAtUtc.HasValue
-                                    && source.ScanStatus == "Healthy",
+                                    && source.IsEnabled,
                     cancellationToken),
             true,
             warnings,

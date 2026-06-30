@@ -21,6 +21,7 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IPrismMediaOutboxSignal _signal;
+    private readonly IPrismMediaOutboxRuntimeState _runtimeState;
     private readonly ILogger<PrismMediaOutboxWorker> _logger;
     private readonly string _workerId = $"{Environment.MachineName}:{Environment.ProcessId}:{Guid.NewGuid():N}";
     private DateTimeOffset _lastCleanupUtc = DateTimeOffset.MinValue;
@@ -28,48 +29,71 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
     public PrismMediaOutboxWorker(
         IServiceScopeFactory scopeFactory,
         IPrismMediaOutboxSignal signal,
+        IPrismMediaOutboxRuntimeState runtimeState,
         ILogger<PrismMediaOutboxWorker> logger)
     {
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         _signal = signal ?? throw new ArgumentNullException(nameof(signal));
+        _runtimeState = runtimeState ?? throw new ArgumentNullException(nameof(runtimeState));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
-        await RunStartupBackfillAsync(stoppingToken);
+        _runtimeState.MarkStarted();
+        var backfillCompleted = false;
+        var nextBackfillAttemptUtc = DateTimeOffset.MinValue;
 
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            try
-            {
-                var processed = await DrainOnceAsync(stoppingToken);
-                if (processed == 0)
-                {
-                    await _signal.WaitAsync(PollInterval, stoppingToken);
-                }
+            await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken);
 
-                if (DateTimeOffset.UtcNow - _lastCleanupUtc > TimeSpan.FromHours(1))
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                _runtimeState.Heartbeat();
+                try
                 {
-                    await CleanupCompletedAsync(stoppingToken);
-                    _lastCleanupUtc = DateTimeOffset.UtcNow;
+                    if (!backfillCompleted && DateTimeOffset.UtcNow >= nextBackfillAttemptUtc)
+                    {
+                        backfillCompleted = await RunStartupBackfillAsync(stoppingToken);
+                        nextBackfillAttemptUtc = backfillCompleted
+                            ? DateTimeOffset.MaxValue
+                            : DateTimeOffset.UtcNow.AddMinutes(1);
+                    }
+
+                    var processed = await DrainOnceAsync(stoppingToken);
+                    if (processed == 0)
+                    {
+                        await _signal.WaitAsync(PollInterval, stoppingToken);
+                    }
+
+                    if (DateTimeOffset.UtcNow - _lastCleanupUtc > TimeSpan.FromHours(1))
+                    {
+                        await CleanupCompletedAsync(stoppingToken);
+                        _lastCleanupUtc = DateTimeOffset.UtcNow;
+                    }
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _runtimeState.MarkFailed(Trim(ex.GetBaseException().Message, 2048));
+                    _logger.LogError(ex, "PRISM media outbox worker cycle failed");
+                    await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
                 }
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "PRISM media outbox worker cycle failed");
-                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
-            }
+        }
+        finally
+        {
+            _runtimeState.MarkStopped();
         }
     }
 
-    private async Task RunStartupBackfillAsync(CancellationToken cancellationToken)
+    private async Task<bool> RunStartupBackfillAsync(CancellationToken cancellationToken)
     {
+        _runtimeState.MarkBackfillAttempt("Running");
         try
         {
             using var scope = _scopeFactory.CreateScope();
@@ -80,11 +104,17 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
                 _logger.LogWarning(
                     "PRISM media startup backfill deferred because the media schema is not operational. Reference={Reference}",
                     status.DiagnosticReference);
-                return;
+                _runtimeState.MarkBackfillAttempt("Waiting for media schema");
+                return false;
             }
 
             var bootstrapper = scope.ServiceProvider.GetRequiredService<IMediaSourceBootstrapper>();
             await bootstrapper.EnsureConfiguredSourcesAsync(cancellationToken);
+
+            // A corrected deployment should not wait for the previous exponential-delay window.
+            // Pending events remain durable and keep their attempt count; only their next due time
+            // is advanced so the worker can validate the repaired code path immediately.
+            await ReleaseRetryablePendingEventsAsync(cancellationToken);
 
             try
             {
@@ -112,6 +142,9 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
                     "Queued {Count} missing Activity photo(s) for durable startup ingestion",
                     queued);
             }
+
+            _runtimeState.MarkBackfillCompleted();
+            return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -119,8 +152,33 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
         }
         catch (Exception ex)
         {
+            _runtimeState.MarkFailed(Trim(ex.GetBaseException().Message, 2048));
+            _runtimeState.MarkBackfillAttempt("Retry scheduled");
             _logger.LogError(ex,
-                "PRISM media startup backfill failed; normal durable outbox polling will continue");
+                "PRISM media startup backfill failed; it will be retried automatically");
+            return false;
+        }
+    }
+
+    private async Task ReleaseRetryablePendingEventsAsync(CancellationToken cancellationToken)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var now = DateTimeOffset.UtcNow;
+        var released = await db.PrismMediaOutboxMessages
+            .Where(message => message.Status == PrismMediaOutboxStatus.Pending
+                              && message.LastError != null
+                              && message.AvailableAfterUtc > now)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(message => message.AvailableAfterUtc, now),
+                cancellationToken);
+
+        if (released > 0)
+        {
+            _logger.LogInformation(
+                "Released {Count} previously failed PRISM media event(s) for immediate retry after startup",
+                released);
+            _signal.Pulse();
         }
     }
 
@@ -212,6 +270,10 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
     private async Task<int> DrainOnceAsync(CancellationToken cancellationToken)
     {
         var messages = await ClaimBatchAsync(cancellationToken);
+        if (messages.Count > 0)
+        {
+            _runtimeState.MarkClaimed();
+        }
         foreach (var message in messages)
         {
             await ProcessOneAsync(message, cancellationToken);
@@ -324,6 +386,7 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
                 entity.LockExpiresAtUtc = null;
                 entity.LastError = null;
                 await db.SaveChangesAsync(cancellationToken);
+                _runtimeState.MarkCompleted();
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -397,6 +460,7 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
 
             var now = DateTimeOffset.UtcNow;
             var exhausted = entity.AttemptCount >= entity.MaxAttempts;
+            _runtimeState.MarkFailed(Trim(exception.GetBaseException().Message, 2048));
             entity.Status = exhausted
                 ? PrismMediaOutboxStatus.DeadLetter
                 : PrismMediaOutboxStatus.Pending;

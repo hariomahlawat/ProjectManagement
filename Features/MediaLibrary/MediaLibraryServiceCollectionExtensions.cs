@@ -48,6 +48,7 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IPrismMediaSourceSnapshotService, PrismMediaSourceSnapshotService>();
         services.AddSingleton<IPrismMediaSynchronizationGate, PrismMediaSynchronizationGate>();
         services.AddSingleton<IPrismMediaOutboxSignal, PrismMediaOutboxSignal>();
+        services.AddSingleton<IPrismMediaOutboxRuntimeState, PrismMediaOutboxRuntimeState>();
         services.AddScoped<IPrismMediaCatalogueSynchronizer, PrismMediaCatalogueSynchronizer>();
         services.AddScoped<IPrismActivityMediaIngestionService, PrismActivityMediaIngestionService>();
         services.AddScoped<IPrismMediaIngestionCoordinator, PrismMediaIngestionCoordinator>();

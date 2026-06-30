@@ -291,8 +291,12 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
             foreach (var row in activityPhotos)
             {
                 var versionToken = Convert.ToHexString(row.RowVersion ?? Array.Empty<byte>());
-                var activityModified = row.LastModifiedAtUtc ?? row.CreatedAtUtc;
                 var mediaDate = row.ScheduledStartUtc ?? row.UploadedAtUtc;
+                var contentFingerprint = MediaContentFingerprint.ComputeSha256(
+                    row.RowVersion,
+                    row.StorageKey,
+                    row.FileSize,
+                    row.UploadedAtUtc);
                 var entity = Upsert(existing, contentChanges, source.Id, scanId, now, new AssetValues(
                     $"activity-photo:{row.Id}",
                     row.ActivityId.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -315,7 +319,7 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
                     versionToken,
                     false,
                     row.UploadedAtUtc.UtcDateTime.Ticks,
-                    $"{versionToken}:{row.UploadedAtUtc.UtcDateTime.Ticks}:{activityModified.UtcDateTime.Ticks}:{row.StorageKey}"));
+                    contentFingerprint));
                 entity.FileSizeBytes = row.FileSize;
                 entity.FileModifiedAtUtc = row.UploadedAtUtc;
             }

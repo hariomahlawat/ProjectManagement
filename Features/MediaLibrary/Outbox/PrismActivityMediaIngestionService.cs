@@ -164,9 +164,10 @@ public sealed class PrismActivityMediaIngestionService : IPrismActivityMediaInge
         source.IndexedAssetCount = await _mediaDb.Assets.LongCountAsync(
             item => item.SourceId == source.Id && item.IsAvailable && !item.IsDeleted,
             cancellationToken);
+        // Targeted ingestion deliberately does not request an immediate full-source scan.
+        // The periodic reconciliation safety net will establish a new source-wide fingerprint.
         source.ConfigurationFingerprint = null;
         source.ScanStatus = "Ingestion active";
-        source.ScanRequestedAtUtc = now;
         source.LastError = null;
         source.UpdatedAtUtc = now;
 
@@ -351,6 +352,10 @@ public sealed class PrismActivityMediaIngestionService : IPrismActivityMediaInge
             _mediaDb.ProcessingJobs.RemoveRange(nonRunningJobs);
         }
 
+        // Invalidate every in-flight processor generation before hiding the source. A
+        // processor that began before removal must not commit stale derivatives or intelligence.
+        asset.CacheVersion++;
+        asset.ClassificationConcurrencyToken = Guid.NewGuid();
         asset.IsAvailable = false;
         asset.IsDeleted = true;
         asset.AvailabilityStatus = MediaAvailabilityStatus.SourceMissing;
@@ -523,7 +528,6 @@ public sealed class PrismActivityMediaIngestionService : IPrismActivityMediaInge
             cancellationToken);
         source.ConfigurationFingerprint = null;
         source.ScanStatus = "Ingestion active";
-        source.ScanRequestedAtUtc = now;
         source.UpdatedAtUtc = now;
     }
 
@@ -556,11 +560,11 @@ public sealed class PrismActivityMediaIngestionService : IPrismActivityMediaInge
     }
 
     private static string BuildFingerprint(ActivityPhotoSnapshot snapshot)
-    {
-        var versionToken = Convert.ToHexString(snapshot.RowVersion ?? Array.Empty<byte>());
-        var activityModified = snapshot.ActivityLastModifiedAtUtc ?? snapshot.ActivityCreatedAtUtc;
-        return $"{versionToken}:{snapshot.UploadedAtUtc.UtcDateTime.Ticks}:{activityModified.UtcDateTime.Ticks}:{snapshot.StorageKey}:{snapshot.FileSize}";
-    }
+        => MediaContentFingerprint.ComputeSha256(
+            snapshot.RowVersion,
+            snapshot.StorageKey,
+            snapshot.FileSize,
+            snapshot.UploadedAtUtc);
 
     private sealed record ActivityPhotoSnapshot(
         int Id,

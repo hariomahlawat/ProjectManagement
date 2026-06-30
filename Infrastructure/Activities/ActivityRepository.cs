@@ -293,7 +293,18 @@ namespace ProjectManagement.Infrastructure.Activities
 
         public async Task UpdateAsync(Activity activity, CancellationToken cancellationToken = default)
         {
-            _dbContext.Activities.Update(activity);
+            ArgumentNullException.ThrowIfNull(activity);
+
+            // Activities are normally loaded and tracked by this context. Calling Update on a
+            // tracked aggregate marks every scalar as modified and creates false media-metadata
+            // events. Attach only when a caller legitimately supplies a detached aggregate.
+            var entry = _dbContext.Entry(activity);
+            if (entry.State == EntityState.Detached)
+            {
+                _dbContext.Activities.Attach(activity);
+                entry.State = EntityState.Modified;
+            }
+
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 

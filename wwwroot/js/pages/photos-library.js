@@ -376,8 +376,10 @@
                 height = Math.min(410, Math.max(300, window.innerHeight * 0.44));
                 width = height * ratio;
             } else if (ratio > 1.2) {
-                width = Math.min(containerWidth, 780);
-                height = Math.min(350, width / ratio);
+                // A lone panorama should remain easy to inspect without taking over the
+                // complete desktop viewport. Multi-item rows continue to use the full width.
+                width = Math.min(containerWidth, 680, window.innerWidth * 0.55);
+                height = Math.min(300, width / ratio);
             } else {
                 height = Math.min(390, Math.max(285, window.innerHeight * 0.40));
                 width = height * ratio;

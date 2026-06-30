@@ -94,6 +94,24 @@ public sealed class PrismMediaOutboxSaveChangesInterceptorTests
     }
 
     [Fact]
+    public async Task UnchangedActivityMetadataDoesNotCreateRefreshEvent()
+    {
+        await using var db = CreateContext();
+        var activity = CreateActivity();
+        db.Activities.Add(activity);
+        await db.SaveChangesAsync();
+        db.PrismMediaOutboxMessages.RemoveRange(db.PrismMediaOutboxMessages);
+        await db.SaveChangesAsync();
+
+        // Simulate a broad repository update that marks a property modified even though the
+        // value is unchanged. The interceptor must compare original and current values.
+        db.Entry(activity).Property(item => item.Title).IsModified = true;
+        await db.SaveChangesAsync();
+
+        Assert.Empty(await db.PrismMediaOutboxMessages.ToListAsync());
+    }
+
+    [Fact]
     public async Task NonImageAttachmentDoesNotCreateMediaEvent()
     {
         await using var db = CreateContext();

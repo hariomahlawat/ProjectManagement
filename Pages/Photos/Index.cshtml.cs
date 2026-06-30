@@ -24,6 +24,7 @@ public sealed class IndexModel : PageModel
     private readonly MediaLibraryDbContext _mediaDb;
     private readonly IMediaLibraryQueryService _library;
     private readonly IPrismMediaSourceSnapshotService _sourceSnapshot;
+    private readonly IMediaCatalogueConsistencyService _consistencyService;
     private readonly MediaLibraryOptions _mediaOptions;
     private readonly IProtectedFileUrlBuilder _fileUrlBuilder;
     private readonly ILogger<IndexModel> _logger;
@@ -33,6 +34,7 @@ public sealed class IndexModel : PageModel
         MediaLibraryDbContext mediaDb,
         IMediaLibraryQueryService library,
         IPrismMediaSourceSnapshotService sourceSnapshot,
+        IMediaCatalogueConsistencyService consistencyService,
         IOptions<MediaLibraryOptions> mediaOptions,
         IProtectedFileUrlBuilder fileUrlBuilder,
         ILogger<IndexModel> logger)
@@ -41,6 +43,7 @@ public sealed class IndexModel : PageModel
         _mediaDb = mediaDb ?? throw new ArgumentNullException(nameof(mediaDb));
         _library = library ?? throw new ArgumentNullException(nameof(library));
         _sourceSnapshot = sourceSnapshot ?? throw new ArgumentNullException(nameof(sourceSnapshot));
+        _consistencyService = consistencyService ?? throw new ArgumentNullException(nameof(consistencyService));
         _mediaOptions = mediaOptions?.Value ?? throw new ArgumentNullException(nameof(mediaOptions));
         _fileUrlBuilder = fileUrlBuilder ?? throw new ArgumentNullException(nameof(fileUrlBuilder));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -85,6 +88,18 @@ public sealed class IndexModel : PageModel
         var catalogueFreshness = await GetCatalogueFreshnessAsync(sourceSnapshot, cancellationToken);
         SourceVisibleCount = sourceSnapshot.TotalCount;
         CatalogueBackedCount = catalogueFreshness.IndexedAssetCount;
+        var catalogueRepresentationsComplete = false;
+        try
+        {
+            var consistency = await _consistencyService.CheckAsync(cancellationToken);
+            CatalogueBackedCount = consistency.AvailableCatalogueRecords;
+            SourceVisibleCount = consistency.AvailableCatalogueRecords + consistency.MissingFromCatalogue;
+            catalogueRepresentationsComplete = consistency.MissingFromCatalogue == 0;
+        }
+        catch (Exception ex) when (ex is DbException or InvalidOperationException or TimeoutException)
+        {
+            _logger.LogDebug(ex, "Unable to calculate visible/catalogued PRISM media counts for the Photos status banner.");
+        }
         LibraryRevision = BuildLibraryRevision(sourceSnapshot, catalogueFreshness);
 
         var result = await _library.SearchAsync(
@@ -95,8 +110,9 @@ public sealed class IndexModel : PageModel
             cancellationToken);
 
         if (result.IsAvailable
-            && result.HasPrismCatalogue
-            && (catalogueFreshness.IsFresh || Source == "external"))
+            && (catalogueFreshness.IsFresh
+                || catalogueRepresentationsComplete
+                || Source == "external"))
         {
             ApplyCatalogueResult(result);
             return;
@@ -107,7 +123,9 @@ public sealed class IndexModel : PageModel
         // pass, read PRISM-owned media directly so uploads remain visible immediately.
         // The catalogue continues catching up in the background and later restores
         // classification and people enrichment.
-        CatalogueCatchUpPending = result.HasPrismCatalogue && !catalogueFreshness.IsFresh;
+        CatalogueCatchUpPending = catalogueFreshness.HasSource
+                                  && !catalogueFreshness.IsFresh
+                                  && !catalogueRepresentationsComplete;
         if (CatalogueCatchUpPending)
         {
             await RequestCatalogueCatchUpAsync(catalogueFreshness.SourceId, cancellationToken);
@@ -188,6 +206,7 @@ public sealed class IndexModel : PageModel
 
             return new PrismCatalogueFreshness(
                 source.Id,
+                true,
                 isFresh,
                 source.ConfigurationFingerprint,
                 source.ScanStatus,
@@ -240,7 +259,11 @@ public sealed class IndexModel : PageModel
         => string.Concat(
             sourceSnapshot.Fingerprint,
             ":",
-            catalogueFreshness.CatalogueFingerprint ?? "none");
+            catalogueFreshness.CatalogueFingerprint ?? "none",
+            ":",
+            catalogueFreshness.IndexedAssetCount.ToString(CultureInfo.InvariantCulture),
+            ":",
+            catalogueFreshness.ScanStatus ?? "none");
 
     private void NormalizeRequest()
     {
@@ -411,8 +434,8 @@ public sealed class IndexModel : PageModel
         }
 
         // Do not resurrect historical rows whose physical source was already proven
-        // unavailable. A changed version is allowed through because it represents a new
-        // upload or replacement that the catalogue has not processed yet.
+        // unavailable. Restoration is performed only by the availability recovery workflow
+        // after the content provider successfully opens the underlying file.
         if (prismSourceId.HasValue && items.Count > 0)
         {
             try
@@ -422,15 +445,12 @@ public sealed class IndexModel : PageModel
                     .Where(asset => asset.SourceId == prismSourceId.Value && !asset.IsDeleted)
                     .Select(asset => new CatalogueAssetState(
                         asset.SourceEntityId,
-                        asset.VersionToken,
                         asset.IsAvailable && asset.AvailabilityStatus == MediaAvailabilityStatus.Available))
                     .ToDictionaryAsync(state => state.SourceEntityId, StringComparer.Ordinal, cancellationToken);
 
                 items = items
                     .Where(item => !sourceStates.TryGetValue(item.Id, out var state)
-                                   || state.IsAvailable
-                                   || (state.VersionToken is not null
-                                       && !string.Equals(state.VersionToken, item.VersionToken, StringComparison.Ordinal)))
+                                   || state.IsAvailable)
                     .ToList();
             }
             catch (Exception ex) when (ex is DbException or InvalidOperationException or TimeoutException)
@@ -787,18 +807,18 @@ public sealed class IndexModel : PageModel
 
     private sealed record CatalogueAssetState(
         string SourceEntityId,
-        string? VersionToken,
         bool IsAvailable);
 
     private sealed record PrismCatalogueFreshness(
         Guid? SourceId,
+        bool HasSource,
         bool IsFresh,
         string? CatalogueFingerprint,
         string? ScanStatus,
         DateTimeOffset? LastSuccessfulScanAtUtc,
         long IndexedAssetCount)
     {
-        public static PrismCatalogueFreshness Unavailable { get; } = new(null, false, null, null, null, 0);
+        public static PrismCatalogueFreshness Unavailable { get; } = new(null, false, false, null, null, null, 0);
     }
 
     public sealed class MediaItem

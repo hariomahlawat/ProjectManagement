@@ -47,6 +47,9 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
             return;
         }
 
+        var processingCacheVersion = asset.CacheVersion;
+        var processingClassificationToken = asset.ClassificationConcurrencyToken;
+
         if (asset.Kind != MediaAssetKind.Photo)
         {
             asset.DerivativeStatus = MediaProcessingStatus.Unsupported;
@@ -179,6 +182,13 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
                 }
             }
 
+            await EnsureGenerationIsCurrentAsync(
+                asset.Id,
+                processingCacheVersion,
+                processingClassificationToken,
+                classify,
+                cancellationToken);
+
             asset.Width = metadata.Width;
             asset.Height = metadata.Height;
             if (asset.MediaDateUtc == default) asset.MediaDateUtc = metadata.MediaDateUtc;
@@ -202,6 +212,18 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            if (await GenerationWasSupersededAsync(
+                    assetId,
+                    processingCacheVersion,
+                    processingClassificationToken,
+                    classify,
+                    CancellationToken.None))
+            {
+                _db.ChangeTracker.Clear();
+                throw new MediaProcessingSupersededException(
+                    $"Media asset {assetId} was removed or replaced while processing was being cancelled.");
+            }
+
             if (rebuild && !derivativesCompleted)
             {
                 asset.DerivativeStatus = MediaProcessingStatus.Pending;
@@ -216,6 +238,19 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
         }
         catch (Exception ex)
         {
+            if (await GenerationWasSupersededAsync(
+                    assetId,
+                    processingCacheVersion,
+                    processingClassificationToken,
+                    classify,
+                    CancellationToken.None))
+            {
+                _db.ChangeTracker.Clear();
+                throw new MediaProcessingSupersededException(
+                    $"Media asset {assetId} was removed or replaced while processing was running.",
+                    ex);
+            }
+
             if (rebuild && !derivativesCompleted)
             {
                 asset.DerivativeStatus = MediaProcessingStatus.Failed;
@@ -247,6 +282,54 @@ public sealed class MediaAssetProcessor : IMediaAssetProcessor
             await _db.SaveChangesAsync(CancellationToken.None);
             throw;
         }
+    }
+
+
+    private async Task EnsureGenerationIsCurrentAsync(
+        long assetId,
+        int expectedCacheVersion,
+        Guid expectedClassificationToken,
+        bool requireClassificationToken,
+        CancellationToken cancellationToken)
+    {
+        if (await GenerationWasSupersededAsync(
+                assetId,
+                expectedCacheVersion,
+                expectedClassificationToken,
+                requireClassificationToken,
+                cancellationToken))
+        {
+            _db.ChangeTracker.Clear();
+            throw new MediaProcessingSupersededException(
+                $"Media asset {assetId} was removed, replaced or reviewed while processing was running.");
+        }
+    }
+
+    private async Task<bool> GenerationWasSupersededAsync(
+        long assetId,
+        int expectedCacheVersion,
+        Guid expectedClassificationToken,
+        bool requireClassificationToken,
+        CancellationToken cancellationToken)
+    {
+        var current = await _db.Assets
+            .AsNoTracking()
+            .Where(item => item.Id == assetId)
+            .Select(item => new
+            {
+                item.IsAvailable,
+                item.IsDeleted,
+                item.CacheVersion,
+                item.ClassificationConcurrencyToken
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return current is null
+               || !current.IsAvailable
+               || current.IsDeleted
+               || current.CacheVersion != expectedCacheVersion
+               || (requireClassificationToken
+                   && current.ClassificationConcurrencyToken != expectedClassificationToken);
     }
 
     private static string Trim(string value, int maxLength) => value.Length <= maxLength ? value : value[..maxLength];

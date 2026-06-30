@@ -138,17 +138,25 @@
                         <h2 class="h5 mb-1">PRISM ingestion pipeline</h2>
                         <p class="small text-muted mb-0">Source-domain media is committed first, then projected durably into the catalogue and intelligence workers.</p>
                     </div>
-                    @if (Model.DeadLetterIngestionEvents > 0)
+                    @if (Model.RetryableIngestionEvents > 0)
                     {
                         <form method="post" asp-page-handler="RetryIngestion">
                             <button type="submit" class="btn btn-outline-danger">
                                 <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
                                 Retry failed ingestion
-                                <span class="badge text-bg-danger ms-1">@Model.DeadLetterIngestionEvents</span>
+                                <span class="badge text-bg-danger ms-1">@Model.RetryableIngestionEvents</span>
                             </button>
                         </form>
                     }
                 </div>
+
+                @if (!Model.OutboxSchemaAvailable)
+                {
+                    <div class="alert alert-danger mt-3 mb-0" role="alert">
+                        <strong>PRISM media ingestion schema is incomplete.</strong>
+                        @Model.OutboxSchemaWarning
+                    </div>
+                }
 
                 <div class="row g-3 mt-1">
                     <div class="col-6 col-lg-3">
@@ -156,8 +164,9 @@
                         <div class="fs-4 fw-semibold">@Model.PrismSourceRecordCount.ToString("N0")</div>
                     </div>
                     <div class="col-6 col-lg-3">
-                        <div class="small text-muted">Catalogue-backed records</div>
-                        <div class="fs-4 fw-semibold @(Model.MissingFromCatalogue > 0 ? "text-warning" : "text-success")">@Model.PrismAssetCount.ToString("N0")</div>
+                        <div class="small text-muted">Catalogue representations</div>
+                        <div class="fs-4 fw-semibold @(Model.MissingFromCatalogue > 0 ? "text-warning" : "text-success")">@Model.PrismCatalogueRecordCount.ToString("N0")</div>
+                        <div class="small text-muted">@Model.PrismAssetCount.ToString("N0") available · @Model.PrismUnavailableCatalogueCount.ToString("N0") unavailable</div>
                     </div>
                     <div class="col-6 col-lg-3">
                         <div class="small text-muted">Awaiting catalogue</div>
@@ -173,6 +182,12 @@
                 <div class="d-flex flex-wrap gap-3 small mt-3 pt-3 border-top">
                     <span><strong>Activity source photos:</strong> @Model.ActivitySourcePhotoCount</span>
                     <span><strong>Activity catalogue photos:</strong> @Model.ActivityCataloguePhotoCount</span>
+                    <span><strong>Outbox worker:</strong> @(Model.OutboxRuntime.IsRunning ? "Running" : "Stopped")</span>
+                    <span><strong>Backfill:</strong> @Model.OutboxRuntime.BackfillStatus</span>
+                    @if (Model.OutboxRuntime.LastHeartbeatUtc.HasValue)
+                    {
+                        <span><strong>Heartbeat:</strong> @Model.OutboxRuntime.LastHeartbeatUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</span>
+                    }
                     @if (Model.OldestPendingIngestionAtUtc.HasValue)
                     {
                         <span><strong>Oldest pending:</strong> @Model.OldestPendingIngestionAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</span>
@@ -182,8 +197,9 @@
                 @if (Model.MissingFromCatalogue > 0)
                 {
                     <div class="alert alert-warning mt-3 mb-0" role="status">
-                        <strong>@Model.MissingFromCatalogue PRISM media record(s) are visible at source but not yet fully catalogued.</strong>
-                        The transactional outbox will retry automatically; use <em>Synchronize PRISM</em> for immediate full repair.
+                        <strong>@Model.MissingFromCatalogue PRISM media record(s) are awaiting catalogue ingestion.</strong>
+                        @Model.PrismUnavailableCatalogueCount historical record(s) are already represented but remain unavailable.
+                        The transactional outbox retries automatically; use <em>Synchronize PRISM</em> only for an immediate full reconciliation.
                         @if (!string.IsNullOrWhiteSpace(Model.LastIngestionError))
                         {
                             <div class="small mt-1"><strong>Latest ingestion error:</strong> @Model.LastIngestionError</div>
@@ -192,7 +208,11 @@
                 }
                 else if (Model.DeadLetterIngestionEvents == 0)
                 {
-                    <div class="small text-success mt-3"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Source and catalogue counts are converged.</div>
+                    <div class="small text-success mt-3"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Source and catalogue representations are converged.</div>
+                }
+                @if (Model.PrismOrphanedCatalogueCount > 0)
+                {
+                    <div class="small text-warning mt-2"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>@Model.PrismOrphanedCatalogueCount orphaned catalogue record(s) require reconciliation.</div>
                 }
             </div>
         </section>

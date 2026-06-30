@@ -52,6 +52,7 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
         }
 
         if (options.Catalogue.SynchronizePrismMedia
+            && options.Catalogue.SynchronizeIntervalSeconds > 0
             && options.Catalogue.SynchronizeIntervalSeconds is < 5 or > 3600)
         {
             failures.Add("MediaLibrary:Catalogue:SynchronizeIntervalSeconds must be between 5 and 3600.");

@@ -158,16 +158,20 @@ public sealed class FileSystemActivityAttachmentStorage : IActivityAttachmentSto
             throw new InvalidOperationException("Activity attachment storage key is outside the activities root.");
         }
 
-        var root = Path.GetFullPath(_uploadRootProvider.RootPath);
+        var uploadRoot = Path.GetFullPath(_uploadRootProvider.RootPath);
+        var activitiesRoot = Path.GetFullPath(Path.Combine(uploadRoot, RootFolder));
         var candidate = Path.GetFullPath(Path.Combine(
-            root,
+            uploadRoot,
             normalizedKey.Replace('/', Path.DirectorySeparatorChar)));
-        var rootPrefix = root.EndsWith(Path.DirectorySeparatorChar)
-            ? root
-            : root + Path.DirectorySeparatorChar;
-        if (!candidate.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+        var activitiesPrefix = activitiesRoot.EndsWith(Path.DirectorySeparatorChar)
+            ? activitiesRoot
+            : activitiesRoot + Path.DirectorySeparatorChar;
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        if (!candidate.StartsWith(activitiesPrefix, comparison))
         {
-            throw new InvalidOperationException("Activity attachment path escapes the configured upload root.");
+            throw new InvalidOperationException("Activity attachment path escapes the configured activities root.");
         }
 
         return candidate;
