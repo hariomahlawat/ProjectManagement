@@ -332,7 +332,10 @@ public sealed class MediaLibraryQueryService : IMediaLibraryQueryService
             async () => await _db.Sources
                 .AsNoTracking()
                 .AnyAsync(source => source.Key == MediaSourceBootstrapper.PrismSourceKey
-                                    && !source.IsDeleted,
+                                    && !source.IsDeleted
+                                    && source.IsEnabled
+                                    && source.LastSuccessfulScanAtUtc.HasValue
+                                    && source.ScanStatus == "Healthy",
                     cancellationToken),
             true,
             warnings,

@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
@@ -6,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
+using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
 using ProjectManagement.Features.MediaLibrary.Services;
@@ -17,17 +19,26 @@ public sealed class IndexModel : PageModel
 {
     private const int PageSize = 120;
     private readonly ApplicationDbContext _db;
+    private readonly MediaLibraryDbContext _mediaDb;
     private readonly IMediaLibraryQueryService _library;
+    private readonly IPrismMediaSourceSnapshotService _sourceSnapshot;
     private readonly MediaLibraryOptions _mediaOptions;
+    private readonly ILogger<IndexModel> _logger;
 
     public IndexModel(
         ApplicationDbContext db,
+        MediaLibraryDbContext mediaDb,
         IMediaLibraryQueryService library,
-        IOptions<MediaLibraryOptions> mediaOptions)
+        IPrismMediaSourceSnapshotService sourceSnapshot,
+        IOptions<MediaLibraryOptions> mediaOptions,
+        ILogger<IndexModel> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _mediaDb = mediaDb ?? throw new ArgumentNullException(nameof(mediaDb));
         _library = library ?? throw new ArgumentNullException(nameof(library));
+        _sourceSnapshot = sourceSnapshot ?? throw new ArgumentNullException(nameof(sourceSnapshot));
         _mediaOptions = mediaOptions?.Value ?? throw new ArgumentNullException(nameof(mediaOptions));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     [BindProperty(SupportsGet = true)] public string? Q { get; set; }
@@ -55,10 +66,16 @@ public sealed class IndexModel : PageModel
     public bool ExternalLibraryAvailable { get; private set; } = true;
     public string? ExternalLibraryWarning { get; private set; }
     public bool IsUsingCatalogue { get; private set; }
+    public bool CatalogueCatchUpPending { get; private set; }
+    public string LibraryRevision { get; private set; } = "initial";
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         NormalizeRequest();
+
+        var sourceSnapshot = await _sourceSnapshot.GetSnapshotAsync(cancellationToken);
+        var catalogueFreshness = await GetCatalogueFreshnessAsync(sourceSnapshot, cancellationToken);
+        LibraryRevision = BuildLibraryRevision(sourceSnapshot, catalogueFreshness);
 
         var result = await _library.SearchAsync(
             new MediaLibraryQuery(
@@ -67,35 +84,151 @@ public sealed class IndexModel : PageModel
                 Year, PageNumber, PageSize, PeopleFeatureEnabled),
             cancellationToken);
 
-        if (result.IsAvailable && result.HasPrismCatalogue)
+        if (result.IsAvailable
+            && result.HasPrismCatalogue
+            && (catalogueFreshness.IsFresh || Source == "external"))
         {
             ApplyCatalogueResult(result);
             return;
         }
 
-        // Fail-safe path: the media catalogue is optional. Core PRISM media remains
-        // browsable if migrations are pending, PostgreSQL is unavailable, or the worker
-        // has not completed its first synchronisation. Classification and person filters
-        // are catalogue facts and must never be invented by the fallback path.
+        // A catalogue row existing is not proof that it represents the latest PRISM
+        // uploads. When the source revision is newer than the last successful catalogue
+        // pass, read PRISM-owned media directly so uploads remain visible immediately.
+        // The catalogue continues catching up in the background and later restores
+        // classification and people enrichment.
+        CatalogueCatchUpPending = result.HasPrismCatalogue && !catalogueFreshness.IsFresh;
+        if (CatalogueCatchUpPending)
+        {
+            await RequestCatalogueCatchUpAsync(catalogueFreshness.SourceId, cancellationToken);
+        }
+
         var fallbackWarnings = new List<string>();
         if (!string.IsNullOrWhiteSpace(result.Warning)) fallbackWarnings.Add(result.Warning);
         if (Classification != "all")
         {
-            fallbackWarnings.Add("The classification filter was cleared because classification data is temporarily unavailable.");
+            fallbackWarnings.Add("The classification filter was cleared while new PRISM media is being catalogued.");
             Classification = "all";
         }
         if (PersonId.HasValue)
         {
-            fallbackWarnings.Add("The person filter was cleared because identity data is temporarily unavailable.");
+            fallbackWarnings.Add("The person filter was cleared while new PRISM media is being catalogued.");
             PersonId = null;
         }
 
-        await LoadPrismFallbackAsync(cancellationToken);
+        await LoadPrismFallbackAsync(catalogueFreshness.SourceId, cancellationToken);
         ExternalLibraryAvailable = result.IsAvailable;
         ExternalLibraryWarning = fallbackWarnings.Count == 0
             ? null
             : string.Join(" ", fallbackWarnings);
     }
+
+    public async Task<IActionResult> OnGetRevisionAsync(CancellationToken cancellationToken)
+    {
+        var sourceSnapshot = await _sourceSnapshot.GetSnapshotAsync(cancellationToken);
+        var catalogueFreshness = await GetCatalogueFreshnessAsync(sourceSnapshot, cancellationToken);
+        if (!catalogueFreshness.IsFresh)
+        {
+            await RequestCatalogueCatchUpAsync(catalogueFreshness.SourceId, cancellationToken);
+        }
+
+        return new JsonResult(new
+        {
+            revision = BuildLibraryRevision(sourceSnapshot, catalogueFreshness),
+            sourceCount = sourceSnapshot.TotalCount,
+            catalogueFresh = catalogueFreshness.IsFresh
+        });
+    }
+
+    private async Task<PrismCatalogueFreshness> GetCatalogueFreshnessAsync(
+        PrismMediaSourceSnapshot sourceSnapshot,
+        CancellationToken cancellationToken)
+    {
+        if (!_mediaOptions.IsCatalogueEnabled || !_mediaOptions.Catalogue.SynchronizePrismMedia)
+        {
+            return PrismCatalogueFreshness.Unavailable;
+        }
+
+        try
+        {
+            var source = await _mediaDb.Sources
+                .AsNoTracking()
+                .Where(item => item.Key == MediaSourceBootstrapper.PrismSourceKey && !item.IsDeleted)
+                .Select(item => new
+                {
+                    item.Id,
+                    item.ConfigurationFingerprint,
+                    item.ScanStatus,
+                    item.LastSuccessfulScanAtUtc
+                })
+                .SingleOrDefaultAsync(cancellationToken);
+
+            if (source is null)
+            {
+                return PrismCatalogueFreshness.Unavailable;
+            }
+
+            var isFresh = source.LastSuccessfulScanAtUtc.HasValue
+                          && string.Equals(source.ScanStatus, "Healthy", StringComparison.OrdinalIgnoreCase)
+                          && string.Equals(
+                              source.ConfigurationFingerprint,
+                              sourceSnapshot.Fingerprint,
+                              StringComparison.Ordinal);
+
+            return new PrismCatalogueFreshness(
+                source.Id,
+                isFresh,
+                source.ConfigurationFingerprint,
+                source.ScanStatus,
+                source.LastSuccessfulScanAtUtc);
+        }
+        catch (Exception ex) when (ex is DbException or InvalidOperationException or TimeoutException)
+        {
+            _logger.LogWarning(ex, "Unable to verify PRISM media catalogue freshness; using source-owned media directly.");
+            return PrismCatalogueFreshness.Unavailable;
+        }
+    }
+
+    private async Task RequestCatalogueCatchUpAsync(Guid? sourceId, CancellationToken cancellationToken)
+    {
+        if (!sourceId.HasValue)
+        {
+            return;
+        }
+
+        try
+        {
+            var source = await _mediaDb.Sources
+                .SingleOrDefaultAsync(item => item.Id == sourceId.Value, cancellationToken);
+            if (source is null)
+            {
+                return;
+            }
+
+            var requestAlreadyPending = source.ScanRequestedAtUtc.HasValue
+                                        && (!source.LastScanStartedAtUtc.HasValue
+                                            || source.ScanRequestedAtUtc > source.LastScanStartedAtUtc);
+            if (requestAlreadyPending)
+            {
+                return;
+            }
+
+            source.ScanRequestedAtUtc = DateTimeOffset.UtcNow;
+            await _mediaDb.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is DbException or InvalidOperationException or TimeoutException)
+        {
+            _logger.LogWarning(ex, "Unable to request PRISM media catalogue catch-up.");
+        }
+    }
+
+    private static string BuildLibraryRevision(
+        PrismMediaSourceSnapshot sourceSnapshot,
+        PrismCatalogueFreshness catalogueFreshness)
+        => string.Concat(
+            sourceSnapshot.Fingerprint,
+            ":",
+            catalogueFreshness.CatalogueFingerprint ?? "none");
 
     private void NormalizeRequest()
     {
@@ -233,11 +366,12 @@ public sealed class IndexModel : PageModel
             Height = row.Height,
             DurationSeconds = row.DurationSeconds,
             IsCover = row.IsCover,
-            SortOrder = row.SortOrder
+            SortOrder = row.SortOrder,
+            VersionToken = row.VersionToken
         };
     }
 
-    private async Task LoadPrismFallbackAsync(CancellationToken cancellationToken)
+    private async Task LoadPrismFallbackAsync(Guid? prismSourceId, CancellationToken cancellationToken)
     {
         IsUsingCatalogue = false;
         var items = new List<MediaItem>(512);
@@ -252,6 +386,35 @@ public sealed class IndexModel : PageModel
         {
             if (Source is "all" or "visits") items.AddRange(await LoadVisitPhotosAsync(cancellationToken));
             if (Source is "all" or "events") items.AddRange(await LoadSocialMediaPhotosAsync(cancellationToken));
+        }
+
+        // Do not resurrect historical rows whose physical source was already proven
+        // unavailable. A changed version is allowed through because it represents a new
+        // upload or replacement that the catalogue has not processed yet.
+        if (prismSourceId.HasValue && items.Count > 0)
+        {
+            try
+            {
+                var sourceStates = await _mediaDb.Assets
+                    .AsNoTracking()
+                    .Where(asset => asset.SourceId == prismSourceId.Value && !asset.IsDeleted)
+                    .Select(asset => new CatalogueAssetState(
+                        asset.SourceEntityId,
+                        asset.VersionToken,
+                        asset.IsAvailable && asset.AvailabilityStatus == MediaAvailabilityStatus.Available))
+                    .ToDictionaryAsync(state => state.SourceEntityId, StringComparer.Ordinal, cancellationToken);
+
+                items = items
+                    .Where(item => !sourceStates.TryGetValue(item.Id, out var state)
+                                   || state.IsAvailable
+                                   || (state.VersionToken is not null
+                                       && !string.Equals(state.VersionToken, item.VersionToken, StringComparison.Ordinal)))
+                    .ToList();
+            }
+            catch (Exception ex) when (ex is DbException or InvalidOperationException or TimeoutException)
+            {
+                _logger.LogWarning(ex, "Unable to read catalogue availability while rendering live PRISM media.");
+            }
         }
 
         var filtered = items
@@ -333,7 +496,7 @@ public sealed class IndexModel : PageModel
                 OriginalUrl = Url.Page("/Projects/Photos/View", new { id = row.ProjectId, photoId = row.Id, size = "original", v = row.Version }) ?? display,
                 DownloadUrl = Url.Page("/Projects/Photos/Download", new { id = row.ProjectId, photoId = row.Id, size = "original" }),
                 SourceUrl = Url.Page("/Projects/Photos/Index", new { id = row.ProjectId }),
-                Width = row.Width, Height = row.Height, IsCover = row.IsCover, SortOrder = row.Ordinal
+                Width = row.Width, Height = row.Height, IsCover = row.IsCover, SortOrder = row.Ordinal, VersionToken = row.Version.ToString(CultureInfo.InvariantCulture)
             };
         }).ToList();
     }
@@ -359,7 +522,7 @@ public sealed class IndexModel : PageModel
             DisplayUrl = Url.Page("/Projects/Videos/Stream", new { id = row.ProjectId, videoId = row.Id, v = row.Version }) ?? string.Empty,
             OriginalUrl = Url.Page("/Projects/Videos/Stream", new { id = row.ProjectId, videoId = row.Id, v = row.Version }) ?? string.Empty,
             SourceUrl = Url.Page("/Projects/Videos/Index", new { id = row.ProjectId }),
-            DurationSeconds = row.DurationSeconds, IsCover = row.IsFeatured, SortOrder = row.Ordinal
+            DurationSeconds = row.DurationSeconds, IsCover = row.IsFeatured, SortOrder = row.Ordinal, VersionToken = row.Version.ToString(CultureInfo.InvariantCulture)
         }).ToList();
     }
 
@@ -386,7 +549,7 @@ public sealed class IndexModel : PageModel
                 DisplayUrl = display,
                 OriginalUrl = Url.Page("/Visits/ViewPhoto", new { area = "ProjectOfficeReports", id = row.VisitId, photoId = row.Id, size = "original", v = row.VersionStamp }) ?? display,
                 SourceUrl = Url.Page("/Visits/Details", new { area = "ProjectOfficeReports", id = row.VisitId }),
-                Width = row.Width, Height = row.Height, SortOrder = row.CreatedAtUtc.UtcDateTime.Ticks
+                Width = row.Width, Height = row.Height, SortOrder = row.CreatedAtUtc.UtcDateTime.Ticks, VersionToken = row.VersionStamp
             };
         }).ToList();
     }
@@ -414,7 +577,7 @@ public sealed class IndexModel : PageModel
                 DisplayUrl = display,
                 OriginalUrl = Url.Page("/SocialMedia/ViewPhoto", new { area = "ProjectOfficeReports", id = row.EventId, photoId = row.Id, size = "original", v = row.VersionStamp }) ?? display,
                 SourceUrl = Url.Page("/SocialMedia/Details", new { area = "ProjectOfficeReports", id = row.EventId }),
-                Width = row.Width, Height = row.Height, IsCover = row.IsCover, SortOrder = row.CreatedAtUtc.UtcDateTime.Ticks
+                Width = row.Width, Height = row.Height, IsCover = row.IsCover, SortOrder = row.CreatedAtUtc.UtcDateTime.Ticks, VersionToken = row.VersionStamp
             };
         }).ToList();
     }
@@ -539,6 +702,21 @@ public sealed class IndexModel : PageModel
             : duration.ToString(@"m\:ss", CultureInfo.InvariantCulture);
     }
 
+    private sealed record CatalogueAssetState(
+        string SourceEntityId,
+        string? VersionToken,
+        bool IsAvailable);
+
+    private sealed record PrismCatalogueFreshness(
+        Guid? SourceId,
+        bool IsFresh,
+        string? CatalogueFingerprint,
+        string? ScanStatus,
+        DateTimeOffset? LastSuccessfulScanAtUtc)
+    {
+        public static PrismCatalogueFreshness Unavailable { get; } = new(null, false, null, null, null);
+    }
+
     public sealed class MediaItem
     {
         public required string Id { get; init; }
@@ -567,6 +745,7 @@ public sealed class IndexModel : PageModel
         public int? DurationSeconds { get; init; }
         public bool IsCover { get; init; }
         public long SortOrder { get; init; }
+        public string? VersionToken { get; init; }
         public double AspectRatio => Width.GetValueOrDefault() > 0 && Height.GetValueOrDefault() > 0
             ? Math.Clamp((double)Width!.Value / Height!.Value, .55d, 2.2d)
             : Kind == MediaKind.Video ? 16d / 9d : 1.35d;

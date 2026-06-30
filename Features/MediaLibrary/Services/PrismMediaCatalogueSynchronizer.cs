@@ -13,6 +13,7 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
     private readonly MediaLibraryDbContext _mediaDb;
     private readonly MediaLibraryOptions _options;
     private readonly IMediaContentChangeInvalidationService _contentInvalidation;
+    private readonly IPrismMediaSourceSnapshotService _sourceSnapshot;
     private readonly ILogger<PrismMediaCatalogueSynchronizer> _logger;
 
     public PrismMediaCatalogueSynchronizer(
@@ -20,12 +21,14 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
         MediaLibraryDbContext mediaDb,
         IOptions<MediaLibraryOptions> options,
         IMediaContentChangeInvalidationService contentInvalidation,
+        IPrismMediaSourceSnapshotService sourceSnapshot,
         ILogger<PrismMediaCatalogueSynchronizer> logger)
     {
         _applicationDb = applicationDb ?? throw new ArgumentNullException(nameof(applicationDb));
         _mediaDb = mediaDb ?? throw new ArgumentNullException(nameof(mediaDb));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _contentInvalidation = contentInvalidation ?? throw new ArgumentNullException(nameof(contentInvalidation));
+        _sourceSnapshot = sourceSnapshot ?? throw new ArgumentNullException(nameof(sourceSnapshot));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -34,6 +37,7 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
         var source = await _mediaDb.Sources
             .SingleAsync(item => item.Key == MediaSourceBootstrapper.PrismSourceKey, cancellationToken);
 
+        var sourceSnapshotBefore = await _sourceSnapshot.GetSnapshotAsync(cancellationToken);
         var scanId = Guid.NewGuid();
         var now = DateTimeOffset.UtcNow;
         source.LastScanStartedAtUtc = now;
@@ -262,11 +266,27 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
             source.IndexedAssetCount = await _mediaDb.Assets.CountAsync(
                 asset => asset.SourceId == source.Id && asset.IsAvailable && !asset.IsDeleted,
                 cancellationToken);
+
+            // Record the exact source revision represented by this catalogue pass. If PRISM
+            // media changed while the scan was running, keep the source explicitly pending
+            // so the worker immediately performs a follow-up pass instead of claiming that
+            // the catalogue is current.
+            var sourceSnapshotAfter = await _sourceSnapshot.GetSnapshotAsync(cancellationToken);
+            var sourceWasStable = string.Equals(
+                sourceSnapshotBefore.Fingerprint,
+                sourceSnapshotAfter.Fingerprint,
+                StringComparison.Ordinal);
+
+            source.ConfigurationFingerprint = sourceWasStable
+                ? sourceSnapshotAfter.Fingerprint
+                : null;
             source.LastScanCompletedAtUtc = DateTimeOffset.UtcNow;
             source.LastSuccessfulScanAtUtc = source.LastScanCompletedAtUtc;
-            source.ScanStatus = "Healthy";
+            source.ScanStatus = sourceWasStable ? "Healthy" : "Catch-up pending";
             source.LastError = null;
-            source.ScanRequestedAtUtc = null;
+            source.ScanRequestedAtUtc = sourceWasStable
+                ? null
+                : source.LastScanCompletedAtUtc;
             await _mediaDb.SaveChangesAsync(cancellationToken);
         }
         catch (Exception ex)

@@ -19,16 +19,19 @@
         updateCheckInProgress = true;
         try {
             const response = await fetch(autoRefreshUrl, {
-                headers: { 'X-Requested-With': 'PhotosCataloguePoll' },
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'PhotosCataloguePoll'
+                },
                 cache: 'no-store',
                 credentials: 'same-origin'
             });
             if (!response.ok) return;
 
-            const html = await response.text();
-            const parsed = new DOMParser().parseFromString(html, 'text/html');
-            const nextRoot = parsed.querySelector('[data-photos-library]');
-            const nextVersion = nextRoot?.dataset.libraryVersion || '';
+            const payload = await response.json();
+            const nextVersion = typeof payload?.revision === 'string'
+                ? payload.revision
+                : '';
 
             if (nextVersion && nextVersion !== currentLibraryVersion) {
                 currentLibraryVersion = nextVersion;

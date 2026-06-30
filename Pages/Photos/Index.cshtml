@@ -12,8 +12,8 @@
 
 <div class="photos-library"
      data-photos-library
-     data-library-version="@($"{Model.Stats.Photos}:{Model.Stats.Videos}:{Model.Stats.Collections}:{Model.Groups.Sum(g => g.Items.Count)}")"
-     data-auto-refresh-url="@Url.Page("./Index", new { Model.View, Model.Q, Model.Source, Model.Kind, Model.Classification, Model.ProjectId, Model.PersonId, Model.Year, Model.PageNumber })">
+     data-library-version="@Model.LibraryRevision"
+     data-auto-refresh-url="@Url.Page("./Index", "Revision")">
     <header class="photos-hero">
         <div>
             <span class="photos-eyebrow">Unified organisational media</span>

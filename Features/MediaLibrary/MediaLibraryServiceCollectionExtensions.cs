@@ -44,6 +44,7 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<SafeFileEnumerator>();
         services.AddScoped<IFileSystemSourceHealthService, FileSystemSourceHealthService>();
         services.AddScoped<IMediaSourceBootstrapper, MediaSourceBootstrapper>();
+        services.AddScoped<IPrismMediaSourceSnapshotService, PrismMediaSourceSnapshotService>();
         services.AddScoped<IPrismMediaCatalogueSynchronizer, PrismMediaCatalogueSynchronizer>();
         services.AddScoped<IExternalMediaSourceScanner, FileSystemMediaSourceScanner>();
         services.AddScoped<IExternalMediaLibraryReader, ExternalMediaLibraryReader>();
