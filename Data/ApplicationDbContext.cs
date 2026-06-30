@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 using NpgsqlTypes;
+using ProjectManagement.Features.MediaLibrary.Outbox;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
@@ -136,6 +137,7 @@ namespace ProjectManagement.Data
         public DbSet<Activity> Activities => Set<Activity>();
         public DbSet<ActivityAttachment> ActivityAttachments => Set<ActivityAttachment>();
         public DbSet<ActivityDeleteRequest> ActivityDeleteRequests => Set<ActivityDeleteRequest>();
+        public DbSet<PrismMediaOutboxMessage> PrismMediaOutboxMessages => Set<PrismMediaOutboxMessage>();
         public DbSet<IndustryPartner> IndustryPartners => Set<IndustryPartner>();
         public DbSet<IndustryPartnerContact> IndustryPartnerContacts => Set<IndustryPartnerContact>();
         public DbSet<IndustryPartnerAttachment> IndustryPartnerAttachments => Set<IndustryPartnerAttachment>();
@@ -3055,6 +3057,28 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.UploadedByUserId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+
+            // SECTION: Transactional media-ingestion outbox
+            builder.Entity<PrismMediaOutboxMessage>(entity =>
+            {
+                entity.ToTable("PrismMediaOutboxMessages");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.EventId).IsRequired();
+                entity.Property(x => x.EventType).HasConversion<string>().HasMaxLength(64).IsRequired();
+                entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+                entity.Property(x => x.StorageKey).HasMaxLength(260);
+                entity.Property(x => x.Reason).HasMaxLength(512);
+                entity.Property(x => x.LockedBy).HasMaxLength(128);
+                entity.Property(x => x.LastError).HasMaxLength(2048);
+                entity.Property(x => x.MaxAttempts).HasDefaultValue(10);
+                entity.HasIndex(x => x.EventId).IsUnique();
+                entity.HasIndex(x => new { x.Status, x.AvailableAfterUtc, x.Id })
+                    .HasDatabaseName("IX_PrismMediaOutboxMessages_Queue");
+                entity.HasIndex(x => new { x.ActivityId, x.Status });
+                entity.HasIndex(x => new { x.AttachmentId, x.Status });
+                entity.HasIndex(x => x.LockExpiresAtUtc);
             });
 
 

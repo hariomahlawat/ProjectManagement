@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Hosted;
 using ProjectManagement.Features.MediaLibrary.Options;
+using ProjectManagement.Features.MediaLibrary.Outbox;
 using ProjectManagement.Features.MediaLibrary.Services;
 
 namespace ProjectManagement.Features.MediaLibrary;
@@ -46,7 +47,9 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaSourceBootstrapper, MediaSourceBootstrapper>();
         services.AddScoped<IPrismMediaSourceSnapshotService, PrismMediaSourceSnapshotService>();
         services.AddSingleton<IPrismMediaSynchronizationGate, PrismMediaSynchronizationGate>();
+        services.AddSingleton<IPrismMediaOutboxSignal, PrismMediaOutboxSignal>();
         services.AddScoped<IPrismMediaCatalogueSynchronizer, PrismMediaCatalogueSynchronizer>();
+        services.AddScoped<IPrismActivityMediaIngestionService, PrismActivityMediaIngestionService>();
         services.AddScoped<IPrismMediaIngestionCoordinator, PrismMediaIngestionCoordinator>();
         services.AddScoped<IExternalMediaSourceScanner, FileSystemMediaSourceScanner>();
         services.AddScoped<IExternalMediaLibraryReader, ExternalMediaLibraryReader>();
@@ -92,6 +95,12 @@ public static class MediaLibraryServiceCollectionExtensions
         if (configuredOptions.Enabled && configuredOptions.AutoMigrate)
         {
             services.AddHostedService<MediaLibrarySchemaInitializerWorker>();
+        }
+
+        if (configuredOptions.IsCatalogueEnabled
+            && configuredOptions.Catalogue.SynchronizePrismMedia)
+        {
+            services.AddHostedService<PrismMediaOutboxWorker>();
         }
 
         if (configuredOptions.IsCatalogueEnabled

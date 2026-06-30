@@ -940,3 +940,20 @@
   .collections-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:.7rem; }
 }
 @media (prefers-reduced-motion: reduce) { .photos-tile img,.collection-card__cover img { transition:none; } }
+
+.photos-catalogue-status {
+    display: inline-flex;
+    align-items: center;
+    gap: .55rem;
+    margin: .15rem 0 1rem;
+    padding: .5rem .75rem;
+    border: 1px solid rgba(217, 151, 0, .24);
+    border-radius: .75rem;
+    background: rgba(255, 246, 218, .72);
+    color: #6e5600;
+    font-size: .875rem;
+}
+
+.photos-catalogue-status i {
+    color: #a67800;
+}

@@ -66,6 +66,14 @@
 
     <div class="photos-summary"><strong>@Model.Stats.Total</strong> items <span>·</span> @Model.Stats.Photos photos <span>·</span> @Model.Stats.Videos videos</div>
 
+    @if (Model.CatalogueCatchUpPending && Model.AwaitingCatalogueCount > 0)
+    {
+        <div class="photos-catalogue-status" role="status">
+            <i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>
+            <span><strong>@Model.SourceVisibleCount visible</strong> · @Model.CatalogueBackedCount fully processed · @Model.AwaitingCatalogueCount awaiting catalogue intelligence</span>
+        </div>
+    }
+
     @if (hasFilters)
     {
         <div class="photos-active-filters">

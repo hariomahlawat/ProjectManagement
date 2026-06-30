@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
+using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
@@ -15,6 +16,7 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
     private readonly IMediaContentChangeInvalidationService _contentInvalidation;
     private readonly IPrismMediaSourceSnapshotService _sourceSnapshot;
     private readonly IPrismMediaSynchronizationGate _synchronizationGate;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<PrismMediaCatalogueSynchronizer> _logger;
 
     public PrismMediaCatalogueSynchronizer(
@@ -24,6 +26,7 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
         IMediaContentChangeInvalidationService contentInvalidation,
         IPrismMediaSourceSnapshotService sourceSnapshot,
         IPrismMediaSynchronizationGate synchronizationGate,
+        IServiceScopeFactory scopeFactory,
         ILogger<PrismMediaCatalogueSynchronizer> logger)
     {
         _applicationDb = applicationDb ?? throw new ArgumentNullException(nameof(applicationDb));
@@ -32,26 +35,38 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
         _contentInvalidation = contentInvalidation ?? throw new ArgumentNullException(nameof(contentInvalidation));
         _sourceSnapshot = sourceSnapshot ?? throw new ArgumentNullException(nameof(sourceSnapshot));
         _synchronizationGate = synchronizationGate ?? throw new ArgumentNullException(nameof(synchronizationGate));
+        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task SynchronizeAsync(CancellationToken cancellationToken)
     {
         using var synchronizationLease = await _synchronizationGate.EnterAsync(cancellationToken);
-
-        var source = await _mediaDb.Sources
-            .SingleAsync(item => item.Key == MediaSourceBootstrapper.PrismSourceKey, cancellationToken);
-
-        var sourceSnapshotBefore = await _sourceSnapshot.GetSnapshotAsync(cancellationToken);
-        var scanId = Guid.NewGuid();
-        var now = DateTimeOffset.UtcNow;
-        source.LastScanStartedAtUtc = now;
-        source.ScanStatus = "Scanning";
-        source.LastError = null;
-        await _mediaDb.SaveChangesAsync(cancellationToken);
+        Guid? sourceId = null;
 
         try
         {
+            await using var transaction = await _mediaDb.Database.BeginTransactionAsync(cancellationToken);
+            if ((_mediaDb.Database.ProviderName ?? string.Empty)
+                .Contains("Npgsql", StringComparison.OrdinalIgnoreCase))
+            {
+                await _mediaDb.Database.ExecuteSqlRawAsync(
+                    $"SELECT pg_advisory_xact_lock({ProjectManagement.Features.MediaLibrary.Outbox.PrismActivityMediaIngestionService.CatalogueAdvisoryLockKey})",
+                    cancellationToken);
+            }
+
+            var source = await _mediaDb.Sources
+                .SingleAsync(item => item.Key == MediaSourceBootstrapper.PrismSourceKey, cancellationToken);
+            sourceId = source.Id;
+
+            var sourceSnapshotBefore = await _sourceSnapshot.GetSnapshotAsync(cancellationToken);
+            var scanId = Guid.NewGuid();
+            var now = DateTimeOffset.UtcNow;
+            source.LastScanStartedAtUtc = now;
+            source.ScanStatus = "Scanning";
+            source.LastError = null;
+            await _mediaDb.SaveChangesAsync(cancellationToken);
+
             var existing = await _mediaDb.Assets
                 .Where(asset => asset.SourceId == source.Id)
                 .ToDictionaryAsync(asset => asset.SourceEntityId, StringComparer.Ordinal, cancellationToken);
@@ -252,8 +267,8 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
 
             var activityPhotos = await _applicationDb.ActivityAttachments
                 .AsNoTracking()
-                .Where(attachment => !attachment.Activity.IsDeleted
-                                     && attachment.ContentType.ToLower().StartsWith("image/"))
+                .Where(attachment => !attachment.Activity.IsDeleted)
+                .Where(ActivityAttachmentClassifier.IsPhotoExpression)
                 .Select(attachment => new
                 {
                     attachment.Id,
@@ -348,15 +363,44 @@ public sealed class PrismMediaCatalogueSynchronizer : IPrismMediaCatalogueSynchr
                 ? null
                 : source.LastScanCompletedAtUtc;
             await _mediaDb.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (Exception ex)
         {
-            source.LastScanCompletedAtUtc = DateTimeOffset.UtcNow;
-            source.ScanStatus = "Failed";
-            source.LastError = Trim(ex.GetBaseException().Message, 2048);
-            await _mediaDb.SaveChangesAsync(CancellationToken.None);
+            await PersistFailureAsync(sourceId, ex);
             _logger.LogError(ex, "PRISM media catalogue synchronization failed");
             throw;
+        }
+    }
+
+    private async Task PersistFailureAsync(Guid? sourceId, Exception exception)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var failureDb = scope.ServiceProvider.GetRequiredService<MediaLibraryDbContext>();
+            var source = sourceId.HasValue
+                ? await failureDb.Sources.SingleOrDefaultAsync(item => item.Id == sourceId.Value, CancellationToken.None)
+                : await failureDb.Sources.SingleOrDefaultAsync(
+                    item => item.Key == MediaSourceBootstrapper.PrismSourceKey,
+                    CancellationToken.None);
+            if (source is null)
+            {
+                return;
+            }
+
+            source.LastScanCompletedAtUtc = DateTimeOffset.UtcNow;
+            source.ScanStatus = "Failed";
+            source.LastError = Trim(exception.GetBaseException().Message, 2048);
+            source.ScanRequestedAtUtc = DateTimeOffset.UtcNow;
+            source.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            await failureDb.SaveChangesAsync(CancellationToken.None);
+        }
+        catch (Exception persistenceException)
+        {
+            _logger.LogCritical(
+                persistenceException,
+                "Unable to persist PRISM media catalogue failure telemetry");
         }
     }
 

@@ -23,7 +23,18 @@ public static class ActivityAttachmentClassifier
 
     // SECTION: EF-translatable normalized classification expressions
     public static readonly Expression<Func<ActivityAttachment, bool>> IsPhotoExpression = attachment =>
-        attachment.ContentType != null && attachment.ContentType.ToLower().StartsWith("image/");
+        (attachment.ContentType != null && attachment.ContentType.ToLower().StartsWith("image/")) ||
+        (attachment.OriginalFileName != null &&
+         (attachment.OriginalFileName.ToLower().EndsWith(".jpg") ||
+          attachment.OriginalFileName.ToLower().EndsWith(".jpeg") ||
+          attachment.OriginalFileName.ToLower().EndsWith(".png") ||
+          attachment.OriginalFileName.ToLower().EndsWith(".webp") ||
+          attachment.OriginalFileName.ToLower().EndsWith(".bmp") ||
+          attachment.OriginalFileName.ToLower().EndsWith(".gif") ||
+          attachment.OriginalFileName.ToLower().EndsWith(".tif") ||
+          attachment.OriginalFileName.ToLower().EndsWith(".tiff") ||
+          attachment.OriginalFileName.ToLower().EndsWith(".heic") ||
+          attachment.OriginalFileName.ToLower().EndsWith(".heif")));
 
     public static readonly Expression<Func<ActivityAttachment, bool>> IsVideoExpression = attachment =>
         attachment.ContentType != null && attachment.ContentType.ToLower().StartsWith("video/");
@@ -76,7 +87,7 @@ public static class ActivityAttachmentClassifier
     }
 
     public static bool IsPhoto(string? fileName, string? contentType) =>
-        StartsWithNormalized(contentType, "image/");
+        StartsWithNormalized(contentType, "image/") || HasPhotoExtension(fileName);
 
     public static bool IsVideo(string? fileName, string? contentType) =>
         StartsWithNormalized(contentType, "video/");
@@ -117,6 +128,18 @@ public static class ActivityAttachmentClassifier
 
     private static bool EndsWithNormalized(string? value, string expected) =>
         value?.Trim().EndsWith(expected, StringComparison.OrdinalIgnoreCase) == true;
+
+    private static bool HasPhotoExtension(string? fileName) =>
+        EndsWithNormalized(fileName, ".jpg") ||
+        EndsWithNormalized(fileName, ".jpeg") ||
+        EndsWithNormalized(fileName, ".png") ||
+        EndsWithNormalized(fileName, ".webp") ||
+        EndsWithNormalized(fileName, ".bmp") ||
+        EndsWithNormalized(fileName, ".gif") ||
+        EndsWithNormalized(fileName, ".tif") ||
+        EndsWithNormalized(fileName, ".tiff") ||
+        EndsWithNormalized(fileName, ".heic") ||
+        EndsWithNormalized(fileName, ".heif");
 
     private static bool ContainsNormalized(string? value, string expected) =>
         value?.Trim().IndexOf(expected, StringComparison.OrdinalIgnoreCase) >= 0;

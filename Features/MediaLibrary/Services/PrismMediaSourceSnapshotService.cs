@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Contracts.Activities;
 
 namespace ProjectManagement.Features.MediaLibrary.Services;
 
@@ -81,8 +82,8 @@ public sealed class PrismMediaSourceSnapshotService : IPrismMediaSourceSnapshotS
 
         var activityPhotos = await _db.ActivityAttachments
             .AsNoTracking()
-            .Where(attachment => !attachment.Activity.IsDeleted
-                                 && attachment.ContentType.ToLower().StartsWith("image/"))
+            .Where(attachment => !attachment.Activity.IsDeleted)
+            .Where(ActivityAttachmentClassifier.IsPhotoExpression)
             .GroupBy(_ => 1)
             .Select(group => new ActivitySourceAggregate(
                 group.Count(),

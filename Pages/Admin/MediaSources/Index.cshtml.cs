@@ -6,9 +6,11 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using ProjectManagement.Data;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
+using ProjectManagement.Features.MediaLibrary.Outbox;
 using ProjectManagement.Features.MediaLibrary.Services;
 
 namespace ProjectManagement.Pages.Admin.MediaSources;
@@ -17,6 +19,7 @@ namespace ProjectManagement.Pages.Admin.MediaSources;
 public sealed class IndexModel : PageModel
 {
     private readonly MediaLibraryDbContext _db;
+    private readonly ApplicationDbContext _applicationDb;
     private readonly MediaLibraryOptions _options;
     private readonly IFileSystemSourceHealthService _healthService;
     private readonly IFileSystemPathResolver _pathResolver;
@@ -28,9 +31,12 @@ public sealed class IndexModel : PageModel
     private readonly IMediaProcessingRuntimeState _processingRuntime;
     private readonly IMediaCacheHealthService _cacheHealthService;
     private readonly IMediaAvailabilityRecoveryService _availabilityRecoveryService;
+    private readonly IPrismMediaSourceSnapshotService _sourceSnapshot;
+    private readonly IPrismMediaOutboxSignal _outboxSignal;
 
     public IndexModel(
         MediaLibraryDbContext db,
+        ApplicationDbContext applicationDb,
         IOptions<MediaLibraryOptions> options,
         IFileSystemSourceHealthService healthService,
         IFileSystemPathResolver pathResolver,
@@ -41,9 +47,12 @@ public sealed class IndexModel : PageModel
         IPrismMediaCatalogueSynchronizer prismSynchronizer,
         IMediaProcessingRuntimeState processingRuntime,
         IMediaCacheHealthService cacheHealthService,
-        IMediaAvailabilityRecoveryService availabilityRecoveryService)
+        IMediaAvailabilityRecoveryService availabilityRecoveryService,
+        IPrismMediaSourceSnapshotService sourceSnapshot,
+        IPrismMediaOutboxSignal outboxSignal)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _applicationDb = applicationDb ?? throw new ArgumentNullException(nameof(applicationDb));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _healthService = healthService ?? throw new ArgumentNullException(nameof(healthService));
         _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
@@ -55,6 +64,8 @@ public sealed class IndexModel : PageModel
         _processingRuntime = processingRuntime ?? throw new ArgumentNullException(nameof(processingRuntime));
         _cacheHealthService = cacheHealthService ?? throw new ArgumentNullException(nameof(cacheHealthService));
         _availabilityRecoveryService = availabilityRecoveryService ?? throw new ArgumentNullException(nameof(availabilityRecoveryService));
+        _sourceSnapshot = sourceSnapshot ?? throw new ArgumentNullException(nameof(sourceSnapshot));
+        _outboxSignal = outboxSignal ?? throw new ArgumentNullException(nameof(outboxSignal));
     }
 
     [BindProperty]
@@ -100,6 +111,15 @@ public sealed class IndexModel : PageModel
     public IReadOnlyList<MediaLibraryDiagnosticEvent> CatalogueDiagnostics { get; private set; } = Array.Empty<MediaLibraryDiagnosticEvent>();
     public int ExternalSourceCount => Sources.Count(source => source.Type == MediaLibrarySourceType.FileSystem);
     public long PrismAssetCount { get; private set; }
+    public int PrismSourceRecordCount { get; private set; }
+    public int ActivitySourcePhotoCount { get; private set; }
+    public long ActivityCataloguePhotoCount { get; private set; }
+    public int PendingIngestionEvents { get; private set; }
+    public int ProcessingIngestionEvents { get; private set; }
+    public int DeadLetterIngestionEvents { get; private set; }
+    public DateTimeOffset? OldestPendingIngestionAtUtc { get; private set; }
+    public string? LastIngestionError { get; private set; }
+    public long MissingFromCatalogue => Math.Max(0L, PrismSourceRecordCount - PrismAssetCount);
 
     [TempData]
     public string? StatusMessage { get; set; }
@@ -616,8 +636,59 @@ public sealed class IndexModel : PageModel
         return RedirectToPage();
     }
 
+    public async Task<IActionResult> OnPostRetryIngestionAsync(CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var reset = await _applicationDb.PrismMediaOutboxMessages
+            .Where(message => message.Status == PrismMediaOutboxStatus.DeadLetter)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(message => message.Status, PrismMediaOutboxStatus.Pending)
+                .SetProperty(message => message.AttemptCount, 0)
+                .SetProperty(message => message.AvailableAfterUtc, now)
+                .SetProperty(message => message.ProcessingStartedAtUtc, (DateTimeOffset?)null)
+                .SetProperty(message => message.ProcessedAtUtc, (DateTimeOffset?)null)
+                .SetProperty(message => message.LockedBy, (string?)null)
+                .SetProperty(message => message.LockExpiresAtUtc, (DateTimeOffset?)null)
+                .SetProperty(message => message.LastError, (string?)null),
+                cancellationToken);
+
+        _outboxSignal.Pulse();
+        StatusMessage = reset == 0
+            ? "No dead-lettered PRISM media ingestion events required retrying."
+            : $"Queued {reset:N0} PRISM media ingestion event(s) for retry.";
+        return RedirectToPage();
+    }
+
+    private async Task LoadIngestionStatusAsync(CancellationToken cancellationToken)
+    {
+        var snapshot = await _sourceSnapshot.GetSnapshotAsync(cancellationToken);
+        PrismSourceRecordCount = snapshot.TotalCount;
+        ActivitySourcePhotoCount = snapshot.ActivityPhotoCount;
+
+        PendingIngestionEvents = await _applicationDb.PrismMediaOutboxMessages.CountAsync(
+            message => message.Status == PrismMediaOutboxStatus.Pending,
+            cancellationToken);
+        ProcessingIngestionEvents = await _applicationDb.PrismMediaOutboxMessages.CountAsync(
+            message => message.Status == PrismMediaOutboxStatus.Processing,
+            cancellationToken);
+        DeadLetterIngestionEvents = await _applicationDb.PrismMediaOutboxMessages.CountAsync(
+            message => message.Status == PrismMediaOutboxStatus.DeadLetter,
+            cancellationToken);
+        OldestPendingIngestionAtUtc = await _applicationDb.PrismMediaOutboxMessages
+            .Where(message => message.Status == PrismMediaOutboxStatus.Pending)
+            .OrderBy(message => message.OccurredAtUtc)
+            .Select(message => (DateTimeOffset?)message.OccurredAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+        LastIngestionError = await _applicationDb.PrismMediaOutboxMessages
+            .Where(message => message.LastError != null)
+            .OrderByDescending(message => message.ProcessingStartedAtUtc ?? message.OccurredAtUtc)
+            .Select(message => message.LastError)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
+        await LoadIngestionStatusAsync(cancellationToken);
         var schema = await _schemaService.GetStatusAsync(cancellationToken);
         PendingMigrations = schema.PendingMigrations;
         CatalogueError = schema.Error;
@@ -676,6 +747,12 @@ public sealed class IndexModel : PageModel
                 asset => asset.Source.SourceType == MediaLibrarySourceType.Prism
                          && asset.IsAvailable
                          && asset.AvailabilityStatus == MediaAvailabilityStatus.Available
+                         && !asset.IsDeleted,
+                cancellationToken);
+            ActivityCataloguePhotoCount = await _db.Assets.LongCountAsync(
+                asset => asset.Source.SourceType == MediaLibrarySourceType.Prism
+                         && asset.Origin == MediaAssetOrigin.ActivityPhoto
+                         && asset.IsAvailable
                          && !asset.IsDeleted,
                 cancellationToken);
 

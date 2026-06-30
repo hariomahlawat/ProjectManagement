@@ -36,6 +36,7 @@ using ProjectManagement.Contracts.Stages;
 using ProjectManagement.Data;
 using ProjectManagement.Features.Analytics;
 using ProjectManagement.Features.MediaLibrary;
+using ProjectManagement.Features.MediaLibrary.Outbox;
 using ProjectManagement.Features.Remarks;
 using ProjectManagement.Features.Users;
 using ProjectManagement.Helpers;
@@ -137,8 +138,11 @@ if (string.IsNullOrWhiteSpace(connectionString))
 }
 
 var csb = new NpgsqlConnectionStringBuilder(connectionString);
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(csb.ConnectionString));
+builder.Services.AddSingleton<PrismMediaOutboxSaveChangesInterceptor>();
+builder.Services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
+    options
+        .UseNpgsql(csb.ConnectionString)
+        .AddInterceptors(serviceProvider.GetRequiredService<PrismMediaOutboxSaveChangesInterceptor>()));
 
 // ---------- Enterprise media library (PRISM + optional local/UNC folders) ----------
 builder.Services.AddMediaLibrary(builder.Configuration, csb.ConnectionString);

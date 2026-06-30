@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
 
@@ -69,8 +70,8 @@ public sealed class MediaCatalogueConsistencyService : IMediaCatalogueConsistenc
         }
 
         foreach (var id in await _applicationDb.ActivityAttachments.AsNoTracking()
-                     .Where(attachment => !attachment.Activity.IsDeleted
-                                          && attachment.ContentType.ToLower().StartsWith("image/"))
+                     .Where(attachment => !attachment.Activity.IsDeleted)
+                .Where(ActivityAttachmentClassifier.IsPhotoExpression)
                      .Select(attachment => attachment.Id)
                      .ToListAsync(cancellationToken))
         {

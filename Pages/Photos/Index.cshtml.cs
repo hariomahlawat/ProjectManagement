@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
+using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Domain;
 using ProjectManagement.Features.MediaLibrary.Options;
@@ -71,6 +72,9 @@ public sealed class IndexModel : PageModel
     public string? ExternalLibraryWarning { get; private set; }
     public bool IsUsingCatalogue { get; private set; }
     public bool CatalogueCatchUpPending { get; private set; }
+    public int SourceVisibleCount { get; private set; }
+    public long CatalogueBackedCount { get; private set; }
+    public long AwaitingCatalogueCount => Math.Max(0L, SourceVisibleCount - CatalogueBackedCount);
     public string LibraryRevision { get; private set; } = "initial";
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
@@ -79,6 +83,8 @@ public sealed class IndexModel : PageModel
 
         var sourceSnapshot = await _sourceSnapshot.GetSnapshotAsync(cancellationToken);
         var catalogueFreshness = await GetCatalogueFreshnessAsync(sourceSnapshot, cancellationToken);
+        SourceVisibleCount = sourceSnapshot.TotalCount;
+        CatalogueBackedCount = catalogueFreshness.IndexedAssetCount;
         LibraryRevision = BuildLibraryRevision(sourceSnapshot, catalogueFreshness);
 
         var result = await _library.SearchAsync(
@@ -163,7 +169,8 @@ public sealed class IndexModel : PageModel
                     item.Id,
                     item.ConfigurationFingerprint,
                     item.ScanStatus,
-                    item.LastSuccessfulScanAtUtc
+                    item.LastSuccessfulScanAtUtc,
+                    item.IndexedAssetCount
                 })
                 .SingleOrDefaultAsync(cancellationToken);
 
@@ -184,7 +191,8 @@ public sealed class IndexModel : PageModel
                 isFresh,
                 source.ConfigurationFingerprint,
                 source.ScanStatus,
-                source.LastSuccessfulScanAtUtc);
+                source.LastSuccessfulScanAtUtc,
+                source.IndexedAssetCount);
         }
         catch (Exception ex) when (ex is DbException or InvalidOperationException or TimeoutException)
         {
@@ -601,8 +609,8 @@ public sealed class IndexModel : PageModel
         if (ProjectId.HasValue) return new();
         var rows = await _db.ActivityAttachments
             .AsNoTracking()
-            .Where(attachment => !attachment.Activity.IsDeleted
-                                 && attachment.ContentType.ToLower().StartsWith("image/"))
+            .Where(attachment => !attachment.Activity.IsDeleted)
+            .Where(ActivityAttachmentClassifier.IsPhotoExpression)
             .Select(attachment => new
             {
                 attachment.Id,
@@ -787,9 +795,10 @@ public sealed class IndexModel : PageModel
         bool IsFresh,
         string? CatalogueFingerprint,
         string? ScanStatus,
-        DateTimeOffset? LastSuccessfulScanAtUtc)
+        DateTimeOffset? LastSuccessfulScanAtUtc,
+        long IndexedAssetCount)
     {
-        public static PrismCatalogueFreshness Unavailable { get; } = new(null, false, null, null, null);
+        public static PrismCatalogueFreshness Unavailable { get; } = new(null, false, null, null, null, 0);
     }
 
     public sealed class MediaItem

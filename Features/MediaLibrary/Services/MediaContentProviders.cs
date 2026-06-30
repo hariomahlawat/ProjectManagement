@@ -1,5 +1,6 @@
 using ProjectManagement.Services.Activities;
 using ProjectManagement.Data;
+using ProjectManagement.Contracts.Activities;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Features.MediaLibrary.Domain;
@@ -322,9 +323,8 @@ public sealed class ActivityPhotoMediaContentProvider : IMediaContentProvider
 
         var attachment = await _db.ActivityAttachments
             .AsNoTracking()
-            .Where(item => item.Id == attachmentId
-                           && !item.Activity.IsDeleted
-                           && item.ContentType.ToLower().StartsWith("image/"))
+            .Where(item => item.Id == attachmentId && !item.Activity.IsDeleted)
+            .Where(ActivityAttachmentClassifier.IsPhotoExpression)
             .Select(item => new
             {
                 item.StorageKey,
