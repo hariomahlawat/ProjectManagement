@@ -23,7 +23,7 @@ public sealed record MediaLibraryHealthReport(
     int IndexedAssets,
     IReadOnlyList<MediaLibraryHealthCheckItem> Checks)
 {
-    public bool IsOperational => DatabaseReachable && InternalSourcePresent && TimelineQueryHealthy;
+    public bool IsOperational => DatabaseReachable && SchemaCurrent && InternalSourcePresent && TimelineQueryHealthy;
 }
 
 public interface IMediaLibraryHealthService
@@ -55,12 +55,12 @@ public sealed class MediaLibraryHealthService : IMediaLibraryHealthService
         var checkedAt = DateTimeOffset.UtcNow;
         var checks = new List<MediaLibraryHealthCheckItem>();
         var schema = await _schema.GetStatusAsync(cancellationToken);
-        if (!schema.IsAvailable || !schema.IsOperational)
+        if (!schema.IsAvailable || !schema.IsCurrent)
         {
             return new MediaLibraryHealthReport(
                 checkedAt,
                 schema.IsAvailable,
-                schema.IsOperational,
+                schema.IsCurrent,
                 false,
                 false,
                 false,

@@ -17,12 +17,37 @@
     <nav class="intel-tabs mb-4" aria-label="Media intelligence sections">
         <a class="active" asp-page="/Admin/MediaIntelligence/Index">Overview</a>
         <a asp-page="/Admin/MediaIntelligence/Classifications">Classification</a>
-        <a asp-page="/Photos/People/Review" asp-route-Mode="matches">Identify people</a>
-        <a asp-page="/Photos/People/Index">People</a>
+        @if (Model.PeopleEnabled)
+        {
+            <a asp-page="/Photos/People/Review" asp-route-Mode="matches">Identify people</a>
+            <a asp-page="/Photos/People/Index">People</a>
+        }
     </nav>
 
     @if (!string.IsNullOrWhiteSpace(Model.StatusMessage)) { <div class="alert alert-success">@Model.StatusMessage</div> }
     @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage)) { <div class="alert alert-danger">@Model.ErrorMessage</div> }
+
+    @if (!Model.SchemaReady)
+    {
+        <div class="alert alert-danger d-flex align-items-start gap-3" role="alert">
+            <i class="bi bi-database-exclamation fs-4" aria-hidden="true"></i>
+            <div>
+                <strong>Media catalogue database upgrade incomplete</strong>
+                <div class="mt-1">@(Model.SchemaStatus.Error ?? "The deployed MediaLibraryDbContext schema could not be validated.")</div>
+                @if (Model.SchemaStatus.PendingMigrations.Count > 0)
+                {
+                    <div class="small mt-2">Pending migrations: @string.Join(", ", Model.SchemaStatus.PendingMigrations)</div>
+                }
+                <div class="small mt-2">Diagnostic reference: <code>@Model.SchemaStatus.DiagnosticReference</code>. Processing actions remain disabled until startup migration and validation complete.</div>
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(Model.TelemetryWarning))
+    {
+        <div class="alert alert-warning" role="alert">
+            <strong>Telemetry temporarily unavailable.</strong> @Model.TelemetryWarning
+        </div>
+    }
 
     <section class="card shadow-sm border-0 mb-4">
         <div class="card-body p-4">
@@ -32,7 +57,7 @@
                     <p class="text-muted mb-0">Every dependency must pass before photographs can be queued.</p>
                 </div>
                 <form method="post" asp-page-handler="RefreshReadiness">
-                    <button class="btn btn-outline-primary btn-sm" type="submit">Refresh readiness</button>
+                    <button class="btn btn-outline-primary btn-sm" type="submit" disabled="@(!Model.SchemaReady)">Refresh readiness</button>
                 </form>
             </div>
             <div class="row g-3 mb-3">
@@ -94,8 +119,11 @@
         <div class="col-6 col-xl"><div class="metric-card"><span>Face admission pending</span><strong>@Model.FaceAdmissionPending</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Pending analysis</span><strong>@Model.PendingClassification</strong></div></div>
         <div class="col-6 col-xl"><div class="metric-card"><span>Analysis failures</span><strong>@Model.FailedClassification</strong></div></div>
-        <div class="col-6 col-xl"><div class="metric-card"><span>Faces detected</span><strong>@Model.Faces</strong></div></div>
-        <div class="col-6 col-xl"><div class="metric-card"><span>Embeddings</span><strong>@Model.Embedded</strong></div></div>
+        @if (Model.PeopleEnabled)
+        {
+            <div class="col-6 col-xl"><div class="metric-card"><span>Faces detected</span><strong>@Model.Faces</strong></div></div>
+            <div class="col-6 col-xl"><div class="metric-card"><span>Embeddings</span><strong>@Model.Embedded</strong></div></div>
+        }
     </div>
 
     <section class="card shadow-sm border-0 mb-4">
@@ -117,31 +145,46 @@
         </div>
     </section>
 
-    <section class="card shadow-sm border-0 mb-4">
-        <div class="card-body p-4">
-            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+    @if (Model.PeopleEnabled)
+    {
+            <section class="card shadow-sm border-0 mb-4">
+                <div class="card-body p-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                        <div>
+                            <h2 class="h5 mb-1">Identify people</h2>
+                            <p class="text-muted mb-0">New face embeddings are matched against confirmed people in the background. Every identity remains human-confirmed.</p>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <form method="post" asp-page-handler="RefreshIdentityCandidates">
+                                <button class="btn btn-outline-primary btn-sm" type="submit" disabled="@(!Model.SchemaReady || !Model.ModelStatus.IsReady)">Refresh identity matches</button>
+                            </form>
+                            <a class="btn btn-primary btn-sm" asp-page="/Photos/People/Review" asp-route-Mode="matches">Review people</a>
+                            <a class="btn btn-outline-secondary btn-sm" asp-page="/Photos/People/Index">Open people</a>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6 col-lg"><div class="metric-card"><span>Confirmed people</span><strong>@Model.Persons</strong></div></div>
+                        <div class="col-6 col-lg"><div class="metric-card"><span>Confirmed appearances</span><strong>@Model.ConfirmedAppearances</strong></div></div>
+                        <div class="col-6 col-lg"><div class="metric-card"><span>Known-person suggestions</span><strong>@Model.KnownPersonSuggestions</strong></div></div>
+                        <div class="col-6 col-lg"><div class="metric-card"><span>Unidentified appearances</span><strong>@Model.UnidentifiedFaces</strong></div></div>
+                        <div class="col-6 col-lg"><div class="metric-card"><span>Matching in progress</span><strong>@Model.CandidateSearchPending</strong></div></div>
+                        <div class="col-6 col-lg"><div class="metric-card"><span>Matching failures</span><strong>@Model.CandidateSearchFailures</strong></div></div>
+                    </div>
+                </div>
+            </section>
+    }
+    else
+    {
+        <section class="card shadow-sm border-0 mb-4">
+            <div class="card-body p-4 d-flex align-items-start gap-3">
+                <i class="bi bi-people fs-4 text-muted" aria-hidden="true"></i>
                 <div>
-                    <h2 class="h5 mb-1">Identify people</h2>
-                    <p class="text-muted mb-0">New face embeddings are matched against confirmed people in the background. Every identity remains human-confirmed.</p>
-                </div>
-                <div class="d-flex flex-wrap gap-2">
-                    <form method="post" asp-page-handler="RefreshIdentityCandidates">
-                        <button class="btn btn-outline-primary btn-sm" type="submit" disabled="@(!Model.ModelStatus.IsReady)">Refresh identity matches</button>
-                    </form>
-                    <a class="btn btn-primary btn-sm" asp-page="/Photos/People/Review" asp-route-Mode="matches">Review people</a>
-                    <a class="btn btn-outline-secondary btn-sm" asp-page="/Photos/People/Index">Open people</a>
+                    <h2 class="h5 mb-1">People intelligence is disabled</h2>
+                    <p class="text-muted mb-0">Classification and media-catalogue telemetry remain available. Enable the People capability only after approved models, licensing and operating policy are in place.</p>
                 </div>
             </div>
-            <div class="row g-3">
-                <div class="col-6 col-lg"><div class="metric-card"><span>Confirmed people</span><strong>@Model.Persons</strong></div></div>
-                <div class="col-6 col-lg"><div class="metric-card"><span>Confirmed appearances</span><strong>@Model.ConfirmedAppearances</strong></div></div>
-                <div class="col-6 col-lg"><div class="metric-card"><span>Known-person suggestions</span><strong>@Model.KnownPersonSuggestions</strong></div></div>
-                <div class="col-6 col-lg"><div class="metric-card"><span>Unidentified appearances</span><strong>@Model.UnidentifiedFaces</strong></div></div>
-                <div class="col-6 col-lg"><div class="metric-card"><span>Matching in progress</span><strong>@Model.CandidateSearchPending</strong></div></div>
-                <div class="col-6 col-lg"><div class="metric-card"><span>Matching failures</span><strong>@Model.CandidateSearchFailures</strong></div></div>
-            </div>
-        </div>
-    </section>
+        </section>
+    }
 
     <div class="row g-4">
         <div class="col-xl-7">
@@ -149,21 +192,28 @@
                 <div class="card-body p-4">
                     <h2 class="h5 mb-1">Controlled processing</h2>
                     <p class="text-muted">Queues approved photographs for face detection and embedding. Identity assignment remains human-controlled.</p>
-                    <form method="post" asp-page-handler="Queue" class="row g-3 align-items-end">
-                        <div class="col-sm-4">
-                            <label class="form-label fw-semibold" for="faceBatchSize">Batch size</label>
-                            <div class="input-group"><input id="faceBatchSize" class="form-control" type="number" name="limit" min="1" max="250" value="25" /><span class="input-group-text">photos</span></div>
-                        </div>
-                        <div class="col-sm-auto">
-                            <button class="btn btn-primary" type="submit" disabled="@(!Model.ModelStatus.IsReady)">Queue eligible photographs</button>
-                        </div>
-                        <div class="col-12">
-                            @if (!Model.ModelStatus.IsReady)
-                            {
-                                <div class="small text-warning-emphasis">Queueing is locked until configuration, models, checksums, licensing, schema and cache checks pass and the worker is enabled.</div>
-                            }
-                        </div>
-                    </form>
+                    @if (Model.PeopleEnabled)
+                    {
+                        <form method="post" asp-page-handler="Queue" class="row g-3 align-items-end">
+                            <div class="col-sm-4">
+                                <label class="form-label fw-semibold" for="faceBatchSize">Batch size</label>
+                                <div class="input-group"><input id="faceBatchSize" class="form-control" type="number" name="limit" min="1" max="250" value="25" /><span class="input-group-text">photos</span></div>
+                            </div>
+                            <div class="col-sm-auto">
+                                <button class="btn btn-primary" type="submit" disabled="@(!Model.SchemaReady || !Model.ModelStatus.IsReady)">Queue eligible photographs</button>
+                            </div>
+                            <div class="col-12">
+                                @if (!Model.ModelStatus.IsReady)
+                                {
+                                    <div class="small text-warning-emphasis">Queueing is locked until configuration, models, checksums, licensing, schema and cache checks pass and the worker is enabled.</div>
+                                }
+                            </div>
+                        </form>
+                    }
+                    else
+                    {
+                        <div class="alert alert-light border mb-0">People processing is disabled in MediaLibrary configuration.</div>
+                    }
                 </div>
             </section>
         </div>

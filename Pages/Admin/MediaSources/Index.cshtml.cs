@@ -161,21 +161,6 @@ public sealed class IndexModel : PageModel
     }
 
 
-    public async Task<IActionResult> OnPostInitializeCatalogueAsync(CancellationToken cancellationToken)
-    {
-        var result = await _schemaService.MigrateAsync(cancellationToken);
-        if (!result.IsOperational)
-        {
-            WarningMessage = null;
-            return RedirectToPage();
-        }
-
-        StatusMessage = result.IsCurrent
-            ? "The media catalogue schema is current. PRISM reconciliation and background processing can run."
-            : "The media catalogue is operational. One or more migration metadata items still require administrative attention.";
-        return RedirectToPage();
-    }
-
     public async Task<IActionResult> OnPostTestCatalogueAsync(CancellationToken cancellationToken)
     {
         var report = await _catalogueHealthService.CheckAsync(cancellationToken);

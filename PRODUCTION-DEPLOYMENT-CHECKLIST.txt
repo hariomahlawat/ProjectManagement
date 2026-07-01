@@ -1,0 +1,29 @@
+PRISM PRODUCTION DEPLOYMENT CHECKLIST v4.1
+==========================================
+
+[ ] PostgreSQL backup completed and restore procedure verified.
+[ ] Current IIS publish directory backed up.
+[ ] PRODUCTION-MIGRATION-INVENTORY.sql run against the exact IIS database.
+[ ] Both history lists compared with both immutable manifests.
+[ ] No migration-history row deleted, renamed or manually inserted.
+[ ] All package files copied into the source tree with relative paths preserved.
+[ ] npm ci completed.
+[ ] dotnet tool restore completed.
+[ ] Release build completed with zero errors.
+[ ] Complete test suite passed.
+[ ] PostgreSQL migration integration CI/test passed.
+[ ] Complete Release publish generated from one committed revision.
+[ ] ConnectionStrings__DefaultConnection configured outside source control.
+[ ] DP_KEYS_DIR configured as an absolute durable path.
+[ ] IIS application-pool identity has read/write/create/delete on DP_KEYS_DIR.
+[ ] PostgreSQL identity has required migration permissions.
+[ ] app_offline.htm placed or application pool stopped.
+[ ] Complete publish output deployed (not source files or DLL-only overlay).
+[ ] Startup logs confirm ApplicationDbContext preflight/migration/validation.
+[ ] Startup logs confirm MediaLibraryDbContext preflight/migration/validation.
+[ ] Startup logs confirm complete deployment boundary and advisory-lock release.
+[ ] Post-deployment migration inventory captured.
+[ ] Photos timeline loads without MLQ schema-degradation warning.
+[ ] Media Intelligence loads without generic Error page.
+[ ] Direct stage completion accepts CompletedOn with blank optional ActualStart.
+[ ] Authentication persists across an application-pool recycle.

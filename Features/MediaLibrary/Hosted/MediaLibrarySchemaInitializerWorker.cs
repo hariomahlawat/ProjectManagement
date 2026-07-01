@@ -5,9 +5,13 @@ using ProjectManagement.Features.MediaLibrary.Services;
 namespace ProjectManagement.Features.MediaLibrary.Hosted;
 
 /// <summary>
-/// Optional controlled schema bootstrap. Production can keep AutoMigrate=false and
-/// apply migrations through deployment or the protected administration action.
+/// Compatibility readiness observer for older hosts that may still register this type.
+/// Schema mutation is exclusively owned by the synchronous application startup gate;
+/// hosted services must never run migrations after request processing can begin.
 /// </summary>
+[Obsolete(
+    "Runtime schema initialization is prohibited. Use the synchronous DatabaseStartupMigrator deployment boundary.",
+    error: false)]
 public sealed class MediaLibrarySchemaInitializerWorker : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
@@ -26,22 +30,28 @@ public sealed class MediaLibrarySchemaInitializerWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_options.Enabled || !_options.AutoMigrate)
+        if (!_options.Enabled)
         {
             return;
         }
 
         await using var scope = _scopeFactory.CreateAsyncScope();
         var schema = scope.ServiceProvider.GetRequiredService<IMediaLibrarySchemaService>();
-        var result = await schema.MigrateAsync(stoppingToken);
+        var result = await schema.GetStatusAsync(stoppingToken);
 
-        if (result.IsOperational)
+        if (result.IsCurrent)
         {
-            _logger.LogInformation(result.IsCurrent ? "Media catalogue schema is current" : "Media catalogue is operational with a migration-history warning");
+            _logger.LogInformation(
+                "Media catalogue readiness observer confirmed the schema is current. Reference={Reference}",
+                result.DiagnosticReference);
+            return;
         }
-        else
-        {
-            _logger.LogWarning("Media catalogue schema initialization did not complete: {Error}", result.Error);
-        }
+
+        _logger.LogCritical(
+            "Media catalogue readiness observer found a non-current schema after startup. " +
+            "Runtime migration is intentionally disabled; recycle the application only after deploying the complete migration assembly. " +
+            "Reference={Reference}; Error={Error}",
+            result.DiagnosticReference,
+            result.Error);
     }
 }

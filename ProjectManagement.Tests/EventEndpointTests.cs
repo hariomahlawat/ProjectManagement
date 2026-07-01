@@ -17,6 +17,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Helpers;
 using ProjectManagement.Models;
 using Xunit;
@@ -31,10 +32,14 @@ namespace ProjectManagement.Tests
         {
             _factory = factory.WithWebHostBuilder(builder =>
             {
+                builder.UsePrismTestInfrastructure("event-endpoints");
+
                 builder.ConfigureServices(services =>
                 {
                     services.RemoveAll(typeof(DbContextOptions<ApplicationDbContext>));
+                    services.RemoveAll(typeof(DbContextOptions<MediaLibraryDbContext>));
                     services.AddDbContext<ApplicationDbContext>(o => o.UseInMemoryDatabase("events"));
+                    services.AddDbContext<MediaLibraryDbContext>(o => o.UseInMemoryDatabase("events-media"));
                 });
                 builder.ConfigureTestServices(services =>
                 {
@@ -71,7 +76,10 @@ namespace ProjectManagement.Tests
             var auth = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Authorization.IAuthorizationService>();
             var user = PrincipalWithRole("User");
 
-            var result = await auth.AuthorizeAsync(user, Policies.Calendar.ManageEvents);
+            var result = await auth.AuthorizeAsync(
+                user,
+                resource: null,
+                policyName: Policies.Calendar.ManageEvents);
 
             Assert.False(result.Succeeded);
         }
@@ -90,7 +98,10 @@ namespace ProjectManagement.Tests
             using var scope = _factory.Services.CreateScope();
             var auth = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Authorization.IAuthorizationService>();
 
-            var result = await auth.AuthorizeAsync(PrincipalWithRole(role), Policies.Calendar.ManageEvents);
+            var result = await auth.AuthorizeAsync(
+                PrincipalWithRole(role),
+                resource: null,
+                policyName: Policies.Calendar.ManageEvents);
 
             Assert.True(result.Succeeded);
         }
@@ -111,7 +122,10 @@ namespace ProjectManagement.Tests
             using var scope = _factory.Services.CreateScope();
             var auth = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Authorization.IAuthorizationService>();
 
-            var result = await auth.AuthorizeAsync(PrincipalWithRole(role), Policies.Calendar.ManageBirthdays);
+            var result = await auth.AuthorizeAsync(
+                PrincipalWithRole(role),
+                resource: null,
+                policyName: Policies.Calendar.ManageBirthdays);
 
             Assert.Equal(expected, result.Succeeded);
         }
@@ -132,7 +146,10 @@ namespace ProjectManagement.Tests
             using var scope = _factory.Services.CreateScope();
             var auth = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Authorization.IAuthorizationService>();
 
-            var result = await auth.AuthorizeAsync(PrincipalWithRole(role), Policies.Calendar.ManageAnniversaries);
+            var result = await auth.AuthorizeAsync(
+                PrincipalWithRole(role),
+                resource: null,
+                policyName: Policies.Calendar.ManageAnniversaries);
 
             Assert.Equal(expected, result.Succeeded);
         }

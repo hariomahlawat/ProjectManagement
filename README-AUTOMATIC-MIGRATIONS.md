@@ -1,93 +1,96 @@
-# PRISM ERP — Automatic Production Migration Hardening
+# PRISM ERP — Mandatory Automatic Migrations
 
-## Purpose
+## Scope
 
-This patch makes database upgrade execution a mandatory application-startup gate. After an updated Release build is deployed, the first application process applies every pending migration before ASP.NET Core begins accepting requests.
+PRISM treats `ApplicationDbContext` and `MediaLibraryDbContext` as one production
+deployment boundary. Every deployed EF Core migration is applied and validated before the
+application starts hosted workers or accepts HTTP requests.
 
-Both EF Core migration sets are covered:
+History tables:
 
-1. `ApplicationDbContext` using the standard `__EFMigrationsHistory` table.
-2. `MediaLibraryDbContext` using its isolated `__EFMigrationsHistory_MediaLibrary` table.
+- `ApplicationDbContext` → `__EFMigrationsHistory`
+- `MediaLibraryDbContext` → `__EFMigrationsHistory_MediaLibrary`
 
-A failed or incomplete migration prevents the application from starting against an incompatible schema.
+## Startup sequence
 
-## Installation
+The application:
 
-Copy this package into the `ProjectManagement` application root and replace the matching files. Preserve the folder structure.
+1. opens one PostgreSQL session and acquires the `PRISM_ERP_EF_MIGRATIONS` advisory lock;
+2. confirms both contexts target the same PostgreSQL server and database;
+3. verifies both immutable manifests, both EF migration assemblies and both database-history lineages before changing either context;
+4. rejects unknown database-history IDs, missing bridge migrations or duplicate assembly IDs;
+5. applies all pending Application migrations;
+6. validates project-stage, Notebook, DocRepo favourites and project-document search schema;
+7. applies all pending Media Library migrations;
+8. validates the latest media migration, required tables/columns and representative queries;
+9. confirms migration closure for both contexts; and
+10. releases the lock only after the complete deployment boundary succeeds.
 
-No manual SQL script and no manual `dotnet ef database update` command is required for normal production deployment.
-
-## Production deployment procedure
-
-1. Back up the PostgreSQL database and the current deployed application.
-2. Stop the IIS application pool.
-3. Build and publish the updated application in Release configuration.
-4. Deploy the complete published output, including the `Migrations` assembly content.
-5. Start the IIS application pool.
-6. Review startup logs before allowing users into the system.
-
-The application will:
-
-- acquire a PostgreSQL advisory lock;
-- wait safely if another IIS worker is already migrating;
-- apply all pending main-application migrations;
-- verify that every migration shipped in the deployed assembly is recorded as applied;
-- validate critical project-stage, notebook, favourites, requested-start-date and search-vector schema elements;
-- apply all pending Media Library migrations using its independent history table;
-- validate the Media Library schema;
-- start the HTTP pipeline only after all checks pass.
-
-## Expected startup log sequence
-
-Typical first start after an update:
-
-```text
-Acquired the PostgreSQL migration advisory lock.
-Applying N pending EF Core migration(s) before application startup: ...
-Automatic database migration completed successfully.
-All N migrations in the deployed assembly are recorded as applied.
-Database startup gate completed. Latest applied migration: ...
-Acquired media-library migration advisory lock.
-Applying N pending media-library migration(s). ...
-Media-library migrations and schema validation completed successfully.
-```
-
-Typical later restart with the same build:
-
-```text
-Database schema is current; no pending EF Core migrations were found.
-All N migrations in the deployed assembly are recorded as applied.
-Media-library schema has no pending migrations.
-```
+`Database:ApplyMigrationsOnStartup=false` is deprecated and ignored. Production migrations
+are mandatory.
 
 ## Failure policy
 
-Migration and schema-validation failures are deliberately fatal during startup. The application does not serve requests with a stale or partially upgraded schema. Check the exception and PostgreSQL details in the application log, correct the underlying problem, and restart. EF Core will retry only migrations not recorded as applied.
+Any migration-lineage mismatch, DDL failure, remaining pending migration or physical-schema
+validation failure aborts startup. This is intentional. Do not delete migration-history rows
+or weaken the gate to make the application start.
 
-## Database account permissions
+## Runtime mutation is prohibited
 
-The production connection identity must be allowed to execute the DDL and DML contained in migrations, including `CREATE`, `ALTER`, `DROP`, `CREATE INDEX`, and `UPDATE`. It must also be allowed to call PostgreSQL advisory-lock functions.
+No Razor Page, hosted worker or administration action applies migrations after startup. The
+Media Sources page is diagnostic only. Schema changes belong exclusively to checked-in EF
+Core migrations and a complete Release deployment.
 
-## Important implementation notes
+## Production permissions
 
-- `Database:ApplyMigrationsOnStartup=false` is now ignored and logged as deprecated. Migrations are mandatory.
-- `MediaLibrary:AutoMigrate=false` is retained only for configuration compatibility and does not disable the startup migration gate.
-- Recurring schema-changing SQL has been removed from ordinary startup code.
-- Project-document search functions, triggers, index creation and historical vector backfill are migration-owned and execute once.
-- The previous optional Media Library background migrator is no longer registered, preventing duplicate migration attempts.
-- The correction migration is idempotent for PostgreSQL production databases that received earlier startup repairs.
+The configured PostgreSQL identity must be permitted to run the DDL/DML contained in the
+migrations and call PostgreSQL advisory-lock functions. Use a controlled deployment identity
+consistent with organisational database policy.
 
-## Local release gate
+## Historical migration lineage
 
-Run before publishing:
+Historical identifiers already recorded in shared databases are immutable. The repository
+contains explicit no-op lineage bridges when the original DDL has been superseded by later
+idempotent repair migrations. Do not rename or remove those bridge classes.
+
+The authoritative lineage manifests are:
+
+- `Migrations/immutable-migration-ids.txt`
+- `Features/MediaLibrary/Data/Migrations/immutable-migration-ids.txt`
+
+## Build and deployment
+
+Before publishing:
 
 ```powershell
 npm ci
-npm test
+dotnet tool restore
 dotnet clean
 dotnet restore
 dotnet build -c Release
 dotnet test -c Release
 ```
 
-The packaging environment did not contain the .NET SDK, so the final C# Release build must be completed locally.
+Run the PostgreSQL migration integration test or require the `Production Database Migration
+Gate` CI workflow to pass. Then deploy the complete Release publish while the IIS application
+is offline.
+
+See:
+
+- `README-PRODUCTION-READINESS-V4.md`
+- `MIGRATIONS-POLICY.md`
+- `PRODUCTION-MIGRATION-INVENTORY.sql`
+
+## Publish integrity manifests
+
+The Release output must contain both immutable lineage manifests at their original relative
+paths. Startup compares EF Core discovery with these manifests before reading database
+history. A partial publish, missing bridge migration or stale manifest causes fail-fast
+startup rather than an uncertain schema upgrade.
+
+## Credentials and key persistence
+
+Production connection strings are supplied through `ConnectionStrings__DefaultConnection`;
+they are not committed to production JSON. Set `DP_KEYS_DIR` to a durable absolute directory outside
+the publish folder and grant the IIS application-pool identity read/write/create/delete permission.
+Outside Development this setting is mandatory and is write-tested before startup continues.

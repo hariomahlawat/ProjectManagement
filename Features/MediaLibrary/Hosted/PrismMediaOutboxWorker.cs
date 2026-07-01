@@ -99,7 +99,7 @@ public sealed class PrismMediaOutboxWorker : BackgroundService
             using var scope = _scopeFactory.CreateScope();
             var schema = scope.ServiceProvider.GetRequiredService<IMediaLibrarySchemaService>();
             var status = await schema.GetStatusAsync(cancellationToken);
-            if (!status.IsAvailable || !status.IsOperational)
+            if (!status.IsAvailable || !status.IsCurrent)
             {
                 _logger.LogWarning(
                     "PRISM media startup backfill deferred because the media schema is not operational. Reference={Reference}",

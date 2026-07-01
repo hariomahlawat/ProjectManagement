@@ -43,6 +43,12 @@
     <None Update="TestData\MediaClassification\**\*.*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="..\Migrations\immutable-migration-ids.txt"
+          Link="TestData\application-migration-ids.txt"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Features\MediaLibrary\Data\Migrations\immutable-migration-ids.txt"
+          Link="TestData\media-migration-ids.txt"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

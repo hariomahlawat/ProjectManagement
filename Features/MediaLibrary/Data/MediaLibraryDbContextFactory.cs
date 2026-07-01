@@ -16,8 +16,12 @@ public sealed class MediaLibraryDbContextFactory : IDesignTimeDbContextFactory<M
             .AddEnvironmentVariables()
             .Build();
 
-        var connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "Connection string 'DefaultConnection' is required. Set ConnectionStrings__DefaultConnection for the selected environment.");
+        }
 
         var options = new DbContextOptionsBuilder<MediaLibraryDbContext>()
             .UseNpgsql(connectionString, npgsql =>

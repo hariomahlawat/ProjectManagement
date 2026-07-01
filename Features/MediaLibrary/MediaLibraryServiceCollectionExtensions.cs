@@ -76,6 +76,7 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaContentChangeInvalidationService, MediaContentChangeInvalidationService>();
         services.AddScoped<IMediaDerivativeService, MediaDerivativeService>();
         services.AddScoped<IMediaAssetProcessor, MediaAssetProcessor>();
+        services.AddSingleton<MediaLibrarySchemaStatusCache>();
         services.AddScoped<IMediaLibrarySchemaService, MediaLibrarySchemaService>();
         services.AddSingleton<IFaceModelReadinessService, FaceModelReadinessService>();
         services.AddSingleton<OnnxFaceAnalysisEngine>();

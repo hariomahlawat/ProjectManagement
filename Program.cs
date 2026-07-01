@@ -36,7 +36,9 @@ using ProjectManagement.Contracts.Stages;
 using ProjectManagement.Data;
 using ProjectManagement.Features.Analytics;
 using ProjectManagement.Features.MediaLibrary;
+using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Outbox;
+using ProjectManagement.Features.MediaLibrary.Services;
 using ProjectManagement.Features.Remarks;
 using ProjectManagement.Features.Users;
 using ProjectManagement.Helpers;
@@ -77,7 +79,6 @@ using ProjectManagement.Utilities;
 using ProjectManagement.Utilities.Reporting;
 using System;
 using System.Collections.Generic;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Data.Common;
@@ -104,23 +105,76 @@ builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Model.Validation", LogL
 builder.Logging.AddFilter("ProjectManagement.Services.TodoService", LogLevel.None);
 builder.Logging.AddFilter("ProjectManagement.Services.TodoPurgeWorker", LogLevel.Warning);
 
-var keysDir = Environment.GetEnvironmentVariable("DP_KEYS_DIR");
+var keysDir = builder.Configuration["DP_KEYS_DIR"];
 if (string.IsNullOrWhiteSpace(keysDir))
 {
-    // SECTION: Stable data-protection key persistence for authentication cookies.
-    keysDir = builder.Environment.IsDevelopment()
-        ? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "PRISM-ERP",
-            "DataProtectionKeys")
-        : "/var/pm/keys";
+    if (!builder.Environment.IsDevelopment())
+    {
+        throw new InvalidOperationException(
+            "DP_KEYS_DIR is required outside Development. Configure a durable, backed-up directory " +
+            "and grant the application identity read/write/delete permission before starting PRISM.");
+    }
+
+    // SECTION: Developer-safe persistence outside the repository and publish output.
+    var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+    keysDir = Path.Combine(localApplicationData, "PRISM-ERP", "DevelopmentDataProtectionKeys");
+}
+else
+{
+    keysDir = keysDir.Trim();
+    if (!Path.IsPathFullyQualified(keysDir))
+    {
+        throw new InvalidOperationException(
+            $"DP_KEYS_DIR must be an absolute path. Configured value: '{keysDir}'.");
+    }
 }
 
-Directory.CreateDirectory(keysDir);
+string? keyDirectoryProbePath = null;
+try
+{
+    Directory.CreateDirectory(keysDir);
 
-builder.Services.AddDataProtection()
+    // Directory.CreateDirectory succeeds when the directory already exists even if the
+    // application identity cannot persist or rotate keys. Probe the exact permissions that
+    // the data-protection subsystem requires and fail before authentication traffic begins.
+    keyDirectoryProbePath = Path.Combine(
+        keysDir,
+        $".prism-write-probe-{Environment.ProcessId}-{Guid.NewGuid():N}.tmp");
+    File.WriteAllText(keyDirectoryProbePath, "PRISM data-protection write probe", Encoding.UTF8);
+    File.Delete(keyDirectoryProbePath);
+    keyDirectoryProbePath = null;
+}
+catch (Exception exception)
+{
+    throw new InvalidOperationException(
+        $"The data-protection key directory '{keysDir}' is not writable by the application identity. " +
+        "Configure DP_KEYS_DIR as a durable absolute path and grant read/write/create/delete permission.",
+        exception);
+}
+finally
+{
+    if (keyDirectoryProbePath is not null)
+    {
+        try
+        {
+            File.Delete(keyDirectoryProbePath);
+        }
+        catch
+        {
+            // The original permission error is more actionable than cleanup failure.
+        }
+    }
+}
+
+var dataProtection = builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(keysDir))
     .SetApplicationName("ProjectManagement_SDD");
+
+if (OperatingSystem.IsWindows())
+{
+    // SECTION: Encrypt persisted key material at rest on the IIS host.
+    dataProtection.ProtectKeysWithDpapi(protectToLocalMachine: true);
+}
 
 builder.Services.AddMetrics();
 
@@ -138,6 +192,12 @@ if (string.IsNullOrWhiteSpace(connectionString))
 }
 
 var csb = new NpgsqlConnectionStringBuilder(connectionString);
+if (!builder.Environment.IsDevelopment())
+{
+    // SECTION: Never expose server-side SQL details to production exception surfaces.
+    csb.IncludeErrorDetail = false;
+}
+
 builder.Services.AddSingleton<PrismMediaOutboxSaveChangesInterceptor>();
 builder.Services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
     options
@@ -558,6 +618,14 @@ builder.Services.AddHostedService<NotificationDispatcher>();
 builder.Services.AddOptions<NotificationRetentionOptions>()
     .Bind(builder.Configuration.GetSection("Notifications:Retention"));
 builder.Services.AddHostedService<NotificationRetentionService>();
+builder.Services.AddOptions<AuditRetentionOptions>()
+    .Bind(builder.Configuration.GetSection(AuditRetentionOptions.SectionName))
+    .Validate(options => !options.Enabled || options.RetentionDays >= 30,
+        "Audit retention must be disabled or retain at least 30 days of records.")
+    .Validate(options => options.BatchSize is >= 100 and <= 25000,
+        "Audit retention batch size must be between 100 and 25000.")
+    .ValidateOnStart();
+builder.Services.AddHostedService<AuditRetentionWorker>();
 builder.Services.AddScoped<UserNotificationService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddSingleton<IDocumentPreviewTokenService, DocumentPreviewTokenService>();
@@ -768,90 +836,117 @@ var developmentLoopbackOrigins = builder.Environment.IsDevelopment()
 
 var app = builder.Build();
 
+if (!app.Environment.IsDevelopment()
+    && string.Equals(csb.Username, "postgres", StringComparison.OrdinalIgnoreCase))
+{
+    app.Logger.LogWarning(
+        "The application is connecting with the PostgreSQL superuser account. Use a dedicated PRISM database-owner role with only the permissions required for application access and startup migrations.");
+}
+
 // SECTION: Database startup policy
-// Migrations and initial data seeding are intentionally controlled independently.
-// - Development always applies pending migrations.
-// - Other environments apply migrations only when Database:ApplyMigrationsOnStartup is true.
-// - Seeders run only when Database:RunSeedersOnStartup is true.
-var applyMigrationsOnStartup = app.Environment.IsDevelopment()
-    || app.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup");
+// Both EF Core contexts are treated as one deployment boundary. Migrations and physical
+// schema validation complete before hosted workers start or requests are accepted.
+var configuredMigrationPreference =
+    app.Configuration.GetValue<bool?>("Database:ApplyMigrationsOnStartup");
+const bool applyMigrationsOnStartup = true;
 var runSeedersOnStartup = app.Configuration.GetValue<bool>("Database:RunSeedersOnStartup");
 
+if (configuredMigrationPreference == false)
+{
+    app.Logger.LogWarning(
+        "Database:ApplyMigrationsOnStartup=false is deprecated and ignored. All deployed EF Core migrations are mandatory before startup.");
+}
+
 app.Logger.LogInformation(
-    "Database startup policy: Environment={Environment}; ApplyMigrationsOnStartup={ApplyMigrations}; RunSeedersOnStartup={RunSeeders}",
+    "Database startup policy: Environment={Environment}; AutomaticMigrations=Mandatory; RunSeedersOnStartup={RunSeeders}",
     app.Environment.EnvironmentName,
-    applyMigrationsOnStartup,
     runSeedersOnStartup);
 
-// Ensure the database schema is up to date before handling requests
-string? latestAppliedMigration = null;
-List<string> pendingMigrations = new();
+DatabaseStartupMigrationResult applicationMigrationResult =
+    DatabaseStartupMigrationResult.NotApplicable("ApplicationDbContext");
+DatabaseStartupMigrationResult mediaMigrationResult =
+    DatabaseStartupMigrationResult.NotApplicable("MediaLibraryDbContext");
 var databaseIsRelational = false;
 
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    if (db.Database.IsRelational())
+    var applicationDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var mediaDb = scope.ServiceProvider.GetRequiredService<MediaLibraryDbContext>();
+
+    if (applicationDb.Database.IsRelational())
     {
         databaseIsRelational = true;
-
-        // SECTION: Startup database identity and migration gate
-        var connection = db.Database.GetDbConnection();
+        var connection = applicationDb.Database.GetDbConnection();
         app.Logger.LogInformation(
-            "Database provider: {Provider}; Server: {Server}; Database: {Database}",
-            db.Database.ProviderName,
+            "Application database provider: {Provider}; Server: {Server}; Database: {Database}",
+            applicationDb.Database.ProviderName,
             connection.DataSource,
             connection.Database);
-
-        pendingMigrations = (await db.Database.GetPendingMigrationsAsync()).ToList();
-        if (pendingMigrations.Count > 0)
-        {
-            var message = $"Database has {pendingMigrations.Count} pending migration(s): {string.Join(", ", pendingMigrations)}";
-            app.Logger.LogCritical(message);
-
-            if (!applyMigrationsOnStartup)
-            {
-                throw new InvalidOperationException(
-                    message +
-                    ". Automatic migration is disabled. Set Database:ApplyMigrationsOnStartup=true " +
-                    "or apply the migrations manually before starting the application.");
-            }
-
-            app.Logger.LogWarning(
-                "Applying {Count} pending database migration(s) automatically: {Migrations}",
-                pendingMigrations.Count,
-                string.Join(", ", pendingMigrations));
-
-            try
-            {
-                await db.Database.MigrateAsync();
-            }
-            catch (Exception ex)
-            {
-                app.Logger.LogCritical(
-                    ex,
-                    "Automatic database migration failed. Application startup is being aborted.");
-                throw;
-            }
-
-            app.Logger.LogInformation("Automatic database migration completed successfully.");
-            pendingMigrations = (await db.Database.GetPendingMigrationsAsync()).ToList();
-        }
-
-        var applied = (await db.Database.GetAppliedMigrationsAsync()).ToList();
-        latestAppliedMigration = applied.Count > 0 ? applied[^1] : "(none)";
-
-        if (pendingMigrations.Count > 0)
-        {
-            var message = $"Database still has {pendingMigrations.Count} pending migration(s): {string.Join(", ", pendingMigrations)}";
-            app.Logger.LogCritical(message);
-            throw new InvalidOperationException(message);
-        }
-
-        await EnsureNotebookVersionSchemaAsync(db, app.Logger);
-        await EnsureDocRepoFavouritesSchemaAsync(db, app.Logger);
-        await ProjectDocumentSearchVectorMaintenance.EnsureUpToDateAsync(db);
     }
+
+    var applicationMigrationManifest = MigrationLineageManifest.LoadRequired(
+        Path.Combine(app.Environment.ContentRootPath, "Migrations", "immutable-migration-ids.txt"),
+        "ApplicationDbContext");
+    var mediaMigrationManifest = MigrationLineageManifest.LoadRequired(
+        Path.Combine(
+            app.Environment.ContentRootPath,
+            "Features",
+            "MediaLibrary",
+            "Data",
+            "Migrations",
+            "immutable-migration-ids.txt"),
+        "MediaLibraryDbContext");
+
+    var migrationResults = await DatabaseStartupMigrator.ApplyDeploymentBoundaryAsync(
+        applicationDb,
+        app.Logger,
+        new[]
+        {
+            new DatabaseStartupMigrationPlan(
+                applicationDb,
+                "ApplicationDbContext",
+                applyMigrationsOnStartup,
+                async cancellationToken =>
+                {
+                    await ApplicationDatabaseSchemaValidator.ValidateAsync(
+                        applicationDb,
+                        app.Logger,
+                        cancellationToken);
+
+                    if (applicationDb.Database.IsRelational())
+                    {
+                        await EnsureNotebookVersionSchemaAsync(applicationDb, app.Logger, cancellationToken);
+                        await EnsureDocRepoFavouritesSchemaAsync(applicationDb, app.Logger, cancellationToken);
+                        await ProjectDocumentSearchVectorMaintenance.ValidateAsync(applicationDb, cancellationToken);
+                    }
+                },
+                applicationMigrationManifest),
+            new DatabaseStartupMigrationPlan(
+                mediaDb,
+                "MediaLibraryDbContext",
+                applyMigrationsOnStartup,
+                async cancellationToken =>
+                {
+                    // Discard any pre-migration readiness observation before validating the
+                    // newly committed physical schema.
+                    scope.ServiceProvider
+                        .GetRequiredService<MediaLibrarySchemaStatusCache>()
+                        .Invalidate();
+
+                    var schema = scope.ServiceProvider.GetRequiredService<IMediaLibrarySchemaService>();
+                    var status = await schema.GetStatusAsync(cancellationToken);
+                    if (!status.IsCurrent)
+                    {
+                        throw new InvalidOperationException(
+                            "Media-library schema validation failed after migration. " +
+                            (status.Error ?? $"Reference {status.DiagnosticReference}."));
+                    }
+                },
+                mediaMigrationManifest)
+        });
+
+    applicationMigrationResult = migrationResults[0];
+    mediaMigrationResult = migrationResults[1];
 
     if (runSeedersOnStartup)
     {
@@ -874,16 +969,17 @@ if (runForecastBackfill)
     return;
 }
 
-var migrationLabel = latestAppliedMigration ?? (databaseIsRelational ? "(none)" : "(not available)");
 app.Logger.LogInformation(
-    "Using database {Database} on host {Host}; latest migration {Migration}",
+    "Using database {Database} on host {Host}; application migration {ApplicationMigration}; media migration {MediaMigration}",
     csb.Database,
     csb.Host,
-    migrationLabel);
+    applicationMigrationResult.LatestAppliedMigration ?? (databaseIsRelational ? "(none)" : "(not available)"),
+    mediaMigrationResult.LatestAppliedMigration ?? (databaseIsRelational ? "(none)" : "(not available)"));
 
-if (databaseIsRelational && pendingMigrations.Count == 0)
+if (databaseIsRelational)
 {
-    app.Logger.LogInformation("Database schema is up to date.");
+    app.Logger.LogInformation(
+        "All deployed ApplicationDbContext and MediaLibraryDbContext migrations are applied and their critical physical schemas are validated.");
 }
 
 app.UseForwardedHeaders();
@@ -891,7 +987,9 @@ app.UseForwardedHeaders();
 // ---------- HTTP pipeline ----------
 if (app.Environment.IsDevelopment())
 {
-    app.UseMigrationsEndPoint();
+    // Startup owns migrations in every environment. Development receives detailed
+    // diagnostics, but no second HTTP-triggered migration pathway is exposed.
+    app.UseDeveloperExceptionPage();
 }
 else
 {
@@ -2562,7 +2660,7 @@ app.MapPost("/celebrations/{id:guid}/task", async (Guid id, HttpContext ctx, App
     return Results.Ok();
 }).RequireAuthorization();
 
-// ensure database is up-to-date, seed roles and purge old audit logs
+// post-migration diagnostics and explicitly enabled seeders
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -2592,108 +2690,9 @@ using (var scope = app.Services.CreateScope())
 
     if (db.Database.IsRelational())
     {
-        // SECTION: Startup schema repairs only; migrations are owned by the earlier migration gate.
-        var projectStagesExists = true;
-        if (db.Database.IsNpgsql())
-        {
-            var maintenanceConnectionString = db.Database.GetConnectionString();
-            if (!string.IsNullOrWhiteSpace(maintenanceConnectionString))
-            {
-                await using var maintenanceConnection = new NpgsqlConnection(maintenanceConnectionString);
-                await maintenanceConnection.OpenAsync();
-                await using (var maintenanceCommand = maintenanceConnection.CreateCommand())
-                {
-                    maintenanceCommand.CommandText = @"select to_regclass('""ProjectStages""') is not null";
-                    var maintenanceResult = await maintenanceCommand.ExecuteScalarAsync();
-                    projectStagesExists = maintenanceResult is bool exists && exists;
-                }
-                await maintenanceConnection.CloseAsync();
-            }
-
-            if (!projectStagesExists)
-            {
-                app.Logger.LogWarning("ProjectStages table not found; skipping maintenance SQL for stages.");
-            }
-        }
-
-        if (projectStagesExists)
-        {
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ADD COLUMN IF NOT EXISTS ""AutoCompletedFromCode"" character varying(16);
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ADD COLUMN IF NOT EXISTS ""IsAutoCompleted"" boolean NOT NULL DEFAULT FALSE;
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ADD COLUMN IF NOT EXISTS ""RequiresBackfill"" boolean NOT NULL DEFAULT FALSE;
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                UPDATE ""ProjectStages""
-                SET ""IsAutoCompleted"" = FALSE
-                WHERE ""IsAutoCompleted"" IS NULL;
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                UPDATE ""ProjectStages""
-                SET ""RequiresBackfill"" = FALSE
-                WHERE ""RequiresBackfill"" IS NULL;
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ALTER COLUMN ""IsAutoCompleted"" SET DEFAULT FALSE;
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ALTER COLUMN ""RequiresBackfill"" SET DEFAULT FALSE;
-            ");
-        }
-
-        if (db.Database.IsNpgsql())
-        {
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""SocialMediaEvents""
-                DROP COLUMN IF EXISTS ""Reach"";
-            ");
-        }
-        else if (db.Database.IsSqlServer())
-        {
-            await db.Database.ExecuteSqlRawAsync(@"
-                IF COL_LENGTH(N'dbo.SocialMediaEvents', 'Reach') IS NOT NULL
-                BEGIN
-                    ALTER TABLE [dbo].[SocialMediaEvents] DROP COLUMN [Reach];
-                END
-            ");
-        }
-
-        if (projectStagesExists)
-        {
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ALTER COLUMN ""ActualStart"" DROP NOT NULL;
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ALTER COLUMN ""CompletedOn"" DROP NOT NULL;
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                DROP CONSTRAINT IF EXISTS ""CK_ProjectStages_CompletedHasDate"";
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ADD CONSTRAINT ""CK_ProjectStages_CompletedHasDate""
-                CHECK (""Status"" <> 'Completed' OR (""CompletedOn"" IS NOT NULL AND ""ActualStart"" IS NOT NULL) OR ""RequiresBackfill"" IS TRUE);
-            ");
-        }
-        var migrations = await db.Database.GetAppliedMigrationsAsync();
-        if (!migrations.Contains("20250909153316_UseXminForTodoItem"))
-        {
-            app.Logger.LogWarning("Migration 20250909153316_UseXminForTodoItem not applied. TodoItems may still have a RowVersion column.");
-        }
-        var cutoff = DateTime.UtcNow.AddDays(-90);
-        db.AuditLogs.Where(a => a.TimeUtc < cutoff).ExecuteDelete();
+        // Schema changes are exclusively migration-owned. The mandatory startup gate has
+        // already verified migration closure and critical physical invariants.
+        app.Logger.LogDebug("Post-migration database diagnostics completed.");
     }
 
     if (runSeedersOnStartup)
@@ -2709,7 +2708,10 @@ using (var scope = app.Services.CreateScope())
 }
 
 
-static async Task EnsureNotebookVersionSchemaAsync(ApplicationDbContext db, ILogger logger)
+static async Task EnsureNotebookVersionSchemaAsync(
+    ApplicationDbContext db,
+    ILogger logger,
+    CancellationToken cancellationToken = default)
 {
     if (!db.Database.IsRelational())
     {
@@ -2717,7 +2719,7 @@ static async Task EnsureNotebookVersionSchemaAsync(ApplicationDbContext db, ILog
     }
 
     // SECTION: Validate Notebook migration ordering and schema compatibility
-    var migrations = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+    var migrations = (await db.Database.GetAppliedMigrationsAsync(cancellationToken)).ToList();
     var moduleIndex = migrations.FindIndex(x => x.EndsWith("_AddNotebookModule", StringComparison.Ordinal));
     var versionIndex = migrations.FindIndex(x => x.EndsWith("_AddNotebookItemVersion", StringComparison.Ordinal));
 
@@ -2732,7 +2734,7 @@ static async Task EnsureNotebookVersionSchemaAsync(ApplicationDbContext db, ILog
     var shouldClose = false;
     if (connection.State != ConnectionState.Open)
     {
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
         shouldClose = true;
     }
 
@@ -2744,7 +2746,7 @@ static async Task EnsureNotebookVersionSchemaAsync(ApplicationDbContext db, ILog
               SELECT EXISTS (
                   SELECT 1
                   FROM information_schema.columns
-                  WHERE table_schema = 'public'
+                  WHERE table_schema = current_schema()
                     AND table_name = 'NotebookItems'
                     AND column_name = 'Version'
                     AND data_type = 'uuid'
@@ -2761,7 +2763,7 @@ static async Task EnsureNotebookVersionSchemaAsync(ApplicationDbContext db, ILog
               ) THEN 1 ELSE 0 END;
               """;
 
-        var result = await command.ExecuteScalarAsync();
+        var result = await command.ExecuteScalarAsync(cancellationToken);
         var valid = result switch
         {
             bool boolean => boolean,
@@ -2786,7 +2788,10 @@ static async Task EnsureNotebookVersionSchemaAsync(ApplicationDbContext db, ILog
     }
 }
 
-static async Task EnsureDocRepoFavouritesSchemaAsync(ApplicationDbContext db, ILogger logger)
+static async Task EnsureDocRepoFavouritesSchemaAsync(
+    ApplicationDbContext db,
+    ILogger logger,
+    CancellationToken cancellationToken = default)
 {
     if (!db.Database.IsRelational())
     {
@@ -2794,7 +2799,7 @@ static async Task EnsureDocRepoFavouritesSchemaAsync(ApplicationDbContext db, IL
     }
 
     // SECTION: Validate DocRepo favourites migration is applied
-    var appliedMigrations = await db.Database.GetAppliedMigrationsAsync();
+    var appliedMigrations = await db.Database.GetAppliedMigrationsAsync(cancellationToken);
     if (!appliedMigrations.Contains("20261119120000_AddDocRepoFavourites"))
     {
         var message = "Required migration 20261119120000_AddDocRepoFavourites has not been applied.";
@@ -2815,7 +2820,7 @@ static async Task EnsureDocRepoFavouritesSchemaAsync(ApplicationDbContext db, IL
     var shouldClose = false;
     if (connection.State != ConnectionState.Open)
     {
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
         shouldClose = true;
     }
 
@@ -2823,11 +2828,11 @@ static async Task EnsureDocRepoFavouritesSchemaAsync(ApplicationDbContext db, IL
     {
         if (db.Database.IsNpgsql())
         {
-            await ValidateDocRepoFavouritesForNpgsqlAsync(connection, expectedColumns, logger);
+            await ValidateDocRepoFavouritesForNpgsqlAsync(connection, expectedColumns, logger, cancellationToken);
         }
         else if (db.Database.IsSqlServer())
         {
-            await ValidateDocRepoFavouritesForSqlServerAsync(connection, expectedColumns, logger);
+            await ValidateDocRepoFavouritesForSqlServerAsync(connection, expectedColumns, logger, cancellationToken);
         }
         else
         {
@@ -2846,7 +2851,8 @@ static async Task EnsureDocRepoFavouritesSchemaAsync(ApplicationDbContext db, IL
 static async Task ValidateDocRepoFavouritesForNpgsqlAsync(
     DbConnection connection,
     IReadOnlySet<string> expectedColumns,
-    ILogger logger)
+    ILogger logger,
+    CancellationToken cancellationToken)
 {
     var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     await using (var columnCommand = connection.CreateCommand())
@@ -2854,11 +2860,11 @@ static async Task ValidateDocRepoFavouritesForNpgsqlAsync(
         columnCommand.CommandText = @"
             SELECT column_name
             FROM information_schema.columns
-            WHERE table_schema = 'public'
+            WHERE table_schema = current_schema()
               AND table_name = 'DocRepoFavourites';
         ";
-        await using var reader = await columnCommand.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await columnCommand.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
         {
             columns.Add(reader.GetString(0));
         }
@@ -2884,11 +2890,11 @@ static async Task ValidateDocRepoFavouritesForNpgsqlAsync(
         indexCommand.CommandText = @"
             SELECT 1
             FROM pg_indexes
-            WHERE schemaname = 'public'
+            WHERE schemaname = current_schema()
               AND tablename = 'DocRepoFavourites'
               AND indexname = 'IX_DocRepoFavourites_UserId_DocumentId';
         ";
-        var indexExists = await indexCommand.ExecuteScalarAsync() != null;
+        var indexExists = await indexCommand.ExecuteScalarAsync(cancellationToken) != null;
         if (!indexExists)
         {
             var message = "DocRepoFavourites is missing the unique index on (UserId, DocumentId).";
@@ -2901,7 +2907,8 @@ static async Task ValidateDocRepoFavouritesForNpgsqlAsync(
 static async Task ValidateDocRepoFavouritesForSqlServerAsync(
     DbConnection connection,
     IReadOnlySet<string> expectedColumns,
-    ILogger logger)
+    ILogger logger,
+    CancellationToken cancellationToken)
 {
     var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     await using (var columnCommand = connection.CreateCommand())
@@ -2912,8 +2919,8 @@ static async Task ValidateDocRepoFavouritesForSqlServerAsync(
             WHERE TABLE_SCHEMA = 'dbo'
               AND TABLE_NAME = 'DocRepoFavourites';
         ";
-        await using var reader = await columnCommand.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await columnCommand.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
         {
             columns.Add(reader.GetString(0));
         }
@@ -2943,7 +2950,7 @@ static async Task ValidateDocRepoFavouritesForSqlServerAsync(
               AND i.name = 'IX_DocRepoFavourites_UserId_DocumentId'
               AND OBJECT_NAME(i.object_id) = 'DocRepoFavourites';
         ";
-        var indexExists = await indexCommand.ExecuteScalarAsync() != null;
+        var indexExists = await indexCommand.ExecuteScalarAsync(cancellationToken) != null;
         if (!indexExists)
         {
             var message = "DocRepoFavourites is missing the unique index on (UserId, DocumentId).";

@@ -1,83 +1,116 @@
+using System.Reflection;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using ProjectManagement.Features.MediaLibrary.Data;
-using ProjectManagement.Features.MediaLibrary.Data.Migrations;
+using ProjectManagement.Features.MediaLibrary.Services;
 
 namespace ProjectManagement.Tests.MediaLibrary;
 
 public sealed class MediaLibraryMigrationMetadataTests
 {
     [Fact]
-    public void UnifiedQueryIndexMigration_IsDiscoverableByMediaLibraryContext()
+    public void EveryMediaMigration_IsDiscoverableUniqueAndBoundToMediaContext()
     {
-        var migrationType = typeof(AddUnifiedLibraryQueryIndexes);
+        using var context = CreateMetadataContext();
+        var discoveredIds = context.Database.GetMigrations().ToArray();
+        Assert.NotEmpty(discoveredIds);
 
-        var contextAttribute = migrationType
-            .GetCustomAttributes(typeof(DbContextAttribute), inherit: false)
-            .Cast<DbContextAttribute>()
-            .Single();
-        var migrationAttribute = migrationType
-            .GetCustomAttributes(typeof(MigrationAttribute), inherit: false)
-            .Cast<MigrationAttribute>()
-            .Single();
+        var migrationTypes = typeof(MediaLibraryDbContext).Assembly
+            .GetTypes()
+            .Where(type =>
+                !type.IsAbstract
+                && typeof(Migration).IsAssignableFrom(type)
+                && string.Equals(
+                    type.Namespace,
+                    "ProjectManagement.Features.MediaLibrary.Data.Migrations",
+                    StringComparison.Ordinal))
+            .ToArray();
 
-        Assert.Equal(typeof(MediaLibraryDbContext), contextAttribute.ContextType);
-        Assert.Equal("20260628090000_AddUnifiedLibraryQueryIndexes", migrationAttribute.Id);
-        Assert.Equal("__EFMigrationsHistory_MediaLibrary", MediaLibraryDbContext.MigrationsHistoryTable);
+        var metadata = migrationTypes.Select(type => new
+        {
+            Type = type,
+            Migration = type.GetCustomAttribute<MigrationAttribute>(),
+            DbContext = type.GetCustomAttribute<DbContextAttribute>()
+        }).ToArray();
+
+        var missingMetadata = metadata
+            .Where(item => item.Migration is null || item.DbContext is null)
+            .Select(item => item.Type.FullName)
+            .ToArray();
+        Assert.True(
+            missingMetadata.Length == 0,
+            "Media migration types without immutable EF metadata: " +
+            string.Join(", ", missingMetadata));
+
+        var wrongContexts = metadata
+            .Where(item => item.DbContext!.ContextType != typeof(MediaLibraryDbContext))
+            .Select(item => item.Type.FullName)
+            .ToArray();
+        Assert.True(
+            wrongContexts.Length == 0,
+            "Media migrations bound to the wrong DbContext: " +
+            string.Join(", ", wrongContexts));
+
+        var attributeIds = metadata.Select(item => item.Migration!.Id).ToArray();
+        Assert.Equal(attributeIds.Length, attributeIds.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(discoveredIds, discoveredIds.OrderBy(id => id, StringComparer.Ordinal).ToArray());
+        Assert.True(
+            discoveredIds.ToHashSet(StringComparer.Ordinal).SetEquals(attributeIds),
+            "Media migration type metadata and EF discovery returned different identifiers.");
+        Assert.Equal(
+            "__EFMigrationsHistory_MediaLibrary",
+            MediaLibraryDbContext.MigrationsHistoryTable);
     }
+
     [Fact]
-    public void PeopleHardeningMigration_IsDiscoverableByMediaLibraryContext()
+    public void MigrationManifest_MatchesTheImmutableMediaLineage()
     {
-        var migrationType = typeof(HardenPeopleExperience);
+        using var context = CreateMetadataContext();
+        var discovered = context.Database.GetMigrations().ToArray();
+        var manifestPath = Path.Combine(
+            AppContext.BaseDirectory,
+            "TestData",
+            "media-migration-ids.txt");
+        Assert.True(File.Exists(manifestPath), $"Migration manifest is missing: {manifestPath}");
 
-        var contextAttribute = migrationType
-            .GetCustomAttributes(typeof(DbContextAttribute), inherit: false)
-            .Cast<DbContextAttribute>()
-            .Single();
-        var migrationAttribute = migrationType
-            .GetCustomAttributes(typeof(MigrationAttribute), inherit: false)
-            .Cast<MigrationAttribute>()
-            .Single();
+        var manifest = File.ReadAllLines(manifestPath)
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0 && !line.StartsWith('#'))
+            .ToArray();
 
-        Assert.Equal(typeof(MediaLibraryDbContext), contextAttribute.ContextType);
-        Assert.Equal("20260628190000_HardenPeopleExperience", migrationAttribute.Id);
+        Assert.Equal(manifest, discovered);
     }
 
     [Fact]
-    public void IncrementalKnownPersonMatchingMigration_IsDiscoverableByMediaLibraryContext()
+    public void RuntimeSchemaService_DoesNotExposeAMigrationCommand()
     {
-        var migrationType = typeof(AddIncrementalKnownPersonMatching);
-
-        var contextAttribute = migrationType
-            .GetCustomAttributes(typeof(DbContextAttribute), inherit: false)
-            .Cast<DbContextAttribute>()
-            .Single();
-        var migrationAttribute = migrationType
-            .GetCustomAttributes(typeof(MigrationAttribute), inherit: false)
-            .Cast<MigrationAttribute>()
-            .Single();
-
-        Assert.Equal(typeof(MediaLibraryDbContext), contextAttribute.ContextType);
-        Assert.Equal("20260629170000_AddIncrementalKnownPersonMatching", migrationAttribute.Id);
+        Assert.DoesNotContain(
+            typeof(IMediaLibrarySchemaService).GetMethods(),
+            method => string.Equals(method.Name, "MigrateAsync", StringComparison.Ordinal));
     }
-
 
     [Fact]
-    public void IdentityReferenceGovernanceMigration_IsDiscoverableByMediaLibraryContext()
+    public void SchemaReadiness_DerivesTheLatestMigrationFromTheDeployedAssembly()
     {
-        var migrationType = typeof(AddIdentityReferenceGovernance);
+        using var context = CreateMetadataContext();
+        var migrations = context.Database.GetMigrations().ToArray();
 
-        var contextAttribute = migrationType
-            .GetCustomAttributes(typeof(DbContextAttribute), inherit: false)
-            .Cast<DbContextAttribute>()
-            .Single();
-        var migrationAttribute = migrationType
-            .GetCustomAttributes(typeof(MigrationAttribute), inherit: false)
-            .Cast<MigrationAttribute>()
-            .Single();
+        var resolved = MediaLibrarySchemaService.ResolveLatestRequiredMigrationId(migrations);
 
-        Assert.Equal(typeof(MediaLibraryDbContext), contextAttribute.ContextType);
-        Assert.Equal("20260630113000_AddIdentityReferenceGovernance", migrationAttribute.Id);
+        Assert.Equal(migrations[^1], resolved);
+        Assert.Equal("20260630113000_AddIdentityReferenceGovernance", resolved);
     }
 
+    private static MediaLibraryDbContext CreateMetadataContext()
+    {
+        var options = new DbContextOptionsBuilder<MediaLibraryDbContext>()
+            .UseNpgsql(
+                "Host=localhost;Database=prism_metadata_only;Username=unused;Password=unused",
+                npgsql => npgsql.MigrationsHistoryTable(MediaLibraryDbContext.MigrationsHistoryTable))
+            .Options;
+
+        // Migration metadata discovery does not open this connection.
+        return new MediaLibraryDbContext(options);
+    }
 }

@@ -21,274 +21,212 @@ public sealed record MediaLibrarySchemaStatus(
 public interface IMediaLibrarySchemaService
 {
     Task<MediaLibrarySchemaStatus> GetStatusAsync(CancellationToken cancellationToken);
-    Task<MediaLibrarySchemaStatus> MigrateAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>
-/// Owns media-catalogue schema readiness. Operational readiness is based on the
-/// physical schema and a representative EF query. Migration-history consistency is
-/// reported separately so a bookkeeping defect never disables an otherwise usable
-/// catalogue.
+/// Owns media-catalogue schema readiness. The current state is established from both
+/// EF migration closure and representative physical objects required by Photos,
+/// classification, face processing and identity governance.
 /// </summary>
 public sealed class MediaLibrarySchemaService : IMediaLibrarySchemaService
 {
-    private const long AdvisoryLockKey = 0x505249534D4D4544; // "PRISMMED"
-    private static readonly TimeSpan AdvisoryLockTimeout = TimeSpan.FromMinutes(10);
-    private static readonly TimeSpan AdvisoryLockPollInterval = TimeSpan.FromSeconds(1);
-    private const int MigrationCommandTimeoutSeconds = 600;
-    private const string AvailabilityMigrationId = "20260628103000_AddMediaAvailabilityState";
-    private static readonly string[] RequiredAvailabilityColumns =
+    private static readonly string[] RequiredTables =
     {
-        "AvailabilityStatus",
-        "UnavailableReason",
-        "UnavailableSinceUtc",
-        "LastAvailabilityCheckUtc"
+        "MediaLibrarySources",
+        "MediaAssets",
+        "MediaProcessingJobs",
+        "MediaClassificationAudits",
+        "MediaClassificationRuns",
+        "MediaFaces",
+        "MediaFaceEmbeddings",
+        "MediaPersons",
+        "MediaPersonFaces",
+        "MediaFaceReviewDecisions",
+        "MediaIdentityAudits"
+    };
+
+    private static readonly (string Table, string Column)[] RequiredColumns =
+    {
+        ("MediaLibrarySources", "IsDeleted"),
+        ("MediaLibrarySources", "IsVisibleInLibrary"),
+        ("MediaAssets", "AvailabilityStatus"),
+        ("MediaAssets", "ClassificationDecisionStatus"),
+        ("MediaAssets", "ClassificationConcurrencyToken"),
+        ("MediaAssets", "FaceAnalysisStatus"),
+        ("MediaFaces", "ConcurrencyToken"),
+        ("MediaFaces", "CandidateSearchStatus"),
+        ("MediaPersonFaces", "ConcurrencyToken"),
+        ("MediaPersonFaces", "ReferenceStatus"),
+        ("MediaFaceReviewDecisions", "ConcurrencyToken"),
+        ("MediaFaceReviewDecisions", "ConfidenceLevel")
     };
 
     private readonly MediaLibraryDbContext _db;
+    private readonly MediaLibrarySchemaStatusCache _cache;
     private readonly ILogger<MediaLibrarySchemaService> _logger;
 
     public MediaLibrarySchemaService(
         MediaLibraryDbContext db,
+        MediaLibrarySchemaStatusCache cache,
         ILogger<MediaLibrarySchemaService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _cache = cache ?? throw new ArgumentNullException(nameof(cache));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<MediaLibrarySchemaStatus> GetStatusAsync(CancellationToken cancellationToken)
     {
+        if (_cache.TryGet(out var cached))
+        {
+            return cached;
+        }
+
         var reference = CreateReference("MLS");
 
         try
         {
             if (!await _db.Database.CanConnectAsync(cancellationToken))
             {
-                return MediaLibrarySchemaStatus.Unavailable(
-                    $"The media catalogue database is not reachable. Reference {reference}.", reference);
+                return Cache(MediaLibrarySchemaStatus.Unavailable(
+                    $"The media catalogue database is not reachable. Reference {reference}.",
+                    reference));
             }
 
-            var pending = (await _db.Database.GetPendingMigrationsAsync(cancellationToken)).ToArray();
-            var physical = await VerifyPhysicalSchemaAsync(cancellationToken);
+            if (!_db.Database.IsRelational())
+            {
+                return Cache(new MediaLibrarySchemaStatus(
+                    IsAvailable: true,
+                    IsOperational: true,
+                    IsCurrent: true,
+                    MigrationHistoryConsistent: true,
+                    PendingMigrations: Array.Empty<string>(),
+                    Error: null,
+                    DiagnosticReference: reference));
+            }
 
-            var operational = physical.RequiredColumnsPresent;
+            var knownMigrations = _db.Database.GetMigrations().ToArray();
+            var latestRequiredMigrationId = ResolveLatestRequiredMigrationId(knownMigrations);
+            var pending = (await _db.Database.GetPendingMigrationsAsync(cancellationToken)).ToArray();
+            var physical = await VerifyPhysicalSchemaAsync(
+                latestRequiredMigrationId,
+                cancellationToken);
+            var operational = physical.MissingObjects.Count == 0;
+
             if (operational)
             {
                 try
                 {
-                    await _db.Assets
-                        .AsNoTracking()
-                        .Select(asset => new { asset.Id, asset.AvailabilityStatus })
-                        .Take(1)
-                        .ToListAsync(cancellationToken);
+                    await RunRepresentativeQueriesAsync(cancellationToken);
                 }
-                catch (Exception ex) when (ex is NpgsqlException or InvalidOperationException or TimeoutException or DataException)
+                catch (Exception exception) when (IsSchemaInspectionException(exception))
                 {
                     operational = false;
-                    _logger.LogWarning(ex,
+                    _logger.LogWarning(
+                        exception,
                         "Media catalogue representative schema query failed. Reference={Reference}",
                         reference);
                 }
             }
 
-            var historyConsistent = physical.HistoryTablePresent && physical.AvailabilityMigrationRecorded;
+            var historyConsistent =
+                physical.HistoryTablePresent && physical.LatestMigrationRecorded;
             var current = operational && historyConsistent && pending.Length == 0;
 
             string? error = null;
             if (!operational)
             {
-                error = $"The media catalogue schema is incomplete. Apply the latest migration. Reference {reference}.";
+                error = physical.MissingObjects.Count == 0
+                    ? $"The media catalogue schema could not execute the deployed model. Reference {reference}."
+                    : $"The media catalogue schema is incomplete. Missing: {string.Join(", ", physical.MissingObjects)}. Reference {reference}.";
             }
             else if (!historyConsistent)
             {
-                error = $"The media catalogue is operational, but its migration history requires repair. Reference {reference}.";
+                error =
+                    $"The media catalogue is physically available, but migration {latestRequiredMigrationId} is not recorded in {MediaLibraryDbContext.MigrationsHistoryTable}. Reference {reference}.";
             }
             else if (pending.Length > 0)
             {
-                error = $"The media catalogue is operational, but {pending.Length} migration(s) remain pending.";
+                error =
+                    $"The media catalogue has {pending.Length} pending migration(s): {string.Join(", ", pending)}. Reference {reference}.";
             }
 
             if (!current)
             {
                 _logger.LogWarning(
-                    "Media catalogue schema is not fully current. Reference={Reference}; Operational={Operational}; HistoryTablePresent={HistoryTablePresent}; MigrationRecorded={MigrationRecorded}; Pending={Pending}; MissingColumns={MissingColumns}",
+                    "Media catalogue schema is not current. Reference={Reference}; Operational={Operational}; HistoryTablePresent={HistoryTablePresent}; LatestMigrationRecorded={LatestMigrationRecorded}; Pending={Pending}; Missing={Missing}",
                     reference,
                     operational,
                     physical.HistoryTablePresent,
-                    physical.AvailabilityMigrationRecorded,
+                    physical.LatestMigrationRecorded,
                     string.Join(',', pending),
-                    string.Join(',', physical.MissingColumns));
+                    string.Join(',', physical.MissingObjects));
             }
 
-            return new MediaLibrarySchemaStatus(
-                true,
-                operational,
-                current,
-                historyConsistent,
-                pending,
-                error,
-                reference);
+            return Cache(new MediaLibrarySchemaStatus(
+                IsAvailable: true,
+                IsOperational: operational,
+                IsCurrent: current,
+                MigrationHistoryConsistent: historyConsistent,
+                PendingMigrations: pending,
+                Error: error,
+                DiagnosticReference: reference));
         }
-        catch (Exception ex) when (ex is NpgsqlException or InvalidOperationException or TimeoutException or DataException)
+        catch (OperationCanceledException)
         {
-            _logger.LogWarning(ex,
+            throw;
+        }
+        catch (Exception exception) when (IsSchemaInspectionException(exception))
+        {
+            _logger.LogWarning(
+                exception,
                 "Unable to inspect the media catalogue schema. Reference={Reference}",
                 reference);
-            return MediaLibrarySchemaStatus.Unavailable(
-                $"The media catalogue schema could not be verified. Reference {reference}.", reference);
+            return Cache(MediaLibrarySchemaStatus.Unavailable(
+                $"The media catalogue schema could not be verified. Reference {reference}.",
+                reference));
         }
     }
 
-    public async Task<MediaLibrarySchemaStatus> MigrateAsync(CancellationToken cancellationToken)
+    private async Task RunRepresentativeQueriesAsync(CancellationToken cancellationToken)
     {
-        var reference = CreateReference("MLM");
-        var lockAcquired = false;
-        var originalCommandTimeout = _db.Database.GetCommandTimeout();
-        _db.Database.SetCommandTimeout(MigrationCommandTimeoutSeconds);
-
-        try
-        {
-            await _db.Database.OpenConnectionAsync(cancellationToken);
-            try
+        await _db.Assets.AsNoTracking()
+            .Select(asset => new
             {
-                lockAcquired = await AcquireMigrationLockAsync(reference, cancellationToken);
+                asset.Id,
+                asset.AvailabilityStatus,
+                asset.ClassificationDecisionStatus,
+                asset.ClassificationConcurrencyToken,
+                asset.FaceAnalysisStatus
+            })
+            .Take(1)
+            .ToListAsync(cancellationToken);
 
-                var pendingBefore = (await _db.Database
-                    .GetPendingMigrationsAsync(cancellationToken))
-                    .ToArray();
+        await _db.Faces.AsNoTracking()
+            .Select(face => new { face.Id, face.ConcurrencyToken, face.CandidateSearchStatus })
+            .Take(1)
+            .ToListAsync(cancellationToken);
 
-                if (pendingBefore.Length > 0)
-                {
-                    _logger.LogWarning(
-                        "Applying {Count} pending media-library migration(s). Reference={Reference}; Migrations={Migrations}",
-                        pendingBefore.Length,
-                        reference,
-                        string.Join(", ", pendingBefore));
+        await _db.PersonFaces.AsNoTracking()
+            .Select(assignment => new { assignment.Id, assignment.ConcurrencyToken, assignment.ReferenceStatus })
+            .Take(1)
+            .ToListAsync(cancellationToken);
 
-                    await _db.Database.MigrateAsync(cancellationToken);
-                }
-                else
-                {
-                    _logger.LogInformation(
-                        "Media-library schema has no pending migrations. Reference={Reference}",
-                        reference);
-                }
+        await _db.FaceReviewDecisions.AsNoTracking()
+            .Select(decision => new { decision.Id, decision.ConcurrencyToken, decision.ConfidenceLevel })
+            .Take(1)
+            .ToListAsync(cancellationToken);
 
-                var pendingAfter = (await _db.Database
-                    .GetPendingMigrationsAsync(cancellationToken))
-                    .ToArray();
-
-                if (pendingAfter.Length > 0)
-                {
-                    throw new InvalidOperationException(
-                        $"Media-library migration closure failed. Pending migrations: {string.Join(", ", pendingAfter)}");
-                }
-            }
-            finally
-            {
-                if (lockAcquired)
-                {
-                    try
-                    {
-                        await _db.Database.ExecuteSqlRawAsync(
-                            $"SELECT pg_advisory_unlock({AdvisoryLockKey});",
-                            CancellationToken.None);
-                    }
-                    catch (Exception unlockException)
-                    {
-                        _logger.LogWarning(unlockException,
-                            "Unable to explicitly release media schema advisory lock. Reference={Reference}",
-                            reference);
-                    }
-                }
-
-                await _db.Database.CloseConnectionAsync();
-            }
-
-            var status = await GetStatusAsync(cancellationToken);
-            if (!status.IsOperational)
-            {
-                _logger.LogWarning(
-                    "Media catalogue migration completed but operational verification failed. Reference={Reference}; StatusReference={StatusReference}; Error={Error}",
-                    reference,
-                    status.DiagnosticReference,
-                    status.Error);
-            }
-            else if (!status.IsCurrent)
-            {
-                _logger.LogWarning(
-                    "Media catalogue is operational after migration but metadata remains inconsistent. Reference={Reference}; StatusReference={StatusReference}; Error={Error}",
-                    reference,
-                    status.DiagnosticReference,
-                    status.Error);
-            }
-            else
-            {
-                _logger.LogInformation(
-                    "Media-library migrations and schema validation completed successfully. Reference={Reference}",
-                    reference);
-            }
-
-            return status;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "Unable to migrate the media catalogue schema. Reference={Reference}",
-                reference);
-            return MediaLibrarySchemaStatus.Unavailable(
-                $"The media catalogue migration could not be completed. Reference {reference}.", reference);
-        }
-        finally
-        {
-            _db.Database.SetCommandTimeout(originalCommandTimeout);
-        }
+        await _db.ClassificationAudits.AsNoTracking().Select(row => row.Id).Take(1).ToListAsync(cancellationToken);
+        await _db.ClassificationRuns.AsNoTracking().Select(row => row.Id).Take(1).ToListAsync(cancellationToken);
+        await _db.FaceEmbeddings.AsNoTracking().Select(row => row.Id).Take(1).ToListAsync(cancellationToken);
+        await _db.Persons.AsNoTracking().Select(row => row.Id).Take(1).ToListAsync(cancellationToken);
+        await _db.IdentityAudits.AsNoTracking().Select(row => row.Id).Take(1).ToListAsync(cancellationToken);
     }
 
-    private async Task<bool> AcquireMigrationLockAsync(
-        string reference,
+    private async Task<PhysicalSchemaState> VerifyPhysicalSchemaAsync(
+        string latestRequiredMigrationId,
         CancellationToken cancellationToken)
-    {
-        var connection = _db.Database.GetDbConnection();
-        var deadline = DateTimeOffset.UtcNow.Add(AdvisoryLockTimeout);
-        var waitLogged = false;
-
-        while (DateTimeOffset.UtcNow < deadline)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            await using var command = connection.CreateCommand();
-            command.CommandText = "SELECT pg_try_advisory_lock(@lockKey);";
-            var parameter = command.CreateParameter();
-            parameter.ParameterName = "lockKey";
-            parameter.Value = AdvisoryLockKey;
-            command.Parameters.Add(parameter);
-
-            var result = await command.ExecuteScalarAsync(cancellationToken);
-            if (result is bool acquired && acquired)
-            {
-                _logger.LogInformation(
-                    "Acquired media-library migration advisory lock. Reference={Reference}",
-                    reference);
-                return true;
-            }
-
-            if (!waitLogged)
-            {
-                _logger.LogInformation(
-                    "Waiting for another application instance to finish media-library migrations. Reference={Reference}",
-                    reference);
-                waitLogged = true;
-            }
-
-            await Task.Delay(AdvisoryLockPollInterval, cancellationToken);
-        }
-
-        throw new TimeoutException(
-            $"Timed out after {AdvisoryLockTimeout.TotalMinutes:0} minutes waiting for the media-library migration lock.");
-    }
-
-    private async Task<PhysicalSchemaState> VerifyPhysicalSchemaAsync(CancellationToken cancellationToken)
     {
         var connection = _db.Database.GetDbConnection();
         var shouldClose = connection.State != ConnectionState.Open;
@@ -299,26 +237,43 @@ public sealed class MediaLibrarySchemaService : IMediaLibrarySchemaService
 
         try
         {
-            var existingColumns = new HashSet<string>(StringComparer.Ordinal);
+            var existingTables = new HashSet<string>(StringComparer.Ordinal);
             await using (var command = connection.CreateCommand())
             {
                 command.CommandText = """
-                    SELECT column_name
-                    FROM information_schema.columns
+                    SELECT table_name
+                    FROM information_schema.tables
                     WHERE table_schema = current_schema()
-                      AND table_name = 'MediaAssets'
-                      AND column_name = ANY (@columns);
+                      AND table_name = ANY (@tables);
                     """;
-
-                var parameter = command.CreateParameter();
-                parameter.ParameterName = "columns";
-                parameter.Value = RequiredAvailabilityColumns;
-                command.Parameters.Add(parameter);
+                AddArrayParameter(command, "tables", RequiredTables);
 
                 await using var reader = await command.ExecuteReaderAsync(cancellationToken);
                 while (await reader.ReadAsync(cancellationToken))
                 {
-                    existingColumns.Add(reader.GetString(0));
+                    existingTables.Add(reader.GetString(0));
+                }
+            }
+
+            var requiredTableNames = RequiredColumns
+                .Select(item => item.Table)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            var existingColumns = new HashSet<string>(StringComparer.Ordinal);
+            await using (var command = connection.CreateCommand())
+            {
+                command.CommandText = """
+                    SELECT table_name, column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = current_schema()
+                      AND table_name = ANY (@tables);
+                    """;
+                AddArrayParameter(command, "tables", requiredTableNames);
+
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    existingColumns.Add($"{reader.GetString(0)}.{reader.GetString(1)}");
                 }
             }
 
@@ -328,14 +283,11 @@ public sealed class MediaLibrarySchemaService : IMediaLibrarySchemaService
                 command.CommandText = """
                     SELECT to_regclass(format('%I.%I', current_schema(), @historyTable)) IS NOT NULL;
                     """;
-                var parameter = command.CreateParameter();
-                parameter.ParameterName = "historyTable";
-                parameter.Value = MediaLibraryDbContext.MigrationsHistoryTable;
-                command.Parameters.Add(parameter);
+                AddScalarParameter(command, "historyTable", MediaLibraryDbContext.MigrationsHistoryTable);
                 historyTablePresent = Convert.ToBoolean(await command.ExecuteScalarAsync(cancellationToken));
             }
 
-            var migrationRecorded = false;
+            var latestMigrationRecorded = false;
             if (historyTablePresent)
             {
                 var quotedHistoryTable = QuoteIdentifier(MediaLibraryDbContext.MigrationsHistoryTable);
@@ -347,22 +299,23 @@ public sealed class MediaLibrarySchemaService : IMediaLibrarySchemaService
                         WHERE "MigrationId" = @migrationId
                     );
                     """;
-                var parameter = command.CreateParameter();
-                parameter.ParameterName = "migrationId";
-                parameter.Value = AvailabilityMigrationId;
-                command.Parameters.Add(parameter);
-                migrationRecorded = Convert.ToBoolean(await command.ExecuteScalarAsync(cancellationToken));
+                AddScalarParameter(command, "migrationId", latestRequiredMigrationId);
+                latestMigrationRecorded = Convert.ToBoolean(
+                    await command.ExecuteScalarAsync(cancellationToken));
             }
 
-            var missing = RequiredAvailabilityColumns
-                .Where(column => !existingColumns.Contains(column))
+            var missingObjects = RequiredTables
+                .Where(table => !existingTables.Contains(table))
+                .Select(table => $"table {table}")
+                .Concat(RequiredColumns
+                    .Where(item => !existingColumns.Contains($"{item.Table}.{item.Column}"))
+                    .Select(item => $"column {item.Table}.{item.Column}"))
                 .ToArray();
 
             return new PhysicalSchemaState(
-                missing.Length == 0,
-                historyTablePresent,
-                migrationRecorded,
-                missing);
+                HistoryTablePresent: historyTablePresent,
+                LatestMigrationRecorded: latestMigrationRecorded,
+                MissingObjects: missingObjects);
         }
         finally
         {
@@ -373,6 +326,53 @@ public sealed class MediaLibrarySchemaService : IMediaLibrarySchemaService
         }
     }
 
+    public static string ResolveLatestRequiredMigrationId(IEnumerable<string> migrations)
+    {
+        ArgumentNullException.ThrowIfNull(migrations);
+        var latest = migrations.OrderBy(id => id, StringComparer.Ordinal).LastOrDefault();
+        if (string.IsNullOrWhiteSpace(latest))
+        {
+            throw new InvalidOperationException(
+                "No MediaLibraryDbContext migrations were discovered in the deployed assembly.");
+        }
+
+        return latest;
+    }
+
+    private MediaLibrarySchemaStatus Cache(MediaLibrarySchemaStatus status)
+    {
+        _cache.Store(status);
+        return status;
+    }
+
+    private static void AddArrayParameter(
+        System.Data.Common.DbCommand command,
+        string name,
+        string[] values)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = values;
+        command.Parameters.Add(parameter);
+    }
+
+    private static void AddScalarParameter(
+        System.Data.Common.DbCommand command,
+        string name,
+        object value)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.Value = value;
+        command.Parameters.Add(parameter);
+    }
+
+    private static bool IsSchemaInspectionException(Exception exception)
+        => exception is NpgsqlException
+            or InvalidOperationException
+            or TimeoutException
+            or DataException;
+
     private static string QuoteIdentifier(string identifier)
         => $"\"{identifier.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
 
@@ -380,8 +380,7 @@ public sealed class MediaLibrarySchemaService : IMediaLibrarySchemaService
         => $"{prefix}-{Guid.NewGuid():N}"[..14].ToUpperInvariant();
 
     private sealed record PhysicalSchemaState(
-        bool RequiredColumnsPresent,
         bool HistoryTablePresent,
-        bool AvailabilityMigrationRecorded,
-        IReadOnlyList<string> MissingColumns);
+        bool LatestMigrationRecorded,
+        IReadOnlyList<string> MissingObjects);
 }

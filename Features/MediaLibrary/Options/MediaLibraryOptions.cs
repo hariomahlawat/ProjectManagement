@@ -9,6 +9,11 @@ public sealed class MediaLibraryOptions
     public const string SectionName = "MediaLibrary";
 
     public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Legacy configuration bind point. Database migrations are now governed by the
+    /// mandatory application startup gate for both EF Core contexts.
+    /// </summary>
     public bool AutoMigrate { get; set; }
     public string CacheRoot { get; set; } = "App_Data/media-cache";
 

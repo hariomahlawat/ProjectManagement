@@ -123,6 +123,10 @@ public sealed class StageDirectApplyService
             throw new ArgumentException("A valid user identifier is required.", nameof(hodUserId));
         }
 
+        await using var transaction = await RelationalTransactionScope.CreateAsync(
+            _db.Database,
+            ct);
+
         var normalizedStageCode = stageCode.Trim().ToUpperInvariant();
         var normalizedStatus = status.Trim();
         var isReopen = string.Equals(normalizedStatus, "Reopen", StringComparison.OrdinalIgnoreCase);
@@ -554,6 +558,10 @@ public sealed class StageDirectApplyService
         {
             warnings.Add("Pending request was superseded by this change.");
         }
+
+        // Stage materialisation, predecessor backfill, request supersession, audit logs
+        // and any realignment draft are one atomic operation.
+        await transaction.CommitAsync(ct);
 
         return new DirectApplyResult(
             finalStatus.ToString(),

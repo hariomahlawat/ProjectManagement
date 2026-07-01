@@ -65,7 +65,7 @@ public sealed class MediaSourceScannerWorker : BackgroundService
         {
             var schema = readinessScope.ServiceProvider.GetRequiredService<IMediaLibrarySchemaService>();
             var status = await schema.GetStatusAsync(cancellationToken);
-            if (!status.IsAvailable || !status.IsOperational)
+            if (!status.IsAvailable || !status.IsCurrent)
             {
                 _logger.LogInformation(
                     "Media source scanner is waiting for an operational catalogue schema. Reference={Reference}",

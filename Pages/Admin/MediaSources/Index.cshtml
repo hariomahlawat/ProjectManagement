@@ -14,12 +14,17 @@
     <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
         <div>
             <div class="text-uppercase small fw-semibold text-primary mb-1">Photos administration</div>
-            <h1 class="h3 mb-1">Media sources</h1><a class="btn btn-outline-primary" asp-page="/Admin/MediaIntelligence/Index">Media intelligence</a>
+            <h1 class="h3 mb-1">Media sources</h1>
             <p class="text-muted mb-0">Connect optional local or network folders without affecting PRISM-owned media.</p>
         </div>
-        <a asp-page="/Photos/Index" class="btn btn-outline-primary">
-            <i class="bi bi-images me-1" aria-hidden="true"></i> Open Photos
-        </a>
+        <div class="d-flex flex-wrap gap-2">
+            <a asp-page="/Admin/MediaIntelligence/Index" class="btn btn-outline-secondary">
+                <i class="bi bi-cpu me-1" aria-hidden="true"></i> Media intelligence
+            </a>
+            <a asp-page="/Photos/Index" class="btn btn-outline-primary">
+                <i class="bi bi-images me-1" aria-hidden="true"></i> Open Photos
+            </a>
+        </div>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
@@ -37,9 +42,9 @@
             <div class="card-body p-4">
                 <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
                     <div>
-                        <h2 class="h5 mb-2">Initialize the optional media catalogue</h2>
+                        <h2 class="h5 mb-2">Media catalogue schema unavailable</h2>
                         <p class="text-muted mb-2">
-                            Core project, visit and event photos remain available. Initialize this separate catalogue before connecting external folders or enabling background media processing.
+                            Database migrations are applied only by the fail-fast application startup gate. Deploy the complete Release publish and recycle the application; do not attempt schema changes while the site is serving requests.
                         </p>
                         @if (Model.PendingMigrations.Count > 0)
                         {
@@ -49,12 +54,9 @@
                         {
                             <div class="small text-danger mt-2">@Model.CatalogueError</div>
                         }
+                        <div class="small text-muted mt-2">Reference @Model.CatalogueDiagnosticReference</div>
                     </div>
-                    <form method="post">
-                        <button type="submit" asp-page-handler="InitializeCatalogue" class="btn btn-primary">
-                            <i class="bi bi-database-check me-1" aria-hidden="true"></i> Initialize catalogue
-                        </button>
-                    </form>
+                    <span class="badge text-bg-secondary align-self-start">Startup-managed</span>
                 </div>
             </div>
         </section>
@@ -77,9 +79,7 @@
                     }
                     <div class="small mt-1">Reference @Model.CatalogueDiagnosticReference</div>
                 </div>
-                <form method="post" asp-page-handler="InitializeCatalogue">
-                    <button type="submit" class="btn btn-sm btn-outline-warning">Apply migrations</button>
-                </form>
+                <span class="badge text-bg-secondary">Recycle after full deployment</span>
             </div>
         }
 

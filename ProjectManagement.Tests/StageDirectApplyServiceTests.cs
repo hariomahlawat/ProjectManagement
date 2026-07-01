@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -9,6 +10,7 @@ using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Tests.Fakes;
 using Xunit;
@@ -325,6 +327,91 @@ public class StageDirectApplyServiceTests
         Assert.True(sow.SortOrder < ipa.SortOrder);
     }
 
+
+    [Fact]
+    public async Task ApplyAsync_DirectCompletionWithExplicitBlankStart_PersistsCompletionWithoutBackfill()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2026, 6, 23, 9, 30, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStageAsync(db, StageStatus.NotStarted);
+
+        var workflowPolicy = StageWorkflowTestFactory.CreatePolicy(db);
+        var validation = new StageValidationService(db, clock, workflowPolicy);
+        var stageRules = new StageRulesService(db, workflowPolicy);
+        var service = new StageDirectApplyService(db, clock, validation, stageRules, workflowPolicy);
+
+        var completionDate = new DateOnly(2026, 6, 23);
+        var result = await service.ApplyAsync(
+            projectId: 1,
+            stageCode: StageCodes.IPA,
+            status: StageStatus.Completed.ToString(),
+            date: completionDate,
+            startDate: null,
+            note: null,
+            hodUserId: "hod-1",
+            forceBackfillPredecessors: false,
+            CancellationToken.None);
+
+        Assert.Equal(StageStatus.Completed.ToString(), result.UpdatedStatus);
+        Assert.Null(result.ActualStart);
+        Assert.Equal(completionDate, result.CompletedOn);
+        Assert.False(result.RequiresBackfill);
+
+        var stage = await db.ProjectStages.SingleAsync(item => item.StageCode == StageCodes.IPA);
+        Assert.Equal(StageStatus.Completed, stage.Status);
+        Assert.Null(stage.ActualStart);
+        Assert.Equal(completionDate, stage.CompletedOn);
+        Assert.False(stage.RequiresBackfill);
+    }
+
+    [Fact]
+    public async Task ApplyAsync_WhenRealignmentFails_RollsBackStageAndAuditChanges()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 10, 9, 30, 0, TimeSpan.Zero));
+        await SeedStageAsync(db, StageStatus.InProgress, new DateOnly(2024, 5, 1));
+        var target = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.IPA);
+        target.PlannedDue = new DateOnly(2024, 5, 5);
+        await db.SaveChangesAsync();
+
+        var workflowPolicy = StageWorkflowTestFactory.CreatePolicy(db);
+        var validation = new StageValidationService(db, clock, workflowPolicy);
+        var stageRules = new StageRulesService(db, workflowPolicy);
+        var service = new StageDirectApplyService(
+            db,
+            clock,
+            validation,
+            stageRules,
+            workflowPolicy,
+            new ThrowingPlanRealignment());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ApplyAsync(
+            projectId: 1,
+            stageCode: StageCodes.IPA,
+            status: StageStatus.Completed.ToString(),
+            date: new DateOnly(2024, 5, 10),
+            note: "Must roll back",
+            hodUserId: "hod-1",
+            forceBackfillPredecessors: false,
+            CancellationToken.None));
+
+        db.ChangeTracker.Clear();
+        var persisted = await db.ProjectStages.SingleAsync(stage => stage.StageCode == StageCodes.IPA);
+        Assert.Equal(StageStatus.InProgress, persisted.Status);
+        Assert.Equal(new DateOnly(2024, 5, 1), persisted.ActualStart);
+        Assert.Null(persisted.CompletedOn);
+        Assert.Empty(await db.StageChangeLogs.ToListAsync());
+    }
+
     private static async Task SeedStageAsync(
         ApplicationDbContext db,
         StageStatus status,
@@ -374,4 +461,15 @@ public class StageDirectApplyServiceTests
 
         return new ApplicationDbContext(options);
     }
+    private sealed class ThrowingPlanRealignment : IPlanRealignment
+    {
+        public Task CreateRealignmentDraftAsync(
+            int projectId,
+            string sourceStageCode,
+            int delayDays,
+            string triggeredByUserId,
+            CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Simulated realignment failure.");
+    }
+
 }

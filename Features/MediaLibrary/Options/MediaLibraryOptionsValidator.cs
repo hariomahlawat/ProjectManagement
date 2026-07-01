@@ -14,12 +14,19 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        if (!options.Enabled)
+        var failures = new List<string>();
+        if (options.AutoMigrate)
         {
-            return ValidateOptionsResult.Success;
+            failures.Add(
+                "MediaLibrary:AutoMigrate is obsolete and must be false. Both EF Core contexts are migrated exclusively by the mandatory synchronous startup gate.");
         }
 
-        var failures = new List<string>();
+        if (!options.Enabled)
+        {
+            return failures.Count == 0
+                ? ValidateOptionsResult.Success
+                : ValidateOptionsResult.Fail(failures);
+        }
 
         if (!options.Catalogue.Enabled)
         {

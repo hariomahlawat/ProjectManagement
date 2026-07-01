@@ -35,7 +35,7 @@ public sealed class MediaAvailabilityReconciliationWorker : BackgroundService
                 using var scope = _scopeFactory.CreateScope();
                 var schema = scope.ServiceProvider.GetRequiredService<IMediaLibrarySchemaService>();
                 var schemaStatus = await schema.GetStatusAsync(stoppingToken);
-                if (!schemaStatus.IsAvailable || !schemaStatus.IsOperational)
+                if (!schemaStatus.IsAvailable || !schemaStatus.IsCurrent)
                 {
                     _logger.LogInformation(
                         "Media availability reconciliation is waiting for an operational catalogue schema. Reference={Reference}",

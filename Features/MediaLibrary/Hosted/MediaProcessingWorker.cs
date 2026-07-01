@@ -123,7 +123,7 @@ public sealed class MediaProcessingWorker : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var schema = scope.ServiceProvider.GetRequiredService<IMediaLibrarySchemaService>();
         var status = await schema.GetStatusAsync(cancellationToken);
-        return status.IsAvailable && status.IsOperational;
+        return status.IsAvailable && status.IsCurrent;
     }
 
     private async Task RecoverExpiredLocksAsync(CancellationToken cancellationToken)

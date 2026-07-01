@@ -11,7 +11,8 @@ public sealed class ApiAuthenticationResponseTests : IClassFixture<WebApplicatio
 
     public ApiAuthenticationResponseTests(WebApplicationFactory<Program> factory)
     {
-        _factory = factory;
+        _factory = factory.WithWebHostBuilder(builder =>
+            builder.UsePrismTestInfrastructure("api-authentication"));
     }
 
     [Fact]

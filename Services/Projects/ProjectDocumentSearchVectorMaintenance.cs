@@ -33,27 +33,43 @@ public static class ProjectDocumentSearchVectorMaintenance
             await using var command = connection.CreateCommand();
             command.CommandText = """
                 SELECT
-                    to_regprocedure('public.project_documents_build_search_vector(integer,text,text,integer,text)') IS NOT NULL,
-                    to_regprocedure('public.project_documents_search_vector_trigger()') IS NOT NULL,
-                    to_regprocedure('public.project_document_texts_search_vector_trigger()') IS NOT NULL,
+                    to_regprocedure(format(
+                        '%I.project_documents_build_search_vector(integer,text,text,integer,text)',
+                        current_schema())) IS NOT NULL,
+                    to_regprocedure(format(
+                        '%I.project_documents_search_vector_trigger()',
+                        current_schema())) IS NOT NULL,
+                    to_regprocedure(format(
+                        '%I.project_document_texts_search_vector_trigger()',
+                        current_schema())) IS NOT NULL,
                     EXISTS (
                         SELECT 1
-                        FROM pg_trigger
-                        WHERE tgname = 'project_documents_search_vector_trigger'
-                          AND NOT tgisinternal
+                        FROM pg_trigger trigger_row
+                        JOIN pg_class relation_row ON relation_row.oid = trigger_row.tgrelid
+                        JOIN pg_namespace namespace_row ON namespace_row.oid = relation_row.relnamespace
+                        WHERE trigger_row.tgname = 'project_documents_search_vector_trigger'
+                          AND relation_row.relname = 'ProjectDocuments'
+                          AND namespace_row.nspname = current_schema()
+                          AND NOT trigger_row.tgisinternal
                     ),
                     EXISTS (
                         SELECT 1
-                        FROM pg_trigger
-                        WHERE tgname = 'project_document_texts_search_vector_after'
-                          AND NOT tgisinternal
+                        FROM pg_trigger trigger_row
+                        JOIN pg_class relation_row ON relation_row.oid = trigger_row.tgrelid
+                        JOIN pg_namespace namespace_row ON namespace_row.oid = relation_row.relnamespace
+                        WHERE trigger_row.tgname = 'project_document_texts_search_vector_after'
+                          AND relation_row.relname = 'ProjectDocumentTexts'
+                          AND namespace_row.nspname = current_schema()
+                          AND NOT trigger_row.tgisinternal
                     ),
                     EXISTS (
                         SELECT 1
                         FROM pg_indexes
-                        WHERE schemaname = 'public'
+                        WHERE schemaname = current_schema()
                           AND tablename = 'ProjectDocuments'
-                          AND indexname = 'IX_ProjectDocuments_SearchVector'
+                          AND indexname IN (
+                              'IX_ProjectDocuments_SearchVector',
+                              'idx_project_documents_search')
                     );
                 """;
 
