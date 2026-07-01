@@ -22,12 +22,6 @@
     </div>
 </div>
 
-@if (Model.CanManageBirthdays && !Model.CanManageAnniversaries)
-{
-    <div class="alert alert-info py-2 small" role="status">
-        Main Office access is limited to adding, editing and deleting birthdays. Anniversaries remain view-only.
-    </div>
-}
 
 <form method="get" class="card card-body border-0 shadow-sm mb-3">
     <div class="row g-2 align-items-end">

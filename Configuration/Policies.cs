@@ -24,22 +24,19 @@ public static class Policies
             RoleNames.ProjectOfficeAlternate
         };
 
-        // Admin, HoD, TA and Comdt can manage both birthdays and anniversaries.
-        public static readonly string[] FullCelebrationManagerRoles =
-        {
-            RoleNames.Admin,
-            RoleNames.HoD,
-            RoleNames.Ta,
-            RoleNames.Comdt
-        };
-
-        // Main Office is intentionally birthday-only.
+        // Birthdays and anniversaries are maintained only by Admin, TA and Main Office.
         public static readonly string[] BirthdayManagerRoles =
         {
             RoleNames.Admin,
-            RoleNames.HoD,
             RoleNames.Ta,
-            RoleNames.Comdt,
+            RoleNames.MainOfficeClerk,
+            RoleNames.MainOfficeAlternate
+        };
+
+        public static readonly string[] AnniversaryManagerRoles =
+        {
+            RoleNames.Admin,
+            RoleNames.Ta,
             RoleNames.MainOfficeClerk,
             RoleNames.MainOfficeAlternate
         };
@@ -47,9 +44,7 @@ public static class Policies
         public static readonly string[] CelebrationManagerRoles =
         {
             RoleNames.Admin,
-            RoleNames.HoD,
             RoleNames.Ta,
-            RoleNames.Comdt,
             RoleNames.MainOfficeClerk,
             RoleNames.MainOfficeAlternate
         };

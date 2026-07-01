@@ -32,11 +32,37 @@ public class EditModel : PageModel
 
     public bool CanManageBirthdays { get; private set; }
     public bool CanManageAnniversaries { get; private set; }
+    public bool CanManageBothTypes => CanManageBirthdays && CanManageAnniversaries;
     public bool IsBirthdayOnlyEditor => CanManageBirthdays && !CanManageAnniversaries;
+    public bool IsAnniversaryOnlyEditor => !CanManageBirthdays && CanManageAnniversaries;
+    public bool IsRestrictedEditor => IsBirthdayOnlyEditor || IsAnniversaryOnlyEditor;
 
-    public string PageTitle => Input.Id is null
-        ? (IsBirthdayOnlyEditor ? "Add birthday" : "Add celebration")
-        : (IsBirthdayOnlyEditor ? "Edit birthday" : "Edit celebration");
+    public string RestrictedTypeLabel => IsAnniversaryOnlyEditor ? "Anniversary" : "Birthday";
+
+    public string PermissionNotice => IsAnniversaryOnlyEditor
+        ? "Your role can maintain anniversary entries only."
+        : "Your role can maintain birthday entries only.";
+
+    public string PageTitle
+    {
+        get
+        {
+            if (Input.Id is not null)
+            {
+                return Input.EventType == CelebrationType.Anniversary
+                    ? "Edit anniversary"
+                    : "Edit birthday";
+            }
+
+            return (CanManageBirthdays, CanManageAnniversaries) switch
+            {
+                (true, true) => "Add celebration",
+                (true, false) => "Add birthday",
+                (false, true) => "Add anniversary",
+                _ => "Add celebration"
+            };
+        }
+    }
 
     public class InputModel
     {
@@ -70,7 +96,9 @@ public class EditModel : PageModel
 
         if (id is null)
         {
-            Input.EventType = CelebrationType.Birthday;
+            Input.EventType = CanManageBirthdays
+                ? CelebrationType.Birthday
+                : CelebrationType.Anniversary;
             return Page();
         }
 
@@ -129,7 +157,7 @@ public class EditModel : PageModel
             }
 
             // Authorize against the stored type as well as the submitted type. This prevents
-            // a birthday-only editor from changing an anniversary by forging the form payload.
+            // a type-restricted editor from changing an entry by forging the form payload.
             if (!await CanManageAsync(celebration.EventType))
             {
                 return Forbid();

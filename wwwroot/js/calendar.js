@@ -214,7 +214,7 @@
     renderHolidayListBadges();
   };
 
-  // cache form elements
+  // Cache event-editor elements. These are absent for read-only users.
   const form = document.getElementById('eventForm');
   const titleBox = form ? form.querySelector('[name="title"]') : null;
   const idBox = form ? form.querySelector('[name="id"]') : null;
@@ -224,18 +224,173 @@
   const isAllDayBox = document.getElementById('toggleAllDay');
   const timePickers = document.getElementById('timePickers');
   const datePickers = document.getElementById('datePickers');
+  const startTimeBox = form ? form.querySelector('[name="start"]') : null;
+  const endTimeBox = form ? form.querySelector('[name="end"]') : null;
+  const startDateBox = form ? form.querySelector('[name="startDate"]') : null;
+  const endDateBox = form ? form.querySelector('[name="endDate"]') : null;
   const btnDelete = document.getElementById('btnDeleteEvent');
+  const btnSave = document.getElementById('btnSaveEvent');
+  const saveSpinner = document.getElementById('eventSaveSpinner');
+  const saveIcon = document.getElementById('eventSaveIcon');
+  const saveText = document.getElementById('eventSaveText');
+  const formHint = document.getElementById('eventFormHint');
+  const formAlert = document.getElementById('eventFormAlert');
+  const dateRangeError = document.getElementById('eventDateRangeError');
+  const durationHint = document.getElementById('eventDurationHint');
 
   // ----- repeat UI wiring -----
-  const repeatFreq     = document.getElementById('repeatFreq');
-  const repeatWeekly   = document.getElementById('repeatWeekly');
-  const repeatMonthly  = document.getElementById('repeatMonthly');
+  const repeatFreq = document.getElementById('repeatFreq');
+  const repeatOptions = document.getElementById('repeatOptions');
+  const repeatWeekly = document.getElementById('repeatWeekly');
+  const repeatMonthly = document.getElementById('repeatMonthly');
   const repeatMonthDay = document.getElementById('repeatMonthDay');
-  const repeatUntil    = document.getElementById('repeatUntil');
+  const repeatUntil = document.getElementById('repeatUntil');
+  const repeatEndNever = document.getElementById('repeatEndNever');
+  const repeatEndOn = document.getElementById('repeatEndOn');
+
+  function clearFormAlert() {
+    if (!formAlert) return;
+    formAlert.textContent = '';
+    formAlert.classList.add('d-none');
+  }
+
+  function showFormAlert(message) {
+    if (!formAlert) {
+      alert(message);
+      return;
+    }
+    formAlert.textContent = message;
+    formAlert.classList.remove('d-none');
+    formAlert.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  function setSaving(isSaving) {
+    if (!btnSave) return;
+    btnSave.disabled = isSaving;
+    btnSave.setAttribute('aria-busy', isSaving ? 'true' : 'false');
+    saveSpinner?.classList.toggle('d-none', !isSaving);
+    saveIcon?.classList.toggle('d-none', isSaving);
+  }
+
+  function setEditorMode(isEditing) {
+    const label = document.getElementById('eventFormLabel');
+    if (label) label.textContent = isEditing ? 'Edit event' : 'New event';
+    if (formHint) {
+      formHint.textContent = isEditing
+        ? 'Review the details and save only the changes that are required.'
+        : 'Add the essential details now; optional fields can be completed later.';
+    }
+    if (saveText) saveText.textContent = isEditing ? 'Save changes' : 'Create event';
+  }
+
+  function clearDateRangeError() {
+    endTimeBox?.setCustomValidity('');
+    endDateBox?.setCustomValidity('');
+    if (dateRangeError) {
+      dateRangeError.textContent = '';
+      dateRangeError.classList.add('d-none');
+    }
+  }
+
+  function showDateRangeError(message, input) {
+    clearDateRangeError();
+    input?.setCustomValidity(message);
+    if (dateRangeError) {
+      dateRangeError.textContent = message;
+      dateRangeError.classList.remove('d-none');
+    }
+  }
+
+  function validateDateRange() {
+    clearDateRangeError();
+    if (!form || !isAllDayBox) return true;
+
+    if (isAllDayBox.checked) {
+      if (!startDateBox?.value || !endDateBox?.value) return true;
+      const start = new Date(`${startDateBox.value}T00:00:00`);
+      const end = new Date(`${endDateBox.value}T00:00:00`);
+      if (end < start) {
+        showDateRangeError('End date cannot be before the start date.', endDateBox);
+        return false;
+      }
+      return true;
+    }
+
+    if (!startTimeBox?.value || !endTimeBox?.value) return true;
+    const start = new Date(startTimeBox.value);
+    const end = new Date(endTimeBox.value);
+    if (end <= start) {
+      showDateRangeError('End time must be after the start time.', endTimeBox);
+      return false;
+    }
+    return true;
+  }
+
+  function updateDurationHint() {
+    if (!durationHint || !isAllDayBox) return;
+    durationHint.textContent = '';
+
+    if (isAllDayBox.checked) {
+      if (!startDateBox?.value || !endDateBox?.value) return;
+      const start = new Date(`${startDateBox.value}T00:00:00`);
+      const end = new Date(`${endDateBox.value}T00:00:00`);
+      if (end < start) return;
+      const days = Math.round((end - start) / 86400000) + 1;
+      durationHint.textContent = days === 1 ? '1 all-day event' : `${days} calendar days`;
+      return;
+    }
+
+    if (!startTimeBox?.value || !endTimeBox?.value) return;
+    const start = new Date(startTimeBox.value);
+    const end = new Date(endTimeBox.value);
+    const minutes = Math.round((end - start) / 60000);
+    if (minutes <= 0) return;
+
+    if (minutes < 60) {
+      durationHint.textContent = `${minutes} minutes`;
+    } else if (minutes % 60 === 0) {
+      const hours = minutes / 60;
+      durationHint.textContent = hours === 1 ? '1 hour' : `${hours} hours`;
+    } else {
+      const hours = Math.floor(minutes / 60);
+      const remainder = minutes % 60;
+      durationHint.textContent = `${hours} hr ${remainder} min`;
+    }
+  }
+
+  function syncRepeatEndUI() {
+    if (!repeatUntil) return;
+    const enabled = !!repeatFreq?.value && !!repeatEndOn?.checked;
+    repeatUntil.disabled = !enabled;
+    repeatUntil.required = enabled;
+    if (!enabled) repeatUntil.setCustomValidity('');
+  }
+
+  function syncRepeatUI() {
+    if (!repeatFreq) return;
+    const frequency = repeatFreq.value;
+    repeatOptions?.classList.toggle('d-none', !frequency);
+    repeatWeekly?.classList.toggle('d-none', frequency !== 'WEEKLY');
+    repeatMonthly?.classList.toggle('d-none', frequency !== 'MONTHLY');
+    syncRepeatEndUI();
+  }
 
   repeatFreq?.addEventListener('change', () => {
-    repeatWeekly.classList.toggle('d-none', repeatFreq.value !== 'WEEKLY');
-    repeatMonthly.classList.toggle('d-none', repeatFreq.value !== 'MONTHLY');
+    syncRepeatUI();
+    clearFormAlert();
+  });
+  repeatEndNever?.addEventListener('change', syncRepeatEndUI);
+  repeatEndOn?.addEventListener('change', () => {
+    syncRepeatEndUI();
+    if (repeatEndOn.checked) repeatUntil?.focus();
+  });
+  titleBox?.addEventListener('input', () => {
+    titleBox.setCustomValidity(titleBox.value.trim() ? '' : 'Enter a title for the event.');
+    clearFormAlert();
+  });
+  repeatUntil?.addEventListener('input', () => {
+    repeatUntil.setCustomValidity('');
+    clearFormAlert();
   });
 
   function buildRRule(startLocalIso) {
@@ -244,7 +399,7 @@
     const parts = [`FREQ=${f}`, 'INTERVAL=1'];
 
     if (f === 'WEEKLY') {
-      const days = Array.from(repeatWeekly.querySelectorAll('input:checked')).map(x => x.value);
+      const days = Array.from(repeatWeekly?.querySelectorAll('input:checked') || []).map(x => x.value);
       if (!days.length) {
         const map = ['SU','MO','TU','WE','TH','FR','SA'];
         days.push(map[new Date(startLocalIso).getDay()]);
@@ -252,13 +407,12 @@
       parts.push(`BYDAY=${days.join(',')}`);
     }
     if (f === 'MONTHLY') {
-      const d = parseInt(repeatMonthDay.value, 10) || new Date(startLocalIso).getDate();
+      const d = parseInt(repeatMonthDay?.value, 10) || new Date(startLocalIso).getDate();
       parts.push(`BYMONTHDAY=${d}`);
     }
-    const endChoice = (document.querySelector('input[name="repeatEnd"]:checked')||{}).value;
-    if (endChoice === 'on' && repeatUntil.value) {
+    if (repeatEndOn?.checked && repeatUntil?.value) {
       const u = new Date(repeatUntil.value + 'T23:59:59');
-      const z = new Date(Date.UTC(u.getFullYear(), u.getMonth(), u.getDate(), 23,59,59));
+      const z = new Date(Date.UTC(u.getFullYear(), u.getMonth(), u.getDate(), 23, 59, 59));
       parts.push(`UNTIL=${z.toISOString().replace(/[-:]/g,'').split('.')[0]}Z`);
     }
     return parts.join(';');
@@ -267,34 +421,79 @@
   function hydrateRepeatUI(rrule) {
     if (!repeatFreq) return;
     repeatFreq.value = '';
-    repeatWeekly.classList.add('d-none');
-    repeatMonthly.classList.add('d-none');
-    repeatWeekly.querySelectorAll('input').forEach(i => i.checked=false);
-    repeatMonthDay.value = '';
-    repeatUntil.value='';
-    document.querySelector('input[name="repeatEnd"][value="never"]').checked = true;
-    if (!rrule) return;
+    repeatWeekly?.querySelectorAll('input').forEach(i => { i.checked = false; });
+    if (repeatMonthDay) repeatMonthDay.value = '';
+    if (repeatUntil) repeatUntil.value = '';
+    if (repeatEndNever) repeatEndNever.checked = true;
+    if (repeatEndOn) repeatEndOn.checked = false;
 
-    const m = Object.fromEntries(rrule.split(';').map(p => p.split('=')));
-    if (m.FREQ === 'WEEKLY') {
-      repeatFreq.value='WEEKLY'; repeatWeekly.classList.remove('d-none');
-      (m.BYDAY||'').split(',').forEach(code => { const box = repeatWeekly.querySelector(`input[value="${code}"]`); if (box) box.checked = true; });
-    } else if (m.FREQ === 'MONTHLY') {
-      repeatFreq.value='MONTHLY'; repeatMonthly.classList.remove('d-none');
-      if (m.BYMONTHDAY) repeatMonthDay.value = m.BYMONTHDAY;
+    if (rrule) {
+      const m = Object.fromEntries(rrule.split(';').map(p => p.split('=')));
+      if (m.FREQ === 'WEEKLY') {
+        repeatFreq.value = 'WEEKLY';
+        (m.BYDAY || '').split(',').forEach(code => {
+          const box = repeatWeekly?.querySelector(`input[value="${code}"]`);
+          if (box) box.checked = true;
+        });
+      } else if (m.FREQ === 'MONTHLY') {
+        repeatFreq.value = 'MONTHLY';
+        if (m.BYMONTHDAY && repeatMonthDay) repeatMonthDay.value = m.BYMONTHDAY;
+      }
+      if (m.UNTIL && repeatUntil) {
+        const y = m.UNTIL.slice(0, 4);
+        const mo = m.UNTIL.slice(4, 6);
+        const d = m.UNTIL.slice(6, 8);
+        repeatUntil.value = `${y}-${mo}-${d}`;
+        if (repeatEndOn) repeatEndOn.checked = true;
+        if (repeatEndNever) repeatEndNever.checked = false;
+      }
     }
-    if (m.UNTIL) {
-      const y = m.UNTIL.slice(0,4), mo=m.UNTIL.slice(4,6), d=m.UNTIL.slice(6,8);
-      repeatUntil.value = `${y}-${mo}-${d}`;
-      document.querySelector('input[name="repeatEnd"][value="on"]').checked = true;
-    }
+
+    syncRepeatUI();
   }
+
   function setAllDayUI(on) {
     if (!timePickers || !datePickers) return;
-    if (on) { timePickers.classList.add('d-none'); datePickers.classList.remove('d-none'); }
-    else    { datePickers.classList.add('d-none'); timePickers.classList.remove('d-none'); }
+    timePickers.classList.toggle('d-none', on);
+    datePickers.classList.toggle('d-none', !on);
+
+    [startTimeBox, endTimeBox].forEach(input => {
+      if (input) input.disabled = on;
+    });
+    [startDateBox, endDateBox].forEach(input => {
+      if (input) input.disabled = !on;
+    });
+
+    clearDateRangeError();
+    updateDurationHint();
   }
-  isAllDayBox && isAllDayBox.addEventListener('change', () => setAllDayUI(isAllDayBox.checked));
+
+  function resetEditorValidation() {
+    if (!form) return;
+    form.classList.remove('was-validated');
+    titleBox?.setCustomValidity('');
+    repeatUntil?.setCustomValidity('');
+    clearDateRangeError();
+    clearFormAlert();
+    setSaving(false);
+  }
+
+  isAllDayBox?.addEventListener('change', () => setAllDayUI(isAllDayBox.checked));
+  [startTimeBox, endTimeBox, startDateBox, endDateBox].forEach(input => {
+    input?.addEventListener('input', () => {
+      validateDateRange();
+      updateDurationHint();
+    });
+    input?.addEventListener('change', () => {
+      validateDateRange();
+      updateDurationHint();
+    });
+  });
+
+  if (form) {
+    setAllDayUI(!!isAllDayBox?.checked);
+    syncRepeatUI();
+  }
 
   // undo toast
   const undoToastEl = document.getElementById('undoToast');
@@ -808,9 +1007,18 @@
 
       const seriesId = ev.extendedProps.seriesId || ev.id;
       const res = await fetch(`/calendar/events/${seriesId}`);
-      if (!res.ok) { console.error('Failed to load event'); return; }
+      if (!res.ok) {
+        console.error('Failed to load event');
+        alert('The event could not be loaded. Please try again.');
+        return;
+      }
+
       const data = await res.json();
+      form.reset();
+      resetEditorValidation();
+      setEditorMode(true);
       editingOriginal = data;
+
       idBox.value = data.id;
       titleBox.value = data.title || '';
       catBox.value = data.category || 'Other';
@@ -819,18 +1027,22 @@
       isAllDayBox.checked = !!data.allDay;
       setAllDayUI(isAllDayBox.checked);
       hydrateRepeatUI(data.recurrenceRule);
+
       if (isAllDayBox.checked) {
         const start = new Date(data.start);
-        const endEx = new Date(data.end); endEx.setDate(endEx.getDate() - 1);
-        form.querySelector('[name="startDate"]').value = toLocalDateInputValue(start);
-        form.querySelector('[name="endDate"]').value = toLocalDateInputValue(endEx);
+        const endInclusive = new Date(data.end);
+        endInclusive.setDate(endInclusive.getDate() - 1);
+        startDateBox.value = toLocalDateInputValue(start);
+        endDateBox.value = toLocalDateInputValue(endInclusive);
       } else {
-        form.querySelector('[name="start"]').value = toLocalInputValue(data.start);
-        form.querySelector('[name="end"]').value = toLocalInputValue(data.end);
+        startTimeBox.value = toLocalInputValue(data.start);
+        endTimeBox.value = toLocalInputValue(data.end);
       }
-      document.getElementById('eventFormLabel').textContent = 'Edit event';
-      btnDelete && btnDelete.classList.remove('d-none');
+
+      updateDurationHint();
+      btnDelete?.classList.remove('d-none');
       bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('eventFormCanvas')).show();
+      window.setTimeout(() => titleBox?.focus(), 250);
     });
 
     const btnNew = document.getElementById('btnNewEvent');
@@ -838,33 +1050,34 @@
     function openNewEvent(start = null, end = null, allDay = false) {
       if (!form) return;
       form.reset();
+      resetEditorValidation();
+      setEditorMode(false);
       editingOriginal = null;
       idBox.value = '';
+      hydrateRepeatUI(null);
       isAllDayBox.checked = !!allDay;
       setAllDayUI(!!allDay);
-      hydrateRepeatUI(null);
-      btnDelete && btnDelete.classList.add('d-none');
+      btnDelete?.classList.add('d-none');
 
-      const startDate = start ? new Date(start) : new Date();
-      const endDate = end ? new Date(end) : new Date(startDate.getTime() + 60 * 60 * 1000);
+      const startValue = start ? new Date(start) : new Date();
+      const endValue = end ? new Date(end) : new Date(startValue.getTime() + 60 * 60 * 1000);
 
       if (allDay) {
-        const inclusiveEnd = new Date(endDate);
+        const inclusiveEnd = new Date(endValue);
         if (end) inclusiveEnd.setDate(inclusiveEnd.getDate() - 1);
-        form.querySelector('[name="startDate"]').value = toLocalDateInputValue(startDate);
-        form.querySelector('[name="endDate"]').value = toLocalDateInputValue(inclusiveEnd);
+        startDateBox.value = toLocalDateInputValue(startValue);
+        endDateBox.value = toLocalDateInputValue(inclusiveEnd);
       } else {
-        form.querySelector('[name="start"]').value = toLocalInputValue(startDate);
-        form.querySelector('[name="end"]').value = toLocalInputValue(endDate);
+        startTimeBox.value = toLocalInputValue(startValue);
+        endTimeBox.value = toLocalInputValue(endValue);
       }
 
-      const lbl = document.getElementById('eventFormLabel');
-      lbl && (lbl.textContent = 'New event');
+      updateDurationHint();
       bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('eventFormCanvas')).show();
       window.setTimeout(() => titleBox?.focus(), 250);
     }
 
-    btnNew && btnNew.addEventListener('click', () => openNewEvent());
+    btnNew?.addEventListener('click', () => openNewEvent());
 
     calendar.setOption('dateClick', (info) => {
       openNewEvent(info.date, null, info.allDay);
@@ -875,40 +1088,63 @@
       calendar.unselect();
     });
 
-    form && form.addEventListener('submit', async (ev) => {
+    form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
-      const fd = new FormData(form);
-      const isAllDay = !!fd.get('isAllDay');
+      clearFormAlert();
 
-      let startUtc, endUtc;
-      if (isAllDay) {
-        const s = fd.get('startDate'); const e = fd.get('endDate');
-        if (!s || !e) { alert('Select start & end dates.'); return; }
-        const start = new Date(`${s}T00:00:00`);
-        const end   = new Date(`${e}T00:00:00`); end.setDate(end.getDate()+1); // exclusive
-        startUtc = start.toISOString(); endUtc = end.toISOString();
-      } else {
-        const s = fd.get('start'); const e = fd.get('end');
-        if (!s || !e) { alert('Select start & end times.'); return; }
-        startUtc = new Date(s).toISOString();
-        endUtc   = new Date(e).toISOString();
+      const trimmedTitle = titleBox.value.trim();
+      titleBox.setCustomValidity(trimmedTitle ? '' : 'Enter a title for the event.');
+
+      if (repeatUntil) {
+        const repeatEndDateRequired = !!repeatFreq?.value && !!repeatEndOn?.checked;
+        repeatUntil.setCustomValidity(repeatEndDateRequired && !repeatUntil.value
+          ? 'Select when the recurring event ends.'
+          : '');
       }
-      if (new Date(endUtc) <= new Date(startUtc)) { alert('End must be after start.'); return; }
+
+      validateDateRange();
+      form.classList.add('was-validated');
+
+      if (!form.checkValidity()) {
+        const firstInvalid = form.querySelector(':invalid');
+        firstInvalid?.focus();
+        return;
+      }
+
+      const fd = new FormData(form);
+      const isAllDay = !!isAllDayBox.checked;
+      let startUtc;
+      let endUtc;
+
+      if (isAllDay) {
+        const start = new Date(`${fd.get('startDate')}T00:00:00`);
+        const end = new Date(`${fd.get('endDate')}T00:00:00`);
+        end.setDate(end.getDate() + 1); // API uses an exclusive all-day end.
+        startUtc = start.toISOString();
+        endUtc = end.toISOString();
+      } else {
+        startUtc = new Date(fd.get('start')).toISOString();
+        endUtc = new Date(fd.get('end')).toISOString();
+      }
 
       const startLocalIso = isAllDay
         ? `${fd.get('startDate')}T00:00`
         : fd.get('start');
       const rrule = buildRRule(startLocalIso);
+      const recurrenceUntilUtc = rrule && repeatEndOn?.checked && repeatUntil?.value
+        ? new Date(`${repeatUntil.value}T23:59:59`).toISOString()
+        : null;
 
       const dto = {
-        title: (fd.get('title')||'').toString().trim(),
-        description: (fd.get('description')||'').toString(),
-        category: (fd.get('category')||'Other').toString(),
-        location: (fd.get('location')||'').toString() || null,
+        title: trimmedTitle,
+        description: (fd.get('description') || '').toString().trim(),
+        category: (fd.get('category') || 'Other').toString(),
+        location: (fd.get('location') || '').toString().trim() || null,
         isAllDay,
-        startUtc, endUtc,
+        startUtc,
+        endUtc,
         recurrenceRule: rrule,
-        recurrenceUntilUtc: repeatUntil.value ? new Date(repeatUntil.value + 'T23:59:59').toISOString() : null
+        recurrenceUntilUtc
       };
 
       const id = fd.get('id');
@@ -924,61 +1160,98 @@
           location: editingOriginal.location,
           isAllDay: editingOriginal.allDay,
           startUtc: new Date(editingOriginal.start).toISOString(),
-          endUtc: new Date(editingOriginal.end).toISOString()
+          endUtc: new Date(editingOriginal.end).toISOString(),
+          recurrenceRule: editingOriginal.recurrenceRule || null,
+          recurrenceUntilUtc: editingOriginal.recurrenceUntilUtc
+            ? new Date(editingOriginal.recurrenceUntilUtc).toISOString()
+            : null
         };
       }
 
-      const r = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dto)
-      });
-      if (!r.ok) {
-        let msg = await r.text();
-        try { const j = JSON.parse(msg); msg = j.detail || j.title || j; } catch {}
-        alert(`Save failed: ${msg || r.status}`);
-        return;
-      }
+      setSaving(true);
+      try {
+        const response = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dto)
+        });
 
-      let createdId = null;
-      if (!id) {
-        const j = await r.json();
-        createdId = j.id;
-      }
+        if (!response.ok) {
+          let message = await response.text();
+          try {
+            const problem = JSON.parse(message);
+            message = problem.detail || problem.title || problem.message || message;
+          } catch { }
+          showFormAlert(`The event could not be saved. ${message || `Error ${response.status}`}`);
+          return;
+        }
 
-      form.reset(); setAllDayUI(false); hydrateRepeatUI(null);
-      btnDelete && btnDelete.classList.add('d-none');
-      const canvasEl = document.getElementById('eventFormCanvas');
-      const canvas = canvasEl ? bootstrap.Offcanvas.getOrCreateInstance(canvasEl) : null;
-      canvas && canvas.hide();
-      editingOriginal = null;
-      calendar.refetchEvents();
+        let createdId = null;
+        if (!id) {
+          const payload = await response.json();
+          createdId = payload.id;
+        }
 
-      if (id && undoPayload) {
-        showUndo('Event saved.', async () => {
-          await fetch(`/calendar/events/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(undoPayload)
+        form.reset();
+        setAllDayUI(false);
+        hydrateRepeatUI(null);
+        resetEditorValidation();
+        btnDelete?.classList.add('d-none');
+
+        const canvasEl = document.getElementById('eventFormCanvas');
+        const canvas = canvasEl ? bootstrap.Offcanvas.getOrCreateInstance(canvasEl) : null;
+        canvas?.hide();
+        editingOriginal = null;
+        calendar.refetchEvents();
+
+        if (id && undoPayload) {
+          showUndo('Event saved.', async () => {
+            await fetch(`/calendar/events/${id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(undoPayload)
+            });
           });
-        });
-      } else if (createdId) {
-        showUndo('Event created.', async () => {
-          await fetch(`/calendar/events/${createdId}`, { method: 'DELETE' });
-        });
+        } else if (createdId) {
+          showUndo('Event created.', async () => {
+            await fetch(`/calendar/events/${createdId}`, { method: 'DELETE' });
+          });
+        }
+      } catch (error) {
+        console.error(error);
+        showFormAlert('The event could not be saved because the server could not be reached.');
+      } finally {
+        setSaving(false);
       }
     });
 
-    btnDelete && btnDelete.addEventListener('click', async () => {
+    btnDelete?.addEventListener('click', async () => {
       const id = idBox.value;
-      if (!id) return;
-      if (!confirm('Delete this event?')) return;
-      const r = await fetch(`/calendar/events/${id}`, { method: 'DELETE' });
-      if (!r.ok) { alert('Delete failed'); return; }
-      bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('eventFormCanvas')).hide();
-      form.reset(); setAllDayUI(false); hydrateRepeatUI(null);
-      btnDelete.classList.add('d-none');
-      calendar.refetchEvents();
+      if (!id || !confirm('Delete this event?')) return;
+
+      clearFormAlert();
+      btnDelete.disabled = true;
+      try {
+        const response = await fetch(`/calendar/events/${id}`, { method: 'DELETE' });
+        if (!response.ok) {
+          showFormAlert('The event could not be deleted. Please try again.');
+          return;
+        }
+
+        bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('eventFormCanvas')).hide();
+        form.reset();
+        setAllDayUI(false);
+        hydrateRepeatUI(null);
+        resetEditorValidation();
+        btnDelete.classList.add('d-none');
+        editingOriginal = null;
+        calendar.refetchEvents();
+      } catch (error) {
+        console.error(error);
+        showFormAlert('The event could not be deleted because the server could not be reached.');
+      } finally {
+        btnDelete.disabled = false;
+      }
     });
   } else {
     // Read-only event details for non-editors

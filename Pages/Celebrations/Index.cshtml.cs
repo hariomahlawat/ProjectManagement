@@ -46,7 +46,13 @@ public class IndexModel : PageModel
     public bool CanManageBirthdays { get; private set; }
     public bool CanManageAnniversaries { get; private set; }
     public bool CanEdit => CanManageBirthdays || CanManageAnniversaries;
-    public string AddButtonLabel => CanManageAnniversaries ? "Add celebration" : "Add birthday";
+    public string AddButtonLabel => (CanManageBirthdays, CanManageAnniversaries) switch
+    {
+        (true, true) => "Add celebration",
+        (true, false) => "Add birthday",
+        (false, true) => "Add anniversary",
+        _ => "Add celebration"
+    };
 
     public bool CanManage(CelebrationType eventType) => eventType switch
     {

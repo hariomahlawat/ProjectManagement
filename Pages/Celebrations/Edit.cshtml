@@ -20,10 +20,10 @@
                 <p class="text-muted small mb-0">The entry will recur annually on the selected date.</p>
             </div>
             <div class="card-body p-4">
-                @if (Model.IsBirthdayOnlyEditor)
+                @if (Model.IsRestrictedEditor)
                 {
                     <div class="alert alert-info py-2 small">
-                        Main Office can maintain birthday entries only.
+                        @Model.PermissionNotice
                     </div>
                 }
 
@@ -34,7 +34,7 @@
 
                     <div class="mb-3">
                         <label asp-for="Input.EventType" class="form-label"></label>
-                        @if (Model.CanManageAnniversaries)
+                        @if (Model.CanManageBothTypes)
                         {
                             <select asp-for="Input.EventType" class="form-select">
                                 <option value="Birthday">Birthday</option>
@@ -44,7 +44,7 @@
                         else
                         {
                             <input type="hidden" asp-for="Input.EventType" />
-                            <input class="form-control" value="Birthday" readonly aria-label="Type" />
+                            <input class="form-control" value="@Model.RestrictedTypeLabel" readonly aria-label="Type" />
                         }
                         <span asp-validation-for="Input.EventType" class="text-danger small"></span>
                     </div>

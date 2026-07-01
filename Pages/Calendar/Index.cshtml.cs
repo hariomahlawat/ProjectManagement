@@ -24,9 +24,13 @@ public class IndexModel : PageModel
     public bool CanManageBirthdays { get; private set; }
     public bool CanManageAnniversaries { get; private set; }
     public bool CanManageCelebrations => CanManageBirthdays || CanManageAnniversaries;
-    public string CelebrationManagementLabel => CanManageAnniversaries
-        ? "Manage celebrations"
-        : "Manage birthdays";
+    public string CelebrationManagementLabel => (CanManageBirthdays, CanManageAnniversaries) switch
+    {
+        (true, true) => "Manage celebrations",
+        (true, false) => "Manage birthdays",
+        (false, true) => "Manage anniversaries",
+        _ => "Manage celebrations"
+    };
     public bool ShowCelebrations { get; private set; }
 
     public async Task OnGetAsync()

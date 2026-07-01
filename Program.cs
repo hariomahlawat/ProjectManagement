@@ -182,7 +182,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(Policies.Calendar.ManageBirthdays, policy =>
         policy.RequireRole(Policies.Calendar.BirthdayManagerRoles));
     options.AddPolicy(Policies.Calendar.ManageAnniversaries, policy =>
-        policy.RequireRole(Policies.Calendar.FullCelebrationManagerRoles));
+        policy.RequireRole(Policies.Calendar.AnniversaryManagerRoles));
     options.AddPolicy("Checklist.View", policy =>
         policy.RequireAuthenticatedUser());
     options.AddPolicy("Checklist.Edit", policy =>

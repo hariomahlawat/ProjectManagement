@@ -97,14 +97,15 @@ namespace ProjectManagement.Tests
 
         [Theory]
         [InlineData(RoleNames.Admin, true)]
-        [InlineData(RoleNames.HoD, true)]
+        [InlineData(RoleNames.HoD, false)]
         [InlineData(RoleNames.Ta, true)]
-        [InlineData(RoleNames.Comdt, true)]
+        [InlineData(RoleNames.Comdt, false)]
         [InlineData(RoleNames.MainOfficeClerk, true)]
         [InlineData(RoleNames.MainOfficeAlternate, true)]
         [InlineData(RoleNames.Mco, false)]
         [InlineData(RoleNames.ProjectOfficer, false)]
         [InlineData(RoleNames.ProjectOffice, false)]
+        [InlineData(RoleNames.ProjectOfficeAlternate, false)]
         public async Task BirthdayPolicyUsesTheRequiredRoleMatrix(string role, bool expected)
         {
             using var scope = _factory.Services.CreateScope();
@@ -117,12 +118,16 @@ namespace ProjectManagement.Tests
 
         [Theory]
         [InlineData(RoleNames.Admin, true)]
-        [InlineData(RoleNames.HoD, true)]
+        [InlineData(RoleNames.HoD, false)]
         [InlineData(RoleNames.Ta, true)]
-        [InlineData(RoleNames.Comdt, true)]
-        [InlineData(RoleNames.MainOfficeClerk, false)]
-        [InlineData(RoleNames.MainOfficeAlternate, false)]
-        public async Task AnniversaryPolicyDoesNotGrantMainOfficeAccess(string role, bool expected)
+        [InlineData(RoleNames.Comdt, false)]
+        [InlineData(RoleNames.MainOfficeClerk, true)]
+        [InlineData(RoleNames.MainOfficeAlternate, true)]
+        [InlineData(RoleNames.Mco, false)]
+        [InlineData(RoleNames.ProjectOfficer, false)]
+        [InlineData(RoleNames.ProjectOffice, false)]
+        [InlineData(RoleNames.ProjectOfficeAlternate, false)]
+        public async Task AnniversaryPolicyUsesTheRequiredRoleMatrix(string role, bool expected)
         {
             using var scope = _factory.Services.CreateScope();
             var auth = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Authorization.IAuthorizationService>();
