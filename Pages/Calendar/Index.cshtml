@@ -162,7 +162,7 @@
         <section class="calendar-form-section" aria-labelledby="eventTimingHeading">
           <div class="calendar-form-section-header calendar-timing-header">
             <div>
-              <h6 id="eventTimingHeading">Date and time</h6>
+              <h6 id="eventTimingHeading">When</h6>
               <p>Choose a timed event or switch to an all-day event.</p>
             </div>
             <div class="form-check form-switch calendar-all-day-switch">
@@ -171,28 +171,54 @@
             </div>
           </div>
 
-          <div class="row g-3" id="timePickers">
-            <div class="col-12 col-sm-6">
-              <label class="form-label" for="eventStart">Starts</label>
-              <input type="datetime-local" class="form-control" id="eventStart" name="start" required />
-              <div class="invalid-feedback">Select the start date and time.</div>
+          <div class="calendar-inline-hint">
+            <i class="bi bi-clock-history" aria-hidden="true"></i>
+            <span>All times use your local browser time.</span>
+          </div>
+
+          <div id="timedDateTimeFields" class="calendar-date-time-grid">
+            <div class="calendar-date-time-row">
+              <div class="calendar-date-time-heading">
+                <label class="form-label" for="eventStartDateTimed">Starts</label>
+              </div>
+              <div class="calendar-date-time-inputs row g-2">
+                <div class="col-12 col-sm-7">
+                  <input type="date" class="form-control" id="eventStartDateTimed" name="startDateTimed" required />
+                  <div class="invalid-feedback">Select the start date.</div>
+                </div>
+                <div class="col-12 col-sm-5">
+                  <input type="time" class="form-control" id="eventStartTimeTimed" name="startTimeTimed" step="900" required />
+                  <div class="invalid-feedback">Select the start time.</div>
+                </div>
+              </div>
             </div>
-            <div class="col-12 col-sm-6">
-              <label class="form-label" for="eventEnd">Ends</label>
-              <input type="datetime-local" class="form-control" id="eventEnd" name="end" required />
-              <div class="invalid-feedback">Select a valid end date and time.</div>
+
+            <div class="calendar-date-time-row">
+              <div class="calendar-date-time-heading">
+                <label class="form-label" for="eventEndDateTimed">Ends</label>
+              </div>
+              <div class="calendar-date-time-inputs row g-2">
+                <div class="col-12 col-sm-7">
+                  <input type="date" class="form-control" id="eventEndDateTimed" name="endDateTimed" required />
+                  <div class="invalid-feedback">Select the end date.</div>
+                </div>
+                <div class="col-12 col-sm-5">
+                  <input type="time" class="form-control" id="eventEndTimeTimed" name="endTimeTimed" step="900" required />
+                  <div class="invalid-feedback">Select a valid end time.</div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="row g-3 d-none" id="datePickers">
+          <div class="row g-3 d-none" id="allDayDateFields">
             <div class="col-12 col-sm-6">
-              <label class="form-label" for="eventStartDate">Start date</label>
-              <input type="date" class="form-control" id="eventStartDate" name="startDate" required disabled />
+              <label class="form-label" for="eventStartDateAllDay">Start date</label>
+              <input type="date" class="form-control" id="eventStartDateAllDay" name="startDateAllDay" required disabled />
               <div class="invalid-feedback">Select the start date.</div>
             </div>
             <div class="col-12 col-sm-6">
-              <label class="form-label" for="eventEndDate">End date</label>
-              <input type="date" class="form-control" id="eventEndDate" name="endDate" required disabled />
+              <label class="form-label" for="eventEndDateAllDay">End date</label>
+              <input type="date" class="form-control" id="eventEndDateAllDay" name="endDateAllDay" required disabled />
               <div class="invalid-feedback">Select a valid end date.</div>
             </div>
           </div>
@@ -201,98 +227,110 @@
           <div id="eventDurationHint" class="calendar-duration-hint" aria-live="polite"></div>
         </section>
 
-        <section class="calendar-form-section" aria-labelledby="eventRepeatHeading">
-          <div class="calendar-form-section-header">
+        <details class="calendar-form-section calendar-advanced-options" id="eventAdvancedOptions">
+          <summary class="calendar-advanced-summary">
             <div>
-              <h6 id="eventRepeatHeading">Repeat</h6>
-              <p>Set a recurring schedule only when required.</p>
+              <span class="calendar-advanced-title">More options</span>
+              <span class="calendar-advanced-copy">Repeat and additional details</span>
             </div>
-          </div>
+            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+          </summary>
 
-          <label class="form-label visually-hidden" for="repeatFreq">Repeat frequency</label>
-          <select class="form-select" id="repeatFreq">
-            <option value="">Does not repeat</option>
-            <option value="WEEKLY">Weekly</option>
-            <option value="MONTHLY">Monthly</option>
-          </select>
-
-          <div id="repeatOptions" class="calendar-repeat-options d-none">
-            <div id="repeatWeekly" class="d-none">
-              <div class="calendar-field-caption">Repeat on</div>
-              <div class="calendar-weekday-picker" role="group" aria-label="Repeat on weekdays">
-                <label><input class="visually-hidden" type="checkbox" value="MO"><span>Mon</span></label>
-                <label><input class="visually-hidden" type="checkbox" value="TU"><span>Tue</span></label>
-                <label><input class="visually-hidden" type="checkbox" value="WE"><span>Wed</span></label>
-                <label><input class="visually-hidden" type="checkbox" value="TH"><span>Thu</span></label>
-                <label><input class="visually-hidden" type="checkbox" value="FR"><span>Fri</span></label>
-                <label><input class="visually-hidden" type="checkbox" value="SA"><span>Sat</span></label>
-                <label><input class="visually-hidden" type="checkbox" value="SU"><span>Sun</span></label>
-              </div>
-            </div>
-
-            <div id="repeatMonthly" class="d-none">
-              <label class="form-label" for="repeatMonthDay">Day of month</label>
-              <div class="input-group">
-                <span class="input-group-text">Day</span>
-                <input type="number"
-                       min="1"
-                       max="31"
-                       class="form-control"
-                       id="repeatMonthDay"
-                       placeholder="Uses start date" />
-              </div>
-            </div>
-
-            <div class="calendar-repeat-end">
-              <div class="calendar-field-caption">Ends</div>
-              <div class="calendar-repeat-end-options">
-                <div class="form-check calendar-radio-option">
-                  <input class="form-check-input"
-                         type="radio"
-                         id="repeatEndNever"
-                         name="repeatEnd"
-                         value="never"
-                         checked>
-                  <label class="form-check-label" for="repeatEndNever">Never</label>
+          <div class="calendar-advanced-body">
+            <section class="calendar-collapsible-section" aria-labelledby="eventRepeatHeading">
+              <div class="calendar-form-section-header">
+                <div>
+                  <h6 id="eventRepeatHeading">Repeat</h6>
+                  <p>Set a recurring schedule only when required.</p>
                 </div>
-                <div class="calendar-repeat-on-date">
-                  <div class="form-check calendar-radio-option">
-                    <input class="form-check-input"
-                           type="radio"
-                           id="repeatEndOn"
-                           name="repeatEnd"
-                           value="on">
-                    <label class="form-check-label" for="repeatEndOn">On date</label>
+              </div>
+
+              <label class="form-label visually-hidden" for="repeatFreq">Repeat frequency</label>
+              <select class="form-select" id="repeatFreq">
+                <option value="">Does not repeat</option>
+                <option value="WEEKLY">Weekly</option>
+                <option value="MONTHLY">Monthly</option>
+              </select>
+
+              <div id="repeatOptions" class="calendar-repeat-options d-none">
+                <div id="repeatWeekly" class="d-none">
+                  <div class="calendar-field-caption">Repeat on</div>
+                  <div class="calendar-weekday-picker" role="group" aria-label="Repeat on weekdays">
+                    <label><input class="visually-hidden" type="checkbox" value="MO"><span>Mon</span></label>
+                    <label><input class="visually-hidden" type="checkbox" value="TU"><span>Tue</span></label>
+                    <label><input class="visually-hidden" type="checkbox" value="WE"><span>Wed</span></label>
+                    <label><input class="visually-hidden" type="checkbox" value="TH"><span>Thu</span></label>
+                    <label><input class="visually-hidden" type="checkbox" value="FR"><span>Fri</span></label>
+                    <label><input class="visually-hidden" type="checkbox" value="SA"><span>Sat</span></label>
+                    <label><input class="visually-hidden" type="checkbox" value="SU"><span>Sun</span></label>
                   </div>
-                  <div class="calendar-repeat-date-field">
-                    <input type="date"
+                </div>
+
+                <div id="repeatMonthly" class="d-none">
+                  <label class="form-label" for="repeatMonthDay">Day of month</label>
+                  <div class="input-group">
+                    <span class="input-group-text">Day</span>
+                    <input type="number"
+                           min="1"
+                           max="31"
                            class="form-control"
-                           id="repeatUntil"
-                           aria-label="Repeat end date"
-                           disabled>
-                    <div class="invalid-feedback">Select the repeat end date.</div>
+                           id="repeatMonthDay"
+                           placeholder="Uses start date" />
+                  </div>
+                </div>
+
+                <div class="calendar-repeat-end">
+                  <div class="calendar-field-caption">Ends</div>
+                  <div class="calendar-repeat-end-options">
+                    <div class="form-check calendar-radio-option">
+                      <input class="form-check-input"
+                             type="radio"
+                             id="repeatEndNever"
+                             name="repeatEnd"
+                             value="never"
+                             checked>
+                      <label class="form-check-label" for="repeatEndNever">Never</label>
+                    </div>
+                    <div class="calendar-repeat-on-date">
+                      <div class="form-check calendar-radio-option">
+                        <input class="form-check-input"
+                               type="radio"
+                               id="repeatEndOn"
+                               name="repeatEnd"
+                               value="on">
+                        <label class="form-check-label" for="repeatEndOn">On date</label>
+                      </div>
+                      <div class="calendar-repeat-date-field">
+                        <input type="date"
+                               class="form-control"
+                               id="repeatUntil"
+                               aria-label="Repeat end date"
+                               disabled>
+                        <div class="invalid-feedback">Select the repeat end date.</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </section>
+            </section>
 
-        <section class="calendar-form-section" aria-labelledby="eventNotesHeading">
-          <div class="calendar-form-section-header">
-            <div>
-              <h6 id="eventNotesHeading">Additional details</h6>
-              <p>Add information that attendees may need.</p>
-            </div>
+            <section class="calendar-collapsible-section" aria-labelledby="eventNotesHeading">
+              <div class="calendar-form-section-header">
+                <div>
+                  <h6 id="eventNotesHeading">Additional details</h6>
+                  <p>Add information that attendees may need.</p>
+                </div>
+              </div>
+              <label class="form-label" for="eventDescription">Description <span class="calendar-optional">Optional</span></label>
+              <textarea class="form-control"
+                        id="eventDescription"
+                        rows="4"
+                        name="description"
+                        maxlength="4000"
+                        placeholder="Agenda, instructions, point of contact, or joining details"></textarea>
+            </section>
           </div>
-          <label class="form-label" for="eventDescription">Description <span class="calendar-optional">Optional</span></label>
-          <textarea class="form-control"
-                    id="eventDescription"
-                    rows="4"
-                    name="description"
-                    maxlength="4000"
-                    placeholder="Agenda, instructions, point of contact, or joining details"></textarea>
-        </section>
+        </details>
       </div>
 
       <div class="calendar-editor-footer">

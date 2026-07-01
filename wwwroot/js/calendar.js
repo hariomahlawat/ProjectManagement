@@ -70,6 +70,28 @@
     return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
   };
 
+  const toLocalTimeInputValue = (d) => {
+    const dt = new Date(d);
+    return `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+  };
+
+  const combineLocalDateTime = (datePart, timePart) => {
+    if (!datePart || !timePart) return null;
+    return new Date(`${datePart}T${timePart}`);
+  };
+
+  const roundUpToInterval = (date, minutes = 15) => {
+    const dt = new Date(date);
+    dt.setSeconds(0, 0);
+    const ms = minutes * 60 * 1000;
+    const rounded = new Date(Math.ceil(dt.getTime() / ms) * ms);
+    if (rounded.getTime() === dt.getTime()) {
+      return rounded;
+    }
+    rounded.setSeconds(0, 0);
+    return rounded;
+  };
+
   const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' });
   const formatDisplayDate = (date) => {
     const d = date instanceof Date ? date : new Date(date);
@@ -222,12 +244,15 @@
   const locBox = form ? form.querySelector('[name="location"]') : null;
   const descBox = form ? form.querySelector('[name="description"]') : null;
   const isAllDayBox = document.getElementById('toggleAllDay');
-  const timePickers = document.getElementById('timePickers');
-  const datePickers = document.getElementById('datePickers');
-  const startTimeBox = form ? form.querySelector('[name="start"]') : null;
-  const endTimeBox = form ? form.querySelector('[name="end"]') : null;
-  const startDateBox = form ? form.querySelector('[name="startDate"]') : null;
-  const endDateBox = form ? form.querySelector('[name="endDate"]') : null;
+  const timedDateTimeFields = document.getElementById('timedDateTimeFields');
+  const allDayDateFields = document.getElementById('allDayDateFields');
+  const startDateTimedBox = document.getElementById('eventStartDateTimed');
+  const startTimeTimedBox = document.getElementById('eventStartTimeTimed');
+  const endDateTimedBox = document.getElementById('eventEndDateTimed');
+  const endTimeTimedBox = document.getElementById('eventEndTimeTimed');
+  const startDateAllDayBox = document.getElementById('eventStartDateAllDay');
+  const endDateAllDayBox = document.getElementById('eventEndDateAllDay');
+  const advancedOptions = document.getElementById('eventAdvancedOptions');
   const btnDelete = document.getElementById('btnDeleteEvent');
   const btnSave = document.getElementById('btnSaveEvent');
   const saveSpinner = document.getElementById('eventSaveSpinner');
@@ -284,8 +309,9 @@
   }
 
   function clearDateRangeError() {
-    endTimeBox?.setCustomValidity('');
-    endDateBox?.setCustomValidity('');
+    endTimeTimedBox?.setCustomValidity('');
+    endDateTimedBox?.setCustomValidity('');
+    endDateAllDayBox?.setCustomValidity('');
     if (dateRangeError) {
       dateRangeError.textContent = '';
       dateRangeError.classList.add('d-none');
@@ -306,21 +332,22 @@
     if (!form || !isAllDayBox) return true;
 
     if (isAllDayBox.checked) {
-      if (!startDateBox?.value || !endDateBox?.value) return true;
-      const start = new Date(`${startDateBox.value}T00:00:00`);
-      const end = new Date(`${endDateBox.value}T00:00:00`);
+      if (!startDateAllDayBox?.value || !endDateAllDayBox?.value) return true;
+      const start = new Date(`${startDateAllDayBox.value}T00:00:00`);
+      const end = new Date(`${endDateAllDayBox.value}T00:00:00`);
       if (end < start) {
-        showDateRangeError('End date cannot be before the start date.', endDateBox);
+        showDateRangeError('End date cannot be before the start date.', endDateAllDayBox);
         return false;
       }
       return true;
     }
 
-    if (!startTimeBox?.value || !endTimeBox?.value) return true;
-    const start = new Date(startTimeBox.value);
-    const end = new Date(endTimeBox.value);
+    if (!startDateTimedBox?.value || !startTimeTimedBox?.value || !endDateTimedBox?.value || !endTimeTimedBox?.value) return true;
+    const start = combineLocalDateTime(startDateTimedBox.value, startTimeTimedBox.value);
+    const end = combineLocalDateTime(endDateTimedBox.value, endTimeTimedBox.value);
+    if (!start || !end) return true;
     if (end <= start) {
-      showDateRangeError('End time must be after the start time.', endTimeBox);
+      showDateRangeError('End time must be after the start time.', endTimeTimedBox);
       return false;
     }
     return true;
@@ -331,18 +358,19 @@
     durationHint.textContent = '';
 
     if (isAllDayBox.checked) {
-      if (!startDateBox?.value || !endDateBox?.value) return;
-      const start = new Date(`${startDateBox.value}T00:00:00`);
-      const end = new Date(`${endDateBox.value}T00:00:00`);
+      if (!startDateAllDayBox?.value || !endDateAllDayBox?.value) return;
+      const start = new Date(`${startDateAllDayBox.value}T00:00:00`);
+      const end = new Date(`${endDateAllDayBox.value}T00:00:00`);
       if (end < start) return;
       const days = Math.round((end - start) / 86400000) + 1;
       durationHint.textContent = days === 1 ? '1 all-day event' : `${days} calendar days`;
       return;
     }
 
-    if (!startTimeBox?.value || !endTimeBox?.value) return;
-    const start = new Date(startTimeBox.value);
-    const end = new Date(endTimeBox.value);
+    if (!startDateTimedBox?.value || !startTimeTimedBox?.value || !endDateTimedBox?.value || !endTimeTimedBox?.value) return;
+    const start = combineLocalDateTime(startDateTimedBox.value, startTimeTimedBox.value);
+    const end = combineLocalDateTime(endDateTimedBox.value, endTimeTimedBox.value);
+    if (!start || !end) return;
     const minutes = Math.round((end - start) / 60000);
     if (minutes <= 0) return;
 
@@ -453,14 +481,14 @@
   }
 
   function setAllDayUI(on) {
-    if (!timePickers || !datePickers) return;
-    timePickers.classList.toggle('d-none', on);
-    datePickers.classList.toggle('d-none', !on);
+    if (!timedDateTimeFields || !allDayDateFields) return;
+    timedDateTimeFields.classList.toggle('d-none', on);
+    allDayDateFields.classList.toggle('d-none', !on);
 
-    [startTimeBox, endTimeBox].forEach(input => {
+    [startDateTimedBox, startTimeTimedBox, endDateTimedBox, endTimeTimedBox].forEach(input => {
       if (input) input.disabled = on;
     });
-    [startDateBox, endDateBox].forEach(input => {
+    [startDateAllDayBox, endDateAllDayBox].forEach(input => {
       if (input) input.disabled = !on;
     });
 
@@ -478,8 +506,13 @@
     setSaving(false);
   }
 
+  function setAdvancedOptionsOpen(isOpen) {
+    if (!advancedOptions) return;
+    advancedOptions.open = !!isOpen;
+  }
+
   isAllDayBox?.addEventListener('change', () => setAllDayUI(isAllDayBox.checked));
-  [startTimeBox, endTimeBox, startDateBox, endDateBox].forEach(input => {
+  [startDateTimedBox, startTimeTimedBox, endDateTimedBox, endTimeTimedBox, startDateAllDayBox, endDateAllDayBox].forEach(input => {
     input?.addEventListener('input', () => {
       validateDateRange();
       updateDurationHint();
@@ -493,6 +526,16 @@
   if (form) {
     setAllDayUI(!!isAllDayBox?.checked);
     syncRepeatUI();
+
+    const eventFormCanvasEl = document.getElementById('eventFormCanvas');
+    eventFormCanvasEl?.addEventListener('hidden.bs.offcanvas', () => {
+      form.reset();
+      setAllDayUI(false);
+      hydrateRepeatUI(null);
+      setAdvancedOptionsOpen(false);
+      resetEditorValidation();
+      btnDelete?.classList.add('d-none');
+    });
   }
 
   // undo toast
@@ -1027,16 +1070,21 @@
       isAllDayBox.checked = !!data.allDay;
       setAllDayUI(isAllDayBox.checked);
       hydrateRepeatUI(data.recurrenceRule);
+      setAdvancedOptionsOpen(!!(data.recurrenceRule || data.rawDescription));
 
       if (isAllDayBox.checked) {
         const start = new Date(data.start);
         const endInclusive = new Date(data.end);
         endInclusive.setDate(endInclusive.getDate() - 1);
-        startDateBox.value = toLocalDateInputValue(start);
-        endDateBox.value = toLocalDateInputValue(endInclusive);
+        startDateAllDayBox.value = toLocalDateInputValue(start);
+        endDateAllDayBox.value = toLocalDateInputValue(endInclusive);
       } else {
-        startTimeBox.value = toLocalInputValue(data.start);
-        endTimeBox.value = toLocalInputValue(data.end);
+        const start = new Date(data.start);
+        const end = new Date(data.end);
+        startDateTimedBox.value = toLocalDateInputValue(start);
+        startTimeTimedBox.value = toLocalTimeInputValue(start);
+        endDateTimedBox.value = toLocalDateInputValue(end);
+        endTimeTimedBox.value = toLocalTimeInputValue(end);
       }
 
       updateDurationHint();
@@ -1055,21 +1103,28 @@
       editingOriginal = null;
       idBox.value = '';
       hydrateRepeatUI(null);
+      setAdvancedOptionsOpen(false);
       isAllDayBox.checked = !!allDay;
       setAllDayUI(!!allDay);
       btnDelete?.classList.add('d-none');
 
-      const startValue = start ? new Date(start) : new Date();
-      const endValue = end ? new Date(end) : new Date(startValue.getTime() + 60 * 60 * 1000);
-
       if (allDay) {
+        const startValue = start ? new Date(start) : new Date();
+        const endValue = end ? new Date(end) : new Date(startValue);
         const inclusiveEnd = new Date(endValue);
-        if (end) inclusiveEnd.setDate(inclusiveEnd.getDate() - 1);
-        startDateBox.value = toLocalDateInputValue(startValue);
-        endDateBox.value = toLocalDateInputValue(inclusiveEnd);
+        if (end) {
+          inclusiveEnd.setDate(inclusiveEnd.getDate() - 1);
+        }
+        startDateAllDayBox.value = toLocalDateInputValue(startValue);
+        endDateAllDayBox.value = toLocalDateInputValue(inclusiveEnd);
       } else {
-        startTimeBox.value = toLocalInputValue(startValue);
-        endTimeBox.value = toLocalInputValue(endValue);
+        const baseStart = start ? new Date(start) : roundUpToInterval(new Date(), 15);
+        const startValue = roundUpToInterval(baseStart, 15);
+        const endValue = end ? new Date(end) : new Date(startValue.getTime() + 60 * 60 * 1000);
+        startDateTimedBox.value = toLocalDateInputValue(startValue);
+        startTimeTimedBox.value = toLocalTimeInputValue(startValue);
+        endDateTimedBox.value = toLocalDateInputValue(endValue);
+        endTimeTimedBox.value = toLocalTimeInputValue(endValue);
       }
 
       updateDurationHint();
@@ -1115,21 +1170,22 @@
       const isAllDay = !!isAllDayBox.checked;
       let startUtc;
       let endUtc;
+      let startLocalIso;
 
       if (isAllDay) {
-        const start = new Date(`${fd.get('startDate')}T00:00:00`);
-        const end = new Date(`${fd.get('endDate')}T00:00:00`);
+        const start = new Date(`${startDateAllDayBox.value}T00:00:00`);
+        const end = new Date(`${endDateAllDayBox.value}T00:00:00`);
         end.setDate(end.getDate() + 1); // API uses an exclusive all-day end.
         startUtc = start.toISOString();
         endUtc = end.toISOString();
+        startLocalIso = `${startDateAllDayBox.value}T00:00`;
       } else {
-        startUtc = new Date(fd.get('start')).toISOString();
-        endUtc = new Date(fd.get('end')).toISOString();
+        const start = combineLocalDateTime(startDateTimedBox.value, startTimeTimedBox.value);
+        const end = combineLocalDateTime(endDateTimedBox.value, endTimeTimedBox.value);
+        startUtc = start.toISOString();
+        endUtc = end.toISOString();
+        startLocalIso = `${startDateTimedBox.value}T${startTimeTimedBox.value}`;
       }
-
-      const startLocalIso = isAllDay
-        ? `${fd.get('startDate')}T00:00`
-        : fd.get('start');
       const rrule = buildRRule(startLocalIso);
       const recurrenceUntilUtc = rrule && repeatEndOn?.checked && repeatUntil?.value
         ? new Date(`${repeatUntil.value}T23:59:59`).toISOString()
@@ -1195,6 +1251,7 @@
         form.reset();
         setAllDayUI(false);
         hydrateRepeatUI(null);
+        setAdvancedOptionsOpen(false);
         resetEditorValidation();
         btnDelete?.classList.add('d-none');
 
@@ -1242,6 +1299,7 @@
         form.reset();
         setAllDayUI(false);
         hydrateRepeatUI(null);
+        setAdvancedOptionsOpen(false);
         resetEditorValidation();
         btnDelete.classList.add('d-none');
         editingOriginal = null;
