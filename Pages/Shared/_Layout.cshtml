@@ -1,7 +1,5 @@
-@using Microsoft.AspNetCore.Identity
-@using ProjectManagement.Models
-@inject SignInManager<ApplicationUser> SignInManager
-@inject UserManager<ApplicationUser> UserManager
+@using Microsoft.AspNetCore.Antiforgery
+@inject IAntiforgery Antiforgery
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,12 +8,20 @@
     <meta name="theme-color" content="#10213f" />
     <meta name="color-scheme" content="light" />
     @{
+        var renderAntiforgeryToken = User.Identity?.IsAuthenticated == true;
+        var antiforgeryRequestToken = renderAntiforgeryToken
+            ? Antiforgery.GetAndStoreTokens(Context).RequestToken
+            : null;
         var pageTitle = ViewData["Title"]?.ToString();
         var documentTitle = string.Equals(pageTitle, "PRISM ERP", StringComparison.OrdinalIgnoreCase)
             ? "PRISM ERP | Simulator Development Division"
             : $"{pageTitle} | PRISM ERP";
     }
     <title>@documentTitle</title>
+    @if (!string.IsNullOrWhiteSpace(antiforgeryRequestToken))
+    {
+        <meta name="csrf-token" content="@antiforgeryRequestToken" />
+    }
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
@@ -36,7 +42,7 @@
 </head>
 <body class="d-flex flex-column min-vh-100">
     @{
-        var signedIn = SignInManager.IsSignedIn(User);
+        var signedIn = User.Identity?.IsAuthenticated == true;
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
         var currentArea = ViewContext.RouteData.Values["area"]?.ToString();
         var hasCurrentPage = !string.IsNullOrWhiteSpace(currentPage);

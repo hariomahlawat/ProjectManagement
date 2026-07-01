@@ -11,7 +11,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.AspNetCore.Server.IIS;
 using Microsoft.EntityFrameworkCore;
@@ -31,7 +30,6 @@ using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 using ProjectManagement.Configuration;
 using ProjectManagement.Contracts;
 using ProjectManagement.Contracts.Activities;
-using ProjectManagement.Contracts.Notifications;
 using ProjectManagement.Contracts.Stages;
 using ProjectManagement.Data;
 using ProjectManagement.Features.Analytics;
@@ -39,6 +37,7 @@ using ProjectManagement.Features.MediaLibrary;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Outbox;
 using ProjectManagement.Features.MediaLibrary.Services;
+using ProjectManagement.Features.Notifications;
 using ProjectManagement.Features.Remarks;
 using ProjectManagement.Features.Users;
 using ProjectManagement.Helpers;
@@ -1120,6 +1119,7 @@ app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseAntiforgery();
 
 app.MapHub<NotificationsHub>("/hubs/notifications")
     .RequireAuthorization();
@@ -1493,122 +1493,7 @@ eventsApi.MapPost("/preferences/show-celebrations", async (UserManager<Applicati
     return Results.Ok(new { showCelebrations = appUser.ShowCelebrationsInCalendar });
 }).RequireAuthorization();
 
-var notificationsApi = app.MapGroup("/api/notifications")
-    .RequireAuthorization();
-
-notificationsApi.MapGet("", async ([AsParameters] NotificationListRequest request,
-                                     HttpContext httpContext,
-                                     UserNotificationService notifications,
-                                     CancellationToken cancellationToken) =>
-{
-    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(userId))
-    {
-        return Results.Unauthorized();
-    }
-
-    var options = new NotificationListOptions
-    {
-        Limit = request.Limit,
-        OnlyUnread = request.UnreadOnly ?? false,
-        ProjectId = request.ProjectId,
-    };
-
-    var items = await notifications.ListAsync(httpContext.User, userId, options, cancellationToken);
-    return Results.Ok(items);
-});
-
-notificationsApi.MapGet("/count", async (HttpContext httpContext,
-                                         UserNotificationService notifications,
-                                         CancellationToken cancellationToken) =>
-{
-    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(userId))
-    {
-        return Results.Unauthorized();
-    }
-
-    var unread = await notifications.CountUnreadAsync(httpContext.User, userId, cancellationToken);
-    return Results.Ok(new NotificationCountDto(unread));
-});
-
-notificationsApi.MapPost("/{id:int}/read", async (int id,
-                                                   HttpContext httpContext,
-                                                   UserNotificationService notifications,
-                                                   IHubContext<NotificationsHub, INotificationsClient> hubContext,
-                                                   CancellationToken cancellationToken) =>
-{
-    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(userId))
-    {
-        return Results.Unauthorized();
-    }
-
-    var result = await notifications.MarkReadAsync(httpContext.User, userId, id, cancellationToken);
-
-    return await HandleNotificationOperationResultAsync(result, httpContext.User, userId, notifications, hubContext, cancellationToken);
-});
-
-notificationsApi.MapDelete("/{id:int}/read", async (int id,
-                                                      HttpContext httpContext,
-                                                      UserNotificationService notifications,
-                                                      IHubContext<NotificationsHub, INotificationsClient> hubContext,
-                                                      CancellationToken cancellationToken) =>
-{
-    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(userId))
-    {
-        return Results.Unauthorized();
-    }
-
-    var result = await notifications.MarkUnreadAsync(httpContext.User, userId, id, cancellationToken);
-
-    return await HandleNotificationOperationResultAsync(result, httpContext.User, userId, notifications, hubContext, cancellationToken);
-});
-
-notificationsApi.MapPost("/projects/{projectId:int}/mute", async (int projectId,
-                                                                   HttpContext httpContext,
-                                                                   UserNotificationService notifications,
-                                                                   CancellationToken cancellationToken) =>
-{
-    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(userId))
-    {
-        return Results.Unauthorized();
-    }
-
-    var result = await notifications.SetProjectMuteAsync(httpContext.User, userId, projectId, true, cancellationToken);
-
-    return result switch
-    {
-        NotificationOperationResult.Success => Results.NoContent(),
-        NotificationOperationResult.NotFound => Results.NotFound(),
-        NotificationOperationResult.Forbidden => Results.Forbid(),
-        _ => Results.BadRequest()
-    };
-});
-
-notificationsApi.MapDelete("/projects/{projectId:int}/mute", async (int projectId,
-                                                                      HttpContext httpContext,
-                                                                      UserNotificationService notifications,
-                                                                      CancellationToken cancellationToken) =>
-{
-    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(userId))
-    {
-        return Results.Unauthorized();
-    }
-
-    var result = await notifications.SetProjectMuteAsync(httpContext.User, userId, projectId, false, cancellationToken);
-
-    return result switch
-    {
-        NotificationOperationResult.Success => Results.NoContent(),
-        NotificationOperationResult.NotFound => Results.NotFound(),
-        NotificationOperationResult.Forbidden => Results.Forbid(),
-        _ => Results.BadRequest()
-    };
-});
+app.MapNotificationApi();
 
 var projectsApi = app.MapGroup("/api/projects").RequireAuthorization();
 
@@ -3206,35 +3091,6 @@ static string BuildDirectiveWithExtras(
         .ToArray();
 
     return string.Join(" ", normalizedSources);
-}
-
-static async Task<IResult> HandleNotificationOperationResultAsync(
-    NotificationOperationResult result,
-    ClaimsPrincipal principal,
-    string userId,
-    UserNotificationService notifications,
-    IHubContext<NotificationsHub, INotificationsClient> hubContext,
-    CancellationToken cancellationToken)
-{
-    return result switch
-    {
-        NotificationOperationResult.Success => await SendUnreadCountAsync(principal, userId, notifications, hubContext, cancellationToken),
-        NotificationOperationResult.NotFound => Results.NotFound(),
-        NotificationOperationResult.Forbidden => Results.Forbid(),
-        _ => Results.BadRequest(),
-    };
-}
-
-static async Task<IResult> SendUnreadCountAsync(
-    ClaimsPrincipal principal,
-    string userId,
-    UserNotificationService notifications,
-    IHubContext<NotificationsHub, INotificationsClient> hubContext,
-    CancellationToken cancellationToken)
-{
-    var unread = await notifications.CountUnreadAsync(principal, userId, cancellationToken);
-    await hubContext.Clients.User(userId).ReceiveUnreadCount(unread);
-    return Results.NoContent();
 }
 
 static bool IsProjectArchiveActor(ClaimsPrincipal principal) =>

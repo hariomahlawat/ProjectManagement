@@ -1,29 +1,39 @@
-PRISM PRODUCTION DEPLOYMENT CHECKLIST v4.1
-==========================================
+PRISM V5 PRODUCTION DEPLOYMENT CHECKLIST
+=======================================
 
-[ ] PostgreSQL backup completed and restore procedure verified.
-[ ] Current IIS publish directory backed up.
-[ ] PRODUCTION-MIGRATION-INVENTORY.sql run against the exact IIS database.
-[ ] Both history lists compared with both immutable manifests.
-[ ] No migration-history row deleted, renamed or manually inserted.
-[ ] All package files copied into the source tree with relative paths preserved.
+PRE-DEPLOYMENT
+[ ] Database backup completed and restore procedure verified.
+[ ] Current deployed source/publish output backed up.
+[ ] DP_KEYS_DIR is absolute, durable, writable and backed up.
+[ ] PostgreSQL Host/Database values are present; application role has migration rights.
+[ ] Production HTTPS certificate is trusted and not expired.
 [ ] npm ci completed.
-[ ] dotnet tool restore completed.
-[ ] Release build completed with zero errors.
-[ ] Complete test suite passed.
-[ ] PostgreSQL migration integration CI/test passed.
-[ ] Complete Release publish generated from one committed revision.
-[ ] ConnectionStrings__DefaultConnection configured outside source control.
-[ ] DP_KEYS_DIR configured as an absolute durable path.
-[ ] IIS application-pool identity has read/write/create/delete on DP_KEYS_DIR.
-[ ] PostgreSQL identity has required migration permissions.
-[ ] app_offline.htm placed or application pool stopped.
-[ ] Complete publish output deployed (not source files or DLL-only overlay).
-[ ] Startup logs confirm ApplicationDbContext preflight/migration/validation.
-[ ] Startup logs confirm MediaLibraryDbContext preflight/migration/validation.
-[ ] Startup logs confirm complete deployment boundary and advisory-lock release.
-[ ] Post-deployment migration inventory captured.
-[ ] Photos timeline loads without MLQ schema-degradation warning.
-[ ] Media Intelligence loads without generic Error page.
-[ ] Direct stage completion accepts CompletedOn with blank optional ActualStart.
-[ ] Authentication persists across an application-pool recycle.
+[ ] npm test completed with no failures.
+[ ] dotnet clean/restore/build -c Release completed with no errors.
+[ ] dotnet test -c Release completed with no failures.
+[ ] dotnet publish -c Release completed.
+
+DEPLOYMENT
+[ ] IIS application pool stopped.
+[ ] Complete publish output deployed atomically; source files were not copied into publish folder.
+[ ] App pool identity retains access to upload roots, data-protection keys and required storage.
+[ ] IIS application pool started.
+
+STARTUP VERIFICATION
+[ ] Logs show ApplicationDbContext migration boundary completed.
+[ ] Logs show MediaLibraryDbContext migration boundary completed.
+[ ] No unknown migration-history IDs are reported.
+[ ] Application and media schema readiness checks pass.
+[ ] /health/ready reports ready.
+
+NOTIFICATION VERIFICATION
+[ ] Bell loads for normal user.
+[ ] Opening bell records seen state.
+[ ] Mark read/unread works.
+[ ] Mark all read works.
+[ ] Notification Centre paging/filters work.
+[ ] Project mute/unmute works.
+[ ] Mutation requests contain X-CSRF-TOKEN.
+[ ] Two-tab SignalR/polling reconciliation works.
+[ ] Anonymous API request returns 401 JSON-compatible response, not redirect HTML.
+[ ] No recurring notification errors in browser console or server logs.

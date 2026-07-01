@@ -15,6 +15,7 @@ Features/MediaLibrary/Options/MediaLibraryOptionsValidator.cs
 Features/MediaLibrary/Services/MediaLibraryHealthService.cs
 Features/MediaLibrary/Services/MediaLibrarySchemaService.cs
 Features/MediaLibrary/Services/MediaLibrarySchemaStatusCache.cs
+Features/Notifications/NotificationApi.cs
 Hosted/AuditRetentionWorker.cs
 Infrastructure/ApplicationDatabaseSchemaValidator.cs
 Infrastructure/DatabaseStartupMigrator.cs
@@ -34,6 +35,7 @@ Pages/Admin/MediaIntelligence/Index.cshtml.cs
 Pages/Admin/MediaSources/Index.cshtml
 Pages/Admin/MediaSources/Index.cshtml.cs
 Pages/Projects/Stages/ApplyChange.cshtml.cs
+Pages/Shared/_Layout.cshtml
 Program.cs
 ProjectManagement.Tests/ApiAuthenticationResponseTests.cs
 ProjectManagement.Tests/ApplicationDatabaseMigrationsTests.cs
@@ -43,6 +45,7 @@ ProjectManagement.Tests/GlobalUsings.cs
 ProjectManagement.Tests/Infrastructure/PrismTestWebHostBuilderExtensions.cs
 ProjectManagement.Tests/MediaLibrary/MediaLibraryMigrationMetadataTests.cs
 ProjectManagement.Tests/NotebookCardRendererTests.cs
+ProjectManagement.Tests/NotificationEndpointTests.cs
 ProjectManagement.Tests/PostgresMigrationIntegrationTests.cs
 ProjectManagement.Tests/ProjectAnalyticsApiTests.cs
 ProjectManagement.Tests/ProjectManagement.Tests.csproj
@@ -63,3 +66,4 @@ appsettings.Development.json
 appsettings.Production.json
 appsettings.json
 tools/Add-PrismMigration.ps1
+wwwroot/js/notifications.js

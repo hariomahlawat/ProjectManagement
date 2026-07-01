@@ -293,11 +293,48 @@
     }
 
     const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
+    if (!contentType.toLowerCase().includes('json')) {
       return null;
     }
 
-    return response.json();
+    try {
+      return await response.json();
+    } catch (error) {
+      console.warn('Notification API returned an invalid JSON response.', error);
+      return null;
+    }
+  }
+
+
+  function firstApiError(payload) {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    if (typeof payload.error === 'string' && payload.error.trim()) {
+      return payload.error.trim();
+    }
+
+    const errors = payload.errors;
+    if (errors && typeof errors === 'object') {
+      for (const value of Object.values(errors)) {
+        const messages = Array.isArray(value) ? value : [value];
+        const message = messages.find(item => typeof item === 'string' && item.trim());
+        if (message) {
+          return message.trim();
+        }
+      }
+    }
+
+    if (typeof payload.detail === 'string' && payload.detail.trim()) {
+      return payload.detail.trim();
+    }
+
+    if (typeof payload.title === 'string' && payload.title.trim()) {
+      return payload.title.trim();
+    }
+
+    return null;
   }
 
   class NotificationRuntime {
@@ -320,6 +357,9 @@
     async request(path, options = {}) {
       const method = (options.method || 'GET').toUpperCase();
       const headers = new Headers(options.headers || {});
+      if (!headers.has('Accept')) {
+        headers.set('Accept', 'application/json');
+      }
 
       if (method !== 'GET' && method !== 'HEAD') {
         headers.set(CSRF_HEADER, getCsrfToken());
@@ -339,10 +379,16 @@
 
       const payload = await parseResponse(response);
       if (!response.ok) {
-        const message = payload?.error
-          || payload?.title
-          || `Notification request failed (${response.status}).`;
-        throw new Error(message);
+        let message = firstApiError(payload);
+        if (!message && response.status === 401) {
+          message = 'Your sign-in session has expired. Refresh the page and sign in again.';
+        } else if (!message && response.status === 403) {
+          message = 'You are not authorised to update this notification.';
+        } else if (!message && response.status === 400 && method !== 'GET' && method !== 'HEAD') {
+          message = 'Security validation failed. Refresh the page and try again.';
+        }
+
+        throw new Error(message || `Notification request failed (${response.status}).`);
       }
 
       return payload;
