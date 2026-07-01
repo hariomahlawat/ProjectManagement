@@ -56,14 +56,19 @@
                                 </div>
 
                                 <div class="row g-3 align-items-end">
-                                    <div class="col-lg-5" data-stage-request-stage-field>
+                                    <div class="col-lg-4" data-stage-request-stage-field>
                                         <label class="form-label mb-1">Stage</label>
                                         <select class="form-select" data-stage-request-stage></select>
                                     </div>
-                                    <div class="col-lg-4">
+                                    <div class="col-lg-3">
                                         <label class="form-label mb-1">Update to</label>
                                         <select class="form-select" data-stage-request-target></select>
                                         <div class="form-text" data-stage-request-status-hint></div>
+                                    </div>
+                                    <div class="col-lg-2 d-none" data-stage-request-start-group>
+                                        <label class="form-label mb-1">Start date <span class="text-muted">(optional)</span></label>
+                                        <input type="date" class="form-control" data-stage-request-start-date />
+                                        <div class="form-text" data-stage-request-start-hint></div>
                                     </div>
                                     <div class="col-lg-3">
                                         <label class="form-label mb-1" data-stage-request-date-label>Effective date</label>

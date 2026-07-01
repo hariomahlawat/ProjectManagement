@@ -111,6 +111,85 @@ public class StageValidationServiceTests
         Assert.Equal(new DateOnly(2025, 9, 11), result.SuggestedAutoStart);
     }
 
+    [Fact]
+    public async Task ValidateAsync_StartingStage_UsesImmediateEffectivePredecessorThroughSkippedStages()
+    {
+        var today = new DateOnly(2025, 9, 15);
+        var clock = FakeClock.ForIstDate(today);
+        await using var db = CreateContext();
+        await SeedAsync(
+            db,
+            new StageSeed(StageCodes.FS, StageStatus.Completed, new DateOnly(2025, 8, 1), new DateOnly(2025, 8, 5)),
+            new StageSeed(StageCodes.IPA, StageStatus.Completed, new DateOnly(2025, 8, 6), new DateOnly(2025, 8, 10)),
+            new StageSeed(StageCodes.SOW, StageStatus.Skipped, null, null),
+            new StageSeed(StageCodes.AON, StageStatus.NotStarted, null, null));
+
+        var service = new StageValidationService(db, clock, StageWorkflowTestFactory.CreatePolicy(db));
+
+        var result = await service.ValidateAsync(
+            1,
+            StageCodes.AON,
+            StageStatus.InProgress.ToString(),
+            new DateOnly(2025, 8, 11),
+            requestedStartDate: null,
+            isHoD: false);
+
+        Assert.True(result.IsValid);
+        Assert.Equal(new DateOnly(2025, 8, 11), result.SuggestedAutoStart);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_DirectCompletion_AllowsBlankStartWhenCompletionIsChronologicallyValid()
+    {
+        var today = new DateOnly(2025, 9, 15);
+        var clock = FakeClock.ForIstDate(today);
+        await using var db = CreateContext();
+        await SeedAsync(
+            db,
+            new StageSeed(StageCodes.FS, StageStatus.NotStarted, null, null));
+
+        var service = new StageValidationService(db, clock, StageWorkflowTestFactory.CreatePolicy(db));
+
+        var result = await service.ValidateAsync(
+            1,
+            StageCodes.FS,
+            StageStatus.Completed.ToString(),
+            today,
+            requestedStartDate: null,
+            isHoD: true);
+
+        Assert.True(result.IsValid);
+        Assert.Empty(result.Errors);
+        Assert.Null(result.SuggestedAutoStart);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_DirectCompletion_RejectsCompletionBeforeEditedStart()
+    {
+        var today = new DateOnly(2025, 9, 15);
+        var clock = FakeClock.ForIstDate(today);
+        await using var db = CreateContext();
+        await SeedAsync(
+            db,
+            new StageSeed(StageCodes.FS, StageStatus.NotStarted, null, null));
+
+        var service = new StageValidationService(db, clock, StageWorkflowTestFactory.CreatePolicy(db));
+        var selectedStart = new DateOnly(2025, 9, 12);
+
+        var result = await service.ValidateAsync(
+            1,
+            StageCodes.FS,
+            StageStatus.Completed.ToString(),
+            new DateOnly(2025, 9, 11),
+            requestedStartDate: selectedStart,
+            isHoD: true);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains("2025-09-12", StringComparison.Ordinal));
+    }
+
     private static async Task SeedAsync(ApplicationDbContext db, params StageSeed[] stages)
     {
         var project = new Project

@@ -131,6 +131,7 @@ public sealed record StageChangeDetailVm(
     string RequestedStatus,
     DateOnly? CurrentActualStart,
     DateOnly? CurrentCompletedOn,
+    DateOnly? RequestedStartDate,
     DateOnly? RequestedDate,
     string? RequestNote);
 

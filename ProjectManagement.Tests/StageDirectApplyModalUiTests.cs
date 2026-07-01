@@ -31,6 +31,16 @@ public class StageDirectApplyModalUiTests
         Assert.Contains("data-direct-apply-force-group", html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task RendersEditableStartDateForDirectCompletion()
+    {
+        var html = await RenderAsync();
+
+        Assert.Contains("name=\"startDate\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-direct-apply-start-group", html, StringComparison.Ordinal);
+        Assert.Contains("Review or edit the prefilled start date", html, StringComparison.Ordinal);
+    }
+
     private static async Task<string> RenderAsync()
     {
         using var scope = Services.CreateScope();

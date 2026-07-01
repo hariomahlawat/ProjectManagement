@@ -198,6 +198,8 @@
                         data-stage-name="@s.Name"
                         data-current-status="@s.Status"
                         data-actual-start="@s.ActualStart?.ToString("yyyy-MM-dd")"
+                        data-suggested-start="@s.SuggestedStartDate?.ToString("yyyy-MM-dd")"
+                        data-start-source="@s.SuggestedStartSourceName"
                         data-stage-sort-order="@s.SortOrder"
                         data-pending-status="@s.PendingStatus"
                         data-pending-date="@s.PendingDate?.ToString("yyyy-MM-dd")"
@@ -251,8 +253,23 @@
                                 data-project="@timeline.ProjectId"
                                 data-stage="@s.Code"
                                 data-stage-name="@s.Name"
-                                data-status="InProgress">
+                                data-status="InProgress"
+                                data-default-date="@s.SuggestedStartDate?.ToString("yyyy-MM-dd")"
+                                data-start-source="@s.SuggestedStartSourceName">
                           Start stage
+                        </button>
+                      </li>
+                      <li>
+                        <button class="dropdown-item" type="button"
+                                data-direct-apply
+                                data-project="@timeline.ProjectId"
+                                data-stage="@s.Code"
+                                data-stage-name="@s.Name"
+                                data-status="Completed"
+                                data-direct-completion="true"
+                                data-default-start-date="@s.SuggestedStartDate?.ToString("yyyy-MM-dd")"
+                                data-start-source="@s.SuggestedStartSourceName">
+                          Complete stage directly
                         </button>
                       </li>
                       <li>
@@ -285,7 +302,9 @@
                                 data-stage="@s.Code"
                                 data-stage-name="@s.Name"
                                 data-status="Completed"
-                                data-default-date="@s.CompletedOn?.ToString("yyyy-MM-dd")">
+                                data-default-date="@s.CompletedOn?.ToString("yyyy-MM-dd")"
+                                data-default-start-date="@((s.ActualStart ?? s.SuggestedStartDate)?.ToString("yyyy-MM-dd"))"
+                                data-start-source="@s.SuggestedStartSourceName">
                           Complete stage
                         </button>
                       </li>
@@ -363,6 +382,8 @@
                               data-stage-name="@s.Name"
                               data-current-status="@s.Status"
                               data-actual-start="@s.ActualStart?.ToString("yyyy-MM-dd")"
+                              data-suggested-start="@s.SuggestedStartDate?.ToString("yyyy-MM-dd")"
+                              data-start-source="@s.SuggestedStartSourceName"
                               data-stage-sort-order="@s.SortOrder"
                               data-pending-status="@s.PendingStatus"
                               data-pending-date="@s.PendingDate?.ToString("yyyy-MM-dd")"

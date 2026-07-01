@@ -46,6 +46,9 @@ public sealed class TimelineItemVm
     public DateOnly? EffectiveActualStart { get; init; }
     public bool IsActualStartInferred { get; init; }
     public DateOnly? CompletedOn { get; init; }
+    public DateOnly? SuggestedStartDate { get; init; }
+    public string? SuggestedStartSourceCode { get; init; }
+    public string? SuggestedStartSourceName { get; init; }
 
     public bool IsAutoCompleted { get; init; }
     public string? AutoCompletedFromCode { get; init; }

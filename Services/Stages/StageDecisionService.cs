@@ -257,7 +257,8 @@ public sealed class StageDecisionService
                     "A completion date is required when approving completion.");
             }
 
-            carriedForwardStart = stage.ActualStart
+            carriedForwardStart = request.RequestedStartDate
+                ?? stage.ActualStart
                 ?? await FindCarriedForwardStartAsync(request, cancellationToken);
 
             if (carriedForwardStart.HasValue && request.RequestedDate.Value < carriedForwardStart.Value)
@@ -309,9 +310,7 @@ public sealed class StageDecisionService
             await _db.Entry(request).ReloadAsync(cancellationToken);
         }
 
-        if (requestedStatus == StageStatus.Completed
-            && !stage.ActualStart.HasValue
-            && carriedForwardStart.HasValue)
+        if (requestedStatus == StageStatus.Completed && carriedForwardStart.HasValue)
         {
             stage.ActualStart = carriedForwardStart;
         }
@@ -323,8 +322,10 @@ public sealed class StageDecisionService
                 stage.StageCode,
                 requestedStatus,
                 effectiveDate,
-                decisionUserId,
-                cancellationToken);
+                requestedStatus == StageStatus.Completed ? request.RequestedStartDate : null,
+                preserveBlankStartOnCompletion: requestedStatus == StageStatus.Completed,
+                userId: decisionUserId,
+                cancellationToken: cancellationToken);
         }
         catch (InvalidOperationException ex)
         {

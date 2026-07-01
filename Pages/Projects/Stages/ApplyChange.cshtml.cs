@@ -60,6 +60,8 @@ public class ApplyChangeModel : PageModel
 
         public DateOnly? Date { get; set; }
 
+        public DateOnly? StartDate { get; set; }
+
         [StringLength(1024)]
         public string? Note { get; set; }
 
@@ -133,6 +135,7 @@ public class ApplyChangeModel : PageModel
                 input.StageCode,
                 statusMatch,
                 input.Date,
+                input.StartDate,
                 input.Note,
                 hodUserId,
                 input.ForceBackfillPredecessors,

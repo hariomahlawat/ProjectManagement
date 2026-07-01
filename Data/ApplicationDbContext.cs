@@ -2167,6 +2167,7 @@ namespace ProjectManagement.Data
                 e.Property(x => x.StageCode).HasMaxLength(32).IsRequired();
                 e.Property(x => x.RequestedStatus).HasMaxLength(16).IsRequired();
                 e.Property(x => x.RequestedDate).HasColumnType("date");
+                e.Property(x => x.RequestedStartDate).HasColumnType("date");
                 e.Property(x => x.Note).HasMaxLength(1024);
                 e.Property(x => x.RequestedByUserId).HasMaxLength(450).IsRequired();
                 e.Property(x => x.DecisionStatus).HasMaxLength(12).HasDefaultValue("Pending").IsRequired();

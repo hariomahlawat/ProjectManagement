@@ -101,6 +101,7 @@
                         <div class="is-proposed"><span>Requested status</span><strong>@Model.FormatStatus(stage.RequestedStatus)</strong></div>
                         <div><span>Actual start</span><strong>@Model.FormatDate(stage.CurrentActualStart)</strong></div>
                         <div><span>Recorded completion</span><strong>@Model.FormatDate(stage.CurrentCompletedOn)</strong></div>
+                        <div class="is-proposed"><span>Proposed start</span><strong>@Model.FormatDate(stage.RequestedStartDate)</strong></div>
                         <div class="is-proposed"><span>Requested date</span><strong>@Model.FormatDate(stage.RequestedDate)</strong></div>
                     </div>
                     @if (!string.IsNullOrWhiteSpace(stage.RequestNote))

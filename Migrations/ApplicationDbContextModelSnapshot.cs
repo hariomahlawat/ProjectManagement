@@ -6267,6 +6267,9 @@ namespace ProjectManagement.Migrations
                     b.Property<DateOnly?>("RequestedDate")
                         .HasColumnType("date");
 
+                    b.Property<DateOnly?>("RequestedStartDate")
+                        .HasColumnType("date");
+
                     b.Property<DateTimeOffset>("RequestedOn")
                         .HasColumnType("timestamp with time zone");
 

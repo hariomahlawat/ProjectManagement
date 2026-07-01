@@ -111,6 +111,7 @@ public sealed class StageApprovalSequenceService
                 request.StageCode,
                 request.RequestedStatus,
                 request.RequestedDate,
+                request.RequestedStartDate,
                 request.RequestedOn,
                 request.DecisionStatus))
             .ToListAsync(cancellationToken);
@@ -334,12 +335,13 @@ public sealed class StageApprovalSequenceService
                     "Completion date",
                     "A completion date is required."));
             }
-            else if (stage.ActualStart.HasValue && request.RequestedDate.Value < stage.ActualStart.Value)
+            else if ((request.RequestedStartDate ?? stage.ActualStart) is DateOnly proposedStart
+                && request.RequestedDate.Value < proposedStart)
             {
                 checks.Add(new ApprovalCheckVm(
                     ApprovalCheckState.Blocked,
                     "Completion date",
-                    $"The proposed completion date precedes the recorded start date of {stage.ActualStart:dd MMM yyyy}."));
+                    $"The proposed completion date precedes the proposed start date of {proposedStart:dd MMM yyyy}."));
             }
             else
             {
@@ -373,18 +375,12 @@ public sealed class StageApprovalSequenceService
         {
             var requiredPredecessors = workflow.RequiredPredecessorClosure(request.StageCode);
             var unresolvedWithoutRequest = new List<string>();
-            var predecessorDates = new List<DateOnly>();
 
             foreach (var predecessorCode in requiredPredecessors)
             {
                 if (projectStages.TryGetValue(predecessorCode, out var predecessor)
                     && predecessor.Status is StageStatus.Completed or StageStatus.Skipped)
                 {
-                    if (predecessor.CompletedOn.HasValue)
-                    {
-                        predecessorDates.Add(predecessor.CompletedOn.Value);
-                    }
-
                     continue;
                 }
 
@@ -393,10 +389,6 @@ public sealed class StageApprovalSequenceService
                     && predecessorRequestedStatus is StageStatus.Completed or StageStatus.Skipped)
                 {
                     waitingOn.Add(predecessorRequest.Id);
-                    if (predecessorRequest.RequestedDate.HasValue)
-                    {
-                        predecessorDates.Add(predecessorRequest.RequestedDate.Value);
-                    }
                 }
                 else
                 {
@@ -428,22 +420,37 @@ public sealed class StageApprovalSequenceService
                     "All required predecessor stages are complete or skipped."));
             }
 
-            if (request.RequestedDate.HasValue && predecessorDates.Count > 0)
+            var proposedStartDate = requestedStatus == StageStatus.InProgress
+                ? request.RequestedDate
+                : request.RequestedStartDate ?? stage.ActualStart;
+            var startBoundary = ResolveImmediatePredecessorBoundary(
+                workflow,
+                request.StageCode,
+                projectStages,
+                latestPendingByStage);
+
+            var chronologyDate = proposedStartDate
+                ?? (requestedStatus == StageStatus.Completed ? request.RequestedDate : null);
+            if (chronologyDate.HasValue && startBoundary.EarliestStartDate.HasValue)
             {
-                var latestPredecessorDate = predecessorDates.Max();
-                if (request.RequestedDate.Value < latestPredecessorDate)
+                var chronologyLabel = proposedStartDate.HasValue
+                    ? "proposed start date"
+                    : "proposed completion date";
+
+                if (chronologyDate.Value < startBoundary.EarliestStartDate.Value)
                 {
                     checks.Add(new ApprovalCheckVm(
                         ApprovalCheckState.Blocked,
                         "Lifecycle chronology",
-                        $"The requested date is earlier than the predecessor date of {latestPredecessorDate:dd MMM yyyy}."));
+                        $"The {chronologyLabel} must be on or after {startBoundary.EarliestStartDate:dd MMM yyyy}, " +
+                        $"the day after {StageCodes.DisplayNameOf(workflow.WorkflowVersion, startBoundary.SourceStageCode!)} completion."));
                 }
                 else
                 {
                     checks.Add(new ApprovalCheckVm(
                         ApprovalCheckState.Passed,
                         "Lifecycle chronology",
-                        "The requested date follows the known predecessor dates."));
+                        $"The {chronologyLabel} follows the effective predecessor stage."));
                 }
             }
         }
@@ -490,6 +497,58 @@ public sealed class StageApprovalSequenceService
                 correctionUrl);
     }
 
+    private static StartBoundary ResolveImmediatePredecessorBoundary(
+        ProjectStageWorkflowSnapshot workflow,
+        string stageCode,
+        IReadOnlyDictionary<string, StageSnapshot> projectStages,
+        IReadOnlyDictionary<string, RequestSnapshot> latestPendingByStage)
+    {
+        var targetIndex = workflow.OrderOf(stageCode);
+        if (targetIndex <= 0 || targetIndex == int.MaxValue)
+        {
+            return StartBoundary.None;
+        }
+
+        for (var index = targetIndex - 1; index >= 0; index--)
+        {
+            var predecessorCode = workflow.Stages[index].Code;
+            projectStages.TryGetValue(predecessorCode, out var official);
+            latestPendingByStage.TryGetValue(predecessorCode, out var pending);
+
+            StageStatus effectiveStatus;
+            DateOnly? effectiveCompletion;
+            if (pending is not null
+                && Enum.TryParse<StageStatus>(pending.RequestedStatus, true, out var pendingStatus))
+            {
+                effectiveStatus = pendingStatus;
+                effectiveCompletion = pendingStatus == StageStatus.Completed
+                    ? pending.RequestedDate
+                    : official?.CompletedOn;
+            }
+            else
+            {
+                effectiveStatus = official?.Status ?? StageStatus.NotStarted;
+                effectiveCompletion = official?.CompletedOn;
+            }
+
+            if (effectiveStatus == StageStatus.Skipped)
+            {
+                continue;
+            }
+
+            return effectiveStatus == StageStatus.Completed && effectiveCompletion.HasValue
+                ? new StartBoundary(effectiveCompletion.Value.AddDays(1), predecessorCode)
+                : StartBoundary.None;
+        }
+
+        return StartBoundary.None;
+    }
+
+    private sealed record StartBoundary(DateOnly? EarliestStartDate, string? SourceStageCode)
+    {
+        public static StartBoundary None { get; } = new(null, null);
+    }
+
     private static string BuildFactsUrl(int projectId, string stageCode)
         => stageCode switch
         {
@@ -521,6 +580,7 @@ public sealed class StageApprovalSequenceService
         string StageCode,
         string RequestedStatus,
         DateOnly? RequestedDate,
+        DateOnly? RequestedStartDate,
         DateTimeOffset RequestedOn,
         string DecisionStatus);
 }

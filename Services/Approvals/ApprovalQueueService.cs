@@ -11,6 +11,7 @@ using ProjectManagement.Models.Activities;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Authorization;
@@ -227,6 +228,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
                             project.WorkflowVersion,
                             req.StageCode,
                             req.RequestedStatus,
+                            req.RequestedStartDate,
                             req.RequestedDate,
                             req.RequestedByUserId,
                             user.FullName,
@@ -241,18 +243,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
     private static ApprovalQueueItemVm MapStageChangeRow(StageChangeRow row)
     {
         var stageName = StageCodes.DisplayNameOf(row.WorkflowVersion, row.StageCode);
-        var summary = row.RequestedDate.HasValue
-            ? string.Format(
-                CultureInfo.InvariantCulture,
-                "{0} stage to {1} ({2:dd MMM yyyy})",
-                stageName,
-                row.RequestedStatus,
-                row.RequestedDate.Value)
-            : string.Format(
-                CultureInfo.InvariantCulture,
-                "{0} stage to {1}",
-                stageName,
-                row.RequestedStatus);
+        var summary = BuildStageChangeSummary(row, stageName);
 
         return new ApprovalQueueItemVm(
             ApprovalQueueType.StageChange,
@@ -267,6 +258,44 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             PendingDecisionStatus,
             null,
             null);
+    }
+
+    private static string BuildStageChangeSummary(StageChangeRow row, string stageName)
+    {
+        if (string.Equals(row.RequestedStatus, StageStatus.Completed.ToString(), StringComparison.OrdinalIgnoreCase))
+        {
+            if (row.RequestedStartDate.HasValue && row.RequestedDate.HasValue)
+            {
+                return string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0}: complete {1:dd MMM yyyy} · start {2:dd MMM yyyy}",
+                    stageName,
+                    row.RequestedDate.Value,
+                    row.RequestedStartDate.Value);
+            }
+
+            if (row.RequestedDate.HasValue)
+            {
+                return string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0}: complete {1:dd MMM yyyy}",
+                    stageName,
+                    row.RequestedDate.Value);
+            }
+        }
+
+        return row.RequestedDate.HasValue
+            ? string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} stage to {1} ({2:dd MMM yyyy})",
+                stageName,
+                row.RequestedStatus,
+                row.RequestedDate.Value)
+            : string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} stage to {1}",
+                stageName,
+                row.RequestedStatus);
     }
 
     // SECTION: Meta change list
@@ -795,6 +824,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             request.RequestedStatus,
             stage.ActualStart,
             stage.CompletedOn,
+            request.RequestedStartDate,
             request.RequestedDate,
             request.Note);
 
@@ -1688,6 +1718,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
         string? WorkflowVersion,
         string StageCode,
         string RequestedStatus,
+        DateOnly? RequestedStartDate,
         DateOnly? RequestedDate,
         string RequestedByUserId,
         string? RequestedByFullName,
