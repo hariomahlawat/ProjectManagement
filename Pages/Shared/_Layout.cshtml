@@ -1,5 +1,9 @@
 @using Microsoft.AspNetCore.Antiforgery
+@using Microsoft.AspNetCore.Identity
+@using ProjectManagement.Models
 @inject IAntiforgery Antiforgery
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,7 +12,7 @@
     <meta name="theme-color" content="#10213f" />
     <meta name="color-scheme" content="light" />
     @{
-        var renderAntiforgeryToken = User.Identity?.IsAuthenticated == true;
+        var renderAntiforgeryToken = SignInManager.IsSignedIn(User);
         var antiforgeryRequestToken = renderAntiforgeryToken
             ? Antiforgery.GetAndStoreTokens(Context).RequestToken
             : null;
@@ -42,7 +46,7 @@
 </head>
 <body class="d-flex flex-column min-vh-100">
     @{
-        var signedIn = User.Identity?.IsAuthenticated == true;
+        var signedIn = SignInManager.IsSignedIn(User);
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
         var currentArea = ViewContext.RouteData.Values["area"]?.ToString();
         var hasCurrentPage = !string.IsNullOrWhiteSpace(currentPage);

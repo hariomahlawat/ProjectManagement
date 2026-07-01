@@ -4,6 +4,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -49,26 +50,18 @@ public static class NotificationApi
         group.MapGet("", GetPageAsync);
         group.MapGet("/count", GetUnreadCountAsync);
 
-        group.MapPost("/read", MarkManyReadAsync)
-            .RequireAntiforgery();
-        group.MapPost("/unread", MarkManyUnreadAsync)
-            .RequireAntiforgery();
-        group.MapPost("/read-all", MarkAllReadAsync)
-            .RequireAntiforgery();
-        group.MapPost("/seen", MarkSeenAsync)
-            .RequireAntiforgery();
+        group.MapPost("/read", MarkManyReadAsync);
+        group.MapPost("/unread", MarkManyUnreadAsync);
+        group.MapPost("/read-all", MarkAllReadAsync);
+        group.MapPost("/seen", MarkSeenAsync);
 
-        group.MapPost("/projects/{projectId:int}/mute", MuteProjectAsync)
-            .RequireAntiforgery();
-        group.MapDelete("/projects/{projectId:int}/mute", UnmuteProjectAsync)
-            .RequireAntiforgery();
+        group.MapPost("/projects/{projectId:int}/mute", MuteProjectAsync);
+        group.MapDelete("/projects/{projectId:int}/mute", UnmuteProjectAsync);
 
         // Backward-compatible single-item routes. Keep these while older cached clients may still
         // be active; they use the same mutation implementation and security requirements.
-        group.MapPost("/{id:int}/read", MarkSingleReadAsync)
-            .RequireAntiforgery();
-        group.MapDelete("/{id:int}/read", MarkSingleUnreadAsync)
-            .RequireAntiforgery();
+        group.MapPost("/{id:int}/read", MarkSingleReadAsync);
+        group.MapDelete("/{id:int}/read", MarkSingleUnreadAsync);
 
         return endpoints;
     }
@@ -201,6 +194,7 @@ public static class NotificationApi
         HttpContext httpContext,
         UserNotificationService notifications,
         IHubContext<NotificationsHub, INotificationsClient> hubContext,
+        IAntiforgery antiforgery,
         CancellationToken cancellationToken)
         => CompleteReadMutationAsync(
             request,
@@ -208,6 +202,7 @@ public static class NotificationApi
             httpContext,
             notifications,
             hubContext,
+            antiforgery,
             cancellationToken);
 
     private static Task<IResult> MarkManyUnreadAsync(
@@ -215,6 +210,7 @@ public static class NotificationApi
         HttpContext httpContext,
         UserNotificationService notifications,
         IHubContext<NotificationsHub, INotificationsClient> hubContext,
+        IAntiforgery antiforgery,
         CancellationToken cancellationToken)
         => CompleteReadMutationAsync(
             request,
@@ -222,6 +218,7 @@ public static class NotificationApi
             httpContext,
             notifications,
             hubContext,
+            antiforgery,
             cancellationToken);
 
     private static Task<IResult> MarkSingleReadAsync(
@@ -229,6 +226,7 @@ public static class NotificationApi
         HttpContext httpContext,
         UserNotificationService notifications,
         IHubContext<NotificationsHub, INotificationsClient> hubContext,
+        IAntiforgery antiforgery,
         CancellationToken cancellationToken)
         => CompleteReadMutationAsync(
             new NotificationIdsRequest(new[] { id }),
@@ -236,6 +234,7 @@ public static class NotificationApi
             httpContext,
             notifications,
             hubContext,
+            antiforgery,
             cancellationToken);
 
     private static Task<IResult> MarkSingleUnreadAsync(
@@ -243,6 +242,7 @@ public static class NotificationApi
         HttpContext httpContext,
         UserNotificationService notifications,
         IHubContext<NotificationsHub, INotificationsClient> hubContext,
+        IAntiforgery antiforgery,
         CancellationToken cancellationToken)
         => CompleteReadMutationAsync(
             new NotificationIdsRequest(new[] { id }),
@@ -250,6 +250,7 @@ public static class NotificationApi
             httpContext,
             notifications,
             hubContext,
+            antiforgery,
             cancellationToken);
 
     private static async Task<IResult> CompleteReadMutationAsync(
@@ -258,8 +259,15 @@ public static class NotificationApi
         HttpContext httpContext,
         UserNotificationService notifications,
         IHubContext<NotificationsHub, INotificationsClient> hubContext,
+        IAntiforgery antiforgery,
         CancellationToken cancellationToken)
     {
+        var antiforgeryFailure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (antiforgeryFailure is not null)
+        {
+            return antiforgeryFailure;
+        }
+
         if (!TryGetUserId(httpContext.User, out var userId))
         {
             return Results.Unauthorized();
@@ -297,8 +305,15 @@ public static class NotificationApi
         HttpContext httpContext,
         UserNotificationService notifications,
         IHubContext<NotificationsHub, INotificationsClient> hubContext,
+        IAntiforgery antiforgery,
         CancellationToken cancellationToken)
     {
+        var antiforgeryFailure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (antiforgeryFailure is not null)
+        {
+            return antiforgeryFailure;
+        }
+
         if (!TryGetUserId(httpContext.User, out var userId))
         {
             return Results.Unauthorized();
@@ -324,8 +339,15 @@ public static class NotificationApi
         HttpContext httpContext,
         UserNotificationService notifications,
         IHubContext<NotificationsHub, INotificationsClient> hubContext,
+        IAntiforgery antiforgery,
         CancellationToken cancellationToken)
     {
+        var antiforgeryFailure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (antiforgeryFailure is not null)
+        {
+            return antiforgeryFailure;
+        }
+
         if (!TryGetUserId(httpContext.User, out var userId))
         {
             return Results.Unauthorized();
@@ -384,6 +406,7 @@ public static class NotificationApi
         HttpContext httpContext,
         UserNotificationService notifications,
         IHubContext<NotificationsHub, INotificationsClient> hubContext,
+        IAntiforgery antiforgery,
         CancellationToken cancellationToken)
         => CompleteProjectMuteAsync(
             projectId,
@@ -391,6 +414,7 @@ public static class NotificationApi
             httpContext,
             notifications,
             hubContext,
+            antiforgery,
             cancellationToken);
 
     private static Task<IResult> UnmuteProjectAsync(
@@ -398,6 +422,7 @@ public static class NotificationApi
         HttpContext httpContext,
         UserNotificationService notifications,
         IHubContext<NotificationsHub, INotificationsClient> hubContext,
+        IAntiforgery antiforgery,
         CancellationToken cancellationToken)
         => CompleteProjectMuteAsync(
             projectId,
@@ -405,6 +430,7 @@ public static class NotificationApi
             httpContext,
             notifications,
             hubContext,
+            antiforgery,
             cancellationToken);
 
     private static async Task<IResult> CompleteProjectMuteAsync(
@@ -413,8 +439,15 @@ public static class NotificationApi
         HttpContext httpContext,
         UserNotificationService notifications,
         IHubContext<NotificationsHub, INotificationsClient> hubContext,
+        IAntiforgery antiforgery,
         CancellationToken cancellationToken)
     {
+        var antiforgeryFailure = await ValidateAntiforgeryAsync(httpContext, antiforgery);
+        if (antiforgeryFailure is not null)
+        {
+            return antiforgeryFailure;
+        }
+
         if (!TryGetUserId(httpContext.User, out var userId))
         {
             return Results.Unauthorized();
@@ -547,6 +580,24 @@ public static class NotificationApi
                 "Notification {MutationType} mutation succeeded for user {UserId}, but realtime broadcast failed. Polling will reconcile client state.",
                 mutationType,
                 userId);
+        }
+    }
+
+    private static async Task<IResult?> ValidateAntiforgeryAsync(
+        HttpContext httpContext,
+        IAntiforgery antiforgery)
+    {
+        try
+        {
+            await antiforgery.ValidateRequestAsync(httpContext);
+            return null;
+        }
+        catch (AntiforgeryValidationException)
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Antiforgery validation failed",
+                detail: "The request security token is missing or invalid. Refresh the page and retry the operation.");
         }
     }
 

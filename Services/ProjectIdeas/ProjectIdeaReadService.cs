@@ -17,18 +17,22 @@ public class ProjectIdeaReadService
         bool myIdeas,
         string? userId,
         bool canViewAll,
-        string? sort = null)
+        string? sort = null,
+        string? projectOfficerUserId = null,
+        string? assignment = null)
     {
         status = ProjectIdeaStatuses.All.Contains(status)
             ? status
             : ProjectIdeaStatuses.Active;
 
-        IQueryable<ProjectIdea> ideas = ApplyBoardVisibilityAndSearch(
+        IQueryable<ProjectIdea> ideas = ApplyBoardFilters(
                 _db.ProjectIdeas.AsNoTracking(),
                 query,
                 myIdeas,
                 userId,
-                canViewAll)
+                canViewAll,
+                projectOfficerUserId,
+                assignment)
             .Where(x => x.Status == status)
             .Include(x => x.AssignedProjectOfficerUser)
             .Include(x => x.AssignedHodUser)
@@ -50,14 +54,18 @@ public class ProjectIdeaReadService
         string? query,
         bool myIdeas,
         string? userId,
-        bool canViewAll)
+        bool canViewAll,
+        string? projectOfficerUserId = null,
+        string? assignment = null)
     {
-        var visibleIdeas = ApplyBoardVisibilityAndSearch(
+        var visibleIdeas = ApplyBoardFilters(
             _db.ProjectIdeas.AsNoTracking(),
             query,
             myIdeas,
             userId,
-            canViewAll);
+            canViewAll,
+            projectOfficerUserId,
+            assignment);
 
         var groupedCounts = await visibleIdeas
             .Where(x => ProjectIdeaStatuses.All.Contains(x.Status))
@@ -68,6 +76,42 @@ public class ProjectIdeaReadService
         return ProjectIdeaStatuses.All.ToDictionary(
             status => status,
             status => groupedCounts.GetValueOrDefault(status));
+    }
+
+    public async Task<IReadOnlyList<ProjectIdeaOfficerOption>> GetBoardProjectOfficersAsync(
+        string? userId,
+        bool canViewAll)
+    {
+        var candidates = await ApplyBoardVisibility(
+                _db.ProjectIdeas.AsNoTracking(),
+                userId,
+                canViewAll)
+            .Where(x => x.AssignedProjectOfficerUserId != null && x.AssignedProjectOfficerUser != null)
+            .Select(x => new
+            {
+                UserId = x.AssignedProjectOfficerUserId!,
+                x.AssignedProjectOfficerUser!.FullName,
+                x.AssignedProjectOfficerUser!.UserName,
+                x.AssignedProjectOfficerUser!.Email
+            })
+            .Distinct()
+            .ToListAsync();
+
+        return candidates
+            .GroupBy(x => x.UserId, StringComparer.Ordinal)
+            .Select(group =>
+            {
+                var user = group.First();
+                var displayName = user.FullName
+                    ?? user.UserName
+                    ?? user.Email
+                    ?? user.UserId;
+
+                return new ProjectIdeaOfficerOption(user.UserId, displayName);
+            })
+            .OrderBy(option => option.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(option => option.UserId, StringComparer.Ordinal)
+            .ToList();
     }
 
     public Task<ProjectIdea?> GetDetailsAsync(int id)
@@ -102,28 +146,16 @@ public class ProjectIdeaReadService
         return dates.Max();
     }
 
-    private static IQueryable<ProjectIdea> ApplyBoardVisibilityAndSearch(
+    private static IQueryable<ProjectIdea> ApplyBoardFilters(
         IQueryable<ProjectIdea> ideas,
         string? query,
         bool myIdeas,
         string? userId,
-        bool canViewAll)
+        bool canViewAll,
+        string? projectOfficerUserId,
+        string? assignment)
     {
-        ideas = ideas.Where(x => !x.IsDeleted);
-
-        // SECTION: Board visibility permissions
-        if (!canViewAll)
-        {
-            if (string.IsNullOrWhiteSpace(userId))
-            {
-                return ideas.Where(_ => false);
-            }
-
-            ideas = ideas.Where(x =>
-                x.CreatedByUserId == userId ||
-                x.AssignedProjectOfficerUserId == userId ||
-                x.AssignedHodUserId == userId);
-        }
+        ideas = ApplyBoardVisibility(ideas, userId, canViewAll);
 
         if (myIdeas)
         {
@@ -132,10 +164,29 @@ public class ProjectIdeaReadService
                 return ideas.Where(_ => false);
             }
 
-            ideas = ideas.Where(x =>
-                x.CreatedByUserId == userId ||
-                x.AssignedProjectOfficerUserId == userId ||
-                x.AssignedHodUserId == userId);
+            // "My Ideas" is deliberately assignment-based. Creating an idea or being
+            // its HoD reviewer does not make it part of the current user's My Ideas view.
+            // This mode takes precedence over the generic officer/assignment filters.
+            ideas = ideas.Where(x => x.AssignedProjectOfficerUserId == userId);
+        }
+        else
+        {
+            var selectedOfficerId = NormaliseUserId(projectOfficerUserId);
+            if (selectedOfficerId is not null)
+            {
+                ideas = ideas.Where(x => x.AssignedProjectOfficerUserId == selectedOfficerId);
+            }
+            else
+            {
+                ideas = ProjectIdeaAssignmentFilters.Normalise(assignment) switch
+                {
+                    ProjectIdeaAssignmentFilters.Assigned =>
+                        ideas.Where(x => x.AssignedProjectOfficerUserId != null),
+                    ProjectIdeaAssignmentFilters.Unassigned =>
+                        ideas.Where(x => x.AssignedProjectOfficerUserId == null),
+                    _ => ideas
+                };
+            }
         }
 
         // SECTION: Null-safe PostgreSQL search
@@ -160,6 +211,29 @@ public class ProjectIdeaReadService
         }
 
         return ideas;
+    }
+
+    private static IQueryable<ProjectIdea> ApplyBoardVisibility(
+        IQueryable<ProjectIdea> ideas,
+        string? userId,
+        bool canViewAll)
+    {
+        ideas = ideas.Where(x => !x.IsDeleted);
+
+        if (canViewAll)
+        {
+            return ideas;
+        }
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return ideas.Where(_ => false);
+        }
+
+        return ideas.Where(x =>
+            x.CreatedByUserId == userId ||
+            x.AssignedProjectOfficerUserId == userId ||
+            x.AssignedHodUserId == userId);
     }
 
     private static IEnumerable<ProjectIdea> SortIdeas(IEnumerable<ProjectIdea> ideas, string sort)
@@ -190,5 +264,16 @@ public class ProjectIdeaReadService
             ?? user?.UserName
             ?? user?.Email
             ?? "\uFFFF";
+    }
+
+    private static string? NormaliseUserId(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        return trimmed.Length <= 450 ? trimmed : trimmed[..450];
     }
 }
