@@ -101,8 +101,15 @@ public sealed class ModuleSubNavViewComponent : ViewComponent
         // TAB MODEL BUILDING
         // ===========================
         var preservedQuery = BuildPreservedQuery();
-        var tabs = visibleItems.Select(item => BuildTab(item, currentArea, currentPage, currentController, currentAction, preservedQuery))
+        var allItems = visibleItems
+            .Select(item => BuildTab(item, currentArea, currentPage, currentController, currentAction, preservedQuery))
             .ToList();
+
+        // Commands such as "Create project" are intentionally separated from
+        // destination tabs. This keeps the navigation hierarchy clear and gives
+        // command items the correct visual and semantic treatment.
+        var actionItems = allItems.Where(item => item.IsAction).ToList();
+        var tabs = allItems.Where(item => !item.IsAction).ToList();
 
         // ===========================
         // OVERFLOW SPLIT (ADMIN ONLY)
@@ -132,6 +139,7 @@ public sealed class ModuleSubNavViewComponent : ViewComponent
         return View(new ModuleSubNavViewModel
         {
             Tabs = primaryTabs,
+            Actions = actionItems,
             OverflowTabs = overflowTabs,
             OverflowLabel = AdminOverflowLabel,
             IsOverflowActive = isOverflowActive,
@@ -235,7 +243,7 @@ public sealed class ModuleSubNavViewComponent : ViewComponent
         IReadOnlyDictionary<string, string?> preservedQuery)
     {
         var url = BuildUrl(item);
-        if (!string.IsNullOrEmpty(url) && preservedQuery.Count > 0)
+        if (!item.IsAction && !string.IsNullOrEmpty(url) && preservedQuery.Count > 0)
         {
             url = QueryHelpers.AddQueryString(url, preservedQuery);
         }
@@ -247,7 +255,8 @@ public sealed class ModuleSubNavViewComponent : ViewComponent
             IsActive = IsActive(item, currentArea, currentPage, currentController, currentAction),
             Icon = item.Icon,
             BadgeViewComponentName = item.BadgeViewComponentName,
-            BadgeViewComponentParameters = item.BadgeViewComponentParameters
+            BadgeViewComponentParameters = item.BadgeViewComponentParameters,
+            IsAction = item.IsAction
         };
     }
 
@@ -371,6 +380,8 @@ public sealed record class ModuleSubNavViewModel
 {
     public required IReadOnlyList<ModuleSubNavItem> Tabs { get; init; }
 
+    public required IReadOnlyList<ModuleSubNavItem> Actions { get; init; }
+
     public required IReadOnlyList<ModuleSubNavItem> OverflowTabs { get; init; }
 
     public required string OverflowLabel { get; init; }
@@ -393,4 +404,6 @@ public sealed record class ModuleSubNavItem
     public string? BadgeViewComponentName { get; init; }
 
     public object? BadgeViewComponentParameters { get; init; }
+
+    public bool IsAction { get; init; }
 }

@@ -1,5 +1,6 @@
 import { initSparklines } from './charts/sparkline.js';
 import { initDrawer } from './navigation/drawer.js';
+import { initGlobalSearchShortcut } from './navigation/global-search.js';
 import { initPendingApprovalsRows } from './pages/approvals-pending.js';
 import { initTooltips } from './utils/tooltips.js';
 
@@ -23,6 +24,7 @@ function boot() {
   // Navigation is deliberately initialised first because it is core shell
   // functionality and must not depend on any page-specific feature.
   runInitializer('navigation drawer', initDrawer);
+  runInitializer('global search shortcut', initGlobalSearchShortcut);
   runInitializer('sparklines', initSparklines);
   runInitializer('pending approvals filters', initPendingApprovalsRows);
   runInitializer('tooltips', initTooltips);
