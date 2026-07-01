@@ -1217,3 +1217,81 @@
     padding-right: 14px;
   }
 }
+
+/* --- Calendar event editor correctness and density refinements: version 6 --- */
+.calendar-all-day-switch,
+.calendar-all-day-switch .form-check-label {
+  color: #425068 !important;
+}
+
+.calendar-all-day-switch .form-check-input {
+  border-color: #9aa8ba;
+  background-color: #e7ebf1;
+}
+
+.calendar-all-day-switch .form-check-input:checked {
+  border-color: #315ee8 !important;
+  background-color: #315ee8 !important;
+}
+
+.calendar-date-time-grid {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid #e1e7f0;
+  border-radius: 11px;
+  background: #fbfcfe;
+}
+
+.calendar-date-time-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.calendar-date-time-row + .calendar-date-time-row {
+  border-top: 1px solid #e7ecf3;
+}
+
+.calendar-date-time-heading {
+  margin: 0;
+}
+
+.calendar-date-time-heading .form-label {
+  margin: 0;
+  color: #33445d;
+}
+
+.calendar-date-time-inputs {
+  min-width: 0;
+}
+
+.calendar-date-time-inputs > [class*="col-"] {
+  min-width: 0;
+}
+
+.calendar-date-time-inputs .invalid-feedback {
+  font-size: .7rem;
+  line-height: 1.25;
+}
+
+.calendar-event-editor .was-validated input[type="time"]:valid,
+.calendar-event-editor .was-validated input[type="date"]:valid {
+  background-image: none;
+}
+
+@media (max-width: 575.98px) {
+  .calendar-date-time-row {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+}
+
+.calendar-all-day-switch .form-check-input:checked + .form-check-label {
+  color: #315ee8 !important;
+}

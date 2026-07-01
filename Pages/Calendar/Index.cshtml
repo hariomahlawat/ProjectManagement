@@ -183,11 +183,11 @@
               </div>
               <div class="calendar-date-time-inputs row g-2">
                 <div class="col-12 col-sm-7">
-                  <input type="date" class="form-control" id="eventStartDateTimed" name="startDateTimed" required />
+                  <input type="date" class="form-control" id="eventStartDateTimed" name="startDateTimed" aria-label="Start date" required />
                   <div class="invalid-feedback">Select the start date.</div>
                 </div>
                 <div class="col-12 col-sm-5">
-                  <input type="time" class="form-control" id="eventStartTimeTimed" name="startTimeTimed" step="900" required />
+                  <input type="time" class="form-control" id="eventStartTimeTimed" name="startTimeTimed" aria-label="Start time" step="60" required />
                   <div class="invalid-feedback">Select the start time.</div>
                 </div>
               </div>
@@ -199,11 +199,11 @@
               </div>
               <div class="calendar-date-time-inputs row g-2">
                 <div class="col-12 col-sm-7">
-                  <input type="date" class="form-control" id="eventEndDateTimed" name="endDateTimed" required />
+                  <input type="date" class="form-control" id="eventEndDateTimed" name="endDateTimed" aria-label="End date" required />
                   <div class="invalid-feedback">Select the end date.</div>
                 </div>
                 <div class="col-12 col-sm-5">
-                  <input type="time" class="form-control" id="eventEndTimeTimed" name="endTimeTimed" step="900" required />
+                  <input type="time" class="form-control" id="eventEndTimeTimed" name="endTimeTimed" aria-label="End time" step="60" required />
                   <div class="invalid-feedback">Select a valid end time.</div>
                 </div>
               </div>
@@ -213,12 +213,12 @@
           <div class="row g-3 d-none" id="allDayDateFields">
             <div class="col-12 col-sm-6">
               <label class="form-label" for="eventStartDateAllDay">Start date</label>
-              <input type="date" class="form-control" id="eventStartDateAllDay" name="startDateAllDay" required disabled />
+              <input type="date" class="form-control" id="eventStartDateAllDay" name="startDateAllDay" aria-label="All-day start date" required disabled />
               <div class="invalid-feedback">Select the start date.</div>
             </div>
             <div class="col-12 col-sm-6">
               <label class="form-label" for="eventEndDateAllDay">End date</label>
-              <input type="date" class="form-control" id="eventEndDateAllDay" name="endDateAllDay" required disabled />
+              <input type="date" class="form-control" id="eventEndDateAllDay" name="endDateAllDay" aria-label="All-day end date" required disabled />
               <div class="invalid-feedback">Select a valid end date.</div>
             </div>
           </div>
@@ -275,7 +275,9 @@
                            max="31"
                            class="form-control"
                            id="repeatMonthDay"
+                           aria-label="Day of month"
                            placeholder="Uses start date" />
+                    <div class="invalid-feedback">Enter a day from 1 to 31, or leave it blank to use the event start date.</div>
                   </div>
                 </div>
 

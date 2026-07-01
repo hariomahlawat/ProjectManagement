@@ -1031,6 +1031,62 @@ app.MapControllers();
 // Calendar API endpoints
 var eventsApi = app.MapGroup("/calendar/events");
 
+static string? NormalizeCalendarOptionalText(string? value)
+    => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+static string? ValidateCalendarEventRequest(CalendarEventDto dto)
+{
+    var title = dto.Title?.Trim();
+    if (string.IsNullOrWhiteSpace(title))
+        return "Title is required.";
+    if (title.Length > 160)
+        return "Title cannot exceed 160 characters.";
+    if (dto.Description?.Length > 4000)
+        return "Description cannot exceed 4000 characters.";
+    if (NormalizeCalendarOptionalText(dto.Location)?.Length > 160)
+        return "Location cannot exceed 160 characters.";
+    if (dto.EndUtc <= dto.StartUtc)
+        return "End date/time must be after the start date/time.";
+
+    var recurrenceRule = NormalizeCalendarOptionalText(dto.RecurrenceRule);
+    if (recurrenceRule is null)
+    {
+        if (dto.RecurrenceUntilUtc.HasValue)
+            return "A recurrence end date cannot be supplied for a non-recurring event.";
+        return null;
+    }
+
+    if (recurrenceRule.Length > 256)
+        return "Recurrence rule cannot exceed 256 characters.";
+
+    try
+    {
+        _ = new Ical.Net.DataTypes.RecurrencePattern(recurrenceRule);
+    }
+    catch
+    {
+        return "The recurrence rule is invalid.";
+    }
+
+    var frequency = recurrenceRule
+        .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Select(part => part.Split('=', 2, StringSplitOptions.TrimEntries))
+        .FirstOrDefault(parts => parts.Length == 2 &&
+            string.Equals(parts[0], "FREQ", StringComparison.OrdinalIgnoreCase));
+
+    if (frequency is null ||
+        !(string.Equals(frequency[1], "WEEKLY", StringComparison.OrdinalIgnoreCase) ||
+          string.Equals(frequency[1], "MONTHLY", StringComparison.OrdinalIgnoreCase)))
+    {
+        return "Only weekly and monthly recurrence are supported.";
+    }
+
+    if (dto.RecurrenceUntilUtc.HasValue && dto.RecurrenceUntilUtc.Value < dto.StartUtc)
+        return "The recurrence end date cannot be before the event start date.";
+
+    return null;
+}
+
 static IEnumerable<CalendarEventVm> BuildCelebrationOccurrences(
     IEnumerable<Celebration> celebrations,
     DateTimeOffset windowStart,
@@ -1094,6 +1150,9 @@ eventsApi.MapGet("", async (ApplicationDbContext db,
                              [FromQuery(Name = "end")] DateTimeOffset end,
                              [FromQuery(Name = "includeCelebrations")] bool? includeCelebrations) =>
 {
+    if (end <= start)
+        return Results.BadRequest("End must be after start.");
+
     // Guard against huge windows
     if ((end - start).TotalDays > 400)
         end = start.AddDays(400);
@@ -1162,9 +1221,9 @@ eventsApi.MapGet("/holidays", async (
         [FromQuery(Name = "start")] DateTimeOffset start,
         [FromQuery(Name = "end")] DateTimeOffset end) =>
 {
-    if (end < start)
+    if (end <= start)
     {
-        return Results.BadRequest("End must be on or after start.");
+        return Results.BadRequest("End must be after start.");
     }
 
     if ((end - start).TotalDays > 400)
@@ -1182,7 +1241,7 @@ eventsApi.MapGet("/holidays", async (
 
     var holidays = await db.Holidays
         .AsNoTracking()
-        .Where(h => h.Date >= startDate && h.Date <= endDate)
+        .Where(h => h.Date >= startDate && h.Date < endDate)
         .OrderBy(h => h.Date)
         .ToListAsync();
 
@@ -1210,7 +1269,7 @@ eventsApi.MapGet("/holidays", async (
 eventsApi.MapGet("/{id:guid}", async (Guid id, ApplicationDbContext db) =>
 {
     var sanitizer = new HtmlSanitizer();
-    var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id);
+    var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
     if (ev == null) return Results.NotFound();
     var html = ev.Description == null ? null : sanitizer.Sanitize(Markdown.ToHtml(ev.Description));
     return Results.Ok(new
@@ -1234,24 +1293,24 @@ eventsApi.MapPost("", async (ApplicationDbContext db,
                            HttpContext ctx,
                            [FromBody] CalendarEventDto dto) =>
 {
-    if (dto.EndUtc <= dto.StartUtc)
-        return Results.BadRequest("EndUtc must be after StartUtc.");
+    var validationError = ValidateCalendarEventRequest(dto);
+    if (validationError is not null)
+        return Results.BadRequest(validationError);
 
     var cat = CategoryParser.ParseOrOther(dto.Category);
-
     var uid = users.GetUserId(ctx.User) ?? "";
 
     var ev = new Event
     {
         Id = Guid.NewGuid(),
         Title = dto.Title.Trim(),
-        Description = dto.Description,
+        Description = NormalizeCalendarOptionalText(dto.Description),
         Category = cat,
-        Location = dto.Location,
+        Location = NormalizeCalendarOptionalText(dto.Location),
         StartUtc = dto.StartUtc.ToUniversalTime(),
         EndUtc = dto.EndUtc.ToUniversalTime(),
         IsAllDay = dto.IsAllDay,
-        RecurrenceRule = string.IsNullOrWhiteSpace(dto.RecurrenceRule) ? null : dto.RecurrenceRule,
+        RecurrenceRule = NormalizeCalendarOptionalText(dto.RecurrenceRule),
         RecurrenceUntilUtc = dto.RecurrenceUntilUtc?.ToUniversalTime(),
         CreatedById = uid,
         UpdatedById = uid,
@@ -1270,22 +1329,25 @@ eventsApi.MapPut("/{id:guid}", async (ApplicationDbContext db,
                                    Guid id,
                                    [FromBody] CalendarEventDto dto) =>
 {
-    var ev = await db.Events.FirstOrDefaultAsync(x => x.Id == id);
+    var ev = await db.Events.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
     if (ev is null) return Results.NotFound();
-    if (dto.EndUtc <= dto.StartUtc) return Results.BadRequest("EndUtc must be after StartUtc.");
+
+    var validationError = ValidateCalendarEventRequest(dto);
+    if (validationError is not null)
+        return Results.BadRequest(validationError);
 
     var cat = CategoryParser.ParseOrOther(dto.Category);
-
     var uid = users.GetUserId(ctx.User) ?? "";
 
     ev.Title = dto.Title.Trim();
-    if (dto.Description != null) ev.Description = dto.Description;
+    if (dto.Description is not null)
+        ev.Description = NormalizeCalendarOptionalText(dto.Description);
     ev.Category = cat;
-    ev.Location = dto.Location;
+    ev.Location = NormalizeCalendarOptionalText(dto.Location);
     ev.StartUtc = dto.StartUtc.ToUniversalTime();
     ev.EndUtc = dto.EndUtc.ToUniversalTime();
     ev.IsAllDay = dto.IsAllDay;
-    ev.RecurrenceRule = string.IsNullOrWhiteSpace(dto.RecurrenceRule) ? null : dto.RecurrenceRule;
+    ev.RecurrenceRule = NormalizeCalendarOptionalText(dto.RecurrenceRule);
     ev.RecurrenceUntilUtc = dto.RecurrenceUntilUtc?.ToUniversalTime();
     ev.UpdatedById = uid;
     ev.UpdatedAt = DateTimeOffset.UtcNow;
@@ -1296,7 +1358,7 @@ eventsApi.MapPut("/{id:guid}", async (ApplicationDbContext db,
 
 eventsApi.MapDelete("/{id:guid}", async (Guid id, ApplicationDbContext db, IClock clock, UserManager<ApplicationUser> users, ClaimsPrincipal user) =>
 {
-    var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id);
+    var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
     if (ev == null) return Results.NotFound();
     ev.IsDeleted = true;
     ev.UpdatedAt = clock.UtcNow;
@@ -2208,7 +2270,7 @@ lookupApi.MapGet("/training-types", async (
 
 eventsApi.MapPost("/{id:guid}/task", async (Guid id, ApplicationDbContext db, ITodoService todos, UserManager<ApplicationUser> users, ClaimsPrincipal user) =>
 {
-    var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id);
+    var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
     if (ev == null) return Results.NotFound();
     var userId = users.GetUserId(user);
     await todos.CreateAsync(userId!, ev.Title, TimeZoneInfo.ConvertTime(ev.StartUtc, IstClock.TimeZone));

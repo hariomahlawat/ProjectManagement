@@ -60,11 +60,6 @@
 
   // helpers
   const pad = (n) => String(n).padStart(2,'0');
-  const toLocalInputValue = (d) => {
-    const dt = new Date(d);
-    return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
-  };
-
   const toLocalDateInputValue = (d) => {
     const dt = new Date(d);
     return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
@@ -90,6 +85,42 @@
     }
     rounded.setSeconds(0, 0);
     return rounded;
+  };
+
+  const isValidDate = (value) => value instanceof Date && !Number.isNaN(value.getTime());
+
+  const isSameLocalDate = (left, right) =>
+    left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate();
+
+  const atLocalTime = (date, hours, minutes = 0) => {
+    const value = new Date(date);
+    value.setHours(hours, minutes, 0, 0);
+    return value;
+  };
+
+  const getDefaultTimedStart = (selectedDate = null) => {
+    const now = new Date();
+    const selected = selectedDate ? new Date(selectedDate) : null;
+
+    if (selected && !isSameLocalDate(selected, now)) {
+      return atLocalTime(selected, 9, 0);
+    }
+
+    let candidate = roundUpToInterval(now, 15);
+    if (candidate.getHours() < 8) {
+      candidate = atLocalTime(candidate, 8, 0);
+    } else if (candidate.getHours() >= 18) {
+      candidate.setDate(candidate.getDate() + 1);
+      candidate = atLocalTime(candidate, 9, 0);
+    }
+
+    if (selected) {
+      candidate.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
+    }
+
+    return candidate;
   };
 
   const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' });
@@ -259,6 +290,7 @@
   const saveIcon = document.getElementById('eventSaveIcon');
   const saveText = document.getElementById('eventSaveText');
   const formHint = document.getElementById('eventFormHint');
+  const editorFormBody = form?.querySelector('.calendar-event-form-body');
   const formAlert = document.getElementById('eventFormAlert');
   const dateRangeError = document.getElementById('eventDateRangeError');
   const durationHint = document.getElementById('eventDurationHint');
@@ -270,8 +302,144 @@
   const repeatMonthly = document.getElementById('repeatMonthly');
   const repeatMonthDay = document.getElementById('repeatMonthDay');
   const repeatUntil = document.getElementById('repeatUntil');
+  const repeatUntilFeedback = repeatUntil?.parentElement?.querySelector('.invalid-feedback');
   const repeatEndNever = document.getElementById('repeatEndNever');
   const repeatEndOn = document.getElementById('repeatEndOn');
+
+  let linkedDurationMinutes = 60;
+  let endWasManuallyEdited = false;
+  let suppressEndDirtyTracking = false;
+
+  function getTimedStart() {
+    return combineLocalDateTime(startDateTimedBox?.value, startTimeTimedBox?.value);
+  }
+
+  function getTimedEnd() {
+    return combineLocalDateTime(endDateTimedBox?.value, endTimeTimedBox?.value);
+  }
+
+  function setTimedValues(start, end, preserveDuration = true) {
+    if (!isValidDate(start) || !isValidDate(end)) return;
+    suppressEndDirtyTracking = true;
+    if (startDateTimedBox) startDateTimedBox.value = toLocalDateInputValue(start);
+    if (startTimeTimedBox) startTimeTimedBox.value = toLocalTimeInputValue(start);
+    if (endDateTimedBox) endDateTimedBox.value = toLocalDateInputValue(end);
+    if (endTimeTimedBox) endTimeTimedBox.value = toLocalTimeInputValue(end);
+    suppressEndDirtyTracking = false;
+
+    if (preserveDuration) {
+      const minutes = Math.round((end - start) / 60000);
+      linkedDurationMinutes = minutes > 0 ? minutes : 60;
+      endWasManuallyEdited = false;
+    }
+  }
+
+  function setAllDayValues(start, endInclusive) {
+    if (!isValidDate(start) || !isValidDate(endInclusive)) return;
+    if (startDateAllDayBox) startDateAllDayBox.value = toLocalDateInputValue(start);
+    if (endDateAllDayBox) endDateAllDayBox.value = toLocalDateInputValue(endInclusive);
+  }
+
+  function syncEndToStartIfLinked() {
+    if (endWasManuallyEdited) return;
+    const start = getTimedStart();
+    if (!isValidDate(start)) return;
+    const duration = Math.max(1, linkedDurationMinutes || 60);
+    const end = new Date(start.getTime() + duration * 60000);
+    suppressEndDirtyTracking = true;
+    if (endDateTimedBox) endDateTimedBox.value = toLocalDateInputValue(end);
+    if (endTimeTimedBox) endTimeTimedBox.value = toLocalTimeInputValue(end);
+    suppressEndDirtyTracking = false;
+  }
+
+  function syncModeValues(nextAllDay) {
+    if (nextAllDay) {
+      const start = getTimedStart();
+      const end = getTimedEnd();
+      if (isValidDate(start)) {
+        const safeEnd = isValidDate(end) && end >= start ? end : start;
+        setAllDayValues(start, safeEnd);
+      }
+      return;
+    }
+
+    const startDate = startDateAllDayBox?.value;
+    const endDate = endDateAllDayBox?.value || startDate;
+    if (!startDate) return;
+
+    const existingStartTime = startTimeTimedBox?.value || '09:00';
+    const existingEndTime = endTimeTimedBox?.value || '10:00';
+    const start = combineLocalDateTime(startDate, existingStartTime);
+    let end = combineLocalDateTime(endDate, existingEndTime);
+    if (!isValidDate(start)) return;
+    if (!isValidDate(end) || end <= start) {
+      end = new Date(start.getTime() + Math.max(1, linkedDurationMinutes || 60) * 60000);
+    }
+    setTimedValues(start, end, true);
+  }
+
+  function activeSeriesStartDateValue() {
+    return isAllDayBox?.checked
+      ? startDateAllDayBox?.value || ''
+      : startDateTimedBox?.value || '';
+  }
+
+  function validateRepeatEnd() {
+    if (!repeatUntil) return true;
+    const defaultMessage = 'Select the repeat end date.';
+    repeatUntil.setCustomValidity('');
+    if (repeatUntilFeedback) repeatUntilFeedback.textContent = defaultMessage;
+
+    if (!repeatFreq?.value || !repeatEndOn?.checked) return true;
+    if (!repeatUntil.value) {
+      const message = 'Select when the recurring event ends.';
+      repeatUntil.setCustomValidity(message);
+      if (repeatUntilFeedback) repeatUntilFeedback.textContent = message;
+      return false;
+    }
+
+    const startDate = activeSeriesStartDateValue();
+    if (startDate && repeatUntil.value < startDate) {
+      const message = 'The repeat end date cannot be before the event start date.';
+      repeatUntil.setCustomValidity(message);
+      if (repeatUntilFeedback) repeatUntilFeedback.textContent = message;
+      return false;
+    }
+
+    return true;
+  }
+
+  function revealInvalidField(input) {
+    if (!input) return;
+    if (advancedOptions?.contains(input)) {
+      advancedOptions.open = true;
+    }
+    window.requestAnimationFrame(() => {
+      input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      input.focus({ preventScroll: true });
+    });
+  }
+
+  async function readErrorMessage(response) {
+    const raw = await response.text();
+    if (!raw) return `Error ${response.status}`;
+
+    try {
+      const problem = JSON.parse(raw);
+      if (typeof problem === 'string') return problem;
+      if (problem.detail) return problem.detail;
+      if (problem.message) return problem.message;
+      if (problem.errors && typeof problem.errors === 'object') {
+        const messages = Object.values(problem.errors)
+          .flatMap(value => Array.isArray(value) ? value : [value])
+          .filter(Boolean);
+        if (messages.length) return messages.join(' ');
+      }
+      if (problem.title) return problem.title;
+    } catch { }
+
+    return raw;
+  }
 
   function clearFormAlert() {
     if (!formAlert) return;
@@ -295,6 +463,10 @@
     btnSave.setAttribute('aria-busy', isSaving ? 'true' : 'false');
     saveSpinner?.classList.toggle('d-none', !isSaving);
     saveIcon?.classList.toggle('d-none', isSaving);
+  }
+
+  function resetEditorScroll() {
+    if (editorFormBody) editorFormBody.scrollTop = 0;
   }
 
   function setEditorMode(isEditing) {
@@ -335,6 +507,7 @@
       if (!startDateAllDayBox?.value || !endDateAllDayBox?.value) return true;
       const start = new Date(`${startDateAllDayBox.value}T00:00:00`);
       const end = new Date(`${endDateAllDayBox.value}T00:00:00`);
+      if (!isValidDate(start) || !isValidDate(end)) return true;
       if (end < start) {
         showDateRangeError('End date cannot be before the start date.', endDateAllDayBox);
         return false;
@@ -345,7 +518,7 @@
     if (!startDateTimedBox?.value || !startTimeTimedBox?.value || !endDateTimedBox?.value || !endTimeTimedBox?.value) return true;
     const start = combineLocalDateTime(startDateTimedBox.value, startTimeTimedBox.value);
     const end = combineLocalDateTime(endDateTimedBox.value, endTimeTimedBox.value);
-    if (!start || !end) return true;
+    if (!isValidDate(start) || !isValidDate(end)) return true;
     if (end <= start) {
       showDateRangeError('End time must be after the start time.', endTimeTimedBox);
       return false;
@@ -361,7 +534,7 @@
       if (!startDateAllDayBox?.value || !endDateAllDayBox?.value) return;
       const start = new Date(`${startDateAllDayBox.value}T00:00:00`);
       const end = new Date(`${endDateAllDayBox.value}T00:00:00`);
-      if (end < start) return;
+      if (!isValidDate(start) || !isValidDate(end) || end < start) return;
       const days = Math.round((end - start) / 86400000) + 1;
       durationHint.textContent = days === 1 ? '1 all-day event' : `${days} calendar days`;
       return;
@@ -370,7 +543,7 @@
     if (!startDateTimedBox?.value || !startTimeTimedBox?.value || !endDateTimedBox?.value || !endTimeTimedBox?.value) return;
     const start = combineLocalDateTime(startDateTimedBox.value, startTimeTimedBox.value);
     const end = combineLocalDateTime(endDateTimedBox.value, endTimeTimedBox.value);
-    if (!start || !end) return;
+    if (!isValidDate(start) || !isValidDate(end)) return;
     const minutes = Math.round((end - start) / 60000);
     if (minutes <= 0) return;
 
@@ -397,19 +570,29 @@
   function syncRepeatUI() {
     if (!repeatFreq) return;
     const frequency = repeatFreq.value;
+    const isWeekly = frequency === 'WEEKLY';
+    const isMonthly = frequency === 'MONTHLY';
+
     repeatOptions?.classList.toggle('d-none', !frequency);
-    repeatWeekly?.classList.toggle('d-none', frequency !== 'WEEKLY');
-    repeatMonthly?.classList.toggle('d-none', frequency !== 'MONTHLY');
+    repeatWeekly?.classList.toggle('d-none', !isWeekly);
+    repeatMonthly?.classList.toggle('d-none', !isMonthly);
+    repeatWeekly?.querySelectorAll('input').forEach(input => { input.disabled = !isWeekly; });
+    if (repeatMonthDay) repeatMonthDay.disabled = !isMonthly;
     syncRepeatEndUI();
   }
 
   repeatFreq?.addEventListener('change', () => {
     syncRepeatUI();
+    validateRepeatEnd();
     clearFormAlert();
   });
-  repeatEndNever?.addEventListener('change', syncRepeatEndUI);
+  repeatEndNever?.addEventListener('change', () => {
+    syncRepeatEndUI();
+    validateRepeatEnd();
+  });
   repeatEndOn?.addEventListener('change', () => {
     syncRepeatEndUI();
+    validateRepeatEnd();
     if (repeatEndOn.checked) repeatUntil?.focus();
   });
   titleBox?.addEventListener('input', () => {
@@ -417,7 +600,7 @@
     clearFormAlert();
   });
   repeatUntil?.addEventListener('input', () => {
-    repeatUntil.setCustomValidity('');
+    validateRepeatEnd();
     clearFormAlert();
   });
 
@@ -438,15 +621,12 @@
       const d = parseInt(repeatMonthDay?.value, 10) || new Date(startLocalIso).getDate();
       parts.push(`BYMONTHDAY=${d}`);
     }
-    if (repeatEndOn?.checked && repeatUntil?.value) {
-      const u = new Date(repeatUntil.value + 'T23:59:59');
-      const z = new Date(Date.UTC(u.getFullYear(), u.getMonth(), u.getDate(), 23, 59, 59));
-      parts.push(`UNTIL=${z.toISOString().replace(/[-:]/g,'').split('.')[0]}Z`);
-    }
+    // The end date is stored separately in RecurrenceUntilUtc. Keeping it out of
+    // the RRULE avoids conflicting UTC/local interpretations of UNTIL.
     return parts.join(';');
   }
 
-  function hydrateRepeatUI(rrule) {
+  function hydrateRepeatUI(rrule, recurrenceUntilUtc = null) {
     if (!repeatFreq) return;
     repeatFreq.value = '';
     repeatWeekly?.querySelectorAll('input').forEach(i => { i.checked = false; });
@@ -455,29 +635,46 @@
     if (repeatEndNever) repeatEndNever.checked = true;
     if (repeatEndOn) repeatEndOn.checked = false;
 
+    let ruleUntil = null;
     if (rrule) {
-      const m = Object.fromEntries(rrule.split(';').map(p => p.split('=')));
-      if (m.FREQ === 'WEEKLY') {
+      const m = Object.fromEntries(rrule.split(';').map(part => {
+        const separator = part.indexOf('=');
+        return separator > 0
+          ? [part.slice(0, separator).toUpperCase(), part.slice(separator + 1)]
+          : [part.toUpperCase(), ''];
+      }));
+      const frequency = (m.FREQ || '').toUpperCase();
+      if (frequency === 'WEEKLY') {
         repeatFreq.value = 'WEEKLY';
-        (m.BYDAY || '').split(',').forEach(code => {
+        (m.BYDAY || '').toUpperCase().split(',').forEach(code => {
           const box = repeatWeekly?.querySelector(`input[value="${code}"]`);
           if (box) box.checked = true;
         });
-      } else if (m.FREQ === 'MONTHLY') {
+      } else if (frequency === 'MONTHLY') {
         repeatFreq.value = 'MONTHLY';
         if (m.BYMONTHDAY && repeatMonthDay) repeatMonthDay.value = m.BYMONTHDAY;
       }
-      if (m.UNTIL && repeatUntil) {
-        const y = m.UNTIL.slice(0, 4);
-        const mo = m.UNTIL.slice(4, 6);
-        const d = m.UNTIL.slice(6, 8);
-        repeatUntil.value = `${y}-${mo}-${d}`;
-        if (repeatEndOn) repeatEndOn.checked = true;
-        if (repeatEndNever) repeatEndNever.checked = false;
+      if (m.UNTIL && /^\d{8}/.test(m.UNTIL)) {
+        ruleUntil = `${m.UNTIL.slice(0, 4)}-${m.UNTIL.slice(4, 6)}-${m.UNTIL.slice(6, 8)}`;
       }
     }
 
+    if (repeatUntil) {
+      if (ruleUntil) {
+        repeatUntil.value = ruleUntil;
+      } else if (recurrenceUntilUtc) {
+        const until = new Date(recurrenceUntilUtc);
+        if (isValidDate(until)) repeatUntil.value = toLocalDateInputValue(until);
+      }
+    }
+
+    if (repeatUntil?.value) {
+      if (repeatEndOn) repeatEndOn.checked = true;
+      if (repeatEndNever) repeatEndNever.checked = false;
+    }
+
     syncRepeatUI();
+    validateRepeatEnd();
   }
 
   function setAllDayUI(on) {
@@ -504,6 +701,9 @@
     clearDateRangeError();
     clearFormAlert();
     setSaving(false);
+    linkedDurationMinutes = 60;
+    endWasManuallyEdited = false;
+    suppressEndDirtyTracking = false;
   }
 
   function setAdvancedOptionsOpen(isOpen) {
@@ -511,14 +711,51 @@
     advancedOptions.open = !!isOpen;
   }
 
-  isAllDayBox?.addEventListener('change', () => setAllDayUI(isAllDayBox.checked));
-  [startDateTimedBox, startTimeTimedBox, endDateTimedBox, endTimeTimedBox, startDateAllDayBox, endDateAllDayBox].forEach(input => {
+  isAllDayBox?.addEventListener('change', () => {
+    syncModeValues(isAllDayBox.checked);
+    setAllDayUI(isAllDayBox.checked);
+    validateDateRange();
+    validateRepeatEnd();
+    updateDurationHint();
+  });
+
+  [startDateTimedBox, startTimeTimedBox].forEach(input => {
     input?.addEventListener('input', () => {
+      syncEndToStartIfLinked();
+      validateDateRange();
+      validateRepeatEnd();
+      updateDurationHint();
+    });
+    input?.addEventListener('change', () => {
+      syncEndToStartIfLinked();
+      validateDateRange();
+      validateRepeatEnd();
+      updateDurationHint();
+    });
+  });
+
+  [endDateTimedBox, endTimeTimedBox].forEach(input => {
+    input?.addEventListener('input', () => {
+      if (!suppressEndDirtyTracking) endWasManuallyEdited = true;
       validateDateRange();
       updateDurationHint();
     });
     input?.addEventListener('change', () => {
+      if (!suppressEndDirtyTracking) endWasManuallyEdited = true;
       validateDateRange();
+      updateDurationHint();
+    });
+  });
+
+  [startDateAllDayBox, endDateAllDayBox].forEach(input => {
+    input?.addEventListener('input', () => {
+      validateDateRange();
+      validateRepeatEnd();
+      updateDurationHint();
+    });
+    input?.addEventListener('change', () => {
+      validateDateRange();
+      validateRepeatEnd();
       updateDurationHint();
     });
   });
@@ -534,6 +771,7 @@
       hydrateRepeatUI(null);
       setAdvancedOptionsOpen(false);
       resetEditorValidation();
+      resetEditorScroll();
       btnDelete?.classList.add('d-none');
     });
   }
@@ -582,10 +820,9 @@
       body: JSON.stringify(payload)
     });
     if (!res.ok) {
-      let msg = await res.text();
-      try { const j = JSON.parse(msg); msg = j.detail || j.title || j; } catch {}
+      const message = await readErrorMessage(res);
       info.revert();
-      alert(`Update failed: ${msg || res.status}`);
+      alert(`Update failed: ${message}`);
     } else {
       showUndo('Event updated.', async () => {
         await fetch(`/calendar/events/${id}`, {
@@ -985,7 +1222,13 @@
     if (viewTitle) viewTitle.textContent = payload.title || '';
     if (viewCategory) viewCategory.textContent = canon(payload.category);
     if (viewLocation) viewLocation.textContent = payload.location || '';
-    if (viewDescription) viewDescription.innerHTML = payload.descriptionHtml || payload.description || '';
+    if (viewDescription) {
+      if (payload.descriptionHtml) {
+        viewDescription.innerHTML = payload.descriptionHtml;
+      } else {
+        viewDescription.textContent = payload.description || '';
+      }
+    }
 
     if (viewTime) {
       if (payload.allDay) {
@@ -1042,7 +1285,7 @@
           allDay: ev.allDay,
           category: canon(ev.extendedProps.category),
           location: ev.extendedProps.location || '',
-          descriptionHtml: ev.extendedProps.description || '',
+          description: ev.extendedProps.description || '',
           taskUrl: ev.extendedProps.taskUrl || null
         });
         return;
@@ -1069,25 +1312,30 @@
       descBox.value = data.rawDescription || '';
       isAllDayBox.checked = !!data.allDay;
       setAllDayUI(isAllDayBox.checked);
-      hydrateRepeatUI(data.recurrenceRule);
-      setAdvancedOptionsOpen(!!(data.recurrenceRule || data.rawDescription));
+      hydrateRepeatUI(data.recurrenceRule, data.recurrenceUntilUtc);
+      setAdvancedOptionsOpen(!!(data.recurrenceRule || data.recurrenceUntilUtc || data.rawDescription));
 
-      if (isAllDayBox.checked) {
-        const start = new Date(data.start);
-        const endInclusive = new Date(data.end);
-        endInclusive.setDate(endInclusive.getDate() - 1);
-        startDateAllDayBox.value = toLocalDateInputValue(start);
-        endDateAllDayBox.value = toLocalDateInputValue(endInclusive);
-      } else {
-        const start = new Date(data.start);
-        const end = new Date(data.end);
-        startDateTimedBox.value = toLocalDateInputValue(start);
-        startTimeTimedBox.value = toLocalTimeInputValue(start);
-        endDateTimedBox.value = toLocalDateInputValue(end);
-        endTimeTimedBox.value = toLocalTimeInputValue(end);
+      const start = new Date(data.start);
+      const end = new Date(data.end);
+      if (!isValidDate(start) || !isValidDate(end)) {
+        alert('The stored event contains an invalid date range and cannot be edited safely.');
+        return;
       }
 
+      if (isAllDayBox.checked) {
+        const endInclusive = new Date(end);
+        endInclusive.setDate(endInclusive.getDate() - 1);
+        setAllDayValues(start, endInclusive);
+        const timedStart = atLocalTime(start, 9, 0);
+        setTimedValues(timedStart, new Date(timedStart.getTime() + 60 * 60 * 1000));
+      } else {
+        setTimedValues(start, end);
+        setAllDayValues(start, end);
+      }
+
+      validateRepeatEnd();
       updateDurationHint();
+      resetEditorScroll();
       btnDelete?.classList.remove('d-none');
       bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('eventFormCanvas')).show();
       window.setTimeout(() => titleBox?.focus(), 250);
@@ -1110,24 +1358,28 @@
 
       if (allDay) {
         const startValue = start ? new Date(start) : new Date();
-        const endValue = end ? new Date(end) : new Date(startValue);
-        const inclusiveEnd = new Date(endValue);
-        if (end) {
-          inclusiveEnd.setDate(inclusiveEnd.getDate() - 1);
-        }
-        startDateAllDayBox.value = toLocalDateInputValue(startValue);
-        endDateAllDayBox.value = toLocalDateInputValue(inclusiveEnd);
+        const endExclusive = end ? new Date(end) : new Date(startValue.getTime() + 24 * 60 * 60 * 1000);
+        const inclusiveEnd = new Date(endExclusive);
+        inclusiveEnd.setDate(inclusiveEnd.getDate() - 1);
+        setAllDayValues(startValue, inclusiveEnd);
+        const timedStart = atLocalTime(startValue, 9, 0);
+        setTimedValues(timedStart, new Date(timedStart.getTime() + 60 * 60 * 1000));
       } else {
-        const baseStart = start ? new Date(start) : roundUpToInterval(new Date(), 15);
-        const startValue = roundUpToInterval(baseStart, 15);
-        const endValue = end ? new Date(end) : new Date(startValue.getTime() + 60 * 60 * 1000);
-        startDateTimedBox.value = toLocalDateInputValue(startValue);
-        startTimeTimedBox.value = toLocalTimeInputValue(startValue);
-        endDateTimedBox.value = toLocalDateInputValue(endValue);
-        endTimeTimedBox.value = toLocalTimeInputValue(endValue);
+        const suppliedStart = start ? new Date(start) : null;
+        const startValue = isValidDate(suppliedStart)
+          ? suppliedStart
+          : getDefaultTimedStart();
+        const endValueCandidate = end ? new Date(end) : null;
+        const endValue = isValidDate(endValueCandidate) && endValueCandidate > startValue
+          ? endValueCandidate
+          : new Date(startValue.getTime() + 60 * 60 * 1000);
+        setTimedValues(startValue, endValue);
+        setAllDayValues(startValue, endValue);
       }
 
+      validateRepeatEnd();
       updateDurationHint();
+      resetEditorScroll();
       bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('eventFormCanvas')).show();
       window.setTimeout(() => titleBox?.focus(), 250);
     }
@@ -1135,7 +1387,11 @@
     btnNew?.addEventListener('click', () => openNewEvent());
 
     calendar.setOption('dateClick', (info) => {
-      openNewEvent(info.date, null, info.allDay);
+      if ((calendar.view?.type || '').startsWith('dayGrid')) {
+        openNewEvent(getDefaultTimedStart(info.date), null, false);
+      } else {
+        openNewEvent(info.date, null, info.allDay);
+      }
     });
 
     calendar.setOption('select', (info) => {
@@ -1150,19 +1406,12 @@
       const trimmedTitle = titleBox.value.trim();
       titleBox.setCustomValidity(trimmedTitle ? '' : 'Enter a title for the event.');
 
-      if (repeatUntil) {
-        const repeatEndDateRequired = !!repeatFreq?.value && !!repeatEndOn?.checked;
-        repeatUntil.setCustomValidity(repeatEndDateRequired && !repeatUntil.value
-          ? 'Select when the recurring event ends.'
-          : '');
-      }
-
       validateDateRange();
+      validateRepeatEnd();
       form.classList.add('was-validated');
 
       if (!form.checkValidity()) {
-        const firstInvalid = form.querySelector(':invalid');
-        firstInvalid?.focus();
+        revealInvalidField(form.querySelector(':invalid'));
         return;
       }
 
@@ -1175,13 +1424,21 @@
       if (isAllDay) {
         const start = new Date(`${startDateAllDayBox.value}T00:00:00`);
         const end = new Date(`${endDateAllDayBox.value}T00:00:00`);
+        if (!isValidDate(start) || !isValidDate(end)) {
+          showFormAlert('Select a valid all-day date range.');
+          return;
+        }
         end.setDate(end.getDate() + 1); // API uses an exclusive all-day end.
         startUtc = start.toISOString();
         endUtc = end.toISOString();
         startLocalIso = `${startDateAllDayBox.value}T00:00`;
       } else {
-        const start = combineLocalDateTime(startDateTimedBox.value, startTimeTimedBox.value);
-        const end = combineLocalDateTime(endDateTimedBox.value, endTimeTimedBox.value);
+        const start = getTimedStart();
+        const end = getTimedEnd();
+        if (!isValidDate(start) || !isValidDate(end)) {
+          showFormAlert('Select a valid start and end date/time.');
+          return;
+        }
         startUtc = start.toISOString();
         endUtc = end.toISOString();
         startLocalIso = `${startDateTimedBox.value}T${startTimeTimedBox.value}`;
@@ -1233,12 +1490,8 @@
         });
 
         if (!response.ok) {
-          let message = await response.text();
-          try {
-            const problem = JSON.parse(message);
-            message = problem.detail || problem.title || problem.message || message;
-          } catch { }
-          showFormAlert(`The event could not be saved. ${message || `Error ${response.status}`}`);
+          const message = await readErrorMessage(response);
+          showFormAlert(`The event could not be saved. ${message}`);
           return;
         }
 
@@ -1324,7 +1577,7 @@
           allDay: ev.allDay,
           category: canon(ev.extendedProps.category),
           location: ev.extendedProps.location || '',
-          descriptionHtml: ev.extendedProps.description || '',
+          description: ev.extendedProps.description || '',
           taskUrl: ev.extendedProps.taskUrl || null
         });
         return;

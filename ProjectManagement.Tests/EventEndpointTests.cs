@@ -166,6 +166,95 @@ namespace ProjectManagement.Tests
         }
 
         [Fact]
+        public async Task CreateEventAcceptsMinutePrecisionOutsideQuarterHourSlots()
+        {
+            var client = CreateClient(RoleNames.Admin);
+            var start = new DateTimeOffset(2026, 7, 10, 9, 20, 0, TimeSpan.FromHours(5.5));
+            var response = await client.PostAsJsonAsync("/calendar/events", new
+            {
+                title = "Minute precision event",
+                description = "Created from the calendar editor",
+                category = "Other",
+                location = "Conference Room",
+                startUtc = start,
+                endUtc = start.AddHours(1),
+                isAllDay = false,
+                recurrenceRule = (string?)null,
+                recurrenceUntilUtc = (DateTimeOffset?)null
+            });
+
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.Equal(System.Net.HttpStatusCode.Created, response.StatusCode);
+            Assert.True(body.Contains("id", StringComparison.OrdinalIgnoreCase), body);
+        }
+
+        [Fact]
+        public async Task CreateEventRejectsWhitespaceTitle()
+        {
+            var client = CreateClient(RoleNames.Admin);
+            var start = DateTimeOffset.UtcNow.AddHours(1);
+            var response = await client.PostAsJsonAsync("/calendar/events", new
+            {
+                title = "   ",
+                category = "Other",
+                startUtc = start,
+                endUtc = start.AddHours(1),
+                isAllDay = false
+            });
+
+            Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.True(body.Contains("Title is required", StringComparison.OrdinalIgnoreCase), body);
+        }
+
+        [Fact]
+        public async Task CreateEventRejectsRecurrenceEndBeforeStart()
+        {
+            var client = CreateClient(RoleNames.Admin);
+            var start = DateTimeOffset.UtcNow.AddDays(2);
+            var response = await client.PostAsJsonAsync("/calendar/events", new
+            {
+                title = "Invalid recurring event",
+                category = "Conference",
+                startUtc = start,
+                endUtc = start.AddHours(1),
+                isAllDay = false,
+                recurrenceRule = "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO",
+                recurrenceUntilUtc = start.AddDays(-1)
+            });
+
+            Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.True(body.Contains("cannot be before", StringComparison.OrdinalIgnoreCase), body);
+        }
+
+        [Fact]
+        public async Task SoftDeletedEventCannotBeReadOrAddedToTasks()
+        {
+            var eventId = Guid.NewGuid();
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                db.Events.Add(new ProjectManagement.Models.Event
+                {
+                    Id = eventId,
+                    Title = "Deleted",
+                    Category = ProjectManagement.Models.EventCategory.Other,
+                    StartUtc = DateTimeOffset.UtcNow,
+                    EndUtc = DateTimeOffset.UtcNow.AddHours(1),
+                    IsDeleted = true,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                });
+                await db.SaveChangesAsync();
+            }
+
+            var client = CreateClient(RoleNames.Admin);
+            Assert.Equal(System.Net.HttpStatusCode.NotFound, (await client.GetAsync($"/calendar/events/{eventId}")).StatusCode);
+            Assert.Equal(System.Net.HttpStatusCode.NotFound, (await client.PostAsync($"/calendar/events/{eventId}/task", null)).StatusCode);
+        }
+
+        [Fact]
         public async Task RecurringAllDayEventsReturnedInFutureMonths()
         {
             using var scope = _factory.Services.CreateScope();
