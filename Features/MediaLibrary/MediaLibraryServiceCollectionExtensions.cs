@@ -93,11 +93,6 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IFaceQueueService, FaceQueueService>();
         services.AddScoped<IFaceReviewService, FaceReviewService>();
 
-        if (configuredOptions.Enabled && configuredOptions.AutoMigrate)
-        {
-            services.AddHostedService<MediaLibrarySchemaInitializerWorker>();
-        }
-
         if (configuredOptions.IsCatalogueEnabled
             && configuredOptions.Catalogue.SynchronizePrismMedia)
         {

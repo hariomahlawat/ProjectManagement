@@ -26,14 +26,27 @@
   font-size: .92rem;
 }
 
-.calendar-new-event {
+.calendar-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.calendar-new-event,
+.calendar-manage-celebrations {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   min-height: 40px;
   padding-inline: 16px;
   border-radius: 10px;
   font-weight: 650;
+}
+
+.calendar-new-event {
   box-shadow: 0 5px 14px rgba(53, 92, 222, .16);
 }
 
@@ -544,14 +557,15 @@
     display: none;
   }
 
-  .calendar-new-event span {
+  .calendar-new-event span,
+  .calendar-manage-celebrations span {
     display: none;
   }
 
-  .calendar-new-event {
+  .calendar-new-event,
+  .calendar-manage-celebrations {
     width: 40px;
     padding: 0;
-    justify-content: center;
   }
 
   .calendar-period-title {
@@ -587,6 +601,7 @@
   .calendar-workbench,
   #categoryFilters,
   #btnNewEvent,
+  .calendar-manage-celebrations,
   #btnPrev,
   #btnNext,
   #btnToday,

@@ -1,81 +1,154 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
-using ProjectManagement.Models;
 using ProjectManagement.Helpers;
 using ProjectManagement.Infrastructure;
+using ProjectManagement.Models;
 
-namespace ProjectManagement.Pages.Celebrations
+namespace ProjectManagement.Pages.Celebrations;
+
+[Authorize]
+public class IndexModel : PageModel
 {
-    [Authorize]
-    public class IndexModel : PageModel
+    private readonly ApplicationDbContext _db;
+    private readonly IAuthorizationService _authorization;
+    private static readonly TimeZoneInfo Ist = IstClock.TimeZone;
+
+    public IndexModel(
+        ApplicationDbContext db,
+        IAuthorizationService authorization)
     {
-        private readonly ApplicationDbContext _db;
-        private static readonly TimeZoneInfo Ist = IstClock.TimeZone;
+        _db = db;
+        _authorization = authorization;
+    }
 
-        public IndexModel(ApplicationDbContext db) { _db = db; }
+    public record Row(
+        Guid Id,
+        CelebrationType EventType,
+        string Name,
+        DateOnly NextOccurrence,
+        int DaysAway);
 
-        public record Row(Guid Id, CelebrationType EventType, string Name, DateOnly NextOccurrence, int DaysAway);
-        public Row[] Items { get; set; } = Array.Empty<Row>();
+    public Row[] Items { get; private set; } = Array.Empty<Row>();
 
-        [BindProperty(SupportsGet = true)] public string Type { get; set; } = "all"; // all|birthday|anniversary
-        [BindProperty(SupportsGet = true)] public string Window { get; set; } = "all"; // today|7|15|30|all
-        [BindProperty(SupportsGet = true)] public string? Q { get; set; }
+    [BindProperty(SupportsGet = true)]
+    public string Type { get; set; } = "all"; // all|birthday|anniversary
 
-        public bool CanEdit => User.IsInRole("Admin") || User.IsInRole("TA");
+    [BindProperty(SupportsGet = true)]
+    public string Window { get; set; } = "all"; // today|7|15|30|all
 
-        public async Task OnGetAsync()
+    [BindProperty(SupportsGet = true)]
+    public string? Q { get; set; }
+
+    public bool CanManageBirthdays { get; private set; }
+    public bool CanManageAnniversaries { get; private set; }
+    public bool CanEdit => CanManageBirthdays || CanManageAnniversaries;
+    public string AddButtonLabel => CanManageAnniversaries ? "Add celebration" : "Add birthday";
+
+    public bool CanManage(CelebrationType eventType) => eventType switch
+    {
+        CelebrationType.Birthday => CanManageBirthdays,
+        CelebrationType.Anniversary => CanManageAnniversaries,
+        _ => false
+    };
+
+    public async Task OnGetAsync()
+    {
+        await LoadPermissionsAsync();
+
+        var query = _db.Celebrations
+            .AsNoTracking()
+            .Where(x => x.DeletedUtc == null);
+
+        if (string.Equals(Type, "birthday", StringComparison.OrdinalIgnoreCase))
         {
-            var q = _db.Celebrations.AsNoTracking().Where(x => x.DeletedUtc == null);
+            query = query.Where(x => x.EventType == CelebrationType.Birthday);
+        }
+        else if (string.Equals(Type, "anniversary", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(x => x.EventType == CelebrationType.Anniversary);
+        }
 
-            if (Type == "birthday") q = q.Where(x => x.EventType == CelebrationType.Birthday);
-            else if (Type == "anniversary") q = q.Where(x => x.EventType == CelebrationType.Anniversary);
+        if (!string.IsNullOrWhiteSpace(Q))
+        {
+            var search = Q.Trim();
+            query = query.Where(x =>
+                EF.Functions.ILike(x.Name, $"%{search}%") ||
+                (x.SpouseName != null && EF.Functions.ILike(x.SpouseName, $"%{search}%")));
+        }
 
-            if (!string.IsNullOrWhiteSpace(Q))
-            {
-                var s = Q.Trim();
-                q = q.Where(x => EF.Functions.ILike(x.Name, $"%{s}%") || (x.SpouseName != null && EF.Functions.ILike(x.SpouseName, $"%{s}%")));
-            }
+        var nowLocal = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Ist);
+        var today = DateOnly.FromDateTime(nowLocal.DateTime);
+        var celebrations = await query.ToListAsync();
 
-            var nowLocal = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Ist);
-            var today = DateOnly.FromDateTime(nowLocal.DateTime);
-
-            var list = await q.ToListAsync();
-            var rows = new List<Row>();
-            foreach (var c in list)
+        var rows = celebrations
+            .Select(c =>
             {
                 var next = CelebrationHelpers.NextOccurrenceLocal(c, today);
-                var days = CelebrationHelpers.DaysAway(today, next);
-                rows.Add(new Row(c.Id, c.EventType, CelebrationHelpers.DisplayName(c), next, days));
-            }
+                return new Row(
+                    c.Id,
+                    c.EventType,
+                    CelebrationHelpers.DisplayName(c),
+                    next,
+                    CelebrationHelpers.DaysAway(today, next));
+            });
 
-            rows = Window switch
-            {
-                "today" => rows.Where(r => r.DaysAway == 0).ToList(),
-                "7"     => rows.Where(r => r.DaysAway < 7).ToList(),
-                "15"    => rows.Where(r => r.DaysAway < 15).ToList(),
-                "30"    => rows.Where(r => r.DaysAway < 30).ToList(),
-                _       => rows
-            };
-
-            Items = rows.OrderBy(r => r.NextOccurrence).ThenBy(r => r.Name).ToArray();
-        }
-
-        public async Task<IActionResult> OnPostDeleteAsync(Guid id)
+        rows = Window.ToLowerInvariant() switch
         {
-            if (!CanEdit) return Unauthorized();
-            var c = await _db.Celebrations.FirstOrDefaultAsync(x => x.Id == id && x.DeletedUtc == null);
-            if (c == null) return RedirectToPage();
-            c.DeletedUtc = DateTimeOffset.UtcNow;
-            c.UpdatedUtc = DateTimeOffset.UtcNow;
-            await _db.SaveChangesAsync();
+            "today" => rows.Where(r => r.DaysAway == 0),
+            "7" => rows.Where(r => r.DaysAway < 7),
+            "15" => rows.Where(r => r.DaysAway < 15),
+            "30" => rows.Where(r => r.DaysAway < 30),
+            _ => rows
+        };
+
+        Items = rows
+            .OrderBy(r => r.NextOccurrence)
+            .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public async Task<IActionResult> OnPostDeleteAsync(Guid id)
+    {
+        var celebration = await _db.Celebrations
+            .FirstOrDefaultAsync(x => x.Id == id && x.DeletedUtc == null);
+
+        if (celebration is null)
+        {
             return RedirectToPage(new { Type, Window, Q });
         }
+
+        var authorization = await _authorization.AuthorizeAsync(
+            User,
+            Policies.Calendar.PolicyFor(celebration.EventType));
+
+        if (!authorization.Succeeded)
+        {
+            return Forbid();
+        }
+
+        celebration.DeletedUtc = DateTimeOffset.UtcNow;
+        celebration.UpdatedUtc = DateTimeOffset.UtcNow;
+        await _db.SaveChangesAsync();
+
+        TempData["ok"] = celebration.EventType == CelebrationType.Birthday
+            ? "Birthday deleted."
+            : "Anniversary deleted.";
+
+        return RedirectToPage(new { Type, Window, Q });
+    }
+
+    private async Task LoadPermissionsAsync()
+    {
+        CanManageBirthdays = (await _authorization.AuthorizeAsync(
+            User,
+            Policies.Calendar.ManageBirthdays)).Succeeded;
+
+        CanManageAnniversaries = (await _authorization.AuthorizeAsync(
+            User,
+            Policies.Calendar.ManageAnniversaries)).Succeeded;
     }
 }

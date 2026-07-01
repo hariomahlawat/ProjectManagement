@@ -34,11 +34,6 @@ public sealed class MediaSourceScannerWorker : BackgroundService
     {
         await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
 
-        if (_options.AutoMigrate)
-        {
-            await TryMigrateAsync(stoppingToken);
-        }
-
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -172,35 +167,6 @@ public sealed class MediaSourceScannerWorker : BackgroundService
                           ?? source.LastScanStartedAtUtc;
         return !lastAttempt.HasValue
                || lastAttempt.Value.Add(interval) <= DateTimeOffset.UtcNow;
-    }
-
-    private async Task TryMigrateAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var schema = scope.ServiceProvider.GetRequiredService<IMediaLibrarySchemaService>();
-            var result = await schema.MigrateAsync(cancellationToken);
-            if (result.IsOperational)
-            {
-                _logger.LogInformation(
-                    result.IsCurrent
-                        ? "Media catalogue database migrations applied and verified"
-                        : "Media catalogue is operational, but migration metadata still requires attention");
-            }
-            else
-            {
-                _logger.LogWarning(
-                    "Media catalogue migrations did not produce an operational schema. Reference={Reference}; Error={Error}",
-                    result.DiagnosticReference,
-                    result.Error);
-            }
-        }
-        catch (Exception ex) when (IsCatalogueInfrastructureFailure(ex))
-        {
-            _logger.LogWarning(ex,
-                "Media catalogue migrations could not be applied. Core PRISM Photos will continue without catalogue-backed items.");
-        }
     }
 
     private static bool IsCatalogueInfrastructureFailure(Exception exception)

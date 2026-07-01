@@ -16,17 +16,31 @@
       <h1 class="calendar-page-title">Calendar</h1>
       <p class="calendar-page-subtitle">Institutional schedule, events, holidays, birthdays and anniversaries.</p>
     </div>
-    @if (Model.CanEdit)
+    @if (Model.CanManageCelebrations || Model.CanEdit)
     {
-      <button class="btn btn-primary calendar-new-event"
-              id="btnNewEvent"
-              type="button"
-              data-bs-toggle="offcanvas"
-              data-bs-target="#eventFormCanvas"
-              aria-controls="eventFormCanvas">
-        <i class="bi bi-plus-lg" aria-hidden="true"></i>
-        <span>New event</span>
-      </button>
+      <div class="calendar-header-actions">
+        @if (Model.CanManageCelebrations)
+        {
+          <a asp-page="/Celebrations/Index"
+             class="btn btn-outline-primary calendar-manage-celebrations"
+             title="@Model.CelebrationManagementLabel">
+            <i class="bi bi-balloon-heart" aria-hidden="true"></i>
+            <span>@Model.CelebrationManagementLabel</span>
+          </a>
+        }
+        @if (Model.CanEdit)
+        {
+          <button class="btn btn-primary calendar-new-event"
+                  id="btnNewEvent"
+                  type="button"
+                  data-bs-toggle="offcanvas"
+                  data-bs-target="#eventFormCanvas"
+                  aria-controls="eventFormCanvas">
+            <i class="bi bi-plus-lg" aria-hidden="true"></i>
+            <span>New event</span>
+          </button>
+        }
+      </div>
     }
   </header>
 

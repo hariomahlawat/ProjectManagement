@@ -1,146 +1,106 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 
 namespace ProjectManagement.Services.Projects;
 
-// SECTION: Project document search vector maintenance helpers
+/// <summary>
+/// Performs a lightweight structural validation of the PostgreSQL project-document search
+/// infrastructure. Creation, repair and historical vector backfill are migration-owned.
+/// </summary>
 public static class ProjectDocumentSearchVectorMaintenance
 {
-    public static async Task EnsureUpToDateAsync(ApplicationDbContext db, CancellationToken cancellationToken = default)
+    public static async Task ValidateAsync(
+        ApplicationDbContext db,
+        CancellationToken cancellationToken = default)
     {
-        if (db is null)
-        {
-            throw new ArgumentNullException(nameof(db));
-        }
+        ArgumentNullException.ThrowIfNull(db);
 
         if (!db.Database.IsNpgsql())
         {
             return;
         }
 
-        // SECTION: Drop legacy helpers if they exist so the new ones can be created idempotently
-        const string dropSql = """
-DROP TRIGGER IF EXISTS project_document_texts_search_vector_after ON "ProjectDocumentTexts";
-DROP FUNCTION IF EXISTS project_document_texts_search_vector_trigger();
-DROP TRIGGER IF EXISTS project_documents_search_vector_trigger ON "ProjectDocuments";
-DROP FUNCTION IF EXISTS project_documents_search_vector_trigger();
-DROP FUNCTION IF EXISTS project_documents_search_vector_update();
-DROP FUNCTION IF EXISTS project_documents_build_search_vector(integer, text, text, integer, text);
-""";
-        await db.Database.ExecuteSqlRawAsync(dropSql, cancellationToken);
+        var connection = db.Database.GetDbConnection();
+        var shouldClose = connection.State != ConnectionState.Open;
+        if (shouldClose)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
 
-        // SECTION: Helper function to assemble the composite search vector (title, metadata, OCR)
-        const string helperSql = """
-CREATE OR REPLACE FUNCTION project_documents_build_search_vector(
-    p_document_id integer,
-    p_title text,
-    p_description text,
-    p_stage_id integer,
-    p_original_file_name text
-)
-RETURNS tsvector
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    v_stage_code text;
-    v_ocr text;
-BEGIN
-    IF p_stage_id IS NOT NULL THEN
-        SELECT "StageCode" INTO v_stage_code
-        FROM "ProjectStages"
-        WHERE "Id" = p_stage_id;
-    END IF;
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    to_regprocedure('public.project_documents_build_search_vector(integer,text,text,integer,text)') IS NOT NULL,
+                    to_regprocedure('public.project_documents_search_vector_trigger()') IS NOT NULL,
+                    to_regprocedure('public.project_document_texts_search_vector_trigger()') IS NOT NULL,
+                    EXISTS (
+                        SELECT 1
+                        FROM pg_trigger
+                        WHERE tgname = 'project_documents_search_vector_trigger'
+                          AND NOT tgisinternal
+                    ),
+                    EXISTS (
+                        SELECT 1
+                        FROM pg_trigger
+                        WHERE tgname = 'project_document_texts_search_vector_after'
+                          AND NOT tgisinternal
+                    ),
+                    EXISTS (
+                        SELECT 1
+                        FROM pg_indexes
+                        WHERE schemaname = 'public'
+                          AND tablename = 'ProjectDocuments'
+                          AND indexname = 'IX_ProjectDocuments_SearchVector'
+                    );
+                """;
 
-    SELECT "OcrText" INTO v_ocr
-    FROM "ProjectDocumentTexts"
-    WHERE "ProjectDocumentId" = p_document_id;
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                throw new InvalidOperationException(
+                    "Unable to inspect the project-document search infrastructure.");
+            }
 
-    RETURN
-        setweight(to_tsvector('english', coalesce(p_title, '')), 'A') ||
-        setweight(to_tsvector('english', coalesce(p_description, '')), 'B') ||
-        setweight(to_tsvector('english', coalesce(p_original_file_name, '')), 'C') ||
-        setweight(to_tsvector('english', coalesce(v_stage_code, '')), 'C') ||
-        setweight(to_tsvector('english', coalesce(v_ocr, '')), 'D');
-END;
-$$;
-""";
-        await db.Database.ExecuteSqlRawAsync(helperSql, cancellationToken);
+            var components = new (string Name, bool Exists)[]
+            {
+                ("project_documents_build_search_vector", reader.GetBoolean(0)),
+                ("project_documents_search_vector_trigger function", reader.GetBoolean(1)),
+                ("project_document_texts_search_vector_trigger function", reader.GetBoolean(2)),
+                ("project_documents_search_vector_trigger trigger", reader.GetBoolean(3)),
+                ("project_document_texts_search_vector_after trigger", reader.GetBoolean(4)),
+                ("IX_ProjectDocuments_SearchVector index", reader.GetBoolean(5))
+            };
 
-        // SECTION: Trigger on ProjectDocuments so direct edits keep the search vector in sync
-        const string documentTriggerSql = """
-CREATE OR REPLACE FUNCTION project_documents_search_vector_trigger()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    NEW."SearchVector" = project_documents_build_search_vector(
-        NEW."Id",
-        NEW."Title",
-        NEW."Description",
-        NEW."StageId",
-        NEW."OriginalFileName"
-    );
-    RETURN NEW;
-END;
-$$;
+            var missing = components
+                .Where(component => !component.Exists)
+                .Select(component => component.Name)
+                .ToArray();
 
-CREATE TRIGGER project_documents_search_vector_trigger
-BEFORE INSERT OR UPDATE ON "ProjectDocuments"
-FOR EACH ROW
-EXECUTE FUNCTION project_documents_search_vector_trigger();
-""";
-        await db.Database.ExecuteSqlRawAsync(documentTriggerSql, cancellationToken);
-
-        // SECTION: Trigger on ProjectDocumentTexts so OCR updates refresh the parent document
-        const string textTriggerSql = """
-CREATE OR REPLACE FUNCTION project_document_texts_search_vector_trigger()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    v_document_id integer;
-BEGIN
-    IF TG_OP = 'DELETE' THEN
-        v_document_id := OLD."ProjectDocumentId";
-    ELSE
-        v_document_id := NEW."ProjectDocumentId";
-    END IF;
-
-    UPDATE "ProjectDocuments" AS d
-    SET "SearchVector" = project_documents_build_search_vector(
-        d."Id",
-        d."Title",
-        d."Description",
-        d."StageId",
-        d."OriginalFileName"
-    )
-    WHERE d."Id" = v_document_id;
-
-    RETURN NULL;
-END;
-$$;
-
-CREATE TRIGGER project_document_texts_search_vector_after
-AFTER INSERT OR UPDATE OR DELETE ON "ProjectDocumentTexts"
-FOR EACH ROW
-EXECUTE FUNCTION project_document_texts_search_vector_trigger();
-""";
-        await db.Database.ExecuteSqlRawAsync(textTriggerSql, cancellationToken);
-
-        // SECTION: Backfill existing rows so historical documents gain OCR search immediately
-        const string backfillSql = """
-UPDATE "ProjectDocuments" AS d
-SET "SearchVector" = project_documents_build_search_vector(
-    d."Id",
-    d."Title",
-    d."Description",
-    d."StageId",
-    d."OriginalFileName"
-);
-""";
-        await db.Database.ExecuteSqlRawAsync(backfillSql, cancellationToken);
+            if (missing.Length > 0)
+            {
+                throw new InvalidOperationException(
+                    "Project-document search infrastructure is incomplete after migration. Missing: " +
+                    string.Join(", ", missing));
+            }
+        }
+        finally
+        {
+            if (shouldClose)
+            {
+                await connection.CloseAsync();
+            }
+        }
     }
+
+    /// <summary>
+    /// Backward-compatible wrapper for older callers. This method intentionally validates only;
+    /// it never performs recurring DDL or rewrites document vectors during normal startup.
+    /// </summary>
+    public static Task EnsureUpToDateAsync(
+        ApplicationDbContext db,
+        CancellationToken cancellationToken = default) =>
+        ValidateAsync(db, cancellationToken);
 }

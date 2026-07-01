@@ -1,7 +1,67 @@
+using ProjectManagement.Models;
+
 namespace ProjectManagement.Configuration;
 
 public static class Policies
 {
+    // SECTION: Calendar policies
+    public static class Calendar
+    {
+        public const string ManageEvents = "Calendar.ManageEvents";
+        public const string ManageCelebrations = "Calendar.ManageCelebrations";
+        public const string ManageBirthdays = "Calendar.ManageBirthdays";
+        public const string ManageAnniversaries = "Calendar.ManageAnniversaries";
+
+        public static readonly string[] EventManagerRoles =
+        {
+            RoleNames.Admin,
+            RoleNames.HoD,
+            RoleNames.Ta,
+            RoleNames.Comdt,
+            RoleNames.Mco,
+            RoleNames.ProjectOfficer,
+            RoleNames.ProjectOffice,
+            RoleNames.ProjectOfficeAlternate
+        };
+
+        // Admin, HoD, TA and Comdt can manage both birthdays and anniversaries.
+        public static readonly string[] FullCelebrationManagerRoles =
+        {
+            RoleNames.Admin,
+            RoleNames.HoD,
+            RoleNames.Ta,
+            RoleNames.Comdt
+        };
+
+        // Main Office is intentionally birthday-only.
+        public static readonly string[] BirthdayManagerRoles =
+        {
+            RoleNames.Admin,
+            RoleNames.HoD,
+            RoleNames.Ta,
+            RoleNames.Comdt,
+            RoleNames.MainOfficeClerk,
+            RoleNames.MainOfficeAlternate
+        };
+
+        public static readonly string[] CelebrationManagerRoles =
+        {
+            RoleNames.Admin,
+            RoleNames.HoD,
+            RoleNames.Ta,
+            RoleNames.Comdt,
+            RoleNames.MainOfficeClerk,
+            RoleNames.MainOfficeAlternate
+        };
+
+        public static string PolicyFor(CelebrationType eventType) => eventType switch
+        {
+            CelebrationType.Birthday => ManageBirthdays,
+            CelebrationType.Anniversary => ManageAnniversaries,
+            _ => throw new ArgumentOutOfRangeException(nameof(eventType), eventType, "Unsupported celebration type.")
+        };
+    }
+
     // SECTION: Industry partners policies
     public static class IndustryPartners
     {

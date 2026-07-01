@@ -15,6 +15,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Helpers;
 using ProjectManagement.Models;
@@ -64,16 +65,75 @@ namespace ProjectManagement.Tests
         private record PreferenceVm(bool showCelebrations);
 
         [Fact]
-        public async Task PostRequiresEditorRole()
+        public async Task GeneralEventWritePolicyRejectsOrdinaryUsers()
         {
             using var scope = _factory.Services.CreateScope();
             var auth = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Authorization.IAuthorizationService>();
-            var user = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Role, "User") }, "Test"));
-            var policy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
-                .RequireRole("Admin", "TA", "HoD").Build();
-            var result = await auth.AuthorizeAsync(user, null, policy.Requirements);
+            var user = PrincipalWithRole("User");
+
+            var result = await auth.AuthorizeAsync(user, Policies.Calendar.ManageEvents);
+
             Assert.False(result.Succeeded);
         }
+
+        [Theory]
+        [InlineData(RoleNames.Admin)]
+        [InlineData(RoleNames.HoD)]
+        [InlineData(RoleNames.Ta)]
+        [InlineData(RoleNames.Comdt)]
+        [InlineData(RoleNames.Mco)]
+        [InlineData(RoleNames.ProjectOfficer)]
+        [InlineData(RoleNames.ProjectOffice)]
+        [InlineData(RoleNames.ProjectOfficeAlternate)]
+        public async Task GeneralEventWritePolicyAllowsConfiguredRoles(string role)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var auth = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Authorization.IAuthorizationService>();
+
+            var result = await auth.AuthorizeAsync(PrincipalWithRole(role), Policies.Calendar.ManageEvents);
+
+            Assert.True(result.Succeeded);
+        }
+
+        [Theory]
+        [InlineData(RoleNames.Admin, true)]
+        [InlineData(RoleNames.HoD, true)]
+        [InlineData(RoleNames.Ta, true)]
+        [InlineData(RoleNames.Comdt, true)]
+        [InlineData(RoleNames.MainOfficeClerk, true)]
+        [InlineData(RoleNames.MainOfficeAlternate, true)]
+        [InlineData(RoleNames.Mco, false)]
+        [InlineData(RoleNames.ProjectOfficer, false)]
+        [InlineData(RoleNames.ProjectOffice, false)]
+        public async Task BirthdayPolicyUsesTheRequiredRoleMatrix(string role, bool expected)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var auth = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Authorization.IAuthorizationService>();
+
+            var result = await auth.AuthorizeAsync(PrincipalWithRole(role), Policies.Calendar.ManageBirthdays);
+
+            Assert.Equal(expected, result.Succeeded);
+        }
+
+        [Theory]
+        [InlineData(RoleNames.Admin, true)]
+        [InlineData(RoleNames.HoD, true)]
+        [InlineData(RoleNames.Ta, true)]
+        [InlineData(RoleNames.Comdt, true)]
+        [InlineData(RoleNames.MainOfficeClerk, false)]
+        [InlineData(RoleNames.MainOfficeAlternate, false)]
+        public async Task AnniversaryPolicyDoesNotGrantMainOfficeAccess(string role, bool expected)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var auth = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Authorization.IAuthorizationService>();
+
+            var result = await auth.AuthorizeAsync(PrincipalWithRole(role), Policies.Calendar.ManageAnniversaries);
+
+            Assert.Equal(expected, result.Succeeded);
+        }
+
+        private static ClaimsPrincipal PrincipalWithRole(string role) =>
+            new(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Role, role) }, "Test"));
 
         [Fact]
         public async Task HoDCaseInsensitive()

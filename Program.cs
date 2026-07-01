@@ -77,6 +77,7 @@ using ProjectManagement.Utilities;
 using ProjectManagement.Utilities.Reporting;
 using System;
 using System.Collections.Generic;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Data.Common;
@@ -172,6 +173,16 @@ builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("Project.Create", policy =>
         policy.RequireRole("Admin", "HoD"));
+
+    // SECTION: Calendar authorization policies
+    options.AddPolicy(Policies.Calendar.ManageEvents, policy =>
+        policy.RequireRole(Policies.Calendar.EventManagerRoles));
+    options.AddPolicy(Policies.Calendar.ManageCelebrations, policy =>
+        policy.RequireRole(Policies.Calendar.CelebrationManagerRoles));
+    options.AddPolicy(Policies.Calendar.ManageBirthdays, policy =>
+        policy.RequireRole(Policies.Calendar.BirthdayManagerRoles));
+    options.AddPolicy(Policies.Calendar.ManageAnniversaries, policy =>
+        policy.RequireRole(Policies.Calendar.FullCelebrationManagerRoles));
     options.AddPolicy("Checklist.View", policy =>
         policy.RequireAuthenticatedUser());
     options.AddPolicy("Checklist.Edit", policy =>
@@ -758,11 +769,12 @@ var developmentLoopbackOrigins = builder.Environment.IsDevelopment()
 var app = builder.Build();
 
 // SECTION: Database startup policy
-// Pending EF Core migrations are always applied before the application accepts requests.
-// This single-instance IIS deployment uses a PostgreSQL advisory lock during migration so
-// overlapping application-pool starts cannot execute the same migration concurrently.
-// Seeders remain independently controlled because they alter application data, not schema.
-const bool applyMigrationsOnStartup = true;
+// Migrations and initial data seeding are intentionally controlled independently.
+// - Development always applies pending migrations.
+// - Other environments apply migrations only when Database:ApplyMigrationsOnStartup is true.
+// - Seeders run only when Database:RunSeedersOnStartup is true.
+var applyMigrationsOnStartup = app.Environment.IsDevelopment()
+    || app.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup");
 var runSeedersOnStartup = app.Configuration.GetValue<bool>("Database:RunSeedersOnStartup");
 
 app.Logger.LogInformation(
@@ -791,12 +803,51 @@ using (var scope = app.Services.CreateScope())
             connection.DataSource,
             connection.Database);
 
-        pendingMigrations = await ApplyPendingMigrationsAsync(db, app.Logger);
+        pendingMigrations = (await db.Database.GetPendingMigrationsAsync()).ToList();
+        if (pendingMigrations.Count > 0)
+        {
+            var message = $"Database has {pendingMigrations.Count} pending migration(s): {string.Join(", ", pendingMigrations)}";
+            app.Logger.LogCritical(message);
+
+            if (!applyMigrationsOnStartup)
+            {
+                throw new InvalidOperationException(
+                    message +
+                    ". Automatic migration is disabled. Set Database:ApplyMigrationsOnStartup=true " +
+                    "or apply the migrations manually before starting the application.");
+            }
+
+            app.Logger.LogWarning(
+                "Applying {Count} pending database migration(s) automatically: {Migrations}",
+                pendingMigrations.Count,
+                string.Join(", ", pendingMigrations));
+
+            try
+            {
+                await db.Database.MigrateAsync();
+            }
+            catch (Exception ex)
+            {
+                app.Logger.LogCritical(
+                    ex,
+                    "Automatic database migration failed. Application startup is being aborted.");
+                throw;
+            }
+
+            app.Logger.LogInformation("Automatic database migration completed successfully.");
+            pendingMigrations = (await db.Database.GetPendingMigrationsAsync()).ToList();
+        }
 
         var applied = (await db.Database.GetAppliedMigrationsAsync()).ToList();
         latestAppliedMigration = applied.Count > 0 ? applied[^1] : "(none)";
 
-        await EnsureProjectStageCompletionConstraintAsync(db, app.Logger);
+        if (pendingMigrations.Count > 0)
+        {
+            var message = $"Database still has {pendingMigrations.Count} pending migration(s): {string.Join(", ", pendingMigrations)}";
+            app.Logger.LogCritical(message);
+            throw new InvalidOperationException(message);
+        }
+
         await EnsureNotebookVersionSchemaAsync(db, app.Logger);
         await EnsureDocRepoFavouritesSchemaAsync(db, app.Logger);
         await ProjectDocumentSearchVectorMaintenance.EnsureUpToDateAsync(db);
@@ -1211,7 +1262,7 @@ eventsApi.MapPost("", async (ApplicationDbContext db,
     db.Events.Add(ev);
     await db.SaveChangesAsync();
     return Results.Created($"/calendar/events/{ev.Id}", new { id = ev.Id });
-}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HoD" });
+}).RequireAuthorization(Policies.Calendar.ManageEvents);
 
 eventsApi.MapPut("/{id:guid}", async (ApplicationDbContext db,
                                    UserManager<ApplicationUser> users,
@@ -1241,7 +1292,7 @@ eventsApi.MapPut("/{id:guid}", async (ApplicationDbContext db,
 
     await db.SaveChangesAsync();
     return Results.Ok();
-}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HoD" });
+}).RequireAuthorization(Policies.Calendar.ManageEvents);
 
 eventsApi.MapDelete("/{id:guid}", async (Guid id, ApplicationDbContext db, IClock clock, UserManager<ApplicationUser> users, ClaimsPrincipal user) =>
 {
@@ -1252,7 +1303,7 @@ eventsApi.MapDelete("/{id:guid}", async (Guid id, ApplicationDbContext db, ICloc
     ev.UpdatedById = users.GetUserId(user);
     await db.SaveChangesAsync();
     return Results.Ok();
-}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HoD" });
+}).RequireAuthorization(Policies.Calendar.ManageEvents);
 
 eventsApi.MapPost("/preferences/show-celebrations", async (UserManager<ApplicationUser> users,
                                                            ClaimsPrincipal user,
@@ -1296,28 +1347,15 @@ notificationsApi.MapGet("", async ([AsParameters] NotificationListRequest reques
         return Results.Unauthorized();
     }
 
-    var status = request.Status?.Trim().ToLowerInvariant();
     var options = new NotificationListOptions
     {
         Limit = request.Limit,
-        OnlyUnread = request.UnreadOnly ?? string.Equals(status, "unread", StringComparison.Ordinal),
-        OnlyRead = string.Equals(status, "read", StringComparison.Ordinal),
-        OnlyMuted = string.Equals(status, "muted", StringComparison.Ordinal),
-        IncludeMuted = request.IncludeMuted ?? false,
+        OnlyUnread = request.UnreadOnly ?? false,
         ProjectId = request.ProjectId,
-        Cursor = request.Cursor,
-        Search = request.Search,
-        Module = request.Module,
-        Folder = request.Folder,
-        IncludeFilterOptions = request.IncludeFilterOptions ?? true,
     };
 
-    var page = await notifications.ListPageAsync(
-        httpContext.User,
-        userId,
-        options,
-        cancellationToken);
-    return Results.Ok(page);
+    var items = await notifications.ListAsync(httpContext.User, userId, options, cancellationToken);
+    return Results.Ok(items);
 });
 
 notificationsApi.MapGet("/count", async (HttpContext httpContext,
@@ -1334,286 +1372,82 @@ notificationsApi.MapGet("/count", async (HttpContext httpContext,
     return Results.Ok(new NotificationCountDto(unread));
 });
 
-notificationsApi.MapPost("/read", async (NotificationIdsRequest request,
-                                          HttpContext httpContext,
-                                          IAntiforgery antiforgery,
-                                          UserNotificationService notifications,
-                                          IHubContext<NotificationsHub, INotificationsClient> hubContext,
-                                          CancellationToken cancellationToken) =>
-{
-    var validationFailure = await ValidateAntiforgeryRequestAsync(antiforgery, httpContext);
-    if (validationFailure is not null)
-    {
-        return validationFailure;
-    }
-
-    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(userId))
-    {
-        return Results.Unauthorized();
-    }
-
-    var result = await notifications.MarkManyReadAsync(
-        httpContext.User,
-        userId,
-        request.Ids ?? Array.Empty<int>(),
-        cancellationToken);
-
-    return await HandleNotificationReadMutationAsync(
-        result,
-        httpContext.User,
-        userId,
-        notifications,
-        hubContext,
-        cancellationToken);
-});
-
-notificationsApi.MapPost("/unread", async (NotificationIdsRequest request,
-                                            HttpContext httpContext,
-                                            IAntiforgery antiforgery,
-                                            UserNotificationService notifications,
-                                            IHubContext<NotificationsHub, INotificationsClient> hubContext,
-                                            CancellationToken cancellationToken) =>
-{
-    var validationFailure = await ValidateAntiforgeryRequestAsync(antiforgery, httpContext);
-    if (validationFailure is not null)
-    {
-        return validationFailure;
-    }
-
-    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(userId))
-    {
-        return Results.Unauthorized();
-    }
-
-    var result = await notifications.MarkManyUnreadAsync(
-        httpContext.User,
-        userId,
-        request.Ids ?? Array.Empty<int>(),
-        cancellationToken);
-
-    return await HandleNotificationReadMutationAsync(
-        result,
-        httpContext.User,
-        userId,
-        notifications,
-        hubContext,
-        cancellationToken);
-});
-
-notificationsApi.MapPost("/read-all", async (HttpContext httpContext,
-                                              IAntiforgery antiforgery,
-                                              UserNotificationService notifications,
-                                              IHubContext<NotificationsHub, INotificationsClient> hubContext,
-                                              CancellationToken cancellationToken) =>
-{
-    var validationFailure = await ValidateAntiforgeryRequestAsync(antiforgery, httpContext);
-    if (validationFailure is not null)
-    {
-        return validationFailure;
-    }
-
-    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(userId))
-    {
-        return Results.Unauthorized();
-    }
-
-    var result = await notifications.MarkAllReadAsync(
-        httpContext.User,
-        userId,
-        cancellationToken);
-
-    return await HandleNotificationReadMutationAsync(
-        result,
-        httpContext.User,
-        userId,
-        notifications,
-        hubContext,
-        cancellationToken);
-});
-
-notificationsApi.MapPost("/seen", async (NotificationIdsRequest request,
-                                          HttpContext httpContext,
-                                          IAntiforgery antiforgery,
-                                          UserNotificationService notifications,
-                                          IHubContext<NotificationsHub, INotificationsClient> hubContext,
-                                          CancellationToken cancellationToken) =>
-{
-    var validationFailure = await ValidateAntiforgeryRequestAsync(antiforgery, httpContext);
-    if (validationFailure is not null)
-    {
-        return validationFailure;
-    }
-
-    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(userId))
-    {
-        return Results.Unauthorized();
-    }
-
-    var result = await notifications.MarkSeenAsync(
-        httpContext.User,
-        userId,
-        request.Ids ?? Array.Empty<int>(),
-        cancellationToken);
-
-    if (result.Result == NotificationOperationResult.NotFound)
-    {
-        return Results.NotFound();
-    }
-
-    if (result.Result == NotificationOperationResult.Forbidden)
-    {
-        return Results.Forbid();
-    }
-
-    var dto = new NotificationSeenDto(
-        result.NotificationIds,
-        result.SeenUtc,
-        result.NotificationIds.Count);
-    await hubContext.Clients.User(userId).ReceiveNotificationSeen(dto);
-    return Results.Ok(dto);
-});
-
-// SECTION: Backward-compatible single-item endpoints used by older cached clients.
 notificationsApi.MapPost("/{id:int}/read", async (int id,
                                                    HttpContext httpContext,
-                                                   IAntiforgery antiforgery,
                                                    UserNotificationService notifications,
                                                    IHubContext<NotificationsHub, INotificationsClient> hubContext,
                                                    CancellationToken cancellationToken) =>
 {
-    var validationFailure = await ValidateAntiforgeryRequestAsync(antiforgery, httpContext);
-    if (validationFailure is not null)
-    {
-        return validationFailure;
-    }
-
     var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
     if (string.IsNullOrEmpty(userId))
     {
         return Results.Unauthorized();
     }
 
-    var result = await notifications.MarkManyReadAsync(
-        httpContext.User,
-        userId,
-        new[] { id },
-        cancellationToken);
+    var result = await notifications.MarkReadAsync(httpContext.User, userId, id, cancellationToken);
 
-    return await HandleNotificationReadMutationAsync(
-        result,
-        httpContext.User,
-        userId,
-        notifications,
-        hubContext,
-        cancellationToken);
+    return await HandleNotificationOperationResultAsync(result, httpContext.User, userId, notifications, hubContext, cancellationToken);
 });
 
 notificationsApi.MapDelete("/{id:int}/read", async (int id,
                                                       HttpContext httpContext,
-                                                      IAntiforgery antiforgery,
                                                       UserNotificationService notifications,
                                                       IHubContext<NotificationsHub, INotificationsClient> hubContext,
                                                       CancellationToken cancellationToken) =>
 {
-    var validationFailure = await ValidateAntiforgeryRequestAsync(antiforgery, httpContext);
-    if (validationFailure is not null)
-    {
-        return validationFailure;
-    }
-
     var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
     if (string.IsNullOrEmpty(userId))
     {
         return Results.Unauthorized();
     }
 
-    var result = await notifications.MarkManyUnreadAsync(
-        httpContext.User,
-        userId,
-        new[] { id },
-        cancellationToken);
+    var result = await notifications.MarkUnreadAsync(httpContext.User, userId, id, cancellationToken);
 
-    return await HandleNotificationReadMutationAsync(
-        result,
-        httpContext.User,
-        userId,
-        notifications,
-        hubContext,
-        cancellationToken);
+    return await HandleNotificationOperationResultAsync(result, httpContext.User, userId, notifications, hubContext, cancellationToken);
 });
 
 notificationsApi.MapPost("/projects/{projectId:int}/mute", async (int projectId,
                                                                    HttpContext httpContext,
-                                                                   IAntiforgery antiforgery,
                                                                    UserNotificationService notifications,
-                                                                   IHubContext<NotificationsHub, INotificationsClient> hubContext,
                                                                    CancellationToken cancellationToken) =>
 {
-    var validationFailure = await ValidateAntiforgeryRequestAsync(antiforgery, httpContext);
-    if (validationFailure is not null)
-    {
-        return validationFailure;
-    }
-
     var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
     if (string.IsNullOrEmpty(userId))
     {
         return Results.Unauthorized();
     }
 
-    var result = await notifications.SetProjectMuteDetailedAsync(
-        httpContext.User,
-        userId,
-        projectId,
-        muted: true,
-        cancellationToken);
+    var result = await notifications.SetProjectMuteAsync(httpContext.User, userId, projectId, true, cancellationToken);
 
-    return await HandleProjectMuteMutationAsync(
-        result,
-        httpContext.User,
-        userId,
-        notifications,
-        hubContext,
-        cancellationToken);
+    return result switch
+    {
+        NotificationOperationResult.Success => Results.NoContent(),
+        NotificationOperationResult.NotFound => Results.NotFound(),
+        NotificationOperationResult.Forbidden => Results.Forbid(),
+        _ => Results.BadRequest()
+    };
 });
 
 notificationsApi.MapDelete("/projects/{projectId:int}/mute", async (int projectId,
                                                                       HttpContext httpContext,
-                                                                      IAntiforgery antiforgery,
                                                                       UserNotificationService notifications,
-                                                                      IHubContext<NotificationsHub, INotificationsClient> hubContext,
                                                                       CancellationToken cancellationToken) =>
 {
-    var validationFailure = await ValidateAntiforgeryRequestAsync(antiforgery, httpContext);
-    if (validationFailure is not null)
-    {
-        return validationFailure;
-    }
-
     var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
     if (string.IsNullOrEmpty(userId))
     {
         return Results.Unauthorized();
     }
 
-    var result = await notifications.SetProjectMuteDetailedAsync(
-        httpContext.User,
-        userId,
-        projectId,
-        muted: false,
-        cancellationToken);
+    var result = await notifications.SetProjectMuteAsync(httpContext.User, userId, projectId, false, cancellationToken);
 
-    return await HandleProjectMuteMutationAsync(
-        result,
-        httpContext.User,
-        userId,
-        notifications,
-        hubContext,
-        cancellationToken);
+    return result switch
+    {
+        NotificationOperationResult.Success => Results.NoContent(),
+        NotificationOperationResult.NotFound => Results.NotFound(),
+        NotificationOperationResult.Forbidden => Results.Forbid(),
+        _ => Results.BadRequest()
+    };
 });
 
 var projectsApi = app.MapGroup("/api/projects").RequireAuthorization();
@@ -2771,9 +2605,26 @@ using (var scope = app.Services.CreateScope())
             ");
         }
 
-        // ProjectStages nullability and completion constraints are owned exclusively by
-        // EF Core migrations. Do not recreate them here: doing so can silently reverse a
-        // successfully applied migration and leave production schema rules out of sync.
+        if (projectStagesExists)
+        {
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""ProjectStages""
+                ALTER COLUMN ""ActualStart"" DROP NOT NULL;
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""ProjectStages""
+                ALTER COLUMN ""CompletedOn"" DROP NOT NULL;
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""ProjectStages""
+                DROP CONSTRAINT IF EXISTS ""CK_ProjectStages_CompletedHasDate"";
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""ProjectStages""
+                ADD CONSTRAINT ""CK_ProjectStages_CompletedHasDate""
+                CHECK (""Status"" <> 'Completed' OR (""CompletedOn"" IS NOT NULL AND ""ActualStart"" IS NOT NULL) OR ""RequiresBackfill"" IS TRUE);
+            ");
+        }
         var migrations = await db.Database.GetAppliedMigrationsAsync();
         if (!migrations.Contains("20250909153316_UseXminForTodoItem"))
         {
@@ -2795,194 +2646,6 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-
-static async Task<List<string>> ApplyPendingMigrationsAsync(
-    ApplicationDbContext db,
-    ILogger logger)
-{
-    NpgsqlConnection? migrationLockConnection = null;
-
-    try
-    {
-        if (db.Database.IsNpgsql())
-        {
-            var connectionString = db.Database.GetConnectionString();
-            if (string.IsNullOrWhiteSpace(connectionString))
-            {
-                throw new InvalidOperationException(
-                    "A PostgreSQL connection string is required to acquire the migration lock.");
-            }
-
-            migrationLockConnection = new NpgsqlConnection(connectionString);
-            await migrationLockConnection.OpenAsync();
-
-            var lockAcquired = false;
-            var lockDeadline = DateTimeOffset.UtcNow.AddMinutes(2);
-            while (!lockAcquired && DateTimeOffset.UtcNow < lockDeadline)
-            {
-                await using var lockCommand = migrationLockConnection.CreateCommand();
-                lockCommand.CommandText =
-                    "SELECT pg_try_advisory_lock(hashtextextended('PRISM_ERP_EF_MIGRATIONS', 0));";
-
-                var result = await lockCommand.ExecuteScalarAsync();
-                lockAcquired = result is bool acquired && acquired;
-                if (!lockAcquired)
-                {
-                    await Task.Delay(TimeSpan.FromSeconds(1));
-                }
-            }
-
-            if (!lockAcquired)
-            {
-                throw new TimeoutException(
-                    "Timed out waiting for another application instance to finish database migration.");
-            }
-
-            logger.LogInformation("Acquired the PostgreSQL migration advisory lock.");
-        }
-
-        var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
-        if (pending.Count > 0)
-        {
-            logger.LogWarning(
-                "Applying {Count} pending database migration(s) automatically: {Migrations}",
-                pending.Count,
-                string.Join(", ", pending));
-
-            try
-            {
-                await db.Database.MigrateAsync();
-            }
-            catch (Exception ex)
-            {
-                logger.LogCritical(
-                    ex,
-                    "Automatic database migration failed. Application startup is being aborted before requests are accepted.");
-                throw;
-            }
-
-            logger.LogInformation("Automatic database migration completed successfully.");
-        }
-        else
-        {
-            logger.LogInformation("Database schema is current; no pending migrations were found.");
-        }
-
-        pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
-        if (pending.Count > 0)
-        {
-            var message =
-                $"Database still has {pending.Count} pending migration(s) after automatic migration: " +
-                string.Join(", ", pending);
-            logger.LogCritical(message);
-            throw new InvalidOperationException(message);
-        }
-
-        return pending;
-    }
-    finally
-    {
-        if (migrationLockConnection is not null)
-        {
-            try
-            {
-                if (migrationLockConnection.State == ConnectionState.Open)
-                {
-                    await using var unlockCommand = migrationLockConnection.CreateCommand();
-                    unlockCommand.CommandText =
-                        "SELECT pg_advisory_unlock(hashtextextended('PRISM_ERP_EF_MIGRATIONS', 0));";
-                    await unlockCommand.ExecuteNonQueryAsync();
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Unable to explicitly release the PostgreSQL migration advisory lock.");
-            }
-            finally
-            {
-                await migrationLockConnection.DisposeAsync();
-            }
-        }
-    }
-}
-
-static async Task EnsureProjectStageCompletionConstraintAsync(
-    ApplicationDbContext db,
-    ILogger logger)
-{
-    if (!db.Database.IsRelational())
-    {
-        return;
-    }
-
-    const string constraintName = "CK_ProjectStages_CompletedHasDate";
-
-    if (db.Database.IsNpgsql())
-    {
-        var connection = db.Database.GetDbConnection();
-        var shouldClose = connection.State != ConnectionState.Open;
-        if (shouldClose)
-        {
-            await connection.OpenAsync();
-        }
-
-        try
-        {
-            await using var command = connection.CreateCommand();
-            command.CommandText = """
-                SELECT pg_get_constraintdef(c.oid)
-                FROM pg_constraint AS c
-                WHERE c.conrelid = '"ProjectStages"'::regclass
-                  AND c.conname = 'CK_ProjectStages_CompletedHasDate';
-                """;
-
-            var definition = await command.ExecuteScalarAsync() as string;
-            var normalized = string.Concat(
-                (definition ?? string.Empty)
-                    .Where(character => !char.IsWhiteSpace(character)))
-                .Replace("(", string.Empty, StringComparison.Ordinal)
-                .Replace(")", string.Empty, StringComparison.Ordinal);
-
-            var hasCorrectCompletionRule = normalized.Contains(
-                "\"CompletedOn\"ISNOTNULL",
-                StringComparison.OrdinalIgnoreCase);
-            var incorrectlyRequiresActualStart = normalized.Contains(
-                "\"ActualStart\"ISNOTNULL",
-                StringComparison.OrdinalIgnoreCase);
-            var permitsBackfill = normalized.Contains(
-                "\"RequiresBackfill\"ISTRUE",
-                StringComparison.OrdinalIgnoreCase);
-
-            if (!hasCorrectCompletionRule || incorrectlyRequiresActualStart || !permitsBackfill)
-            {
-                var message =
-                    $"Database constraint {constraintName} is missing or incompatible after migration. " +
-                    $"Current definition: {definition ?? "(missing)"}";
-                logger.LogCritical(message);
-                throw new InvalidOperationException(message);
-            }
-
-            logger.LogInformation(
-                "Validated database constraint {ConstraintName}: completed stages require CompletedOn unless backfill remains pending; ActualStart is optional.",
-                constraintName);
-        }
-        finally
-        {
-            if (shouldClose)
-            {
-                await connection.CloseAsync();
-            }
-        }
-
-        return;
-    }
-
-    // Other relational providers rely on the migration and EF model. PostgreSQL is the
-    // deployed provider and receives the additional fail-fast structural validation above.
-    logger.LogInformation(
-        "Project stage completion constraint validation is migration-owned for provider {Provider}.",
-        db.Database.ProviderName);
-}
 
 static async Task EnsureNotebookVersionSchemaAsync(ApplicationDbContext db, ILogger logger)
 {
@@ -3476,85 +3139,33 @@ static string BuildDirectiveWithExtras(
     return string.Join(" ", normalizedSources);
 }
 
-static async Task<IResult?> ValidateAntiforgeryRequestAsync(
-    IAntiforgery antiforgery,
-    HttpContext httpContext)
-{
-    try
-    {
-        await antiforgery.ValidateRequestAsync(httpContext);
-        return null;
-    }
-    catch (AntiforgeryValidationException)
-    {
-        return Results.BadRequest(new
-        {
-            error = "The security token is missing or expired. Refresh the page and try again."
-        });
-    }
-}
-
-static async Task<IResult> HandleNotificationReadMutationAsync(
-    NotificationReadMutationResult result,
+static async Task<IResult> HandleNotificationOperationResultAsync(
+    NotificationOperationResult result,
     ClaimsPrincipal principal,
     string userId,
     UserNotificationService notifications,
     IHubContext<NotificationsHub, INotificationsClient> hubContext,
     CancellationToken cancellationToken)
 {
-    if (result.Result == NotificationOperationResult.NotFound)
+    return result switch
     {
-        return Results.NotFound();
-    }
-
-    if (result.Result == NotificationOperationResult.Forbidden)
-    {
-        return Results.Forbid();
-    }
-
-    var unread = await notifications.CountUnreadAsync(principal, userId, cancellationToken);
-    var dto = new NotificationMutationDto(
-        result.NotificationIds,
-        result.IsRead,
-        result.ReadUtc,
-        result.SeenUtc,
-        result.AppliesToAll,
-        result.AffectedCount,
-        unread);
-
-    await hubContext.Clients.User(userId).ReceiveNotificationStateChanged(dto);
-    await hubContext.Clients.User(userId).ReceiveUnreadCount(unread);
-    return Results.Ok(dto);
+        NotificationOperationResult.Success => await SendUnreadCountAsync(principal, userId, notifications, hubContext, cancellationToken),
+        NotificationOperationResult.NotFound => Results.NotFound(),
+        NotificationOperationResult.Forbidden => Results.Forbid(),
+        _ => Results.BadRequest(),
+    };
 }
 
-static async Task<IResult> HandleProjectMuteMutationAsync(
-    NotificationProjectMuteResult result,
+static async Task<IResult> SendUnreadCountAsync(
     ClaimsPrincipal principal,
     string userId,
     UserNotificationService notifications,
     IHubContext<NotificationsHub, INotificationsClient> hubContext,
     CancellationToken cancellationToken)
 {
-    if (result.Result == NotificationOperationResult.NotFound)
-    {
-        return Results.NotFound();
-    }
-
-    if (result.Result == NotificationOperationResult.Forbidden)
-    {
-        return Results.Forbid();
-    }
-
     var unread = await notifications.CountUnreadAsync(principal, userId, cancellationToken);
-    var dto = new NotificationProjectMuteDto(
-        result.ProjectId,
-        result.IsMuted,
-        result.ChangedNotificationIds,
-        unread);
-
-    await hubContext.Clients.User(userId).ReceiveProjectMuteChanged(dto);
     await hubContext.Clients.User(userId).ReceiveUnreadCount(unread);
-    return Results.Ok(dto);
+    return Results.NoContent();
 }
 
 static bool IsProjectArchiveActor(ClaimsPrincipal principal) =>

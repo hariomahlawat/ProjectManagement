@@ -33,6 +33,9 @@ public interface IMediaLibrarySchemaService
 public sealed class MediaLibrarySchemaService : IMediaLibrarySchemaService
 {
     private const long AdvisoryLockKey = 0x505249534D4D4544; // "PRISMMED"
+    private static readonly TimeSpan AdvisoryLockTimeout = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan AdvisoryLockPollInterval = TimeSpan.FromSeconds(1);
+    private const int MigrationCommandTimeoutSeconds = 600;
     private const string AvailabilityMigrationId = "20260628103000_AddMediaAvailabilityState";
     private static readonly string[] RequiredAvailabilityColumns =
     {
@@ -139,31 +142,64 @@ public sealed class MediaLibrarySchemaService : IMediaLibrarySchemaService
     public async Task<MediaLibrarySchemaStatus> MigrateAsync(CancellationToken cancellationToken)
     {
         var reference = CreateReference("MLM");
+        var lockAcquired = false;
+        var originalCommandTimeout = _db.Database.GetCommandTimeout();
+        _db.Database.SetCommandTimeout(MigrationCommandTimeoutSeconds);
 
         try
         {
             await _db.Database.OpenConnectionAsync(cancellationToken);
             try
             {
-                await _db.Database.ExecuteSqlRawAsync(
-                    $"SELECT pg_advisory_lock({AdvisoryLockKey});",
-                    cancellationToken);
+                lockAcquired = await AcquireMigrationLockAsync(reference, cancellationToken);
 
-                await _db.Database.MigrateAsync(cancellationToken);
+                var pendingBefore = (await _db.Database
+                    .GetPendingMigrationsAsync(cancellationToken))
+                    .ToArray();
+
+                if (pendingBefore.Length > 0)
+                {
+                    _logger.LogWarning(
+                        "Applying {Count} pending media-library migration(s). Reference={Reference}; Migrations={Migrations}",
+                        pendingBefore.Length,
+                        reference,
+                        string.Join(", ", pendingBefore));
+
+                    await _db.Database.MigrateAsync(cancellationToken);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Media-library schema has no pending migrations. Reference={Reference}",
+                        reference);
+                }
+
+                var pendingAfter = (await _db.Database
+                    .GetPendingMigrationsAsync(cancellationToken))
+                    .ToArray();
+
+                if (pendingAfter.Length > 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Media-library migration closure failed. Pending migrations: {string.Join(", ", pendingAfter)}");
+                }
             }
             finally
             {
-                try
+                if (lockAcquired)
                 {
-                    await _db.Database.ExecuteSqlRawAsync(
-                        $"SELECT pg_advisory_unlock({AdvisoryLockKey});",
-                        CancellationToken.None);
-                }
-                catch (Exception unlockException)
-                {
-                    _logger.LogWarning(unlockException,
-                        "Unable to release media schema advisory lock. Reference={Reference}",
-                        reference);
+                    try
+                    {
+                        await _db.Database.ExecuteSqlRawAsync(
+                            $"SELECT pg_advisory_unlock({AdvisoryLockKey});",
+                            CancellationToken.None);
+                    }
+                    catch (Exception unlockException)
+                    {
+                        _logger.LogWarning(unlockException,
+                            "Unable to explicitly release media schema advisory lock. Reference={Reference}",
+                            reference);
+                    }
                 }
 
                 await _db.Database.CloseConnectionAsync();
@@ -186,6 +222,12 @@ public sealed class MediaLibrarySchemaService : IMediaLibrarySchemaService
                     status.DiagnosticReference,
                     status.Error);
             }
+            else
+            {
+                _logger.LogInformation(
+                    "Media-library migrations and schema validation completed successfully. Reference={Reference}",
+                    reference);
+            }
 
             return status;
         }
@@ -197,6 +239,53 @@ public sealed class MediaLibrarySchemaService : IMediaLibrarySchemaService
             return MediaLibrarySchemaStatus.Unavailable(
                 $"The media catalogue migration could not be completed. Reference {reference}.", reference);
         }
+        finally
+        {
+            _db.Database.SetCommandTimeout(originalCommandTimeout);
+        }
+    }
+
+    private async Task<bool> AcquireMigrationLockAsync(
+        string reference,
+        CancellationToken cancellationToken)
+    {
+        var connection = _db.Database.GetDbConnection();
+        var deadline = DateTimeOffset.UtcNow.Add(AdvisoryLockTimeout);
+        var waitLogged = false;
+
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            await using var command = connection.CreateCommand();
+            command.CommandText = "SELECT pg_try_advisory_lock(@lockKey);";
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = "lockKey";
+            parameter.Value = AdvisoryLockKey;
+            command.Parameters.Add(parameter);
+
+            var result = await command.ExecuteScalarAsync(cancellationToken);
+            if (result is bool acquired && acquired)
+            {
+                _logger.LogInformation(
+                    "Acquired media-library migration advisory lock. Reference={Reference}",
+                    reference);
+                return true;
+            }
+
+            if (!waitLogged)
+            {
+                _logger.LogInformation(
+                    "Waiting for another application instance to finish media-library migrations. Reference={Reference}",
+                    reference);
+                waitLogged = true;
+            }
+
+            await Task.Delay(AdvisoryLockPollInterval, cancellationToken);
+        }
+
+        throw new TimeoutException(
+            $"Timed out after {AdvisoryLockTimeout.TotalMinutes:0} minutes waiting for the media-library migration lock.");
     }
 
     private async Task<PhysicalSchemaState> VerifyPhysicalSchemaAsync(CancellationToken cancellationToken)

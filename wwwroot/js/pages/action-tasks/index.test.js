@@ -27,14 +27,14 @@ function createSearchableSelectDom() {
     return { document };
 }
 
-// SECTION: Searchable select placeholder behavior.
-test('searchable select uses the configured Direct Task assignee placeholder', () => {
+// SECTION: Native assignee select placeholder behavior.
+test('native Direct Task assignee select preserves the configured placeholder', () => {
     const { document } = createSearchableSelectDom();
-    const searchInput = document.querySelector('.at-select-search-input');
-    const placeholderOption = document.querySelector('select option[value=""]');
+    const select = document.querySelector('select[data-at-searchable-select="true"]');
+    const placeholderOption = select.querySelector('option[value=""]');
 
-    assert.ok(searchInput);
-    assert.equal(searchInput.placeholder, 'Select user');
+    assert.ok(select);
+    assert.equal(document.querySelector('.at-select-search-input'), null);
     assert.equal(placeholderOption.textContent, 'Select user');
 });
 

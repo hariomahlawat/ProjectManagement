@@ -31,9 +31,9 @@ namespace ProjectManagement.Migrations
         {
             migrationBuilder.Sql(
                 """
-                UPDATE \"Projects\"
-                SET \"WorkflowVersion\" = LEFT(\"WorkflowVersion\", 32)
-                WHERE length(\"WorkflowVersion\") > 32;
+                UPDATE "Projects"
+                SET "WorkflowVersion" = LEFT("WorkflowVersion", 32)
+                WHERE length("WorkflowVersion") > 32;
                 """);
 
             migrationBuilder.AlterColumn<string>(

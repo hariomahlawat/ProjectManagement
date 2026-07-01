@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
@@ -86,7 +87,7 @@ public class StageProgressService
 
         var previousStatus = stage.Status;
 
-        var today = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime);
+        var today = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
         var resolvedDate = effectiveDate ?? today;
 
         if (newStatus == StageStatus.Completed)

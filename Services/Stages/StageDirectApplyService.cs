@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
@@ -269,7 +270,7 @@ public sealed class StageDirectApplyService
         }
 
         var now = _clock.UtcNow;
-        var today = DateOnly.FromDateTime(now.UtcDateTime);
+        var today = DateOnly.FromDateTime(IstClock.ToIst(now).DateTime);
 
         var pendingRequest = await _db.StageChangeRequests
             .SingleOrDefaultAsync(
