@@ -72,19 +72,14 @@
   officerSelect?.addEventListener('change', submitFilters);
   stageFlowSelect?.addEventListener('change', submitFilters);
 
-  // SECTION: Search auto-applies after a short pause; Enter remains immediate
-  let searchTimer = null;
-  searchInput?.addEventListener('input', () => {
-    window.clearTimeout(searchTimer);
-    searchTimer = window.setTimeout(submitFilters, 450);
-  });
-
+  // SECTION: Search is explicit. Typing never reloads the page; Enter applies the query.
   searchInput?.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      window.clearTimeout(searchTimer);
-      submitFilters();
+    if (event.key !== 'Enter' || event.isComposing || event.repeat) {
+      return;
     }
+
+    event.preventDefault();
+    submitFilters();
   });
 
   // SECTION: Per-card remarks expand/collapse
