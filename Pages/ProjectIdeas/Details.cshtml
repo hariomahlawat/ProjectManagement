@@ -4,6 +4,8 @@
 @{
     ViewData["UseFullWidth"] = true;
     ViewData["Title"] = Model.Idea.Title;
+    var updatedLocal = Model.Idea.UpdatedAt.ToLocalTime();
+    var updatedUtcIso = Model.Idea.UpdatedAt.ToUniversalTime().ToString("O");
 }
 <link rel="stylesheet" href="~/css/project-ideas.css" asp-append-version="true" />
 
@@ -27,32 +29,54 @@
     }
 
     <section class="pi-detail-hero">
-        <div class="pi-icon big"><span class="bi bi-lightbulb"></span></div>
+        <div class="pi-icon big"><span class="bi bi-lightbulb" aria-hidden="true"></span></div>
+
         <div class="pi-detail-title">
             <h1>@Model.Idea.Title</h1>
             <p>@Model.Idea.Description</p>
+
             @if (Model.CanEdit)
             {
-                <span class="pi-notice"><span class="bi bi-info-circle"></span> Assigned Project Officers may update the idea description; ownership and status remain controlled by HoD/Admin/Comdt.</span>
+                <span class="pi-notice"><span class="bi bi-info-circle" aria-hidden="true"></span> Assigned Project Officers may update the idea description; ownership and status remain controlled by HoD/Admin/Comdt.</span>
             }
+
+            <div class="pi-detail-secondary-meta" aria-label="Idea record information">
+                <span title="Assigned HoD">
+                    <span class="bi bi-person-badge" aria-hidden="true"></span>
+                    HoD: <strong>@(Model.Idea.AssignedHodUser?.FullName ?? "Unassigned")</strong>
+                </span>
+                <span title="Created by">
+                    <span class="bi bi-person" aria-hidden="true"></span>
+                    Created by <strong>@(Model.Idea.CreatedByUser?.FullName ?? "Unknown")</strong>
+                </span>
+                <span title="Last updated">
+                    <span class="bi bi-clock-history" aria-hidden="true"></span>
+                    Updated <time datetime="@updatedUtcIso">@updatedLocal.ToString("dd MMM yyyy, hh:mm tt")</time>
+                </span>
+            </div>
         </div>
-        <div class="pi-detail-meta">
-            <span>Status</span><b class="pi-status pi-status-@Model.Idea.Status.ToLowerInvariant()">@ProjectIdeaStatuses.ToDisplay(Model.Idea.Status)</b>
-            <span>Assigned PO</span><b>@(Model.Idea.AssignedProjectOfficerUser?.FullName ?? "Unassigned")</b>
-            <span>Assigned HoD</span><b>@(Model.Idea.AssignedHodUser?.FullName ?? "Unassigned")</b>
-            <span>Created By</span><b>@(Model.Idea.CreatedByUser?.FullName ?? "Unknown")</b>
-            <span>Last Updated</span><b>@Model.Idea.UpdatedAt.ToLocalTime().ToString("dd MMM yyyy hh:mm tt")</b>
+
+        <div class="pi-detail-primary-meta" aria-label="Current idea ownership and status">
+            <div class="pi-detail-primary-item">
+                <span class="pi-detail-primary-label">Status</span>
+                <b class="pi-status pi-status-@Model.Idea.Status.ToLowerInvariant()">@ProjectIdeaStatuses.ToDisplay(Model.Idea.Status)</b>
+            </div>
+            <div class="pi-detail-primary-item">
+                <span class="pi-detail-primary-label">Assigned Project Officer</span>
+                <strong>@(Model.Idea.AssignedProjectOfficerUser?.FullName ?? "Unassigned")</strong>
+            </div>
         </div>
+
         <div class="pi-actions">
             @if (Model.CanEdit)
             {
-                <a class="pi-btn" asp-page="Edit" asp-route-id="@Model.Idea.Id"><span class="bi bi-pencil"></span> Edit idea</a>
+                <a class="pi-btn" asp-page="Edit" asp-route-id="@Model.Idea.Id"><span class="bi bi-pencil" aria-hidden="true"></span> Edit idea</a>
             }
             @* SECTION: Archive action *@
             @if (Model.CanArchive && !Model.IsArchived)
             {
                 <button type="button" class="pi-btn pi-btn-danger" data-bs-toggle="modal" data-bs-target="#archiveIdeaModal">
-                    <span class="bi bi-archive"></span> Archive
+                    <span class="bi bi-archive" aria-hidden="true"></span> Archive
                 </button>
             }
             @if (Model.CanRestore && Model.Idea.Status == ProjectIdeaStatuses.Archived)

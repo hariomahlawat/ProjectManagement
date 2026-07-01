@@ -15,45 +15,82 @@
             <h1><span class="bi bi-lightbulb"></span> Ideation Board</h1>
         </div>
 
-        <form class="pi-search" method="get">
+        <form class="pi-search" method="get" role="search">
             <input type="hidden" name="Status" value="@Model.Status" />
+            <input type="hidden" name="View" value="@Model.View" />
             @if (Model.MyIdeas)
             {
                 <input type="hidden" name="MyIdeas" value="true" />
             }
-            <span class="bi bi-search"></span>
-            <input name="Query" value="@Model.Query" placeholder="Search ideas by title, keyword, or owner..." />
+            <span class="bi bi-search" aria-hidden="true"></span>
+            <label class="visually-hidden" for="ideaSearch">Search project ideas</label>
+            <input id="ideaSearch"
+                   name="Query"
+                   value="@Model.Query"
+                   placeholder="Search ideas by title, keyword, or owner..."
+                   autocomplete="off" />
         </form>
 
         <div class="pi-create-block">
             <small>Create permission:<br />HoD / Admin / Comdt only</small>
             @if (Model.CanCreate)
             {
-                <a class="pi-btn pi-btn-primary" asp-page="Create"><span class="bi bi-plus-lg"></span> New Idea</a>
+                <a class="pi-btn pi-btn-primary" asp-page="Create"><span class="bi bi-plus-lg" aria-hidden="true"></span> New Idea</a>
             }
         </div>
     </div>
 
-    @* SECTION: Status tabs and My Ideas filter *@
-    <div class="pi-tabs">
-        @foreach (var status in ProjectIdeaStatuses.All)
-        {
+    @* SECTION: Status filters, ownership filter, and view selector *@
+    <div class="pi-board-toolbar">
+        <nav class="pi-tabs" aria-label="Idea status filters">
+            @foreach (var status in ProjectIdeaStatuses.All)
+            {
+                <a asp-page="/ProjectIdeas/Index"
+                   asp-route-Status="@status"
+                   asp-route-Query="@Model.Query"
+                   asp-route-MyIdeas="@Model.ActiveMyIdeasRouteValue"
+                   asp-route-View="@Model.View"
+                   class="@(Model.Status == status ? "active" : null)"
+                   aria-current="@(Model.Status == status ? "page" : null)">
+                    @ProjectIdeaStatuses.ToDisplay(status)
+                </a>
+            }
+
             <a asp-page="/ProjectIdeas/Index"
-               asp-route-Status="@status"
+               asp-route-Status="@Model.Status"
+               asp-route-Query="@Model.Query"
+               asp-route-MyIdeas="@Model.ToggleMyIdeasRouteValue"
+               asp-route-View="@Model.View"
+               class="pi-chip @(Model.MyIdeas ? "active" : null)"
+               aria-pressed="@Model.MyIdeas.ToString().ToLowerInvariant()">
+                <span class="bi bi-person" aria-hidden="true"></span> My Ideas
+            </a>
+        </nav>
+
+        <div class="pi-view-toggle" role="group" aria-label="Idea display view">
+            <a asp-page="/ProjectIdeas/Index"
+               asp-route-Status="@Model.Status"
                asp-route-Query="@Model.Query"
                asp-route-MyIdeas="@Model.ActiveMyIdeasRouteValue"
-               class="@(Model.Status == status ? "active" : null)">
-                @ProjectIdeaStatuses.ToDisplay(status)
+               asp-route-View="@IndexModel.CardsView"
+               class="@(!Model.IsTableView ? "active" : null)"
+               aria-current="@(!Model.IsTableView ? "page" : null)"
+               title="Card view">
+                <span class="bi bi-grid" aria-hidden="true"></span>
+                <span>Cards</span>
             </a>
-        }
-
-        <a asp-page="/ProjectIdeas/Index"
-           asp-route-Status="@Model.Status"
-           asp-route-Query="@Model.Query"
-           asp-route-MyIdeas="@Model.ToggleMyIdeasRouteValue"
-           class="pi-chip @(Model.MyIdeas ? "active" : null)">
-            <span class="bi bi-person"></span> My Ideas
-        </a>
+            <a asp-page="/ProjectIdeas/Index"
+               asp-route-Status="@Model.Status"
+               asp-route-Query="@Model.Query"
+               asp-route-MyIdeas="@Model.ActiveMyIdeasRouteValue"
+               asp-route-View="@IndexModel.TableView"
+               class="@(Model.IsTableView ? "active" : null)"
+               aria-current="@(Model.IsTableView ? "page" : null)"
+               title="Table view">
+                <span class="bi bi-table" aria-hidden="true"></span>
+                <span>Table</span>
+            </a>
+        </div>
     </div>
 
     @if (Model.MyIdeas)
@@ -62,76 +99,160 @@
             <span>Showing only ideas created by you or assigned to you.</span>
             <a asp-page="/ProjectIdeas/Index"
                asp-route-Status="@Model.Status"
-               asp-route-Query="@Model.Query">
+               asp-route-Query="@Model.Query"
+               asp-route-View="@Model.View">
                 Clear
             </a>
         </div>
     }
 
-    @* SECTION: Board cards and guidance panel *@
-    <div class="pi-board-shell">
-        <section class="pi-card-grid">
-            @if (!Model.Ideas.Any())
+    @if (!Model.Ideas.Any())
+    {
+        <div class="pi-empty">
+            <span class="bi bi-lightbulb" aria-hidden="true"></span>
+            <h2>No project ideas found.</h2>
+            <p>Capture early concepts, feasibility thoughts, or future R&amp;D opportunities.</p>
+            @if (Model.CanCreate && string.IsNullOrWhiteSpace(Model.Query) && !Model.MyIdeas)
             {
-                <div class="pi-empty">
-                    <span class="bi bi-lightbulb"></span>
-                    <h2>No project ideas yet.</h2>
-                    <p>Capture early concepts, feasibility thoughts, or future R&amp;D opportunities.</p>
-                    @if (Model.CanCreate)
-                    {
-                        <a class="pi-btn pi-btn-primary" asp-page="Create">Create First Idea</a>
-                    }
-                    else
-                    {
-                        <p class="pi-muted">Only HoD, Admin and Comdt roles can create new ideas.</p>
-                    }
-                </div>
+                <a class="pi-btn pi-btn-primary" asp-page="Create">Create First Idea</a>
             }
-
-            @foreach (var idea in Model.Ideas)
+            else if (!string.IsNullOrWhiteSpace(Model.Query) || Model.MyIdeas)
             {
-                <a class="pi-idea-card" asp-page="/ProjectIdeas/Details" asp-route-id="@idea.Id">
-                    <div class="pi-card-top">
-                        <div class="pi-card-icon"><span class="bi bi-lightbulb"></span></div>
-                        <div class="pi-card-content">
-                            <div class="pi-card-heading">
-                                <div class="pi-card-title-wrap">
-                                    <h2>@idea.Title</h2>
-                                    <p class="pi-clamp">@idea.Description</p>
-                                </div>
-                                <span class="pi-status pi-status-@idea.Status.ToLowerInvariant()">@ProjectIdeaStatuses.ToDisplay(idea.Status)</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="pi-card-submeta">
-                        <span>
-                            <span class="bi bi-person"></span>
-                            PO: @Model.DisplayUser(idea.AssignedProjectOfficerUser)
-                        </span>
-                        <span>
-                            <span class="bi bi-clock"></span>
-                            Updated @Model.DisplayDateTime(IndexModel.LastActivity(idea))
-                        </span>
-                    </div>
-
-                    <div class="pi-card-footer">
-                        <span><span class="bi bi-chat"></span> @idea.Comments.Count(c => !c.IsDeleted)</span>
-                        <span><span class="bi bi-paperclip"></span> @idea.Documents.Count(d => !d.IsDeleted)</span>
-                    </div>
+                <a class="pi-btn"
+                   asp-page="/ProjectIdeas/Index"
+                   asp-route-Status="@Model.Status"
+                   asp-route-View="@Model.View">
+                    Clear filters
                 </a>
             }
-        </section>
+            else
+            {
+                <p class="pi-muted">Only HoD, Admin and Comdt roles can create new ideas.</p>
+            }
+        </div>
+    }
+    else if (Model.IsTableView)
+    {
+        @* SECTION: Dense table view for scanning and comparison *@
+        <section class="pi-table-card" aria-label="Project ideas table">
+            <div class="pi-table-summary">
+                <div>
+                    <strong>@Model.Ideas.Count</strong>
+                    <span>@(Model.Ideas.Count == 1 ? "idea" : "ideas")</span>
+                </div>
+                <span>Sorted by latest activity</span>
+            </div>
 
-        <aside class="pi-side-panel">
-            <div class="pi-hero-icon"><span class="bi bi-lightbulb"></span></div>
-            <h2>Welcome to Project Ideas</h2>
-            <p>Capture early ideas, discuss them, attach notes and documents, and archive for future reference.</p>
-            <ul>
-                <li><span class="bi bi-chat-dots"></span><b>Discuss</b><small>Collaborate and refine ideas.</small></li>
-                <li><span class="bi bi-paperclip"></span><b>Attach</b><small>Add notes, files and support.</small></li>
-                <li><span class="bi bi-archive"></span><b>Archive</b><small>Keep ideas for future use.</small></li>
-            </ul>
-        </aside>
-    </div>
+            <div class="pi-table-scroll">
+                <table class="pi-table">
+                    <caption class="visually-hidden">Project ideas matching the selected filters</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Idea</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Project Officer</th>
+                            <th scope="col">Last activity</th>
+                            <th scope="col" class="pi-table-activity-heading">Activity</th>
+                            <th scope="col" class="pi-table-open-heading"><span class="visually-hidden">Open</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var idea in Model.Ideas)
+                        {
+                            var lastActivity = IndexModel.LastActivity(idea);
+                            var lastActivityIso = lastActivity.ToUniversalTime().ToString("O");
+                            var commentCount = idea.Comments.Count(c => !c.IsDeleted);
+                            var noteCount = idea.Notes.Count(n => !n.IsDeleted);
+                            var documentCount = idea.Documents.Count(d => !d.IsDeleted);
+                            <tr>
+                                <td class="pi-table-idea-cell">
+                                    <a class="pi-table-title" asp-page="/ProjectIdeas/Details" asp-route-id="@idea.Id">@idea.Title</a>
+                                    <p>@idea.Description</p>
+                                </td>
+                                <td>
+                                    <span class="pi-status pi-status-@idea.Status.ToLowerInvariant()">@ProjectIdeaStatuses.ToDisplay(idea.Status)</span>
+                                </td>
+                                <td>
+                                    <div class="pi-table-person">
+                                        <span class="bi bi-person" aria-hidden="true"></span>
+                                        <span>@Model.DisplayUser(idea.AssignedProjectOfficerUser)</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <time datetime="@lastActivityIso">@Model.DisplayDateTime(lastActivity)</time>
+                                </td>
+                                <td>
+                                    <div class="pi-table-activity" aria-label="@commentCount comments, @noteCount notes, @documentCount documents">
+                                        <span title="Comments"><span class="bi bi-chat" aria-hidden="true"></span> @commentCount</span>
+                                        <span title="Notes"><span class="bi bi-journal-text" aria-hidden="true"></span> @noteCount</span>
+                                        <span title="Documents"><span class="bi bi-paperclip" aria-hidden="true"></span> @documentCount</span>
+                                    </div>
+                                </td>
+                                <td class="pi-table-open-cell">
+                                    <a class="pi-table-open"
+                                       asp-page="/ProjectIdeas/Details"
+                                       asp-route-id="@idea.Id"
+                                       aria-label="Open @idea.Title">
+                                        <span class="bi bi-chevron-right" aria-hidden="true"></span>
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+    else
+    {
+        @* SECTION: Card board and guidance panel *@
+        <div class="pi-board-shell">
+            <section class="pi-card-grid" aria-label="Project ideas cards">
+                @foreach (var idea in Model.Ideas)
+                {
+                    <a class="pi-idea-card" asp-page="/ProjectIdeas/Details" asp-route-id="@idea.Id">
+                        <div class="pi-card-top">
+                            <div class="pi-card-icon"><span class="bi bi-lightbulb" aria-hidden="true"></span></div>
+                            <div class="pi-card-content">
+                                <div class="pi-card-heading">
+                                    <div class="pi-card-title-wrap">
+                                        <h2>@idea.Title</h2>
+                                        <p class="pi-clamp">@idea.Description</p>
+                                    </div>
+                                    <span class="pi-status pi-status-@idea.Status.ToLowerInvariant()">@ProjectIdeaStatuses.ToDisplay(idea.Status)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pi-card-submeta">
+                            <span>
+                                <span class="bi bi-person" aria-hidden="true"></span>
+                                PO: @Model.DisplayUser(idea.AssignedProjectOfficerUser)
+                            </span>
+                            <span>
+                                <span class="bi bi-clock" aria-hidden="true"></span>
+                                Updated @Model.DisplayDateTime(IndexModel.LastActivity(idea))
+                            </span>
+                        </div>
+
+                        <div class="pi-card-footer">
+                            <span><span class="bi bi-chat" aria-hidden="true"></span> @idea.Comments.Count(c => !c.IsDeleted)</span>
+                            <span><span class="bi bi-paperclip" aria-hidden="true"></span> @idea.Documents.Count(d => !d.IsDeleted)</span>
+                        </div>
+                    </a>
+                }
+            </section>
+
+            <aside class="pi-side-panel">
+                <div class="pi-hero-icon"><span class="bi bi-lightbulb" aria-hidden="true"></span></div>
+                <h2>Welcome to Project Ideas</h2>
+                <p>Capture early ideas, discuss them, attach notes and documents, and archive for future reference.</p>
+                <ul>
+                    <li><span class="bi bi-chat-dots" aria-hidden="true"></span><b>Discuss</b><small>Collaborate and refine ideas.</small></li>
+                    <li><span class="bi bi-paperclip" aria-hidden="true"></span><b>Attach</b><small>Add notes, files and support.</small></li>
+                    <li><span class="bi bi-archive" aria-hidden="true"></span><b>Archive</b><small>Keep ideas for future use.</small></li>
+                </ul>
+            </aside>
+        </div>
+    }
 </div>

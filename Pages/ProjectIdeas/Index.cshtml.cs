@@ -17,19 +17,25 @@ public class IndexModel : PageModel
     public IndexModel(ProjectIdeaReadService read, ProjectIdeaPermissionService permissions) { _read = read; _permissions = permissions; }
 
     // SECTION: Filters
+    public const string CardsView = "cards";
+    public const string TableView = "table";
+
     [BindProperty(SupportsGet = true)] public string Status { get; set; } = ProjectIdeaStatuses.Active;
     [BindProperty(SupportsGet = true)] public string? Query { get; set; }
     [BindProperty(SupportsGet = true)] public bool MyIdeas { get; set; }
+    [BindProperty(SupportsGet = true)] public string View { get; set; } = CardsView;
     public IReadOnlyList<ProjectIdea> Ideas { get; private set; } = Array.Empty<ProjectIdea>();
     public bool CanCreate { get; private set; }
 
-    // SECTION: Clean route values
+    // SECTION: Clean route values and view state
     public string? ActiveMyIdeasRouteValue => MyIdeas ? "true" : null;
     public string? ToggleMyIdeasRouteValue => MyIdeas ? null : "true";
+    public bool IsTableView => string.Equals(View, TableView, StringComparison.Ordinal);
 
     public async Task OnGetAsync()
     {
         Status = NormaliseStatus(Status);
+        View = NormaliseView(View);
         CanCreate = _permissions.CanCreateIdea(User);
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var canViewAll = User.IsInRole(RoleNames.Admin) || User.IsInRole(RoleNames.HoD) || User.IsInRole(RoleNames.Comdt);
@@ -52,4 +58,9 @@ public class IndexModel : PageModel
             _ => ProjectIdeaStatuses.Active
         };
     }
+
+    private static string NormaliseView(string? view) =>
+        string.Equals(view, TableView, StringComparison.OrdinalIgnoreCase)
+            ? TableView
+            : CardsView;
 }
