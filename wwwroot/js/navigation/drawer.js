@@ -1,5 +1,3 @@
-const DESKTOP_MEDIA_QUERY = '(min-width: 992px)';
-
 // ---------- Utility selectors ----------
 const FOCUSABLE_SELECTORS = [
   'a[href]',
@@ -52,6 +50,12 @@ function findTogglesForDrawer(drawerId) {
   return result;
 }
 
+
+function syncBodyScrollLock() {
+  const hasOpenDrawer = Boolean(document.querySelector('[data-drawer].is-open'));
+  document.body.classList.toggle('pm-drawer-open', hasOpenDrawer);
+}
+
 function getFocusableElements(container) {
   return Array.from(container.querySelectorAll(FOCUSABLE_SELECTORS)).filter(
     (element) => {
@@ -91,6 +95,13 @@ function setupDrawer(drawer) {
     return;
   }
 
+  // The drawer trigger lives in the sticky top bar. Move the fixed drawer shell
+  // to <body> so ancestor backdrop-filter, transform, containment, or overflow
+  // can never change its viewport positioning or clip its contents.
+  if (drawer.parentElement !== document.body) {
+    document.body.appendChild(drawer);
+  }
+
   drawer.dataset.drawerInitialized = 'true';
 
   const providedId = drawer.id || drawer.getAttribute('data-drawer') || '';
@@ -105,7 +116,6 @@ function setupDrawer(drawer) {
   const closeButtons = Array.from(drawer.querySelectorAll('[data-drawer-close]'));
   const groups = Array.from(drawer.querySelectorAll('[data-drawer-group]'));
   const toggles = findTogglesForDrawer(resolvedId);
-  const isStaticDrawer = drawer.hasAttribute('data-drawer-static');
 
   if (panel instanceof HTMLElement && !panel.hasAttribute('tabindex')) {
     panel.setAttribute('tabindex', '-1');
@@ -174,52 +184,8 @@ function setupDrawer(drawer) {
     drawer.classList.remove('is-open');
   }
 
-  const isToggleVisible = (toggle) => {
-    if (!(toggle instanceof HTMLElement)) {
-      return false;
-    }
-
-    if (typeof window !== 'undefined') {
-      const style = window.getComputedStyle(toggle);
-
-      if (style.display === 'none' || style.visibility === 'hidden') {
-        return false;
-      }
-    }
-
-    if (toggle.offsetParent !== null) {
-      return true;
-    }
-
-    const rect = toggle.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0;
-  };
-
-  const desktopMediaQuery =
-    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-      ? window.matchMedia(DESKTOP_MEDIA_QUERY)
-      : null;
-
-  const hasVisibleToggle = () => toggles.some((toggle) => isToggleVisible(toggle));
-
-  const shouldForceVisible = () => {
-    if (!isStaticDrawer) {
-      return false;
-    }
-
-    if (desktopMediaQuery && desktopMediaQuery.matches) {
-      return true;
-    }
-
-    return !hasVisibleToggle();
-  };
-
   const syncAriaHidden = () => {
-    if (shouldForceVisible()) {
-      drawer.setAttribute('aria-hidden', 'false');
-    } else {
-      drawer.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
-    }
+    drawer.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
   };
 
   const handleKeydown = (event) => {
@@ -284,6 +250,7 @@ function setupDrawer(drawer) {
     isOpen = true;
     syncAriaHidden();
     document.addEventListener('keydown', handleKeydown);
+    syncBodyScrollLock();
     window.requestAnimationFrame(focusFirstElement);
   };
 
@@ -297,6 +264,7 @@ function setupDrawer(drawer) {
     isOpen = false;
     syncAriaHidden();
     document.removeEventListener('keydown', handleKeydown);
+    syncBodyScrollLock();
 
     if (restoreFocusTo && typeof restoreFocusTo.focus === 'function') {
       restoreFocusTo.focus({ preventScroll: true });
@@ -319,18 +287,7 @@ function setupDrawer(drawer) {
   });
 
   syncAriaHidden();
-
-  if (desktopMediaQuery) {
-    const handleMediaChange = () => {
-      syncAriaHidden();
-    };
-
-    if (typeof desktopMediaQuery.addEventListener === 'function') {
-      desktopMediaQuery.addEventListener('change', handleMediaChange);
-    } else if (typeof desktopMediaQuery.addListener === 'function') {
-      desktopMediaQuery.addListener(handleMediaChange);
-    }
-  }
+  syncBodyScrollLock();
 
   closeButtons.forEach((closeButton) => {
     closeButton.addEventListener('click', (event) => {

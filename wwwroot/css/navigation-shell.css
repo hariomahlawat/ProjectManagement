@@ -8,9 +8,8 @@
     top: 0;
     z-index: 60;
     border-bottom: 1px solid #e2e8f0;
-    background: rgba(255, 255, 255, .98);
+    background: #fff;
     box-shadow: 0 1px 0 rgba(15, 23, 42, .025);
-    backdrop-filter: blur(12px);
 }
 
 .pm-topbar__inner {
@@ -596,4 +595,55 @@
     .pm-module-subnav-spacer .pm-drawer-toggle__icon {
         background: transparent;
     }
+}
+
+
+/* ============================================================
+   Navigation drawer hardening
+   The drawer is portalled to <body> by drawer.js. These rules keep
+   it viewport-bound, opaque and independently scrollable.
+   ============================================================ */
+body.pm-drawer-open {
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+
+.pm-drawer {
+    width: 100vw;
+    height: 100vh;
+    isolation: isolate;
+}
+
+@supports (height: 100dvh) {
+    .pm-drawer {
+        height: 100dvh;
+    }
+}
+
+.pm-drawer__overlay {
+    touch-action: none;
+}
+
+.pm-drawer__panel {
+    flex: 0 0 min(22rem, 92vw);
+    width: min(22rem, 92vw);
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    background: linear-gradient(160deg, #fbfcff 0%, #eef2fb 100%);
+    box-shadow: 18px 0 42px rgba(15, 23, 42, .2);
+}
+
+.pm-drawer__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+.pm-drawer__header,
+.pm-drawer__user {
+    flex: 0 0 auto;
 }
