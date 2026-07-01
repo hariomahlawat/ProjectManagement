@@ -7,32 +7,135 @@ namespace ProjectManagement.Services.ProjectIdeas;
 public class ProjectIdeaReadService
 {
     private readonly ApplicationDbContext _db;
+
     public ProjectIdeaReadService(ApplicationDbContext db) => _db = db;
 
     // SECTION: Board queries
-    public async Task<IReadOnlyList<ProjectIdea>> GetBoardIdeasAsync(string status, string? query, bool myIdeas, string? userId, bool canViewAll)
+    public async Task<IReadOnlyList<ProjectIdea>> GetBoardIdeasAsync(
+        string status,
+        string? query,
+        bool myIdeas,
+        string? userId,
+        bool canViewAll,
+        string? sort = null)
     {
-        status = ProjectIdeaStatuses.All.Contains(status) ? status : ProjectIdeaStatuses.Active;
+        status = ProjectIdeaStatuses.All.Contains(status)
+            ? status
+            : ProjectIdeaStatuses.Active;
 
-        var ideas = _db.ProjectIdeas.AsNoTracking()
-            .Include(x => x.AssignedProjectOfficerUser).Include(x => x.AssignedHodUser).Include(x => x.CreatedByUser)
-            .Include(x => x.Comments.Where(c => !c.IsDeleted)).Include(x => x.Notes.Where(n => !n.IsDeleted)).Include(x => x.Documents.Where(d => !d.IsDeleted))
-            .Where(x => !x.IsDeleted && x.Status == status);
+        IQueryable<ProjectIdea> ideas = ApplyBoardVisibilityAndSearch(
+                _db.ProjectIdeas.AsNoTracking(),
+                query,
+                myIdeas,
+                userId,
+                canViewAll)
+            .Where(x => x.Status == status)
+            .Include(x => x.AssignedProjectOfficerUser)
+            .Include(x => x.AssignedHodUser)
+            .Include(x => x.CreatedByUser)
+            .Include(x => x.Comments.Where(c => !c.IsDeleted))
+            .Include(x => x.Notes.Where(n => !n.IsDeleted))
+            .Include(x => x.Documents.Where(d => !d.IsDeleted));
+
+        if (_db.Database.IsRelational())
+        {
+            ideas = ideas.AsSplitQuery();
+        }
+
+        var list = await ideas.ToListAsync();
+        return SortIdeas(list, ProjectIdeaSorts.Normalise(sort)).ToList();
+    }
+
+    public async Task<IReadOnlyDictionary<string, int>> GetBoardStatusCountsAsync(
+        string? query,
+        bool myIdeas,
+        string? userId,
+        bool canViewAll)
+    {
+        var visibleIdeas = ApplyBoardVisibilityAndSearch(
+            _db.ProjectIdeas.AsNoTracking(),
+            query,
+            myIdeas,
+            userId,
+            canViewAll);
+
+        var groupedCounts = await visibleIdeas
+            .Where(x => ProjectIdeaStatuses.All.Contains(x.Status))
+            .GroupBy(x => x.Status)
+            .Select(group => new { Status = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(x => x.Status, x => x.Count);
+
+        return ProjectIdeaStatuses.All.ToDictionary(
+            status => status,
+            status => groupedCounts.GetValueOrDefault(status));
+    }
+
+    public Task<ProjectIdea?> GetDetailsAsync(int id)
+    {
+        IQueryable<ProjectIdea> query = _db.ProjectIdeas
+            .Include(x => x.AssignedProjectOfficerUser)
+            .Include(x => x.AssignedHodUser)
+            .Include(x => x.CreatedByUser)
+            .Include(x => x.Comments.Where(c => !c.IsDeleted)).ThenInclude(x => x.CreatedByUser)
+            .Include(x => x.Notes.Where(n => !n.IsDeleted)).ThenInclude(x => x.CreatedByUser)
+            .Include(x => x.Documents.Where(d => !d.IsDeleted)).ThenInclude(x => x.UploadedByUser);
+
+        if (_db.Database.IsRelational())
+        {
+            query = query.AsSplitQuery();
+        }
+
+        return query.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+    }
+
+    public static DateTime GetLastActivity(ProjectIdea idea)
+    {
+        var dates = new[]
+        {
+            idea.UpdatedAt,
+            idea.ArchivedAt ?? DateTime.MinValue,
+            idea.Comments.Select(c => c.CreatedAt).DefaultIfEmpty(DateTime.MinValue).Max(),
+            idea.Notes.Select(n => n.UpdatedAt > n.CreatedAt ? n.UpdatedAt : n.CreatedAt).DefaultIfEmpty(DateTime.MinValue).Max(),
+            idea.Documents.Select(d => d.UploadedAt).DefaultIfEmpty(DateTime.MinValue).Max()
+        };
+
+        return dates.Max();
+    }
+
+    private static IQueryable<ProjectIdea> ApplyBoardVisibilityAndSearch(
+        IQueryable<ProjectIdea> ideas,
+        string? query,
+        bool myIdeas,
+        string? userId,
+        bool canViewAll)
+    {
+        ideas = ideas.Where(x => !x.IsDeleted);
 
         // SECTION: Board visibility permissions
         if (!canViewAll)
         {
             if (string.IsNullOrWhiteSpace(userId))
             {
-                return Array.Empty<ProjectIdea>();
+                return ideas.Where(_ => false);
             }
 
-            ideas = ideas.Where(x => x.CreatedByUserId == userId || x.AssignedProjectOfficerUserId == userId || x.AssignedHodUserId == userId);
+            ideas = ideas.Where(x =>
+                x.CreatedByUserId == userId ||
+                x.AssignedProjectOfficerUserId == userId ||
+                x.AssignedHodUserId == userId);
         }
 
-        if (myIdeas && !string.IsNullOrWhiteSpace(userId))
+        if (myIdeas)
         {
-            ideas = ideas.Where(x => x.CreatedByUserId == userId || x.AssignedProjectOfficerUserId == userId || x.AssignedHodUserId == userId);
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return ideas.Where(_ => false);
+            }
+
+            ideas = ideas.Where(x =>
+                x.CreatedByUserId == userId ||
+                x.AssignedProjectOfficerUserId == userId ||
+                x.AssignedHodUserId == userId);
         }
 
         // SECTION: Null-safe PostgreSQL search
@@ -55,20 +158,37 @@ public class ProjectIdeaReadService
                      (x.CreatedByUser.UserName != null && EF.Functions.ILike(x.CreatedByUser.UserName, pattern)) ||
                      (x.CreatedByUser.Email != null && EF.Functions.ILike(x.CreatedByUser.Email, pattern)))));
         }
-        var list = await ideas.ToListAsync();
-        return list.OrderByDescending(GetLastActivity).ToList();
+
+        return ideas;
     }
 
-    public Task<ProjectIdea?> GetDetailsAsync(int id) => _db.ProjectIdeas
-        .Include(x => x.AssignedProjectOfficerUser).Include(x => x.AssignedHodUser).Include(x => x.CreatedByUser)
-        .Include(x => x.Comments.Where(c => !c.IsDeleted)).ThenInclude(x => x.CreatedByUser)
-        .Include(x => x.Notes.Where(n => !n.IsDeleted)).ThenInclude(x => x.CreatedByUser)
-        .Include(x => x.Documents.Where(d => !d.IsDeleted)).ThenInclude(x => x.UploadedByUser)
-        .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
-
-    public static DateTime GetLastActivity(ProjectIdea idea)
+    private static IEnumerable<ProjectIdea> SortIdeas(IEnumerable<ProjectIdea> ideas, string sort)
     {
-        var dates = new[] { idea.UpdatedAt, idea.ArchivedAt ?? DateTime.MinValue, idea.Comments.Select(c => c.CreatedAt).DefaultIfEmpty(DateTime.MinValue).Max(), idea.Notes.Select(n => n.UpdatedAt > n.CreatedAt ? n.UpdatedAt : n.CreatedAt).DefaultIfEmpty(DateTime.MinValue).Max(), idea.Documents.Select(d => d.UploadedAt).DefaultIfEmpty(DateTime.MinValue).Max() };
-        return dates.Max();
+        return sort switch
+        {
+            ProjectIdeaSorts.NewestCreated => ideas
+                .OrderByDescending(x => x.CreatedAt)
+                .ThenBy(x => x.Title, StringComparer.OrdinalIgnoreCase),
+
+            ProjectIdeaSorts.Title => ideas
+                .OrderBy(x => x.Title, StringComparer.OrdinalIgnoreCase),
+
+            ProjectIdeaSorts.ProjectOfficer => ideas
+                .OrderBy(x => DisplayOfficerName(x), StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Title, StringComparer.OrdinalIgnoreCase),
+
+            _ => ideas
+                .OrderByDescending(GetLastActivity)
+                .ThenBy(x => x.Title, StringComparer.OrdinalIgnoreCase)
+        };
+    }
+
+    private static string DisplayOfficerName(ProjectIdea idea)
+    {
+        var user = idea.AssignedProjectOfficerUser;
+        return user?.FullName
+            ?? user?.UserName
+            ?? user?.Email
+            ?? "\uFFFF";
     }
 }

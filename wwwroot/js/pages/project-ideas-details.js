@@ -24,7 +24,7 @@
         title.textContent = fileType === 'pdf' ? 'PDF Preview' : 'Image Preview';
         fileName.textContent = name;
         download.href = downloadUrl || previewUrl || '#';
-        container.innerHTML = '';
+        container.replaceChildren();
 
         if (fileType === 'image') {
             const image = document.createElement('img');
@@ -51,18 +51,55 @@
     });
 
     modal.addEventListener('hidden.bs.modal', () => {
-        container.innerHTML = '';
+        container.replaceChildren();
         download.href = '#';
     });
 })();
 
-// SECTION: Project Ideas attachment delete confirmation
+// SECTION: Attachment delete confirmation
 (() => {
     document.querySelectorAll('.js-confirm-delete-attachment').forEach(form => {
         form.addEventListener('submit', event => {
-            if (!window.confirm('Delete this attachment?')) {
+            const fileName = form.getAttribute('data-file-name') || 'this attachment';
+            if (!window.confirm(`Delete “${fileName}”? This action cannot be undone.`)) {
                 event.preventDefault();
             }
         });
+    });
+})();
+
+// SECTION: Note composer behaviour
+(() => {
+    const composer = document.getElementById('noteComposer');
+    if (!composer) {
+        return;
+    }
+
+    const titleInput = composer.querySelector('#NoteTitle');
+    const errorAlert = document.querySelector('.alert-danger');
+
+    composer.addEventListener('shown.bs.collapse', () => {
+        titleInput?.focus({ preventScroll: true });
+        composer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+
+    if (composer.classList.contains('show') && errorAlert) {
+        requestAnimationFrame(() => {
+            composer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            titleInput?.focus({ preventScroll: true });
+        });
+    }
+})();
+
+// SECTION: Comfortable textarea growth without manual resizing
+(() => {
+    const autoSize = textarea => {
+        textarea.style.height = 'auto';
+        textarea.style.height = `${Math.min(textarea.scrollHeight, 260)}px`;
+    };
+
+    document.querySelectorAll('.pi-comment-composer textarea, .pi-note-composer textarea').forEach(textarea => {
+        textarea.addEventListener('input', () => autoSize(textarea));
+        autoSize(textarea);
     });
 })();

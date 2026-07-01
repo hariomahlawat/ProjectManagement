@@ -27,6 +27,8 @@ public class DetailsModel : PageModel
     // SECTION: Page state
     public ProjectIdea Idea { get; private set; } = default!;
     public bool CanEdit { get; private set; }
+    public bool CanEditCore { get; private set; }
+    public bool ShowRestrictedEditNotice => CanEdit && !CanEditCore;
     public bool CanArchive { get; private set; }
     public bool CanRestore { get; private set; }
     public bool CanAddComment { get; private set; }
@@ -45,6 +47,7 @@ public class DetailsModel : PageModel
     [BindProperty] public bool IsPinned { get; set; }
     [BindProperty, MaxLength(1000)] public string? ArchiveReason { get; set; }
     [BindProperty] public IFormFile? DocumentUpload { get; set; }
+    [BindProperty(SupportsGet = true)] public bool OpenNoteComposer { get; set; }
 
     // SECTION: Page handlers
     public async Task<IActionResult> OnGetAsync(int id)
@@ -58,8 +61,21 @@ public class DetailsModel : PageModel
     {
         if (!await LoadAsync(id)) return NotFound();
         if (!_permissions.CanAddComment(User, Idea)) return Forbid();
-        if (string.IsNullOrWhiteSpace(CommentText)) { ErrorMessage = "Comment cannot be empty."; return RedirectToPage(new { id }); }
-        await _commands.AddCommentAsync(Idea, CommentText.Trim(), CurrentUserId());
+
+        var comment = CommentText?.Trim();
+        if (string.IsNullOrWhiteSpace(comment))
+        {
+            ErrorMessage = "Comment cannot be empty.";
+            return RedirectToPage(new { id });
+        }
+
+        if (comment.Length > 4000)
+        {
+            ErrorMessage = "Comment cannot exceed 4,000 characters.";
+            return RedirectToPage(new { id });
+        }
+
+        await _commands.AddCommentAsync(Idea, comment, CurrentUserId());
         StatusMessage = "Comment added.";
         return RedirectToPage(new { id });
     }
@@ -68,8 +84,22 @@ public class DetailsModel : PageModel
     {
         if (!await LoadAsync(id)) return NotFound();
         if (!_permissions.CanAddNote(User, Idea)) return Forbid();
-        if (string.IsNullOrWhiteSpace(NoteTitle) || string.IsNullOrWhiteSpace(NoteBody)) { ErrorMessage = "Note title and body are required."; return RedirectToPage(new { id }); }
-        await _commands.AddNoteAsync(Idea, NoteTitle.Trim(), NoteBody.Trim(), IsPinned, CurrentUserId());
+
+        var title = NoteTitle?.Trim();
+        var body = NoteBody?.Trim();
+        if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(body))
+        {
+            ErrorMessage = "Note title and body are required.";
+            return RedirectToPage(new { id, openNoteComposer = true });
+        }
+
+        if (title.Length > 200)
+        {
+            ErrorMessage = "Note title cannot exceed 200 characters.";
+            return RedirectToPage(new { id, openNoteComposer = true });
+        }
+
+        await _commands.AddNoteAsync(Idea, title, body, IsPinned, CurrentUserId());
         StatusMessage = "Note added.";
         return RedirectToPage(new { id });
     }
@@ -78,13 +108,20 @@ public class DetailsModel : PageModel
     {
         if (!await LoadAsync(id)) return NotFound();
         if (!_permissions.CanArchiveIdea(User) || IsArchived) return Forbid();
-        if (string.IsNullOrWhiteSpace(ArchiveReason))
+        var archiveReason = ArchiveReason?.Trim();
+        if (string.IsNullOrWhiteSpace(archiveReason))
         {
             ErrorMessage = "Please enter a closing note or reason before archiving the idea.";
             return RedirectToPage(new { id });
         }
 
-        await _commands.ArchiveAsync(Idea, ArchiveReason.Trim());
+        if (archiveReason.Length > 1000)
+        {
+            ErrorMessage = "The closing note cannot exceed 1,000 characters.";
+            return RedirectToPage(new { id });
+        }
+
+        await _commands.ArchiveAsync(Idea, archiveReason);
         StatusMessage = "Idea archived.";
         return RedirectToPage(new { id });
     }
@@ -177,7 +214,8 @@ public class DetailsModel : PageModel
     // SECTION: Attachment view helpers
     public bool CanDeleteDocument(ProjectIdeaDocument document) => _permissions.CanDeleteDocument(User, document, Idea);
 
-    public string DisplayUser(ProjectManagement.Models.ApplicationUser user) => user.FullName ?? user.UserName ?? user.Email ?? "Unknown";
+    public string DisplayUser(ProjectManagement.Models.ApplicationUser? user, string fallback = "Unknown") =>
+        user?.FullName ?? user?.UserName ?? user?.Email ?? fallback;
 
     public static bool IsImage(ProjectIdeaDocument document)
     {
@@ -264,6 +302,7 @@ public class DetailsModel : PageModel
         if (idea is null) return false;
         Idea = idea;
         CanEdit = _permissions.CanEditIdea(User, idea);
+        CanEditCore = _permissions.CanEditIdeaCore(User, idea);
         CanArchive = _permissions.CanArchiveIdea(User);
         CanRestore = _permissions.CanRestoreIdea(User);
         CanAddComment = _permissions.CanAddComment(User, idea);
