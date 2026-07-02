@@ -56,6 +56,10 @@ public static class NotificationPresentationCatalog
                 NotificationKind.ActionTaskRemovedFromSprint => new("Action tracker", "bi bi-dash-circle", "Normal", false),
                 NotificationKind.ActionTaskAddedToSprint => new("Action tracker", "bi bi-plus-circle", "Normal", false),
 
+                NotificationKind.NotebookShared => new("Notebook", "bi bi-journal-arrow-down", "High", true),
+                NotificationKind.NotebookAccessRemoved => new("Notebook", "bi bi-person-x", "High", false),
+                NotificationKind.NotebookCollaborationLeft => new("Notebook", "bi bi-box-arrow-left", "Normal", false),
+
                 _ => Default(module, eventType),
             };
         }
@@ -83,6 +87,11 @@ public static class NotificationPresentationCatalog
         if (Contains(module, "action") || Contains(eventType, "task"))
         {
             return new("Action tracker", "bi bi-list-check", "Normal", false);
+        }
+
+        if (Contains(module, "notebook") || Contains(eventType, "notebook"))
+        {
+            return new("Notebook", "bi bi-journal-text", "Normal", false);
         }
 
         return new("General", "bi bi-bell", "Normal", false);

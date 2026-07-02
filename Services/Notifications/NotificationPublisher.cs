@@ -14,7 +14,7 @@ using ProjectManagement.Models.Notifications;
 
 namespace ProjectManagement.Services.Notifications;
 
-public sealed class NotificationPublisher : INotificationPublisher
+public sealed class NotificationPublisher : INotificationPublisher, INotificationOutboxWriter
 {
     private const int ModuleMaxLength = 64;
     private const int EventTypeMaxLength = 128;
@@ -82,6 +82,50 @@ public sealed class NotificationPublisher : INotificationPublisher
         string? fingerprint,
         CancellationToken cancellationToken = default)
     {
+        var queued = await QueueAsync(
+            kind,
+            recipientUserIds,
+            payload,
+            module,
+            eventType,
+            scopeType,
+            scopeId,
+            projectId,
+            actorUserId,
+            route,
+            title,
+            summary,
+            fingerprint,
+            cancellationToken);
+
+        if (queued == 0)
+        {
+            return;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation(
+            "Queued notification {Kind} for {RecipientCount} recipients.",
+            kind,
+            queued);
+    }
+
+    public async Task<int> QueueAsync(
+        NotificationKind kind,
+        IReadOnlyCollection<string> recipientUserIds,
+        object payload,
+        string? module,
+        string? eventType,
+        string? scopeType,
+        string? scopeId,
+        int? projectId,
+        string? actorUserId,
+        string? route,
+        string? title,
+        string? summary,
+        string? fingerprint,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(recipientUserIds);
         ArgumentNullException.ThrowIfNull(payload);
 
@@ -95,7 +139,7 @@ public sealed class NotificationPublisher : INotificationPublisher
         if (recipients.Length == 0)
         {
             _logger.LogInformation("No valid recipients supplied for notification kind {Kind}.", kind);
-            return;
+            return 0;
         }
 
         if (projectId is <= 0)
@@ -131,7 +175,6 @@ public sealed class NotificationPublisher : INotificationPublisher
             Payload: payload);
 
         var payloadJson = JsonSerializer.Serialize(envelope, SerializerOptions);
-
         var dispatches = recipients.Select(userId => new NotificationDispatch
         {
             RecipientUserId = userId,
@@ -152,12 +195,7 @@ public sealed class NotificationPublisher : INotificationPublisher
         }).ToArray();
 
         await _db.NotificationDispatches.AddRangeAsync(dispatches, cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        _logger.LogInformation(
-            "Queued notification {Kind} for {RecipientCount} recipients.",
-            kind,
-            dispatches.Length);
+        return dispatches.Length;
     }
 
     internal static string? NormalizeRouteSegments(string? route)

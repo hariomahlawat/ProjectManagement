@@ -346,6 +346,9 @@
       this.connection = null;
       this.pollTimer = null;
       this.reconnectTimer = null;
+      this.startPromise = null;
+      this.reconnectAttempt = 0;
+      this.lifecycleBound = false;
       this.unreadCount = config.unreadCount || 0;
     }
 
@@ -529,15 +532,39 @@
     }
 
     async start() {
+      this.bindLifecycle();
+
       if (!this.hubUrl || !window.signalR?.HubConnectionBuilder) {
         this.startPolling();
         return;
       }
 
-      this.connection = new window.signalR.HubConnectionBuilder()
+      const reconnectPolicy = {
+        nextRetryDelayInMilliseconds: context => {
+          if (!this.canAttemptRealtime()) {
+            return null;
+          }
+
+          const delays = [0, 2_000, 10_000, 30_000, 60_000];
+          const baseDelay = delays[Math.min(context.previousRetryCount, delays.length - 1)];
+          return baseDelay + Math.floor(Math.random() * 750);
+        }
+      };
+
+      let builder = new window.signalR.HubConnectionBuilder()
         .withUrl(this.hubUrl)
-        .withAutomaticReconnect([0, 2_000, 5_000, 15_000, 30_000])
-        .build();
+        .withAutomaticReconnect(reconnectPolicy);
+
+      if (typeof builder.configureLogging === 'function' && window.signalR.LogLevel) {
+        // SignalR logs the same transient transport interruption at several layers. PRISM owns the
+        // lifecycle and reports one actionable message only when the failure is not a known browser
+        // suspension/disconnect condition.
+        builder = builder.configureLogging(window.signalR.LogLevel.None);
+      }
+
+      this.connection = builder.build();
+      this.connection.serverTimeoutInMilliseconds = 90_000;
+      this.connection.keepAliveIntervalInMilliseconds = 15_000;
 
       this.connection.on('ReceiveUnreadCount', count => this.setUnreadCount(count));
       this.connection.on('ReceiveNotification', notification => this.handleNewNotification(notification));
@@ -546,49 +573,128 @@
       this.connection.on('ReceiveNotificationSeen', mutation => this.handleSeenMutation(mutation));
       this.connection.on('ReceiveProjectMuteChanged', mutation => this.handleMuteMutation(mutation));
 
-      this.connection.onreconnecting(() => this.startPolling());
+      this.connection.onreconnecting(error => {
+        this.startPolling();
+        this.reportRealtimeIssue(error);
+      });
       this.connection.onreconnected(() => {
+        this.reconnectAttempt = 0;
+        this.clearReconnectTimer();
         this.stopPolling();
         this.refreshAll();
       });
-      this.connection.onclose(() => {
+      this.connection.onclose(error => {
         this.startPolling();
+        this.reportRealtimeIssue(error);
         this.scheduleReconnect();
       });
 
-      try {
-        await this.connection.start();
-        this.stopPolling();
-      } catch (error) {
-        console.warn('Notification realtime connection is unavailable; polling will be used.', error);
-        this.startPolling();
-        this.scheduleReconnect();
-      }
+      await this.tryStartRealtime();
     }
 
-    scheduleReconnect() {
-      if (!this.connection || this.reconnectTimer) {
+    bindLifecycle() {
+      if (this.lifecycleBound) {
         return;
       }
 
-      this.reconnectTimer = window.setTimeout(async () => {
-        this.reconnectTimer = null;
-        if (this.connection.state !== window.signalR.HubConnectionState.Disconnected) {
+      this.lifecycleBound = true;
+      window.addEventListener('online', () => {
+        this.refreshAll();
+        this.tryStartRealtime();
+      });
+      window.addEventListener('offline', () => {
+        this.clearReconnectTimer();
+        this.stopPolling();
+      });
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+          this.clearReconnectTimer();
+          this.stopPolling();
           return;
         }
 
-        try {
-          await this.connection.start();
+        this.refreshAll();
+        if (this.connection?.state === window.signalR?.HubConnectionState?.Disconnected) {
+          this.tryStartRealtime();
+        } else if (!this.connection) {
+          this.startPolling();
+        }
+      });
+    }
+
+    canAttemptRealtime() {
+      return navigator.onLine !== false && document.visibilityState !== 'hidden';
+    }
+
+    async tryStartRealtime() {
+      if (!this.connection || !this.canAttemptRealtime()) {
+        this.startPolling();
+        return;
+      }
+
+      if (this.connection.state !== window.signalR.HubConnectionState.Disconnected) {
+        return;
+      }
+
+      if (this.startPromise) {
+        return this.startPromise;
+      }
+
+      this.startPromise = this.connection.start()
+        .then(() => {
+          this.reconnectAttempt = 0;
+          this.clearReconnectTimer();
           this.stopPolling();
           this.refreshAll();
-        } catch {
+        })
+        .catch(error => {
+          this.startPolling();
+          this.reportRealtimeIssue(error);
           this.scheduleReconnect();
-        }
-      }, 15_000);
+        })
+        .finally(() => {
+          this.startPromise = null;
+        });
+
+      return this.startPromise;
+    }
+
+    scheduleReconnect() {
+      if (!this.connection || this.reconnectTimer || !this.canAttemptRealtime()) {
+        return;
+      }
+
+      const delays = [15_000, 30_000, 60_000, 120_000, 300_000];
+      const delay = delays[Math.min(this.reconnectAttempt, delays.length - 1)]
+        + Math.floor(Math.random() * 1_000);
+      this.reconnectAttempt += 1;
+
+      this.reconnectTimer = window.setTimeout(() => {
+        this.reconnectTimer = null;
+        this.tryStartRealtime();
+      }, delay);
+    }
+
+    clearReconnectTimer() {
+      if (!this.reconnectTimer) {
+        return;
+      }
+
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    reportRealtimeIssue(error) {
+      const message = String(error?.message || error || '');
+      if (!message || /failed to fetch|network_io_suspended|websocket closed with status code: 1006|connection disconnected/i.test(message)) {
+        return;
+      }
+
+      console.warn('Notification realtime connection was interrupted; polling remains active.', error);
     }
 
     startPolling() {
-      if (this.pollTimer) {
+      if (this.pollTimer || navigator.onLine === false || document.visibilityState === 'hidden') {
         return;
       }
 
@@ -603,6 +709,10 @@
     }
 
     refreshAll() {
+      if (navigator.onLine === false || document.visibilityState === 'hidden') {
+        return;
+      }
+
       this.views.forEach(view => view.refresh({ silent: true }).catch(() => {}));
     }
   }
@@ -1902,7 +2012,12 @@
 
     bellRoots.forEach(root => runtime.register(new NotificationBellView(root, runtime)));
     centerRoots.forEach(root => runtime.register(new NotificationCenterView(root, runtime)));
-    runtime.start();
+    runtime.start().catch(error => {
+      // Initialization must never surface as an unhandled promise rejection. Polling remains the
+      // durable fallback whenever realtime startup is unavailable.
+      runtime.startPolling();
+      runtime.reportRealtimeIssue(error);
+    });
   }
 
   if (document.readyState === 'loading') {

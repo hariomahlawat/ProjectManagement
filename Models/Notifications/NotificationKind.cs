@@ -31,5 +31,8 @@ public enum NotificationKind
     ActionTaskDueDateChanged = 106,
     ActionTaskMovedToBacklog = 107,
     ActionTaskRemovedFromSprint = 108,
-    ActionTaskAddedToSprint = 109
+    ActionTaskAddedToSprint = 109,
+    NotebookShared = 120,
+    NotebookAccessRemoved = 121,
+    NotebookCollaborationLeft = 122
 }

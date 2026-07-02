@@ -48,6 +48,7 @@ public sealed class UserNotificationService
         NotificationKind.ActionTaskBlocked,
         NotificationKind.ActionTaskSubmittedForClosure,
         NotificationKind.ActionTaskDueDateChanged,
+        NotificationKind.NotebookShared,
     };
 
     private static readonly NotificationKind[] ApprovalKinds =
@@ -67,6 +68,9 @@ public sealed class UserNotificationService
     {
         NotificationKind.RemarkCreated,
         NotificationKind.MentionedInRemark,
+        NotificationKind.NotebookShared,
+        NotificationKind.NotebookAccessRemoved,
+        NotificationKind.NotebookCollaborationLeft,
     };
 
     private static readonly NotificationKind[] AssignmentKinds =

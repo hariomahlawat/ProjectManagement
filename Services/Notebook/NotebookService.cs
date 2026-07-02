@@ -17,13 +17,20 @@ public sealed class NotebookService : INotebookService
     private readonly IClock _clock;
     private readonly ApplicationDbContext _db;
     private readonly ILogger<NotebookService> _logger;
+    private readonly INotebookNotificationService? _notifications;
 
-    public NotebookService(ApplicationDbContext db, IAuditService audit, IClock clock, ILogger<NotebookService> logger)
+    public NotebookService(
+        ApplicationDbContext db,
+        IAuditService audit,
+        IClock clock,
+        ILogger<NotebookService> logger,
+        INotebookNotificationService? notifications = null)
     {
-        _db = db;
-        _audit = audit;
-        _clock = clock;
-        _logger = logger;
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _notifications = notifications;
     }
 
     // SECTION: Read model composition
@@ -889,44 +896,92 @@ public sealed class NotebookService : INotebookService
     {
         if (!Enum.IsDefined(role)) throw new NotebookValidationException("Invalid collaborator role.");
         if (string.IsNullOrWhiteSpace(collaboratorUserId) || collaboratorUserId == ownerId) throw new NotebookValidationException("Select another active PRISM user.");
+
         var item = await LoadAccessibleForUpdate(ownerId, itemId, expectedVersion, NotebookAccessLevel.Owner, ct);
         var user = await _db.Users.FirstOrDefaultAsync(row => row.Id == collaboratorUserId && !row.IsDisabled && !row.PendingDeletion, ct)
             ?? throw new KeyNotFoundException("The selected user could not be found.");
         if (item.Collaborators.Any(row => row.UserId == collaboratorUserId)) return MapDetail(item, ownerId);
-        item.Collaborators.Add(new NotebookItemCollaborator
+
+        var now = _clock.UtcNow;
+        var collaboration = new NotebookItemCollaborator
         {
             NotebookItemId = item.Id,
+            NotebookItem = item,
             UserId = user.Id,
             User = user,
             Role = role,
             AddedByUserId = ownerId,
-            AddedAtUtc = _clock.UtcNow,
+            AddedAtUtc = now,
             Version = Guid.NewGuid()
-        });
-        Touch(item, _clock.UtcNow);
+        };
+
+        item.Collaborators.Add(collaboration);
+        Touch(item, now);
+
+        if (_notifications is not null)
+        {
+            await _notifications.QueueSharedAsync(item, collaboration, ownerId, ct);
+        }
+
+        // Collaboration and its durable notification dispatch are persisted in one unit of work.
         await _db.SaveChangesAsync(ct);
-        await TryWriteAuditAsync("Notebook.CollaboratorAdded", ownerId, item.Id, ct, new Dictionary<string, string?> { ["CollaboratorUserId"] = user.Id, ["Role"] = role.ToString() });
+        await TryWriteAuditAsync("Notebook.CollaboratorAdded", ownerId, item.Id, ct, new Dictionary<string, string?>
+        {
+            ["CollaboratorUserId"] = user.Id,
+            ["Role"] = role.ToString(),
+            ["CollaborationVersion"] = collaboration.Version.ToString("D")
+        });
         return MapDetail(item, ownerId);
     }
 
     public async Task<NotebookItemDetailVm> RemoveCollaboratorAsync(string ownerId, Guid itemId, string collaboratorUserId, Guid expectedVersion, CancellationToken ct = default)
     {
         var item = await LoadAccessibleForUpdate(ownerId, itemId, expectedVersion, NotebookAccessLevel.Owner, ct);
-        var collaboration = item.Collaborators.FirstOrDefault(row => row.UserId == collaboratorUserId) ?? throw new KeyNotFoundException();
+        var collaboration = item.Collaborators.FirstOrDefault(row => row.UserId == collaboratorUserId)
+            ?? throw new KeyNotFoundException("The collaborator could not be found.");
+
+        if (_notifications is not null)
+        {
+            await _notifications.QueueAccessRemovedAsync(item, collaboration, ownerId, ct);
+        }
+
         item.Collaborators.Remove(collaboration);
         Touch(item, _clock.UtcNow);
+
+        // Access removal and its durable notification dispatch are committed atomically.
         await _db.SaveChangesAsync(ct);
-        await TryWriteAuditAsync("Notebook.CollaboratorRemoved", ownerId, item.Id, ct, new Dictionary<string, string?> { ["CollaboratorUserId"] = collaboratorUserId });
+        await TryWriteAuditAsync("Notebook.CollaboratorRemoved", ownerId, item.Id, ct, new Dictionary<string, string?>
+        {
+            ["CollaboratorUserId"] = collaboratorUserId,
+            ["CollaborationVersion"] = collaboration.Version.ToString("D")
+        });
         return MapDetail(item, ownerId);
     }
 
     public async Task LeaveCollaborationAsync(string userId, Guid itemId, CancellationToken ct = default)
     {
-        var collaboration = await _db.NotebookItemCollaborators.FirstOrDefaultAsync(row => row.NotebookItemId == itemId && row.UserId == userId, ct)
-            ?? throw new KeyNotFoundException();
+        var collaboration = await _db.NotebookItemCollaborators
+            .Include(row => row.User)
+            .Include(row => row.NotebookItem).ThenInclude(item => item.Owner)
+            .FirstOrDefaultAsync(row => row.NotebookItemId == itemId && row.UserId == userId, ct)
+            ?? throw new KeyNotFoundException("The shared note could not be found.");
+
+        var item = collaboration.NotebookItem;
+        if (_notifications is not null)
+        {
+            await _notifications.QueueCollaborationLeftAsync(item, collaboration, userId, ct);
+        }
+
         _db.NotebookItemCollaborators.Remove(collaboration);
+        Touch(item, _clock.UtcNow);
+
+        // Leaving the collaboration and notifying the owner use the same SaveChanges boundary.
         await _db.SaveChangesAsync(ct);
-        await TryWriteAuditAsync("Notebook.CollaborationLeft", userId, itemId, ct);
+        await TryWriteAuditAsync("Notebook.CollaborationLeft", userId, itemId, ct, new Dictionary<string, string?>
+        {
+            ["OwnerUserId"] = item.OwnerId,
+            ["CollaborationVersion"] = collaboration.Version.ToString("D")
+        });
     }
 
     // SECTION: Helpers

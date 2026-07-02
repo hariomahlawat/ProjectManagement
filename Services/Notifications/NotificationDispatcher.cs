@@ -93,6 +93,25 @@ public sealed class NotificationDispatcher : BackgroundService
 
             try
             {
+                var recipientIsActive = await db.Users
+                    .AsNoTracking()
+                    .AnyAsync(user =>
+                        user.Id == dispatch.RecipientUserId
+                        && !user.IsDisabled
+                        && !user.PendingDeletion,
+                        stoppingToken);
+
+                if (!recipientIsActive)
+                {
+                    CompleteDispatch(dispatch, _clock.UtcNow.UtcDateTime);
+                    await db.SaveChangesAsync(stoppingToken);
+                    _logger.LogWarning(
+                        "Discarded notification dispatch {DispatchId} because recipient {RecipientUserId} is missing or inactive.",
+                        dispatch.Id,
+                        dispatch.RecipientUserId);
+                    continue;
+                }
+
                 var allowed = await preferenceService.AllowsAsync(
                     dispatch.Kind,
                     dispatch.RecipientUserId,
@@ -183,13 +202,31 @@ public sealed class NotificationDispatcher : BackgroundService
 
         if (notificationsToDeliver.Count > 0)
         {
-            await deliveryService.DeliverAsync(notificationsToDeliver, stoppingToken);
+            try
+            {
+                await deliveryService.DeliverAsync(notificationsToDeliver, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                // Notification rows are already durable. A secondary delivery channel must not
+                // poison the outbox batch or cause completed dispatches to be processed again.
+                _logger.LogError(
+                    exception,
+                    "A secondary notification delivery channel failed for {NotificationCount} durable notification(s).",
+                    notificationsToDeliver.Count);
+            }
+
             await BroadcastNewNotificationsAsync(
                 notificationsToDeliver,
                 notificationService,
                 hubContext,
                 userManager,
                 principalFactory,
+                _logger,
                 stoppingToken);
         }
 
@@ -334,6 +371,7 @@ public sealed class NotificationDispatcher : BackgroundService
         IHubContext<NotificationsHub, INotificationsClient> hubContext,
         UserManager<ApplicationUser> userManager,
         IUserClaimsPrincipalFactory<ApplicationUser> principalFactory,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
         foreach (var userGroup in notifications.GroupBy(n => n.RecipientUserId, StringComparer.Ordinal))
@@ -346,29 +384,45 @@ public sealed class NotificationDispatcher : BackgroundService
                 continue;
             }
 
-            var user = await userManager.FindByIdAsync(userId);
-            if (user is null)
+            try
             {
-                continue;
+                var user = await userManager.FindByIdAsync(userId);
+                if (user is null || user.IsDisabled || user.PendingDeletion)
+                {
+                    continue;
+                }
+
+                var principal = await principalFactory.CreateAsync(user);
+                var items = await notificationService.ProjectAsync(
+                    principal,
+                    userId,
+                    userGroup.ToList(),
+                    cancellationToken);
+
+                foreach (var item in items)
+                {
+                    await hubContext.Clients.User(userId).ReceiveNotification(item);
+                }
+
+                var unreadCount = await notificationService.CountUnreadAsync(
+                    principal,
+                    userId,
+                    cancellationToken);
+                await hubContext.Clients.User(userId).ReceiveUnreadCount(unreadCount);
             }
-
-            var principal = await principalFactory.CreateAsync(user);
-            var items = await notificationService.ProjectAsync(
-                principal,
-                userId,
-                userGroup.ToList(),
-                cancellationToken);
-
-            foreach (var item in items)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                await hubContext.Clients.User(userId).ReceiveNotification(item);
+                throw;
             }
-
-            var unreadCount = await notificationService.CountUnreadAsync(
-                principal,
-                userId,
-                cancellationToken);
-            await hubContext.Clients.User(userId).ReceiveUnreadCount(unreadCount);
+            catch (Exception exception)
+            {
+                // SignalR is a realtime optimisation. The durable notification remains available
+                // through the API and polling even when this user's connection or backplane fails.
+                logger.LogWarning(
+                    exception,
+                    "Realtime notification broadcast failed for recipient {RecipientUserId}; polling will recover the durable notification.",
+                    userId);
+            }
         }
     }
 

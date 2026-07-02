@@ -1,7 +1,32 @@
-﻿@font-face {
-    font-family: 'Mulish';
+/* PRISM local font package. No external Google Fonts request is required or permitted. */
+@font-face {
+    font-family: "Mulish";
     font-style: normal;
     font-weight: 400;
     font-display: swap;
-    src: url('/fonts/mulish/mulish-latin-400.woff2') format('woff2');
+    src: url("../../fonts/mulish/mulish-v18-latin-regular.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Mulish";
+    font-style: italic;
+    font-weight: 400;
+    font-display: swap;
+    src: url("../../fonts/mulish/mulish-v18-latin-italic.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Mulish";
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url("../../fonts/mulish/mulish-v18-latin-600.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Mulish";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("../../fonts/mulish/mulish-v18-latin-700.woff2") format("woff2");
 }

@@ -76,6 +76,44 @@ public sealed class NotificationPublisherTests
     }
 
     [Fact]
+    public async Task QueueAsync_AddsDispatchWithoutSavingSoCallerControlsTransactionBoundary()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"notification-tests-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var clock = new TestClock(new DateTimeOffset(2026, 7, 2, 4, 0, 0, TimeSpan.Zero));
+        var publisher = new NotificationPublisher(context, clock, NullLogger<NotificationPublisher>.Instance);
+
+        var queued = await publisher.QueueAsync(
+            NotificationKind.NotebookShared,
+            new[] { "user-1" },
+            new { NotebookItemId = Guid.NewGuid() },
+            module: "Notebook",
+            eventType: "NotebookShared",
+            scopeType: "NotebookItem",
+            scopeId: Guid.NewGuid().ToString("D"),
+            projectId: null,
+            actorUserId: "owner-1",
+            route: "/Notebook?view=shared",
+            title: "A note was shared with you",
+            summary: "A PRISM user shared a note with you.",
+            fingerprint: $"notebook:{Guid.NewGuid():N}");
+
+        Assert.Equal(1, queued);
+        Assert.Single(context.ChangeTracker.Entries<NotificationDispatch>());
+
+        await using var verificationBeforeSave = new ApplicationDbContext(options);
+        Assert.Empty(await verificationBeforeSave.NotificationDispatches.ToListAsync());
+
+        await context.SaveChangesAsync();
+
+        await using var verificationAfterSave = new ApplicationDbContext(options);
+        Assert.Single(await verificationAfterSave.NotificationDispatches.ToListAsync());
+    }
+
+    [Fact]
     public async Task PublishAsync_NormalizesProjectRouteSegments()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

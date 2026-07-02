@@ -410,6 +410,62 @@ public sealed class UserNotificationServiceTests
     }
 
     [Fact]
+    public async Task CollaborationFolder_IncludesNotebookCollaborationNotifications()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"user-notification-tests-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var clock = new TestClock(new DateTimeOffset(2026, 7, 2, 4, 0, 0, TimeSpan.Zero));
+        var service = new UserNotificationService(context, clock);
+        var principal = CreatePrincipal("user-1");
+        var now = clock.UtcNow.UtcDateTime;
+
+        context.Notifications.AddRange(
+            new Notification
+            {
+                Id = 1,
+                RecipientUserId = "user-1",
+                Kind = NotificationKind.NotebookShared,
+                Module = "Notebook",
+                CreatedUtc = now,
+            },
+            new Notification
+            {
+                Id = 2,
+                RecipientUserId = "user-1",
+                Kind = NotificationKind.NotebookAccessRemoved,
+                Module = "Notebook",
+                CreatedUtc = now.AddMinutes(-1),
+            },
+            new Notification
+            {
+                Id = 3,
+                RecipientUserId = "user-1",
+                Kind = NotificationKind.NotebookCollaborationLeft,
+                Module = "Notebook",
+                CreatedUtc = now.AddMinutes(-2),
+                ReadUtc = now,
+            });
+        await context.SaveChangesAsync();
+
+        var collaboration = await service.ListPageAsync(
+            principal,
+            "user-1",
+            new NotificationListOptions
+            {
+                Folder = "collaboration",
+                IncludeFilterOptions = true,
+            });
+
+        Assert.Equal(new[] { 1, 2, 3 }, collaboration.Items.Select(item => item.Id));
+        var folder = Assert.Single(collaboration.Folders.Where(item => item.Key == "collaboration"));
+        Assert.Equal(3, folder.TotalCount);
+        Assert.Equal(2, folder.UnreadCount);
+    }
+
+    [Fact]
     public async Task ProjectAsync_InfersLegacyStageAndDocumentKindsWhenKindIsMissing()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

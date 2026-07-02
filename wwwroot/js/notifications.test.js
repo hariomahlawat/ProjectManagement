@@ -423,3 +423,58 @@ test('Notification Centre uses a compact inbox range', async () => {
   dom.window.close();
 });
 
+
+test('notification realtime uses application-owned diagnostics instead of duplicate SignalR console logging', async () => {
+  const dom = new JSDOM(`<!DOCTYPE html><html><head><meta name="csrf-token" content="token"></head><body>
+    <div data-notification-bell data-api-base="/api/notifications" data-unread-url="/api/notifications/count"
+         data-hub-url="/hubs/notifications" data-notification-limit="10" data-unread-count="0"
+         data-is-authenticated="true" data-notification-center-url="/Notifications">
+      <script type="application/json" data-notification-bootstrap>[]</script>
+      <button class="notification-bell__trigger"></button>
+      <span data-notification-unread><span data-notification-unread-count>0</span></span>
+      <span data-notification-header-count>0</span>
+      <button data-notification-action="mark-all-read"></button>
+      <div data-notification-status></div><div data-notification-empty></div><ul data-notification-list></ul>
+      <template data-notification-item-template><li data-notification-item><a data-notification-link><span data-notification-title></span></a></li></template>
+    </div>
+  </body></html>`, { url: 'https://example.test/Notebook', runScripts: 'outside-only' });
+
+  const { window } = dom;
+  let configuredLogLevel = null;
+  const handlers = {};
+  const connection = {
+    state: 'Disconnected',
+    start: async () => { connection.state = 'Connected'; },
+    on: () => {},
+    onreconnecting: handler => { handlers.reconnecting = handler; },
+    onreconnected: handler => { handlers.reconnected = handler; },
+    onclose: handler => { handlers.close = handler; }
+  };
+  const builder = {
+    withUrl: () => builder,
+    withAutomaticReconnect: () => builder,
+    configureLogging: level => { configuredLogLevel = level; return builder; },
+    build: () => connection
+  };
+  window.Headers = global.Headers;
+  window.fetch = async () => ({
+    ok: true,
+    status: 200,
+    headers: new global.Headers({ 'content-type': 'application/json' }),
+    json: async () => ({ items: [], unreadCount: 0 })
+  });
+  window.signalR = {
+    HubConnectionBuilder: function HubConnectionBuilder() { return builder; },
+    HubConnectionState: { Disconnected: 'Disconnected' },
+    LogLevel: { None: 6 }
+  };
+
+  await new Promise(resolve => window.setTimeout(resolve, 0));
+  window.eval(scriptContent);
+  await new Promise(resolve => window.setTimeout(resolve, 0));
+
+  assert.equal(configuredLogLevel, window.signalR.LogLevel.None);
+  assert.equal(typeof handlers.reconnecting, 'function');
+  assert.equal(typeof handlers.close, 'function');
+  dom.window.close();
+});

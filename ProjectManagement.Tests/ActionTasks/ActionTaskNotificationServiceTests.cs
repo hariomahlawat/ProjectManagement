@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Notifications;
+using ProjectManagement.Services;
 using ProjectManagement.Services.ActionTasks;
 using Xunit;
 
@@ -28,6 +29,40 @@ public sealed class ActionTaskNotificationServiceTests
         Assert.Equal("ActionTracker", evt.Module);
         Assert.Equal("ActionTask", evt.ScopeType);
         Assert.Equal("ActionTaskAssigned", evt.EventType);
+    }
+
+    [Fact]
+    public async Task AssignmentFingerprint_ChangesWhenPersistedTaskVersionChanges()
+    {
+        var publisher = new RecordingNotificationPublisher();
+        var service = CreateService(publisher);
+        var task = NewTask(assignedTo: "assignee");
+        task.RowVersion = new byte[] { 0x01, 0x02 };
+
+        await service.NotifyTaskAssignedAsync(task, "creator");
+        task.RowVersion = new byte[] { 0x01, 0x03 };
+        await service.NotifyTaskAssignedAsync(task, "creator");
+
+        Assert.Equal(2, publisher.Events.Count);
+        Assert.NotEqual(publisher.Events[0].Fingerprint, publisher.Events[1].Fingerprint);
+        Assert.Contains("0102", publisher.Events[0].Fingerprint);
+        Assert.Contains("0103", publisher.Events[1].Fingerprint);
+    }
+
+    [Fact]
+    public async Task DueDateFingerprint_ChangesWhenTaskReturnsToAnEarlierDueDate()
+    {
+        var publisher = new RecordingNotificationPublisher();
+        var service = CreateService(publisher);
+        var task = NewTask();
+        task.RowVersion = new byte[] { 0x10 };
+
+        await service.NotifyDueDateChangedAsync(task, new DateTime(2026, 5, 5), new DateTime(2026, 5, 10), "actor");
+        task.RowVersion = new byte[] { 0x11 };
+        await service.NotifyDueDateChangedAsync(task, new DateTime(2026, 5, 15), new DateTime(2026, 5, 10), "actor");
+
+        Assert.Equal(2, publisher.Events.Count);
+        Assert.NotEqual(publisher.Events[0].Fingerprint, publisher.Events[1].Fingerprint);
     }
 
     [Fact]
@@ -202,6 +237,7 @@ public sealed class ActionTaskNotificationServiceTests
             publisher,
             new TestPreferenceService(),
             userManager ?? new FakeUserManager(),
+            new SystemClock(),
             NullLogger<ActionTaskNotificationService>.Instance);
 
     private static ActionTaskItem NewTask(string createdBy = "creator", string assignedTo = "assignee", string status = ActionTaskStatuses.Assigned)

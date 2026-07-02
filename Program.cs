@@ -177,7 +177,15 @@ if (OperatingSystem.IsWindows())
 
 builder.Services.AddMetrics();
 
-builder.Services.AddSignalR();
+builder.Services.AddSignalR(options =>
+{
+    // Tolerate short workstation sleep, tab suspension and transient proxy pauses without
+    // prematurely abandoning an otherwise healthy authenticated notification connection.
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(90);
+    options.HandshakeTimeout = TimeSpan.FromSeconds(15);
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+});
 
 builder.Services.AddScoped<IsoCountrySeeder>();
 
@@ -515,6 +523,7 @@ builder.Services.AddScoped<ITodoService, TodoService>();
 // SECTION: My Notebook services
 builder.Services.Configure<NotebookTrashOptions>(builder.Configuration.GetSection(NotebookTrashOptions.SectionName));
 builder.Services.AddScoped<INotebookService, NotebookService>();
+builder.Services.AddScoped<INotebookNotificationService, NotebookNotificationService>();
 builder.Services.AddHostedService<NotebookTrashRetentionWorker>();
 builder.Services.AddScoped<INotebookCardModelFactory, NotebookCardModelFactory>();
 builder.Services.AddScoped<INotebookCardRenderer, RazorNotebookCardRenderer>();
@@ -611,7 +620,11 @@ builder.Services.AddScoped<IStageNotificationService, StageNotificationService>(
 builder.Services.AddScoped<IDocumentNotificationService, DocumentNotificationService>();
 builder.Services.AddScoped<IRoleNotificationService, RoleNotificationService>();
 builder.Services.AddSingleton<IRemarkMetrics, RemarkMetrics>();
-builder.Services.AddScoped<INotificationPublisher, NotificationPublisher>();
+builder.Services.AddScoped<NotificationPublisher>();
+builder.Services.AddScoped<INotificationPublisher>(serviceProvider =>
+    serviceProvider.GetRequiredService<NotificationPublisher>());
+builder.Services.AddScoped<INotificationOutboxWriter>(serviceProvider =>
+    serviceProvider.GetRequiredService<NotificationPublisher>());
 builder.Services.AddScoped<INotificationDeliveryService, NotificationDeliveryService>();
 builder.Services.AddHostedService<NotificationDispatcher>();
 builder.Services.AddOptions<NotificationRetentionOptions>()

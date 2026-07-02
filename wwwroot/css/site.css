@@ -8494,8 +8494,8 @@ body.has-project-photo-preview-dialog {
     --pm-page-bg: #f4f6fb; /* overall shell */
     --pm-hero-bg: #ffffff; /* PRISM hero */
     /* Typography */
-    --pm-font-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Ubuntu", sans-serif;
-    --pm-font-heading: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Ubuntu", sans-serif;
+    --pm-font-body: "Mulish", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", sans-serif;
+    --pm-font-heading: "Mulish", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", sans-serif;
 }
 
 body {

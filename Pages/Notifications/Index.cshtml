@@ -47,7 +47,7 @@
     <header class="notification-inbox__page-header">
         <div>
             <h1 class="notification-inbox__title">Notification Centre</h1>
-            <p class="notification-inbox__subtitle">Review approvals, assignments, mentions and project updates requiring your attention.</p>
+            <p class="notification-inbox__subtitle">Review approvals, assignments, shared notes, mentions and project updates requiring your attention.</p>
         </div>
         <div class="notification-inbox__summary" aria-label="Notification summary">
             <span><strong data-notification-unread-count>@Model.ViewModel.UnreadCount</strong> unread</span>
@@ -83,7 +83,7 @@
                 </button>
                 <button type="button" class="notification-folder" data-notification-folder="collaboration">
                     <i class="bi bi-chat-dots" aria-hidden="true"></i>
-                    <span>Mentions &amp; remarks</span>
+                    <span>Collaboration</span>
                     <span class="notification-folder__count" data-folder-count data-folder-key="collaboration" data-folder-count-mode="unread">@(FolderUnread("collaboration") > 0 ? DisplayCount(FolderUnread("collaboration")) : string.Empty)</span>
                 </button>
                 <button type="button" class="notification-folder" data-notification-folder="assignments">
