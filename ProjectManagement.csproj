@@ -58,6 +58,13 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
+    <!-- Embed the same immutable lineages so a complete DLL remains self-describing even
+         when an IIS deployment tool omits non-code content files. External files remain the
+         primary source and are still validated when present. -->
+    <EmbeddedResource Include="Migrations/immutable-migration-ids.txt"
+                      LogicalName="ProjectManagement.Migrations.immutable-migration-ids.txt" />
+    <EmbeddedResource Include="Features/MediaLibrary/Data/Migrations/immutable-migration-ids.txt"
+                      LogicalName="ProjectManagement.MediaLibrary.Migrations.immutable-migration-ids.txt" />
   </ItemGroup>
 
   <ItemGroup>

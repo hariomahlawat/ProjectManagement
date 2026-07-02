@@ -72,6 +72,15 @@ public sealed class PostgresMigrationIntegrationTests
         Assert.False(await HistoryTableExistsAsync(connectionString, "__EFMigrationsHistory"));
         await DropMediaHistoryAsync(connectionString);
 
+        // Reproduce the production drift that originally blocked
+        // ConsolidateProductionSchemaMaintenance: an obsolete completion constraint was
+        // recreated after its repair migration was recorded, and a legacy row retained a
+        // nullable RequiresBackfill marker. The preparation migration must remove that
+        // ordering hazard before the consolidation migration normalises the column.
+        await applicationDb.Database.MigrateAsync(
+            "20261201130000_AddRequestedStartDateToStageChangeRequests");
+        await SeedLegacyProjectStageConstraintDriftAsync(applicationDb);
+
         var results = await DatabaseStartupMigrator.ApplyDeploymentBoundaryAsync(
             applicationDb,
             NullLogger.Instance,
@@ -115,6 +124,61 @@ public sealed class PostgresMigrationIntegrationTests
             results[1].LatestAppliedMigration);
 
         await VerifyProjectStageCompletionConstraintAsync(applicationDb);
+    }
+
+
+    private static async Task SeedLegacyProjectStageConstraintDriftAsync(
+        ApplicationDbContext applicationDb)
+    {
+        var project = new Project
+        {
+            Name = "Legacy constraint drift project",
+            CreatedByUserId = "migration-test",
+            WorkflowVersion = "v1",
+            RowVersion = Array.Empty<byte>()
+        };
+        applicationDb.Projects.Add(project);
+        await applicationDb.SaveChangesAsync();
+
+        applicationDb.ProjectStages.Add(new ProjectStage
+        {
+            ProjectId = project.Id,
+            StageCode = "TEC",
+            SortOrder = 1,
+            Status = StageStatus.Completed,
+            ActualStart = null,
+            CompletedOn = new DateOnly(2026, 6, 23),
+            RequiresBackfill = false
+        });
+        await applicationDb.SaveChangesAsync();
+
+        await applicationDb.Database.ExecuteSqlRawAsync(
+            """
+            ALTER TABLE "ProjectStages"
+                DROP CONSTRAINT IF EXISTS "CK_ProjectStages_CompletedHasDate";
+
+            ALTER TABLE "ProjectStages"
+                ALTER COLUMN "RequiresBackfill" DROP NOT NULL;
+
+            UPDATE "ProjectStages"
+            SET "RequiresBackfill" = NULL
+            WHERE "ProjectId" = {0}
+              AND "StageCode" = 'TEC';
+
+            ALTER TABLE "ProjectStages"
+                ADD CONSTRAINT "CK_ProjectStages_CompletedHasDate"
+                CHECK (
+                    "Status" <> 'Completed'
+                    OR (
+                        "CompletedOn" IS NOT NULL
+                        AND "ActualStart" IS NOT NULL
+                    )
+                    OR "RequiresBackfill" IS TRUE
+                );
+            """,
+            project.Id);
+
+        applicationDb.ChangeTracker.Clear();
     }
 
     private static async Task VerifyProjectStageCompletionConstraintAsync(

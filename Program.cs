@@ -191,7 +191,15 @@ if (!string.IsNullOrWhiteSpace(dataProtectionKeyDirectory))
 
 builder.Services.AddMetrics();
 
-builder.Services.AddSignalR();
+builder.Services.AddSignalR(options =>
+{
+    // Tolerate short workstation sleep, tab suspension and transient proxy pauses without
+    // prematurely abandoning an otherwise healthy authenticated notification connection.
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(90);
+    options.HandshakeTimeout = TimeSpan.FromSeconds(15);
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+});
 
 builder.Services.AddScoped<IsoCountrySeeder>();
 
@@ -529,6 +537,7 @@ builder.Services.AddScoped<ITodoService, TodoService>();
 // SECTION: My Notebook services
 builder.Services.Configure<NotebookTrashOptions>(builder.Configuration.GetSection(NotebookTrashOptions.SectionName));
 builder.Services.AddScoped<INotebookService, NotebookService>();
+builder.Services.AddScoped<INotebookNotificationService, NotebookNotificationService>();
 builder.Services.AddHostedService<NotebookTrashRetentionWorker>();
 builder.Services.AddScoped<INotebookCardModelFactory, NotebookCardModelFactory>();
 builder.Services.AddScoped<INotebookCardRenderer, RazorNotebookCardRenderer>();
@@ -625,7 +634,11 @@ builder.Services.AddScoped<IStageNotificationService, StageNotificationService>(
 builder.Services.AddScoped<IDocumentNotificationService, DocumentNotificationService>();
 builder.Services.AddScoped<IRoleNotificationService, RoleNotificationService>();
 builder.Services.AddSingleton<IRemarkMetrics, RemarkMetrics>();
-builder.Services.AddScoped<INotificationPublisher, NotificationPublisher>();
+builder.Services.AddScoped<NotificationPublisher>();
+builder.Services.AddScoped<INotificationPublisher>(serviceProvider =>
+    serviceProvider.GetRequiredService<NotificationPublisher>());
+builder.Services.AddScoped<INotificationOutboxWriter>(serviceProvider =>
+    serviceProvider.GetRequiredService<NotificationPublisher>());
 builder.Services.AddScoped<INotificationDeliveryService, NotificationDeliveryService>();
 builder.Services.AddHostedService<NotificationDispatcher>();
 builder.Services.AddOptions<NotificationRetentionOptions>()
@@ -893,8 +906,9 @@ DatabaseStartupMigrationResult mediaMigrationResult =
     DatabaseStartupMigrationResult.NotApplicable("MediaLibraryDbContext");
 var databaseIsRelational = false;
 
-using (var scope = app.Services.CreateScope())
+try
 {
+    using var scope = app.Services.CreateScope();
     var applicationDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var mediaDb = scope.ServiceProvider.GetRequiredService<MediaLibraryDbContext>();
 
@@ -911,7 +925,9 @@ using (var scope = app.Services.CreateScope())
 
     var applicationMigrationManifest = MigrationLineageManifest.LoadRequired(
         Path.Combine(app.Environment.ContentRootPath, "Migrations", "immutable-migration-ids.txt"),
-        "ApplicationDbContext");
+        "ApplicationDbContext",
+        typeof(ApplicationDbContext).Assembly,
+        "ProjectManagement.Migrations.immutable-migration-ids.txt");
     var mediaMigrationManifest = MigrationLineageManifest.LoadRequired(
         Path.Combine(
             app.Environment.ContentRootPath,
@@ -920,7 +936,9 @@ using (var scope = app.Services.CreateScope())
             "Data",
             "Migrations",
             "immutable-migration-ids.txt"),
-        "MediaLibraryDbContext");
+        "MediaLibraryDbContext",
+        typeof(MediaLibraryDbContext).Assembly,
+        "ProjectManagement.MediaLibrary.Migrations.immutable-migration-ids.txt");
 
     var migrationResults = await DatabaseStartupMigrator.ApplyDeploymentBoundaryAsync(
         applicationDb,
@@ -983,6 +1001,20 @@ using (var scope = app.Services.CreateScope())
     {
         app.Logger.LogInformation("Initial data seeding is disabled; IsoCountrySeeder was skipped.");
     }
+}
+catch (Exception exception)
+{
+    var diagnosticPath = StartupFailureReporter.TryWrite(
+        app.Configuration,
+        app.Environment,
+        "database-startup-gate",
+        exception);
+
+    app.Logger.LogCritical(
+        exception,
+        "PRISM database startup gate failed. DiagnosticPath={DiagnosticPath}",
+        diagnosticPath ?? "(unavailable)");
+    throw;
 }
 
 if (runForecastBackfill)
