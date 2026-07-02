@@ -354,17 +354,60 @@
 }
 
 <!-- Offcanvas: View Details -->
-<div class="offcanvas offcanvas-end calendar-offcanvas" tabindex="-1" id="eventDetailsCanvas" aria-labelledby="eventDetailsLabel">
-  <div class="offcanvas-header">
-    <h5 id="eventDetailsLabel" class="offcanvas-title"></h5>
+<div class="offcanvas offcanvas-end calendar-offcanvas calendar-details-offcanvas"
+     tabindex="-1"
+     id="eventDetailsCanvas"
+     aria-labelledby="eventDetailsLabel">
+  <div class="offcanvas-header calendar-details-header">
+    <div class="calendar-details-heading">
+      <span class="calendar-details-icon is-event" id="eventDetailsIcon" aria-hidden="true">
+        <i class="bi bi-calendar-event"></i>
+      </span>
+      <div class="calendar-details-title-wrap">
+        <div class="calendar-details-eyebrow" id="eventDetailsEyebrow">Calendar event</div>
+        <h5 id="eventDetailsLabel" class="offcanvas-title"></h5>
+      </div>
+    </div>
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
   </div>
-  <div class="offcanvas-body">
-    <div class="small text-muted mb-2" id="eventDetailsTime"></div>
-    <div class="mb-2"><span class="badge bg-secondary" id="eventDetailsCategory"></span></div>
-    <div class="mb-2" id="eventDetailsLocation"></div>
-    <div class="mb-3" id="eventDetailsDescription"></div>
-    <button class="btn btn-outline-primary btn-sm" id="btnAddToTasks" type="button"><i class="bi bi-check2-square me-1" aria-hidden="true"></i>Add to My Tasks</button>
+  <div class="offcanvas-body calendar-details-body">
+    <div class="calendar-details-meta">
+      <div class="calendar-details-meta-row">
+        <i class="bi bi-calendar3" aria-hidden="true"></i>
+        <span id="eventDetailsTime"></span>
+      </div>
+      <div class="calendar-details-meta-row d-none" id="eventDetailsRepeat">
+        <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+        <span>Repeats annually</span>
+      </div>
+    </div>
+
+    <div class="calendar-details-section" id="eventDetailsCategoryRow">
+      <span class="calendar-details-category" id="eventDetailsCategory"></span>
+    </div>
+
+    <div class="calendar-details-section d-none" id="eventDetailsLocationRow">
+      <div class="calendar-details-section-label">
+        <i class="bi bi-geo-alt" aria-hidden="true"></i>
+        <span>Location</span>
+      </div>
+      <div id="eventDetailsLocation"></div>
+    </div>
+
+    <div class="calendar-details-section d-none" id="eventDetailsDescriptionRow">
+      <div class="calendar-details-section-label">
+        <i class="bi bi-text-paragraph" aria-hidden="true"></i>
+        <span>Details</span>
+      </div>
+      <div id="eventDetailsDescription"></div>
+    </div>
+
+    <button class="btn btn-outline-primary btn-sm"
+            id="btnAddToTasks"
+            type="button">
+      <i class="bi bi-check2-square me-1" aria-hidden="true"></i>
+      Add to My Tasks
+    </button>
   </div>
 </div>
 

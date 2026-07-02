@@ -141,9 +141,18 @@
   };
 
   const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' });
+  const longDateFormatter = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric'
+  });
   const formatDisplayDate = (date) => {
     const d = date instanceof Date ? date : new Date(date);
     return `${pad(d.getDate())} ${monthFormatter.format(d)} ${d.getFullYear()}`;
+  };
+  const formatLongDisplayDate = (date) => {
+    const d = date instanceof Date ? date : new Date(date);
+    return longDateFormatter.format(d);
   };
   const formatDisplayDateTime = (date) => {
     const d = date instanceof Date ? date : new Date(date);
@@ -884,40 +893,45 @@
       extraParams: () => ({ includeCelebrations: 'false' }),
       failure: (e) => { console.error('Events feed failed', e); alert('Couldn\u2019t load events. See console/Network.'); }
     }],
-    eventDidMount(info) {
-      const isCelebration = !!info.event.extendedProps.isCelebration;
-      let categorySource = info.event.extendedProps.category;
-      let celebrationPresentation = null;
-
-      if (isCelebration) {
-        celebrationPresentation = getCelebrationPresentation(info.event);
-        categorySource = celebrationPresentation.type;
+    eventContent(info) {
+      if (!info.event.extendedProps.isCelebration) {
+        return undefined;
       }
 
+      const presentation = getCelebrationPresentation(info.event);
+      const content = document.createElement('span');
+      content.className = 'pm-celebration-event__content';
+
+      const icon = document.createElement('span');
+      icon.className = 'pm-celebration-event__icon';
+      icon.setAttribute('aria-hidden', 'true');
+
+      const iconGlyph = document.createElement('i');
+      iconGlyph.className = `bi ${presentation.iconClass}`;
+      icon.appendChild(iconGlyph);
+
+      const name = document.createElement('span');
+      name.className = 'pm-celebration-event__name';
+      name.textContent = presentation.name;
+
+      content.append(icon, name);
+      return { domNodes: [content] };
+    },
+    eventDidMount(info) {
+      const isCelebration = !!info.event.extendedProps.isCelebration;
+      const celebrationPresentation = isCelebration
+        ? getCelebrationPresentation(info.event)
+        : null;
+      const categorySource = celebrationPresentation?.type
+        || info.event.extendedProps.category;
       const key = canon(categorySource);
+
       info.event.setExtendedProp('category', key);
       info.el.classList.add('pm-cat-' + key.toLowerCase());
 
       if (celebrationPresentation) {
         info.el.classList.add('pm-celebration-event');
-        const titleEl = info.el.querySelector('.fc-event-title');
-        const titleContainer = titleEl?.closest('.fc-event-title-container') || titleEl?.parentElement;
-
-        if (titleEl) {
-          titleEl.textContent = celebrationPresentation.name;
-          titleEl.setAttribute('data-full-title', info.event.title || celebrationPresentation.name);
-        }
-
-        if (titleContainer && !titleContainer.querySelector('.pm-celebration-event__icon')) {
-          titleContainer.classList.add('pm-celebration-event__content');
-          const icon = document.createElement('span');
-          icon.className = 'pm-celebration-event__icon';
-          icon.setAttribute('aria-hidden', 'true');
-          const iconGlyph = document.createElement('i');
-          iconGlyph.className = `bi ${celebrationPresentation.iconClass}`;
-          icon.appendChild(iconGlyph);
-          titleContainer.insertBefore(icon, titleEl || titleContainer.firstChild);
-        }
+        info.el.dataset.celebrationType = celebrationPresentation.type.toLowerCase();
       }
 
       const loc = info.event.extendedProps.location;
@@ -1232,9 +1246,15 @@
 
   const viewCanvas = document.getElementById('eventDetailsCanvas');
   const viewTitle = document.getElementById('eventDetailsLabel');
+  const viewEyebrow = document.getElementById('eventDetailsEyebrow');
+  const viewIcon = document.getElementById('eventDetailsIcon');
   const viewTime = document.getElementById('eventDetailsTime');
+  const viewRepeat = document.getElementById('eventDetailsRepeat');
+  const viewCategoryRow = document.getElementById('eventDetailsCategoryRow');
   const viewCategory = document.getElementById('eventDetailsCategory');
+  const viewLocationRow = document.getElementById('eventDetailsLocationRow');
   const viewLocation = document.getElementById('eventDetailsLocation');
+  const viewDescriptionRow = document.getElementById('eventDetailsDescriptionRow');
   const viewDescription = document.getElementById('eventDetailsDescription');
   const btnAddToTasks = document.getElementById('btnAddToTasks');
   let currentTaskUrl = null;
@@ -1246,13 +1266,66 @@
 
   function showEventDetails(payload) {
     if (!viewCanvas) return;
+
+    const category = canon(payload.category);
+    const isCelebration = !!payload.isCelebration
+      || category === 'Birthday'
+      || category === 'Anniversary'
+      || category === 'Celebration';
+    const presentation = isCelebration
+      ? getCelebrationPresentation({
+          title: payload.title,
+          extendedProps: { celebrationType: category }
+        })
+      : null;
     const start = toDate(payload.start) || new Date();
     const endRaw = toDate(payload.end);
     const end = endRaw || start;
 
-    if (viewTitle) viewTitle.textContent = payload.title || '';
-    if (viewCategory) viewCategory.textContent = canon(payload.category);
-    if (viewLocation) viewLocation.textContent = payload.location || '';
+    viewCanvas.classList.toggle('is-celebration', isCelebration);
+    viewCanvas.dataset.eventType = isCelebration
+      ? presentation.type.toLowerCase()
+      : category.toLowerCase();
+
+    if (viewTitle) {
+      viewTitle.textContent = presentation?.name || payload.title || '';
+    }
+    if (viewEyebrow) {
+      viewEyebrow.textContent = presentation?.type || category || 'Calendar event';
+    }
+    if (viewIcon) {
+      viewIcon.className = 'calendar-details-icon';
+      viewIcon.classList.add(
+        presentation?.type === 'Anniversary'
+          ? 'is-anniversary'
+          : presentation
+            ? 'is-birthday'
+            : 'is-event'
+      );
+      const glyph = viewIcon.querySelector('i');
+      if (glyph) {
+        glyph.className = `bi ${
+          presentation?.type === 'Anniversary'
+            ? 'bi-hearts'
+            : presentation
+              ? 'bi-gift'
+              : 'bi-calendar-event'
+        }`;
+      }
+    }
+
+    if (viewCategory) {
+      viewCategory.textContent = category;
+      viewCategory.className = 'calendar-details-category';
+      viewCategory.classList.add(`is-${category.toLowerCase()}`);
+    }
+    viewCategoryRow?.classList.toggle('d-none', isCelebration);
+
+    const location = (payload.location || '').trim();
+    if (viewLocation) viewLocation.textContent = location;
+    viewLocationRow?.classList.toggle('d-none', !location);
+
+    const hasDescription = !!(payload.descriptionHtml || (payload.description || '').trim());
     if (viewDescription) {
       if (payload.descriptionHtml) {
         viewDescription.innerHTML = payload.descriptionHtml;
@@ -1260,19 +1333,33 @@
         viewDescription.textContent = payload.description || '';
       }
     }
+    viewDescriptionRow?.classList.toggle('d-none', !hasDescription);
 
     if (viewTime) {
       if (payload.allDay) {
-        const endInc = new Date(end);
-        endInc.setDate(endInc.getDate() - 1);
-        const endDisplay = payload.end ? endInc : start;
-        viewTime.textContent = `${formatDisplayDate(start)} – ${formatDisplayDate(endDisplay)}`;
+        const endInclusive = new Date(end);
+        if (payload.end) {
+          endInclusive.setDate(endInclusive.getDate() - 1);
+        }
+        const isSingleDay = isSameLocalDate(start, endInclusive);
+
+        if (isCelebration || isSingleDay) {
+          viewTime.textContent = isCelebration
+            ? formatLongDisplayDate(start)
+            : formatDisplayDate(start);
+        } else {
+          viewTime.textContent = `${formatDisplayDate(start)} – ${formatDisplayDate(endInclusive)}`;
+        }
       } else {
         viewTime.textContent = `${formatDisplayDateTime(start)} – ${formatDisplayDateTime(end)}`;
       }
     }
 
-    currentTaskUrl = payload.taskUrl || null;
+    if (viewRepeat) {
+      viewRepeat.classList.toggle('d-none', !isCelebration);
+    }
+
+    currentTaskUrl = isCelebration ? null : payload.taskUrl || null;
     if (btnAddToTasks) {
       const hasTaskUrl = !!currentTaskUrl;
       btnAddToTasks.disabled = !hasTaskUrl;
@@ -1317,7 +1404,8 @@
           category: canon(ev.extendedProps.category),
           location: ev.extendedProps.location || '',
           description: ev.extendedProps.description || '',
-          taskUrl: ev.extendedProps.taskUrl || null
+          taskUrl: ev.extendedProps.taskUrl || null,
+          isCelebration: true
         });
         return;
       }
@@ -1609,7 +1697,8 @@
           category: canon(ev.extendedProps.category),
           location: ev.extendedProps.location || '',
           description: ev.extendedProps.description || '',
-          taskUrl: ev.extendedProps.taskUrl || null
+          taskUrl: ev.extendedProps.taskUrl || null,
+          isCelebration: true
         });
         return;
       }

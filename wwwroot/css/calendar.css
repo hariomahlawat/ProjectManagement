@@ -370,16 +370,22 @@
   transform: none;
 }
 
-.fc .fc-event.pm-celebration-event .fc-event-main,
-.fc .fc-event.pm-celebration-event .fc-event-title {
+.fc .fc-event.pm-celebration-event .fc-event-main {
+  min-width: 0;
   color: var(--pm-fg) !important;
+}
+
+.fc .fc-event.pm-celebration-event .fc-event-time {
+  display: none;
 }
 
 .fc .fc-event.pm-celebration-event .pm-celebration-event__content {
   display: flex;
-  align-items: center;
+  width: 100%;
   min-width: 0;
-  gap: 5px;
+  align-items: center;
+  gap: 6px;
+  color: var(--pm-fg);
 }
 
 .fc .fc-event.pm-celebration-event .pm-celebration-event__icon {
@@ -393,10 +399,13 @@
   font-size: .72rem;
 }
 
-.fc .fc-event.pm-celebration-event .fc-event-title {
+.fc .fc-event.pm-celebration-event .pm-celebration-event__name {
   min-width: 0;
+  overflow: hidden;
   font-weight: 700;
   letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .fc-event.pm-cat-other {
@@ -536,6 +545,171 @@
   border-left: 1px solid var(--pm-border, #dbe3ef);
   background: #f7f9fc;
   box-shadow: -14px 0 34px rgba(15, 23, 42, .12);
+}
+
+.calendar-details-offcanvas {
+  width: min(460px, 100vw) !important;
+  background: #fff;
+}
+
+.calendar-details-header {
+  align-items: flex-start;
+  padding: 22px 22px 18px;
+  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(135deg, #fff 0%, #f8fafc 100%);
+}
+
+.calendar-details-heading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 13px;
+}
+
+.calendar-details-title-wrap {
+  min-width: 0;
+}
+
+.calendar-details-icon {
+  display: inline-grid;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid #dbe3ef;
+  border-radius: 13px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 1rem;
+}
+
+.calendar-details-icon.is-birthday {
+  border-color: #f3b6d2;
+  background: #fdf2f8;
+  color: #be185d;
+}
+
+.calendar-details-icon.is-anniversary {
+  border-color: #99e2d7;
+  background: #ecfdf8;
+  color: #0f766e;
+}
+
+.calendar-details-icon.is-event {
+  border-color: #cbd8ff;
+  background: #edf2ff;
+  color: #315ee8;
+}
+
+.calendar-details-eyebrow {
+  margin-bottom: 3px;
+  color: #64748b;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .1em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.calendar-details-header .offcanvas-title {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #0f172a;
+  font-size: 1.15rem;
+  font-weight: 780;
+  letter-spacing: -.015em;
+  line-height: 1.3;
+}
+
+.calendar-details-body {
+  padding: 20px 22px 28px;
+  background: #fff;
+}
+
+.calendar-details-meta {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.calendar-details-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #475569;
+  font-size: .88rem;
+  line-height: 1.45;
+}
+
+.calendar-details-meta-row > i {
+  width: 18px;
+  color: #64748b;
+  text-align: center;
+}
+
+.calendar-details-offcanvas[data-event-type="birthday"] .calendar-details-meta-row > i,
+.calendar-details-offcanvas[data-event-type="celebration"] .calendar-details-meta-row > i {
+  color: #be185d;
+}
+
+.calendar-details-offcanvas[data-event-type="anniversary"] .calendar-details-meta-row > i {
+  color: #0f766e;
+}
+
+.calendar-details-section {
+  margin-bottom: 16px;
+  padding-top: 15px;
+  border-top: 1px solid #edf1f6;
+  color: #334155;
+  font-size: .9rem;
+  line-height: 1.55;
+}
+
+.calendar-details-section-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 6px;
+  color: #64748b;
+  font-size: .72rem;
+  font-weight: 750;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.calendar-details-category {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 4px 9px;
+  border: 1px solid #dbe3ef;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: .72rem;
+  font-weight: 750;
+}
+
+.calendar-details-category.is-visit {
+  border-color: #bae6fd;
+  background: #f0f9ff;
+  color: #075985;
+}
+
+.calendar-details-category.is-insp {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.calendar-details-category.is-conference {
+  border-color: #ddd6fe;
+  background: #f5f3ff;
+  color: #5b21b6;
+}
+
+.calendar-details-offcanvas.is-celebration #btnAddToTasks {
+  display: none !important;
 }
 
 .calendar-editor-header {

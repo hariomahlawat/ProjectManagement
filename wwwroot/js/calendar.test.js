@@ -233,7 +233,7 @@ test('calendar celebration source uses the supported events endpoint and filters
         'missing celebrations endpoint must not be probed');
 });
 
-test('birthday event is rendered as a compact accessible celebration chip', async () => {
+test('birthday event uses a single compact custom content node without duplicating its title', async () => {
     const dom = new JSDOM(`<!DOCTYPE html><html><body>
         <div id="calendar" data-show-celebrations="false"></div>
     </body></html>`, { url: 'https://example.test/Calendar', runScripts: 'dangerously' });
@@ -255,9 +255,6 @@ test('birthday event is rendered as a compact accessible celebration chip', asyn
     window.document.body.appendChild(scriptEl);
     await new Promise(resolve => setTimeout(resolve, 10));
 
-    const eventEl = window.document.createElement('a');
-    eventEl.className = 'fc-event';
-    eventEl.innerHTML = '<div class="fc-event-main"><div class="fc-event-main-frame"><div class="fc-event-title-container"><div class="fc-event-title">Birthday: Hariom Ahlawat</div></div></div></div>';
     const props = {
         category: 'Celebration',
         isCelebration: true,
@@ -270,12 +267,88 @@ test('birthday event is rendered as a compact accessible celebration chip', asyn
         setExtendedProp(name, value) { this.extendedProps[name] = value; }
     };
 
+    const rendered = FakeCalendar.lastInstance.opts.eventContent({ event });
+    assert.ok(rendered);
+    assert.equal(rendered.domNodes.length, 1);
+    const content = rendered.domNodes[0];
+    assert.equal(content.querySelector('.pm-celebration-event__name').textContent, 'Hariom Ahlawat');
+    assert.ok(content.querySelector('.pm-celebration-event__icon .bi-gift'));
+    assert.equal(content.textContent.trim(), 'Hariom Ahlawat');
+
+    const eventEl = window.document.createElement('a');
+    eventEl.className = 'fc-event';
+    eventEl.appendChild(content);
     FakeCalendar.lastInstance.opts.eventDidMount({ event, el: eventEl });
 
     assert.ok(eventEl.classList.contains('pm-cat-birthday'));
     assert.ok(eventEl.classList.contains('pm-celebration-event'));
     assert.ok(!eventEl.classList.contains('pm-recurring'));
-    assert.equal(eventEl.querySelector('.fc-event-title').textContent, 'Hariom Ahlawat');
-    assert.ok(eventEl.querySelector('.pm-celebration-event__icon .bi-gift'));
+    assert.equal(eventEl.querySelectorAll('.pm-celebration-event__name').length, 1);
+    assert.equal(eventEl.textContent.trim(), 'Hariom Ahlawat');
     assert.equal(eventEl.getAttribute('aria-label'), 'Birthday: Hariom Ahlawat');
+});
+
+test('celebration details show one date, annual recurrence, and no task action', async () => {
+    const dom = new JSDOM(`<!DOCTYPE html><html><body>
+        <div id="calendar" data-show-celebrations="false"></div>
+        <div id="eventDetailsCanvas" class="offcanvas">
+            <span id="eventDetailsIcon"><i></i></span>
+            <div id="eventDetailsEyebrow"></div>
+            <h5 id="eventDetailsLabel"></h5>
+            <div id="eventDetailsTime"></div>
+            <div id="eventDetailsRepeat" class="d-none"><span>Repeats annually</span></div>
+            <div id="eventDetailsCategoryRow"><span id="eventDetailsCategory"></span></div>
+            <div id="eventDetailsLocationRow"><span id="eventDetailsLocation"></span></div>
+            <div id="eventDetailsDescriptionRow"><span id="eventDetailsDescription"></span></div>
+            <button id="btnAddToTasks"></button>
+        </div>
+    </body></html>`, { url: 'https://example.test/Calendar', runScripts: 'dangerously' });
+
+    const { window } = dom;
+    let shown = false;
+    window.alert = () => {};
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    window.fetch = async () => ({ ok: true, status: 200, json: async () => [] });
+    window.bootstrap = {
+        Offcanvas: {
+            getOrCreateInstance: () => ({ show: () => { shown = true; }, hide() {} })
+        }
+    };
+    window.FullCalendar = {
+        Calendar: FakeCalendar,
+        dayGrid: () => ({}),
+        timeGrid: () => ({}),
+        list: () => ({}),
+        interaction: () => ({})
+    };
+
+    const scriptEl = window.document.createElement('script');
+    scriptEl.textContent = scriptContent;
+    window.document.body.appendChild(scriptEl);
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    const event = {
+        id: 'birthday-1',
+        title: 'Birthday: Hariom Ahlawat',
+        start: new Date('2026-09-21T00:00:00'),
+        end: new Date('2026-09-22T00:00:00'),
+        allDay: true,
+        extendedProps: {
+            category: 'Birthday',
+            isCelebration: true,
+            isRecurring: true,
+            taskUrl: '/calendar/events/birthday-1/task'
+        }
+    };
+
+    await FakeCalendar.lastInstance.opts.eventClick({ event });
+
+    assert.equal(window.document.getElementById('eventDetailsEyebrow').textContent, 'Birthday');
+    assert.equal(window.document.getElementById('eventDetailsLabel').textContent, 'Hariom Ahlawat');
+    assert.equal(window.document.getElementById('eventDetailsTime').textContent, '21 September 2026');
+    assert.ok(!window.document.getElementById('eventDetailsRepeat').classList.contains('d-none'));
+    assert.ok(window.document.getElementById('eventDetailsCategoryRow').classList.contains('d-none'));
+    assert.ok(window.document.getElementById('btnAddToTasks').classList.contains('d-none'));
+    assert.ok(window.document.getElementById('eventDetailsIcon').classList.contains('is-birthday'));
+    assert.ok(shown, 'details offcanvas should open');
 });
