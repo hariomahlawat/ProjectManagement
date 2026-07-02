@@ -1053,7 +1053,7 @@ button.po-record:focus-visible .po-record__view { opacity: 1; transform: none; }
     .po-section-nav a { min-height: 42px; }
 }
 
-/* SECTION: Transparent command profile and upcoming Calendar rail */
+/* SECTION: Shared command profile and upcoming Calendar rail */
 .po-layout {
     grid-template-columns: minmax(0, 1fr) 350px;
     gap: 18px;
@@ -1066,7 +1066,46 @@ button.po-record:focus-visible .po-record__view { opacity: 1; transform: none; }
     gap: 16px;
 }
 
-.po-command-visibility,
+/* The command-profile card is intentionally rendered without a title, explanation,
+   inset surface, or visual wrapper. This preserves the exact card shown to Command. */
+.po-command-profile {
+    min-width: 0;
+}
+
+.po-command-profile > .cw-officer-card {
+    width: 100%;
+    margin: 0;
+}
+
+.po-command-profile-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 28px 18px;
+    border: 1px solid var(--po-line);
+    border-radius: 12px;
+    color: var(--po-muted);
+    text-align: center;
+    background: var(--po-surface);
+    box-shadow: var(--po-shadow);
+}
+
+.po-command-profile-empty > i {
+    margin-bottom: 8px;
+    color: #667b9e;
+    font-size: 1.35rem;
+}
+
+.po-command-profile-empty strong {
+    color: var(--po-navy-950);
+    font-size: .78rem;
+}
+
+.po-command-profile-empty span {
+    margin-top: 3px;
+    font-size: .65rem;
+}
+
 .po-upcoming {
     overflow: hidden;
     border: 1px solid var(--po-line);
@@ -1075,14 +1114,12 @@ button.po-record:focus-visible .po-record__view { opacity: 1; transform: none; }
     box-shadow: var(--po-shadow);
 }
 
-.po-command-visibility__head,
 .po-upcoming__head {
     padding: 15px 16px 14px;
     border-bottom: 1px solid var(--po-line-soft);
     background: linear-gradient(135deg, #f8fafd 0%, #f1f5fb 100%);
 }
 
-.po-command-visibility__head h2,
 .po-upcoming__head h2 {
     margin: 4px 0 2px;
     color: var(--po-navy-950);
@@ -1091,17 +1128,11 @@ button.po-record:focus-visible .po-record__view { opacity: 1; transform: none; }
     letter-spacing: -.01em;
 }
 
-.po-command-visibility__head p,
 .po-upcoming__head p {
     margin: 0;
     color: var(--po-muted);
     font-size: .69rem;
     line-height: 1.45;
-}
-
-.po-command-visibility__card {
-    padding: 10px;
-    background: #f8fafc;
 }
 
 
@@ -1115,7 +1146,6 @@ button.po-record:focus-visible .po-record__view { opacity: 1; transform: none; }
     background: transparent;
 }
 
-.po-command-visibility__empty,
 .po-upcoming__empty {
     display: flex;
     flex-direction: column;
@@ -1124,20 +1154,17 @@ button.po-record:focus-visible .po-record__view { opacity: 1; transform: none; }
     text-align: center;
 }
 
-.po-command-visibility__empty > i,
 .po-upcoming__empty > i {
     margin-bottom: 8px;
     color: #667b9e;
     font-size: 1.35rem;
 }
 
-.po-command-visibility__empty strong,
 .po-upcoming__empty strong {
     color: var(--po-navy-950);
     font-size: .78rem;
 }
 
-.po-command-visibility__empty span,
 .po-upcoming__empty span {
     margin-top: 3px;
     color: var(--po-muted);
@@ -1338,16 +1365,9 @@ button.po-record:focus-visible .po-record__view { opacity: 1; transform: none; }
         order: -1;
     }
 
-    .po-command-visibility__card {
-        max-width: 430px;
-    }
 }
 
 @media (max-width: 640px) {
-    .po-command-visibility__card {
-        max-width: none;
-        padding: 8px;
-    }
 
     .po-upcoming-item {
         grid-template-columns: 36px 28px minmax(0, 1fr) 12px;

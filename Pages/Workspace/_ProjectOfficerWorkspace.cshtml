@@ -306,34 +306,26 @@
         </main>
 
         <aside class="po-sidebar" aria-label="Workspace context">
-            <section class="po-command-visibility" aria-labelledby="commandVisibilityHeading">
-                <div class="po-command-visibility__head">
-                    <span class="po-panel__kicker">Transparency</span>
-                    <h2 id="commandVisibilityHeading">What Command sees</h2>
-                    <p>Your workload is shown here exactly as it appears in the Comdt/HoD Officer Workload view.</p>
-                </div>
-
-                @if (Model.Workspace.CommandWorkloadCard is null)
-                {
-                    <div class="po-command-visibility__empty">
-                        <i class="bi bi-person-workspace"></i>
-                        <strong>No command workload card</strong>
-                        <span>No active Project Officer workload is presently associated with this account.</span>
-                    </div>
-                }
-                else
-                {
-                    <div class="po-command-visibility__card">
-                        @await Html.PartialAsync(
-                            "_OfficerWorkloadCard",
-                            new OfficerWorkloadCardRenderVm
-                            {
-                                Officer = Model.Workspace.CommandWorkloadCard,
-                                CanReorder = false
-                            })
-                    </div>
-                }
-            </section>
+            @if (Model.Workspace.CommandWorkloadCard is null)
+            {
+                <section class="po-command-profile-empty" aria-label="Command workload view unavailable">
+                    <i class="bi bi-person-workspace" aria-hidden="true"></i>
+                    <strong>No command workload card</strong>
+                    <span>No active Project Officer workload is presently associated with this account.</span>
+                </section>
+            }
+            else
+            {
+                <section class="po-command-profile" aria-label="Workload card shown in the Comdt and HoD workspace">
+                    @await Html.PartialAsync(
+                        "_OfficerWorkloadCard",
+                        new OfficerWorkloadCardRenderVm
+                        {
+                            Officer = Model.Workspace.CommandWorkloadCard,
+                            CanReorder = false
+                        })
+                </section>
+            }
 
             <section id="upcoming-events" class="po-upcoming" aria-labelledby="upcomingEventsHeading">
                 <div class="po-upcoming__head">
