@@ -104,90 +104,24 @@ builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Model.Validation", LogL
 builder.Logging.AddFilter("ProjectManagement.Services.TodoService", LogLevel.None);
 builder.Logging.AddFilter("ProjectManagement.Services.TodoPurgeWorker", LogLevel.Warning);
 
-var configuredKeysDir = builder.Configuration["DP_KEYS_DIR"]?.Trim();
-var configuredStorageRoot = builder.Configuration["Storage:DataRoot"]?.Trim();
-var dataProtection = builder.Services.AddDataProtection()
+var keysDir = Environment.GetEnvironmentVariable("DP_KEYS_DIR");
+if (string.IsNullOrWhiteSpace(keysDir))
+{
+    // Preserve the repository used by the currently deployed production build so
+    // existing authentication and antiforgery keys remain readable after upgrade.
+    keysDir = builder.Environment.IsDevelopment()
+        ? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "PRISM-ERP",
+            "DataProtectionKeys")
+        : "/var/pm/keys";
+}
+
+Directory.CreateDirectory(keysDir);
+
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(keysDir))
     .SetApplicationName("ProjectManagement_SDD");
-
-string? dataProtectionKeyDirectory = null;
-string? dataProtectionKeyDirectorySource = null;
-string? dataProtectionStartupWarning = null;
-var dataProtectionDirectoryWasExplicitlyConfigured = !string.IsNullOrWhiteSpace(configuredKeysDir);
-
-if (dataProtectionDirectoryWasExplicitlyConfigured)
-{
-    if (!Path.IsPathFullyQualified(configuredKeysDir!))
-    {
-        throw new InvalidOperationException(
-            $"DP_KEYS_DIR must be an absolute path when configured. Configured value: '{configuredKeysDir}'.");
-    }
-
-    dataProtectionKeyDirectory = configuredKeysDir;
-    dataProtectionKeyDirectorySource = "DP_KEYS_DIR";
-}
-else if (!string.IsNullOrWhiteSpace(configuredStorageRoot)
-         && Path.IsPathFullyQualified(configuredStorageRoot))
-{
-    // SECTION: Reuse PRISM's existing durable data root so upgrades do not require a new
-    // production setting merely to preserve authentication and antiforgery keys.
-    dataProtectionKeyDirectory = Path.Combine(configuredStorageRoot, "data-protection-keys");
-    dataProtectionKeyDirectorySource = "Storage:DataRoot fallback";
-}
-else if (builder.Environment.IsDevelopment())
-{
-    // SECTION: Developer-safe persistence outside the repository and publish output.
-    var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-    dataProtectionKeyDirectory = Path.Combine(
-        localApplicationData,
-        "PRISM-ERP",
-        "DevelopmentDataProtectionKeys");
-    dataProtectionKeyDirectorySource = "development fallback";
-}
-else
-{
-    dataProtectionStartupWarning =
-        "DP_KEYS_DIR is not configured and Storage:DataRoot is unavailable or not absolute. " +
-        "PRISM will use the ASP.NET Core platform-default data-protection key repository. " +
-        "Configure DP_KEYS_DIR for an explicit backed-up location when operationally convenient.";
-}
-
-if (!string.IsNullOrWhiteSpace(dataProtectionKeyDirectory))
-{
-    try
-    {
-        EnsureWritableDataProtectionDirectory(dataProtectionKeyDirectory);
-        dataProtection.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeyDirectory));
-
-        if (OperatingSystem.IsWindows())
-        {
-            // SECTION: Encrypt explicitly persisted key material at rest on the IIS host.
-            dataProtection.ProtectKeysWithDpapi(protectToLocalMachine: true);
-        }
-    }
-    catch (Exception exception) when (!dataProtectionDirectoryWasExplicitlyConfigured)
-    {
-        // A derived convenience location must never prevent the application from starting.
-        // The framework default repository remains available and ASP.NET Core will log its
-        // own repository/encryption diagnostics.
-        dataProtectionStartupWarning =
-            $"PRISM could not use the derived data-protection key directory " +
-            $"'{dataProtectionKeyDirectory}' ({dataProtectionKeyDirectorySource}). " +
-            "The application will continue with the ASP.NET Core platform-default key repository. " +
-            $"Reason: {exception.Message}";
-        dataProtectionKeyDirectory = null;
-        dataProtectionKeyDirectorySource = null;
-    }
-    catch (Exception exception)
-    {
-        // An explicitly configured path is an administrator-controlled setting. Treat an
-        // invalid explicit setting as a configuration error rather than silently ignoring it.
-        throw new InvalidOperationException(
-            $"The explicitly configured data-protection key directory '{dataProtectionKeyDirectory}' " +
-            "is not writable by the application identity. Grant read/write/create/delete permission " +
-            "or remove DP_KEYS_DIR to use PRISM's automatic fallback.",
-            exception);
-    }
-}
 
 builder.Services.AddMetrics();
 
@@ -213,11 +147,6 @@ if (string.IsNullOrWhiteSpace(connectionString))
 }
 
 var csb = new NpgsqlConnectionStringBuilder(connectionString);
-if (!builder.Environment.IsDevelopment())
-{
-    // SECTION: Never expose server-side SQL details to production exception surfaces.
-    csb.IncludeErrorDetail = false;
-}
 
 builder.Services.AddSingleton<PrismMediaOutboxSaveChangesInterceptor>();
 builder.Services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
@@ -862,17 +791,9 @@ var developmentLoopbackOrigins = builder.Environment.IsDevelopment()
 
 var app = builder.Build();
 
-if (!string.IsNullOrWhiteSpace(dataProtectionKeyDirectory))
-{
-    app.Logger.LogInformation(
-        "Data-protection keys will persist to {Directory}. Source={Source}.",
-        dataProtectionKeyDirectory,
-        dataProtectionKeyDirectorySource);
-}
-else if (!string.IsNullOrWhiteSpace(dataProtectionStartupWarning))
-{
-    app.Logger.LogWarning("{Warning}", dataProtectionStartupWarning);
-}
+app.Logger.LogInformation(
+    "Data-protection keys will persist to {Directory}.",
+    keysDir);
 
 if (!app.Environment.IsDevelopment()
     && string.Equals(csb.Username, "postgres", StringComparison.OrdinalIgnoreCase))
@@ -882,35 +803,35 @@ if (!app.Environment.IsDevelopment()
 }
 
 // SECTION: Database startup policy
-// Both EF Core contexts are treated as one deployment boundary. Migrations and physical
-// schema validation complete before hosted workers start or requests are accepted.
-var configuredMigrationPreference =
-    app.Configuration.GetValue<bool?>("Database:ApplyMigrationsOnStartup");
-const bool applyMigrationsOnStartup = true;
+// Preserve the established deployment contract:
+// - Development always applies pending migrations.
+// - Production applies migrations when Database:ApplyMigrationsOnStartup is true.
+// - ApplicationDbContext is startup-critical.
+// - Media Library migration/readiness is isolated so an optional Photos failure cannot
+//   take down the complete ERP after the core application database is healthy.
+var applyMigrationsOnStartup = app.Environment.IsDevelopment()
+    || app.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup");
 var runSeedersOnStartup = app.Configuration.GetValue<bool>("Database:RunSeedersOnStartup");
-
-if (configuredMigrationPreference == false)
-{
-    app.Logger.LogWarning(
-        "Database:ApplyMigrationsOnStartup=false is deprecated and ignored. All deployed EF Core migrations are mandatory before startup.");
-}
+var mediaLibraryEnabled = app.Configuration.GetValue<bool?>("MediaLibrary:Enabled") ?? true;
 
 app.Logger.LogInformation(
-    "Database startup policy: Environment={Environment}; AutomaticMigrations=Mandatory; RunSeedersOnStartup={RunSeeders}",
+    "Database startup policy: Environment={Environment}; ApplyMigrationsOnStartup={ApplyMigrations}; RunSeedersOnStartup={RunSeeders}; MediaLibraryEnabled={MediaLibraryEnabled}",
     app.Environment.EnvironmentName,
-    runSeedersOnStartup);
+    applyMigrationsOnStartup,
+    runSeedersOnStartup,
+    mediaLibraryEnabled);
 
 DatabaseStartupMigrationResult applicationMigrationResult =
     DatabaseStartupMigrationResult.NotApplicable("ApplicationDbContext");
 DatabaseStartupMigrationResult mediaMigrationResult =
     DatabaseStartupMigrationResult.NotApplicable("MediaLibraryDbContext");
 var databaseIsRelational = false;
+var mediaLibraryStartupHealthy = !mediaLibraryEnabled;
 
 try
 {
     using var scope = app.Services.CreateScope();
     var applicationDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    var mediaDb = scope.ServiceProvider.GetRequiredService<MediaLibraryDbContext>();
 
     if (applicationDb.Database.IsRelational())
     {
@@ -928,19 +849,8 @@ try
         "ApplicationDbContext",
         typeof(ApplicationDbContext).Assembly,
         "ProjectManagement.Migrations.immutable-migration-ids.txt");
-    var mediaMigrationManifest = MigrationLineageManifest.LoadRequired(
-        Path.Combine(
-            app.Environment.ContentRootPath,
-            "Features",
-            "MediaLibrary",
-            "Data",
-            "Migrations",
-            "immutable-migration-ids.txt"),
-        "MediaLibraryDbContext",
-        typeof(MediaLibraryDbContext).Assembly,
-        "ProjectManagement.MediaLibrary.Migrations.immutable-migration-ids.txt");
 
-    var migrationResults = await DatabaseStartupMigrator.ApplyDeploymentBoundaryAsync(
+    applicationMigrationResult = (await DatabaseStartupMigrator.ApplyDeploymentBoundaryAsync(
         applicationDb,
         app.Logger,
         new[]
@@ -963,33 +873,73 @@ try
                         await ProjectDocumentSearchVectorMaintenance.ValidateAsync(applicationDb, cancellationToken);
                     }
                 },
-                applicationMigrationManifest),
-            new DatabaseStartupMigrationPlan(
-                mediaDb,
+                applicationMigrationManifest)
+        }))[0];
+
+    if (mediaLibraryEnabled)
+    {
+        try
+        {
+            var mediaDb = scope.ServiceProvider.GetRequiredService<MediaLibraryDbContext>();
+            var mediaMigrationManifest = MigrationLineageManifest.LoadRequired(
+                Path.Combine(
+                    app.Environment.ContentRootPath,
+                    "Features",
+                    "MediaLibrary",
+                    "Data",
+                    "Migrations",
+                    "immutable-migration-ids.txt"),
                 "MediaLibraryDbContext",
-                applyMigrationsOnStartup,
-                async cancellationToken =>
+                typeof(MediaLibraryDbContext).Assembly,
+                "ProjectManagement.MediaLibrary.Migrations.immutable-migration-ids.txt");
+
+            mediaMigrationResult = (await DatabaseStartupMigrator.ApplyDeploymentBoundaryAsync(
+                mediaDb,
+                app.Logger,
+                new[]
                 {
-                    // Discard any pre-migration readiness observation before validating the
-                    // newly committed physical schema.
-                    scope.ServiceProvider
-                        .GetRequiredService<MediaLibrarySchemaStatusCache>()
-                        .Invalidate();
+                    new DatabaseStartupMigrationPlan(
+                        mediaDb,
+                        "MediaLibraryDbContext",
+                        applyMigrationsOnStartup,
+                        async cancellationToken =>
+                        {
+                            scope.ServiceProvider
+                                .GetRequiredService<MediaLibrarySchemaStatusCache>()
+                                .Invalidate();
 
-                    var schema = scope.ServiceProvider.GetRequiredService<IMediaLibrarySchemaService>();
-                    var status = await schema.GetStatusAsync(cancellationToken);
-                    if (!status.IsCurrent)
-                    {
-                        throw new InvalidOperationException(
-                            "Media-library schema validation failed after migration. " +
-                            (status.Error ?? $"Reference {status.DiagnosticReference}."));
-                    }
-                },
-                mediaMigrationManifest)
-        });
+                            var schema = scope.ServiceProvider.GetRequiredService<IMediaLibrarySchemaService>();
+                            var status = await schema.GetStatusAsync(cancellationToken);
+                            if (!status.IsCurrent)
+                            {
+                                throw new InvalidOperationException(
+                                    "Media-library schema validation failed after migration. " +
+                                    (status.Error ?? $"Reference {status.DiagnosticReference}."));
+                            }
+                        },
+                        mediaMigrationManifest)
+                }))[0];
 
-    applicationMigrationResult = migrationResults[0];
-    mediaMigrationResult = migrationResults[1];
+            mediaLibraryStartupHealthy = true;
+        }
+        catch (Exception exception)
+        {
+            var diagnosticPath = StartupFailureReporter.TryWrite(
+                app.Configuration,
+                app.Environment,
+                "media-library-startup-gate",
+                exception);
+
+            app.Logger.LogCritical(
+                exception,
+                "Media Library startup migration/readiness failed. The core ERP will continue, but Photos and media workers will remain unavailable until the media schema is corrected. DiagnosticPath={DiagnosticPath}",
+                diagnosticPath ?? "(unavailable)");
+        }
+    }
+    else
+    {
+        app.Logger.LogInformation("Media Library is disabled; its startup migration/readiness gate was skipped.");
+    }
 
     if (runSeedersOnStartup)
     {
@@ -1007,12 +957,12 @@ catch (Exception exception)
     var diagnosticPath = StartupFailureReporter.TryWrite(
         app.Configuration,
         app.Environment,
-        "database-startup-gate",
+        "application-database-startup-gate",
         exception);
 
     app.Logger.LogCritical(
         exception,
-        "PRISM database startup gate failed. DiagnosticPath={DiagnosticPath}",
+        "PRISM application database startup gate failed. DiagnosticPath={DiagnosticPath}",
         diagnosticPath ?? "(unavailable)");
     throw;
 }
@@ -1027,16 +977,17 @@ if (runForecastBackfill)
 }
 
 app.Logger.LogInformation(
-    "Using database {Database} on host {Host}; application migration {ApplicationMigration}; media migration {MediaMigration}",
+    "Using database {Database} on host {Host}; application migration {ApplicationMigration}; media migration {MediaMigration}; media startup healthy={MediaHealthy}",
     csb.Database,
     csb.Host,
     applicationMigrationResult.LatestAppliedMigration ?? (databaseIsRelational ? "(none)" : "(not available)"),
-    mediaMigrationResult.LatestAppliedMigration ?? (databaseIsRelational ? "(none)" : "(not available)"));
+    mediaMigrationResult.LatestAppliedMigration ?? (mediaLibraryEnabled ? "(not available)" : "(disabled)"),
+    mediaLibraryStartupHealthy);
 
 if (databaseIsRelational)
 {
     app.Logger.LogInformation(
-        "All deployed ApplicationDbContext and MediaLibraryDbContext migrations are applied and their critical physical schemas are validated.");
+        "ApplicationDbContext migrations are closed and the critical application schema is validated.");
 }
 
 app.UseForwardedHeaders();
@@ -3149,38 +3100,6 @@ static string BuildDirectiveWithExtras(
         .ToArray();
 
     return string.Join(" ", normalizedSources);
-}
-
-static void EnsureWritableDataProtectionDirectory(string directoryPath)
-{
-    Directory.CreateDirectory(directoryPath);
-
-    string? probePath = null;
-    try
-    {
-        // Directory.CreateDirectory succeeds when the directory already exists even if the
-        // process cannot persist or rotate keys. Probe the permissions Data Protection needs.
-        probePath = Path.Combine(
-            directoryPath,
-            $".prism-write-probe-{Environment.ProcessId}-{Guid.NewGuid():N}.tmp");
-        File.WriteAllText(probePath, "PRISM data-protection write probe", Encoding.UTF8);
-        File.Delete(probePath);
-        probePath = null;
-    }
-    finally
-    {
-        if (probePath is not null)
-        {
-            try
-            {
-                File.Delete(probePath);
-            }
-            catch
-            {
-                // Preserve the original permission or I/O exception.
-            }
-        }
-    }
 }
 
 static bool IsProjectArchiveActor(ClaimsPrincipal principal) =>

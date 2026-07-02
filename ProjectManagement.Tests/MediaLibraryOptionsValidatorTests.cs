@@ -21,6 +21,19 @@ public sealed class MediaLibraryOptionsValidatorTests
     }
 
     [Fact]
+    public void Validate_AllowsLegacyAutoMigrateSetting()
+    {
+        var options = new MediaLibraryOptions
+        {
+            AutoMigrate = true
+        };
+
+        var result = _validator.Validate(Options.DefaultName, options);
+
+        Assert.False(result.Failed);
+    }
+
+    [Fact]
     public void Validate_AllowsNoExternalSources()
     {
         var options = new MediaLibraryOptions

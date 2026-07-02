@@ -15,11 +15,9 @@ public sealed class MediaLibraryOptionsValidator : IValidateOptions<MediaLibrary
         ArgumentNullException.ThrowIfNull(options);
 
         var failures = new List<string>();
-        if (options.AutoMigrate)
-        {
-            failures.Add(
-                "MediaLibrary:AutoMigrate is obsolete and must be false. Both EF Core contexts are migrated exclusively by the mandatory synchronous startup gate.");
-        }
+        // AutoMigrate is retained as a backward-compatible configuration key. The effective
+        // startup decision is governed by Database:ApplyMigrationsOnStartup, so an older
+        // environment file containing MediaLibrary:AutoMigrate=true must not stop the host.
 
         if (!options.Enabled)
         {
