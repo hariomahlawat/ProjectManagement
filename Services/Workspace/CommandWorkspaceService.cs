@@ -88,14 +88,101 @@ public sealed class CommandWorkspaceService
         };
     }
 
+    /// <summary>
+    /// Returns the exact workload card model used in the Comdt/HoD officer board for one officer.
+    /// The Project Officer workspace uses this method so both audiences always see the same
+    /// assignments, counts, ordering and stage resolution.
+    /// </summary>
+    public async Task<CommandOfficerWorkloadVm?> GetOfficerWorkloadCardAsync(
+        string officerUserId,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(officerUserId))
+        {
+            return null;
+        }
+
+        var projectRows = await _db.Projects
+            .AsNoTracking()
+            .Where(project =>
+                !project.IsDeleted &&
+                !project.IsArchived &&
+                project.LifecycleStatus == ProjectLifecycleStatus.Active &&
+                project.LeadPoUserId == officerUserId)
+            .Select(project => new
+            {
+                project.Id,
+                project.Name,
+                project.LeadPoUserId,
+                OfficerName = project.LeadPoUser != null ? project.LeadPoUser.FullName : null,
+                OfficerRank = project.LeadPoUser != null ? project.LeadPoUser.Rank : null,
+                Stages = project.ProjectStages
+                    .Select(stage => new StageRow(
+                        stage.StageCode,
+                        stage.Status,
+                        stage.SortOrder,
+                        stage.CompletedOn))
+                    .ToList()
+            })
+            .ToListAsync(ct);
+
+        var normalizedProjects = projectRows
+            .Select(project =>
+            {
+                var stage = DetermineCurrentStage(project.Stages);
+                var stageCode = string.IsNullOrWhiteSpace(stage?.StageCode)
+                    ? UnassignedStageCode
+                    : stage!.StageCode.Trim();
+
+                return new NormalizedProject(
+                    project.Id,
+                    project.Name,
+                    null,
+                    "Uncategorised",
+                    stageCode,
+                    stageCode == UnassignedStageCode ? "Unassigned" : StageCodes.DisplayNameOf(stageCode),
+                    project.LeadPoUserId,
+                    string.IsNullOrWhiteSpace(project.OfficerName)
+                        ? "Unassigned"
+                        : string.Join(' ', new[] { project.OfficerRank, project.OfficerName }
+                            .Where(value => !string.IsNullOrWhiteSpace(value))));
+            })
+            .ToList();
+
+        var orderedStageCodes = StageCodes.All
+            .Concat(normalizedProjects
+                .Select(project => project.StageCode)
+                .Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var cards = await BuildOfficerWorkloadAsync(
+            string.Empty,
+            normalizedProjects,
+            orderedStageCodes,
+            ct,
+            onlyOfficerUserId: officerUserId,
+            includeEmptyOfficer: true);
+
+        return cards.SingleOrDefault();
+    }
+
     private async Task<IReadOnlyList<CommandOfficerWorkloadVm>> BuildOfficerWorkloadAsync(
         string requestingUserId,
         IReadOnlyList<NormalizedProject> allProjects,
         IReadOnlyList<string> orderedStageCodes,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? onlyOfficerUserId = null,
+        bool includeEmptyOfficer = false)
     {
         var roleUsers = await _userManager.GetUsersInRoleAsync(RoleNames.ProjectOfficer);
-        var users = roleUsers.Where(u => !u.IsDisabled && !u.PendingDeletion).ToList();
+        var users = roleUsers
+            .Where(user =>
+                !user.IsDisabled &&
+                !user.PendingDeletion &&
+                (string.IsNullOrWhiteSpace(onlyOfficerUserId) ||
+                 string.Equals(user.Id, onlyOfficerUserId, StringComparison.Ordinal)))
+            .ToList();
         var ids = users.Select(x => x.Id).ToList();
 
         var ideas = await _db.ProjectIdeas.AsNoTracking()
@@ -114,7 +201,11 @@ public sealed class CommandWorkspaceService
             var officerProjects = allProjects.Where(p => string.Equals(p.LeadPoUserId, user.Id, StringComparison.OrdinalIgnoreCase)).ToList();
             var officerIdeas = ideas.Where(i => i.UserId == user.Id).ToList();
             var officerTasks = tasks.Where(t => t.UserId == user.Id).ToList();
-            if (officerProjects.Count + officerIdeas.Count + officerTasks.Count == 0) continue;
+            if (!includeEmptyOfficer &&
+                officerProjects.Count + officerIdeas.Count + officerTasks.Count == 0)
+            {
+                continue;
+            }
 
             result.Add(new CommandOfficerWorkloadVm
             {

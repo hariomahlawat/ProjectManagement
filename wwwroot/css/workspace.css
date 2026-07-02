@@ -1052,3 +1052,305 @@ button.po-record:focus-visible .po-record__view { opacity: 1; transform: none; }
     .po-section-nav { min-height: 42px; }
     .po-section-nav a { min-height: 42px; }
 }
+
+/* SECTION: Transparent command profile and upcoming Calendar rail */
+.po-layout {
+    grid-template-columns: minmax(0, 1fr) 350px;
+    gap: 18px;
+}
+
+.po-sidebar {
+    position: static;
+    display: grid;
+    min-width: 0;
+    gap: 16px;
+}
+
+.po-command-visibility,
+.po-upcoming {
+    overflow: hidden;
+    border: 1px solid var(--po-line);
+    border-radius: 12px;
+    background: var(--po-surface);
+    box-shadow: var(--po-shadow);
+}
+
+.po-command-visibility__head,
+.po-upcoming__head {
+    padding: 15px 16px 14px;
+    border-bottom: 1px solid var(--po-line-soft);
+    background: linear-gradient(135deg, #f8fafd 0%, #f1f5fb 100%);
+}
+
+.po-command-visibility__head h2,
+.po-upcoming__head h2 {
+    margin: 4px 0 2px;
+    color: var(--po-navy-950);
+    font-size: 1rem;
+    font-weight: 780;
+    letter-spacing: -.01em;
+}
+
+.po-command-visibility__head p,
+.po-upcoming__head p {
+    margin: 0;
+    color: var(--po-muted);
+    font-size: .69rem;
+    line-height: 1.45;
+}
+
+.po-command-visibility__card {
+    padding: 10px;
+    background: #f8fafc;
+}
+
+
+.cw-drag-handle--static {
+    cursor: default;
+    touch-action: auto;
+}
+
+.cw-drag-handle--static:hover {
+    color: #91a0b3;
+    background: transparent;
+}
+
+.po-command-visibility__empty,
+.po-upcoming__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 28px 18px;
+    text-align: center;
+}
+
+.po-command-visibility__empty > i,
+.po-upcoming__empty > i {
+    margin-bottom: 8px;
+    color: #667b9e;
+    font-size: 1.35rem;
+}
+
+.po-command-visibility__empty strong,
+.po-upcoming__empty strong {
+    color: var(--po-navy-950);
+    font-size: .78rem;
+}
+
+.po-command-visibility__empty span,
+.po-upcoming__empty span {
+    margin-top: 3px;
+    color: var(--po-muted);
+    font-size: .65rem;
+}
+
+.po-upcoming__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.po-upcoming__count {
+    display: grid;
+    place-items: center;
+    flex: 0 0 32px;
+    height: 32px;
+    border: 1px solid #cddaf0;
+    border-radius: 9px;
+    color: var(--po-blue-700);
+    background: #fff;
+    font-size: .7rem;
+    font-weight: 800;
+}
+
+.po-upcoming__groups {
+    padding: 3px 0;
+}
+
+.po-upcoming-group + .po-upcoming-group {
+    border-top: 1px solid var(--po-line-soft);
+}
+
+.po-upcoming-group > h3 {
+    margin: 0;
+    padding: 10px 14px 5px;
+    color: #718097;
+    font-size: .61rem;
+    font-weight: 800;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+}
+
+.po-upcoming-list {
+    display: grid;
+}
+
+.po-upcoming-item {
+    position: relative;
+    display: grid;
+    grid-template-columns: 38px 30px minmax(0, 1fr) 14px;
+    align-items: center;
+    gap: 8px;
+    min-height: 66px;
+    padding: 8px 12px;
+    color: var(--po-text);
+    transition: background .16s ease;
+}
+
+.po-upcoming-item + .po-upcoming-item {
+    border-top: 1px solid #edf1f6;
+}
+
+.po-upcoming-item:hover {
+    color: var(--po-text);
+    background: #f8faff;
+}
+
+.po-upcoming-item__date {
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    width: 38px;
+    min-height: 42px;
+    border: 1px solid #d9e2ee;
+    border-radius: 8px;
+    color: #334964;
+    background: #fff;
+    line-height: 1;
+}
+
+.po-upcoming-item__date strong {
+    font-size: .86rem;
+}
+
+.po-upcoming-item__date small {
+    margin-top: 4px;
+    color: #7a8799;
+    font-size: .53rem;
+    font-weight: 800;
+    letter-spacing: .06em;
+}
+
+.po-upcoming-item__icon {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    color: var(--po-blue-700);
+    background: var(--po-blue-100);
+    font-size: .82rem;
+}
+
+.po-upcoming-item--birthday .po-upcoming-item__icon {
+    color: #b22666;
+    background: #fff0f7;
+}
+
+.po-upcoming-item--anniversary .po-upcoming-item__icon {
+    color: #24766f;
+    background: #edf9f7;
+}
+
+.po-upcoming-item__content {
+    min-width: 0;
+}
+
+.po-upcoming-item__content > strong {
+    display: block;
+    overflow: hidden;
+    color: #1c355d;
+    font-size: .72rem;
+    font-weight: 760;
+    line-height: 1.28;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.po-upcoming-item__content > small {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 6px;
+    margin-top: 3px;
+    color: #738198;
+    font-size: .61rem;
+}
+
+.po-upcoming-item__separator {
+    flex: 0 0 3px;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: #aab5c5;
+}
+
+.po-upcoming-item__content > em {
+    display: block;
+    overflow: hidden;
+    margin-top: 3px;
+    color: #8793a4;
+    font-size: .59rem;
+    font-style: normal;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.po-upcoming-item__content > em i {
+    margin-right: 4px;
+}
+
+.po-upcoming-item__arrow {
+    color: #a2afbf;
+    font-size: .66rem;
+}
+
+.po-upcoming__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 14px;
+    border-top: 1px solid var(--po-line);
+    color: var(--po-blue-700);
+    background: #fafbfd;
+    font-size: .66rem;
+    font-weight: 750;
+}
+
+.po-upcoming__footer:hover {
+    color: #173f82;
+    background: #f5f8fd;
+}
+
+@media (max-width: 1260px) {
+    .po-layout {
+        grid-template-columns: minmax(0, 1fr) 320px;
+    }
+}
+
+@media (max-width: 1040px) {
+    .po-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .po-sidebar {
+        order: -1;
+    }
+
+    .po-command-visibility__card {
+        max-width: 430px;
+    }
+}
+
+@media (max-width: 640px) {
+    .po-command-visibility__card {
+        max-width: none;
+        padding: 8px;
+    }
+
+    .po-upcoming-item {
+        grid-template-columns: 36px 28px minmax(0, 1fr) 12px;
+        padding-inline: 10px;
+    }
+}

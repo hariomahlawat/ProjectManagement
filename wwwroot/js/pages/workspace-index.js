@@ -27,14 +27,9 @@
 
     const stickyOffset = () => updateTopbarHeight() + Math.round(nav.getBoundingClientRect().height) + 14;
 
-    const scrollTrackedEntries = () => {
-        // On desktop the readiness panel is a parallel sticky rail, not a vertical
-        // chapter in the main document. Excluding it prevents a false active tab.
-        const includeParallelRail = window.matchMedia('(max-width: 980px)').matches;
-        return entries
-            .filter(entry => includeParallelRail || entry.section.id !== 'record-gaps')
-            .sort((a, b) => a.section.offsetTop - b.section.offsetTop);
-    };
+    const scrollTrackedEntries = () => entries
+        .slice()
+        .sort((a, b) => a.section.offsetTop - b.section.offsetTop);
 
     const activateFromScroll = () => {
         const stickyTop = updateTopbarHeight();

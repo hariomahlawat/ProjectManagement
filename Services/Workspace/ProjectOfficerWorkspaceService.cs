@@ -22,6 +22,7 @@ public sealed class ProjectOfficerWorkspaceService
     private readonly ActionTaskMyWorkQueueBuilder _myWorkQueueBuilder;
     private readonly IActionTrackerClock _clock;
     private readonly IAotsUnreadService _aotsUnreadService;
+    private readonly CommandWorkspaceService _commandWorkspaceService;
 
     private sealed record WorkspaceActionQueueBuildResult(
         IReadOnlyList<WorkspaceActionQueueItemVm> Items,
@@ -34,7 +35,8 @@ public sealed class ProjectOfficerWorkspaceService
         WorkspaceNudgeService nudges,
         ActionTaskMyWorkQueueBuilder myWorkQueueBuilder,
         IActionTrackerClock clock,
-        IAotsUnreadService aotsUnreadService)
+        IAotsUnreadService aotsUnreadService,
+        CommandWorkspaceService commandWorkspaceService)
     {
         _db = db;
         _users = users;
@@ -43,6 +45,7 @@ public sealed class ProjectOfficerWorkspaceService
         _myWorkQueueBuilder = myWorkQueueBuilder;
         _clock = clock;
         _aotsUnreadService = aotsUnreadService;
+        _commandWorkspaceService = commandWorkspaceService;
     }
 
     // SECTION: Workspace composition
@@ -68,6 +71,12 @@ public sealed class ProjectOfficerWorkspaceService
         var tasks = await LoadOtherAssignedTasksAsync(userId, today, ct);
         var ideaVms = await LoadProjectIdeasAsync(userId, today, ct);
         var reminders = await LoadPersonalRemindersAsync(userId, ct);
+        var commandWorkloadCard = await _commandWorkspaceService.GetOfficerWorkloadCardAsync(userId, ct);
+        var upcomingEvents = await WorkspaceUpcomingEventQuery.LoadAsync(
+            _db,
+            userId,
+            _clock.UtcNow,
+            ct);
         var health = await _health.CalculateForProjectsAsync(projects, userId, ct);
 
         var remarksDue = _nudges.BuildRemarksDue(projects, userId, today).ToList();
@@ -181,8 +190,11 @@ public sealed class ProjectOfficerWorkspaceService
             ImproveProjectsTotalCount = improveProjectsResult.TotalCount,
             NextBestAction = BuildNextBestAction(actionQueue, timelineAlerts),
             PersonalReminders = reminders,
+            CommandWorkloadCard = commandWorkloadCard,
+            UpcomingEvents = upcomingEvents,
             QuickActions = BuildQuickActions(userId),
-            MyProjectsUrl = myProjectsUrl
+            MyProjectsUrl = myProjectsUrl,
+            GeneratedAtUtc = DateTime.SpecifyKind(_clock.UtcNow, DateTimeKind.Utc)
         };
 
         vm.RailItems = BuildRailItems(vm);
@@ -240,7 +252,7 @@ public sealed class ProjectOfficerWorkspaceService
             .Include(i => i.Documents)
             .Where(i =>
                 !i.IsDeleted &&
-                (i.AssignedProjectOfficerUserId == userId || i.CreatedByUserId == userId) &&
+                i.AssignedProjectOfficerUserId == userId &&
                 i.Status != ProjectIdeaStatuses.Archived)
             .OrderByDescending(i => i.UpdatedAt)
             .ToListAsync(ct);
@@ -1019,9 +1031,8 @@ public sealed class ProjectOfficerWorkspaceService
             new() { Label = "Today", Icon = "bi-calendar-check", Anchor = "#today", Count = vm.DailyActionCount, IsPrimary = true },
             new() { Label = "Action Queue", Icon = "bi-list-check", Anchor = "#action-queue", Count = vm.ActionQueueTotalCount },
             new() { Label = "Assigned Projects", Icon = "bi-kanban", Anchor = "#assigned-projects", Count = vm.AssignedProjectCount },
-            new() { Label = "Record Gaps", Icon = "bi-folder-x", Anchor = "#record-gaps", Count = vm.RecordGapCount },
-            new() { Label = "My Ideas", Icon = "bi-lightbulb", Anchor = "#my-ideas-reminders", Count = vm.AssignedIdeaCount },
-            new() { Label = "Reminders", Icon = "bi-bell", Anchor = "#reminders", Count = vm.PersonalReminders.Count }
+            new() { Label = "Follow-ups", Icon = "bi-bell", Anchor = "#follow-ups", Count = vm.PersonalReminders.Count + vm.AssignedIdeaCount },
+            new() { Label = "Upcoming", Icon = "bi-calendar-event", Anchor = "#upcoming-events", Count = vm.UpcomingEvents.Count }
         };
     }
 }

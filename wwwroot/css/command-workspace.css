@@ -536,3 +536,14 @@
     .cw-local-rail__title i,.cw-local-rail nav a > i { flex-basis:38px; width:38px; }
     .cw-header-action span { display:none; }
 }
+
+/* SECTION: The Project Officer sees the identical command card without a reorder affordance. */
+.po-command-visibility .cw-drag-handle--static,
+.po-command-visibility .cw-drag-handle--static:hover,
+.po-command-visibility .cw-drag-handle--static:focus-visible {
+    color: #91a0b3;
+    background: transparent;
+    cursor: default;
+    outline: none;
+    touch-action: auto;
+}

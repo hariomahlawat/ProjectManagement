@@ -49,6 +49,43 @@ public sealed class ProjectOfficerWorkspaceVm
     public WorkspaceAttentionItemVm? NextBestAction { get; set; }
     public IReadOnlyList<WorkspaceQuickActionVm> QuickActions { get; set; } = Array.Empty<WorkspaceQuickActionVm>();
     public IReadOnlyList<WorkspaceReminderVm> PersonalReminders { get; set; } = Array.Empty<WorkspaceReminderVm>();
+    public CommandOfficerWorkloadVm? CommandWorkloadCard { get; set; }
+    public IReadOnlyList<WorkspaceUpcomingEventVm> UpcomingEvents { get; set; } = Array.Empty<WorkspaceUpcomingEventVm>();
+}
+
+public sealed class WorkspaceUpcomingEventVm
+{
+    public string InstanceId { get; set; } = string.Empty;
+
+    public Guid SeriesId { get; set; }
+
+    public string Title { get; set; } = string.Empty;
+
+    public string CategoryLabel { get; set; } = string.Empty;
+
+    public string GroupLabel { get; set; } = string.Empty;
+
+    public string DateLabel { get; set; } = string.Empty;
+
+    public string TimeLabel { get; set; } = string.Empty;
+
+    public string? Location { get; set; }
+
+    public string Icon { get; set; } = "bi-calendar-event";
+
+    public string Tone { get; set; } = "event";
+
+    public DateOnly LocalDate { get; set; }
+
+    public DateTimeOffset StartUtc { get; set; }
+
+    public DateTimeOffset EndUtc { get; set; }
+
+    public bool IsAllDay { get; set; }
+
+    public bool IsCelebration { get; set; }
+
+    public string OpenUrl { get; set; } = "/Calendar";
 }
 
 public sealed class WorkspaceCommandChipVm

@@ -12,11 +12,11 @@ function createWorkspaceDom() {
         <nav class="po-section-nav" aria-label="Workspace sections">
             <a href="#action-queue" class="active">Actions</a>
             <a href="#assigned-projects">Projects</a>
-            <a href="#record-gaps">Record gaps</a>
+            <a href="#follow-ups">Follow-ups</a>
         </nav>
         <section id="action-queue"></section>
         <section id="assigned-projects"></section>
-        <section id="record-gaps"></section>
+        <section id="follow-ups"></section>
     </body></html>`, { url: 'https://example.test/Workspace', runScripts: 'dangerously' });
 
     const { window } = dom;
