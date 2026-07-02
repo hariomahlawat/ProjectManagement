@@ -104,88 +104,94 @@ builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Model.Validation", LogL
 builder.Logging.AddFilter("ProjectManagement.Services.TodoService", LogLevel.None);
 builder.Logging.AddFilter("ProjectManagement.Services.TodoPurgeWorker", LogLevel.Warning);
 
-var keysDir = builder.Configuration["DP_KEYS_DIR"];
-if (string.IsNullOrWhiteSpace(keysDir))
+var configuredKeysDir = builder.Configuration["DP_KEYS_DIR"]?.Trim();
+var configuredStorageRoot = builder.Configuration["Storage:DataRoot"]?.Trim();
+var dataProtection = builder.Services.AddDataProtection()
+    .SetApplicationName("ProjectManagement_SDD");
+
+string? dataProtectionKeyDirectory = null;
+string? dataProtectionKeyDirectorySource = null;
+string? dataProtectionStartupWarning = null;
+var dataProtectionDirectoryWasExplicitlyConfigured = !string.IsNullOrWhiteSpace(configuredKeysDir);
+
+if (dataProtectionDirectoryWasExplicitlyConfigured)
 {
-    if (!builder.Environment.IsDevelopment())
+    if (!Path.IsPathFullyQualified(configuredKeysDir!))
     {
         throw new InvalidOperationException(
-            "DP_KEYS_DIR is required outside Development. Configure a durable, backed-up directory " +
-            "and grant the application identity read/write/delete permission before starting PRISM.");
+            $"DP_KEYS_DIR must be an absolute path when configured. Configured value: '{configuredKeysDir}'.");
     }
 
+    dataProtectionKeyDirectory = configuredKeysDir;
+    dataProtectionKeyDirectorySource = "DP_KEYS_DIR";
+}
+else if (!string.IsNullOrWhiteSpace(configuredStorageRoot)
+         && Path.IsPathFullyQualified(configuredStorageRoot))
+{
+    // SECTION: Reuse PRISM's existing durable data root so upgrades do not require a new
+    // production setting merely to preserve authentication and antiforgery keys.
+    dataProtectionKeyDirectory = Path.Combine(configuredStorageRoot, "data-protection-keys");
+    dataProtectionKeyDirectorySource = "Storage:DataRoot fallback";
+}
+else if (builder.Environment.IsDevelopment())
+{
     // SECTION: Developer-safe persistence outside the repository and publish output.
     var localApplicationData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-    keysDir = Path.Combine(localApplicationData, "PRISM-ERP", "DevelopmentDataProtectionKeys");
+    dataProtectionKeyDirectory = Path.Combine(
+        localApplicationData,
+        "PRISM-ERP",
+        "DevelopmentDataProtectionKeys");
+    dataProtectionKeyDirectorySource = "development fallback";
 }
 else
 {
-    keysDir = keysDir.Trim();
-    if (!Path.IsPathFullyQualified(keysDir))
+    dataProtectionStartupWarning =
+        "DP_KEYS_DIR is not configured and Storage:DataRoot is unavailable or not absolute. " +
+        "PRISM will use the ASP.NET Core platform-default data-protection key repository. " +
+        "Configure DP_KEYS_DIR for an explicit backed-up location when operationally convenient.";
+}
+
+if (!string.IsNullOrWhiteSpace(dataProtectionKeyDirectory))
+{
+    try
     {
+        EnsureWritableDataProtectionDirectory(dataProtectionKeyDirectory);
+        dataProtection.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeyDirectory));
+
+        if (OperatingSystem.IsWindows())
+        {
+            // SECTION: Encrypt explicitly persisted key material at rest on the IIS host.
+            dataProtection.ProtectKeysWithDpapi(protectToLocalMachine: true);
+        }
+    }
+    catch (Exception exception) when (!dataProtectionDirectoryWasExplicitlyConfigured)
+    {
+        // A derived convenience location must never prevent the application from starting.
+        // The framework default repository remains available and ASP.NET Core will log its
+        // own repository/encryption diagnostics.
+        dataProtectionStartupWarning =
+            $"PRISM could not use the derived data-protection key directory " +
+            $"'{dataProtectionKeyDirectory}' ({dataProtectionKeyDirectorySource}). " +
+            "The application will continue with the ASP.NET Core platform-default key repository. " +
+            $"Reason: {exception.Message}";
+        dataProtectionKeyDirectory = null;
+        dataProtectionKeyDirectorySource = null;
+    }
+    catch (Exception exception)
+    {
+        // An explicitly configured path is an administrator-controlled setting. Treat an
+        // invalid explicit setting as a configuration error rather than silently ignoring it.
         throw new InvalidOperationException(
-            $"DP_KEYS_DIR must be an absolute path. Configured value: '{keysDir}'.");
+            $"The explicitly configured data-protection key directory '{dataProtectionKeyDirectory}' " +
+            "is not writable by the application identity. Grant read/write/create/delete permission " +
+            "or remove DP_KEYS_DIR to use PRISM's automatic fallback.",
+            exception);
     }
-}
-
-string? keyDirectoryProbePath = null;
-try
-{
-    Directory.CreateDirectory(keysDir);
-
-    // Directory.CreateDirectory succeeds when the directory already exists even if the
-    // application identity cannot persist or rotate keys. Probe the exact permissions that
-    // the data-protection subsystem requires and fail before authentication traffic begins.
-    keyDirectoryProbePath = Path.Combine(
-        keysDir,
-        $".prism-write-probe-{Environment.ProcessId}-{Guid.NewGuid():N}.tmp");
-    File.WriteAllText(keyDirectoryProbePath, "PRISM data-protection write probe", Encoding.UTF8);
-    File.Delete(keyDirectoryProbePath);
-    keyDirectoryProbePath = null;
-}
-catch (Exception exception)
-{
-    throw new InvalidOperationException(
-        $"The data-protection key directory '{keysDir}' is not writable by the application identity. " +
-        "Configure DP_KEYS_DIR as a durable absolute path and grant read/write/create/delete permission.",
-        exception);
-}
-finally
-{
-    if (keyDirectoryProbePath is not null)
-    {
-        try
-        {
-            File.Delete(keyDirectoryProbePath);
-        }
-        catch
-        {
-            // The original permission error is more actionable than cleanup failure.
-        }
-    }
-}
-
-var dataProtection = builder.Services.AddDataProtection()
-    .PersistKeysToFileSystem(new DirectoryInfo(keysDir))
-    .SetApplicationName("ProjectManagement_SDD");
-
-if (OperatingSystem.IsWindows())
-{
-    // SECTION: Encrypt persisted key material at rest on the IIS host.
-    dataProtection.ProtectKeysWithDpapi(protectToLocalMachine: true);
 }
 
 builder.Services.AddMetrics();
 
-builder.Services.AddSignalR(options =>
-{
-    // Tolerate short workstation sleep, tab suspension and transient proxy pauses without
-    // prematurely abandoning an otherwise healthy authenticated notification connection.
-    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
-    options.ClientTimeoutInterval = TimeSpan.FromSeconds(90);
-    options.HandshakeTimeout = TimeSpan.FromSeconds(15);
-    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
-});
+builder.Services.AddSignalR();
 
 builder.Services.AddScoped<IsoCountrySeeder>();
 
@@ -523,7 +529,6 @@ builder.Services.AddScoped<ITodoService, TodoService>();
 // SECTION: My Notebook services
 builder.Services.Configure<NotebookTrashOptions>(builder.Configuration.GetSection(NotebookTrashOptions.SectionName));
 builder.Services.AddScoped<INotebookService, NotebookService>();
-builder.Services.AddScoped<INotebookNotificationService, NotebookNotificationService>();
 builder.Services.AddHostedService<NotebookTrashRetentionWorker>();
 builder.Services.AddScoped<INotebookCardModelFactory, NotebookCardModelFactory>();
 builder.Services.AddScoped<INotebookCardRenderer, RazorNotebookCardRenderer>();
@@ -620,11 +625,7 @@ builder.Services.AddScoped<IStageNotificationService, StageNotificationService>(
 builder.Services.AddScoped<IDocumentNotificationService, DocumentNotificationService>();
 builder.Services.AddScoped<IRoleNotificationService, RoleNotificationService>();
 builder.Services.AddSingleton<IRemarkMetrics, RemarkMetrics>();
-builder.Services.AddScoped<NotificationPublisher>();
-builder.Services.AddScoped<INotificationPublisher>(serviceProvider =>
-    serviceProvider.GetRequiredService<NotificationPublisher>());
-builder.Services.AddScoped<INotificationOutboxWriter>(serviceProvider =>
-    serviceProvider.GetRequiredService<NotificationPublisher>());
+builder.Services.AddScoped<INotificationPublisher, NotificationPublisher>();
 builder.Services.AddScoped<INotificationDeliveryService, NotificationDeliveryService>();
 builder.Services.AddHostedService<NotificationDispatcher>();
 builder.Services.AddOptions<NotificationRetentionOptions>()
@@ -847,6 +848,18 @@ var developmentLoopbackOrigins = builder.Environment.IsDevelopment()
     : Array.Empty<string>();
 
 var app = builder.Build();
+
+if (!string.IsNullOrWhiteSpace(dataProtectionKeyDirectory))
+{
+    app.Logger.LogInformation(
+        "Data-protection keys will persist to {Directory}. Source={Source}.",
+        dataProtectionKeyDirectory,
+        dataProtectionKeyDirectorySource);
+}
+else if (!string.IsNullOrWhiteSpace(dataProtectionStartupWarning))
+{
+    app.Logger.LogWarning("{Warning}", dataProtectionStartupWarning);
+}
 
 if (!app.Environment.IsDevelopment()
     && string.Equals(csb.Username, "postgres", StringComparison.OrdinalIgnoreCase))
@@ -3104,6 +3117,38 @@ static string BuildDirectiveWithExtras(
         .ToArray();
 
     return string.Join(" ", normalizedSources);
+}
+
+static void EnsureWritableDataProtectionDirectory(string directoryPath)
+{
+    Directory.CreateDirectory(directoryPath);
+
+    string? probePath = null;
+    try
+    {
+        // Directory.CreateDirectory succeeds when the directory already exists even if the
+        // process cannot persist or rotate keys. Probe the permissions Data Protection needs.
+        probePath = Path.Combine(
+            directoryPath,
+            $".prism-write-probe-{Environment.ProcessId}-{Guid.NewGuid():N}.tmp");
+        File.WriteAllText(probePath, "PRISM data-protection write probe", Encoding.UTF8);
+        File.Delete(probePath);
+        probePath = null;
+    }
+    finally
+    {
+        if (probePath is not null)
+        {
+            try
+            {
+                File.Delete(probePath);
+            }
+            catch
+            {
+                // Preserve the original permission or I/O exception.
+            }
+        }
+    }
 }
 
 static bool IsProjectArchiveActor(ClaimsPrincipal principal) =>
