@@ -41,6 +41,23 @@
     const str = (raw || '').toString();
     return canonMap[str.toLowerCase()] || (str || 'Other');
   };
+
+  const getCelebrationPresentation = (event) => {
+    const title = (event?.title || '').trim();
+    const explicitType = event?.extendedProps?.celebrationType;
+    const titlePrefix = title.match(/^([^:]+):/i)?.[1];
+    const type = canon(explicitType || titlePrefix || 'Celebration');
+    const name = title
+      .replace(/^(Birthday|Anniversary|Celebration)\s*:\s*/i, '')
+      .trim() || title || 'Celebration';
+
+    return {
+      type,
+      name,
+      iconClass: type === 'Anniversary' ? 'bi-hearts' : 'bi-gift'
+    };
+  };
+
   let activeCategory = "";
 
   const holidayMap = new Map();
@@ -868,28 +885,57 @@
       failure: (e) => { console.error('Events feed failed', e); alert('Couldn\u2019t load events. See console/Network.'); }
     }],
     eventDidMount(info) {
+      const isCelebration = !!info.event.extendedProps.isCelebration;
       let categorySource = info.event.extendedProps.category;
-      if (info.event.extendedProps.isCelebration) {
-        categorySource = info.event.extendedProps.celebrationType || categorySource;
-        if (!categorySource) {
-          const match = (info.event.title || '').match(/^([^:]+):/);
-          if (match) categorySource = match[1];
-        }
+      let celebrationPresentation = null;
+
+      if (isCelebration) {
+        celebrationPresentation = getCelebrationPresentation(info.event);
+        categorySource = celebrationPresentation.type;
       }
+
       const key = canon(categorySource);
       info.event.setExtendedProp('category', key);
       info.el.classList.add('pm-cat-' + key.toLowerCase());
+
+      if (celebrationPresentation) {
+        info.el.classList.add('pm-celebration-event');
+        const titleEl = info.el.querySelector('.fc-event-title');
+        const titleContainer = titleEl?.closest('.fc-event-title-container') || titleEl?.parentElement;
+
+        if (titleEl) {
+          titleEl.textContent = celebrationPresentation.name;
+          titleEl.setAttribute('data-full-title', info.event.title || celebrationPresentation.name);
+        }
+
+        if (titleContainer && !titleContainer.querySelector('.pm-celebration-event__icon')) {
+          titleContainer.classList.add('pm-celebration-event__content');
+          const icon = document.createElement('span');
+          icon.className = 'pm-celebration-event__icon';
+          icon.setAttribute('aria-hidden', 'true');
+          const iconGlyph = document.createElement('i');
+          iconGlyph.className = `bi ${celebrationPresentation.iconClass}`;
+          icon.appendChild(iconGlyph);
+          titleContainer.insertBefore(icon, titleEl || titleContainer.firstChild);
+        }
+      }
+
       const loc = info.event.extendedProps.location;
-      info.el.setAttribute('title',
-        info.event.title + (loc ? ' — ' + loc : '')
-      );
+      const accessibleTitle = celebrationPresentation
+        ? `${celebrationPresentation.type}: ${celebrationPresentation.name}`
+        : info.event.title;
+      info.el.setAttribute('title', accessibleTitle + (loc ? ' — ' + loc : ''));
       info.el.setAttribute('aria-label', info.el.title);
 
       if (activeCategory && key !== activeCategory) {
         info.el.style.display = 'none';
       }
       if (info.event.extendedProps.isRecurring) {
-        info.el.classList.add('pm-recurring');
+        // Birthdays and anniversaries are inherently annual; a recurrence glyph adds noise
+        // and can wrap onto a second line in compact month cells.
+        if (!isCelebration) {
+          info.el.classList.add('pm-recurring');
+        }
         info.el.querySelectorAll('.fc-event-resizer').forEach(r => r.style.display = 'none');
       }
     },
@@ -908,40 +954,25 @@
 
   calendar = new Calendar(calendarEl, opts);
 
-  const CELEBRATIONS_ENDPOINT = '/calendar/events/celebrations';
   const HOLIDAYS_ENDPOINT = '/calendar/events/holidays';
   let celebrationSource = null;
 
   async function loadCelebrationEvents(info) {
     const params = new URLSearchParams({
       start: info.startStr,
-      end: info.endStr
+      end: info.endStr,
+      includeCelebrations: 'true'
     });
 
-    const tryFetch = async (url) => {
-      const res = await fetch(url);
-      if (!res.ok) {
-        const error = new Error(`Celebrations feed failed: ${res.status}`);
-        error.status = res.status;
-        throw error;
-      }
-      const data = await res.json().catch(() => []);
-      return Array.isArray(data) ? data : [];
-    };
-
-    try {
-      return await tryFetch(`${CELEBRATIONS_ENDPOINT}?${params}`);
-    } catch (err) {
-      if (err && typeof err === 'object' && 'status' in err && err.status === 404) {
-        try {
-          const fallback = await tryFetch(`/calendar/events?${params}&includeCelebrations=true`);
-          return fallback.filter(ev => ev?.isCelebration);
-        } catch (fallbackErr) {
-          throw fallbackErr;
-        }
-      }
-      throw err;
+    const res = await fetch(`/calendar/events?${params}`);
+    if (!res.ok) {
+      const error = new Error(`Celebrations feed failed: ${res.status}`);
+      error.status = res.status;
+      throw error;
     }
+
+    const data = await res.json().catch(() => []);
+    return Array.isArray(data) ? data.filter(event => event?.isCelebration) : [];
   }
 
   async function loadHolidayEvents(info, signal) {

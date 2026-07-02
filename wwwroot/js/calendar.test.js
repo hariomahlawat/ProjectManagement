@@ -14,6 +14,8 @@ class FakeCalendar {
         this.view = { title: '', type: 'dayGridMonth' };
         this._handlers = new Map();
         this._events = [];
+        this._sources = [];
+        FakeCalendar.lastInstance = this;
     }
 
     on(name, handler) {
@@ -23,7 +25,8 @@ class FakeCalendar {
         this._handlers.get(name).push(handler);
     }
 
-    addEventSource() {
+    addEventSource(config) {
+        this._sources.push(config);
         return { remove() {}, refetch() {} };
     }
 
@@ -167,4 +170,112 @@ test('calendar highlights admin holidays during initial load', async () => {
 
     const timeGridFrame = calendarEl.querySelector('.fc-timegrid-col-frame');
     assert.ok(timeGridFrame.classList.contains('pm-holiday'));
+});
+
+
+test('calendar celebration source uses the supported events endpoint and filters celebrations', async () => {
+    const dom = new JSDOM(`<!DOCTYPE html><html><body>
+        <form id="calendarPreferences" data-preference-endpoint="/calendar/events/preferences/show-celebrations">
+            <input name="__RequestVerificationToken" value="token" />
+            <input id="showCelebrationsToggle" type="checkbox" checked />
+        </form>
+        <div id="calendar" data-show-celebrations="true"></div>
+    </body></html>`, { url: 'https://example.test/Calendar', runScripts: 'dangerously' });
+
+    const { window } = dom;
+    window.alert = () => {};
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    window.FullCalendar = {
+        Calendar: FakeCalendar,
+        dayGrid: () => ({}),
+        timeGrid: () => ({}),
+        list: () => ({}),
+        interaction: () => ({})
+    };
+
+    const requests = [];
+    window.fetch = async (url) => {
+        const requestUrl = url.toString();
+        requests.push(requestUrl);
+        if (requestUrl.includes('/calendar/events/holidays')) {
+            return { ok: true, status: 200, json: async () => [] };
+        }
+        return {
+            ok: true,
+            status: 200,
+            json: async () => ([
+                { id: 'regular', title: 'Meeting', isCelebration: false },
+                { id: 'birthday', title: 'Birthday: Hariom Ahlawat', isCelebration: true }
+            ])
+        };
+    };
+
+    const scriptEl = window.document.createElement('script');
+    scriptEl.textContent = scriptContent;
+    window.document.body.appendChild(scriptEl);
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    const source = FakeCalendar.lastInstance._sources.find(item => item.id === 'celebrations');
+    assert.ok(source, 'celebration source should be registered');
+
+    const events = await new Promise((resolve, reject) => {
+        source.events({
+            startStr: '2026-09-01T00:00:00.000Z',
+            endStr: '2026-10-01T00:00:00.000Z'
+        }, resolve, reject);
+    });
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0].id, 'birthday');
+    const celebrationRequest = requests.find(url => url.includes('includeCelebrations=true'));
+    assert.ok(celebrationRequest, 'supported combined events endpoint should be used');
+    assert.ok(!requests.some(url => url.includes('/calendar/events/celebrations')),
+        'missing celebrations endpoint must not be probed');
+});
+
+test('birthday event is rendered as a compact accessible celebration chip', async () => {
+    const dom = new JSDOM(`<!DOCTYPE html><html><body>
+        <div id="calendar" data-show-celebrations="false"></div>
+    </body></html>`, { url: 'https://example.test/Calendar', runScripts: 'dangerously' });
+
+    const { window } = dom;
+    window.alert = () => {};
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    window.fetch = async () => ({ ok: true, status: 200, json: async () => [] });
+    window.FullCalendar = {
+        Calendar: FakeCalendar,
+        dayGrid: () => ({}),
+        timeGrid: () => ({}),
+        list: () => ({}),
+        interaction: () => ({})
+    };
+
+    const scriptEl = window.document.createElement('script');
+    scriptEl.textContent = scriptContent;
+    window.document.body.appendChild(scriptEl);
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    const eventEl = window.document.createElement('a');
+    eventEl.className = 'fc-event';
+    eventEl.innerHTML = '<div class="fc-event-main"><div class="fc-event-main-frame"><div class="fc-event-title-container"><div class="fc-event-title">Birthday: Hariom Ahlawat</div></div></div></div>';
+    const props = {
+        category: 'Celebration',
+        isCelebration: true,
+        isRecurring: true,
+        location: null
+    };
+    const event = {
+        title: 'Birthday: Hariom Ahlawat',
+        extendedProps: props,
+        setExtendedProp(name, value) { this.extendedProps[name] = value; }
+    };
+
+    FakeCalendar.lastInstance.opts.eventDidMount({ event, el: eventEl });
+
+    assert.ok(eventEl.classList.contains('pm-cat-birthday'));
+    assert.ok(eventEl.classList.contains('pm-celebration-event'));
+    assert.ok(!eventEl.classList.contains('pm-recurring'));
+    assert.equal(eventEl.querySelector('.fc-event-title').textContent, 'Hariom Ahlawat');
+    assert.ok(eventEl.querySelector('.pm-celebration-event__icon .bi-gift'));
+    assert.equal(eventEl.getAttribute('aria-label'), 'Birthday: Hariom Ahlawat');
 });
