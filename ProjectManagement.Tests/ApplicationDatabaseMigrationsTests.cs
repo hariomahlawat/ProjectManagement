@@ -23,6 +23,7 @@ public sealed class ApplicationDatabaseMigrationsTests
         Assert.Contains("20261201090000_FixLegacyNullsForCompendiums", migrations);
         Assert.Contains("20261201090000_AlignProjectStageBackfillConstraint", migrations);
         Assert.Contains("20261201150000_ReconcileProjectStageCompletionConstraint", migrations);
+        Assert.Contains("20261201160000_FinalizeProjectStageCompletionConstraint", migrations);
         Assert.Equal(migrations.Length, migrations.Distinct(StringComparer.Ordinal).Count());
     }
 
@@ -117,7 +118,7 @@ public sealed class ApplicationDatabaseMigrationsTests
     }
 
     [Fact]
-    public void MigrationIdentifiers_AreOrderedAndLatestReconciliationRemainsTheTail()
+    public void MigrationIdentifiers_AreOrderedAndFinalRepairRemainsTheTail()
     {
         using var context = CreateMetadataContext();
         var migrations = context.Database.GetMigrations().ToArray();
@@ -126,7 +127,7 @@ public sealed class ApplicationDatabaseMigrationsTests
             migrations.OrderBy(id => id, StringComparer.Ordinal).ToArray(),
             migrations);
         Assert.Equal(
-            "20261201150000_ReconcileProjectStageCompletionConstraint",
+            "20261201160000_FinalizeProjectStageCompletionConstraint",
             migrations[^1]);
     }
 

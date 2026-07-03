@@ -1,7 +1,10 @@
 Program.cs
-appsettings.json
-appsettings.Production.json
-appsettings.Development.json
-Features/MediaLibrary/Options/MediaLibraryOptionsValidator.cs
-ProjectManagement.Tests/MediaLibraryOptionsValidatorTests.cs
-README - APPLY TO CURRENT SOURCE.txt
+ProjectManagement.csproj
+web.config
+Infrastructure/UploadRequestLimitResolver.cs
+Migrations/20261201160000_FinalizeProjectStageCompletionConstraint.cs
+Migrations/immutable-migration-ids.txt
+ProjectManagement.Tests/ApplicationDatabaseMigrationsTests.cs
+ProjectManagement.Tests/PostgresMigrationIntegrationTests.cs
+ops/publish/create-publish-folder.ps1
+README - REPLACE FILES.txt

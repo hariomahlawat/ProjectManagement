@@ -1,95 +1,73 @@
-PRISM Production Readiness + Notifications Fix - Version 5
-==========================================================
+PRISM PROJECTSTAGES STARTUP ROOT-CAUSE FIX — READY TO REPLACE
+============================================================
 
-Purpose
--------
-This is the consolidated, ready-to-replace package for the latest PRISM code state. It combines:
-- mandatory production startup migrations and migration-lineage validation;
-- application/media schema readiness checks;
-- the DatabaseStartupMigrator nullable-host warning correction;
-- the complete production notification API/browser/SignalR repair.
+WHAT THIS FIXES
+---------------
+1. Removes the legacy ordinary-startup behaviour that recreated
+   CK_ProjectStages_CompletedHasDate with the obsolete ActualStart requirement.
+2. Adds a new forward-only EF migration:
+     20261201160000_FinalizeProjectStageCompletionConstraint
+3. Repairs production databases where migrations through 20261201150000 are already
+   recorded but the physical constraint was later regressed by an older application build.
+4. Makes deployed migrations mandatory before requests are accepted.
+5. Aligns ASP.NET Core and IIS upload transport ceilings and removes the IIS
+   maxAllowedContentLength mismatch warning.
+6. Prevents old publish/artifacts folders from being copied into a later publish.
 
-Why this package is consolidated
---------------------------------
-Program.cs depends on production-readiness types introduced by the earlier hardening package. This
-package contains the complete dependency set, so there is no replacement-order ambiguity and no risk
-of restoring an older Program.cs while fixing notifications.
+REQUIRED SOURCE BASELINE
+------------------------
+Use the current production-ready source containing all 61 existing ApplicationDbContext
+migrations through:
+  20261201150000_ReconcileProjectStageCompletionConstraint
 
-Replacement method
-------------------
-1. Stop the IIS application pool.
-2. Back up the application database and current source tree.
-3. Copy every file/folder from this package into the ProjectManagement solution root, preserving
-   relative paths and replacing existing files when prompted.
-4. Do not copy source files directly into the IIS publish directory.
-5. Build, test and publish the complete application from the solution root.
-6. Deploy the complete publish output, then start the IIS application pool.
+It must also contain:
+  Infrastructure/DatabaseStartupMigrator.cs
+  Infrastructure/ApplicationDatabaseSchemaValidator.cs
+  Migrations/immutable-migration-ids.txt
 
-Required build validation
--------------------------
-npm ci
-npm test
-dotnet clean
-dotnet restore
-dotnet build -c Release
-dotnet test -c Release
-dotnet publish -c Release -o .\publish
+The uploaded ProjectManagement-master (1)(4).zip is an older 51-migration source tree.
+DO NOT publish that older tree to the present production database.
 
-Notification defects corrected
--------------------------------
-1. The authenticated layout now emits a request-specific antiforgery token and stores the matching
-   antiforgery cookie.
-2. Antiforgery middleware is registered at the correct point after authentication/authorization.
-3. Every notification state-changing endpoint requires antiforgery validation.
-4. The complete JavaScript/server contract is implemented:
-   GET    /api/notifications
-   GET    /api/notifications/count
-   POST   /api/notifications/read
-   POST   /api/notifications/unread
-   POST   /api/notifications/read-all
-   POST   /api/notifications/seen
-   POST   /api/notifications/projects/{projectId}/mute
-   DELETE /api/notifications/projects/{projectId}/mute
-5. Legacy single-notification read/unread routes remain temporarily for cached-browser compatibility.
-6. Page, read, unread, seen, read-all and project-mute operations return stable typed DTOs.
-7. SignalR synchronises state across open tabs.
-8. A post-commit SignalR/backplane failure is logged but cannot convert a successful database
-   mutation into HTTP 500; polling reconciles the client state.
-9. Inputs are bounded and validated; read responses are marked no-store.
-10. End-to-end endpoint tests cover authentication, antiforgery, paging, mutations, mute/unmute,
-    legacy compatibility and cache headers.
+REPLACEMENT
+-----------
+Copy every file and folder from this package into the ProjectManagement application root.
+Allow folder merge and replace matching files. Preserve the relative folder structure.
 
-Database impact of the notification repair
-------------------------------------------
-No new notification migration is required. The existing 20261201110000_HardenNotifications
-migration already supplies the required fields and indexes. The package retains the separate
-production migration-lineage and schema-reconciliation corrections from Version 4.1/4.2.
+Do not delete, rename, or edit any historical migration. Do not delete rows from
+__EFMigrationsHistory.
 
-Production configuration prerequisites
---------------------------------------
-- DP_KEYS_DIR must be an absolute, durable and writable directory outside the publish folder.
-- The production PostgreSQL connection string must identify a valid Host and Database.
-- The IIS identity must have the filesystem and database rights documented in the production
-  readiness notes.
-- The production HTTPS certificate must be trusted by client devices.
+BUILD AND PUBLISH
+-----------------
+From the application root run:
 
-Post-deployment smoke test
---------------------------
-1. Sign in as a normal user and load Dashboard.
-2. Open the notification bell and confirm unseen rows are recorded without an error.
-3. Mark one notification read, then unread.
-4. Use Mark all read.
-5. Open Notification Centre and test folder, status, search, module and project filters.
-6. Mute and unmute a project.
-7. Open the same account in a second tab and confirm state synchronises through SignalR or polling.
-8. In browser Network tools confirm mutation requests carry X-CSRF-TOKEN and return JSON HTTP 200.
-9. Confirm anonymous /api/notifications requests return HTTP 401, not an HTML sign-in redirect.
-10. Review application logs for migration completion, schema readiness and any SignalR warnings.
+  npm ci
+  dotnet restore
+  dotnet build -c Release
+  dotnet test -c Release
+  .\ops\publish\create-publish-folder.ps1
 
-Validation performed in the preparation environment
----------------------------------------------------
-- Notification JavaScript tests: 10 passed, 0 failed.
-- Complete JavaScript suite: 128 passed, 0 failed.
-- Static route/DTO/SignalR/antiforgery dependency review completed.
-- The preparation environment did not contain the .NET SDK; therefore Release build and xUnit
-  execution must be completed using the commands above before deployment.
+The validated output is created at:
+  artifacts\publish\ProjectManagement
+
+Deploy the CONTENTS of that folder into a new empty IIS application directory. Do not
+copy over an old publish folder and do not deploy the nested source 'publish' directory.
+Preserve the production connection string and other server-specific settings.
+
+EXPECTED FIRST START
+--------------------
+ApplicationDbContext should report:
+  Known=62
+  Applied=61
+  Pending=1
+
+It should then apply:
+  20261201160000_FinalizeProjectStageCompletionConstraint
+
+After migration, physical schema validation should pass. The final constraint must be:
+  Status <> Completed OR CompletedOn IS NOT NULL OR RequiresBackfill IS TRUE
+
+ActualStart remains optional.
+
+SUPERUSER WARNING
+-----------------
+No change has been made to the PostgreSQL superuser warning, as directed.

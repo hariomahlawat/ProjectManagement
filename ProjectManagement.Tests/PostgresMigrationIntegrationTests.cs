@@ -72,13 +72,12 @@ public sealed class PostgresMigrationIntegrationTests
         Assert.False(await HistoryTableExistsAsync(connectionString, "__EFMigrationsHistory"));
         await DropMediaHistoryAsync(connectionString);
 
-        // Reproduce the production drift that originally blocked
-        // ConsolidateProductionSchemaMaintenance: an obsolete completion constraint was
-        // recreated after its repair migration was recorded, and a legacy row retained a
-        // nullable RequiresBackfill marker. The preparation migration must remove that
-        // ordering hazard before the consolidation migration normalises the column.
+        // Reproduce the July 2026 production incident: every earlier migration, including
+        // the reconciliation migration, is recorded as applied, but legacy startup SQL
+        // subsequently recreates the obsolete constraint. The final forward migration must
+        // repair that physical drift even though the earlier repair IDs are already present.
         await applicationDb.Database.MigrateAsync(
-            "20261201130000_AddRequestedStartDateToStageChangeRequests");
+            "20261201150000_ReconcileProjectStageCompletionConstraint");
         await SeedLegacyProjectStageConstraintDriftAsync(applicationDb);
 
         var results = await DatabaseStartupMigrator.ApplyDeploymentBoundaryAsync(

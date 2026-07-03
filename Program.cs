@@ -642,29 +642,24 @@ builder.Services.AddOptions<ProjectDocumentOptions>()
     .ValidateOnStart();
 builder.Services.AddSingleton<IValidateOptions<ProjectDocumentOptions>, ProjectDocumentOptionsValidator>();
 
-// SECTION: Centralized upload request limits (configuration-driven)
-var configuredMaxSizeMb = builder.Configuration.GetValue<int?>("ProjectDocuments:MaxSizeMb") ?? 0;
-var configuredMaxBodySizeBytes = configuredMaxSizeMb > 0
-    ? (long?)configuredMaxSizeMb * 1024L * 1024L
-    : null;
+// SECTION: Centralized transport limit for every configured upload workflow.
+// Individual upload services continue to enforce their own lower per-file and per-batch limits.
+var configuredMaxBodySizeBytes = UploadRequestLimitResolver.Resolve(builder.Configuration);
 
-if (configuredMaxBodySizeBytes.HasValue)
+builder.Services.Configure<FormOptions>(options =>
 {
-    builder.Services.Configure<FormOptions>(options =>
-    {
-        options.MultipartBodyLengthLimit = configuredMaxBodySizeBytes.Value;
-    });
+    options.MultipartBodyLengthLimit = configuredMaxBodySizeBytes;
+});
 
-    builder.Services.Configure<IISServerOptions>(options =>
-    {
-        options.MaxRequestBodySize = configuredMaxBodySizeBytes.Value;
-    });
+builder.Services.Configure<IISServerOptions>(options =>
+{
+    options.MaxRequestBodySize = configuredMaxBodySizeBytes;
+});
 
-    builder.WebHost.ConfigureKestrel(options =>
-    {
-        options.Limits.MaxRequestBodySize = configuredMaxBodySizeBytes.Value;
-    });
-}
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = configuredMaxBodySizeBytes;
+});
 
 builder.Services.AddOptions<ProjectVideoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectVideos"));
@@ -803,21 +798,24 @@ if (!app.Environment.IsDevelopment()
 }
 
 // SECTION: Database startup policy
-// Preserve the established deployment contract:
-// - Development always applies pending migrations.
-// - Production applies migrations when Database:ApplyMigrationsOnStartup is true.
-// - ApplicationDbContext is startup-critical.
-// - Media Library migration/readiness is isolated so an optional Photos failure cannot
-//   take down the complete ERP after the core application database is healthy.
-var applyMigrationsOnStartup = app.Environment.IsDevelopment()
-    || app.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup");
+// Every migration shipped in the deployed build is a mandatory part of the deployment
+// boundary. The application does not accept traffic until migration closure and physical
+// schema validation have both succeeded.
+var configuredMigrationPreference =
+    app.Configuration.GetValue<bool?>("Database:ApplyMigrationsOnStartup");
+const bool applyMigrationsOnStartup = true;
 var runSeedersOnStartup = app.Configuration.GetValue<bool>("Database:RunSeedersOnStartup");
 var mediaLibraryEnabled = app.Configuration.GetValue<bool?>("MediaLibrary:Enabled") ?? true;
 
+if (configuredMigrationPreference == false)
+{
+    app.Logger.LogWarning(
+        "Database:ApplyMigrationsOnStartup=false is deprecated and ignored. All deployed EF Core migrations are mandatory before startup.");
+}
+
 app.Logger.LogInformation(
-    "Database startup policy: Environment={Environment}; ApplyMigrationsOnStartup={ApplyMigrations}; RunSeedersOnStartup={RunSeeders}; MediaLibraryEnabled={MediaLibraryEnabled}",
+    "Database startup policy: Environment={Environment}; AutomaticMigrations=Mandatory; RunSeedersOnStartup={RunSeeders}; MediaLibraryEnabled={MediaLibraryEnabled}",
     app.Environment.EnvironmentName,
-    applyMigrationsOnStartup,
     runSeedersOnStartup,
     mediaLibraryEnabled);
 

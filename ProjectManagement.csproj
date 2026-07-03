@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>aspnet-ProjectManagement-afb29f29-9396-45b6-b189-1a731fdf1a3a</UserSecretsId>
+    <!-- Prevent stale publish output from being included recursively in a later build. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);publish/**;artifacts/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -36,10 +38,10 @@
 
   <ItemGroup>
     <!-- Exclude the nested test project and all of its generated artifacts from the web application's SDK globs. -->
-    <Compile Remove="ProjectManagement.Tests/**" />
-    <Content Remove="ProjectManagement.Tests/**" />
-    <EmbeddedResource Remove="ProjectManagement.Tests/**" />
-    <None Remove="ProjectManagement.Tests/**" />
+    <Compile Remove="ProjectManagement.Tests/**;publish/**;artifacts/**" />
+    <Content Remove="ProjectManagement.Tests/**;publish/**;artifacts/**" />
+    <EmbeddedResource Remove="ProjectManagement.Tests/**;publish/**;artifacts/**" />
+    <None Remove="ProjectManagement.Tests/**;publish/**;artifacts/**" />
   </ItemGroup>
 
   <ItemGroup>
