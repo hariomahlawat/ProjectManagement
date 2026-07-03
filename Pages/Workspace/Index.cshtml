@@ -6,22 +6,10 @@
     ViewData["PageShell"] = "wide";
 }
 @section Styles {
-    <link rel="stylesheet" href="~/css/workspace.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/command-workspace.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/workspace.css" asp-append-version="true" />
 }
 
-@if (Model.CanSwitchWorkspace && !Model.IsCommandMode)
-{
-    <nav class="workspace-mode-switcher" aria-label="Select workspace">
-        <span class="workspace-mode-switcher__label">Workspace</span>
-        <a asp-page="/Workspace/Index" asp-route-mode="command" class="@(Model.IsCommandMode ? "is-active" : null)">
-            <i class="bi bi-building"></i><span>Comdt / HoD</span>
-        </a>
-        <a asp-page="/Workspace/Index" asp-route-mode="project-officer" class="@(!Model.IsCommandMode ? "is-active" : null)">
-            <i class="bi bi-person-workspace"></i><span>Project Officer</span>
-        </a>
-    </nav>
-}
 
 @if (Model.IsCommandMode)
 {

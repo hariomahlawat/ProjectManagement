@@ -9,21 +9,43 @@ const scriptContent = fs.readFileSync(scriptPath, 'utf8');
 
 function createWorkspaceDom() {
     const dom = new JSDOM(`<!DOCTYPE html><html><body>
+        <header class="pm-topbar"></header>
         <nav class="po-section-nav" aria-label="Workspace sections">
-            <a href="#action-queue" class="active">Actions</a>
+            <a href="#action-queue" class="active" aria-current="page">Actions</a>
             <a href="#assigned-projects">Projects</a>
             <a href="#follow-ups">Follow-ups</a>
         </nav>
-        <section id="action-queue"></section>
-        <section id="assigned-projects"></section>
-        <section id="follow-ups"></section>
+        <section id="action-queue"><div class="po-panel__head"></div></section>
+        <section id="assigned-projects"><div class="po-panel__head"></div></section>
+        <section id="follow-ups"><div class="po-panel__head"></div></section>
     </body></html>`, { url: 'https://example.test/Workspace', runScripts: 'dangerously' });
 
     const { window } = dom;
-    window.HTMLElement.prototype.scrollIntoView = function scrollIntoView() {};
-    window.IntersectionObserver = class {
-        observe() {}
+    window.matchMedia = () => ({
+        matches: false,
+        addEventListener() {},
+        removeEventListener() {}
+    });
+    window.requestAnimationFrame = callback => callback();
+    window.scrollTo = options => {
+        window.__lastScrollOptions = options;
     };
+    window.ResizeObserver = class {
+        observe() {}
+        disconnect() {}
+    };
+
+    const topbar = window.document.querySelector('.pm-topbar');
+    const nav = window.document.querySelector('.po-section-nav');
+    topbar.getBoundingClientRect = () => ({ top: 0, height: 68 });
+    nav.getBoundingClientRect = () => ({ top: 68, height: 44 });
+
+    const sections = Array.from(window.document.querySelectorAll('section'));
+    sections.forEach((section, index) => {
+        const top = 140 + (index * 420);
+        section.getBoundingClientRect = () => ({ top, height: 300 });
+        section.querySelector('.po-panel__head').getBoundingClientRect = () => ({ top, height: 50 });
+    });
 
     const scriptEl = window.document.createElement('script');
     scriptEl.textContent = scriptContent;
@@ -39,28 +61,15 @@ test('workspace section navigation keeps one active destination', () => {
     links[1].dispatchEvent(new window.Event('click', { bubbles: true, cancelable: true }));
 
     assert.equal(document.querySelector('.po-section-nav a.active'), links[1]);
-    assert.equal(links[1].getAttribute('aria-current'), 'location');
+    assert.equal(links[1].getAttribute('aria-current'), 'page');
     assert.equal(links[0].hasAttribute('aria-current'), false);
+    assert.equal(window.location.hash, '#assigned-projects');
 });
 
+test('workspace script publishes measured sticky offsets', () => {
+    const { document } = createWorkspaceDom();
+    const style = document.documentElement.style;
 
-test('workspace section navigation honours an initial section hash', () => {
-    const dom = new JSDOM(`<!DOCTYPE html><html><body>
-        <nav class="po-section-nav" aria-label="Workspace sections">
-            <a href="#action-queue" class="active">Actions</a>
-            <a href="#assigned-projects">Projects</a>
-            <a href="#follow-ups">Follow-ups</a>
-        </nav>
-        <section id="action-queue"></section>
-        <section id="assigned-projects"></section>
-        <section id="follow-ups"></section>
-    </body></html>`, { url: 'https://example.test/Workspace#assigned-projects', runScripts: 'dangerously' });
-
-    const scriptEl = dom.window.document.createElement('script');
-    scriptEl.textContent = scriptContent;
-    dom.window.document.body.appendChild(scriptEl);
-
-    const active = dom.window.document.querySelector('.po-section-nav a.active');
-    assert.equal(active?.getAttribute('href'), '#assigned-projects');
-    assert.equal(active?.getAttribute('aria-current'), 'location');
+    assert.equal(style.getPropertyValue('--po-topbar-height'), '68px');
+    assert.equal(style.getPropertyValue('--po-section-nav-height'), '44px');
 });

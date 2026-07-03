@@ -8,76 +8,59 @@ using ProjectManagement.ViewModels.Workspace;
 namespace ProjectManagement.Services.Workspace;
 
 /// <summary>
-/// Builds the compact, read-only Calendar preview used by the Project Officer workspace.
-/// It follows the same recurrence and celebration rules as the Calendar module while keeping
-/// the workspace query server-side and bounded.
+/// Loads the compact, read-only calendar preview used by the Project Officer workspace.
+/// The query follows the same recurrence and celebration rules as the main Calendar page,
+/// while keeping the workspace payload bounded to the next fourteen days.
 /// </summary>
-public static class WorkspaceUpcomingEventQuery
+internal static class WorkspaceUpcomingEventQuery
 {
-    private const int DefaultWindowDays = 14;
-    private const int DefaultMaxItems = 6;
+    private const int WindowDays = 14;
+    private const int MaximumItems = 8;
 
     public static async Task<IReadOnlyList<WorkspaceUpcomingEventVm>> LoadAsync(
         ApplicationDbContext db,
         string userId,
         DateTime utcNow,
-        CancellationToken cancellationToken,
-        int windowDays = DefaultWindowDays,
-        int maxItems = DefaultMaxItems)
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(db);
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
 
-        if (string.IsNullOrWhiteSpace(userId) || windowDays <= 0 || maxItems <= 0)
-        {
-            return Array.Empty<WorkspaceUpcomingEventVm>();
-        }
-
-        var normalizedUtcNow = utcNow.Kind switch
-        {
-            DateTimeKind.Utc => utcNow,
-            DateTimeKind.Local => utcNow.ToUniversalTime(),
-            _ => DateTime.SpecifyKind(utcNow, DateTimeKind.Utc)
-        };
-        var boundedWindowDays = Math.Min(windowDays, 60);
-        var boundedMaxItems = Math.Min(maxItems, 20);
-        var windowStart = new DateTimeOffset(normalizedUtcNow);
-        var windowEnd = windowStart.AddDays(boundedWindowDays);
+        var normalizedUtcNow = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
+        var nowUtc = new DateTimeOffset(normalizedUtcNow);
+        var localToday = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(nowUtc, IstClock.TimeZone).Date);
+        var windowStart = CelebrationHelpers.ToLocalDateTime(localToday).ToUniversalTime();
+        var windowEnd = windowStart.AddDays(WindowDays);
 
         var events = await db.Events
             .AsNoTracking()
             .Where(calendarEvent =>
                 !calendarEvent.IsDeleted &&
-                (calendarEvent.RecurrenceRule != null ||
+                ((calendarEvent.RecurrenceRule != null &&
+                  calendarEvent.StartUtc < windowEnd &&
+                  (calendarEvent.RecurrenceUntilUtc == null || calendarEvent.RecurrenceUntilUtc >= windowStart)) ||
                  (calendarEvent.StartUtc < windowEnd && calendarEvent.EndUtc > windowStart)))
             .ToListAsync(cancellationToken);
 
-        var occurrences = new List<WorkspaceUpcomingEventVm>();
+        var items = new List<WorkspaceUpcomingEventVm>();
         foreach (var calendarEvent in events)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            IEnumerable<RecurrenceExpander.Occ> expanded;
+            IEnumerable<RecurrenceExpander.Occ> occurrences;
             try
             {
-                expanded = RecurrenceExpander.Expand(calendarEvent, windowStart, windowEnd);
+                occurrences = RecurrenceExpander
+                    .Expand(calendarEvent, windowStart, windowEnd)
+                    .ToList();
             }
             catch
             {
-                expanded = Array.Empty<RecurrenceExpander.Occ>();
+                // A malformed recurrence rule must not make the workspace unavailable.
+                occurrences = Array.Empty<RecurrenceExpander.Occ>();
             }
 
-            foreach (var occurrence in expanded)
+            foreach (var occurrence in occurrences)
             {
-                if (occurrence.End <= windowStart || occurrence.Start >= windowEnd)
-                {
-                    continue;
-                }
-
-                occurrences.Add(BuildEventVm(
-                    occurrence.InstanceId,
-                    calendarEvent,
-                    occurrence.Start,
-                    occurrence.End,
-                    windowStart));
+                items.Add(BuildEvent(calendarEvent, occurrence, localToday));
             }
         }
 
@@ -94,167 +77,129 @@ public static class WorkspaceUpcomingEventQuery
                 .Where(celebration => celebration.DeletedUtc == null)
                 .ToListAsync(cancellationToken);
 
-            var localToday = DateOnly.FromDateTime(IstClock.ToIst(normalizedUtcNow));
-            foreach (var celebration in celebrations)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var occurrenceDate = CelebrationHelpers.NextOccurrenceLocal(celebration, localToday);
-                var occurrenceStart = CelebrationHelpers.ToLocalDateTime(occurrenceDate).ToUniversalTime();
-                var occurrenceEnd = CelebrationHelpers.ToLocalDateTime(occurrenceDate.AddDays(1)).ToUniversalTime();
-
-                if (occurrenceEnd <= windowStart || occurrenceStart >= windowEnd)
-                {
-                    continue;
-                }
-
-                occurrences.Add(BuildCelebrationVm(
-                    celebration,
-                    occurrenceDate,
-                    occurrenceStart,
-                    occurrenceEnd,
-                    windowStart));
-            }
+            items.AddRange(BuildCelebrations(celebrations, windowStart, windowEnd));
         }
 
-        return occurrences
+        return items
+            .Where(item =>
+                item.StartUtc < windowEnd &&
+                item.EndUtc > (item.IsAllDay ? windowStart : nowUtc))
             .OrderBy(item => item.StartUtc)
-            .ThenByDescending(item => item.IsAllDay)
+            .ThenBy(item => item.IsAllDay ? 0 : 1)
             .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
-            .Take(boundedMaxItems)
+            .Take(MaximumItems)
             .ToList();
     }
 
-    private static WorkspaceUpcomingEventVm BuildEventVm(
-        string instanceId,
+    private static WorkspaceUpcomingEventVm BuildEvent(
         Event calendarEvent,
-        DateTimeOffset startUtc,
-        DateTimeOffset endUtc,
-        DateTimeOffset windowStart)
+        RecurrenceExpander.Occ occurrence,
+        DateOnly today)
     {
-        var category = calendarEvent.Category switch
-        {
-            EventCategory.Visit => "Visit",
-            EventCategory.Insp => "Inspection",
-            EventCategory.Conference => "Conference",
-            _ => "Event"
-        };
-
-        var icon = calendarEvent.Category switch
-        {
-            EventCategory.Visit => "bi-person-badge",
-            EventCategory.Insp => "bi-clipboard-check",
-            EventCategory.Conference => "bi-people",
-            _ => "bi-calendar-event"
-        };
-
-        return BuildVm(
-            instanceId,
-            calendarEvent.Id,
-            calendarEvent.Title,
-            category,
-            calendarEvent.Location,
-            icon,
-            tone: "event",
-            startUtc,
-            endUtc,
-            calendarEvent.IsAllDay,
-            isCelebration: false,
-            windowStart);
-    }
-
-    private static WorkspaceUpcomingEventVm BuildCelebrationVm(
-        Celebration celebration,
-        DateOnly occurrenceDate,
-        DateTimeOffset startUtc,
-        DateTimeOffset endUtc,
-        DateTimeOffset windowStart)
-    {
-        var isBirthday = celebration.EventType == CelebrationType.Birthday;
-        var category = isBirthday ? "Birthday" : "Anniversary";
-
-        return BuildVm(
-            $"celebration-{celebration.Id:N}-{occurrenceDate:yyyyMMdd}",
-            celebration.Id,
-            CelebrationHelpers.DisplayName(celebration),
-            category,
-            location: null,
-            icon: isBirthday ? "bi-gift" : "bi-hearts",
-            tone: isBirthday ? "birthday" : "anniversary",
-            startUtc,
-            endUtc,
-            isAllDay: true,
-            isCelebration: true,
-            windowStart);
-    }
-
-    private static WorkspaceUpcomingEventVm BuildVm(
-        string instanceId,
-        Guid seriesId,
-        string title,
-        string categoryLabel,
-        string? location,
-        string icon,
-        string tone,
-        DateTimeOffset startUtc,
-        DateTimeOffset endUtc,
-        bool isAllDay,
-        bool isCelebration,
-        DateTimeOffset windowStart)
-    {
-        var timezone = IstClock.TimeZone;
-        var localStart = TimeZoneInfo.ConvertTime(startUtc, timezone);
-        var localEnd = TimeZoneInfo.ConvertTime(endUtc, timezone);
-        var localNow = TimeZoneInfo.ConvertTime(windowStart, timezone);
-        var localDate = DateOnly.FromDateTime(localStart.DateTime);
-        var today = DateOnly.FromDateTime(localNow.DateTime);
+        var localStart = TimeZoneInfo.ConvertTime(occurrence.Start, IstClock.TimeZone);
+        var localEnd = TimeZoneInfo.ConvertTime(occurrence.End, IstClock.TimeZone);
+        var localDate = DateOnly.FromDateTime(localStart.Date);
+        var category = GetEventCategory(calendarEvent.Category);
 
         return new WorkspaceUpcomingEventVm
         {
-            InstanceId = instanceId,
-            SeriesId = seriesId,
-            Title = title,
-            CategoryLabel = categoryLabel,
-            GroupLabel = GroupLabel(localDate, today),
-            DateLabel = localDate.ToString("ddd, dd MMM"),
-            TimeLabel = isAllDay
-                ? "All day"
-                : FormatTimeRange(localStart, localEnd),
-            Location = string.IsNullOrWhiteSpace(location) ? null : location.Trim(),
-            Icon = icon,
-            Tone = tone,
+            InstanceId = occurrence.InstanceId,
+            SeriesId = calendarEvent.Id,
+            Title = calendarEvent.Title,
+            CategoryLabel = category.Label,
+            GroupLabel = GetGroupLabel(localDate, today),
+            DateLabel = localDate.ToString("dd MMM yyyy"),
+            TimeLabel = FormatTime(calendarEvent.IsAllDay, localStart, localEnd),
+            Location = calendarEvent.Location,
+            Icon = category.Icon,
+            Tone = category.Tone,
             LocalDate = localDate,
-            StartUtc = startUtc,
-            EndUtc = endUtc,
-            IsAllDay = isAllDay,
-            IsCelebration = isCelebration,
+            StartUtc = occurrence.Start,
+            EndUtc = occurrence.End,
+            IsAllDay = calendarEvent.IsAllDay,
+            IsCelebration = false,
             OpenUrl = "/Calendar"
         };
     }
 
-    private static string GroupLabel(DateOnly date, DateOnly today)
+    private static IEnumerable<WorkspaceUpcomingEventVm> BuildCelebrations(
+        IEnumerable<Celebration> celebrations,
+        DateTimeOffset windowStart,
+        DateTimeOffset windowEnd)
     {
-        if (date == today)
-        {
-            return "Today";
-        }
+        var localWindowStart = TimeZoneInfo.ConvertTime(windowStart, IstClock.TimeZone);
+        var today = DateOnly.FromDateTime(localWindowStart.Date);
 
-        if (date == today.AddDays(1))
+        foreach (var celebration in celebrations)
         {
-            return "Tomorrow";
-        }
+            var occurrenceDate = CelebrationHelpers.NextOccurrenceLocal(celebration, today);
+            if (occurrenceDate >= today.AddDays(WindowDays))
+            {
+                continue;
+            }
 
-        var daysSinceMonday = ((int)today.DayOfWeek + 6) % 7;
-        var endOfWeek = today.AddDays(6 - daysSinceMonday);
-        return date <= endOfWeek ? "This week" : "Later";
+            var start = CelebrationHelpers.ToLocalDateTime(occurrenceDate);
+            var end = CelebrationHelpers.ToLocalDateTime(occurrenceDate.AddDays(1));
+            if (start >= windowEnd || end <= windowStart)
+            {
+                continue;
+            }
+
+            var isBirthday = celebration.EventType == CelebrationType.Birthday;
+            var categoryLabel = isBirthday ? "Birthday" : "Anniversary";
+            var displayName = CelebrationHelpers.DisplayName(celebration);
+
+            yield return new WorkspaceUpcomingEventVm
+            {
+                InstanceId = $"celebration-{celebration.Id:N}-{occurrenceDate:yyyyMMdd}",
+                SeriesId = celebration.Id,
+                Title = $"{categoryLabel}: {displayName}",
+                CategoryLabel = categoryLabel,
+                GroupLabel = GetGroupLabel(occurrenceDate, today),
+                DateLabel = occurrenceDate.ToString("dd MMM yyyy"),
+                TimeLabel = "All day",
+                Icon = isBirthday ? "bi-cake2" : "bi-heart",
+                Tone = "celebration",
+                LocalDate = occurrenceDate,
+                StartUtc = start.ToUniversalTime(),
+                EndUtc = end.ToUniversalTime(),
+                IsAllDay = true,
+                IsCelebration = true,
+                OpenUrl = "/Calendar"
+            };
+        }
     }
 
-    private static string FormatTimeRange(DateTimeOffset start, DateTimeOffset end)
-    {
-        if (start.Date == end.Date)
+    private static (string Label, string Icon, string Tone) GetEventCategory(EventCategory category)
+        => category switch
         {
-            return $"{start:HH:mm}–{end:HH:mm}";
+            EventCategory.Visit => ("Visit", "bi-person-badge", "visit"),
+            EventCategory.Insp => ("Inspection", "bi-clipboard2-check", "inspection"),
+            EventCategory.Conference => ("Conference", "bi-people", "conference"),
+            _ => ("Event", "bi-calendar-event", "event")
+        };
+
+    private static string GetGroupLabel(DateOnly date, DateOnly today)
+    {
+        var daysAway = date.DayNumber - today.DayNumber;
+        return daysAway switch
+        {
+            <= 0 => "Today",
+            1 => "Tomorrow",
+            <= 7 => "Next 7 days",
+            _ => "Later"
+        };
+    }
+
+    private static string FormatTime(bool isAllDay, DateTimeOffset localStart, DateTimeOffset localEnd)
+    {
+        if (isAllDay)
+        {
+            return "All day";
         }
 
-        return $"{start:dd MMM HH:mm}–{end:dd MMM HH:mm}";
+        return localStart.Date == localEnd.Date
+            ? $"{localStart:HH:mm}–{localEnd:HH:mm}"
+            : $"{localStart:dd MMM HH:mm}–{localEnd:dd MMM HH:mm}";
     }
 }

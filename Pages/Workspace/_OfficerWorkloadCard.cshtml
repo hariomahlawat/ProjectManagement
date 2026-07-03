@@ -2,19 +2,18 @@
 @model OfficerWorkloadCardRenderVm
 @{
     var officer = Model.Officer;
-    var identitySeed = string.IsNullOrWhiteSpace(officer.UserId)
+    var accentKey = string.IsNullOrWhiteSpace(officer.UserId)
         ? officer.OfficerName
         : officer.UserId;
-    var accentSeed = identitySeed.Aggregate(0, (total, character) => total + character);
-    var accentIndex = Math.Abs(accentSeed) % 6;
+    var accentSeed = accentKey.Aggregate(0L, (total, character) => total + character);
+    var accentIndex = (int)(Math.Abs(accentSeed) % 6);
     var displayName = string.IsNullOrWhiteSpace(officer.Rank)
         ? officer.OfficerName
         : $"{officer.Rank} {officer.OfficerName}";
-    var avatarLetter = string.IsNullOrWhiteSpace(officer.OfficerName)
+    var initial = string.IsNullOrWhiteSpace(officer.OfficerName)
         ? "P"
-        : officer.OfficerName.Trim()[0].ToString().ToUpperInvariant();
+        : officer.OfficerName[0].ToString().ToUpperInvariant();
 }
-
 <article class="cw-officer-card cw-officer-card--accent-@accentIndex" data-officer-id="@officer.UserId">
     <header class="cw-officer-card__header">
         @if (Model.CanReorder)
@@ -23,7 +22,7 @@
                     class="cw-drag-handle"
                     aria-label="Rearrange @displayName"
                     title="Drag to rearrange">
-                <i class="bi bi-grip-vertical"></i>
+                <i class="bi bi-grip-vertical" aria-hidden="true"></i>
             </button>
         }
         else
@@ -32,8 +31,7 @@
                 <i class="bi bi-grip-vertical"></i>
             </span>
         }
-
-        <span class="cw-avatar">@avatarLetter</span>
+        <span class="cw-avatar">@initial</span>
         <div class="cw-officer-identity">
             <h3>@displayName</h3>
             <p>
@@ -43,13 +41,9 @@
             </p>
         </div>
     </header>
-
     <div class="cw-work-sections">
         <section class="cw-work-section cw-work-section--projects">
-            <div class="cw-work-section__heading">
-                <span><i class="bi bi-kanban"></i>Projects</span>
-                <b>@officer.ProjectCount</b>
-            </div>
+            <div class="cw-work-section__heading"><span><i class="bi bi-kanban" aria-hidden="true"></i>Projects</span><b>@officer.ProjectCount</b></div>
             @if (officer.Projects.Count == 0)
             {
                 <p class="cw-none">No assigned projects</p>
@@ -59,20 +53,13 @@
                 <ul>
                     @foreach (var project in officer.Projects)
                     {
-                        <li>
-                            <a href="@project.OpenUrl" title="@project.Name">@project.Name</a>
-                            <span>@project.StageCode · @project.StageName</span>
-                        </li>
+                        <li><a href="@project.OpenUrl" title="@project.Name">@project.Name</a><span>@project.StageCode · @project.StageName</span></li>
                     }
                 </ul>
             }
         </section>
-
         <section class="cw-work-section cw-work-section--ideas">
-            <div class="cw-work-section__heading">
-                <span><i class="bi bi-lightbulb"></i>Ideas</span>
-                <b>@officer.IdeaCount</b>
-            </div>
+            <div class="cw-work-section__heading"><span><i class="bi bi-lightbulb" aria-hidden="true"></i>Ideas</span><b>@officer.IdeaCount</b></div>
             @if (officer.Ideas.Count == 0)
             {
                 <p class="cw-none">No assigned ideas</p>
@@ -82,20 +69,13 @@
                 <ul>
                     @foreach (var idea in officer.Ideas)
                     {
-                        <li>
-                            <a href="@idea.OpenUrl" title="@idea.Title">@idea.Title</a>
-                            <span>@idea.Status</span>
-                        </li>
+                        <li><a href="@idea.OpenUrl" title="@idea.Title">@idea.Title</a><span>@idea.Status</span></li>
                     }
                 </ul>
             }
         </section>
-
         <section class="cw-work-section cw-work-section--tasks">
-            <div class="cw-work-section__heading">
-                <span><i class="bi bi-list-check"></i>Other tasks</span>
-                <b>@officer.OtherTaskCount</b>
-            </div>
+            <div class="cw-work-section__heading"><span><i class="bi bi-list-check" aria-hidden="true"></i>Other tasks</span><b>@officer.OtherTaskCount</b></div>
             @if (officer.OtherTasks.Count == 0)
             {
                 <p class="cw-none">No other assigned tasks</p>
@@ -105,10 +85,7 @@
                 <ul>
                     @foreach (var task in officer.OtherTasks)
                     {
-                        <li>
-                            <a href="@task.OpenUrl" title="@task.Title">@task.Title</a>
-                            <span>@task.Status · Due @task.DueDate.ToString("dd MMM")</span>
-                        </li>
+                        <li><a href="@task.OpenUrl" title="@task.Title">@task.Title</a><span>@task.Status · Due @task.DueDate.ToString("dd MMM")</span></li>
                     }
                 </ul>
             }

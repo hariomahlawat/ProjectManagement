@@ -14,16 +14,31 @@ public sealed class WorkspaceDisplayHelpersTests
     }
 
     [Fact]
-    public void TimelineStatusLabel_ShowsMissingPdcBeforeGenericIssue()
+    public void TimelineStatusLabel_ShowsMissingPdcBeforeHistoricalGaps()
     {
         var row = new WorkspaceProjectMatrixRowVm
         {
+            HasBackfill = true,
             HasCurrentStageIssue = true,
             IsCurrentStagePdcMissing = true
         };
 
-        Assert.Equal("PDC not set", WorkspaceDisplayHelpers.TimelineStatusLabel(row));
-        Assert.Equal("Complete the current-stage timeline", WorkspaceDisplayHelpers.TimelineStatusDetail(row));
+        Assert.Equal("Current-stage PDC missing", WorkspaceDisplayHelpers.TimelineStatusLabel(row));
+        Assert.Equal("Set the PDC for the current stage", WorkspaceDisplayHelpers.TimelineStatusDetail(row));
+        Assert.Equal("Update dates", WorkspaceDisplayHelpers.TimelineActionLabel(row));
+    }
+
+    [Fact]
+    public void TimelineStatusLabel_DistinguishesHistoricalDateGaps()
+    {
+        var row = new WorkspaceProjectMatrixRowVm
+        {
+            HasBackfill = true
+        };
+
+        Assert.Equal("Historical dates incomplete", WorkspaceDisplayHelpers.TimelineStatusLabel(row));
+        Assert.Equal("Complete missing historical stage dates", WorkspaceDisplayHelpers.TimelineStatusDetail(row));
+        Assert.Equal("Complete timeline", WorkspaceDisplayHelpers.TimelineActionLabel(row));
     }
 
     [Fact]
@@ -38,6 +53,7 @@ public sealed class WorkspaceDisplayHelpersTests
 
         Assert.Equal("Overdue by 2 days", WorkspaceDisplayHelpers.TimelineStatusLabel(row));
         Assert.Equal("PDC 01 Jul 2026", WorkspaceDisplayHelpers.TimelineStatusDetail(row));
+        Assert.Equal("Review timeline", WorkspaceDisplayHelpers.TimelineActionLabel(row));
     }
 
     [Fact]
