@@ -169,6 +169,8 @@ public sealed class WorkspaceActionQueueItemVm
 
     public string Meta { get; set; } = string.Empty;
 
+    public string PriorityReason { get; set; } = string.Empty;
+
     public string Severity { get; set; } = "Info";
 
     public string ActionText { get; set; } = string.Empty;
@@ -208,6 +210,18 @@ public sealed class WorkspaceProjectMatrixRowVm
     public string CurrentStageName { get; set; } = string.Empty;
 
     public int? DaysInCurrentStage { get; set; }
+
+    public DateOnly? CurrentStagePdc { get; set; }
+
+    public int? DaysUntilCurrentStagePdc { get; set; }
+
+    public int? DaysSinceLastPoRemark { get; set; }
+
+    public bool IsCurrentStageStartMissing { get; set; }
+
+    public bool IsCurrentStagePdcMissing { get; set; }
+
+    public bool IsCurrentStageNotStarted { get; set; }
 
     public string UpdateStatus { get; set; } = "Ok";
 
@@ -465,37 +479,114 @@ public static class WorkspaceDisplayHelpers
         _ => status
     };
 
-    // SECTION: Compact status labels keep dense table cells readable.
-    public static string CompactStatusLabel(string status) => status switch
+    // SECTION: Project update labels separate the current state from the supporting age detail.
+    public static string ProjectUpdateStatusLabel(WorkspaceProjectMatrixRowVm row)
     {
-        "ActionRequired" => "Update overdue",
-        "NotApplicable" => "N/A",
-        "Ok" => "OK",
-        "Attention" => "Attention",
-        _ => status
-    };
+        if (!row.LastPoRemarkAtUtc.HasValue)
+        {
+            return "No update recorded";
+        }
 
+        return row.UpdateStatus switch
+        {
+            "ActionRequired" => "Update overdue",
+            "Attention" => "Update due",
+            "Ok" => "Current",
+            _ => StatusLabel(row.UpdateStatus)
+        };
+    }
 
+    public static string ProjectUpdateStatusDetail(WorkspaceProjectMatrixRowVm row)
+    {
+        if (!row.DaysSinceLastPoRemark.HasValue)
+        {
+            return "Add the first project update";
+        }
 
-    // SECTION: Timeline matrix labels separate data gaps from overdue performance states.
+        return row.DaysSinceLastPoRemark.Value switch
+        {
+            0 => "Updated today",
+            1 => "Updated yesterday",
+            var days => $"{days} days since update"
+        };
+    }
+
+    public static string CurrentStageDurationLabel(WorkspaceProjectMatrixRowVm row)
+    {
+        if (row.IsCurrentStageNotStarted)
+        {
+            return "Not started";
+        }
+
+        if (!row.DaysInCurrentStage.HasValue)
+        {
+            return "Start date not recorded";
+        }
+
+        return row.DaysInCurrentStage.Value == 1
+            ? "1 day in stage"
+            : $"{row.DaysInCurrentStage.Value} days in stage";
+    }
+
+    // SECTION: Timeline labels distinguish overdue performance, missing dates, and healthy PDC states.
     public static string TimelineStatusLabel(WorkspaceProjectMatrixRowVm row)
     {
         if (row.HasBackfill)
         {
-            return "Current-stage dates missing";
+            return "Stage dates incomplete";
+        }
+
+        if (row.IsCurrentStageNotStarted)
+        {
+            return "Stage not started";
+        }
+
+        if (row.IsCurrentStagePdcMissing)
+        {
+            return "PDC not set";
         }
 
         if (row.HasOverdueCurrentStage)
         {
-            return "Overdue";
+            var overdueDays = Math.Abs(row.DaysUntilCurrentStagePdc ?? 0);
+            return overdueDays == 1 ? "Overdue by 1 day" : $"Overdue by {overdueDays} days";
         }
 
-        if (row.HasCurrentStageIssue)
+        if (row.IsCurrentStageStartMissing)
         {
-            return "Update";
+            return "Start date missing";
         }
 
-        return "OK";
+        if (row.DaysUntilCurrentStagePdc is 0)
+        {
+            return "Due today";
+        }
+
+        if (row.DaysUntilCurrentStagePdc is > 0 and <= 7)
+        {
+            return row.DaysUntilCurrentStagePdc == 1
+                ? "Due in 1 day"
+                : $"Due in {row.DaysUntilCurrentStagePdc} days";
+        }
+
+        return "On track";
+    }
+
+    public static string TimelineStatusDetail(WorkspaceProjectMatrixRowVm row)
+    {
+        if (row.CurrentStagePdc.HasValue)
+        {
+            return $"PDC {row.CurrentStagePdc.Value:dd MMM yyyy}";
+        }
+
+        if (row.IsCurrentStageNotStarted)
+        {
+            return "Timeline not yet active";
+        }
+
+        return row.HasBackfill
+            ? "Complete missing historical stage dates"
+            : "Complete the current-stage timeline";
     }
 
     public static string TimelineStatusCss(WorkspaceProjectMatrixRowVm row)
@@ -508,6 +599,11 @@ public static class WorkspaceDisplayHelpers
         if (row.HasBackfill || row.HasCurrentStageIssue)
         {
             return "warning";
+        }
+
+        if (row.IsCurrentStageNotStarted)
+        {
+            return "neutral";
         }
 
         return "good";

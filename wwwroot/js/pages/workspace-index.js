@@ -8,12 +8,13 @@
         .filter(entry => entry.section);
 
     let manualActiveUntil = 0;
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 
     const setActive = activeLink => {
         for (const { link } of entries) {
             const active = link === activeLink;
             link.classList.toggle('active', active);
-            if (active) link.setAttribute('aria-current', 'page');
+            if (active) link.setAttribute('aria-current', 'location');
             else link.removeAttribute('aria-current');
         }
     };
@@ -58,7 +59,7 @@
             event.preventDefault();
             const top = window.scrollY + section.getBoundingClientRect().top - stickyOffset();
             manualActiveUntil = performance.now() + 900;
-            window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+            window.scrollTo({ top: Math.max(0, top), behavior: prefersReducedMotion ? 'auto' : 'smooth' });
             history.replaceState(null, '', link.getAttribute('href'));
             setActive(link);
         });
@@ -76,5 +77,11 @@
 
     window.addEventListener('scroll', requestActivation, { passive: true });
     window.addEventListener('resize', requestActivation);
-    activateFromScroll();
+
+    const initialHashEntry = entries.find(({ link }) => link.getAttribute('href') === window.location.hash);
+    if (initialHashEntry) {
+        setActive(initialHashEntry.link);
+    } else {
+        activateFromScroll();
+    }
 })();

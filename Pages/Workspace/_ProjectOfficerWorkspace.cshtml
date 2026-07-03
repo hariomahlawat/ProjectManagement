@@ -17,7 +17,7 @@
     var overdueProjectCount = Model.Workspace.ProjectMatrix.Count(row =>
         WorkspaceDisplayHelpers.TimelineStatusCss(row) == "danger");
     var incompleteTimelineCount = Model.Workspace.ProjectMatrix.Count(row =>
-        WorkspaceDisplayHelpers.TimelineStatusLabel(row).Contains("missing", StringComparison.OrdinalIgnoreCase));
+        row.HasBackfill || row.HasCurrentStageIssue);
     var reviewDocumentCount = Model.Workspace.ActionQueue.Count(item =>
         item.Type.Equals("Aots", StringComparison.OrdinalIgnoreCase));
     var operationalSummaryParts = new List<string>();
@@ -45,15 +45,14 @@
                 <div>
                     <div class="po-eyebrow">Project Officer Workspace</div>
                     <h1>@dailyActionTitle</h1>
-                    <p>Review priority work, maintain records and keep assigned projects moving.</p>
                     <div class="po-operational-summary"><i class="bi bi-activity"></i><span>@operationalSummary</span></div>
                 </div>
             </div>
 
             <div class="po-command__actions">
-                <span class="po-date" title="Workspace data refresh time"><i class="bi bi-arrow-clockwise"></i>Refreshed @Model.Workspace.GeneratedAtUtc.ToLocalTime().ToString("HH:mm")</span>
-                <a class="po-btn po-btn--secondary" href="@WorkspaceRouteHelper.ActionTasksMyWork()"><i class="bi bi-list-check"></i><span>View assigned work</span></a>
-                <a class="po-btn po-btn--primary" href="@Model.Workspace.MyProjectsUrl"><i class="bi bi-kanban"></i><span>Open my projects</span></a>
+                <span class="po-date" title="Workspace data refresh time"><i class="bi bi-arrow-clockwise"></i>Updated @Model.Workspace.GeneratedAtUtc.ToLocalTime().ToString("HH:mm")</span>
+                <a class="po-btn po-btn--secondary" href="@WorkspaceRouteHelper.ActionTasksMyWork()"><i class="bi bi-list-check"></i><span>Assigned tasks</span></a>
+                <a class="po-btn po-btn--primary" href="@Model.Workspace.MyProjectsUrl"><i class="bi bi-kanban"></i><span>My projects</span></a>
             </div>
         </div>
 
@@ -123,6 +122,11 @@
                                 <div class="po-action__content">
                                     <a href="@item.ActionUrl" class="po-action__title" title="@item.Title">@item.Title</a>
                                     <div class="po-action__meta">
+                                        @if (isRecommended && !string.IsNullOrWhiteSpace(item.PriorityReason))
+                                        {
+                                            <span class="po-action__priority-reason"><i class="bi bi-stars" aria-hidden="true"></i>@item.PriorityReason</span>
+                                            <span class="po-action__separator" aria-hidden="true"></span>
+                                        }
                                         <span>@item.Detail</span>
                                         @if (!string.IsNullOrWhiteSpace(item.Meta))
                                         {
@@ -151,7 +155,7 @@
                     <div>
                         <span class="po-panel__kicker">Portfolio control</span>
                         <h2>Assigned Projects</h2>
-                        <p>Projects requiring intervention are shown first.</p>
+                        <p>Projects requiring attention are shown first.</p>
                     </div>
                     <div class="po-head-actions">
                         @if (Model.Workspace.AssignedProjectCount > visibleProjectCount)
@@ -170,20 +174,28 @@
                 {
                     <div class="po-table-wrap">
                         <table class="po-project-table">
+                            <colgroup>
+                                <col class="po-project-col--project" />
+                                <col class="po-project-col--stage" />
+                                <col class="po-project-col--update" />
+                                <col class="po-project-col--timeline" />
+                                <col class="po-project-col--record" />
+                                <col class="po-project-col--action" />
+                            </colgroup>
                             <thead>
                                 <tr>
                                     <th>Project</th>
-                                    <th>Stage</th>
-                                    <th>Update</th>
+                                    <th>Current stage</th>
+                                    <th>Latest update</th>
                                     <th>Timeline</th>
                                     <th>
-                                        <span class="po-th-with-help">Record completeness
+                                        <span class="po-th-with-help">Record
                                             <button type="button" class="po-help-button" data-bs-toggle="modal" data-bs-target="#recordCompletenessHelp" aria-label="How record completeness is calculated">
                                                 <i class="bi bi-info-circle"></i>
                                             </button>
                                         </span>
                                     </th>
-                                    <th><span class="visually-hidden">Next action</span></th>
+                                    <th>Next action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -194,30 +206,45 @@
                                     var rowWarning = !rowCritical && (timelineCss == "warning" || row.RecordHealthPercent < 50);
                                     var rowClass = rowCritical ? "po-project-row--critical" : rowWarning ? "po-project-row--warning" : "po-project-row--normal";
                                     <tr class="@rowClass">
-                                        <td>
+                                        <td data-label="Project">
                                             <div class="po-project-cell">
                                                 <span class="po-project-indicator" aria-hidden="true"></span>
                                                 <div>
                                                     <a class="po-project-name" href="@row.OpenUrl" title="@row.ProjectName">@row.ProjectName</a>
-                                                    <small>@row.RecordGapCount record gap@(row.RecordGapCount == 1 ? "" : "s")</small>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td><div class="po-stage"><strong>@row.CurrentStageCode</strong>@if (row.DaysInCurrentStage.HasValue){<span>@row.DaysInCurrentStage.Value days</span>}</div></td>
-                                        <td><span class="po-status po-status--@row.UpdateStatus.ToLowerInvariant()"><i></i>@WorkspaceDisplayHelpers.CompactStatusLabel(row.UpdateStatus)</span></td>
-                                        <td><span class="po-status po-status--@timelineCss"><i></i>@WorkspaceDisplayHelpers.TimelineStatusLabel(row)</span></td>
-                                        <td>
+                                        <td data-label="Current stage">
+                                            <div class="po-stage" title="@row.CurrentStageName">
+                                                <strong>@row.CurrentStageCode</strong>
+                                                <span>@WorkspaceDisplayHelpers.CurrentStageDurationLabel(row)</span>
+                                            </div>
+                                        </td>
+                                        <td data-label="Latest update">
+                                            <span class="po-status po-status--stacked po-status--@row.UpdateStatus.ToLowerInvariant()">
+                                                <i aria-hidden="true"></i>
+                                                <span><strong>@WorkspaceDisplayHelpers.ProjectUpdateStatusLabel(row)</strong><small>@WorkspaceDisplayHelpers.ProjectUpdateStatusDetail(row)</small></span>
+                                            </span>
+                                        </td>
+                                        <td data-label="Timeline">
+                                            <span class="po-status po-status--stacked po-status--@timelineCss">
+                                                <i aria-hidden="true"></i>
+                                                <span><strong>@WorkspaceDisplayHelpers.TimelineStatusLabel(row)</strong><small>@WorkspaceDisplayHelpers.TimelineStatusDetail(row)</small></span>
+                                            </span>
+                                        </td>
+                                        <td data-label="Record">
                                             <button type="button"
                                                     class="po-record po-record--@WorkspaceDisplayHelpers.HealthCss(row.RecordHealthPercent)"
                                                     data-bs-toggle="modal"
                                                     data-bs-target="#recordHealth-@row.ProjectId"
-                                                    title="View exact record gaps for @row.ProjectName">
-                                                <span class="po-record__top"><strong>@row.RecordHealthPercent% record completeness</strong><small>@row.RecordGapCount record gap@(row.RecordGapCount == 1 ? "" : "s")</small></span>
-                                                <span class="po-record__bar"><i style="width:@row.RecordHealthPercent%"></i></span>
+                                                    title="View exact record gaps for @row.ProjectName"
+                                                    aria-label="@row.ProjectName: @row.RecordHealthPercent percent record complete with @row.RecordGapCount gaps">
+                                                <span class="po-record__top"><strong>@row.RecordHealthPercent% complete</strong><small>@row.RecordGapCount gap@(row.RecordGapCount == 1 ? "" : "s")</small></span>
+                                                <span class="po-record__bar" role="progressbar" aria-label="Record completeness" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@row.RecordHealthPercent"><i style="width:@row.RecordHealthPercent%"></i></span>
                                                 <span class="po-record__view">View breakdown</span>
                                             </button>
                                         </td>
-                                        <td><a class="po-row-action" href="@row.NextActionUrl"><span>@WorkspaceDisplayHelpers.CompactActionLabel(row.NextActionText)</span><i class="bi bi-arrow-right"></i></a></td>
+                                        <td data-label="Next action"><a class="po-row-action" href="@row.NextActionUrl"><span>@WorkspaceDisplayHelpers.CompactActionLabel(row.NextActionText)</span><i class="bi bi-arrow-right"></i></a></td>
                                     </tr>
                                 }
                             </tbody>
@@ -236,72 +263,82 @@
                     <a class="po-link" href="/Notebook?view=today">Open notebook<i class="bi bi-arrow-right"></i></a>
                 </div>
 
-                <div class="po-follow-grid">
-                    <div class="po-follow-column">
-                        <div class="po-follow-column__head">
-                            <span><i class="bi bi-bell"></i><strong>Reminders</strong></span>
-                            <b>@Model.Workspace.PersonalReminders.Count</b>
-                        </div>
-                        @if (!Model.Workspace.PersonalReminders.Any())
-                        {
-                            <div class="po-follow-empty"><i class="bi bi-check2"></i>No reminders due.</div>
-                        }
-                        else
-                        {
-                            <div class="po-follow-list">
-                                @foreach (var reminder in Model.Workspace.PersonalReminders.Take(4))
-                                {
-                                    var reminderClass = string.Empty;
-                                    if (reminder.DueAtUtc.HasValue)
+                @if (!Model.Workspace.PersonalReminders.Any() && !Model.Workspace.Ideas.Any())
+                {
+                    <div class="po-follow-clear">
+                        <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                        <div><strong>No follow-ups require attention</strong><span>You have no due reminders or active assigned ideas.</span></div>
+                    </div>
+                }
+                else
+                {
+                    <div class="po-follow-grid">
+                        <div class="po-follow-column">
+                            <div class="po-follow-column__head">
+                                <span><i class="bi bi-bell"></i><strong>Reminders</strong></span>
+                                <b>@Model.Workspace.PersonalReminders.Count</b>
+                            </div>
+                            @if (!Model.Workspace.PersonalReminders.Any())
+                            {
+                                <div class="po-follow-empty"><i class="bi bi-check2"></i>No reminders due.</div>
+                            }
+                            else
+                            {
+                                <div class="po-follow-list">
+                                    @foreach (var reminder in Model.Workspace.PersonalReminders.Take(4))
                                     {
-                                        if (reminder.DueAtUtc.Value < DateTimeOffset.UtcNow)
+                                        var reminderClass = string.Empty;
+                                        if (reminder.DueAtUtc.HasValue)
                                         {
-                                            reminderClass = "po-follow-item--overdue";
+                                            if (reminder.DueAtUtc.Value < DateTimeOffset.UtcNow)
+                                            {
+                                                reminderClass = "po-follow-item--overdue";
+                                            }
+                                            else if (reminder.DueAtUtc.Value <= DateTimeOffset.UtcNow.AddDays(7))
+                                            {
+                                                reminderClass = "po-follow-item--due-soon";
+                                            }
                                         }
-                                        else if (reminder.DueAtUtc.Value <= DateTimeOffset.UtcNow.AddDays(7))
-                                        {
-                                            reminderClass = "po-follow-item--due-soon";
-                                        }
-                                    }
-                                    <a href="@reminder.OpenUrl" class="@reminderClass">
-                                        <span><strong>@reminder.Title</strong><small>@reminder.Priority · @WorkspaceDisplayHelpers.FormatReminderDate(reminder.DueAtUtc)</small></span>
-                                        <i class="bi bi-chevron-right"></i>
-                                    </a>
-                                }
-                            </div>
-                        }
-                    </div>
-
-                    <div class="po-follow-column">
-                        <div class="po-follow-column__head">
-                            <span><i class="bi bi-lightbulb"></i><strong>Project ideas</strong></span>
-                            <a href="/ProjectIdeas?MyIdeas=true">View all</a>
-                        </div>
-                        @if (!Model.Workspace.Ideas.Any())
-                        {
-                            <div class="po-follow-empty"><i class="bi bi-check2"></i>No active ideas.</div>
-                        }
-                        else
-                        {
-                            <div class="po-follow-list">
-                                @foreach (var idea in Model.Workspace.Ideas.Take(4))
-                                {
-                                    <a href="@idea.OpenUrl">
-                                        <span><strong>@idea.Title</strong><small>@idea.Status · @idea.CommentCount comments · @idea.DocumentCount docs</small></span>
-                                        @if (idea.NeedsUpdate)
-                                        {
-                                            <em>Update</em>
-                                        }
-                                        else
-                                        {
+                                        <a href="@reminder.OpenUrl" class="@reminderClass">
+                                            <span><strong>@reminder.Title</strong><small>@reminder.Priority · @WorkspaceDisplayHelpers.FormatReminderDate(reminder.DueAtUtc)</small></span>
                                             <i class="bi bi-chevron-right"></i>
-                                        }
-                                    </a>
-                                }
+                                        </a>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <div class="po-follow-column">
+                            <div class="po-follow-column__head">
+                                <span><i class="bi bi-lightbulb"></i><strong>Project ideas</strong></span>
+                                <a href="/ProjectIdeas?MyIdeas=true">View all</a>
                             </div>
-                        }
+                            @if (!Model.Workspace.Ideas.Any())
+                            {
+                                <div class="po-follow-empty"><i class="bi bi-check2"></i>No active ideas.</div>
+                            }
+                            else
+                            {
+                                <div class="po-follow-list">
+                                    @foreach (var idea in Model.Workspace.Ideas.Take(4))
+                                    {
+                                        <a href="@idea.OpenUrl">
+                                            <span><strong>@idea.Title</strong><small>@idea.Status · @idea.CommentCount comments · @idea.DocumentCount docs</small></span>
+                                            @if (idea.NeedsUpdate)
+                                            {
+                                                <em>Update</em>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-chevron-right"></i>
+                                            }
+                                        </a>
+                                    }
+                                </div>
+                            }
+                        </div>
                     </div>
-                </div>
+                }
             </section>
         </main>
 
@@ -340,9 +377,8 @@
                 @if (!Model.Workspace.UpcomingEvents.Any())
                 {
                     <div class="po-upcoming__empty">
-                        <i class="bi bi-calendar2-check"></i>
-                        <strong>No upcoming entries</strong>
-                        <span>Your next 14 days are clear.</span>
+                        <i class="bi bi-calendar2-check" aria-hidden="true"></i>
+                        <div><strong>No events in the next 14 days</strong><span>Your calendar is clear.</span></div>
                     </div>
                 }
                 else

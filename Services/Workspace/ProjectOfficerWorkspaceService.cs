@@ -6,6 +6,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.DocRepo;
@@ -429,8 +430,14 @@ public sealed class ProjectOfficerWorkspaceService
 
         var orderedItems = items
             .OrderBy(GetActionQueuePriority)
-            .ThenByDescending(i => i.SortDateUtc)
+            .ThenBy(GetActionQueueDateRank)
+            .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        foreach (var item in orderedItems)
+        {
+            item.PriorityReason = GetActionQueuePriorityReason(item);
+        }
 
         var totalCount =
             returnedItems.Count
@@ -481,6 +488,36 @@ public sealed class ProjectOfficerWorkspaceService
             "AOTS" => 4,
             "Task" => 5,
             _ => 9
+        };
+    }
+
+    // SECTION: Within each priority group, stale/due work is oldest-first while new returns and AOTS are newest-first.
+    private static long GetActionQueueDateRank(WorkspaceActionQueueItemVm item)
+    {
+        var newestFirst = item.Type is "Returned" or "AOTS";
+
+        if (!item.SortDateUtc.HasValue)
+        {
+            return newestFirst ? long.MaxValue : long.MinValue;
+        }
+
+        return newestFirst
+            ? -item.SortDateUtc.Value.Ticks
+            : item.SortDateUtc.Value.Ticks;
+    }
+
+    private static string GetActionQueuePriorityReason(WorkspaceActionQueueItemVm item)
+    {
+        return item.Type switch
+        {
+            "Returned" => "Returned for correction",
+            "Task" when item.Severity == "Danger" => "Overdue assigned task",
+            "Remark" when !item.SortDateUtc.HasValue => "No project update recorded",
+            "Remark" => "Oldest overdue project update",
+            "Idea" => "Longest-inactive assigned idea",
+            "AOTS" => "Latest unread AOTS document",
+            "Task" => "Assigned task due soon",
+            _ => "Highest-priority pending action"
         };
     }
 
@@ -610,13 +647,27 @@ public sealed class ProjectOfficerWorkspaceService
         var overdue = _nudges.IsCurrentStageOverdue(stage, today);
         var issue = _nudges.HasCurrentStageTimelineIssue(stage);
 
+        var currentStagePdc = stage?.PlannedDue;
+        var daysUntilCurrentStagePdc = currentStagePdc.HasValue
+            ? currentStagePdc.Value.DayNumber - today.DayNumber
+            : (int?)null;
+        var daysSinceLastPoRemark = last.HasValue
+            ? Math.Max(0, today.DayNumber - WorkspaceNudgeService.ToIstDate(last.Value).DayNumber)
+            : (int?)null;
+
         return new WorkspaceProjectMatrixRowVm
         {
             ProjectId = p.Id,
             ProjectName = p.Name,
             CurrentStageCode = stage?.StageCode ?? "—",
-            CurrentStageName = stage?.StageCode ?? "Not started",
+            CurrentStageName = stage is null ? "Not started" : StageCodes.DisplayNameOf(stage.StageCode),
             DaysInCurrentStage = WorkspaceNudgeService.GetCurrentStageAgeDays(p, today),
+            CurrentStagePdc = currentStagePdc,
+            DaysUntilCurrentStagePdc = daysUntilCurrentStagePdc,
+            DaysSinceLastPoRemark = daysSinceLastPoRemark,
+            IsCurrentStageStartMissing = stage?.Status == StageStatus.InProgress && !stage.ActualStart.HasValue,
+            IsCurrentStagePdcMissing = stage?.Status == StageStatus.InProgress && !stage.PlannedDue.HasValue,
+            IsCurrentStageNotStarted = stage?.Status == StageStatus.NotStarted,
             UpdateStatus = _nudges.GetUpdateStatus(last, today),
             TimelineStatus = p.ProjectStages.Any(s => s.Status == StageStatus.Completed && !s.CompletedOn.HasValue) || overdue
                 ? "ActionRequired"
