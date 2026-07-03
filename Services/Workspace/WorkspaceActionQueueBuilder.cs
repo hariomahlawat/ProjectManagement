@@ -4,6 +4,7 @@ namespace ProjectManagement.Services.Workspace;
 
 internal sealed record WorkspaceActionQueueBuildResult(
     IReadOnlyList<WorkspaceActionQueueItemVm> Items,
+    IReadOnlyList<WorkspaceActionQueueGroupVm> Groups,
     int TotalCount);
 
 /// <summary>
@@ -41,9 +42,11 @@ internal static class WorkspaceActionQueueBuilder
         ArgumentNullException.ThrowIfNull(projectRows);
 
         var items = new List<WorkspaceActionQueueItemVm>();
+        var projectIdsByName = BuildUniqueProjectNameIndex(projectRows);
 
         items.AddRange(returnedItems.Select(item => new WorkspaceActionQueueItemVm
         {
+            ProjectId = ResolveProjectId(item.Title, projectIdsByName),
             Type = "Returned",
             BadgeText = item.BadgeText,
             Title = item.Title,
@@ -83,6 +86,7 @@ internal static class WorkspaceActionQueueBuilder
             var detail = NormalizeProjectOfficerUpdateDetail(item.Detail);
             return new WorkspaceActionQueueItemVm
             {
+                ProjectId = ResolveProjectId(item.Title, projectIdsByName),
                 Type = "Remark",
                 BadgeText = "Remark",
                 Title = item.Title,
@@ -138,8 +142,11 @@ internal static class WorkspaceActionQueueBuilder
         var additionalUnreadAots = Math.Max(0, aotsUnreadTotalCount - aotsDocuments.Count);
         var totalCount = orderedItems.Count + additionalUnreadAots;
 
+        var visibleItems = orderedItems.Take(MaximumVisibleItems).ToList();
+
         return new WorkspaceActionQueueBuildResult(
-            orderedItems.Take(MaximumVisibleItems).ToList(),
+            visibleItems,
+            BuildGroups(visibleItems),
             totalCount);
     }
 
@@ -154,6 +161,7 @@ internal static class WorkspaceActionQueueBuilder
 
         return new WorkspaceActionQueueItemVm
         {
+            ProjectId = row.ProjectId,
             Type = "Timeline",
             BadgeText = row.HasOverdueCurrentStage ? "Overdue" : "Timeline",
             Title = row.ProjectName,
@@ -170,6 +178,90 @@ internal static class WorkspaceActionQueueBuilder
                     ? CurrentStageTimelinePriority
                     : HistoricalTimelinePriority
         };
+    }
+
+    private static IReadOnlyDictionary<string, int> BuildUniqueProjectNameIndex(
+        IReadOnlyList<WorkspaceProjectMatrixRowVm> projectRows)
+        => projectRows
+            .Where(row => row.ProjectId > 0 && !string.IsNullOrWhiteSpace(row.ProjectName))
+            .GroupBy(row => row.ProjectName.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Select(row => row.ProjectId).Distinct().Count() == 1)
+            .ToDictionary(
+                group => group.Key,
+                group => group.First().ProjectId,
+                StringComparer.OrdinalIgnoreCase);
+
+    private static int? ResolveProjectId(
+        string title,
+        IReadOnlyDictionary<string, int> projectIdsByName)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return null;
+        }
+
+        return projectIdsByName.TryGetValue(title.Trim(), out var projectId)
+            ? projectId
+            : null;
+    }
+
+    private static IReadOnlyList<WorkspaceActionQueueGroupVm> BuildGroups(
+        IReadOnlyList<WorkspaceActionQueueItemVm> visibleItems)
+    {
+        var orderedKeys = new List<string>();
+        var itemsByKey = new Dictionary<string, List<WorkspaceActionQueueItemVm>>(StringComparer.Ordinal);
+
+        for (var index = 0; index < visibleItems.Count; index++)
+        {
+            var item = visibleItems[index];
+            var key = item.ProjectId is > 0
+                ? $"project:{item.ProjectId.Value}"
+                : $"action:{index}";
+
+            if (!itemsByKey.TryGetValue(key, out var groupedItems))
+            {
+                groupedItems = new List<WorkspaceActionQueueItemVm>();
+                itemsByKey[key] = groupedItems;
+                orderedKeys.Add(key);
+            }
+
+            groupedItems.Add(item);
+        }
+
+        return orderedKeys
+            .Select((key, index) =>
+            {
+                var actions = itemsByKey[key];
+                var first = actions[0];
+
+                return new WorkspaceActionQueueGroupVm
+                {
+                    Key = key,
+                    ProjectId = first.ProjectId,
+                    Title = first.Title,
+                    PrimaryUrl = first.ActionUrl,
+                    Severity = ResolveGroupSeverity(actions),
+                    IsRecommended = index == 0,
+                    Actions = actions
+                };
+            })
+            .ToList();
+    }
+
+    private static string ResolveGroupSeverity(
+        IReadOnlyList<WorkspaceActionQueueItemVm> actions)
+    {
+        if (actions.Any(action => action.Severity.Equals("Danger", StringComparison.OrdinalIgnoreCase)))
+        {
+            return "Danger";
+        }
+
+        if (actions.Any(action => action.Severity.Equals("Warning", StringComparison.OrdinalIgnoreCase)))
+        {
+            return "Warning";
+        }
+
+        return "Info";
     }
 
     private static long GetDateRank(WorkspaceActionQueueItemVm item)

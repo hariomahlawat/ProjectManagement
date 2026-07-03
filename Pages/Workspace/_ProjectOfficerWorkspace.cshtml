@@ -25,7 +25,7 @@
         .ToList();
     var hasReminders = vm.PersonalReminders.Any();
     var hasIdeas = vm.Ideas.Any();
-    var followGridClass = hasReminders && hasIdeas ? string.Empty : "po-follow-grid--single";
+    var hasBothFollowUpTypes = hasReminders && hasIdeas;
 }
 <div class="po-workspace">
     <header class="po-command" id="today">
@@ -40,9 +40,10 @@
                             <a asp-page="/Workspace/Index"
                                asp-route-mode="command"
                                class="po-workspace-switch"
-                               title="Open the Comdt / HoD workspace">
-                                <i class="bi bi-building" aria-hidden="true"></i>
-                                <span>Comdt / HoD</span>
+                               title="Switch to the Comdt / HoD workspace"
+                               aria-label="Switch to Comdt or HoD workspace">
+                                <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+                                <span>Switch to Comdt / HoD</span>
                             </a>
                         }
                     </div>
@@ -69,10 +70,12 @@
         </div>
 
         <div class="po-command__metrics" aria-label="Workspace summary">
-            <a class="po-metric @(vm.AssignedProjectCount > 0 ? "po-metric--primary" : "po-metric--clear")" href="#assigned-projects">
+            <a class="po-metric @(vm.AssignedProjectCount > 0 ? "po-metric--primary" : "po-metric--clear")"
+               href="#assigned-projects"
+               aria-label="View @vm.AssignedProjectCount assigned projects">
                 <span class="po-metric__icon"><i class="bi bi-kanban-fill" aria-hidden="true"></i></span>
                 <span><strong>@vm.AssignedProjectCount</strong><small>Assigned projects</small></span>
-                <i class="bi bi-arrow-down-right po-metric__arrow" aria-hidden="true"></i>
+                <span class="po-metric__action">View projects<i class="bi bi-arrow-right" aria-hidden="true"></i></span>
             </a>
             <button type="button"
                     class="po-metric @(vm.RecordGapCount > 0 ? "po-metric--danger" : "po-metric--clear")"
@@ -82,7 +85,7 @@
                     aria-label="View @vm.RecordGapCount record gaps across assigned projects">
                 <span class="po-metric__icon"><i class="bi bi-clipboard2-pulse-fill" aria-hidden="true"></i></span>
                 <span><strong>@vm.RecordGapCount</strong><small>Record gaps</small></span>
-                <i class="bi bi-box-arrow-up-right po-metric__arrow" aria-hidden="true"></i>
+                <span class="po-metric__action">Review gaps<i class="bi bi-arrow-right" aria-hidden="true"></i></span>
             </button>
         </div>
     </header>
@@ -106,7 +109,7 @@
                     <div>
                         <span class="po-panel__kicker">Current workload</span>
                         <h2>Action Queue</h2>
-                        <p>Sequenced by operational priority. Start with the highlighted item.</p>
+                        <p>Grouped by project and sequenced by operational priority. Start with the highlighted action.</p>
                     </div>
                     <a class="po-link" href="@WorkspaceRouteHelper.ActionTasksMyWork()">Open assigned tasks<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                 </div>
@@ -120,44 +123,69 @@
                 }
                 else
                 {
-                    <div class="po-action-list" role="list">
-                        @for (var i = 0; i < vm.ActionQueue.Count; i++)
+                    <div class="po-action-groups" role="list">
+                        @foreach (var group in vm.ActionQueueGroups)
                         {
-                            var item = vm.ActionQueue[i];
-                            var isRecommended = i == 0;
-                            var actionSeverityClass = item.Type.Equals("Aots", StringComparison.OrdinalIgnoreCase)
-                                ? "routine"
-                                : item.Severity.ToLowerInvariant();
-                            <article role="listitem" class="po-action @(isRecommended ? "po-action--recommended" : string.Empty) po-action--@actionSeverityClass">
-                                <span class="po-action__rail" aria-hidden="true"></span>
-                                <div class="po-action__type">
-                                    <span class="po-type po-type--@item.Type.ToLowerInvariant()">@item.BadgeText</span>
+                            var groupSeverityClass = group.IsRecommended
+                                ? "recommended"
+                                : group.Severity.Equals("Danger", StringComparison.OrdinalIgnoreCase)
+                                    ? "danger"
+                                    : group.Severity.Equals("Warning", StringComparison.OrdinalIgnoreCase)
+                                        ? "warning"
+                                        : "routine";
+
+                            <article role="listitem" class="po-action-group po-action-group--@groupSeverityClass">
+                                <span class="po-action-group__rail" aria-hidden="true"></span>
+
+                                <div class="po-action-group__identity">
+                                    <a href="@group.PrimaryUrl"
+                                       class="po-action-group__title"
+                                       title="@group.Title">@group.Title</a>
+                                    <span>@group.ActionCount action@(group.ActionCount == 1 ? string.Empty : "s")</span>
                                 </div>
-                                <div class="po-action__content">
-                                    <a href="@item.ActionUrl" class="po-action__title" title="@item.Title">@item.Title</a>
-                                    <div class="po-action__meta">
-                                        @if (isRecommended)
-                                        {
-                                            <span class="po-action__recommendation">
-                                                <strong><i class="bi bi-stars" aria-hidden="true"></i>Recommended next</strong>
-                                                @if (!string.IsNullOrWhiteSpace(item.PriorityReason))
-                                                {
-                                                    <span aria-hidden="true">·</span><span>@item.PriorityReason</span>
-                                                }
-                                            </span>
-                                        }
-                                        @if (!isRecommended || !string.Equals(item.Detail, item.PriorityReason, StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            <span>@item.Detail</span>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(item.Meta))
-                                        {
-                                            <span class="po-action__separator" aria-hidden="true"></span>
-                                            <span class="po-action__context">@item.Meta</span>
-                                        }
-                                    </div>
+
+                                <div class="po-action-group__actions">
+                                    @for (var actionIndex = 0; actionIndex < group.Actions.Count; actionIndex++)
+                                    {
+                                        var item = group.Actions[actionIndex];
+                                        var isRecommendedAction = group.IsRecommended && actionIndex == 0;
+                                        var actionSeverityClass = item.Type.Equals("Aots", StringComparison.OrdinalIgnoreCase)
+                                            ? "routine"
+                                            : item.Severity.ToLowerInvariant();
+
+                                        <div class="po-action-line po-action-line--@actionSeverityClass @(isRecommendedAction ? "po-action-line--recommended" : string.Empty)">
+                                            <div class="po-action-line__type">
+                                                <span class="po-type po-type--@item.Type.ToLowerInvariant()">@item.BadgeText</span>
+                                            </div>
+                                            <div class="po-action-line__content">
+                                                <div class="po-action-line__meta">
+                                                    @if (isRecommendedAction)
+                                                    {
+                                                        <span class="po-action__recommendation">
+                                                            <strong><i class="bi bi-stars" aria-hidden="true"></i>Recommended next</strong>
+                                                            @if (!string.IsNullOrWhiteSpace(item.PriorityReason))
+                                                            {
+                                                                <span aria-hidden="true">·</span><span>@item.PriorityReason</span>
+                                                            }
+                                                        </span>
+                                                    }
+                                                    @if (!isRecommendedAction || !string.Equals(item.Detail, item.PriorityReason, StringComparison.OrdinalIgnoreCase))
+                                                    {
+                                                        <span>@item.Detail</span>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(item.Meta))
+                                                    {
+                                                        <span class="po-action__separator" aria-hidden="true"></span>
+                                                        <span class="po-action__context">@item.Meta</span>
+                                                    }
+                                                </div>
+                                            </div>
+                                            <a class="po-action-line__button" href="@item.ActionUrl">
+                                                <span>@item.ActionText</span><i class="bi bi-arrow-right" aria-hidden="true"></i>
+                                            </a>
+                                        </div>
+                                    }
                                 </div>
-                                <a class="po-action__button" href="@item.ActionUrl"><span>@item.ActionText</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                             </article>
                         }
                     </div>
@@ -165,7 +193,7 @@
                     @if (vm.ActionQueueHiddenCount > 0)
                     {
                         <div class="po-panel__footer">
-                            <span>@vm.ActionQueueHiddenCount additional item@(vm.ActionQueueHiddenCount == 1 ? "" : "s") not shown</span>
+                            <span>@vm.ActionQueueHiddenCount additional action@(vm.ActionQueueHiddenCount == 1 ? "" : "s") not shown</span>
                             <a href="@WorkspaceRouteHelper.ActionTasksMyWork()">Open assigned tasks</a>
                         </div>
                     }
@@ -296,65 +324,116 @@
                         <div><strong>No follow-ups require attention</strong><span>You have no due reminders or active assigned ideas.</span></div>
                     </div>
                 }
+                else if (hasBothFollowUpTypes)
+                {
+                    <div class="po-follow-grid">
+                        <div class="po-follow-column">
+                            <div class="po-follow-column__head">
+                                <span><i class="bi bi-bell" aria-hidden="true"></i><strong>Reminders</strong></span>
+                                <b>@vm.PersonalReminders.Count</b>
+                            </div>
+                            <div class="po-follow-list">
+                                @foreach (var reminder in vm.PersonalReminders.Take(4))
+                                {
+                                    var reminderClass = string.Empty;
+                                    if (reminder.DueAtUtc.HasValue)
+                                    {
+                                        if (reminder.DueAtUtc.Value < generatedAtUtc)
+                                        {
+                                            reminderClass = "po-follow-item--overdue";
+                                        }
+                                        else if (reminder.DueAtUtc.Value <= generatedAtUtc.AddDays(7))
+                                        {
+                                            reminderClass = "po-follow-item--due-soon";
+                                        }
+                                    }
+                                    <a href="@reminder.OpenUrl" class="@reminderClass">
+                                        <span><strong>@reminder.Title</strong><small>@reminder.Priority · @WorkspaceDisplayHelpers.FormatReminderDate(reminder.DueAtUtc)</small></span>
+                                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                                    </a>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="po-follow-column">
+                            <div class="po-follow-column__head">
+                                <span><i class="bi bi-lightbulb" aria-hidden="true"></i><strong>Project ideas</strong></span>
+                                <a href="/ProjectIdeas?MyIdeas=true">View all</a>
+                            </div>
+                            <div class="po-follow-list">
+                                @foreach (var idea in vm.Ideas.Take(4))
+                                {
+                                    <a href="@idea.OpenUrl">
+                                        <span><strong>@idea.Title</strong><small>@idea.Status · @idea.CommentCount comments · @idea.DocumentCount docs</small></span>
+                                        @if (idea.NeedsUpdate)
+                                        {
+                                            <em>Update</em>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                                        }
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+                else if (hasReminders)
+                {
+                    <div class="po-follow-compact">
+                        <div class="po-follow-compact__category">
+                            <span><i class="bi bi-bell" aria-hidden="true"></i><strong>Reminders</strong></span>
+                            <b>@vm.PersonalReminders.Count</b>
+                        </div>
+                        <div class="po-follow-compact__list">
+                            @foreach (var reminder in vm.PersonalReminders.Take(4))
+                            {
+                                var reminderClass = string.Empty;
+                                if (reminder.DueAtUtc.HasValue)
+                                {
+                                    if (reminder.DueAtUtc.Value < generatedAtUtc)
+                                    {
+                                        reminderClass = "po-follow-item--overdue";
+                                    }
+                                    else if (reminder.DueAtUtc.Value <= generatedAtUtc.AddDays(7))
+                                    {
+                                        reminderClass = "po-follow-item--due-soon";
+                                    }
+                                }
+                                <a href="@reminder.OpenUrl" class="po-follow-compact__item @reminderClass">
+                                    <strong>@reminder.Title</strong>
+                                    <small>@reminder.Priority · @WorkspaceDisplayHelpers.FormatReminderDate(reminder.DueAtUtc)</small>
+                                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                                </a>
+                            }
+                        </div>
+                    </div>
+                }
                 else
                 {
-                    <div class="po-follow-grid @followGridClass">
-                        @if (hasReminders)
-                        {
-                            <div class="po-follow-column">
-                                <div class="po-follow-column__head">
-                                    <span><i class="bi bi-bell" aria-hidden="true"></i><strong>Reminders</strong></span>
-                                    <b>@vm.PersonalReminders.Count</b>
-                                </div>
-                                <div class="po-follow-list">
-                                    @foreach (var reminder in vm.PersonalReminders.Take(4))
+                    <div class="po-follow-compact">
+                        <div class="po-follow-compact__category">
+                            <span><i class="bi bi-lightbulb" aria-hidden="true"></i><strong>Project ideas</strong></span>
+                            <a href="/ProjectIdeas?MyIdeas=true">View all</a>
+                        </div>
+                        <div class="po-follow-compact__list">
+                            @foreach (var idea in vm.Ideas.Take(4))
+                            {
+                                <a href="@idea.OpenUrl" class="po-follow-compact__item">
+                                    <strong>@idea.Title</strong>
+                                    <small>@idea.Status · @idea.CommentCount comments · @idea.DocumentCount docs</small>
+                                    @if (idea.NeedsUpdate)
                                     {
-                                        var reminderClass = string.Empty;
-                                        if (reminder.DueAtUtc.HasValue)
-                                        {
-                                            if (reminder.DueAtUtc.Value < generatedAtUtc)
-                                            {
-                                                reminderClass = "po-follow-item--overdue";
-                                            }
-                                            else if (reminder.DueAtUtc.Value <= generatedAtUtc.AddDays(7))
-                                            {
-                                                reminderClass = "po-follow-item--due-soon";
-                                            }
-                                        }
-                                        <a href="@reminder.OpenUrl" class="@reminderClass">
-                                            <span><strong>@reminder.Title</strong><small>@reminder.Priority · @WorkspaceDisplayHelpers.FormatReminderDate(reminder.DueAtUtc)</small></span>
-                                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
-                                        </a>
+                                        <em>Update</em>
                                     }
-                                </div>
-                            </div>
-                        }
-
-                        @if (hasIdeas)
-                        {
-                            <div class="po-follow-column">
-                                <div class="po-follow-column__head">
-                                    <span><i class="bi bi-lightbulb" aria-hidden="true"></i><strong>Project ideas</strong></span>
-                                    <a href="/ProjectIdeas?MyIdeas=true">View all</a>
-                                </div>
-                                <div class="po-follow-list">
-                                    @foreach (var idea in vm.Ideas.Take(4))
+                                    else
                                     {
-                                        <a href="@idea.OpenUrl">
-                                            <span><strong>@idea.Title</strong><small>@idea.Status · @idea.CommentCount comments · @idea.DocumentCount docs</small></span>
-                                            @if (idea.NeedsUpdate)
-                                            {
-                                                <em>Update</em>
-                                            }
-                                            else
-                                            {
-                                                <i class="bi bi-chevron-right" aria-hidden="true"></i>
-                                            }
-                                        </a>
+                                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
                                     }
-                                </div>
-                            </div>
-                        }
+                                </a>
+                            }
+                        </div>
                     </div>
                 }
             </section>

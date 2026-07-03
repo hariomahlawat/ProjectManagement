@@ -169,6 +169,7 @@ public sealed class ProjectOfficerWorkspaceService
             DataCompletenessInsight = BuildDataCompletenessInsight(projects.Count, health),
             PendingWithMe = pending.Take(5).ToList(),
             ActionQueue = actionQueue,
+            ActionQueueGroups = actionQueueResult.Groups,
             ActionQueueTotalCount = actionQueueResult.TotalCount,
             RemarksDue = remarksDue.Take(5).ToList(),
             OfficialTasksDue = officialTasksDue,

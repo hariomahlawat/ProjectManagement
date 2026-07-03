@@ -28,6 +28,7 @@ public sealed class ProjectOfficerWorkspaceVm
     public IReadOnlyList<WorkspaceRailItemVm> RailItems { get; set; } = Array.Empty<WorkspaceRailItemVm>();
     public IReadOnlyList<WorkspaceAttentionItemVm> PendingWithMe { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public IReadOnlyList<WorkspaceActionQueueItemVm> ActionQueue { get; set; } = Array.Empty<WorkspaceActionQueueItemVm>();
+    public IReadOnlyList<WorkspaceActionQueueGroupVm> ActionQueueGroups { get; set; } = Array.Empty<WorkspaceActionQueueGroupVm>();
     public int ActionQueueTotalCount { get; set; }
 
     public string ActionHeadline => ActionQueueTotalCount switch
@@ -210,6 +211,8 @@ public sealed class WorkspaceAotsDocumentVm
 
 public sealed class WorkspaceActionQueueItemVm
 {
+    public int? ProjectId { get; set; }
+
     public string Type { get; set; } = string.Empty;
 
     public string BadgeText { get; set; } = string.Empty;
@@ -232,6 +235,25 @@ public sealed class WorkspaceActionQueueItemVm
 
     // Lower values appear first in the unified action queue.
     public int PriorityRank { get; set; } = 100;
+}
+
+public sealed class WorkspaceActionQueueGroupVm
+{
+    public string Key { get; set; } = string.Empty;
+
+    public int? ProjectId { get; set; }
+
+    public string Title { get; set; } = string.Empty;
+
+    public string PrimaryUrl { get; set; } = string.Empty;
+
+    public string Severity { get; set; } = "Info";
+
+    public bool IsRecommended { get; set; }
+
+    public IReadOnlyList<WorkspaceActionQueueItemVm> Actions { get; set; } = Array.Empty<WorkspaceActionQueueItemVm>();
+
+    public int ActionCount => Actions.Count;
 }
 
 public sealed class WorkspaceAttentionItemVm
