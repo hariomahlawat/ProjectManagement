@@ -233,6 +233,121 @@ test('calendar celebration source uses the supported events endpoint and filters
         'missing celebrations endpoint must not be probed');
 });
 
+test('ordinary event renderer preserves time, title and recurrence content', async () => {
+    const dom = new JSDOM(`<!DOCTYPE html><html><body>
+        <div id="calendar" data-show-celebrations="false"></div>
+    </body></html>`, { url: 'https://example.test/Calendar', runScripts: 'dangerously' });
+
+    const { window } = dom;
+    window.alert = () => {};
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    window.fetch = async () => ({ ok: true, status: 200, json: async () => [] });
+    window.FullCalendar = {
+        Calendar: FakeCalendar,
+        dayGrid: () => ({}),
+        timeGrid: () => ({}),
+        list: () => ({}),
+        interaction: () => ({})
+    };
+
+    const scriptEl = window.document.createElement('script');
+    scriptEl.textContent = scriptContent;
+    window.document.body.appendChild(scriptEl);
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    const props = {
+        category: 'Conference',
+        isCelebration: false,
+        isRecurring: true,
+        location: 'Conference Hall'
+    };
+    const event = {
+        title: 'Project review conference',
+        extendedProps: props,
+        setExtendedProp(name, value) { this.extendedProps[name] = value; }
+    };
+
+    const rendered = FakeCalendar.lastInstance.opts.eventContent({
+        event,
+        timeText: '09:30',
+        view: { type: 'dayGridMonth' }
+    });
+
+    assert.ok(rendered, 'ordinary events must always return visible content');
+    assert.equal(rendered.domNodes.length, 1);
+    const content = rendered.domNodes[0];
+    assert.equal(content.querySelector('.pm-calendar-event__time').textContent, '09:30');
+    assert.equal(content.querySelector('.pm-calendar-event__title').textContent, 'Project review conference');
+    assert.ok(content.querySelector('.pm-calendar-event__recurrence .bi-arrow-repeat'));
+
+    const eventEl = window.document.createElement('a');
+    eventEl.className = 'fc-event fc-daygrid-event';
+    eventEl.appendChild(content);
+    FakeCalendar.lastInstance.opts.eventDidMount({ event, el: eventEl, timeText: '09:30' });
+
+    assert.ok(eventEl.classList.contains('pm-standard-event'));
+    assert.ok(eventEl.classList.contains('pm-cat-conference'));
+    assert.ok(eventEl.classList.contains('pm-recurring'));
+    assert.equal(
+        eventEl.getAttribute('aria-label'),
+        '09:30 — Project review conference — Conference Hall — Recurring event');
+});
+
+test('list renderer avoids duplicate time and gives untitled legacy events a visible fallback', async () => {
+    const dom = new JSDOM(`<!DOCTYPE html><html><body>
+        <div id="calendar" data-show-celebrations="false"></div>
+    </body></html>`, { url: 'https://example.test/Calendar', runScripts: 'dangerously' });
+
+    const { window } = dom;
+    window.alert = () => {};
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    window.fetch = async () => ({ ok: true, status: 200, json: async () => [] });
+    window.FullCalendar = {
+        Calendar: FakeCalendar,
+        dayGrid: () => ({}),
+        timeGrid: () => ({}),
+        list: () => ({}),
+        interaction: () => ({})
+    };
+
+    const scriptEl = window.document.createElement('script');
+    scriptEl.textContent = scriptContent;
+    window.document.body.appendChild(scriptEl);
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    const props = {
+        category: 'Other',
+        isCelebration: false,
+        isRecurring: false,
+        location: null
+    };
+    const event = {
+        title: '   ',
+        extendedProps: props,
+        setExtendedProp(name, value) { this.extendedProps[name] = value; }
+    };
+
+    const rendered = FakeCalendar.lastInstance.opts.eventContent({
+        event,
+        timeText: '09:30',
+        view: { type: 'listWeek' }
+    });
+    const content = rendered.domNodes[0];
+
+    assert.equal(content.querySelector('.pm-calendar-event__time'), null,
+        'list view already owns a dedicated time column');
+    assert.equal(content.querySelector('.pm-calendar-event__title').textContent, 'Untitled event');
+
+    const eventEl = window.document.createElement('tr');
+    eventEl.className = 'fc-list-event';
+    eventEl.appendChild(content);
+    FakeCalendar.lastInstance.opts.eventDidMount({ event, el: eventEl, timeText: '09:30' });
+
+    assert.ok(eventEl.classList.contains('pm-standard-event'));
+    assert.ok(eventEl.classList.contains('pm-event--untitled'));
+    assert.equal(eventEl.getAttribute('aria-label'), '09:30 — Untitled event');
+});
+
 test('birthday event uses a single compact custom content node without duplicating its title', async () => {
     const dom = new JSDOM(`<!DOCTYPE html><html><body>
         <div id="calendar" data-show-celebrations="false"></div>

@@ -58,6 +58,85 @@
     };
   };
 
+  const getStandardEventTitle = (event) => {
+    const title = (event?.title || '').toString().trim();
+    return title || 'Untitled event';
+  };
+
+  const isListView = (view) => (view?.type || '').toString().startsWith('list');
+
+  const createEventTextElement = (tagName, className, text) => {
+    const element = document.createElement(tagName);
+    element.className = className;
+    element.textContent = text;
+    return element;
+  };
+
+  const buildStandardEventContent = (info) => {
+    const title = getStandardEventTitle(info?.event);
+    const timeText = (info?.timeText || '').toString().trim();
+    const showTime = !!timeText && !isListView(info?.view);
+    const isRecurring = !!info?.event?.extendedProps?.isRecurring;
+
+    // Mirror FullCalendar's native inner structure so the same renderer remains stable in
+    // month, week, day and list views. All text is assigned through textContent.
+    const frame = document.createElement('div');
+    frame.className = 'fc-event-main-frame pm-calendar-event__content';
+
+    if (showTime) {
+      frame.appendChild(createEventTextElement(
+        'div',
+        'fc-event-time pm-calendar-event__time',
+        timeText));
+    }
+
+    const titleContainer = document.createElement('div');
+    titleContainer.className = 'fc-event-title-container pm-calendar-event__title-container';
+
+    const titleElement = createEventTextElement(
+      'div',
+      'fc-event-title fc-sticky pm-calendar-event__title',
+      title);
+    titleContainer.appendChild(titleElement);
+    frame.appendChild(titleContainer);
+
+    if (isRecurring) {
+      const recurrence = document.createElement('span');
+      recurrence.className = 'pm-calendar-event__recurrence';
+      recurrence.setAttribute('aria-hidden', 'true');
+      recurrence.setAttribute('title', 'Recurring event');
+
+      const recurrenceIcon = document.createElement('i');
+      recurrenceIcon.className = 'bi bi-arrow-repeat';
+      recurrence.appendChild(recurrenceIcon);
+      frame.appendChild(recurrence);
+    }
+
+    return { domNodes: [frame] };
+  };
+
+  const buildCelebrationEventContent = (event) => {
+    const presentation = getCelebrationPresentation(event);
+    const content = document.createElement('span');
+    content.className = 'pm-celebration-event__content';
+
+    const icon = document.createElement('span');
+    icon.className = 'pm-celebration-event__icon';
+    icon.setAttribute('aria-hidden', 'true');
+
+    const iconGlyph = document.createElement('i');
+    iconGlyph.className = `bi ${presentation.iconClass}`;
+    icon.appendChild(iconGlyph);
+
+    const name = createEventTextElement(
+      'span',
+      'pm-celebration-event__name',
+      presentation.name);
+
+    content.append(icon, name);
+    return { domNodes: [content] };
+  };
+
   let activeCategory = "";
 
   const holidayMap = new Map();
@@ -894,28 +973,9 @@
       failure: (e) => { console.error('Events feed failed', e); alert('Couldn\u2019t load events. See console/Network.'); }
     }],
     eventContent(info) {
-      if (!info.event.extendedProps.isCelebration) {
-        return undefined;
-      }
-
-      const presentation = getCelebrationPresentation(info.event);
-      const content = document.createElement('span');
-      content.className = 'pm-celebration-event__content';
-
-      const icon = document.createElement('span');
-      icon.className = 'pm-celebration-event__icon';
-      icon.setAttribute('aria-hidden', 'true');
-
-      const iconGlyph = document.createElement('i');
-      iconGlyph.className = `bi ${presentation.iconClass}`;
-      icon.appendChild(iconGlyph);
-
-      const name = document.createElement('span');
-      name.className = 'pm-celebration-event__name';
-      name.textContent = presentation.name;
-
-      content.append(icon, name);
-      return { domNodes: [content] };
+      return info.event.extendedProps?.isCelebration
+        ? buildCelebrationEventContent(info.event)
+        : buildStandardEventContent(info);
     },
     eventDidMount(info) {
       const isCelebration = !!info.event.extendedProps.isCelebration;
@@ -932,14 +992,29 @@
       if (celebrationPresentation) {
         info.el.classList.add('pm-celebration-event');
         info.el.dataset.celebrationType = celebrationPresentation.type.toLowerCase();
+      } else {
+        info.el.classList.add('pm-standard-event');
+        if (!(info.event.title || '').toString().trim()) {
+          info.el.classList.add('pm-event--untitled');
+        }
       }
 
-      const loc = info.event.extendedProps.location;
+      const loc = (info.event.extendedProps.location || '').toString().trim();
       const accessibleTitle = celebrationPresentation
         ? `${celebrationPresentation.type}: ${celebrationPresentation.name}`
-        : info.event.title;
-      info.el.setAttribute('title', accessibleTitle + (loc ? ' — ' + loc : ''));
-      info.el.setAttribute('aria-label', info.el.title);
+        : getStandardEventTitle(info.event);
+      const accessibleParts = [];
+      const timeText = (info.timeText || '').toString().trim();
+      if (timeText) accessibleParts.push(timeText);
+      accessibleParts.push(accessibleTitle);
+      if (loc) accessibleParts.push(loc);
+      if (info.event.extendedProps.isRecurring && !isCelebration) {
+        accessibleParts.push('Recurring event');
+      }
+
+      const accessibleLabel = accessibleParts.join(' — ');
+      info.el.setAttribute('title', accessibleLabel);
+      info.el.setAttribute('aria-label', accessibleLabel);
 
       if (activeCategory && key !== activeCategory) {
         info.el.style.display = 'none';

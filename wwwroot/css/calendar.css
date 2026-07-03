@@ -254,8 +254,9 @@
 }
 
 .fc .fc-event {
+  min-width: 0;
   margin-block: 2px;
-  padding: 2px 5px;
+  padding: 3px 6px;
   border: 1px solid transparent;
   border-left-width: 3px;
   border-radius: 6px;
@@ -263,6 +264,14 @@
   font-size: .75rem;
   line-height: 1.25;
   transition: box-shadow .15s ease, transform .15s ease;
+}
+
+.fc .fc-daygrid-event {
+  min-height: 26px;
+}
+
+.fc .fc-timegrid-event {
+  min-height: 24px;
 }
 
 .fc .fc-event:hover,
@@ -282,8 +291,64 @@
   text-decoration: none;
 }
 
-.fc .fc-daygrid-event .fc-event-time {
-  font-weight: 700;
+.fc .fc-event-main {
+  width: 100%;
+  min-width: 0;
+}
+
+.fc .pm-standard-event .pm-calendar-event__content {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.fc .pm-standard-event .pm-calendar-event__time {
+  flex: 0 0 auto;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fc .pm-standard-event .pm-calendar-event__title-container {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.fc .pm-standard-event .pm-calendar-event__title {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 650;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.fc .pm-standard-event .pm-calendar-event__recurrence {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  opacity: .72;
+  font-size: .69rem;
+  line-height: 1;
+}
+
+.fc .fc-list-event.pm-standard-event .pm-calendar-event__content {
+  min-height: 22px;
+}
+
+.fc .fc-list-event.pm-standard-event .pm-calendar-event__title {
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+}
+
+.fc .pm-standard-event.pm-event--untitled .pm-calendar-event__title {
+  opacity: .76;
+  font-style: italic;
 }
 
 .fc .fc-event-title {
@@ -417,10 +482,7 @@
 }
 
 .fc-event.pm-recurring::after {
-  content: "\21BB";
-  margin-left: .3rem;
-  font-size: .68rem;
-  opacity: .7;
+  content: none;
 }
 
 /* Holiday treatment */
