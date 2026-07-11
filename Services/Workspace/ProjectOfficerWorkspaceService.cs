@@ -23,7 +23,7 @@ public sealed class ProjectOfficerWorkspaceService
     private readonly ActionTaskMyWorkQueueBuilder _myWorkQueueBuilder;
     private readonly IActionTrackerClock _clock;
     private readonly IAotsUnreadService _aotsUnreadService;
-    private readonly CommandWorkspaceService _commandWorkspaceService;
+    private readonly IOfficerWorkloadReadService _officerWorkloadReadService;
 
     public ProjectOfficerWorkspaceService(
         ApplicationDbContext db,
@@ -33,7 +33,7 @@ public sealed class ProjectOfficerWorkspaceService
         ActionTaskMyWorkQueueBuilder myWorkQueueBuilder,
         IActionTrackerClock clock,
         IAotsUnreadService aotsUnreadService,
-        CommandWorkspaceService commandWorkspaceService)
+        IOfficerWorkloadReadService officerWorkloadReadService)
     {
         _db = db;
         _users = users;
@@ -42,7 +42,7 @@ public sealed class ProjectOfficerWorkspaceService
         _myWorkQueueBuilder = myWorkQueueBuilder;
         _clock = clock;
         _aotsUnreadService = aotsUnreadService;
-        _commandWorkspaceService = commandWorkspaceService;
+        _officerWorkloadReadService = officerWorkloadReadService;
     }
 
     // SECTION: Workspace composition
@@ -68,7 +68,7 @@ public sealed class ProjectOfficerWorkspaceService
         var tasks = await LoadOtherAssignedTasksAsync(userId, today, ct);
         var ideaVms = await LoadProjectIdeasAsync(userId, today, ct);
         var reminders = await LoadPersonalRemindersAsync(userId, ct);
-        var commandWorkloadCard = await _commandWorkspaceService.GetOfficerWorkloadCardAsync(userId, ct);
+        var commandWorkloadCard = await _officerWorkloadReadService.GetOfficerAsync(userId, ct);
         var upcomingEvents = await WorkspaceUpcomingEventQuery.LoadAsync(
             _db,
             userId,

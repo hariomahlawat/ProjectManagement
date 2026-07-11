@@ -286,7 +286,16 @@ namespace ProjectManagement.Data
 
             builder.Entity<ProjectIdeaComment>(e =>
             {
+                e.Property(x => x.CommentType)
+                    .IsRequired()
+                    .HasMaxLength(32)
+                    .HasDefaultValue(ProjectIdeaCommentTypes.General);
+                e.Property(x => x.CreatedByRole).HasMaxLength(64);
+                e.Property(x => x.StatusSnapshot).HasMaxLength(32);
                 e.HasIndex(x => x.IsDeleted);
+                e.HasIndex(x => new { x.ProjectIdeaId, x.IsDeleted, x.CommentType, x.CreatedAt })
+                    .HasDatabaseName("IX_ProjectIdeaComments_IdeaId_Deleted_Type_CreatedAt")
+                    .IsDescending(false, false, false, true);
                 e.HasOne(x => x.ProjectIdea).WithMany(x => x.Comments).HasForeignKey(x => x.ProjectIdeaId).OnDelete(DeleteBehavior.Cascade);
                 e.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
             });
@@ -2032,9 +2041,15 @@ namespace ProjectManagement.Data
 
                 // SECTION: Action task update field constraints
                 e.Property(x => x.CreatedByUserId).IsRequired().HasMaxLength(450);
+                e.Property(x => x.CreatedByRole).HasMaxLength(64);
                 e.Property(x => x.UpdateType).IsRequired().HasMaxLength(32);
                 e.Property(x => x.Body).IsRequired().HasMaxLength(4000);
+                e.Property(x => x.StatusSnapshot).HasMaxLength(32);
+                e.Property(x => x.DueDateSnapshot).HasColumnType("date");
                 e.Property(x => x.IsDeleted).HasDefaultValue(false);
+                e.HasIndex(x => new { x.TaskId, x.IsDeleted, x.UpdateType, x.CreatedAtUtc })
+                    .HasDatabaseName("IX_ActionTaskUpdates_TaskId_IsDeleted_UpdateType_CreatedAtUtc")
+                    .IsDescending(false, false, false, true);
 
                 // SECTION: Action task update relationship constraints
                 e.HasOne<ActionTaskItem>()
@@ -2435,6 +2450,9 @@ namespace ProjectManagement.Data
                     .IsDescending(false, false, true);
                 e.HasIndex(x => new { x.ProjectId, x.IsDeleted, x.Type, x.EventDate })
                     .HasDatabaseName("IX_Remarks_ProjectId_IsDeleted_Type_EventDate");
+                e.HasIndex(x => new { x.ProjectId, x.IsDeleted, x.Type, x.CreatedAtUtc })
+                    .HasDatabaseName("IX_Remarks_ProjectId_Deleted_Type_CreatedAt")
+                    .IsDescending(false, false, false, true);
                 e.HasIndex(x => new { x.ProjectId, x.IsDeleted, x.Scope, x.CreatedAtUtc })
                     .HasDatabaseName("IX_Remarks_ProjectId_IsDeleted_Scope_CreatedAtUtc")
                     .IsDescending(false, false, false, true);

@@ -95,6 +95,9 @@ public class ActionTaskPermissionService
     public bool CanAddTaskUpdate(string role, string currentUserId, string ownerUserId)
         => CanViewAll(role) || string.Equals(currentUserId, ownerUserId, StringComparison.Ordinal);
 
+    public bool CanAddConferenceUpdate(string role)
+        => IsPlanningAuthority(role);
+
     // SECTION: Attachment Write Authorization
     public bool CanUploadTaskAttachment(string role, string currentUserId, string ownerUserId)
         => CanViewAll(role) || string.Equals(currentUserId, ownerUserId, StringComparison.Ordinal);

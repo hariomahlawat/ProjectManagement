@@ -8,7 +8,8 @@ namespace ProjectManagement.Models.Remarks
     public enum RemarkType
     {
         Internal = 0,
-        External = 1
+        External = 1,
+        Conference = 2
     }
 
     public enum RemarkActorRole

@@ -112,4 +112,16 @@ public static class Policies
             "Project Office"
         };
     }
+    // SECTION: Conference remark policies
+    public static class ConferenceRemarks
+    {
+        public const string Manage = "ConferenceRemarks.Manage";
+
+        public static readonly string[] ManageAllowedRoles =
+        {
+            RoleNames.Comdt,
+            RoleNames.HoD
+        };
+    }
+
 }

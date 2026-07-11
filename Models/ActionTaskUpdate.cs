@@ -7,11 +7,13 @@ public static class ActionTaskUpdateTypes
 {
     public const string Progress = "Progress";
     public const string Comment = "Comment";
+    public const string Conference = "Conference";
 
     public static readonly string[] All =
     {
         Progress,
-        Comment
+        Comment,
+        Conference
     };
 }
 
@@ -25,6 +27,9 @@ public class ActionTaskUpdate
     [Required, StringLength(450)]
     public string CreatedByUserId { get; set; } = string.Empty;
 
+    [StringLength(64)]
+    public string? CreatedByRole { get; set; }
+
     public DateTime CreatedAtUtc { get; set; }
 
     [Required, StringLength(32)]
@@ -32,6 +37,11 @@ public class ActionTaskUpdate
 
     [Required, StringLength(4000)]
     public string Body { get; set; } = string.Empty;
+
+    [StringLength(32)]
+    public string? StatusSnapshot { get; set; }
+
+    public DateOnly? DueDateSnapshot { get; set; }
 
     public bool IsDeleted { get; set; }
 }

@@ -1,12 +1,9 @@
-using System.Text.Json;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
-using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Projects;
 using ProjectManagement.ViewModels.Workspace;
 
 namespace ProjectManagement.Services.Workspace;
@@ -14,67 +11,153 @@ namespace ProjectManagement.Services.Workspace;
 public sealed class CommandWorkspaceService
 {
     private const string UnassignedStageCode = "UNASSIGNED";
-    private readonly ApplicationDbContext _db;
-    private readonly UserManager<ApplicationUser> _userManager;
 
-    public CommandWorkspaceService(ApplicationDbContext db, UserManager<ApplicationUser> userManager)
+    private readonly ApplicationDbContext _db;
+    private readonly IOfficerWorkloadReadService _officerWorkloadReadService;
+    private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
+
+    public CommandWorkspaceService(
+        ApplicationDbContext db,
+        IOfficerWorkloadReadService officerWorkloadReadService,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider)
     {
-        _db = db;
-        _userManager = userManager;
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _officerWorkloadReadService = officerWorkloadReadService
+            ?? throw new ArgumentNullException(nameof(officerWorkloadReadService));
+        _workflowStageMetadataProvider = workflowStageMetadataProvider
+            ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
     }
 
-    public async Task<CommandWorkspaceVm> GetAsync(CommandWorkspaceQuery query, CancellationToken ct)
+    public async Task<CommandWorkspaceVm> GetAsync(
+        CommandWorkspaceQuery query,
+        CancellationToken cancellationToken)
     {
-        var categories = await _db.ProjectCategories.AsNoTracking()
-            .Where(x => x.IsActive)
-            .OrderBy(x => x.SortOrder).ThenBy(x => x.Name)
-            .Select(x => new CategoryRow(x.Id, x.Name, x.ParentId, x.SortOrder))
-            .ToListAsync(ct);
+        ArgumentNullException.ThrowIfNull(query);
 
-        var parentOptions = categories.Where(x => x.ParentId == null)
-            .Select(x => new CommandFilterOptionVm(x.Id, x.Name)).ToList();
-        var selectedParents = query.ParentCategoryIds.Where(id => parentOptions.Any(x => x.Id == id)).Distinct().ToList();
+        return string.Equals(query.View, "portfolio", StringComparison.OrdinalIgnoreCase)
+            ? await BuildPortfolioAsync(query, cancellationToken)
+            : await BuildOfficerWorkloadAsync(query, cancellationToken);
+    }
 
-        var projectRows = await _db.Projects.AsNoTracking()
-            .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Active)
-            .Select(p => new ProjectRow(
-                p.Id,
-                p.Name,
-                p.CategoryId,
-                p.LeadPoUserId,
-                p.LeadPoUser != null ? p.LeadPoUser.FullName : null,
-                p.LeadPoUser != null ? p.LeadPoUser.Rank : null,
-                p.ProjectStages.Select(s => new StageRow(s.StageCode, s.Status, s.SortOrder, s.CompletedOn)).ToList()))
-            .ToListAsync(ct);
+    /// <summary>
+    /// Backward-compatible forwarding method retained for callers that still depend on
+    /// the command workspace service. New callers should use IOfficerWorkloadReadService.
+    /// </summary>
+    public Task<CommandOfficerWorkloadVm?> GetOfficerWorkloadCardAsync(
+        string officerUserId,
+        CancellationToken cancellationToken)
+        => _officerWorkloadReadService.GetOfficerAsync(officerUserId, cancellationToken);
 
-        var categoryMap = categories.ToDictionary(x => x.Id);
-        var normalizedProjects = projectRows.Select(row => NormalizeProject(row, categoryMap)).ToList();
-        var filteredProjects = normalizedProjects.AsEnumerable();
+    private async Task<CommandWorkspaceVm> BuildPortfolioAsync(
+        CommandWorkspaceQuery query,
+        CancellationToken cancellationToken)
+    {
+        var categories = await _db.ProjectCategories
+            .AsNoTracking()
+            .Where(category => category.IsActive)
+            .OrderBy(category => category.SortOrder)
+            .ThenBy(category => category.Name)
+            .Select(category => new CategoryRow(
+                category.Id,
+                category.Name,
+                category.ParentId,
+                category.SortOrder))
+            .ToListAsync(cancellationToken);
+
+        var parentOptions = categories
+            .Where(category => category.ParentId == null)
+            .Select(category => new CommandFilterOptionVm(category.Id, category.Name))
+            .ToList();
+        var selectedParents = query.ParentCategoryIds
+            .Where(id => parentOptions.Any(option => option.Id == id))
+            .Distinct()
+            .ToList();
+
+        var projectRows = await _db.Projects
+            .AsNoTracking()
+            .Where(project =>
+                !project.IsDeleted
+                && !project.IsArchived
+                && project.LifecycleStatus == ProjectLifecycleStatus.Active)
+            .Select(project => new ProjectRow(
+                project.Id,
+                project.Name,
+                project.CategoryId,
+                project.LeadPoUserId,
+                project.LeadPoUser != null ? project.LeadPoUser.FullName : null,
+                project.LeadPoUser != null ? project.LeadPoUser.Rank : null,
+                project.WorkflowVersion,
+                project.ProjectStages
+                    .Select(stage => new StageRow(
+                        stage.StageCode,
+                        stage.Status,
+                        stage.SortOrder,
+                        stage.ActualStart,
+                        stage.CompletedOn))
+                    .ToList()))
+            .ToListAsync(cancellationToken);
+
+        var categoryMap = categories.ToDictionary(category => category.Id);
+        var normalizedProjects = projectRows
+            .Select(project => NormalizeProject(project, categoryMap))
+            .ToList();
+
+        IEnumerable<NormalizedProject> filteredProjects = normalizedProjects;
         if (selectedParents.Count > 0)
-            filteredProjects = filteredProjects.Where(p => p.ParentCategoryId.HasValue && selectedParents.Contains(p.ParentCategoryId.Value));
+        {
+            filteredProjects = filteredProjects.Where(project =>
+                project.ParentCategoryId.HasValue
+                && selectedParents.Contains(project.ParentCategoryId.Value));
+        }
+
         if (!string.IsNullOrWhiteSpace(query.ProjectSearch))
-            filteredProjects = filteredProjects.Where(p => p.Name.Contains(query.ProjectSearch.Trim(), StringComparison.OrdinalIgnoreCase));
+        {
+            var projectSearch = query.ProjectSearch.Trim();
+            filteredProjects = filteredProjects.Where(project =>
+                project.Name.Contains(projectSearch, StringComparison.OrdinalIgnoreCase));
+        }
+
         var projectList = filteredProjects.ToList();
-
         var orderedStageCodes = StageCodes.All
-            .Concat(projectList.Select(p => p.StageCode).Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase)))
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        var stageColumns = BuildStageColumns(projectList, orderedStageCodes, query.PopulatedStagesOnly);
-        var stageSeries = projectList
-            .GroupBy(p => new { p.StageCode, p.StageName, p.ParentCategoryName })
-            .Select(g => new CommandStageSeriesPointVm(g.Key.StageCode, g.Key.StageName, g.Key.ParentCategoryName, g.Count()))
-            .OrderBy(x => StageOrder(x.StageCode, orderedStageCodes)).ThenBy(x => x.CategoryName)
+            .Concat(projectList
+                .Select(project => project.StageCode)
+                .Where(code => !StageCodes.All.Contains(code, StringComparer.OrdinalIgnoreCase)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var officers = await BuildOfficerWorkloadAsync(query.RequestingUserId, normalizedProjects, orderedStageCodes, ct);
-        var stageOptions = orderedStageCodes
-            .Select((code, index) => new CommandFilterOptionVm(index + 1, code == UnassignedStageCode ? "Unassigned" : StageCodes.DisplayNameOf(code)))
+        var stageColumns = BuildStageColumns(
+            projectList,
+            orderedStageCodes,
+            query.PopulatedStagesOnly);
+        var stageSeries = projectList
+            .GroupBy(project => new
+            {
+                project.StageCode,
+                project.StageName,
+                project.ParentCategoryName
+            })
+            .Select(group => new CommandStageSeriesPointVm(
+                group.Key.StageCode,
+                group.Key.StageName,
+                group.Key.ParentCategoryName,
+                group.Count()))
+            .OrderBy(point => StageOrder(point.StageCode, orderedStageCodes))
+            .ThenBy(point => point.CategoryName)
             .ToList();
+        var stageOptions = orderedStageCodes
+            .Select((code, index) => new CommandFilterOptionVm(
+                index + 1,
+                code == UnassignedStageCode
+                    ? "Unassigned"
+                    : StageCodes.DisplayNameOf(code)))
+            .ToList();
+
+        var officerCount = await _officerWorkloadReadService.CountActiveOfficersAsync(cancellationToken);
 
         return new CommandWorkspaceVm
         {
             GeneratedAtUtc = DateTime.UtcNow,
-            ActiveView = query.View,
+            ActiveView = "portfolio",
             TotalOngoingProjects = projectRows.Count,
             ParentCategoryOptions = parentOptions,
             SelectedParentCategoryIds = selectedParents,
@@ -82,288 +165,192 @@ public sealed class CommandWorkspaceService
             PopulatedStagesOnly = query.PopulatedStagesOnly,
             StageSeries = stageSeries,
             StageColumns = stageColumns,
-            Officers = officers,
+            Officers = Array.Empty<CommandOfficerWorkloadVm>(),
             StageOptions = stageOptions,
+            ProjectOfficerCount = officerCount
+        };
+    }
+
+    private async Task<CommandWorkspaceVm> BuildOfficerWorkloadAsync(
+        CommandWorkspaceQuery query,
+        CancellationToken cancellationToken)
+    {
+        var officers = await _officerWorkloadReadService.GetAllAsync(
+            query.RequestingUserId,
+            cancellationToken);
+        var totalOngoingProjects = await _db.Projects
+            .AsNoTracking()
+            .CountAsync(project =>
+                !project.IsDeleted
+                && !project.IsArchived
+                && project.LifecycleStatus == ProjectLifecycleStatus.Active,
+                cancellationToken);
+
+        return new CommandWorkspaceVm
+        {
+            GeneratedAtUtc = DateTime.UtcNow,
+            ActiveView = "officers",
+            TotalOngoingProjects = totalOngoingProjects,
+            ParentCategoryOptions = Array.Empty<CommandFilterOptionVm>(),
+            SelectedParentCategoryIds = Array.Empty<int>(),
+            ProjectSearch = null,
+            PopulatedStagesOnly = false,
+            StageSeries = Array.Empty<CommandStageSeriesPointVm>(),
+            StageColumns = Array.Empty<CommandStageColumnVm>(),
+            Officers = officers,
+            StageOptions = Array.Empty<CommandFilterOptionVm>(),
             ProjectOfficerCount = officers.Count
         };
     }
 
-    /// <summary>
-    /// Builds the same officer card used in the Comdt / HoD workload view for one
-    /// Project Officer. Keeping this composition in the Command workspace service
-    /// prevents the two workspaces from drifting.
-    /// </summary>
-    public async Task<CommandOfficerWorkloadVm?> GetOfficerWorkloadCardAsync(
-        string officerUserId,
-        CancellationToken ct)
+    private static IReadOnlyList<CommandStageColumnVm> BuildStageColumns(
+        IReadOnlyList<NormalizedProject> projects,
+        IReadOnlyList<string> orderedCodes,
+        bool populatedOnly)
     {
-        if (string.IsNullOrWhiteSpace(officerUserId))
-        {
-            return null;
-        }
-
-        var user = await _userManager.Users
-            .AsNoTracking()
-            .SingleOrDefaultAsync(candidate => candidate.Id == officerUserId, ct);
-
-        if (user is null || user.IsDisabled || user.PendingDeletion)
-        {
-            return null;
-        }
-
-        var projects = await _db.Projects
-            .AsNoTracking()
-            .Where(project =>
-                !project.IsDeleted &&
-                !project.IsArchived &&
-                project.LifecycleStatus == ProjectLifecycleStatus.Active &&
-                project.LeadPoUserId == officerUserId)
-            .Select(project => new ProjectRow(
-                project.Id,
-                project.Name,
-                project.CategoryId,
-                project.LeadPoUserId,
-                user.FullName,
-                user.Rank,
-                project.ProjectStages
-                    .Select(stage => new StageRow(stage.StageCode, stage.Status, stage.SortOrder, stage.CompletedOn))
-                    .ToList()))
-            .ToListAsync(ct);
-
-        var ideaRows = await _db.ProjectIdeas
-            .AsNoTracking()
-            .Where(idea =>
-                !idea.IsDeleted &&
-                idea.Status != ProjectIdeaStatuses.Archived &&
-                idea.AssignedProjectOfficerUserId == officerUserId)
-            .OrderByDescending(idea => idea.Id)
-            .Select(idea => new { idea.Id, idea.Title, idea.Status })
-            .ToListAsync(ct);
-        var ideas = ideaRows
-            .Select(idea => new CommandOfficerIdeaVm(
-                idea.Id,
-                idea.Title,
-                ProjectIdeaStatuses.ToDisplay(idea.Status),
-                $"/ProjectIdeas/Details/{idea.Id}"))
-            .ToList();
-
-        var taskRows = await _db.ActionTasks
-            .AsNoTracking()
-            .Where(task =>
-                !task.IsDeleted &&
-                task.Status != ActionTaskStatuses.Closed &&
-                task.Status != ActionTaskStatuses.Backlog &&
-                task.AssignedToUserId == officerUserId)
-            .OrderBy(task => task.DueDate)
-            .Select(task => new { task.Id, task.Title, task.Status, task.DueDate })
-            .ToListAsync(ct);
-        var tasks = taskRows
-            .Select(task => new CommandOfficerTaskVm(
-                task.Id,
-                task.Title,
-                task.Status,
-                task.DueDate,
-                $"/ActionTasks/Index?taskId={task.Id}"))
-            .ToList();
-
-        if (projects.Count + ideas.Count + tasks.Count == 0)
-        {
-            return null;
-        }
-
-        var orderedStageCodes = StageCodes.All
-            .Concat(projects
-                .Select(project => DetermineCurrentStage(project.Stages)?.StageCode)
-                .Where(code => !string.IsNullOrWhiteSpace(code))
-                .Cast<string>())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var projectCards = projects
-            .Select(project =>
+        var columns = orderedCodes
+            .Select(code =>
             {
-                var stage = DetermineCurrentStage(project.Stages);
-                var stageCode = string.IsNullOrWhiteSpace(stage?.StageCode)
-                    ? UnassignedStageCode
-                    : stage!.StageCode.Trim();
-                var stageName = stageCode == UnassignedStageCode
-                    ? "Unassigned"
-                    : StageCodes.DisplayNameOf(stageCode);
+                var stageProjects = projects
+                    .Where(project => string.Equals(
+                        project.StageCode,
+                        code,
+                        StringComparison.OrdinalIgnoreCase))
+                    .ToList();
 
-                return new CommandOfficerProjectVm(
-                    project.Id,
-                    project.Name,
-                    stageCode,
-                    stageName,
-                    $"/Projects/Overview/{project.Id}");
+                return new CommandStageColumnVm
+                {
+                    StageCode = code,
+                    StageName = code == UnassignedStageCode
+                        ? "Unassigned"
+                        : StageCodes.DisplayNameOf(code),
+                    ProjectCount = stageProjects.Count,
+                    Categories = stageProjects
+                        .GroupBy(project => project.ParentCategoryName)
+                        .OrderBy(group => group.Key)
+                        .Select(group => new CommandStageCategoryVm
+                        {
+                            CategoryName = group.Key,
+                            ProjectCount = group.Count(),
+                            Projects = group
+                                .OrderBy(project => project.Name)
+                                .Select(project => new CommandStageProjectVm(
+                                    project.Id,
+                                    project.Name,
+                                    project.OfficerDisplayName,
+                                    $"/Projects/Overview/{project.Id}"))
+                                .ToList()
+                        })
+                        .ToList()
+                };
             })
-            .OrderBy(project => StageOrder(project.StageCode, orderedStageCodes))
-            .ThenBy(project => project.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        return new CommandOfficerWorkloadVm
-        {
-            UserId = user.Id,
-            OfficerName = string.IsNullOrWhiteSpace(user.FullName)
-                ? user.UserName ?? "Project Officer"
-                : user.FullName,
-            Rank = user.Rank ?? string.Empty,
-            ProjectCount = projectCards.Count,
-            IdeaCount = ideas.Count,
-            OtherTaskCount = tasks.Count,
-            Projects = projectCards,
-            Ideas = ideas,
-            OtherTasks = tasks
-        };
+        return populatedOnly
+            ? columns.Where(column => column.ProjectCount > 0).ToList()
+            : columns;
     }
 
-    private async Task<IReadOnlyList<CommandOfficerWorkloadVm>> BuildOfficerWorkloadAsync(
-        string requestingUserId,
-        IReadOnlyList<NormalizedProject> allProjects,
-        IReadOnlyList<string> orderedStageCodes,
-        CancellationToken ct)
+    private NormalizedProject NormalizeProject(
+        ProjectRow row,
+        IReadOnlyDictionary<int, CategoryRow> categories)
     {
-        var roleUsers = await _userManager.GetUsersInRoleAsync(RoleNames.ProjectOfficer);
-        var users = roleUsers.Where(u => !u.IsDisabled && !u.PendingDeletion).ToList();
-        var ids = users.Select(x => x.Id).ToList();
-
-        var ideas = await _db.ProjectIdeas.AsNoTracking()
-            .Where(i => !i.IsDeleted && i.Status != ProjectIdeaStatuses.Archived && i.AssignedProjectOfficerUserId != null && ids.Contains(i.AssignedProjectOfficerUserId))
-            .Select(i => new { i.Id, i.Title, i.Status, UserId = i.AssignedProjectOfficerUserId! })
-            .ToListAsync(ct);
-
-        var tasks = await _db.ActionTasks.AsNoTracking()
-            .Where(t => !t.IsDeleted && t.Status != ActionTaskStatuses.Closed && t.Status != ActionTaskStatuses.Backlog && ids.Contains(t.AssignedToUserId))
-            .Select(t => new { t.Id, t.Title, t.Status, t.DueDate, UserId = t.AssignedToUserId })
-            .ToListAsync(ct);
-
-        var result = new List<CommandOfficerWorkloadVm>();
-        foreach (var user in users)
-        {
-            var officerProjects = allProjects.Where(p => string.Equals(p.LeadPoUserId, user.Id, StringComparison.OrdinalIgnoreCase)).ToList();
-            var officerIdeas = ideas.Where(i => i.UserId == user.Id).ToList();
-            var officerTasks = tasks.Where(t => t.UserId == user.Id).ToList();
-            if (officerProjects.Count + officerIdeas.Count + officerTasks.Count == 0) continue;
-
-            result.Add(new CommandOfficerWorkloadVm
-            {
-                UserId = user.Id,
-                OfficerName = string.IsNullOrWhiteSpace(user.FullName) ? (user.UserName ?? "Project Officer") : user.FullName,
-                Rank = user.Rank ?? string.Empty,
-                ProjectCount = officerProjects.Count,
-                IdeaCount = officerIdeas.Count,
-                OtherTaskCount = officerTasks.Count,
-                Projects = officerProjects.OrderBy(p => StageOrder(p.StageCode, orderedStageCodes)).ThenBy(p => p.Name)
-                    .Select(p => new CommandOfficerProjectVm(p.Id, p.Name, p.StageCode, p.StageName, $"/Projects/Overview/{p.Id}" )).ToList(),
-                Ideas = officerIdeas.OrderByDescending(i => i.Id)
-                    .Select(i => new CommandOfficerIdeaVm(i.Id, i.Title, ProjectIdeaStatuses.ToDisplay(i.Status), $"/ProjectIdeas/Details/{i.Id}" )).ToList(),
-                OtherTasks = officerTasks.OrderBy(t => t.DueDate)
-                    .Select(t => new CommandOfficerTaskVm(t.Id, t.Title, t.Status, t.DueDate, $"/ActionTasks/Index?taskId={t.Id}" )).ToList()
-            });
-        }
-
-        var defaultOrder = result
-            .OrderBy(x => RankOrder(x.Rank))
-            .ThenBy(x => x.OfficerName, StringComparer.OrdinalIgnoreCase)
+        var stageSnapshots = row.Stages
+            .Select(stage => new ProjectStageStatusSnapshot(
+                stage.StageCode,
+                stage.Status,
+                stage.SortOrder,
+                stage.ActualStart,
+                stage.CompletedOn))
             .ToList();
+        var presentStage = PresentStageHelper.ComputePresentStageAndAge(
+            stageSnapshots,
+            _workflowStageMetadataProvider,
+            row.WorkflowVersion);
 
-        if (string.IsNullOrWhiteSpace(requestingUserId)) return defaultOrder;
-        var orderJson = await _db.Users.AsNoTracking()
-            .Where(x => x.Id == requestingUserId)
-            .Select(x => x.ComdtOfficerWorkloadOrderJson)
-            .SingleOrDefaultAsync(ct);
-        if (string.IsNullOrWhiteSpace(orderJson)) return defaultOrder;
+        var stageCode = string.IsNullOrWhiteSpace(presentStage.CurrentStageCode)
+            ? UnassignedStageCode
+            : presentStage.CurrentStageCode.Trim();
+        var stageName = stageCode == UnassignedStageCode
+            ? "Unassigned"
+            : presentStage.CurrentStageName
+                ?? _workflowStageMetadataProvider.GetDisplayName(row.WorkflowVersion, stageCode);
 
-        try
-        {
-            var savedOrder = JsonSerializer.Deserialize<List<string>>(orderJson) ?? new List<string>();
-            var positions = savedOrder
-                .Select((id, index) => new { id, index })
-                .Where(x => !string.IsNullOrWhiteSpace(x.id))
-                .GroupBy(x => x.id, StringComparer.Ordinal)
-                .ToDictionary(x => x.Key, x => x.First().index, StringComparer.Ordinal);
-            return defaultOrder
-                .OrderBy(x => positions.TryGetValue(x.UserId, out var position) ? position : int.MaxValue)
-                .ThenBy(x => RankOrder(x.Rank))
-                .ThenBy(x => x.OfficerName, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-        }
-        catch (JsonException)
-        {
-            return defaultOrder;
-        }
-    }
-
-    private static int RankOrder(string? rank)
-    {
-        if (string.IsNullOrWhiteSpace(rank)) return int.MaxValue;
-        var value = rank.Trim().ToUpperInvariant();
-        if (value.Contains("LT COL") || value.Contains("LIEUTENANT COLONEL")) return 20;
-        if (value.Contains("COLONEL") || value == "COL") return 10;
-        if (value.Contains("MAJOR") || value == "MAJ") return 30;
-        if (value.Contains("CAPTAIN") || value == "CAPT") return 40;
-        if (value.Contains("LIEUTENANT") || value == "LT") return 50;
-        return 100;
-    }
-
-    private static IReadOnlyList<CommandStageColumnVm> BuildStageColumns(IReadOnlyList<NormalizedProject> projects, IReadOnlyList<string> orderedCodes, bool populatedOnly)
-    {
-        var columns = orderedCodes.Select(code =>
-        {
-            var stageProjects = projects.Where(p => string.Equals(p.StageCode, code, StringComparison.OrdinalIgnoreCase)).ToList();
-            return new CommandStageColumnVm
-            {
-                StageCode = code,
-                StageName = code == UnassignedStageCode ? "Unassigned" : StageCodes.DisplayNameOf(code),
-                ProjectCount = stageProjects.Count,
-                Categories = stageProjects.GroupBy(p => p.ParentCategoryName)
-                    .OrderBy(g => g.Key)
-                    .Select(g => new CommandStageCategoryVm
-                    {
-                        CategoryName = g.Key,
-                        ProjectCount = g.Count(),
-                        Projects = g.OrderBy(p => p.Name).Select(p => new CommandStageProjectVm(p.Id, p.Name, p.OfficerDisplayName, $"/Projects/Overview/{p.Id}")).ToList()
-                    }).ToList()
-            };
-        }).ToList();
-        return populatedOnly ? columns.Where(x => x.ProjectCount > 0).ToList() : columns;
-    }
-
-    private static NormalizedProject NormalizeProject(ProjectRow row, IReadOnlyDictionary<int, CategoryRow> categories)
-    {
-        var stage = DetermineCurrentStage(row.Stages);
-        var stageCode = string.IsNullOrWhiteSpace(stage?.StageCode) ? UnassignedStageCode : stage!.StageCode.Trim();
         int? parentId = null;
         var parentName = "Uncategorised";
-        if (row.CategoryId.HasValue && categories.TryGetValue(row.CategoryId.Value, out var category))
+        if (row.CategoryId.HasValue
+            && categories.TryGetValue(row.CategoryId.Value, out var category))
         {
             var cursor = category;
             var guard = 0;
-            while (cursor.ParentId.HasValue && categories.TryGetValue(cursor.ParentId.Value, out var parent) && guard++ < 20) cursor = parent;
+            while (cursor.ParentId.HasValue
+                   && categories.TryGetValue(cursor.ParentId.Value, out var parent)
+                   && guard++ < 20)
+            {
+                cursor = parent;
+            }
+
             parentId = cursor.Id;
             parentName = cursor.Name;
         }
-        return new NormalizedProject(row.Id, row.Name, parentId, parentName, stageCode,
-            stageCode == UnassignedStageCode ? "Unassigned" : StageCodes.DisplayNameOf(stageCode), row.LeadPoUserId,
-            string.IsNullOrWhiteSpace(row.OfficerName) ? "Unassigned" : string.Join(' ', new[] { row.OfficerRank, row.OfficerName }.Where(x => !string.IsNullOrWhiteSpace(x))));
+
+        var officerName = string.IsNullOrWhiteSpace(row.OfficerName)
+            ? "Unassigned"
+            : string.Join(' ', new[] { row.OfficerRank, row.OfficerName }
+                .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+        return new NormalizedProject(
+            row.Id,
+            row.Name,
+            parentId,
+            parentName,
+            stageCode,
+            stageName,
+            row.LeadPoUserId,
+            officerName);
     }
 
-    private static StageRow? DetermineCurrentStage(IReadOnlyList<StageRow> stages)
+    private static int StageOrder(string code, IReadOnlyList<string> orderedCodes)
     {
-        if (stages.Count == 0) return null;
-        return stages.Where(s => s.Status == StageStatus.InProgress).OrderBy(s => s.SortOrder).ThenBy(s => s.StageCode).FirstOrDefault()
-            ?? stages.Where(s => s.Status == StageStatus.NotStarted).OrderBy(s => s.SortOrder).ThenBy(s => s.StageCode).FirstOrDefault()
-            ?? stages.Where(s => s.Status == StageStatus.Completed).OrderByDescending(s => s.CompletedOn ?? DateOnly.MinValue).ThenByDescending(s => s.SortOrder).FirstOrDefault()
-            ?? stages.OrderBy(s => s.SortOrder).FirstOrDefault();
-    }
+        for (var index = 0; index < orderedCodes.Count; index++)
+        {
+            if (string.Equals(orderedCodes[index], code, StringComparison.OrdinalIgnoreCase))
+            {
+                return index;
+            }
+        }
 
-    private static string DisplayName(ApplicationUser user) => string.Join(' ', new[] { user.Rank, user.FullName }.Where(x => !string.IsNullOrWhiteSpace(x)));
-    private static int StageOrder(string code, IReadOnlyList<string> orderedCodes) { var i = orderedCodes.ToList().FindIndex(x => string.Equals(x, code, StringComparison.OrdinalIgnoreCase)); return i < 0 ? int.MaxValue : i; }
+        return int.MaxValue;
+    }
 
     private sealed record CategoryRow(int Id, string Name, int? ParentId, int SortOrder);
-    private sealed record StageRow(string StageCode, StageStatus Status, int SortOrder, DateOnly? CompletedOn);
-    private sealed record ProjectRow(int Id, string Name, int? CategoryId, string? LeadPoUserId, string? OfficerName, string? OfficerRank, IReadOnlyList<StageRow> Stages);
-    private sealed record NormalizedProject(int Id, string Name, int? ParentCategoryId, string ParentCategoryName, string StageCode, string StageName, string? LeadPoUserId, string OfficerDisplayName);
+
+    private sealed record StageRow(
+        string StageCode,
+        StageStatus Status,
+        int SortOrder,
+        DateOnly? ActualStart,
+        DateOnly? CompletedOn);
+
+    private sealed record ProjectRow(
+        int Id,
+        string Name,
+        int? CategoryId,
+        string? LeadPoUserId,
+        string? OfficerName,
+        string? OfficerRank,
+        string? WorkflowVersion,
+        IReadOnlyList<StageRow> Stages);
+
+    private sealed record NormalizedProject(
+        int Id,
+        string Name,
+        int? ParentCategoryId,
+        string ParentCategoryName,
+        string StageCode,
+        string StageName,
+        string? LeadPoUserId,
+        string OfficerDisplayName);
 }
 
 public sealed class CommandWorkspaceQuery

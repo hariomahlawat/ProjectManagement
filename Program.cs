@@ -257,6 +257,10 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("ActionTracker.Access", policy =>
         policy.RequireRole(RoleNames.Comdt, RoleNames.HoD, RoleNames.ProjectOfficer, RoleNames.Mco, RoleNames.Ta, RoleNames.Ito));
 
+    // SECTION: Conference remark authorization policy
+    options.AddPolicy(Policies.ConferenceRemarks.Manage, policy =>
+        policy.RequireRole(Policies.ConferenceRemarks.ManageAllowedRoles));
+
 
 });
 
@@ -479,6 +483,7 @@ builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaDo
 // SECTION: Project Officer workspace services
 builder.Services.AddScoped<ProjectManagement.Services.Navigation.DefaultLandingPageResolver>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectOfficerWorkspaceService>();
+builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerWorkloadReadService, ProjectManagement.Services.Workspace.OfficerWorkloadReadService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.CommandWorkspaceService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectRecordHealthService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.WorkspaceNudgeService>();

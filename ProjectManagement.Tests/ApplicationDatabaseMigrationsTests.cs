@@ -24,6 +24,7 @@ public sealed class ApplicationDatabaseMigrationsTests
         Assert.Contains("20261201090000_AlignProjectStageBackfillConstraint", migrations);
         Assert.Contains("20261201150000_ReconcileProjectStageCompletionConstraint", migrations);
         Assert.Contains("20261201160000_FinalizeProjectStageCompletionConstraint", migrations);
+        Assert.Contains("20261201170000_AddConferenceRemarkFoundation", migrations);
         Assert.Equal(migrations.Length, migrations.Distinct(StringComparer.Ordinal).Count());
     }
 
@@ -127,7 +128,7 @@ public sealed class ApplicationDatabaseMigrationsTests
             migrations.OrderBy(id => id, StringComparer.Ordinal).ToArray(),
             migrations);
         Assert.Equal(
-            "20261201160000_FinalizeProjectStageCompletionConstraint",
+            "20261201170000_AddConferenceRemarkFoundation",
             migrations[^1]);
     }
 

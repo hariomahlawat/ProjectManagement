@@ -52,6 +52,47 @@ public class ActionTaskCollaborationServiceTests
 
 
     [Fact]
+    public async Task AddUpdateAsync_ConferenceRemarkRequiresCommandRole()
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, "owner");
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.AddUpdateAsync(
+                task.Id,
+                "Command direction",
+                ActionTaskUpdateTypes.Conference,
+                "owner",
+                RoleNames.Ta,
+                Array.Empty<IFormFile>()));
+
+        Assert.Equal("Only Comdt or HoD may add conference remarks.", exception.Message);
+        Assert.Empty(await db.ActionTaskUpdates.Where(update => update.TaskId == task.Id).ToListAsync());
+    }
+
+    [Fact]
+    public async Task AddUpdateAsync_ConferenceRemarkCapturesCommandContext()
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var task = await SeedTaskAsync(db, "owner");
+
+        var update = await service.AddUpdateAsync(
+            task.Id,
+            "Complete the pending action.",
+            ActionTaskUpdateTypes.Conference,
+            "command-user",
+            RoleNames.Comdt,
+            Array.Empty<IFormFile>());
+
+        Assert.Equal(ActionTaskUpdateTypes.Conference, update.UpdateType);
+        Assert.Equal(RoleNames.Comdt, update.CreatedByRole);
+        Assert.Equal(task.Status, update.StatusSnapshot);
+        Assert.Equal(DateOnly.FromDateTime(task.DueDate), update.DueDateSnapshot);
+    }
+
+    [Fact]
     public async Task AddUpdateAsync_UsesClockUtcNowForUpdateTimestamp()
     {
         // SECTION: Arrange

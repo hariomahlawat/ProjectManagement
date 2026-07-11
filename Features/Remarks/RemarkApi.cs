@@ -570,7 +570,7 @@ internal static class RemarkApi
         error = Results.BadRequest(new ProblemDetails
         {
             Title = "Invalid type.",
-            Detail = "Type must be 'Internal' or 'External'."
+            Detail = "Type must be 'Internal', 'External' or 'Conference'."
         });
         return false;
     }

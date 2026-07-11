@@ -237,8 +237,19 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
 
+                    b.Property<string>("CommentType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("General");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("CreatedByRole")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("CreatedByUserId")
                         .IsRequired()
@@ -250,6 +261,10 @@ namespace ProjectManagement.Migrations
                     b.Property<int>("ProjectIdeaId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("StatusSnapshot")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedByUserId");
@@ -257,6 +272,10 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("IsDeleted");
 
                     b.HasIndex("ProjectIdeaId");
+
+                    b.HasIndex("ProjectIdeaId", "IsDeleted", "CommentType", "CreatedAt")
+                        .IsDescending(false, false, false, true)
+                        .HasDatabaseName("IX_ProjectIdeaComments_IdeaId_Deleted_Type_CreatedAt");
 
                     b.ToTable("ProjectIdeaComments");
                 });
@@ -2676,15 +2695,26 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<string>("CreatedByRole")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("CreatedByUserId")
                         .IsRequired()
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
 
+                    b.Property<DateOnly?>("DueDateSnapshot")
+                        .HasColumnType("date");
+
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
+
+                    b.Property<string>("StatusSnapshot")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<int>("TaskId")
                         .HasColumnType("integer");
@@ -2701,6 +2731,10 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("IsDeleted");
 
                     b.HasIndex("TaskId", "CreatedAtUtc");
+
+                    b.HasIndex("TaskId", "IsDeleted", "UpdateType", "CreatedAtUtc")
+                        .IsDescending(false, false, false, true)
+                        .HasDatabaseName("IX_ActionTaskUpdates_TaskId_IsDeleted_UpdateType_CreatedAtUtc");
 
                     b.ToTable("ActionTaskUpdates");
                 });
@@ -5865,6 +5899,10 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("ProjectId", "IsDeleted", "Type", "EventDate")
                         .HasDatabaseName("IX_Remarks_ProjectId_IsDeleted_Type_EventDate");
+
+                    b.HasIndex("ProjectId", "IsDeleted", "Type", "CreatedAtUtc")
+                        .IsDescending(false, false, false, true)
+                        .HasDatabaseName("IX_Remarks_ProjectId_Deleted_Type_CreatedAt");
 
                     b.ToTable("Remarks");
                 });

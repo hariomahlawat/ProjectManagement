@@ -15,6 +15,7 @@ using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Services.Remarks;
 
@@ -84,7 +85,12 @@ public sealed class RemarkService : IRemarkService
             throw new InvalidOperationException("Remark body cannot be empty after sanitisation.");
         }
 
-        var stage = await NormalizeStageAsync(request.ProjectId, request.StageRef, request.StageNameSnapshot, cancellationToken);
+        var stage = await ResolveStageForCreateAsync(
+            request.ProjectId,
+            request.Type,
+            request.StageRef,
+            request.StageNameSnapshot,
+            cancellationToken);
 
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
@@ -264,7 +270,13 @@ public sealed class RemarkService : IRemarkService
             throw new InvalidOperationException("Remark body cannot be empty after sanitisation.");
         }
 
-        var stage = await NormalizeStageAsync(remark.ProjectId, request.StageRef, request.StageNameSnapshot, cancellationToken);
+        var stage = remark.Type == RemarkType.Conference
+            ? (StageRef: remark.StageRef, StageNameSnapshot: remark.StageNameSnapshot)
+            : await NormalizeStageAsync(
+                remark.ProjectId,
+                request.StageRef,
+                request.StageNameSnapshot,
+                cancellationToken);
 
         remark.Body = processedBody.Body;
         remark.Scope = request.Scope;
@@ -566,6 +578,49 @@ public sealed class RemarkService : IRemarkService
 
     private sealed record ProcessedRemarkBody(string Body, IReadOnlyList<string> MentionUserIds);
 
+    private async Task<(string? StageRef, string? StageNameSnapshot)> ResolveStageForCreateAsync(
+        int projectId,
+        RemarkType remarkType,
+        string? stageRef,
+        string? stageName,
+        CancellationToken cancellationToken)
+    {
+        if (remarkType != RemarkType.Conference)
+        {
+            return await NormalizeStageAsync(
+                projectId,
+                stageRef,
+                stageName,
+                cancellationToken);
+        }
+
+        var project = await _db.Projects
+            .AsNoTracking()
+            .Where(candidate => candidate.Id == projectId)
+            .Select(candidate => new
+            {
+                candidate.WorkflowVersion,
+                Stages = candidate.ProjectStages
+                    .Select(stage => new ProjectStageStatusSnapshot(
+                        stage.StageCode,
+                        stage.Status,
+                        stage.SortOrder,
+                        stage.ActualStart,
+                        stage.CompletedOn))
+                    .ToList()
+            })
+            .SingleAsync(cancellationToken);
+
+        var presentStage = PresentStageHelper.ComputePresentStageAndAge(
+            project.Stages,
+            _workflowStageMetadataProvider,
+            project.WorkflowVersion);
+
+        return string.IsNullOrWhiteSpace(presentStage.CurrentStageCode)
+            ? (null, null)
+            : (presentStage.CurrentStageCode, presentStage.CurrentStageName);
+    }
+
     private async Task<(string? StageRef, string? StageNameSnapshot)> NormalizeStageAsync(
         int projectId,
         string? stageRef,
@@ -627,6 +682,13 @@ public sealed class RemarkService : IRemarkService
         DateTime nowUtc,
         bool isDelete)
     {
+        if (remark.Type == RemarkType.Conference)
+        {
+            return ActorCanManageConferenceRemarks(actor.Roles)
+                ? (true, null, null)
+                : (false, PermissionDeniedMessage, "ConferenceRequiresCommandRole");
+        }
+
         if (HasOverride(actor.Roles))
         {
             return (true, null, null);
@@ -645,6 +707,10 @@ public sealed class RemarkService : IRemarkService
 
         return (false, isDelete ? DeleteWindowMessage : EditWindowMessage, "AuthorWindowExpired");
     }
+
+    private static bool ActorCanManageConferenceRemarks(IReadOnlyCollection<RemarkActorRole> roles)
+        => roles.Contains(RemarkActorRole.HeadOfDepartment)
+           || roles.Contains(RemarkActorRole.Commandant);
 
     private static bool HasOverride(IReadOnlyCollection<RemarkActorRole> roles)
         => roles.Contains(RemarkActorRole.HeadOfDepartment)
@@ -739,6 +805,14 @@ public sealed class RemarkService : IRemarkService
         {
             LogDecision("Create", false, "ExternalRequiresOverride", actor, null, projectId);
             throw new InvalidOperationException("External remarks require HoD, Comdt or Admin role.");
+        }
+
+        if (type == RemarkType.Conference
+            && (actor.ActorRole is not (RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant)
+                || !ActorCanManageConferenceRemarks(actor.Roles)))
+        {
+            LogDecision("Create", false, "ConferenceRequiresCommandRole", actor, null, projectId);
+            throw new InvalidOperationException("Only Comdt or HoD may add conference remarks.");
         }
     }
 

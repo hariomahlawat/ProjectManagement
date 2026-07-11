@@ -94,4 +94,21 @@ public class ActionTaskPermissionServiceTests
         Assert.False(canCloseClosedTaskDirectly);
     }
 
+
+    [Theory]
+    [InlineData(RoleNames.Comdt, true)]
+    [InlineData(RoleNames.HoD, true)]
+    [InlineData(RoleNames.Admin, false)]
+    [InlineData(RoleNames.ProjectOfficer, false)]
+    [InlineData(RoleNames.Mco, false)]
+    [InlineData(RoleNames.Ta, false)]
+    [InlineData(RoleNames.Ito, false)]
+    public void ConferenceUpdatePermission_IsLimitedToCommandRoles(string role, bool expected)
+    {
+        var service = new ActionTaskPermissionService();
+
+        Assert.Equal(expected, service.CanAddConferenceUpdate(role));
+    }
+
+
 }
