@@ -17,7 +17,7 @@ namespace ProjectManagement.Tests;
 public sealed class OfficerConferenceReadServiceTests
 {
     [Fact]
-    public async Task GetAsync_UsesLatestNativeDirection_AndCountsOnlySubsequentOperationalUpdates()
+    public async Task GetAsync_UsesLatestNativeDirection_AndShowsResponsibleFunctionaryResponses()
     {
         await using var connection = new SqliteConnection("DataSource=:memory:");
         await connection.OpenAsync();
@@ -30,7 +30,9 @@ public sealed class OfficerConferenceReadServiceTests
 
         var command = CreateUser("command-1", "Command User", "Colonel");
         var officer = CreateUser("officer-1", "Test Officer", "Lt Col");
-        db.Users.AddRange(command, officer);
+        var otherOfficer = CreateUser("officer-other", "Other Officer", "Lt Col");
+        var mco = CreateUser("mco-1", "MCO User", "Major");
+        db.Users.AddRange(command, officer, otherOfficer, mco);
 
         var project = new Project
         {
@@ -81,10 +83,12 @@ public sealed class OfficerConferenceReadServiceTests
         });
 
         db.Remarks.AddRange(
-            ProjectRemark(project.Id, command.Id, RemarkType.Conference, "Older direction", Utc(1), StageCodes.BID),
-            ProjectRemark(project.Id, command.Id, RemarkType.Conference, "Latest project direction", Utc(3), StageCodes.BID),
-            ProjectRemark(project.Id, officer.Id, RemarkType.Internal, "Project update one", Utc(4), StageCodes.TEC),
-            ProjectRemark(project.Id, officer.Id, RemarkType.External, "Project update two", Utc(5), StageCodes.TEC));
+            ProjectRemark(project.Id, command.Id, RemarkActorRole.HeadOfDepartment, RemarkType.Conference, "Older direction", Utc(1), StageCodes.BID),
+            ProjectRemark(project.Id, command.Id, RemarkActorRole.HeadOfDepartment, RemarkType.Conference, "Latest project direction", Utc(3), StageCodes.BID),
+            ProjectRemark(project.Id, otherOfficer.Id, RemarkActorRole.ProjectOfficer, RemarkType.Internal, "Other officer update", Utc(4), StageCodes.TEC),
+            ProjectRemark(project.Id, officer.Id, RemarkActorRole.ProjectOfficer, RemarkType.Internal, "Project update one", Utc(5), StageCodes.TEC),
+            ProjectRemark(project.Id, officer.Id, RemarkActorRole.ProjectOfficer, RemarkType.External, "Project update two", Utc(6), StageCodes.TEC),
+            ProjectRemark(project.Id, mco.Id, RemarkActorRole.Mco, RemarkType.Internal, "MCO commercial update", Utc(7), StageCodes.TEC));
 
         db.ProjectIdeaComments.AddRange(
             new ProjectIdeaComment
@@ -105,6 +109,16 @@ public sealed class OfficerConferenceReadServiceTests
                 CreatedByUserId = officer.Id,
                 CreatedAt = Utc(4)
             });
+
+        db.ProjectIdeaNotes.Add(new ProjectIdeaNote
+        {
+            ProjectIdeaId = idea.Id,
+            Title = "Latest working note",
+            Body = "Note progress after direction",
+            CreatedByUserId = officer.Id,
+            CreatedAt = Utc(1),
+            UpdatedAt = Utc(5)
+        });
 
         db.ActionTaskUpdates.AddRange(
             new ActionTaskUpdate
@@ -171,20 +185,111 @@ public sealed class OfficerConferenceReadServiceTests
 
         var projectItem = Assert.Single(result.Sections.Single(section => section.Kind == ConferenceItemKind.Project).Items);
         Assert.Equal("Latest project direction", projectItem.LatestDirection!.Body);
-        Assert.Contains("BID → TEC", projectItem.ProgressSummary);
-        Assert.Contains("2 subsequent remarks", projectItem.ProgressSummary);
-        Assert.Equal("Project update two", projectItem.LatestProgressText);
+        Assert.Empty(projectItem.ProgressSummary);
+        Assert.Null(projectItem.LatestProgressText);
+        Assert.Collection(
+            projectItem.ProgressEntries,
+            projectOfficerEntry =>
+            {
+                Assert.Equal("Project Officer", projectOfficerEntry.Label);
+                Assert.Equal("Project update two", projectOfficerEntry.Body);
+                Assert.Equal(officer.FullName, projectOfficerEntry.AuthorName);
+            },
+            mcoEntry =>
+            {
+                Assert.Equal("MCO", mcoEntry.Label);
+                Assert.Equal("MCO commercial update", mcoEntry.Body);
+                Assert.Equal(mco.FullName, mcoEntry.AuthorName);
+            });
 
         var ideaItem = Assert.Single(result.Sections.Single(section => section.Kind == ConferenceItemKind.ProjectIdea).Items);
         Assert.Equal("Idea direction", ideaItem.LatestDirection!.Body);
-        Assert.Contains("1 subsequent comment", ideaItem.ProgressSummary);
-        Assert.Equal("Idea progress", ideaItem.LatestProgressText);
+        Assert.Empty(ideaItem.ProgressSummary);
+        Assert.Collection(
+            ideaItem.ProgressEntries,
+            commentEntry =>
+            {
+                Assert.Equal("Latest comment", commentEntry.Label);
+                Assert.Equal("Idea progress", commentEntry.Body);
+            },
+            noteEntry =>
+            {
+                Assert.Equal("Latest note", noteEntry.Label);
+                Assert.Equal("Latest working note", noteEntry.Title);
+                Assert.Equal("Note progress after direction", noteEntry.Body);
+            });
 
         var taskItem = Assert.Single(result.Sections.Single(section => section.Kind == ConferenceItemKind.ActionTask).Items);
         Assert.Equal("Task direction", taskItem.LatestDirection!.Body);
         Assert.Contains("Assigned → In Progress", taskItem.ProgressSummary);
         Assert.Contains("1 subsequent update", taskItem.ProgressSummary);
         Assert.Equal("Task progress", taskItem.LatestProgressText);
+    }
+
+    [Fact]
+    public async Task GetAsync_ProjectWithoutAssignedOfficerResponse_ShowsOnlyRequiredPlaceholder()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+
+        var command = CreateUser("command-1", "Command User", "Colonel");
+        var officer = CreateUser("officer-1", "Test Officer", "Lt Col");
+        db.Users.AddRange(command, officer);
+
+        var project = new Project
+        {
+            Name = "Conference project",
+            CreatedByUserId = command.Id,
+            LeadPoUserId = officer.Id,
+            WorkflowVersion = ProcurementWorkflow.VersionV2,
+            LifecycleStatus = ProjectLifecycleStatus.Active
+        };
+        db.Projects.Add(project);
+        await db.SaveChangesAsync();
+
+        db.Remarks.Add(ProjectRemark(
+            project.Id,
+            command.Id,
+            RemarkActorRole.HeadOfDepartment,
+            RemarkType.Conference,
+            "Direction",
+            Utc(2),
+            StageCodes.BID));
+        await db.SaveChangesAsync();
+
+        var workload = new StubOfficerWorkloadReadService(new[]
+        {
+            new CommandOfficerWorkloadVm
+            {
+                UserId = officer.Id,
+                OfficerName = officer.FullName!,
+                Rank = officer.Rank!,
+                Projects = new[]
+                {
+                    new CommandOfficerProjectVm(project.Id, project.Name, StageCodes.BID, "Bid", $"/Projects/Overview/{project.Id}")
+                }
+            }
+        });
+        var service = new OfficerConferenceReadService(
+            db,
+            workload,
+            new WorkflowStageMetadataProvider(),
+            new FixedClock(Utc(10)));
+
+        var result = await service.GetAsync(command.Id, officer.Id);
+
+        var projectItem = Assert.Single(
+            result!.Sections.Single(section => section.Kind == ConferenceItemKind.Project).Items);
+        var placeholder = Assert.Single(projectItem.ProgressEntries);
+        Assert.Equal("Project Officer", placeholder.Label);
+        Assert.Equal("No remark by the Project Officer after the direction.", placeholder.EmptyText);
+        Assert.Null(placeholder.Body);
     }
 
     [Fact]
@@ -223,6 +328,7 @@ public sealed class OfficerConferenceReadServiceTests
     private static Remark ProjectRemark(
         int projectId,
         string authorUserId,
+        RemarkActorRole authorRole,
         RemarkType type,
         string body,
         DateTime createdAtUtc,
@@ -231,9 +337,7 @@ public sealed class OfficerConferenceReadServiceTests
         {
             ProjectId = projectId,
             AuthorUserId = authorUserId,
-            AuthorRole = type == RemarkType.Conference
-                ? RemarkActorRole.HeadOfDepartment
-                : RemarkActorRole.ProjectOfficer,
+            AuthorRole = authorRole,
             Type = type,
             Scope = RemarkScope.General,
             Body = body,

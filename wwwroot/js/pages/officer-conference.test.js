@@ -37,16 +37,38 @@ test('conference save surfaces server trace references and row-local feedback', 
     assert.match(source, /setRowStatus\(item, 'Save failed\.', true\)/);
 });
 
+test('conference direction uses formal instruction icon and simplified metadata', () => {
+    assert.match(source, /bi bi-file-earmark-check/);
+    assert.match(source, /Directions from last conference/);
+    assert.doesNotMatch(source, /direction\.authorRole/);
+    assert.doesNotMatch(source, /direction\.snapshotLabel/);
+    assert.doesNotMatch(source, /direction\.snapshotValue/);
+});
 
-test('conference direction metadata includes time', () => {
+test('conference direction metadata retains a subdued timestamp', () => {
     assert.match(source, /hour: '2-digit'/);
     assert.match(source, /minute: '2-digit'/);
+    assert.match(source, /oc-direction__timestamp/);
 });
 
 test('conference directions expose accessible more and less controls', () => {
     assert.match(source, /data-oc-direction-toggle/);
     assert.match(source, /aria-expanded/);
     assert.match(source, /toggle\.textContent = expanded \? 'Less' : 'More'/);
+});
+
+test('structured progress renders native project and idea activity safely', () => {
+    assert.match(source, /payload\.progressEntries/);
+    assert.match(source, /entry\.body/);
+    assert.match(source, /body\.textContent = entry\.body/);
+    assert.match(source, /payload\.emptyProgressText/);
+    assert.doesNotMatch(source, /entry\.body.*innerHTML/);
+});
+
+test('structured progress supports accessible more and less controls', () => {
+    assert.match(source, /data-oc-progress-toggle/);
+    assert.match(source, /setProgressExpanded/);
+    assert.match(source, /configureProgressToggle/);
 });
 
 test('conference save uses only row-local success feedback', () => {

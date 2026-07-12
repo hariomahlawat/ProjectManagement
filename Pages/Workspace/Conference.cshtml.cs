@@ -88,6 +88,8 @@ public sealed class ConferenceModel : PageModel
             {
                 saved = true,
                 direction = result.Direction,
+                progressEntries = result.ProgressEntries,
+                emptyProgressText = result.EmptyProgressText,
                 progressSummary = result.ProgressSummary,
                 latestProgressText = result.LatestProgressText
             });

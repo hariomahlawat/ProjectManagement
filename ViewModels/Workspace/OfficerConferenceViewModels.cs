@@ -60,8 +60,23 @@ public sealed class OfficerConferenceItemVm
     public bool RequiresAttention { get; init; }
 
     public ConferenceDirectionVm? LatestDirection { get; init; }
+    public IReadOnlyList<ConferenceProgressEntryVm> ProgressEntries { get; init; }
+        = Array.Empty<ConferenceProgressEntryVm>();
+    public string? EmptyProgressText { get; init; }
+
+    // Retained for Action Tasks until their progress semantics are reviewed separately.
     public string ProgressSummary { get; init; } = string.Empty;
     public string? LatestProgressText { get; init; }
+}
+
+public sealed class ConferenceProgressEntryVm
+{
+    public string Label { get; init; } = string.Empty;
+    public string? Title { get; init; }
+    public string? Body { get; init; }
+    public string? AuthorName { get; init; }
+    public DateTime? ActivityAtUtc { get; init; }
+    public string? EmptyText { get; init; }
 }
 
 public sealed class ConferenceDirectionVm
@@ -101,6 +116,8 @@ public sealed record AddConferenceRemarkRequest(
 
 public sealed record AddConferenceRemarkResult(
     ConferenceDirectionVm Direction,
+    IReadOnlyList<ConferenceProgressEntryVm> ProgressEntries,
+    string? EmptyProgressText,
     string ProgressSummary,
     string? LatestProgressText);
 

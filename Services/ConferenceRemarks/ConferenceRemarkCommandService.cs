@@ -165,7 +165,16 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
                 SnapshotLabel = "Stage when issued",
                 SnapshotValue = BuildStageSnapshot(remark.StageRef, remark.StageNameSnapshot)
             },
-            "No stage movement · no subsequent update",
+            new[]
+            {
+                new ConferenceProgressEntryVm
+                {
+                    Label = "Project Officer",
+                    EmptyText = "No remark by the Project Officer after the direction."
+                }
+            },
+            null,
+            string.Empty,
             null);
     }
 
@@ -206,7 +215,9 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
                 SnapshotLabel = "Status when issued",
                 SnapshotValue = ProjectIdeaStatuses.ToDisplay(comment.StatusSnapshot ?? idea.Status)
             },
-            "No status movement · no subsequent update",
+            Array.Empty<ConferenceProgressEntryVm>(),
+            "No comment or note after the direction.",
+            string.Empty,
             null);
     }
 
@@ -251,6 +262,8 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
                 SnapshotLabel = "When issued",
                 SnapshotValue = BuildTaskSnapshot(update.StatusSnapshot, update.DueDateSnapshot)
             },
+            Array.Empty<ConferenceProgressEntryVm>(),
+            null,
             "No status movement · due date unchanged · no subsequent update",
             null);
     }

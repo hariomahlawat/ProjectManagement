@@ -52,6 +52,9 @@ public sealed class ConferenceRemarkCommandServiceTests
         Assert.Equal("officer-conference-review", metadata.RootElement.GetProperty("origin").GetString());
         Assert.Equal(officer.Id, metadata.RootElement.GetProperty("officerUserId").GetString());
         Assert.Equal("Direction", result.Direction.Body);
+        var projectOfficerProgress = Assert.Single(result.ProgressEntries);
+        Assert.Equal("Project Officer", projectOfficerProgress.Label);
+        Assert.Equal("No remark by the Project Officer after the direction.", projectOfficerProgress.EmptyText);
     }
 
     [Fact]
@@ -76,13 +79,15 @@ public sealed class ConferenceRemarkCommandServiceTests
         var ideas = new CapturingIdeaCommandService();
         var service = scope.CreateService(ideas: ideas);
 
-        await service.AddAsync(
+        var result = await service.AddAsync(
             actor.Id,
             new AddConferenceRemarkRequest(officer.Id, ConferenceItemKind.ProjectIdea, idea.Id, "Idea direction"));
 
         Assert.Equal(idea.Id, ideas.Idea?.Id);
         Assert.Equal("Idea direction", ideas.Text);
         Assert.Equal(RoleNames.Comdt, ideas.ActorRole);
+        Assert.Empty(result.ProgressEntries);
+        Assert.Equal("No comment or note after the direction.", result.EmptyProgressText);
     }
 
     [Fact]

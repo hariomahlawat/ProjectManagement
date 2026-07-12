@@ -86,11 +86,16 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         // histories for long-running projects, ideas and tasks.
         var projectRemarks = await LoadProjectProgressRemarksAsync(latestProjectDirections, cancellationToken);
         var ideaComments = await LoadIdeaProgressCommentsAsync(latestIdeaDirections, cancellationToken);
+        var ideaNotes = await LoadIdeaProgressNotesAsync(latestIdeaDirections, cancellationToken);
         var taskUpdates = await LoadTaskProgressUpdatesAsync(latestTaskDirections, cancellationToken);
 
         var authorIds = latestProjectDirections.Values.Select(item => item.AuthorUserId)
             .Concat(latestIdeaDirections.Values.Select(item => item.CreatedByUserId))
             .Concat(latestTaskDirections.Values.Select(item => item.CreatedByUserId))
+            .Concat(projectRemarks.Select(item => item.AuthorUserId))
+            .Concat(ideaComments.Select(item => item.CreatedByUserId))
+            .Concat(ideaNotes.Select(item => item.CreatedByUserId))
+            .Concat(taskUpdates.Select(item => item.CreatedByUserId))
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .Distinct(StringComparer.Ordinal)
             .ToArray();
@@ -133,6 +138,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             selected,
             ideaRows,
             ideaComments,
+            ideaNotes,
             latestIdeaDirections,
             authorNames);
         var taskItems = BuildTaskItems(
@@ -208,6 +214,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             .Select(project => new ProjectRow(
                 project.Id,
                 project.Name,
+                project.LeadPoUserId,
                 project.WorkflowVersion,
                 project.ProjectStages
                     .Select(stage => new ProjectStageRow(
@@ -335,6 +342,8 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             .Where(remark => projectIds.Contains(remark.ProjectId)
                 && !remark.IsDeleted
                 && remark.Type != RemarkType.Conference
+                && (remark.AuthorRole == RemarkActorRole.ProjectOfficer
+                    || remark.AuthorRole == RemarkActorRole.Mco)
                 && remark.CreatedAtUtc >= earliestDirection)
             .OrderBy(remark => remark.CreatedAtUtc)
             .ThenBy(remark => remark.Id)
@@ -360,6 +369,33 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                 && comment.CreatedAt >= earliestDirection)
             .OrderBy(comment => comment.CreatedAt)
             .ThenBy(comment => comment.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    private Task<List<IdeaNoteRow>> LoadIdeaProgressNotesAsync(
+        IReadOnlyDictionary<int, ProjectIdeaComment> latestDirections,
+        CancellationToken cancellationToken)
+    {
+        if (latestDirections.Count == 0)
+        {
+            return Task.FromResult(new List<IdeaNoteRow>());
+        }
+
+        var ideaIds = latestDirections.Keys.ToArray();
+        var earliestDirection = latestDirections.Values.Min(direction => direction.CreatedAt);
+        return _db.ProjectIdeaNotes
+            .AsNoTracking()
+            .Where(note => ideaIds.Contains(note.ProjectIdeaId)
+                && !note.IsDeleted
+                && (note.CreatedAt >= earliestDirection || note.UpdatedAt >= earliestDirection))
+            .Select(note => new IdeaNoteRow(
+                note.Id,
+                note.ProjectIdeaId,
+                note.Title,
+                note.Body,
+                note.CreatedByUserId,
+                note.CreatedAt,
+                note.UpdatedAt))
             .ToListAsync(cancellationToken);
     }
 
@@ -458,16 +494,55 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             var itemRemarks = remarksByProject.TryGetValue(row.Id, out var foundRemarks)
                 ? foundRemarks
                 : new List<Remark>();
-            var subsequent = direction is null
-                ? new List<Remark>()
-                : itemRemarks
-                    .Where(remark => remark.Type != RemarkType.Conference
+            var assignedProjectOfficerId = string.IsNullOrWhiteSpace(row.LeadPoUserId)
+                ? officer.UserId
+                : row.LeadPoUserId;
+
+            Remark? latestProjectOfficerRemark = null;
+            Remark? latestMcoRemark = null;
+            if (direction is not null)
+            {
+                latestProjectOfficerRemark = itemRemarks
+                    .Where(remark => remark.AuthorRole == RemarkActorRole.ProjectOfficer
+                        && string.Equals(
+                            remark.AuthorUserId,
+                            assignedProjectOfficerId,
+                            StringComparison.Ordinal)
                         && IsAfter(remark.CreatedAtUtc, remark.Id, direction.CreatedAtUtc, direction.Id))
-                    .ToList();
-            var latestProgress = subsequent
-                .OrderByDescending(remark => remark.CreatedAtUtc)
-                .ThenByDescending(remark => remark.Id)
-                .FirstOrDefault();
+                    .OrderByDescending(remark => remark.CreatedAtUtc)
+                    .ThenByDescending(remark => remark.Id)
+                    .FirstOrDefault();
+
+                latestMcoRemark = itemRemarks
+                    .Where(remark => remark.AuthorRole == RemarkActorRole.Mco
+                        && IsAfter(remark.CreatedAtUtc, remark.Id, direction.CreatedAtUtc, direction.Id))
+                    .OrderByDescending(remark => remark.CreatedAtUtc)
+                    .ThenByDescending(remark => remark.Id)
+                    .FirstOrDefault();
+            }
+
+            var progressEntries = new List<ConferenceProgressEntryVm>();
+            if (direction is not null)
+            {
+                progressEntries.Add(latestProjectOfficerRemark is null
+                    ? new ConferenceProgressEntryVm
+                    {
+                        Label = "Project Officer",
+                        EmptyText = "No remark by the Project Officer after the direction."
+                    }
+                    : BuildRemarkProgressEntry(
+                        "Project Officer",
+                        latestProjectOfficerRemark,
+                        authorNames));
+
+                if (latestMcoRemark is not null)
+                {
+                    progressEntries.Add(BuildRemarkProgressEntry(
+                        "MCO",
+                        latestMcoRemark,
+                        authorNames));
+                }
+            }
 
             result.Add(new OfficerConferenceItemVm
             {
@@ -492,13 +567,10 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                         SnapshotLabel = "Stage when issued",
                         SnapshotValue = BuildStageSnapshot(direction.StageRef, direction.StageNameSnapshot)
                     },
-                ProgressSummary = BuildProjectProgressSummary(
-                    direction,
-                    currentCode,
-                    subsequent.Count),
-                LatestProgressText = latestProgress is null
-                    ? null
-                    : ConferenceDirectionTextFormatter.ToDisplayText(latestProgress.Body)
+                ProgressEntries = progressEntries,
+                EmptyProgressText = null,
+                ProgressSummary = string.Empty,
+                LatestProgressText = null
             });
         }
 
@@ -509,12 +581,16 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         CommandOfficerWorkloadVm officer,
         IReadOnlyList<IdeaRow> rows,
         IReadOnlyList<ProjectIdeaComment> comments,
+        IReadOnlyList<IdeaNoteRow> notes,
         IReadOnlyDictionary<int, ProjectIdeaComment> latestDirections,
         IReadOnlyDictionary<string, string> authorNames)
     {
         var rowsById = rows.ToDictionary(row => row.Id);
         var commentsByIdea = comments
             .GroupBy(comment => comment.ProjectIdeaId)
+            .ToDictionary(group => group.Key, group => group.ToList());
+        var notesByIdea = notes
+            .GroupBy(note => note.ProjectIdeaId)
             .ToDictionary(group => group.Key, group => group.ToList());
         var result = new List<OfficerConferenceItemVm>();
 
@@ -529,19 +605,54 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             var itemComments = commentsByIdea.TryGetValue(row.Id, out var foundComments)
                 ? foundComments
                 : new List<ProjectIdeaComment>();
-            var subsequent = direction is null
-                ? new List<ProjectIdeaComment>()
-                : itemComments
+            var itemNotes = notesByIdea.TryGetValue(row.Id, out var foundNotes)
+                ? foundNotes
+                : new List<IdeaNoteRow>();
+
+            ProjectIdeaComment? latestComment = null;
+            IdeaNoteRow? latestNote = null;
+            if (direction is not null)
+            {
+                latestComment = itemComments
                     .Where(comment => !string.Equals(
                             comment.CommentType,
                             ProjectIdeaCommentTypes.Conference,
                             StringComparison.OrdinalIgnoreCase)
                         && IsAfter(comment.CreatedAt, comment.Id, direction.CreatedAt, direction.Id))
-                    .ToList();
-            var latestProgress = subsequent
-                .OrderByDescending(comment => comment.CreatedAt)
-                .ThenByDescending(comment => comment.Id)
-                .FirstOrDefault();
+                    .OrderByDescending(comment => comment.CreatedAt)
+                    .ThenByDescending(comment => comment.Id)
+                    .FirstOrDefault();
+
+                latestNote = itemNotes
+                    .Where(note => NoteActivityAt(note) > direction.CreatedAt)
+                    .OrderByDescending(NoteActivityAt)
+                    .ThenByDescending(note => note.Id)
+                    .FirstOrDefault();
+            }
+
+            var progressEntries = new List<ConferenceProgressEntryVm>();
+            if (latestComment is not null)
+            {
+                progressEntries.Add(new ConferenceProgressEntryVm
+                {
+                    Label = "Latest comment",
+                    Body = ConferenceDirectionTextFormatter.ToDisplayText(latestComment.CommentText),
+                    AuthorName = ResolveAuthor(authorNames, latestComment.CreatedByUserId),
+                    ActivityAtUtc = AsUtc(latestComment.CreatedAt)
+                });
+            }
+
+            if (latestNote is not null)
+            {
+                progressEntries.Add(new ConferenceProgressEntryVm
+                {
+                    Label = "Latest note",
+                    Title = latestNote.Title,
+                    Body = ConferenceDirectionTextFormatter.ToDisplayText(latestNote.Body),
+                    AuthorName = ResolveAuthor(authorNames, latestNote.CreatedByUserId),
+                    ActivityAtUtc = AsUtc(NoteActivityAt(latestNote))
+                });
+            }
 
             result.Add(new OfficerConferenceItemVm
             {
@@ -564,14 +675,12 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                         SnapshotLabel = "Status when issued",
                         SnapshotValue = ProjectIdeaStatuses.ToDisplay(direction.StatusSnapshot ?? row.Status)
                     },
-                ProgressSummary = BuildStateProgressSummary(
-                    direction?.StatusSnapshot,
-                    row.Status,
-                    subsequent.Count,
-                    "comment"),
-                LatestProgressText = latestProgress is null
-                    ? null
-                    : ConferenceDirectionTextFormatter.ToDisplayText(latestProgress.CommentText)
+                ProgressEntries = progressEntries,
+                EmptyProgressText = direction is not null && progressEntries.Count == 0
+                    ? "No comment or note after the direction."
+                    : null,
+                ProgressSummary = string.Empty,
+                LatestProgressText = null
             });
         }
 
@@ -671,41 +780,20 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             .ToList();
     }
 
-    private static string BuildProjectProgressSummary(
-        Remark? direction,
-        string currentStageCode,
-        int subsequentCount)
-    {
-        if (direction is null)
+    private static ConferenceProgressEntryVm BuildRemarkProgressEntry(
+        string label,
+        Remark remark,
+        IReadOnlyDictionary<string, string> authorNames)
+        => new()
         {
-            return "No previous conference direction";
-        }
+            Label = label,
+            Body = ConferenceDirectionTextFormatter.ToDisplayText(remark.Body),
+            AuthorName = ResolveAuthor(authorNames, remark.AuthorUserId),
+            ActivityAtUtc = AsUtc(remark.CreatedAtUtc)
+        };
 
-        var movement = string.IsNullOrWhiteSpace(direction.StageRef)
-            ? "Current stage " + currentStageCode
-            : string.Equals(direction.StageRef, currentStageCode, StringComparison.OrdinalIgnoreCase)
-                ? "No stage movement"
-                : $"{direction.StageRef} → {currentStageCode}";
-
-        return AppendUpdateCount(movement, subsequentCount, "remark");
-    }
-
-    private static string BuildStateProgressSummary(
-        string? previousState,
-        string currentState,
-        int subsequentCount,
-        string updateNoun)
-    {
-        if (previousState is null)
-        {
-            return "No previous conference direction";
-        }
-
-        var movement = string.Equals(previousState, currentState, StringComparison.OrdinalIgnoreCase)
-            ? "No status movement"
-            : $"{ProjectIdeaStatuses.ToDisplay(previousState)} → {ProjectIdeaStatuses.ToDisplay(currentState)}";
-        return AppendUpdateCount(movement, subsequentCount, updateNoun);
-    }
+    private static DateTime NoteActivityAt(IdeaNoteRow note)
+        => note.UpdatedAt > note.CreatedAt ? note.UpdatedAt : note.CreatedAt;
 
     private static string BuildTaskProgressSummary(
         ActionTaskUpdate? direction,
@@ -831,6 +919,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
     private sealed record ProjectRow(
         int Id,
         string Name,
+        string? LeadPoUserId,
         string WorkflowVersion,
         IReadOnlyList<ProjectStageRow> Stages);
 
@@ -846,6 +935,15 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         int Id,
         string Title,
         string Status,
+        DateTime UpdatedAt);
+
+    private sealed record IdeaNoteRow(
+        int Id,
+        int ProjectIdeaId,
+        string Title,
+        string Body,
+        string CreatedByUserId,
+        DateTime CreatedAt,
         DateTime UpdatedAt);
 
     private sealed record TaskRow(

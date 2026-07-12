@@ -3,6 +3,7 @@ const root = document.querySelector('[data-officer-conference]');
 if (root) {
     const antiforgeryToken = root.querySelector('.oc-antiforgery input[name="__RequestVerificationToken"]')?.value ?? '';
     const selector = root.querySelector('[data-officer-selector]');
+    const structuredProgressKinds = new Set([1, 2]);
     let openEditor = null;
 
     const formatIstDateTime = (value) => {
@@ -111,6 +112,34 @@ if (root) {
         });
     };
 
+    const setProgressExpanded = (entry, expanded) => {
+        const body = entry?.querySelector('[data-oc-progress-body]');
+        const toggle = entry?.querySelector('[data-oc-progress-toggle]');
+        if (!body || !toggle) return;
+
+        body.classList.toggle('is-expanded', expanded);
+        toggle.setAttribute('aria-expanded', String(expanded));
+        toggle.textContent = expanded ? 'Less' : 'More';
+    };
+
+    const configureProgressToggle = (entry) => {
+        const body = entry?.querySelector('[data-oc-progress-body]');
+        const toggle = entry?.querySelector('[data-oc-progress-toggle]');
+        if (!body || !toggle) return;
+
+        const wasExpanded = toggle.getAttribute('aria-expanded') === 'true';
+        setProgressExpanded(entry, false);
+        toggle.hidden = true;
+
+        requestAnimationFrame(() => {
+            const isOverflowing = body.scrollHeight > body.clientHeight + 1;
+            toggle.hidden = !isOverflowing;
+            if (isOverflowing && wasExpanded) {
+                setProgressExpanded(entry, true);
+            }
+        });
+    };
+
     const buildDirection = (direction, item) => {
         const wrapper = document.createElement('div');
         wrapper.className = 'oc-direction';
@@ -118,16 +147,15 @@ if (root) {
 
         const label = document.createElement('div');
         label.className = 'oc-direction__label';
-
-        const badge = document.createElement('span');
+        const labelText = document.createElement('span');
         const icon = document.createElement('i');
-        icon.className = 'bi bi-journal-check';
+        icon.className = 'bi bi-file-earmark-check';
         icon.setAttribute('aria-hidden', 'true');
-        badge.append(icon, document.createTextNode('Conference'));
+        labelText.append(icon, document.createTextNode('Directions from last conference'));
+        label.append(labelText);
 
-        const meta = document.createElement('small');
-        meta.textContent = `${direction.authorRole} · ${formatIstDateTime(direction.createdAtUtc)}`;
-        label.append(badge, meta);
+        const instruction = document.createElement('div');
+        instruction.className = 'oc-direction__instruction';
 
         const body = document.createElement('p');
         body.className = 'oc-direction__body';
@@ -143,19 +171,124 @@ if (root) {
         toggle.setAttribute('aria-expanded', 'false');
         toggle.textContent = 'More';
         toggle.hidden = true;
+        instruction.append(body, toggle);
 
-        const detail = document.createElement('div');
-        detail.className = 'oc-direction__meta';
-        const author = document.createElement('span');
-        author.dataset.ocDirectionAuthor = '';
-        author.textContent = direction.authorName;
-        const snapshot = document.createElement('span');
-        snapshot.dataset.ocDirectionSnapshot = '';
-        snapshot.textContent = `${direction.snapshotLabel}: ${direction.snapshotValue}`;
-        detail.append(author, snapshot);
+        const timestamp = document.createElement('time');
+        timestamp.className = 'oc-direction__timestamp';
+        timestamp.dateTime = direction.createdAtUtc ?? '';
+        timestamp.textContent = formatIstDateTime(direction.createdAtUtc);
 
-        wrapper.append(label, body, toggle, detail);
+        wrapper.append(label, instruction, timestamp);
         return wrapper;
+    };
+
+    const buildProgressEntry = (entry, item, index) => {
+        const section = document.createElement('section');
+        section.className = 'oc-progress-entry';
+        section.dataset.ocProgressEntry = '';
+
+        const label = document.createElement('span');
+        label.className = 'oc-progress-entry__label';
+        label.textContent = entry.label ?? '';
+        section.append(label);
+
+        if (entry.title) {
+            const title = document.createElement('strong');
+            title.className = 'oc-progress-entry__title';
+            title.textContent = entry.title;
+            section.append(title);
+        }
+
+        if (entry.body) {
+            const body = document.createElement('p');
+            body.className = 'oc-progress-entry__body';
+            body.dataset.ocProgressBody = '';
+            body.id = `oc-progress-body-${item.dataset.itemKind}-${item.dataset.itemId}-${index}`;
+            body.textContent = entry.body;
+
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'oc-progress-toggle';
+            toggle.dataset.ocProgressToggle = '';
+            toggle.setAttribute('aria-controls', body.id);
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.textContent = 'More';
+            toggle.hidden = true;
+            section.append(body, toggle);
+        } else if (entry.emptyText) {
+            section.classList.add('oc-progress-entry--empty');
+            const empty = document.createElement('p');
+            empty.className = 'oc-progress-entry__empty';
+            empty.textContent = entry.emptyText;
+            section.append(empty);
+        }
+
+        const dateText = formatIstDateTime(entry.activityAtUtc);
+        if (entry.authorName || dateText) {
+            const meta = document.createElement('small');
+            meta.className = 'oc-progress-entry__meta';
+            if (entry.authorName) {
+                const author = document.createElement('span');
+                author.textContent = entry.authorName;
+                meta.append(author);
+            }
+            if (dateText) {
+                const time = document.createElement('time');
+                time.dateTime = entry.activityAtUtc ?? '';
+                time.textContent = dateText;
+                meta.append(time);
+            }
+            section.append(meta);
+        }
+
+        return section;
+    };
+
+    const renderProgress = (item, payload) => {
+        const host = item.querySelector('[data-oc-progress-content]');
+        if (!host) return;
+
+        host.replaceChildren();
+        const label = document.createElement('span');
+        label.className = 'oc-progress-label';
+        label.textContent = 'Progress after direction';
+        host.append(label);
+
+        const kind = Number(item.dataset.itemKind);
+        if (structuredProgressKinds.has(kind)) {
+            const entries = Array.isArray(payload.progressEntries) ? payload.progressEntries : [];
+            if (entries.length > 0) {
+                const list = document.createElement('div');
+                list.className = 'oc-progress-list';
+                entries.forEach((entry, index) => {
+                    const element = buildProgressEntry(entry, item, index);
+                    list.append(element);
+                    configureProgressToggle(element);
+                });
+                host.append(list);
+            } else if (payload.emptyProgressText) {
+                const empty = document.createElement('p');
+                empty.className = 'oc-progress-empty';
+                empty.textContent = payload.emptyProgressText;
+                host.append(empty);
+            }
+            return;
+        }
+
+        const summary = document.createElement('p');
+        summary.className = 'oc-task-progress-summary';
+        summary.dataset.ocProgressSummary = '';
+        summary.textContent = payload.progressSummary ?? '';
+        host.append(summary);
+
+        if (payload.latestProgressText) {
+            const latest = document.createElement('span');
+            latest.className = 'oc-latest-update';
+            latest.dataset.ocLatestProgress = '';
+            latest.textContent = `Latest: ${payload.latestProgressText}`;
+            latest.title = payload.latestProgressText;
+            host.append(latest);
+        }
     };
 
     const applySavedDirection = (item, payload) => {
@@ -166,23 +299,7 @@ if (root) {
             configureDirectionToggle(direction);
         }
 
-        const progressLabel = item.querySelector('[data-oc-progress-label]');
-        if (progressLabel) progressLabel.hidden = false;
-
-        const progress = item.querySelector('[data-oc-progress-summary]');
-        if (progress) {
-            progress.textContent = payload.progressSummary ?? '';
-            progress.hidden = false;
-        }
-
-        const latest = item.querySelector('[data-oc-latest-progress]');
-        if (latest) {
-            const text = payload.latestProgressText ?? '';
-            latest.textContent = text ? `Latest: ${text}` : '';
-            latest.hidden = !text;
-            latest.title = text;
-        }
-
+        renderProgress(item, payload);
         item.querySelector('.oc-item__actions')?.classList.remove('oc-item__actions--empty');
         item.classList.remove('is-saved');
         void item.offsetWidth;
@@ -262,6 +379,14 @@ if (root) {
             return;
         }
 
+        const progressToggle = event.target.closest('[data-oc-progress-toggle]');
+        if (progressToggle) {
+            const entry = progressToggle.closest('[data-oc-progress-entry]');
+            const expanded = progressToggle.getAttribute('aria-expanded') === 'true';
+            setProgressExpanded(entry, !expanded);
+            return;
+        }
+
         const addButton = event.target.closest('[data-oc-add]');
         if (addButton) {
             openInlineEditor(addButton.closest('[data-oc-item]'));
@@ -316,12 +441,14 @@ if (root) {
     });
 
     root.querySelectorAll('[data-oc-direction-content]').forEach(configureDirectionToggle);
+    root.querySelectorAll('[data-oc-progress-entry]').forEach(configureProgressToggle);
 
     let resizeTimer = 0;
     window.addEventListener('resize', () => {
         window.clearTimeout(resizeTimer);
         resizeTimer = window.setTimeout(() => {
             root.querySelectorAll('[data-oc-direction-content]').forEach(configureDirectionToggle);
+            root.querySelectorAll('[data-oc-progress-entry]').forEach(configureProgressToggle);
         }, 120);
     });
 }
