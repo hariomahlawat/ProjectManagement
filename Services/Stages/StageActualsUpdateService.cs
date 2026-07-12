@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
@@ -93,7 +94,7 @@ public sealed class StageActualsUpdateService
             .Distinct()
             .ToArrayAsync(cancellationToken);
 
-        var today = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime.Date);
+        var today = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
         var now = _clock.UtcNow;
         var validationErrors = new List<string>();
         var changes = new List<StageActualChange>();

@@ -6,9 +6,12 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Data.DocRepo;
+using ProjectManagement.Models.Activities;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Authorization;
@@ -25,11 +28,16 @@ public sealed class ApprovalQueueService : IApprovalQueueService
     // SECTION: Dependencies
     private readonly ApplicationDbContext _db;
     private readonly PlanCompareService _planCompareService;
+    private readonly StageApprovalSequenceService _stageSequence;
 
-    public ApprovalQueueService(ApplicationDbContext db, PlanCompareService planCompareService)
+    public ApprovalQueueService(
+        ApplicationDbContext db,
+        PlanCompareService planCompareService,
+        StageApprovalSequenceService stageSequence)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _planCompareService = planCompareService ?? throw new ArgumentNullException(nameof(planCompareService));
+        _stageSequence = stageSequence ?? throw new ArgumentNullException(nameof(stageSequence));
     }
 
     // SECTION: Pending approvals list
@@ -51,7 +59,21 @@ public sealed class ApprovalQueueService : IApprovalQueueService
         {
             var stageRows = await BuildStageChangeQuery(query)
                 .ToListAsync(cancellationToken);
-            results.AddRange(stageRows.Select(MapStageChangeRow));
+            var assessments = await _stageSequence.AssessPendingAsync(
+                stageRows.Select(row => row.ProjectId),
+                cancellationToken);
+
+            results.AddRange(stageRows.Select(row =>
+            {
+                var item = MapStageChangeRow(row);
+                return assessments.TryGetValue(row.Id, out var assessment)
+                    ? ApplyStageAssessment(item, assessment)
+                    : item with
+                    {
+                        Readiness = ApprovalReadiness.Stale,
+                        ReadinessMessage = "The stage request could not be evaluated."
+                    };
+            }));
         }
 
         if (ShouldIncludeType(query, ApprovalQueueType.ProjectMeta))
@@ -96,8 +118,43 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             results.AddRange(granularRows.Select(MapProliferationGranularRow));
         }
 
-        return results
-            .OrderBy(item => item.RequestedAtUtc)
+        if (ShouldIncludeType(query, ApprovalQueueType.ActivityDelete))
+        {
+            var activityRows = await BuildActivityDeleteQuery(query)
+                .ToListAsync(cancellationToken);
+            results.AddRange(activityRows.Select(MapActivityDeleteRow));
+        }
+
+        if (ShouldIncludeType(query, ApprovalQueueType.TrainingDelete))
+        {
+            var trainingRows = await BuildTrainingDeleteQuery(query)
+                .ToListAsync(cancellationToken);
+            results.AddRange(trainingRows.Select(MapTrainingDeleteRow));
+        }
+
+        if (ShouldIncludeType(query, ApprovalQueueType.RepositoryDocumentDelete))
+        {
+            var repositoryRows = await BuildRepositoryDocumentDeleteQuery(query)
+                .ToListAsync(cancellationToken);
+            results.AddRange(repositoryRows.Select(MapRepositoryDocumentDeleteRow));
+        }
+
+        IEnumerable<ApprovalQueueItemVm> filtered = results;
+        if (query.Module.HasValue)
+        {
+            filtered = filtered.Where(item => item.Module == query.Module.Value);
+        }
+
+        if (query.Readiness.HasValue)
+        {
+            filtered = filtered.Where(item => item.Readiness == query.Readiness.Value);
+        }
+
+        return filtered
+            .OrderBy(item => ReadinessOrder(item.Readiness))
+            .ThenBy(item => item.ProjectName ?? string.Empty)
+            .ThenBy(item => item.WorkflowOrder ?? int.MaxValue)
+            .ThenBy(item => item.RequestedAtUtc)
             .ToList();
     }
 
@@ -121,6 +178,9 @@ public sealed class ApprovalQueueService : IApprovalQueueService
         total += await BuildTotRequestQuery(query).CountAsync(cancellationToken);
         total += await BuildProliferationYearlyQuery(query).CountAsync(cancellationToken);
         total += await BuildProliferationGranularQuery(query).CountAsync(cancellationToken);
+        total += await BuildActivityDeleteQuery(query).CountAsync(cancellationToken);
+        total += await BuildTrainingDeleteQuery(query).CountAsync(cancellationToken);
+        total += await BuildRepositoryDocumentDeleteQuery(query).CountAsync(cancellationToken);
 
         return total;
     }
@@ -146,6 +206,9 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             ApprovalQueueType.TotRequest => await BuildTotRequestDetailAsync(requestId, cancellationToken),
             ApprovalQueueType.ProliferationYearly => await BuildProliferationYearlyDetailAsync(requestId, cancellationToken),
             ApprovalQueueType.ProliferationGranular => await BuildProliferationGranularDetailAsync(requestId, cancellationToken),
+            ApprovalQueueType.ActivityDelete => await BuildActivityDeleteDetailAsync(requestId, cancellationToken),
+            ApprovalQueueType.TrainingDelete => await BuildTrainingDeleteDetailAsync(requestId, cancellationToken),
+            ApprovalQueueType.RepositoryDocumentDelete => await BuildRepositoryDocumentDeleteDetailAsync(requestId, cancellationToken),
             _ => null
         };
     }
@@ -165,6 +228,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
                             project.WorkflowVersion,
                             req.StageCode,
                             req.RequestedStatus,
+                            req.RequestedStartDate,
                             req.RequestedDate,
                             req.RequestedByUserId,
                             user.FullName,
@@ -179,18 +243,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
     private static ApprovalQueueItemVm MapStageChangeRow(StageChangeRow row)
     {
         var stageName = StageCodes.DisplayNameOf(row.WorkflowVersion, row.StageCode);
-        var summary = row.RequestedDate.HasValue
-            ? string.Format(
-                CultureInfo.InvariantCulture,
-                "{0} stage to {1} ({2:dd MMM yyyy})",
-                stageName,
-                row.RequestedStatus,
-                row.RequestedDate.Value)
-            : string.Format(
-                CultureInfo.InvariantCulture,
-                "{0} stage to {1}",
-                stageName,
-                row.RequestedStatus);
+        var summary = BuildStageChangeSummary(row, stageName);
 
         return new ApprovalQueueItemVm(
             ApprovalQueueType.StageChange,
@@ -205,6 +258,44 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             PendingDecisionStatus,
             null,
             null);
+    }
+
+    private static string BuildStageChangeSummary(StageChangeRow row, string stageName)
+    {
+        if (string.Equals(row.RequestedStatus, StageStatus.Completed.ToString(), StringComparison.OrdinalIgnoreCase))
+        {
+            if (row.RequestedStartDate.HasValue && row.RequestedDate.HasValue)
+            {
+                return string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0}: complete {1:dd MMM yyyy} · start {2:dd MMM yyyy}",
+                    stageName,
+                    row.RequestedDate.Value,
+                    row.RequestedStartDate.Value);
+            }
+
+            if (row.RequestedDate.HasValue)
+            {
+                return string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0}: complete {1:dd MMM yyyy}",
+                    stageName,
+                    row.RequestedDate.Value);
+            }
+        }
+
+        return row.RequestedDate.HasValue
+            ? string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} stage to {1} ({2:dd MMM yyyy})",
+                stageName,
+                row.RequestedStatus,
+                row.RequestedDate.Value)
+            : string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} stage to {1}",
+                stageName,
+                row.RequestedStatus);
     }
 
     // SECTION: Meta change list
@@ -486,6 +577,192 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             Convert.ToBase64String(row.RowVersion ?? Array.Empty<byte>()));
     }
 
+    // SECTION: Activity delete list
+    private IQueryable<ActivityDeleteRow> BuildActivityDeleteQuery(ApprovalQueueQuery query)
+    {
+        var baseQuery = from request in _db.ActivityDeleteRequests.AsNoTracking()
+                        join activity in _db.Activities.AsNoTracking() on request.ActivityId equals activity.Id
+                        join activityType in _db.ActivityTypes.AsNoTracking() on activity.ActivityTypeId equals activityType.Id
+                        join user in _db.Users.AsNoTracking() on request.RequestedByUserId equals user.Id into userGroup
+                        from user in userGroup.DefaultIfEmpty()
+                        where request.ApprovedAtUtc == null
+                              && request.RejectedAtUtc == null
+                              && !activity.IsDeleted
+                        select new ActivityDeleteRow(
+                            request.Id,
+                            activity.Id,
+                            activity.Title,
+                            activityType.Name,
+                            activity.Location,
+                            activity.ScheduledStartUtc,
+                            request.RequestedByUserId,
+                            user.FullName,
+                            user.UserName,
+                            user.Email,
+                            request.RequestedAtUtc,
+                            request.Reason,
+                            request.RowVersion);
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var like = $"%{query.Search.Trim()}%";
+            baseQuery = baseQuery.Where(row =>
+                EF.Functions.ILike(row.ActivityTitle, like)
+                || EF.Functions.ILike(row.ActivityTypeName, like)
+                || EF.Functions.ILike(row.RequestedByFullName ?? string.Empty, like)
+                || EF.Functions.ILike(row.RequestedByUserName ?? string.Empty, like));
+        }
+
+        return baseQuery;
+    }
+
+    private static ApprovalQueueItemVm MapActivityDeleteRow(ActivityDeleteRow row)
+        => new(
+            ApprovalQueueType.ActivityDelete,
+            row.Id.ToString(CultureInfo.InvariantCulture),
+            null,
+            null,
+            row.RequestedByUserId,
+            ResolveUserDisplayName(row.RequestedByFullName, row.RequestedByUserName, row.RequestedByEmail),
+            row.RequestedAtUtc,
+            $"Delete activity: {row.ActivityTitle}",
+            ApprovalQueueModule.Activities,
+            PendingDecisionStatus,
+            null,
+            Convert.ToBase64String(row.RowVersion ?? Array.Empty<byte>()));
+
+    // SECTION: Training delete list
+    private IQueryable<TrainingDeleteRow> BuildTrainingDeleteQuery(ApprovalQueueQuery query)
+    {
+        var baseQuery = from request in _db.TrainingDeleteRequests.AsNoTracking()
+                        join training in _db.Trainings.AsNoTracking() on request.TrainingId equals training.Id
+                        join trainingType in _db.TrainingTypes.AsNoTracking() on training.TrainingTypeId equals trainingType.Id
+                        join counter in _db.TrainingCounters.AsNoTracking() on training.Id equals counter.TrainingId into counterGroup
+                        from counter in counterGroup.DefaultIfEmpty()
+                        join user in _db.Users.AsNoTracking() on request.RequestedByUserId equals user.Id into userGroup
+                        from user in userGroup.DefaultIfEmpty()
+                        where request.Status == TrainingDeleteRequestStatus.Pending
+                        select new TrainingDeleteRow(
+                            request.Id,
+                            training.Id,
+                            trainingType.Name,
+                            training.StartDate,
+                            training.EndDate,
+                            training.TrainingMonth,
+                            training.TrainingYear,
+                            counter != null ? counter.Total : training.LegacyOfficerCount + training.LegacyJcoCount + training.LegacyOrCount,
+                            request.RequestedByUserId,
+                            user.FullName,
+                            user.UserName,
+                            user.Email,
+                            request.RequestedAtUtc,
+                            request.Reason,
+                            request.RowVersion);
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var like = $"%{query.Search.Trim()}%";
+            baseQuery = baseQuery.Where(row =>
+                EF.Functions.ILike(row.TrainingTypeName, like)
+                || EF.Functions.ILike(row.RequestedByFullName ?? string.Empty, like)
+                || EF.Functions.ILike(row.RequestedByUserName ?? string.Empty, like));
+        }
+
+        return baseQuery;
+    }
+
+    private static ApprovalQueueItemVm MapTrainingDeleteRow(TrainingDeleteRow row)
+        => new(
+            ApprovalQueueType.TrainingDelete,
+            row.Id.ToString(),
+            null,
+            null,
+            row.RequestedByUserId,
+            ResolveUserDisplayName(row.RequestedByFullName, row.RequestedByUserName, row.RequestedByEmail),
+            row.RequestedAtUtc,
+            $"Delete training record: {row.TrainingTypeName}",
+            ApprovalQueueModule.ProjectOfficeReports,
+            PendingDecisionStatus,
+            null,
+            Convert.ToBase64String(row.RowVersion ?? Array.Empty<byte>()));
+
+    // SECTION: Repository document delete list
+    private IQueryable<RepositoryDocumentDeleteRow> BuildRepositoryDocumentDeleteQuery(ApprovalQueueQuery query)
+    {
+        var baseQuery = from request in _db.DocumentDeleteRequests.AsNoTracking()
+                        join document in _db.Documents.AsNoTracking() on request.DocumentId equals document.Id
+                        join user in _db.Users.AsNoTracking() on request.RequestedByUserId equals user.Id into userGroup
+                        from user in userGroup.DefaultIfEmpty()
+                        where request.ApprovedAtUtc == null && !document.IsDeleted
+                        select new RepositoryDocumentDeleteRow(
+                            request.Id,
+                            document.Id,
+                            document.Subject,
+                            document.ReceivedFrom,
+                            document.DocumentDate,
+                            document.OriginalFileName,
+                            document.FileSizeBytes,
+                            request.RequestedByUserId,
+                            user.FullName,
+                            user.UserName,
+                            user.Email,
+                            request.RequestedAtUtc,
+                            request.Reason);
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var like = $"%{query.Search.Trim()}%";
+            baseQuery = baseQuery.Where(row =>
+                EF.Functions.ILike(row.Subject, like)
+                || EF.Functions.ILike(row.OriginalFileName, like)
+                || EF.Functions.ILike(row.ReceivedFrom ?? string.Empty, like)
+                || EF.Functions.ILike(row.RequestedByFullName ?? string.Empty, like)
+                || EF.Functions.ILike(row.RequestedByUserName ?? string.Empty, like));
+        }
+
+        return baseQuery;
+    }
+
+    private static ApprovalQueueItemVm MapRepositoryDocumentDeleteRow(RepositoryDocumentDeleteRow row)
+        => new(
+            ApprovalQueueType.RepositoryDocumentDelete,
+            row.Id.ToString(CultureInfo.InvariantCulture),
+            null,
+            null,
+            row.RequestedByUserId,
+            ResolveUserDisplayName(row.RequestedByFullName, row.RequestedByUserName, row.RequestedByEmail),
+            row.RequestedAtUtc,
+            $"Move repository document to trash: {row.Subject}",
+            ApprovalQueueModule.DocumentRepository,
+            PendingDecisionStatus,
+            null,
+            null);
+
+    private static ApprovalQueueItemVm ApplyStageAssessment(
+        ApprovalQueueItemVm item,
+        StageApprovalAssessment assessment)
+        => item with
+        {
+            Readiness = assessment.Readiness,
+            ReadinessMessage = assessment.Message,
+            WorkflowVersion = assessment.WorkflowVersion,
+            StageCode = assessment.StageCode,
+            WorkflowOrder = assessment.WorkflowOrder,
+            RevisionNumber = assessment.RevisionNumber,
+            CorrectionUrl = assessment.CorrectionUrl
+        };
+
+    private static int ReadinessOrder(ApprovalReadiness readiness)
+        => readiness switch
+        {
+            ApprovalReadiness.Ready => 0,
+            ApprovalReadiness.Waiting => 1,
+            ApprovalReadiness.Blocked => 2,
+            ApprovalReadiness.Stale => 3,
+            ApprovalReadiness.Superseded => 4,
+            _ => 5
+        };
+
     // SECTION: Stage change detail
     private async Task<ApprovalQueueDetailVm?> BuildStageChangeDetailAsync(string requestId, CancellationToken ct)
     {
@@ -515,6 +792,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
 
         var requester = await GetUserSnapshotAsync(request.RequestedByUserId, ct);
         var stageName = StageCodes.DisplayNameOf(stage.Project.WorkflowVersion, stage.StageCode);
+        var assessment = await _stageSequence.AssessRequestAsync(request.Id, ct);
 
         var item = new ApprovalQueueItemVm(
             ApprovalQueueType.StageChange,
@@ -530,20 +808,73 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             null,
             null);
 
+        if (assessment is not null)
+        {
+            item = ApplyStageAssessment(item, assessment);
+        }
+
         var detail = new StageChangeDetailVm(
             request.StageCode,
             stageName,
+            assessment?.WorkflowVersion ?? stage.Project.WorkflowVersion ?? PlanConstants.DefaultStageTemplateVersion,
+            assessment?.WorkflowOrder ?? int.MaxValue,
+            assessment?.RevisionNumber ?? 1,
+            assessment?.IsLatestRevision ?? true,
             stage.Status.ToString(),
             request.RequestedStatus,
             stage.ActualStart,
             stage.CompletedOn,
+            request.RequestedStartDate,
             request.RequestedDate,
             request.Note);
+
+        var relatedRequests = await _db.StageChangeRequests
+            .AsNoTracking()
+            .Where(r => r.ProjectId == request.ProjectId
+                && r.Id != request.Id
+                && (r.DecisionStatus == PendingDecisionStatus || r.StageCode == request.StageCode))
+            .OrderBy(r => r.RequestedOn)
+            .ThenBy(r => r.Id)
+            .ToListAsync(ct);
+
+        var relatedAssessments = await _stageSequence.AssessPendingAsync(
+            new[] { request.ProjectId },
+            ct);
+
+        var related = relatedRequests
+            .Select(r =>
+            {
+                relatedAssessments.TryGetValue(r.Id, out var relatedAssessment);
+                var relatedStageName = StageCodes.DisplayNameOf(stage.Project.WorkflowVersion, r.StageCode);
+                var readiness = string.Equals(r.DecisionStatus, PendingDecisionStatus, StringComparison.OrdinalIgnoreCase)
+                    ? relatedAssessment?.Readiness ?? ApprovalReadiness.Stale
+                    : string.Equals(r.DecisionStatus, "Superseded", StringComparison.OrdinalIgnoreCase)
+                        ? ApprovalReadiness.Superseded
+                        : ApprovalReadiness.Stale;
+                return new RelatedApprovalVm(
+                    ApprovalQueueType.StageChange,
+                    r.Id.ToString(CultureInfo.InvariantCulture),
+                    relatedStageName,
+                    $"{relatedStageName} to {FormatStatusLabel(r.RequestedStatus)}",
+                    r.DecisionStatus,
+                    readiness,
+                    r.RequestedOn,
+                    $"/Approvals/Pending/{ApprovalQueueType.StageChange}/{r.Id}");
+            })
+            .OrderBy(r => relatedAssessments.TryGetValue(int.Parse(r.RequestId, CultureInfo.InvariantCulture), out var a)
+                ? a.WorkflowOrder
+                : string.Equals(r.Label, stageName, StringComparison.OrdinalIgnoreCase)
+                    ? assessment?.WorkflowOrder ?? int.MaxValue
+                    : int.MaxValue)
+            .ThenBy(r => r.RequestedAtUtc)
+            .ToList();
 
         return new ApprovalQueueDetailVm
         {
             Item = item,
-            StageChange = detail
+            StageChange = detail,
+            ReadinessChecks = assessment?.Checks ?? Array.Empty<ApprovalCheckVm>(),
+            RelatedRequests = related
         };
     }
 
@@ -656,6 +987,8 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             null);
 
         var detail = new PlanApprovalDetailVm(
+            plan.Id,
+            plan.VersionNo,
             diffVms,
             plan.Status,
             plan.SubmittedOn,
@@ -963,6 +1296,205 @@ public sealed class ApprovalQueueService : IApprovalQueueService
         };
     }
 
+    // SECTION: Activity delete detail
+    private async Task<ApprovalQueueDetailVm?> BuildActivityDeleteDetailAsync(string requestId, CancellationToken ct)
+    {
+        if (!int.TryParse(requestId, out var id))
+        {
+            return null;
+        }
+
+        var request = await _db.ActivityDeleteRequests
+            .AsNoTracking()
+            .Include(item => item.Activity)
+                .ThenInclude(activity => activity.ActivityType)
+            .FirstOrDefaultAsync(item => item.Id == id, ct);
+
+        if (request?.Activity is null)
+        {
+            return null;
+        }
+
+        var requester = await GetUserSnapshotAsync(request.RequestedByUserId, ct);
+        var status = request.ApprovedAtUtc.HasValue
+            ? "Approved"
+            : request.RejectedAtUtc.HasValue
+                ? "Rejected"
+                : PendingDecisionStatus;
+        var readiness = !request.ApprovedAtUtc.HasValue && !request.RejectedAtUtc.HasValue && !request.Activity.IsDeleted
+            ? ApprovalReadiness.Ready
+            : ApprovalReadiness.Stale;
+
+        var item = new ApprovalQueueItemVm(
+            ApprovalQueueType.ActivityDelete,
+            request.Id.ToString(CultureInfo.InvariantCulture),
+            null,
+            null,
+            request.RequestedByUserId,
+            ResolveUserDisplayName(requester.FullName, requester.UserName, requester.Email),
+            request.RequestedAtUtc,
+            $"Delete activity: {request.Activity.Title}",
+            ApprovalQueueModule.Activities,
+            status,
+            null,
+            Convert.ToBase64String(request.RowVersion ?? Array.Empty<byte>()),
+            readiness,
+            readiness == ApprovalReadiness.Ready ? "Ready for decision." : "This request is no longer actionable.");
+
+        return new ApprovalQueueDetailVm
+        {
+            Item = item,
+            ReadinessChecks = new[]
+            {
+                new ApprovalCheckVm(
+                    readiness == ApprovalReadiness.Ready ? ApprovalCheckState.Passed : ApprovalCheckState.Blocked,
+                    "Activity availability",
+                    readiness == ApprovalReadiness.Ready
+                        ? "The activity is available and the delete request is pending."
+                        : "The activity or delete request is no longer available.")
+            },
+            ActivityDelete = new ActivityDeleteDetailVm(
+                request.ActivityId,
+                request.Activity.Title,
+                request.Activity.ActivityType?.Name ?? "Activity",
+                request.Activity.Location,
+                request.Activity.ScheduledStartUtc,
+                request.Reason)
+        };
+    }
+
+    // SECTION: Training delete detail
+    private async Task<ApprovalQueueDetailVm?> BuildTrainingDeleteDetailAsync(string requestId, CancellationToken ct)
+    {
+        if (!Guid.TryParse(requestId, out var id))
+        {
+            return null;
+        }
+
+        var request = await _db.TrainingDeleteRequests
+            .AsNoTracking()
+            .Include(item => item.Training)
+                .ThenInclude(training => training!.TrainingType)
+            .Include(item => item.Training)
+                .ThenInclude(training => training!.Counters)
+            .FirstOrDefaultAsync(item => item.Id == id, ct);
+
+        if (request?.Training is null)
+        {
+            return null;
+        }
+
+        var requester = await GetUserSnapshotAsync(request.RequestedByUserId, ct);
+        var readiness = request.Status == TrainingDeleteRequestStatus.Pending
+            ? ApprovalReadiness.Ready
+            : ApprovalReadiness.Stale;
+        var total = request.Training.Counters?.Total
+            ?? request.Training.LegacyOfficerCount + request.Training.LegacyJcoCount + request.Training.LegacyOrCount;
+
+        var item = new ApprovalQueueItemVm(
+            ApprovalQueueType.TrainingDelete,
+            request.Id.ToString(),
+            null,
+            null,
+            request.RequestedByUserId,
+            ResolveUserDisplayName(requester.FullName, requester.UserName, requester.Email),
+            request.RequestedAtUtc,
+            $"Delete training record: {request.Training.TrainingType?.Name ?? "Training"}",
+            ApprovalQueueModule.ProjectOfficeReports,
+            request.Status.ToString(),
+            null,
+            Convert.ToBase64String(request.RowVersion ?? Array.Empty<byte>()),
+            readiness,
+            readiness == ApprovalReadiness.Ready ? "Ready for decision." : "This request is no longer pending.");
+
+        return new ApprovalQueueDetailVm
+        {
+            Item = item,
+            ReadinessChecks = new[]
+            {
+                new ApprovalCheckVm(
+                    readiness == ApprovalReadiness.Ready ? ApprovalCheckState.Passed : ApprovalCheckState.Blocked,
+                    "Training availability",
+                    readiness == ApprovalReadiness.Ready
+                        ? "The training record is available and the request is pending."
+                        : "The training delete request is no longer pending.")
+            },
+            TrainingDelete = new TrainingDeleteDetailVm(
+                request.TrainingId,
+                request.Training.TrainingType?.Name ?? "Training",
+                FormatTrainingPeriod(
+                    request.Training.StartDate,
+                    request.Training.EndDate,
+                    request.Training.TrainingMonth,
+                    request.Training.TrainingYear),
+                total,
+                request.Reason)
+        };
+    }
+
+    // SECTION: Repository document delete detail
+    private async Task<ApprovalQueueDetailVm?> BuildRepositoryDocumentDeleteDetailAsync(string requestId, CancellationToken ct)
+    {
+        if (!long.TryParse(requestId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id))
+        {
+            return null;
+        }
+
+        var request = await _db.DocumentDeleteRequests
+            .AsNoTracking()
+            .Include(item => item.Document)
+            .FirstOrDefaultAsync(item => item.Id == id, ct);
+
+        if (request?.Document is null)
+        {
+            return null;
+        }
+
+        var requester = await GetUserSnapshotAsync(request.RequestedByUserId, ct);
+        var readiness = !request.ApprovedAtUtc.HasValue && !request.Document.IsDeleted
+            ? ApprovalReadiness.Ready
+            : ApprovalReadiness.Stale;
+        var status = request.ApprovedAtUtc.HasValue ? "Approved" : PendingDecisionStatus;
+
+        var item = new ApprovalQueueItemVm(
+            ApprovalQueueType.RepositoryDocumentDelete,
+            request.Id.ToString(CultureInfo.InvariantCulture),
+            null,
+            null,
+            request.RequestedByUserId,
+            ResolveUserDisplayName(requester.FullName, requester.UserName, requester.Email),
+            request.RequestedAtUtc,
+            $"Move repository document to trash: {request.Document.Subject}",
+            ApprovalQueueModule.DocumentRepository,
+            status,
+            null,
+            null,
+            readiness,
+            readiness == ApprovalReadiness.Ready ? "Ready for decision." : "The document is no longer available.");
+
+        return new ApprovalQueueDetailVm
+        {
+            Item = item,
+            ReadinessChecks = new[]
+            {
+                new ApprovalCheckVm(
+                    readiness == ApprovalReadiness.Ready ? ApprovalCheckState.Passed : ApprovalCheckState.Blocked,
+                    "Document availability",
+                    readiness == ApprovalReadiness.Ready
+                        ? "The repository document is available and the request is pending."
+                        : "The repository document or request is no longer available.")
+            },
+            RepositoryDocumentDelete = new RepositoryDocumentDeleteDetailVm(
+                request.DocumentId,
+                request.Document.Subject,
+                request.Document.ReceivedFrom,
+                request.Document.DocumentDate,
+                request.Document.OriginalFileName,
+                request.Document.FileSizeBytes,
+                request.Reason)
+        };
+    }
+
     // SECTION: Query helpers
     private static IQueryable<T> ApplySearch<T>(IQueryable<T> queryable, ApprovalQueueQuery query) where T : class
     {
@@ -1084,8 +1616,26 @@ public sealed class ApprovalQueueService : IApprovalQueueService
             return false;
         }
 
-        return true;
+        return !query.Module.HasValue || ModuleFor(type) == query.Module.Value;
     }
+
+    private static ApprovalQueueModule ModuleFor(ApprovalQueueType type)
+        => type switch
+        {
+            ApprovalQueueType.StageChange or
+            ApprovalQueueType.ProjectMeta or
+            ApprovalQueueType.PlanApproval or
+            ApprovalQueueType.DocRequest => ApprovalQueueModule.Projects,
+
+            ApprovalQueueType.TotRequest or
+            ApprovalQueueType.ProliferationYearly or
+            ApprovalQueueType.ProliferationGranular or
+            ApprovalQueueType.TrainingDelete => ApprovalQueueModule.ProjectOfficeReports,
+
+            ApprovalQueueType.ActivityDelete => ApprovalQueueModule.Activities,
+            ApprovalQueueType.RepositoryDocumentDelete => ApprovalQueueModule.DocumentRepository,
+            _ => ApprovalQueueModule.Projects
+        };
 
     private static string ResolveUserDisplayName(string? fullName, string? userName, string? email)
     {
@@ -1117,6 +1667,49 @@ public sealed class ApprovalQueueService : IApprovalQueueService
         return user ?? new UserSnapshot(null, null, null);
     }
 
+    private static string FormatStatusLabel(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return "unknown";
+        }
+
+        return status switch
+        {
+            "NotStarted" => "not started",
+            "InProgress" => "in progress",
+            _ => status
+        };
+    }
+
+    private static string FormatTrainingPeriod(
+        DateOnly? startDate,
+        DateOnly? endDate,
+        int? trainingMonth,
+        int? trainingYear)
+    {
+        if (startDate.HasValue && endDate.HasValue)
+        {
+            return startDate.Value == endDate.Value
+                ? startDate.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
+                : $"{startDate.Value:dd MMM yyyy} – {endDate.Value:dd MMM yyyy}";
+        }
+
+        if (startDate.HasValue)
+        {
+            return startDate.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+        }
+
+        if (trainingMonth.HasValue && trainingYear.HasValue
+            && trainingMonth.Value is >= 1 and <= 12)
+        {
+            return new DateTime(trainingYear.Value, trainingMonth.Value, 1)
+                .ToString("MMM yyyy", CultureInfo.InvariantCulture);
+        }
+
+        return trainingYear?.ToString(CultureInfo.InvariantCulture) ?? "Period not recorded";
+    }
+
     // SECTION: Query row models
     private sealed record StageChangeRow(
         int Id,
@@ -1125,6 +1718,7 @@ public sealed class ApprovalQueueService : IApprovalQueueService
         string? WorkflowVersion,
         string StageCode,
         string RequestedStatus,
+        DateOnly? RequestedStartDate,
         DateOnly? RequestedDate,
         string RequestedByUserId,
         string? RequestedByFullName,
@@ -1205,6 +1799,53 @@ public sealed class ApprovalQueueService : IApprovalQueueService
         string? SubmittedByEmail,
         DateTimeOffset CreatedOnUtc,
         byte[] RowVersion);
+
+    private sealed record ActivityDeleteRow(
+        int Id,
+        int ActivityId,
+        string ActivityTitle,
+        string ActivityTypeName,
+        string? ActivityLocation,
+        DateTimeOffset? ScheduledStartUtc,
+        string RequestedByUserId,
+        string? RequestedByFullName,
+        string? RequestedByUserName,
+        string? RequestedByEmail,
+        DateTimeOffset RequestedAtUtc,
+        string? Reason,
+        byte[] RowVersion);
+
+    private sealed record TrainingDeleteRow(
+        Guid Id,
+        Guid TrainingId,
+        string TrainingTypeName,
+        DateOnly? StartDate,
+        DateOnly? EndDate,
+        int? TrainingMonth,
+        int? TrainingYear,
+        int TotalTrainees,
+        string RequestedByUserId,
+        string? RequestedByFullName,
+        string? RequestedByUserName,
+        string? RequestedByEmail,
+        DateTimeOffset RequestedAtUtc,
+        string Reason,
+        byte[] RowVersion);
+
+    private sealed record RepositoryDocumentDeleteRow(
+        long Id,
+        Guid DocumentId,
+        string Subject,
+        string? ReceivedFrom,
+        DateOnly? DocumentDate,
+        string OriginalFileName,
+        long FileSizeBytes,
+        string RequestedByUserId,
+        string? RequestedByFullName,
+        string? RequestedByUserName,
+        string? RequestedByEmail,
+        DateTimeOffset RequestedAtUtc,
+        string? Reason);
 
     private sealed record UserSnapshot(string? FullName, string? UserName, string? Email);
 }

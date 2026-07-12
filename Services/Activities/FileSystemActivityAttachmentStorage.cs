@@ -86,6 +86,33 @@ public sealed class FileSystemActivityAttachmentStorage : IActivityAttachmentSto
         return new ActivityAttachmentStorageResult(storageKey, sanitizedName, totalBytes);
     }
 
+
+    public Task<Stream?> OpenReadAsync(
+        string storageKey,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (string.IsNullOrWhiteSpace(storageKey))
+        {
+            return Task.FromResult<Stream?>(null);
+        }
+
+        var absolutePath = ResolveAbsolutePath(storageKey);
+        if (!File.Exists(absolutePath))
+        {
+            return Task.FromResult<Stream?>(null);
+        }
+
+        Stream stream = new FileStream(
+            absolutePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete,
+            128 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        return Task.FromResult<Stream?>(stream);
+    }
+
     public Task DeleteAsync(string storageKey, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(storageKey))
@@ -125,8 +152,29 @@ public sealed class FileSystemActivityAttachmentStorage : IActivityAttachmentSto
 
     private string ResolveAbsolutePath(string storageKey)
     {
-        var relative = storageKey.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
-        return Path.Combine(_uploadRootProvider.RootPath, relative);
+        var normalizedKey = storageKey.Replace('\\', '/').TrimStart('/');
+        if (!normalizedKey.StartsWith(RootFolder + "/", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Activity attachment storage key is outside the activities root.");
+        }
+
+        var uploadRoot = Path.GetFullPath(_uploadRootProvider.RootPath);
+        var activitiesRoot = Path.GetFullPath(Path.Combine(uploadRoot, RootFolder));
+        var candidate = Path.GetFullPath(Path.Combine(
+            uploadRoot,
+            normalizedKey.Replace('/', Path.DirectorySeparatorChar)));
+        var activitiesPrefix = activitiesRoot.EndsWith(Path.DirectorySeparatorChar)
+            ? activitiesRoot
+            : activitiesRoot + Path.DirectorySeparatorChar;
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        if (!candidate.StartsWith(activitiesPrefix, comparison))
+        {
+            throw new InvalidOperationException("Activity attachment path escapes the configured activities root.");
+        }
+
+        return candidate;
     }
 
     private static void SafeDelete(string path)

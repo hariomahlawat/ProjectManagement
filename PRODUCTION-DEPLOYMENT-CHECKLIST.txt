@@ -1,0 +1,39 @@
+PRISM V5 PRODUCTION DEPLOYMENT CHECKLIST
+=======================================
+
+PRE-DEPLOYMENT
+[ ] Database backup completed and restore procedure verified.
+[ ] Current deployed source/publish output backed up.
+[ ] DP_KEYS_DIR is absolute, durable, writable and backed up.
+[ ] PostgreSQL Host/Database values are present; application role has migration rights.
+[ ] Production HTTPS certificate is trusted and not expired.
+[ ] npm ci completed.
+[ ] npm test completed with no failures.
+[ ] dotnet clean/restore/build -c Release completed with no errors.
+[ ] dotnet test -c Release completed with no failures.
+[ ] dotnet publish -c Release completed.
+
+DEPLOYMENT
+[ ] IIS application pool stopped.
+[ ] Complete publish output deployed atomically; source files were not copied into publish folder.
+[ ] App pool identity retains access to upload roots, data-protection keys and required storage.
+[ ] IIS application pool started.
+
+STARTUP VERIFICATION
+[ ] Logs show ApplicationDbContext migration boundary completed.
+[ ] Logs show MediaLibraryDbContext migration boundary completed.
+[ ] No unknown migration-history IDs are reported.
+[ ] Application and media schema readiness checks pass.
+[ ] /health/ready reports ready.
+
+NOTIFICATION VERIFICATION
+[ ] Bell loads for normal user.
+[ ] Opening bell records seen state.
+[ ] Mark read/unread works.
+[ ] Mark all read works.
+[ ] Notification Centre paging/filters work.
+[ ] Project mute/unmute works.
+[ ] Mutation requests contain X-CSRF-TOKEN.
+[ ] Two-tab SignalR/polling reconciliation works.
+[ ] Anonymous API request returns 401 JSON-compatible response, not redirect HTML.
+[ ] No recurring notification errors in browser console or server logs.

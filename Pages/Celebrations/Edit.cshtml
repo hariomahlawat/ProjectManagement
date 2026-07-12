@@ -1,48 +1,116 @@
 @page "{id?}"
 @model ProjectManagement.Pages.Celebrations.EditModel
-@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles="Admin,TA")]
 @{
-    ViewData["Title"] = Model.Input.Id == null ? "Add Celebration" : "Edit Celebration";
+    ViewData["Title"] = Model.PageTitle;
 }
 
-<h2 class="h5 fw-semibold mb-3">@ViewData["Title"]</h2>
-<form method="post" class="card card-body">
-    @Html.AntiForgeryToken()
-    <div class="mb-2">
-        <label asp-for="Input.EventType" class="form-label"></label>
-        <select asp-for="Input.EventType" class="form-select">
-            <option value="Birthday">Birthday</option>
-            <option value="Anniversary">Anniversary</option>
-        </select>
-    </div>
-    <div class="mb-2">
-        <label asp-for="Input.Name" class="form-label"></label>
-        <input asp-for="Input.Name" class="form-control" />
-        <span asp-validation-for="Input.Name" class="text-danger small"></span>
-    </div>
-    <div class="mb-2">
-        <label asp-for="Input.SpouseName" class="form-label"></label>
-        <input asp-for="Input.SpouseName" class="form-control" />
-    </div>
-    <div class="row mb-2">
-        <div class="col">
-            <label asp-for="Input.Day" class="form-label"></label>
-            <input asp-for="Input.Day" class="form-control" type="number" />
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb small mb-0">
+        <li class="breadcrumb-item"><a asp-page="/Calendar/Index">Calendar</a></li>
+        <li class="breadcrumb-item"><a asp-page="Index">Birthdays &amp; anniversaries</a></li>
+        <li class="breadcrumb-item active" aria-current="page">@Model.PageTitle</li>
+    </ol>
+</nav>
+
+<div class="row justify-content-center">
+    <div class="col-xl-7 col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0 pt-4 px-4">
+                <h1 class="h4 fw-semibold mb-1">@Model.PageTitle</h1>
+                <p class="text-muted small mb-0">The entry will recur annually on the selected date.</p>
+            </div>
+            <div class="card-body p-4">
+                @if (Model.IsRestrictedEditor)
+                {
+                    <div class="alert alert-info py-2 small">
+                        @Model.PermissionNotice
+                    </div>
+                }
+
+                <form method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="Input.Id" />
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                    <div class="mb-3">
+                        <label asp-for="Input.EventType" class="form-label"></label>
+                        @if (Model.CanManageBothTypes)
+                        {
+                            <select asp-for="Input.EventType" class="form-select">
+                                <option value="Birthday">Birthday</option>
+                                <option value="Anniversary">Anniversary</option>
+                            </select>
+                        }
+                        else
+                        {
+                            <input type="hidden" asp-for="Input.EventType" />
+                            <input class="form-control" value="@Model.RestrictedTypeLabel" readonly aria-label="Type" />
+                        }
+                        <span asp-validation-for="Input.EventType" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Input.Name" class="form-label"></label>
+                        <input asp-for="Input.Name" class="form-control" autocomplete="off" />
+                        <span asp-validation-for="Input.Name" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Input.SpouseName" class="form-label"></label>
+                        <input asp-for="Input.SpouseName" class="form-control" autocomplete="off" />
+                        <span asp-validation-for="Input.SpouseName" class="text-danger small"></span>
+                    </div>
+
+                    <fieldset>
+                        <legend class="form-label">Date</legend>
+                        <div class="row g-3">
+                            <div class="col-sm-4">
+                                <label asp-for="Input.Day" class="form-label small text-muted"></label>
+                                <input asp-for="Input.Day" class="form-control" type="number" min="1" max="31" />
+                                <span asp-validation-for="Input.Day" class="text-danger small"></span>
+                            </div>
+                            <div class="col-sm-4">
+                                <label asp-for="Input.Month" class="form-label small text-muted"></label>
+                                <select asp-for="Input.Month" class="form-select">
+                                    <option value="0">Select</option>
+                                    <option value="1">January</option>
+                                    <option value="2">February</option>
+                                    <option value="3">March</option>
+                                    <option value="4">April</option>
+                                    <option value="5">May</option>
+                                    <option value="6">June</option>
+                                    <option value="7">July</option>
+                                    <option value="8">August</option>
+                                    <option value="9">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                                <span asp-validation-for="Input.Month" class="text-danger small"></span>
+                            </div>
+                            <div class="col-sm-4">
+                                <label asp-for="Input.Year" class="form-label small text-muted"></label>
+                                <input asp-for="Input.Year"
+                                       class="form-control"
+                                       type="number"
+                                       min="1"
+                                       max="9999"
+                                       placeholder="Optional" />
+                                <span asp-validation-for="Input.Year" class="text-danger small"></span>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary">Save</button>
+                        <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
         </div>
-        <div class="col">
-            <label asp-for="Input.Month" class="form-label"></label>
-            <input asp-for="Input.Month" class="form-control" type="number" />
-        </div>
-        <div class="col">
-            <label asp-for="Input.Year" class="form-label"></label>
-            <input asp-for="Input.Year" class="form-control" type="number" />
-        </div>
     </div>
-    <div class="mt-3">
-        <button type="submit" class="btn btn-primary">Save</button>
-        <a asp-page="Index" class="btn btn-secondary">Cancel</a>
-    </div>
-</form>
+</div>
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
 }

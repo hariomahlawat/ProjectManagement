@@ -1,0 +1,102 @@
+<svg width="760" height="720" viewBox="0 0 760 720" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">PRISM ERP connected enterprise platform</title>
+  <desc id="desc">A central PRISM ERP hub connects projects, workflows, documents and analytics.</desc>
+  <defs>
+    <linearGradient id="panel" x1="86" y1="80" x2="646" y2="654" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FBFF"/>
+      <stop offset="1" stop-color="#EEF3FF"/>
+    </linearGradient>
+    <linearGradient id="hub" x1="286" y1="268" x2="470" y2="472" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#214FBF"/>
+      <stop offset="0.55" stop-color="#416FE8"/>
+      <stop offset="1" stop-color="#7356D8"/>
+    </linearGradient>
+    <linearGradient id="beamBlue" x1="380" y1="318" x2="176" y2="158" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4C77E6" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#68C8DF" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="beamViolet" x1="398" y1="318" x2="592" y2="158" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6D5ADD" stop-opacity="0.68"/>
+      <stop offset="1" stop-color="#A07FE7" stop-opacity="0.06"/>
+    </linearGradient>
+    <linearGradient id="beamTeal" x1="352" y1="414" x2="174" y2="570" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2E93B7" stop-opacity="0.58"/>
+      <stop offset="1" stop-color="#78D4D8" stop-opacity="0.05"/>
+    </linearGradient>
+    <linearGradient id="beamIndigo" x1="424" y1="414" x2="590" y2="570" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6258D9" stop-opacity="0.58"/>
+      <stop offset="1" stop-color="#8778E7" stop-opacity="0.05"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="translate(380 367) rotate(90) scale(244)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7AA6FF" stop-opacity="0.30"/>
+      <stop offset="0.48" stop-color="#93D7E5" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="46" y="38" width="668" height="644" rx="44" fill="url(#panel)" stroke="#D9E4F2"/>
+  <circle cx="380" cy="367" r="244" fill="url(#glow)"/>
+  <path d="M362 324L183 166L199 153L384 296Z" fill="url(#beamBlue)"/>
+  <path d="M398 324L577 166L561 153L376 296Z" fill="url(#beamViolet)"/>
+  <path d="M349 416L180 565L196 579L376 439Z" fill="url(#beamTeal)"/>
+  <path d="M411 416L580 565L564 579L384 439Z" fill="url(#beamIndigo)"/>
+
+  <g>
+    <rect x="88" y="92" width="212" height="122" rx="24" fill="#FFFFFF" stroke="#D8E4F2"/>
+    <rect x="108" y="112" width="42" height="42" rx="12" fill="#E9F2FF"/>
+    <path d="M118 140H140M118 132H134M118 124H128" stroke="#3568E8" stroke-width="3" stroke-linecap="round"/>
+    <text x="165" y="133" fill="#132A4A" font-size="21" font-family="Mulish, Arial, sans-serif" font-weight="800">Projects</text>
+    <text x="165" y="158" fill="#66758C" font-size="12.5" font-family="Mulish, Arial, sans-serif">Stages, owners and delivery</text>
+    <rect x="108" y="177" width="165" height="8" rx="4" fill="#ECF1F8"/>
+    <rect x="108" y="177" width="112" height="8" rx="4" fill="#4B76E6"/>
+  </g>
+
+  <g>
+    <rect x="460" y="92" width="212" height="122" rx="24" fill="#FFFFFF" stroke="#D8E4F2"/>
+    <rect x="480" y="112" width="42" height="42" rx="12" fill="#F1EBFF"/>
+    <path d="M491 122H510V145H491V122ZM496 128H505M496 134H505M496 140H503" stroke="#7759D7" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="537" y="133" fill="#132A4A" font-size="21" font-family="Mulish, Arial, sans-serif" font-weight="800">Documents</text>
+    <text x="537" y="158" fill="#66758C" font-size="12.5" font-family="Mulish, Arial, sans-serif">Records, OCR and search</text>
+    <rect x="480" y="177" width="165" height="8" rx="4" fill="#ECF1F8"/>
+    <rect x="480" y="177" width="126" height="8" rx="4" fill="#7B5ADC"/>
+  </g>
+
+  <g>
+    <rect x="88" y="506" width="212" height="122" rx="24" fill="#FFFFFF" stroke="#D8E4F2"/>
+    <rect x="108" y="526" width="42" height="42" rx="12" fill="#E7F8F7"/>
+    <path d="M119 548L127 540L134 547L141 536M141 536V546M141 536H131" stroke="#258E9C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="165" y="547" fill="#132A4A" font-size="21" font-family="Mulish, Arial, sans-serif" font-weight="800">Analytics</text>
+    <text x="165" y="572" fill="#66758C" font-size="12.5" font-family="Mulish, Arial, sans-serif">Insights and visibility</text>
+    <rect x="108" y="591" width="165" height="8" rx="4" fill="#ECF1F8"/>
+    <rect x="108" y="591" width="101" height="8" rx="4" fill="#2C9BA0"/>
+  </g>
+
+  <g>
+    <rect x="460" y="506" width="212" height="122" rx="24" fill="#FFFFFF" stroke="#D8E4F2"/>
+    <rect x="480" y="526" width="42" height="42" rx="12" fill="#EEF0FF"/>
+    <path d="M489 547H511M500 536V558M493 540L507 554M507 540L493 554" stroke="#5A63D8" stroke-width="2.6" stroke-linecap="round"/>
+    <text x="537" y="547" fill="#132A4A" font-size="21" font-family="Mulish, Arial, sans-serif" font-weight="800">Workflows</text>
+    <text x="537" y="572" fill="#66758C" font-size="12.5" font-family="Mulish, Arial, sans-serif">Approvals and actions</text>
+    <rect x="480" y="591" width="165" height="8" rx="4" fill="#ECF1F8"/>
+    <rect x="480" y="591" width="118" height="8" rx="4" fill="#5E66D9"/>
+  </g>
+
+  <g>
+    <path d="M380 266L486 327V449L380 510L274 449V327L380 266Z" fill="url(#hub)"/>
+    <path d="M380 286L466 336V440L380 490L294 440V336L380 286Z" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.22)"/>
+    <circle cx="380" cy="388" r="68" fill="#FFFFFF" fill-opacity="0.98"/>
+    <text x="380" y="383" text-anchor="middle" fill="#17315C" font-size="29" font-family="Mulish, Arial, sans-serif" font-weight="900">PRISM</text>
+    <text x="380" y="413" text-anchor="middle" fill="#5C66D8" font-size="19" font-family="Mulish, Arial, sans-serif" font-weight="900" letter-spacing="2">ERP</text>
+  </g>
+
+  <g opacity="0.82">
+    <circle cx="336" cy="245" r="6" fill="#70C4DD"/>
+    <circle cx="426" cy="244" r="5" fill="#9B7DE4"/>
+    <circle cx="514" cy="326" r="5" fill="#7A63E0"/>
+    <circle cx="245" cy="330" r="5" fill="#65B9D5"/>
+    <circle cx="240" cy="461" r="4" fill="#3C9FA6"/>
+    <circle cx="522" cy="462" r="4" fill="#6E6ADE"/>
+  </g>
+
+  <text x="380" y="655" text-anchor="middle" fill="#596A84" font-size="15" font-family="Mulish, Arial, sans-serif" font-weight="700">One connected operating picture</text>
+</svg>

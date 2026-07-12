@@ -33,8 +33,35 @@ public sealed class DocumentNotificationServiceTests
         Assert.Equal("Document", evt.ScopeType);
         Assert.Equal("30", evt.ScopeId);
         Assert.Equal("/Projects/12/Documents", evt.Route);
+        Assert.Equal("Document published", evt.Title);
+        Assert.Equal("Spec", evt.Summary);
+        Assert.Null(evt.Fingerprint);
         Assert.Contains((NotificationKind.DocumentPublished, "hod-7", 12), preferences.Calls);
         Assert.Contains((NotificationKind.DocumentPublished, "po-7", 12), preferences.Calls);
+    }
+
+    [Fact]
+    public async Task NotifyDocumentPublishedAsync_ExcludesTheActorFromRoutineRecipients()
+    {
+        var publisher = new RecordingNotificationPublisher();
+        var preferences = new TestPreferenceService();
+        var service = new DocumentNotificationService(publisher, preferences, NullLogger<DocumentNotificationService>.Instance);
+
+        var project = new Project { Id = 13, Name = "Sigma", LeadPoUserId = "po-13", HodUserId = "hod-13" };
+        var document = new ProjectDocument
+        {
+            Id = 35,
+            ProjectId = 13,
+            Title = "Acceptance report",
+            Status = ProjectDocumentStatus.Published,
+            Project = project,
+        };
+
+        await service.NotifyDocumentPublishedAsync(document, project, "hod-13");
+
+        var evt = Assert.Single(publisher.Events);
+        Assert.Equal(new[] { "po-13" }, evt.Recipients);
+        Assert.DoesNotContain("hod-13", evt.Recipients);
     }
 
     [Fact]

@@ -1,14 +1,12 @@
 @model ProjectManagement.ViewComponents.ModuleSubNavViewModel
 
-@if (Model.Tabs?.Any() ?? false)
+@if ((Model.Tabs?.Any() ?? false) || (Model.Actions?.Any() ?? false))
 {
     <!-- ===========================
          MODULE SUB-NAV
          =========================== -->
     <div class="pm-module-subnav-row">
-        <!-- ===========================
-             SUB-NAV SPACER (TAB ALIGNMENT)
-             =========================== -->
+        <!-- Keeps module tabs aligned with the primary navigation start. -->
         <div class="pm-module-subnav-spacer" aria-hidden="true">
             <span class="pm-drawer-toggle">
                 <span class="navbar-toggler pm-drawer-toggle__button">
@@ -23,108 +21,119 @@
             </span>
         </div>
 
-        <!-- ===========================
-             SUB-NAV TABS
-             =========================== -->
-        <nav class="pm-module-subnav" aria-label="@Model.AriaLabel">
-            <!-- ===========================
-                 PRIMARY TABS
-                 =========================== -->
-            @foreach (var tab in Model.Tabs)
+        <div class="pm-module-subnav__content">
+            @if (Model.Tabs?.Any() ?? false)
             {
-                var classes = "pm-module-subnav__item" + (tab.IsActive ? " is-active" : string.Empty);
+                <nav class="pm-module-subnav" aria-label="@Model.AriaLabel">
+                    @foreach (var tab in Model.Tabs)
+                    {
+                        var classes = "pm-module-subnav__item" + (tab.IsActive ? " is-active" : string.Empty);
 
-                if (!string.IsNullOrEmpty(tab.Url))
-                {
-                    <a class="@classes" href="@tab.Url" @(tab.IsActive ? "aria-current=\"page\"" : null)>
-                        @if (!string.IsNullOrEmpty(tab.Icon))
+                        if (!string.IsNullOrEmpty(tab.Url))
                         {
-                            <i class="bi @tab.Icon me-1" aria-hidden="true"></i>
+                            <a class="@classes"
+                               href="@tab.Url"
+                               aria-current="@(tab.IsActive ? "page" : null)">
+                                @if (!string.IsNullOrEmpty(tab.Icon))
+                                {
+                                    <i class="bi @tab.Icon pm-module-subnav__icon" aria-hidden="true"></i>
+                                }
+                                <span>@tab.Text</span>
+
+                                @if (!string.IsNullOrEmpty(tab.BadgeViewComponentName))
+                                {
+                                    <span class="pm-module-subnav__badge">
+                                        @await Component.InvokeAsync(tab.BadgeViewComponentName!, tab.BadgeViewComponentParameters ?? new { })
+                                    </span>
+                                }
+                            </a>
                         }
-                        <span>@tab.Text</span>
-
-                        @if (!string.IsNullOrEmpty(tab.BadgeViewComponentName))
+                        else
                         {
-                            <span class="pm-module-subnav__badge ms-2">
-                                @await Component.InvokeAsync(tab.BadgeViewComponentName!, tab.BadgeViewComponentParameters ?? new { })
+                            <span class="@classes">
+                                @if (!string.IsNullOrEmpty(tab.Icon))
+                                {
+                                    <i class="bi @tab.Icon pm-module-subnav__icon" aria-hidden="true"></i>
+                                }
+                                <span>@tab.Text</span>
                             </span>
                         }
-                    </a>
-                }
-                else
-                {
-                    <span class="@classes">
-                        @if (!string.IsNullOrEmpty(tab.Icon))
-                        {
-                            <i class="bi @tab.Icon me-1" aria-hidden="true"></i>
-                        }
-                        <span>@tab.Text</span>
-                    </span>
-                }
+                    }
+                </nav>
             }
 
-        </nav>
+            @if (Model.OverflowTabs?.Any() ?? false)
+            {
+                <div class="dropdown pm-module-subnav__dropdown pm-subnav__overflow">
+                    <button class="pm-module-subnav__item dropdown-toggle@(Model.IsOverflowActive ? " is-active" : string.Empty)"
+                            type="button"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false">
+                        <i class="bi bi-three-dots" aria-hidden="true"></i>
+                        <span>@Model.OverflowLabel</span>
+                    </button>
 
-        <!-- ===========================
-             OVERFLOW TABS
-             =========================== -->
-        @if (Model.OverflowTabs?.Any() ?? false)
-        {
-            <div class="dropdown pm-module-subnav__dropdown pm-subnav__overflow">
-                <button class="pm-module-subnav__item dropdown-toggle@(Model.IsOverflowActive ? " is-active" : string.Empty)"
-                        type="button"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false">
-                    @Model.OverflowLabel
-                </button>
+                    <ul class="dropdown-menu dropdown-menu-end pm-module-subnav__menu">
+                        @foreach (var overflowTab in Model.OverflowTabs)
+                        {
+                            <li>
+                                @if (!string.IsNullOrEmpty(overflowTab.Url))
+                                {
+                                    <a class="dropdown-item d-flex align-items-center gap-2@(overflowTab.IsActive ? " active" : string.Empty)"
+                                       href="@overflowTab.Url"
+                                       aria-current="@(overflowTab.IsActive ? "page" : null)">
+                                        @if (!string.IsNullOrEmpty(overflowTab.Icon))
+                                        {
+                                            <i class="bi @overflowTab.Icon" aria-hidden="true"></i>
+                                        }
+                                        <span>@overflowTab.Text</span>
 
-                <ul class="dropdown-menu pm-module-subnav__menu">
-                    @foreach (var overflowTab in Model.OverflowTabs)
+                                        @if (!string.IsNullOrEmpty(overflowTab.BadgeViewComponentName))
+                                        {
+                                            <span class="ms-auto">
+                                                @await Component.InvokeAsync(
+                                                    overflowTab.BadgeViewComponentName!,
+                                                    overflowTab.BadgeViewComponentParameters ?? new { })
+                                            </span>
+                                        }
+                                    </a>
+                                }
+                                else
+                                {
+                                    <span class="dropdown-item d-flex align-items-center gap-2@(overflowTab.IsActive ? " active" : string.Empty)">
+                                        @if (!string.IsNullOrEmpty(overflowTab.Icon))
+                                        {
+                                            <i class="bi @overflowTab.Icon" aria-hidden="true"></i>
+                                        }
+                                        <span>@overflowTab.Text</span>
+                                    </span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            @if (Model.Actions?.Any() ?? false)
+            {
+                <div class="pm-module-subnav__actions" aria-label="Module actions">
+                    @foreach (var action in Model.Actions)
                     {
-                        <li>
-                            @if (!string.IsNullOrEmpty(overflowTab.Url))
-                            {
-                                <a class="dropdown-item d-flex align-items-center gap-2@(overflowTab.IsActive ? " active" : string.Empty)"
-                                   href="@overflowTab.Url">
-                                    @if (!string.IsNullOrEmpty(overflowTab.Icon))
-                                    {
-                                        <i class="bi @overflowTab.Icon" aria-hidden="true"></i>
-                                    }
-                                    <span>@overflowTab.Text</span>
-
-                                    @if (!string.IsNullOrEmpty(overflowTab.BadgeViewComponentName))
-                                    {
-                                        <span class="ms-auto">
-                                            @await Component.InvokeAsync(
-                                                overflowTab.BadgeViewComponentName!,
-                                                overflowTab.BadgeViewComponentParameters ?? new { })
-                                        </span>
-                                    }
-                                </a>
-                            }
-                            else
-                            {
-                                <span class="dropdown-item d-flex align-items-center gap-2@(overflowTab.IsActive ? " active" : string.Empty)">
-                                    @if (!string.IsNullOrEmpty(overflowTab.Icon))
-                                    {
-                                        <i class="bi @overflowTab.Icon" aria-hidden="true"></i>
-                                    }
-                                    <span>@overflowTab.Text</span>
-
-                                    @if (!string.IsNullOrEmpty(overflowTab.BadgeViewComponentName))
-                                    {
-                                        <span class="ms-auto">
-                                            @await Component.InvokeAsync(
-                                                overflowTab.BadgeViewComponentName!,
-                                                overflowTab.BadgeViewComponentParameters ?? new { })
-                                        </span>
-                                    }
-                                </span>
-                            }
-                        </li>
+                        if (!string.IsNullOrEmpty(action.Url))
+                        {
+                            <a class="pm-module-subnav__action@(action.IsActive ? " is-active" : string.Empty)"
+                               href="@action.Url"
+                               aria-current="@(action.IsActive ? "page" : null)">
+                                @if (!string.IsNullOrEmpty(action.Icon))
+                                {
+                                    <i class="bi @action.Icon" aria-hidden="true"></i>
+                                }
+                                <span>@action.Text</span>
+                            </a>
+                        }
                     }
-                </ul>
-            </div>
-        }
+                </div>
+            }
+        </div>
     </div>
 }

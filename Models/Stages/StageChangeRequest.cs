@@ -10,6 +10,7 @@ public class StageChangeRequest
     public string StageCode { get; set; } = string.Empty;
     public string RequestedStatus { get; set; } = string.Empty;
     public DateOnly? RequestedDate { get; set; }
+    public DateOnly? RequestedStartDate { get; set; }
     public string? Note { get; set; }
 
     public string RequestedByUserId { get; set; } = string.Empty;

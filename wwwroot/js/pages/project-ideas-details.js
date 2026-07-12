@@ -24,7 +24,7 @@
         title.textContent = fileType === 'pdf' ? 'PDF Preview' : 'Image Preview';
         fileName.textContent = name;
         download.href = downloadUrl || previewUrl || '#';
-        container.innerHTML = '';
+        container.replaceChildren();
 
         if (fileType === 'image') {
             const image = document.createElement('img');
@@ -51,18 +51,106 @@
     });
 
     modal.addEventListener('hidden.bs.modal', () => {
-        container.innerHTML = '';
+        container.replaceChildren();
         download.href = '#';
     });
 })();
 
-// SECTION: Project Ideas attachment delete confirmation
+// SECTION: Attachment delete confirmation
 (() => {
     document.querySelectorAll('.js-confirm-delete-attachment').forEach(form => {
         form.addEventListener('submit', event => {
-            if (!window.confirm('Delete this attachment?')) {
+            const fileName = form.getAttribute('data-file-name') || 'this attachment';
+            if (!window.confirm(`Delete “${fileName}”? This action cannot be undone.`)) {
                 event.preventDefault();
             }
         });
     });
+})();
+
+// SECTION: Note composer behaviour
+(() => {
+    const composer = document.getElementById('noteComposer');
+    if (!composer) {
+        return;
+    }
+
+    const titleInput = composer.querySelector('#NoteTitle');
+    const errorAlert = document.querySelector('.alert-danger');
+
+    composer.addEventListener('shown.bs.collapse', () => {
+        titleInput?.focus({ preventScroll: true });
+        composer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+
+    if (composer.classList.contains('show') && errorAlert) {
+        requestAnimationFrame(() => {
+            composer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            titleInput?.focus({ preventScroll: true });
+        });
+    }
+})();
+
+// SECTION: Comfortable textarea growth without manual resizing
+(() => {
+    const autoSize = textarea => {
+        textarea.style.height = 'auto';
+        textarea.style.height = `${Math.min(textarea.scrollHeight, 260)}px`;
+    };
+
+    document.querySelectorAll('.pi-comment-composer textarea, .pi-note-composer textarea').forEach(textarea => {
+        textarea.addEventListener('input', () => autoSize(textarea));
+        autoSize(textarea);
+    });
+})();
+
+// SECTION: Unified General / Conference comment composer.
+(() => {
+    const composer = document.querySelector('[data-pi-comment-composer]');
+    if (!composer) {
+        return;
+    }
+
+    const typeInput = composer.querySelector('[data-pi-comment-type]');
+    const body = composer.querySelector('[data-pi-comment-body]');
+    const guidance = composer.querySelector('[data-pi-comment-guidance]');
+    const submitLabel = composer.querySelector('[data-pi-comment-submit-label]');
+    const options = Array.from(composer.querySelectorAll('[data-pi-comment-type-option]'));
+
+    const applyType = value => {
+        const isConference = value === 'Conference';
+        if (typeInput) {
+            typeInput.value = isConference ? 'Conference' : 'General';
+        }
+
+        options.forEach(option => {
+            const active = option.getAttribute('data-pi-comment-type-option') === (isConference ? 'Conference' : 'General');
+            option.classList.toggle('is-active', active);
+            option.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+
+        composer.classList.toggle('is-conference', isConference);
+        if (body) {
+            body.placeholder = isConference
+                ? 'Record the direction or observation issued during the conference...'
+                : 'Write a comment...';
+        }
+        if (guidance) {
+            guidance.textContent = isConference
+                ? 'Visible as a command direction in the same discussion record.'
+                : 'Share a concise update or question.';
+        }
+        if (submitLabel) {
+            submitLabel.textContent = isConference ? 'Add direction' : 'Send';
+        }
+    };
+
+    options.forEach(option => {
+        option.addEventListener('click', () => {
+            applyType(option.getAttribute('data-pi-comment-type-option'));
+            body?.focus({ preventScroll: true });
+        });
+    });
+
+    applyType(typeInput?.value || 'General');
 })();

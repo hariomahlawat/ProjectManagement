@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>aspnet-ProjectManagement-afb29f29-9396-45b6-b189-1a731fdf1a3a</UserSecretsId>
+    <!-- Prevent stale publish output from being included recursively in a later build. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);publish/**;artifacts/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,7 +18,11 @@
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.1.1" />
     <PackageReference Include="UglyToad.PdfPig" Version="1.7.0-custom-5" />
     <PackageReference Include="QuestPDF" Version="2024.10.3" />
+    <PackageReference Include="SkiaSharp" Version="2.88.8" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="2.88.8" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="2.88.8" />
+    <PackageReference Include="MetadataExtractor" Version="2.9.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.19">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -32,10 +38,10 @@
 
   <ItemGroup>
     <!-- Exclude the nested test project and all of its generated artifacts from the web application's SDK globs. -->
-    <Compile Remove="ProjectManagement.Tests/**" />
-    <Content Remove="ProjectManagement.Tests/**" />
-    <EmbeddedResource Remove="ProjectManagement.Tests/**" />
-    <None Remove="ProjectManagement.Tests/**" />
+    <Compile Remove="ProjectManagement.Tests/**;publish/**;artifacts/**" />
+    <Content Remove="ProjectManagement.Tests/**;publish/**;artifacts/**" />
+    <EmbeddedResource Remove="ProjectManagement.Tests/**;publish/**;artifacts/**" />
+    <None Remove="ProjectManagement.Tests/**;publish/**;artifacts/**" />
   </ItemGroup>
 
   <ItemGroup>
@@ -46,6 +52,21 @@
     <None Update="Data/Seed/iso3166.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="Migrations/immutable-migration-ids.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <None Update="Features/MediaLibrary/Data/Migrations/immutable-migration-ids.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <!-- Embed the same immutable lineages so a complete DLL remains self-describing even
+         when an IIS deployment tool omits non-code content files. External files remain the
+         primary source and are still validated when present. -->
+    <EmbeddedResource Include="Migrations/immutable-migration-ids.txt"
+                      LogicalName="ProjectManagement.Migrations.immutable-migration-ids.txt" />
+    <EmbeddedResource Include="Features/MediaLibrary/Data/Migrations/immutable-migration-ids.txt"
+                      LogicalName="ProjectManagement.MediaLibrary.Migrations.immutable-migration-ids.txt" />
   </ItemGroup>
 
   <ItemGroup>

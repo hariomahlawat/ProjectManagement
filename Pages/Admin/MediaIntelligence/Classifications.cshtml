@@ -1,0 +1,512 @@
+@page
+@model ProjectManagement.Pages.Admin.MediaIntelligence.ClassificationsModel
+@using ProjectManagement.Features.MediaLibrary.Domain
+@{
+    ViewData["Title"] = "Classification review";
+    static string ClassificationLabel(MediaClassification value) => value switch
+    {
+        MediaClassification.ScannedDocument => "Scanned document",
+        MediaClassification.PresentationSlide => "Presentation slide",
+        MediaClassification.Unknown => "Unknown",
+        _ => value.ToString()
+    };
+}
+
+<link rel="stylesheet" href="~/css/pages/media-intelligence.css" asp-append-version="true" />
+
+<div class="container-fluid py-4 media-intelligence-page">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <div class="text-primary small text-uppercase fw-semibold mb-1">Media intelligence</div>
+            <h1 class="h3 mb-1">Classification review</h1>
+            <p class="text-muted mb-0">
+                Review ambiguous image types. A manual Photograph decision does not permit biometric processing until separately approved.
+            </p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <form method="post" asp-page-handler="ReclassifyStale"
+                  onsubmit="return confirm('Queue all safe stale items for the current classifier?');">
+                <button type="submit" class="btn btn-outline-primary" disabled="@(Model.StaleCount == 0)">
+                    <i class="bi bi-arrow-repeat" aria-hidden="true"></i>
+                    Reclassify stale
+                    @if (Model.StaleCount > 0)
+                    {
+                        <span class="badge text-bg-primary ms-1">@Model.StaleCount</span>
+                    }
+                </button>
+            </form>
+            <a class="btn btn-outline-secondary" asp-page="/Admin/MediaIntelligence/Index">Overview</a>
+        </div>
+    </div>
+
+    <nav class="intel-tabs mb-4" aria-label="Media intelligence sections">
+        <a asp-page="/Admin/MediaIntelligence/Index">Overview</a>
+        <a class="active" aria-current="page" asp-page="/Admin/MediaIntelligence/Classifications">Classification</a>
+        <a asp-page="/Photos/People/Review">People review</a>
+        <a asp-page="/Photos/People/Index">People</a>
+    </nav>
+
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+    {
+        <div class="alert alert-success" role="status">@Model.StatusMessage</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.WarningMessage))
+    {
+        <div class="alert alert-warning" role="alert">@Model.WarningMessage</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+    }
+
+    <form method="get" class="card card-body shadow-sm border-0 mb-3 classification-filter-form">
+        <div class="row g-3">
+            <div class="col-xl-5 col-lg-4">
+                <label class="form-label" asp-for="Q">Search</label>
+                <input class="form-control" asp-for="Q" placeholder="Title, collection or filename" />
+            </div>
+            <div class="col-xl-3 col-lg-3">
+                <label class="form-label" asp-for="FilterClassification">Final classification</label>
+                <select class="form-select" asp-for="FilterClassification">
+                    <option value="">All classifications</option>
+                    @foreach (var value in Enum.GetValues<MediaClassification>())
+                    {
+                        <option value="@value">@ClassificationLabel(value)</option>
+                    }
+                </select>
+            </div>
+            <div class="col-xl-2 col-lg-3">
+                <label class="form-label" asp-for="Mode">Review set</label>
+                <select class="form-select" asp-for="Mode">
+                    <option value="review">Needs review (@Model.ReviewCounts.Review)</option>
+                    <option value="admission">Face admission pending (@Model.ReviewCounts.Admission)</option>
+                    <option value="risk">Safety conflicts (@Model.ReviewCounts.Risk)</option>
+                    <option value="automatic">Automatically accepted (@Model.ReviewCounts.Automatic)</option>
+                    <option value="manual">Manual decisions (@Model.ReviewCounts.Manual)</option>
+                    <option value="nonphoto">Confirmed non-photographs (@Model.ReviewCounts.NonPhoto)</option>
+                    <option value="failures">Processing failures (@Model.ReviewCounts.Failures)</option>
+                    <option value="stale">Stale classifier (@Model.ReviewCounts.Stale)</option>
+                    <option value="eligible">Face processing approved (@Model.ReviewCounts.Eligible)</option>
+                    <option value="all">All images (@Model.ReviewCounts.All)</option>
+                </select>
+            </div>
+            <div class="col-xl-2 col-lg-2 d-flex align-items-end gap-2">
+                <button class="btn btn-primary flex-grow-1">Apply</button>
+                <a asp-page="./Classifications" asp-route-mode="review"
+                   class="btn btn-outline-secondary" title="Clear filters" aria-label="Clear filters">
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </a>
+            </div>
+        </div>
+    </form>
+
+    <div id="classification-review-toolbar" class="classification-review-toolbar mb-3">
+        <div class="classification-review-toolbar__summary">
+            <strong>@Model.Total</strong> image@(Model.Total == 1 ? string.Empty : "s")
+            <span>Page @Model.P of @Model.TotalPages</span>
+        </div>
+        <form id="bulk-classification-form" method="post" asp-page-handler="SetBatch"
+              asp-route-q="@Model.Q"
+              asp-route-filterClassification="@Model.FilterClassification"
+              asp-route-mode="@Model.Mode"
+              asp-route-p="@Model.P"
+              class="classification-bulk-form">
+            <label class="form-check mb-0 classification-bulk-select-page">
+                <input id="select-page" class="form-check-input" type="checkbox" />
+                <span class="form-check-label">Select page</span>
+            </label>
+            <span id="selected-count" class="small text-muted text-nowrap">0 selected</span>
+            <select id="bulk-classification"
+                    class="form-select form-select-sm classification-bulk-action"
+                    name="classification"
+                    aria-label="Bulk classification"
+                    required>
+                <option value="">Choose classification…</option>
+                @foreach (var value in Enum.GetValues<MediaClassification>().Where(value => value != MediaClassification.Unknown))
+                {
+                    <option value="@value">@ClassificationLabel(value)</option>
+                }
+            </select>
+            <input class="form-control form-control-sm classification-bulk-action"
+                   name="reason"
+                   maxlength="1024"
+                   placeholder="Bulk reason (required)"
+                   required />
+            <button id="bulk-apply" class="btn btn-sm btn-primary classification-bulk-action" type="submit" disabled>Apply</button>
+            <button id="bulk-clear" class="btn btn-sm btn-outline-secondary classification-bulk-action" type="button">Clear</button>
+        </form>
+    </div>
+
+    @if (Model.Rows.Count == 0)
+    {
+        <div class="classification-empty card card-body border-0 shadow-sm text-center py-5">
+            <i class="bi bi-check2-circle" aria-hidden="true"></i>
+            <h2 class="h5 mt-3">No images in this review set</h2>
+            <p class="text-muted mb-0">Change the filters or open the All images audit view.</p>
+        </div>
+    }
+    else
+    {
+        <div class="classification-grid classification-grid--review">
+            @foreach (var item in Model.Rows)
+            {
+                <article class="classification-card classification-card--review">
+                    <label class="classification-card__selector">
+                        <input class="form-check-input js-classification-select"
+                               type="checkbox"
+                               name="assetIds"
+                               value="@item.Id"
+                               form="bulk-classification-form" />
+                        <input type="hidden"
+                               name="expectedConcurrencyTokens"
+                               value="@item.ConcurrencyToken"
+                               form="bulk-classification-form"
+                               disabled
+                               class="js-classification-token" />
+                        <span class="visually-hidden">Select @item.Title</span>
+                    </label>
+
+                    <a class="classification-card__preview"
+                       href="@Url.Page("/Photos/Media", new { id = item.Id, variant = "preview" })"
+                       target="_blank"
+                       rel="noopener"
+                       aria-label="Open full preview of @item.Title">
+                        <img src="@Url.Page("/Photos/Media", new { id = item.Id, variant = "thumb" })"
+                             alt=""
+                             loading="lazy" />
+                        <span><i class="bi bi-arrows-fullscreen" aria-hidden="true"></i> Preview</span>
+                    </a>
+
+                    <div class="classification-card__content">
+                        <header class="classification-card__header">
+                            <div class="classification-card__title">
+                                <strong title="@item.Title">@item.Title</strong>
+                                <div class="small text-muted text-truncate" title="@item.ContextTitle · @item.OriginalFileName">
+                                    @item.ContextTitle · @item.OriginalFileName
+                                </div>
+                            </div>
+                            <span class="badge @item.ReviewStatusCss">@item.ReviewStatusLabel</span>
+                        </header>
+
+                        <div class="classification-card__body">
+                            <div class="classification-evidence" aria-label="Classification evidence">
+                                <div title="Normalised classifier evidence score; it is not a calibrated probability.">
+                                    <span>Prediction</span>
+                                    <strong>@ClassificationLabel(item.PredictedClassification)</strong>
+                                    <small>Evidence @item.PredictedScore.ToString("P0")</small>
+                                </div>
+                                <div title="Normalised classifier evidence score; it is not a calibrated probability.">
+                                    <span>Runner-up</span>
+                                    <strong>@ClassificationLabel(item.RunnerUpClassification)</strong>
+                                    <small>Evidence @item.RunnerUpScore.ToString("P0")</small>
+                                </div>
+                                <div title="Difference between the winning and runner-up normalised evidence scores.">
+                                    <span>Margin</span>
+                                    <strong>@item.ScoreMargin.ToString("P0")</strong>
+                                    <small>@item.DecisionReasonLabel</small>
+                                </div>
+                            </div>
+
+                            <div class="classification-decision-line">
+                                <span>Final</span>
+                                <strong>@ClassificationLabel(item.Classification)</strong>
+                                <span class="text-muted">· @(item.IsManual ? "Human decision" : item.ClassifierVersion ?? "Not classified")</span>
+                            </div>
+
+                            @if (item.FaceProbeAttempted || item.FaceEvidenceDetected || item.FaceEvidenceUsed)
+                            {
+                                <div class="classification-assistance @item.FaceAssistanceCss"
+                                     title="Detector-only face assistance never creates embeddings or identity records.">
+                                    <i class="bi @(item.FaceEvidenceUsed ? "bi-person-check" : item.FaceEvidenceDetected ? "bi-person-x" : "bi-person-dash")"
+                                       aria-hidden="true"></i>
+                                    <span>@item.FaceAssistanceLabel</span>
+                                </div>
+                            }
+
+                            <div class="classification-eligibility @(item.FaceEligible ? "classification-eligibility--eligible" : null)">
+                                <i class="bi @(item.FaceEligible ? "bi-check-circle" : "bi-shield-lock")" aria-hidden="true"></i>
+                                <div>
+                                    <strong>@(item.FaceEligible ? "Face processing eligible" : "Face processing blocked")</strong>
+                                    <span>@item.FaceEligibilityReason</span>
+                                </div>
+                            </div>
+
+                            <details class="classification-signals small">
+                                <summary>Decision evidence and safety checks</summary>
+                                <div class="classification-safety-grid">
+                                    <span>Base Photograph <strong>@item.BasePhotographScore.ToString("P0")</strong></span>
+                                    <span>Natural photo <strong>@item.NaturalPhotoScore.ToString("P0")</strong></span>
+                                    <span>Document structure <strong>@item.DocumentStructureScore.ToString("P0")</strong></span>
+                                    <span>Graphic structure <strong>@item.GraphicStructureScore.ToString("P0")</strong></span>
+                                    <span>Diagram structure <strong>@item.DiagramStructureScore.ToString("P0")</strong></span>
+                                </div>
+                                @if (item.Signals.Count > 0)
+                                {
+                                    <ul>
+                                        @foreach (var signal in item.Signals.Take(8))
+                                        {
+                                            <li>@signal</li>
+                                        }
+                                    </ul>
+                                }
+                            </details>
+
+                            @if (!item.IsManual
+                                 && item.PredictedClassification != MediaClassification.Unknown
+                                 && item.PredictedClassification != MediaClassification.Photograph
+                                 && item.DecisionStatus == MediaClassificationDecisionStatus.NeedsReview)
+                            {
+                                <form method="post" asp-page-handler="Set"
+              asp-route-q="@Model.Q"
+              asp-route-filterClassification="@Model.FilterClassification"
+              asp-route-mode="@Model.Mode"
+              asp-route-p="@Model.P"
+                                      class="mb-1">
+                                    <input type="hidden" name="assetId" value="@item.Id" />
+                                    <input type="hidden" name="expectedConcurrencyToken" value="@item.ConcurrencyToken" />
+                                    <input type="hidden" name="classification" value="@item.PredictedClassification" />
+                                    <button class="btn btn-sm btn-outline-primary w-100" type="submit">
+                                        <i class="bi bi-check2" aria-hidden="true"></i>
+                                        Confirm @ClassificationLabel(item.PredictedClassification)
+                                    </button>
+                                </form>
+                            }
+
+                            <form method="post"
+                                  asp-page-handler="Set"
+              asp-route-q="@Model.Q"
+              asp-route-filterClassification="@Model.FilterClassification"
+              asp-route-mode="@Model.Mode"
+              asp-route-p="@Model.P"
+                                  class="classification-manual-form"
+                                  data-manual-form
+                                  data-prediction="@item.PredictedClassification">
+                                <input type="hidden" name="assetId" value="@item.Id" />
+                                <input type="hidden" name="expectedConcurrencyToken" value="@item.ConcurrencyToken" />
+                                <select class="form-select form-select-sm" name="classification" required data-classification-select>
+                                    @if (item.Classification == MediaClassification.Unknown)
+                                    {
+                                        <option value="" selected>Choose classification…</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="">Choose classification…</option>
+                                    }
+                                    @foreach (var value in Enum.GetValues<MediaClassification>().Where(value => value != MediaClassification.Unknown))
+                                    {
+                                        <option value="@value" selected="@(value == item.Classification)">@ClassificationLabel(value)</option>
+                                    }
+                                </select>
+                                <input class="form-control form-control-sm"
+                                       name="reason"
+                                       maxlength="1024"
+                                       placeholder="Reason required for Photograph or correction"
+                                       data-classification-reason />
+                                <button class="btn btn-sm btn-primary" type="submit">Save decision</button>
+                            </form>
+
+                            @if (item.RequiresFaceAdmission)
+                            {
+                                <form method="post" asp-page-handler="ApproveFace"
+              asp-route-q="@Model.Q"
+              asp-route-filterClassification="@Model.FilterClassification"
+              asp-route-mode="@Model.Mode"
+              asp-route-p="@Model.P"
+                                      class="classification-admission-panel">
+                                    <input type="hidden" name="assetId" value="@item.Id" />
+                                    <input type="hidden" name="expectedConcurrencyToken" value="@item.ConcurrencyToken" />
+                                    <div class="classification-admission-panel__heading">
+                                        <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
+                                        <div>
+                                            <strong>Separate biometric admission required</strong>
+                                            <span>Approve only when this is a real natural photograph of a person.</span>
+                                        </div>
+                                    </div>
+                                    <input class="form-control form-control-sm"
+                                           name="reason"
+                                           maxlength="1024"
+                                           placeholder="Approval reason (required)"
+                                           required />
+                                    <label class="form-check small">
+                                        <input class="form-check-input"
+                                               type="checkbox"
+                                               name="acknowledgeBiometricProcessing"
+                                               value="true"
+                                               required />
+                                        <span class="form-check-label">
+                                            I confirm this is a natural photograph and understand that approval permits biometric face processing.
+                                        </span>
+                                    </label>
+                                    <button class="btn btn-sm btn-outline-success" type="submit">
+                                        <i class="bi bi-person-check" aria-hidden="true"></i>
+                                        Approve face processing
+                                    </button>
+                                </form>
+                            }
+                            else if (item.HasManualFaceAdmission)
+                            {
+                                <form method="post" asp-page-handler="RevokeFace"
+              asp-route-q="@Model.Q"
+              asp-route-filterClassification="@Model.FilterClassification"
+              asp-route-mode="@Model.Mode"
+              asp-route-p="@Model.P"
+                                      class="classification-admission-panel classification-admission-panel--approved">
+                                    <input type="hidden" name="assetId" value="@item.Id" />
+                                    <input type="hidden" name="expectedConcurrencyToken" value="@item.ConcurrencyToken" />
+                                    <div class="classification-admission-panel__heading">
+                                        <i class="bi bi-person-check" aria-hidden="true"></i>
+                                        <div>
+                                            <strong>Manual face-processing approval active</strong>
+                                            <span>Approval is bound to the current source-content hash.</span>
+                                        </div>
+                                    </div>
+                                    <div class="classification-revoke-row">
+                                        <input class="form-control form-control-sm"
+                                               name="reason"
+                                               maxlength="1024"
+                                               placeholder="Revocation reason (required)"
+                                               required />
+                                        <button class="btn btn-sm btn-outline-danger" type="submit">Revoke</button>
+                                    </div>
+                                </form>
+                            }
+
+                            @if (item.IsManual)
+                            {
+                                <form method="post" asp-page-handler="Reset"
+              asp-route-q="@Model.Q"
+              asp-route-filterClassification="@Model.FilterClassification"
+              asp-route-mode="@Model.Mode"
+              asp-route-p="@Model.P"
+                                      class="mt-1">
+                                    <input type="hidden" name="assetId" value="@item.Id" />
+                                    <input type="hidden" name="expectedConcurrencyToken" value="@item.ConcurrencyToken" />
+                                    <button class="btn btn-sm btn-link text-secondary p-0" type="submit">
+                                        Reset and run automatic classification again
+                                    </button>
+                                </form>
+                            }
+                        </div>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+
+    @if (Model.TotalPages > 1)
+    {
+        <nav class="d-flex justify-content-end align-items-center gap-2 mt-4" aria-label="Classification pages">
+            <a class="btn btn-outline-secondary btn-sm @(Model.P <= 1 ? "disabled" : null)"
+               asp-route-p="@(Model.P - 1)"
+               asp-route-q="@Model.Q"
+               asp-route-filterClassification="@Model.FilterClassification"
+               asp-route-mode="@Model.Mode">Previous</a>
+            <span class="small text-muted">@Model.P / @Model.TotalPages</span>
+            <a class="btn btn-outline-primary btn-sm @(Model.P >= Model.TotalPages ? "disabled" : null)"
+               asp-route-p="@(Model.P + 1)"
+               asp-route-q="@Model.Q"
+               asp-route-filterClassification="@Model.FilterClassification"
+               asp-route-mode="@Model.Mode">Next</a>
+        </nav>
+    }
+</div>
+
+@section Scripts {
+<script>
+(() => {
+    const toolbar = document.getElementById('classification-review-toolbar');
+    const page = document.getElementById('select-page');
+    const boxes = [...document.querySelectorAll('.js-classification-select')];
+    const button = document.getElementById('bulk-apply');
+    const clear = document.getElementById('bulk-clear');
+    const count = document.getElementById('selected-count');
+    const form = document.getElementById('bulk-classification-form');
+    const bulkClassification = document.getElementById('bulk-classification');
+
+    const updateStickyOffset = () => {
+        const candidates = [
+            document.querySelector('.pm-topbar'),
+            document.querySelector('.app-header'),
+            document.querySelector('header.sticky-top'),
+            document.querySelector('.navbar.sticky-top')
+        ].filter(Boolean);
+        const bottom = candidates.reduce((maximum, element) => {
+            const rectangle = element.getBoundingClientRect();
+            return Math.max(maximum, rectangle.bottom > 0 ? rectangle.bottom : 0);
+        }, 0);
+        document.documentElement.style.setProperty('--classification-sticky-top', `${Math.ceil(bottom + 8)}px`);
+    };
+
+    const sync = () => {
+        const selected = boxes.filter(box => box.checked);
+        boxes.forEach(box => {
+            const token = box.closest('.classification-card')?.querySelector('.js-classification-token');
+            if (token) token.disabled = !box.checked;
+        });
+        if (count) count.textContent = `${selected.length} selected`;
+        if (button) button.disabled = selected.length === 0;
+        toolbar?.classList.toggle('has-selection', selected.length > 0);
+        if (page) {
+            page.checked = boxes.length > 0 && selected.length === boxes.length;
+            page.indeterminate = selected.length > 0 && selected.length < boxes.length;
+        }
+    };
+
+    const clearSelection = () => {
+        boxes.forEach(box => { box.checked = false; });
+        if (bulkClassification) bulkClassification.value = '';
+        form?.querySelector('input[name="reason"]')?.setAttribute('value', '');
+        const reason = form?.querySelector('input[name="reason"]');
+        if (reason) reason.value = '';
+        sync();
+    };
+
+    page?.addEventListener('change', () => {
+        boxes.forEach(box => { box.checked = page.checked; });
+        sync();
+    });
+    boxes.forEach(box => box.addEventListener('change', sync));
+    clear?.addEventListener('click', clearSelection);
+
+    form?.addEventListener('submit', event => {
+        const selected = boxes.filter(box => box.checked).length;
+        if (!selected) {
+            event.preventDefault();
+            return;
+        }
+        if (bulkClassification?.value === 'Photograph') {
+            const confirmed = confirm(
+                `Classify ${selected} image(s) as natural photographs? ` +
+                'This does not approve biometric face processing; each image will require separate admission.'
+            );
+            if (!confirmed) event.preventDefault();
+            return;
+        }
+        if (selected > 10 && !confirm(`Apply this classification to ${selected} images?`)) {
+            event.preventDefault();
+        }
+    });
+
+    document.querySelectorAll('[data-manual-form]').forEach(manualForm => {
+        const select = manualForm.querySelector('[data-classification-select]');
+        const reason = manualForm.querySelector('[data-classification-reason]');
+        const prediction = manualForm.dataset.prediction;
+        const updateReason = () => {
+            const isPhotograph = select?.value === 'Photograph';
+            const correcting = select?.value && select.value !== prediction;
+            const required = Boolean(isPhotograph || correcting);
+            if (reason) {
+                reason.required = required;
+                reason.setAttribute('aria-required', required ? 'true' : 'false');
+            }
+        };
+        select?.addEventListener('change', updateReason);
+        updateReason();
+    });
+
+    updateStickyOffset();
+    window.addEventListener('resize', updateStickyOffset, { passive: true });
+    sync();
+})();
+</script>
+}

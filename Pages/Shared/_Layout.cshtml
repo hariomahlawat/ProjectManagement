@@ -1,5 +1,7 @@
+@using Microsoft.AspNetCore.Antiforgery
 @using Microsoft.AspNetCore.Identity
 @using ProjectManagement.Models
+@inject IAntiforgery Antiforgery
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
 <!DOCTYPE html>
@@ -7,33 +9,70 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10213f" />
+    <meta name="color-scheme" content="light" />
     @{
+        var renderAntiforgeryToken = SignInManager.IsSignedIn(User);
+        var antiforgeryRequestToken = renderAntiforgeryToken
+            ? Antiforgery.GetAndStoreTokens(Context).RequestToken
+            : null;
         var pageTitle = ViewData["Title"]?.ToString();
         var documentTitle = string.Equals(pageTitle, "PRISM ERP", StringComparison.OrdinalIgnoreCase)
             ? "PRISM ERP | Simulator Development Division"
-            : $"{pageTitle} - PRISM ERP";
+            : $"{pageTitle} | PRISM ERP";
     }
     <title>@documentTitle</title>
+    @if (!string.IsNullOrWhiteSpace(antiforgeryRequestToken))
+    {
+        <meta name="csrf-token" content="@antiforgeryRequestToken" />
+    }
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="~/css/fonts/mulish.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/navigation-shell.css" asp-append-version="true" />
     @await RenderSectionAsync("Styles", required: false)
     <link rel="stylesheet" href="~/css/social-media.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/print.css" asp-append-version="true" media="print" />
-    <link rel="stylesheet" href="~/css/fonts/mulish.css" asp-append-version="true" />
 
-    <link rel="icon" href="~/favicon.ico" />
+    <link rel="icon" type="image/x-icon" href="~/favicon.ico" asp-append-version="true" />
+    <link rel="icon" type="image/png" sizes="32x32" href="~/icons/favicon-32x32.png" asp-append-version="true" />
+    <link rel="icon" type="image/png" sizes="16x16" href="~/icons/favicon-16x16.png" asp-append-version="true" />
+    <link rel="apple-touch-icon" sizes="180x180" href="~/icons/apple-touch-icon.png" asp-append-version="true" />
+    <link rel="mask-icon" href="~/icons/safari-pinned-tab.svg" color="#10213f" />
+    <link rel="manifest" href="~/site.webmanifest" asp-append-version="true" />
+    <meta name="msapplication-TileColor" content="#10213f" />
+    <meta name="msapplication-config" content="@Url.Content("~/browserconfig.xml")" />
 </head>
 <body class="d-flex flex-column min-vh-100">
     @{
         var signedIn = SignInManager.IsSignedIn(User);
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
         var currentArea = ViewContext.RouteData.Values["area"]?.ToString();
-        var isOngoingProjectsPage = string.Equals(currentPage, "/Projects/Ongoing/Index", StringComparison.OrdinalIgnoreCase);
+        var hasCurrentPage = !string.IsNullOrWhiteSpace(currentPage);
+
+        var isDashboardPage = string.Equals(currentPage, "/Dashboard/Index", StringComparison.OrdinalIgnoreCase);
+        var isWorkspacePage = hasCurrentPage && currentPage!.StartsWith("/Workspace/", StringComparison.OrdinalIgnoreCase);
+        var isCalendarPage = hasCurrentPage
+            && (currentPage!.StartsWith("/Calendar/", StringComparison.OrdinalIgnoreCase)
+                || currentPage.StartsWith("/Celebrations/", StringComparison.OrdinalIgnoreCase));
+        var isNotebookPage = hasCurrentPage && currentPage!.StartsWith("/Notebook/", StringComparison.OrdinalIgnoreCase);
+        var isPhotosPage = hasCurrentPage && currentPage!.StartsWith("/Photos/", StringComparison.OrdinalIgnoreCase);
         var isDocumentRepositoryPage = string.Equals(currentArea, "DocumentRepository", StringComparison.OrdinalIgnoreCase);
         var isFfcPage = string.Equals(currentArea, "ProjectOfficeReports", StringComparison.OrdinalIgnoreCase)
-            && !string.IsNullOrWhiteSpace(currentPage)
-            && currentPage.StartsWith("/FFC", StringComparison.OrdinalIgnoreCase);
+            && hasCurrentPage
+            && currentPage!.StartsWith("/FFC", StringComparison.OrdinalIgnoreCase);
+
+        // Keep the Projects primary tab active throughout the complete module,
+        // not only on the Ongoing page. Admin-area routes with similar page names
+        // are deliberately excluded.
+        var isProjectsModulePage = string.IsNullOrWhiteSpace(currentArea)
+            && hasCurrentPage
+            && (currentPage!.StartsWith("/Projects/", StringComparison.OrdinalIgnoreCase)
+                || currentPage.StartsWith("/Process/", StringComparison.OrdinalIgnoreCase)
+                || currentPage.StartsWith("/Analytics/", StringComparison.OrdinalIgnoreCase)
+                || currentPage.StartsWith("/IndustryPartners/", StringComparison.OrdinalIgnoreCase)
+                || currentPage.StartsWith("/Approvals/Pending/", StringComparison.OrdinalIgnoreCase));
         var useFullWidth = (ViewData["UseFullWidth"] as bool?) == true;
         var requestedShell = ViewData["PageShell"]?.ToString()?.Trim().ToLowerInvariant();
         var shellVariant = requestedShell switch
@@ -49,6 +88,7 @@
             _ when string.Equals(currentPage, "/ActionTasks/Index", StringComparison.OrdinalIgnoreCase) => "wide",
             _ when string.Equals(currentPage, "/Workspace/Index", StringComparison.OrdinalIgnoreCase) => "wide",
             _ when string.Equals(currentPage, "/Projects/Ongoing/Index", StringComparison.OrdinalIgnoreCase) => "analytics",
+            _ when isPhotosPage => "wide",
             _ when string.Equals(currentArea, "DocumentRepository", StringComparison.OrdinalIgnoreCase) => "analytics",
             _ when useFullWidth => "wide",
             _ => "standard"
@@ -75,35 +115,47 @@
                         <span class="pm-brand__text">PRISM ERP</span>
                     </a>
 
-                    <nav class="pm-top-tabs" aria-label="Primary">
+                    <nav class="pm-top-tabs" aria-label="Primary navigation">
                         <a asp-page="/Dashboard/Index"
-                           class="pm-top-tabs__item @(string.Equals(currentPage, "/Dashboard/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
+                           class="pm-top-tabs__item @(isDashboardPage ? "is-active" : string.Empty)"
+                           aria-current="@(isDashboardPage ? "page" : null)">
                             Dashboard
                         </a>
                         <a asp-page="/Workspace/Index"
-                           class="pm-top-tabs__item @(string.Equals(currentPage, "/Workspace/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
+                           class="pm-top-tabs__item @(isWorkspacePage ? "is-active" : string.Empty)"
+                           aria-current="@(isWorkspacePage ? "page" : null)">
                             My Workspace
                         </a>
                         <a asp-page="/Calendar/Index"
-                           class="pm-top-tabs__item @(string.Equals(currentPage, "/Calendar/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
+                           class="pm-top-tabs__item @(isCalendarPage ? "is-active" : string.Empty)"
+                           aria-current="@(isCalendarPage ? "page" : null)">
                             Calendar
                         </a>
                         <a asp-page="/Notebook/Index"
-                           class="pm-top-tabs__item @(string.Equals(currentPage, "/Notebook/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
+                           class="pm-top-tabs__item @(isNotebookPage ? "is-active" : string.Empty)"
+                           aria-current="@(isNotebookPage ? "page" : null)">
                             Notebook
                         </a>
+                        <a asp-page="/Photos/Index"
+                           class="pm-top-tabs__item @(isPhotosPage ? "is-active" : string.Empty)"
+                           aria-current="@(isPhotosPage ? "page" : null)">
+                            Photos
+                        </a>
                         <a asp-page="/Projects/Ongoing/Index"
-                           class="pm-top-tabs__item @(isOngoingProjectsPage ? "is-active" : string.Empty)">
+                           class="pm-top-tabs__item @(isProjectsModulePage ? "is-active" : string.Empty)"
+                           aria-current="@(isProjectsModulePage ? "page" : null)">
                             Projects
                         </a>
                         <a asp-area="ProjectOfficeReports"
                            asp-page="/FFC/MapTableDetailed"
-                           class="pm-top-tabs__item @(isFfcPage ? "is-active" : string.Empty)">
+                           class="pm-top-tabs__item @(isFfcPage ? "is-active" : string.Empty)"
+                           aria-current="@(isFfcPage ? "page" : null)">
                             FFC
                         </a>
                         <a asp-area="DocumentRepository"
                            asp-page="/Documents/Index"
-                           class="pm-top-tabs__item @(isDocumentRepositoryPage ? "is-active" : string.Empty)">
+                           class="pm-top-tabs__item @(isDocumentRepositoryPage ? "is-active" : string.Empty)"
+                           aria-current="@(isDocumentRepositoryPage ? "page" : null)">
                             <span>Documents</span>
                             @await Component.InvokeAsync("AotsUnreadBadge", new { variant = "topnav" })
                         </a>
@@ -114,19 +166,27 @@
                     <form method="get"
                           asp-area="Common"
                           asp-page="/Search/Index"
-                          class="pm-top-search d-none d-md-flex">
-                        <i class="bi bi-search pm-top-search__icon"></i>
-                        <input type="text"
+                          class="pm-top-search d-none d-md-flex"
+                          role="search"
+                          data-global-search>
+                        <label class="visually-hidden" for="pmGlobalSearch">Search PRISM</label>
+                        <i class="bi bi-search pm-top-search__icon" aria-hidden="true"></i>
+                        <input type="search"
+                               id="pmGlobalSearch"
                                name="q"
                                class="pm-top-search__input"
-                               placeholder="Global Search..." />
+                               placeholder="Search PRISM"
+                               autocomplete="off"
+                               aria-keyshortcuts="Control+K Meta+K" />
+                        <kbd class="pm-top-search__shortcut" aria-hidden="true">Ctrl K</kbd>
                     </form>
 
                     <a asp-area="Common"
                        asp-page="/Search/Index"
-                       class="d-inline-flex d-md-none text-muted align-items-center justify-content-center"
-                       title="Search">
-                        <i class="bi bi-search pm-search-icon"></i>
+                       class="pm-topbar__icon-button d-inline-flex d-md-none"
+                       aria-label="Search PRISM"
+                       title="Search PRISM">
+                        <i class="bi bi-search" aria-hidden="true"></i>
                     </a>
 
                     @await Component.InvokeAsync("NotificationBell")
@@ -155,9 +215,22 @@
                 else
                 {
                     <nav class="public-topbar__nav" aria-label="Public navigation">
-                        <a href="/#capabilities">Capabilities</a>
-                        <a href="/#roles-title">Role-based experience</a>
+                        <a class="public-topbar__desktop-link" href="/#capabilities">Capabilities</a>
+                        <a class="public-topbar__desktop-link" href="/#roles-title">Role-based experience</a>
                         <a class="public-topbar__signin" asp-area="Identity" asp-page="/Account/Login">Sign in</a>
+                        <div class="dropdown public-topbar__mobile-menu">
+                            <button class="public-topbar__menu-button"
+                                    type="button"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false"
+                                    aria-label="Open public navigation">
+                                <i class="bi bi-list" aria-hidden="true"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end public-topbar__menu">
+                                <li><a class="dropdown-item" href="/#capabilities">Capabilities</a></li>
+                                <li><a class="dropdown-item" href="/#roles-title">Role-based experience</a></li>
+                            </ul>
+                        </div>
                     </nav>
                 }
             </div>
@@ -165,7 +238,7 @@
     }
 
     <!-- ===========================
-         PROJECTS MODULE SUB-NAV
+         MODULE SUB-NAV
          =========================== -->
     @if (signedIn)
     {
@@ -247,7 +320,7 @@
     <script type="module" src="~/js/site.js" asp-append-version="true"></script>
     <script src="~/js/comments.js" asp-append-version="true" defer></script>
     <script src="~/js/notifications.js" asp-append-version="true" defer></script>
-    <script src="~/js/form-auto-submit.js" asp-append-version="true" defer></script>
+    <script src="~/js/project-media-tabs.js" asp-append-version="true" defer></script>
     @await RenderSectionAsync("Scripts", required: false)
     <script src="~/js/init.js" data-todo-src="@Url.Content("~/js/todo.js")" asp-append-version="true" defer></script>
 </body>

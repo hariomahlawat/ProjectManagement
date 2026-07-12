@@ -237,8 +237,19 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
 
+                    b.Property<string>("CommentType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("General");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("CreatedByRole")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("CreatedByUserId")
                         .IsRequired()
@@ -250,6 +261,10 @@ namespace ProjectManagement.Migrations
                     b.Property<int>("ProjectIdeaId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("StatusSnapshot")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedByUserId");
@@ -257,6 +272,10 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("IsDeleted");
 
                     b.HasIndex("ProjectIdeaId");
+
+                    b.HasIndex("ProjectIdeaId", "IsDeleted", "CommentType", "CreatedAt")
+                        .IsDescending(false, false, false, true)
+                        .HasDatabaseName("IX_ProjectIdeaComments_IdeaId_Deleted_Type_CreatedAt");
 
                     b.ToTable("ProjectIdeaComments");
                 });
@@ -2676,15 +2695,26 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<string>("CreatedByRole")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("CreatedByUserId")
                         .IsRequired()
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
 
+                    b.Property<DateOnly?>("DueDateSnapshot")
+                        .HasColumnType("date");
+
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
+
+                    b.Property<string>("StatusSnapshot")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<int>("TaskId")
                         .HasColumnType("integer");
@@ -2701,6 +2731,10 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("IsDeleted");
 
                     b.HasIndex("TaskId", "CreatedAtUtc");
+
+                    b.HasIndex("TaskId", "IsDeleted", "UpdateType", "CreatedAtUtc")
+                        .IsDescending(false, false, false, true)
+                        .HasDatabaseName("IX_ActionTaskUpdates_TaskId_IsDeleted_UpdateType_CreatedAtUtc");
 
                     b.ToTable("ActionTaskUpdates");
                 });
@@ -2849,6 +2883,89 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("UploadedByUserId");
 
                     b.ToTable("ActivityAttachments", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectManagement.Features.MediaLibrary.Outbox.PrismMediaOutboxMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int?>("ActivityId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("AttachmentId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("AvailableAfterUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<DateTimeOffset?>("LockExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LockedBy")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("MaxAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(10);
+
+                    b.Property<DateTimeOffset>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("ProcessedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("ProcessingStartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("StorageKey")
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActivityId", "Status");
+
+                    b.HasIndex("AttachmentId", "Status");
+
+                    b.HasIndex("EventId")
+                        .IsUnique();
+
+                    b.HasIndex("LockExpiresAtUtc");
+
+                    b.HasIndex("Status", "AvailableAfterUtc", "Id")
+                        .HasDatabaseName("IX_PrismMediaOutboxMessages_Queue");
+
+                    b.ToTable("PrismMediaOutboxMessages", (string)null);
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Activities.ActivityDeleteRequest", b =>
@@ -3457,7 +3574,7 @@ namespace ProjectManagement.Migrations
 
                     b.ToTable("ProjectStages", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ProjectStages_CompletedHasDate", "\"Status\" <> 'Completed' OR (\"CompletedOn\" IS NOT NULL AND \"ActualStart\" IS NOT NULL) OR \"RequiresBackfill\" IS TRUE");
+                            t.HasCheckConstraint("CK_ProjectStages_CompletedHasDate", "\"Status\" <> 'Completed' OR \"CompletedOn\" IS NOT NULL OR \"RequiresBackfill\" IS TRUE");
                         });
                 });
 
@@ -3705,6 +3822,9 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("timestamp without time zone")
                         .HasDefaultValueSql("now() at time zone 'utc'");
 
+                    b.Property<DateTime?>("DeliveredUtc")
+                        .HasColumnType("timestamp without time zone");
+
                     b.Property<string>("EventType")
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
@@ -3712,6 +3832,10 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("Fingerprint")
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Kind")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("Module")
                         .HasMaxLength(64)
@@ -3756,12 +3880,15 @@ namespace ProjectManagement.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Fingerprint")
+                    b.HasIndex("SourceDispatchId")
+                        .IsUnique()
+                        .HasFilter("\"SourceDispatchId\" IS NOT NULL");
+
+                    b.HasIndex("RecipientUserId", "CreatedUtc", "Id");
+
+                    b.HasIndex("RecipientUserId", "Fingerprint")
+                        .IsUnique()
                         .HasFilter("\"Fingerprint\" IS NOT NULL");
-
-                    b.HasIndex("SourceDispatchId");
-
-                    b.HasIndex("RecipientUserId", "CreatedUtc");
 
                     b.HasIndex("RecipientUserId", "ReadUtc", "CreatedUtc");
 
@@ -3790,6 +3917,9 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTime>("CreatedUtc")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<DateTime?>("DeadLetteredUtc")
+                        .HasColumnType("timestamp without time zone");
+
                     b.Property<DateTime?>("DispatchedUtc")
                         .HasColumnType("timestamp without time zone");
 
@@ -3807,6 +3937,10 @@ namespace ProjectManagement.Migrations
 
                     b.Property<string>("Kind")
                         .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("LockToken")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
@@ -3855,7 +3989,11 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("Fingerprint");
 
+                    b.HasIndex("LockToken");
+
                     b.HasIndex("ActorUserId", "DispatchedUtc");
+
+                    b.HasIndex("DispatchedUtc", "DeadLetteredUtc", "LockedUntilUtc");
 
                     b.HasIndex("ProjectId", "DispatchedUtc");
 
@@ -5762,6 +5900,10 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("ProjectId", "IsDeleted", "Type", "EventDate")
                         .HasDatabaseName("IX_Remarks_ProjectId_IsDeleted_Type_EventDate");
 
+                    b.HasIndex("ProjectId", "IsDeleted", "Type", "CreatedAtUtc")
+                        .IsDescending(false, false, false, true)
+                        .HasDatabaseName("IX_Remarks_ProjectId_Deleted_Type_CreatedAt");
+
                     b.ToTable("Remarks");
                 });
 
@@ -6161,6 +6303,9 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("character varying(450)");
 
                     b.Property<DateOnly?>("RequestedDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("RequestedStartDate")
                         .HasColumnType("date");
 
                     b.Property<DateTimeOffset>("RequestedOn")
@@ -7153,8 +7298,8 @@ namespace ProjectManagement.Migrations
             modelBuilder.Entity("ProjectManagement.Models.Notifications.Notification", b =>
                 {
                     b.HasOne("ProjectManagement.Models.Notifications.NotificationDispatch", "SourceDispatch")
-                        .WithMany()
-                        .HasForeignKey("SourceDispatchId")
+                        .WithOne()
+                        .HasForeignKey("ProjectManagement.Models.Notifications.Notification", "SourceDispatchId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("SourceDispatch");

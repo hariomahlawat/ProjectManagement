@@ -1,0 +1,174 @@
+@page
+@model ProjectManagement.Pages.Photos.People.IndexModel
+@{
+    ViewData["Title"] = "People";
+    ViewData["PageShell"] = "wide";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/photos-people.css" asp-append-version="true" />
+}
+
+<div class="people-workspace" data-people-directory>
+    <header class="people-header">
+        <div>
+            <span class="people-eyebrow">People in Photos</span>
+            <h1>People</h1>
+            <p>Choose a person to see every confirmed photograph, or select several people to find photos they share.</p>
+        </div>
+        @if (Model.FeatureEnabled)
+        {
+            <div class="people-header__actions">
+                @if (Model.Result.People.Any(person => !person.IsHidden))
+                {
+                    <button type="button" class="people-select-action" data-people-select-toggle aria-pressed="false">
+                        <i class="bi bi-check2-circle"></i><span>Select</span>
+                    </button>
+                }
+                @if (Model.CanManageIdentities)
+                {
+                    <a class="people-review-action" asp-page="./Review" asp-route-Mode="@Model.ReviewMode">
+                        <i class="bi bi-person-check"></i><span>Review people</span>
+                        @if (Model.ReviewWorkCount > 0) { <b>@Model.ReviewWorkCount</b> }
+                    </a>
+                }
+            </div>
+        }
+    </header>
+
+    <nav class="people-primary-tabs" aria-label="Photos sections">
+        <a asp-page="/Photos/Index" asp-route-View="photos">Photos</a>
+        <a asp-page="/Photos/Index" asp-route-View="collections">Collections</a>
+        <a class="is-active" asp-page="./Index">People</a>
+    </nav>
+
+    @if (!Model.FeatureEnabled)
+    {
+        <section class="people-empty"><i class="bi bi-shield-lock"></i><h2>People is unavailable</h2><p>The people experience will appear after the approved offline models and identity workflow are enabled.</p>@if (Model.CanManageIdentities) { <a class="btn btn-primary" asp-page="/Admin/MediaIntelligence/Index">Open readiness dashboard</a> }</section>
+    }
+    else if (!Model.DirectoryAvailable)
+    {
+        <section class="people-empty"><i class="bi bi-database-exclamation"></i><h2>People temporarily unavailable</h2><p>The confirmed people directory could not be loaded. Please retry shortly.</p>@if (Model.CanManageIdentities) { <a class="btn btn-outline-primary" asp-page="/Admin/MediaIntelligence/Index">Open media intelligence</a> }</section>
+    }
+    else
+    {
+        <section class="people-insight" aria-label="People summary">
+            <div><strong>@Model.Result.TotalPeople</strong><span>confirmed people</span></div>
+            @if (Model.CanManageIdentities)
+            {
+                <div><strong>@Model.Result.PendingReviewCount</strong><span>to review</span></div>
+                <div><strong>@Model.Result.UnidentifiedFaceCount</strong><span>unidentified</span></div>
+                @if (Model.Result.CandidateSearchFailureCount > 0) { <div class="is-warning"><strong>@Model.Result.CandidateSearchFailureCount</strong><span>matching failures</span></div> }
+            }
+        </section>
+
+        <section class="people-toolbar">
+            <form method="get" class="people-search" role="search" data-people-search-form>
+                <i class="bi bi-search"></i>
+                <input type="search" name="Q" value="@Model.Q" placeholder="Search people" autocomplete="off" data-people-search-input />
+                <input type="hidden" name="Sort" value="@Model.Sort" />
+                @foreach (var selectedId in Model.SelectedIds) { <input type="hidden" name="SelectedIds" value="@selectedId" /> }
+                @if (Model.SelectedIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
+                @if (Model.CanManageIdentities && Model.IncludeHidden) { <input type="hidden" name="IncludeHidden" value="true" /> }
+                <button class="visually-hidden" type="submit">Search</button>
+            </form>
+            <form method="get" class="people-sort">
+                <input type="hidden" name="Q" value="@Model.Q" />
+                @foreach (var selectedId in Model.SelectedIds) { <input type="hidden" name="SelectedIds" value="@selectedId" /> }
+                @if (Model.SelectedIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
+                <select id="peopleSort" name="Sort" class="form-select" aria-label="Sort people" onchange="this.form.submit()">
+                    <option value="name" selected="@(Model.Sort == "name")">Name</option>
+                    <option value="photos" selected="@(Model.Sort == "photos")">Most photos</option>
+                    <option value="recent" selected="@(Model.Sort == "recent")">Recently seen</option>
+                </select>
+                @if (Model.CanManageIdentities)
+                {
+                    <label class="people-hidden-toggle"><input class="form-check-input" type="checkbox" name="IncludeHidden" value="true" checked="@Model.IncludeHidden" onchange="this.form.submit()" /><span>Hidden</span></label>
+                }
+            </form>
+        </section>
+
+        @if (Model.Result.People.Count == 0)
+        {
+            <section class="people-empty"><i class="bi bi-person-bounding-box"></i><h2>No people found</h2><p>@(string.IsNullOrWhiteSpace(Model.Q) ? "Confirmed people will appear here after authorised identity review." : "Try another name or clear the search.")</p>@if (!string.IsNullOrWhiteSpace(Model.Q)) { <a class="btn btn-outline-primary" asp-page="./Index">Clear search</a> }</section>
+        }
+        else
+        {
+            <form id="peopleSelectionForm" method="get" asp-page="/Photos/Index" class="people-selection-form">
+                <input type="hidden" name="View" value="photos" />
+                <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" data-people-match-value />
+                @foreach (var selectedId in Model.SelectedIds.Where(id => !Model.Result.People.Any(person => person.Id == id)))
+                {
+                    <input type="hidden" name="PersonIds" value="@selectedId" data-person-persisted-selection />
+                }
+            </form>
+
+            <div class="people-grid" role="list" data-people-grid>
+                @foreach (var person in Model.Result.People)
+                {
+                    var galleryUrl = person.IsHidden
+                        ? Url.Page("./Details", new { id = person.Id })
+                        : Url.Page("/Photos/Index", new { View = "photos", PersonIds = person.Id });
+                    var portraitUrl = person.IsHidden && person.RepresentativeFaceId.HasValue
+                        ? Url.Page("/Photos/FaceThumbnail", new { id = person.RepresentativeFaceId.Value })
+                        : Url.Page("/Photos/People/Portrait", new { id = person.Id });
+                    <article class="person-card-shell @(person.IsHidden ? "is-hidden" : null)" role="listitem" data-person-card>
+                        @if (!person.IsHidden)
+                        {
+                            <input class="person-card__selection-input"
+                                   type="checkbox"
+                                   name="PersonIds"
+                                   value="@person.Id"
+                                   form="peopleSelectionForm"
+                                   aria-label="Select @person.DisplayName"
+                                   checked="@Model.SelectedIds.Contains(person.Id)"
+                                   data-person-selection />
+                            <button type="button" class="person-card__selection-control" aria-label="Select @person.DisplayName" data-person-selection-control>
+                                <i class="bi bi-check-lg"></i>
+                            </button>
+                        }
+                        <a class="person-card" href="@galleryUrl" data-person-gallery-link="@(!person.IsHidden ? "true" : null)">
+                            <span class="person-card__portrait">
+                                @if (person.RepresentativeFaceId.HasValue) { <img src="@portraitUrl" alt="" loading="lazy" decoding="async" /> }
+                                else { <i class="bi bi-person-fill"></i> }
+                                @if (person.IsHidden) { <span class="person-card__state"><i class="bi bi-eye-slash"></i> Hidden</span> }
+                                else { <span class="person-card__open"><i class="bi bi-images"></i> View photos</span> }
+                            </span>
+                            <span class="person-card__body">
+                                <strong>@person.DisplayName</strong>
+                                <span>@person.PhotoCount photo@(person.PhotoCount == 1 ? "" : "s")</span>
+                                @if (person.LatestMediaDateUtc.HasValue) { <small>Last seen @person.LatestMediaDateUtc.Value.ToLocalTime().ToString("dd MMM yyyy")</small> }
+                            </span>
+                        </a>
+                        @if (Model.CanManageIdentities)
+                        {
+                            <a class="person-card__manage" asp-page="./Details" asp-route-id="@person.Id" title="Manage identity" aria-label="Manage @person.DisplayName identity"><i class="bi bi-sliders"></i></a>
+                        }
+                    </article>
+                }
+            </div>
+
+            <div class="people-selection-bar" data-people-selection-bar hidden>
+                <div class="people-selection-bar__summary"><strong data-people-selection-count>0 selected</strong><span>Select up to 10 people</span></div>
+                <div class="people-selection-bar__mode" role="group" aria-label="Photo matching mode">
+                    <button type="button" class="@(Model.PeopleMatch == "all" ? "is-active" : null)" data-people-match="all">Together</button>
+                    <button type="button" class="@(Model.PeopleMatch == "any" ? "is-active" : null)" data-people-match="any">Any selected</button>
+                </div>
+                <button type="submit" form="peopleSelectionForm" class="people-selection-bar__submit" disabled data-people-selection-submit>
+                    <i class="bi bi-images"></i><span data-people-selection-submit-label>View photos</span>
+                </button>
+                <button type="button" class="people-selection-bar__cancel" data-people-selection-cancel aria-label="Cancel selection"><i class="bi bi-x-lg"></i></button>
+            </div>
+
+            <nav class="people-pagination" aria-label="People pages">
+                @if (Model.Result.HasPreviousPage) { <a class="people-page-button" href="@Model.BuildPageUrl(Model.Result.PageNumber - 1)"><i class="bi bi-arrow-left"></i> Previous</a> }
+                <span>Page @Model.Result.PageNumber</span>
+                @if (Model.Result.HasNextPage) { <a class="people-page-button" href="@Model.BuildPageUrl(Model.Result.PageNumber + 1)">Next <i class="bi bi-arrow-right"></i></a> }
+            </nav>
+        }
+    }
+</div>
+
+@section Scripts {
+    <script src="~/js/pages/photos-people-directory.js" asp-append-version="true"></script>
+}

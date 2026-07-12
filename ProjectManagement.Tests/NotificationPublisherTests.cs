@@ -76,6 +76,44 @@ public sealed class NotificationPublisherTests
     }
 
     [Fact]
+    public async Task QueueAsync_AddsDispatchWithoutSavingSoCallerControlsTransactionBoundary()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"notification-tests-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var clock = new TestClock(new DateTimeOffset(2026, 7, 2, 4, 0, 0, TimeSpan.Zero));
+        var publisher = new NotificationPublisher(context, clock, NullLogger<NotificationPublisher>.Instance);
+
+        var queued = await publisher.QueueAsync(
+            NotificationKind.NotebookShared,
+            new[] { "user-1" },
+            new { NotebookItemId = Guid.NewGuid() },
+            module: "Notebook",
+            eventType: "NotebookShared",
+            scopeType: "NotebookItem",
+            scopeId: Guid.NewGuid().ToString("D"),
+            projectId: null,
+            actorUserId: "owner-1",
+            route: "/Notebook?view=shared",
+            title: "A note was shared with you",
+            summary: "A PRISM user shared a note with you.",
+            fingerprint: $"notebook:{Guid.NewGuid():N}");
+
+        Assert.Equal(1, queued);
+        Assert.Single(context.ChangeTracker.Entries<NotificationDispatch>());
+
+        await using var verificationBeforeSave = new ApplicationDbContext(options);
+        Assert.Empty(await verificationBeforeSave.NotificationDispatches.ToListAsync());
+
+        await context.SaveChangesAsync();
+
+        await using var verificationAfterSave = new ApplicationDbContext(options);
+        Assert.Single(await verificationAfterSave.NotificationDispatches.ToListAsync());
+    }
+
+    [Fact]
     public async Task PublishAsync_NormalizesProjectRouteSegments()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -178,6 +216,43 @@ public sealed class NotificationPublisherTests
 
         Assert.Equal(longRoute, root.GetProperty("route").GetString());
         Assert.Equal(longSummary, root.GetProperty("summary").GetString());
+    }
+
+
+    [Fact]
+    public async Task PublishAsync_TruncatesOversizedDisplayTextAndHashesLongFingerprint()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"notification-tests-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var clock = new TestClock(new DateTimeOffset(2024, 10, 6, 9, 45, 0, TimeSpan.Zero));
+        var publisher = new NotificationPublisher(context, clock, NullLogger<NotificationPublisher>.Instance);
+
+        await publisher.PublishAsync(
+            NotificationKind.DocumentPublished,
+            new[] { "user-1" },
+            new { },
+            module: "Documents",
+            eventType: "Published",
+            scopeType: "Document",
+            scopeId: "1",
+            projectId: 42,
+            actorUserId: "actor-1",
+            route: "javascript:alert(1)",
+            title: new string('t', 260),
+            summary: new string('s', 2100),
+            fingerprint: new string('f', 300));
+
+        var dispatch = Assert.Single(context.NotificationDispatches.AsNoTracking());
+        Assert.Equal(200, dispatch.Title!.Length);
+        Assert.EndsWith("…", dispatch.Title);
+        Assert.Equal(2000, dispatch.Summary!.Length);
+        Assert.EndsWith("…", dispatch.Summary);
+        Assert.Null(dispatch.Route);
+        Assert.StartsWith("sha256:", dispatch.Fingerprint);
+        Assert.True(dispatch.Fingerprint!.Length <= 128);
     }
 
     [Fact]

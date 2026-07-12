@@ -36,7 +36,11 @@ public sealed class AuthenticationCookieTests
     }
 
     private static WebApplicationFactory<Program> CreateFactory(string environment) =>
-        new WebApplicationFactory<Program>().WithWebHostBuilder(builder => builder.UseEnvironment(environment));
+        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment(environment);
+            builder.UsePrismTestInfrastructure($"authentication-cookie-{environment}");
+        });
 
     private static CookieAuthenticationOptions GetApplicationCookieOptions(WebApplicationFactory<Program> factory)
     {

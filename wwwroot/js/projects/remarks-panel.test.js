@@ -373,3 +373,25 @@ test('resetComposer restores default stage selection', () => {
 
     assert.equal(panel.stageSelect.value, 'Execution');
 });
+
+
+test('conference remarks render in the common feed with distinct type treatment', () => {
+    const { panel } = createPanelDom({ allowConference: true });
+    const article = panel.buildRemarkElement(makeRemark({ type: 'Conference', stageName: 'Technical Evaluation' }));
+
+    assert.ok(article.classList.contains('remarks-type-conference'));
+    const badge = article.querySelector('.remarks-type-badge-conference');
+    assert.ok(badge);
+    assert.equal(badge.textContent, 'Conference');
+    assert.match(article.textContent, /Technical Evaluation/);
+});
+
+test('conference composer type is accepted only when enabled', () => {
+    const enabled = createPanelDom({ allowConference: true }).panel;
+    enabled.setComposerType('Conference');
+    assert.equal(enabled.composerType, 'Conference');
+
+    const disabled = createPanelDom({ allowConference: false }).panel;
+    disabled.setComposerType('Conference');
+    assert.equal(disabled.composerType, 'Internal');
+});

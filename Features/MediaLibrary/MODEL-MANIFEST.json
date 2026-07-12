@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "peopleFeatureEnabled": false,
+  "modelsBundled": false,
+  "approvedModelProfile": "OpenCV Zoo YuNet 2026may + SFace 2021dec",
+  "models": [
+    {
+      "key": "opencv-yunet",
+      "version": "2026may",
+      "purpose": "face-detection-and-five-landmark-localisation",
+      "license": "MIT",
+      "sha256": "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0",
+      "bundled": false
+    },
+    {
+      "key": "opencv-sface",
+      "version": "2021dec",
+      "purpose": "face-embedding",
+      "license": "Apache-2.0",
+      "sha256": "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79",
+      "bundled": false
+    }
+  ],
+  "policy": {
+    "requireApprovedCodeLicense": true,
+    "requireApprovedWeightsLicense": true,
+    "requireTrainingDataProvenanceReview": true,
+    "requireProductionApproval": true,
+    "allowExternalInferenceApi": false,
+    "allowAutomaticIdentityConfirmation": false
+  },
+  "note": "Models are not redistributed with PRISM. Use the installation script, verify the pinned SHA-256 values, complete organisational approval, and then enable the feature and worker separately."
+}

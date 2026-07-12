@@ -803,6 +803,8 @@ public class RemarkApiTests
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            builder.UsePrismTestInfrastructure("remarkapi");
+
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll(typeof(DbContextOptions<ApplicationDbContext>));

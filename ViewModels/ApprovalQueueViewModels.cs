@@ -13,19 +13,43 @@ public enum ApprovalQueueType
     DocRequest,
     TotRequest,
     ProliferationYearly,
-    ProliferationGranular
+    ProliferationGranular,
+    ActivityDelete,
+    TrainingDelete,
+    RepositoryDocumentDelete
 }
 
 // SECTION: Query + list models
 public enum ApprovalQueueModule
 {
     Projects,
-    ProjectOfficeReports
+    ProjectOfficeReports,
+    Activities,
+    DocumentRepository
+}
+
+public enum ApprovalReadiness
+{
+    Ready,
+    Waiting,
+    Blocked,
+    Superseded,
+    Stale
+}
+
+public enum ApprovalCheckState
+{
+    Passed,
+    Waiting,
+    Blocked,
+    Warning
 }
 
 public sealed record ApprovalQueueQuery
 {
     public ApprovalQueueType? Type { get; init; }
+    public ApprovalQueueModule? Module { get; init; }
+    public ApprovalReadiness? Readiness { get; init; }
     public string? Search { get; init; }
 }
 
@@ -41,11 +65,48 @@ public sealed record ApprovalQueueItemVm(
     ApprovalQueueModule Module,
     string Status,
     string? DetailsUrl,
-    string? ConcurrencyToken = null);
+    string? ConcurrencyToken = null,
+    ApprovalReadiness Readiness = ApprovalReadiness.Ready,
+    string? ReadinessMessage = null,
+    string? WorkflowVersion = null,
+    string? StageCode = null,
+    int? WorkflowOrder = null,
+    int RevisionNumber = 1,
+    int RelatedRequestCount = 0,
+    string? CorrectionUrl = null);
+
+public sealed record ApprovalQueueGroupVm(
+    int? ProjectId,
+    string Title,
+    string? Subtitle,
+    string? WorkflowVersion,
+    IReadOnlyList<ApprovalQueueItemVm> Items,
+    int ReadyCount,
+    int WaitingCount,
+    int BlockedCount);
+
+public sealed record ApprovalCheckVm(
+    ApprovalCheckState State,
+    string Label,
+    string? Detail = null,
+    string? ActionLabel = null,
+    string? ActionUrl = null);
+
+public sealed record RelatedApprovalVm(
+    ApprovalQueueType ApprovalType,
+    string RequestId,
+    string Label,
+    string Summary,
+    string Status,
+    ApprovalReadiness Readiness,
+    DateTimeOffset RequestedAtUtc,
+    string? DetailsUrl);
 
 public sealed record ApprovalQueueDetailVm
 {
     public ApprovalQueueItemVm Item { get; init; } = default!;
+    public IReadOnlyList<ApprovalCheckVm> ReadinessChecks { get; init; } = Array.Empty<ApprovalCheckVm>();
+    public IReadOnlyList<RelatedApprovalVm> RelatedRequests { get; init; } = Array.Empty<RelatedApprovalVm>();
     public StageChangeDetailVm? StageChange { get; init; }
     public ProjectMetaChangeRequestVm? MetaChange { get; init; }
     public PlanApprovalDetailVm? PlanApproval { get; init; }
@@ -53,20 +114,30 @@ public sealed record ApprovalQueueDetailVm
     public TotRequestDetailVm? TotRequest { get; init; }
     public ProliferationYearlyDetailVm? ProliferationYearly { get; init; }
     public ProliferationGranularDetailVm? ProliferationGranular { get; init; }
+    public ActivityDeleteDetailVm? ActivityDelete { get; init; }
+    public TrainingDeleteDetailVm? TrainingDelete { get; init; }
+    public RepositoryDocumentDeleteDetailVm? RepositoryDocumentDelete { get; init; }
 }
 
 // SECTION: Workflow detail models
 public sealed record StageChangeDetailVm(
     string StageCode,
     string StageName,
+    string WorkflowVersion,
+    int WorkflowOrder,
+    int RevisionNumber,
+    bool IsLatestRevision,
     string CurrentStatus,
     string RequestedStatus,
     DateOnly? CurrentActualStart,
     DateOnly? CurrentCompletedOn,
+    DateOnly? RequestedStartDate,
     DateOnly? RequestedDate,
     string? RequestNote);
 
 public sealed record PlanApprovalDetailVm(
+    int PlanVersionId,
+    int VersionNumber,
     IReadOnlyList<PlanStageDiffVm> StageDiffs,
     PlanVersionStatus Status,
     DateTimeOffset? SubmittedOnUtc,
@@ -147,6 +218,30 @@ public sealed record ProliferationGranularSnapshotVm(
     string? Remarks,
     DateTime? ApprovedOnUtc);
 
+public sealed record ActivityDeleteDetailVm(
+    int ActivityId,
+    string Title,
+    string ActivityType,
+    string? Location,
+    DateTimeOffset? ScheduledStartUtc,
+    string? Reason);
+
+public sealed record TrainingDeleteDetailVm(
+    Guid TrainingId,
+    string TrainingType,
+    string Period,
+    int TotalTrainees,
+    string Reason);
+
+public sealed record RepositoryDocumentDeleteDetailVm(
+    Guid DocumentId,
+    string Subject,
+    string? ReceivedFrom,
+    DateOnly? DocumentDate,
+    string OriginalFileName,
+    long FileSizeBytes,
+    string? Reason);
+
 // SECTION: Decision models
 public enum ApprovalDecisionAction
 {
@@ -173,8 +268,8 @@ public sealed record ApprovalDecisionRequest(
 
 public sealed record ApprovalDecisionResult(ApprovalDecisionOutcome Outcome, string? Message)
 {
-    public static ApprovalDecisionResult Success()
-        => new(ApprovalDecisionOutcome.Success, null);
+    public static ApprovalDecisionResult Success(string? message = null)
+        => new(ApprovalDecisionOutcome.Success, message);
 
     public static ApprovalDecisionResult Forbidden(string message)
         => new(ApprovalDecisionOutcome.Forbidden, message);

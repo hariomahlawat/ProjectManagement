@@ -19,7 +19,7 @@ test('project officer update reloads server-rendered pending state', () => {
 
 test('project officer status choices are contextual and support historical completion', () => {
   assert.match(source, /function transitionOptions\(currentStatus\)/);
-  assert.match(source, /case 'NotStarted':[\s\S]*Start stage[\s\S]*Record completion[\s\S]*Mark blocked[\s\S]*Skip stage/);
+  assert.match(source, /case 'NotStarted':[\s\S]*Start stage[\s\S]*Complete stage directly[\s\S]*Mark blocked[\s\S]*Skip stage/);
   assert.match(source, /case 'InProgress':[\s\S]*Complete stage[\s\S]*Mark blocked[\s\S]*Skip stage/);
   assert.match(source, /case 'Completed':[\s\S]*Reopen stage/);
 });
@@ -45,7 +45,19 @@ test('projected lifecycle shows existing pending updates and current revisions',
 test('completion revisions retain and display an earlier proposed start', () => {
   assert.match(source, /pendingStartDate/);
   assert.match(source, /retainedStartDate/);
-  assert.match(source, /will be retained when this completion update is saved/);
+  assert.match(source, /field remains editable|remains editable until submission/);
+});
+
+test('direct completion submits an editable requested start date', () => {
+  assert.match(source, /requestedStartDate/);
+  assert.match(source, /data-stage-request-start-date/);
+  assert.match(source, /Complete stage directly/);
+});
+
+test('start and direct completion use the workflow-derived editable defaults', () => {
+  assert.match(source, /stage\?\.suggestedStart \|\| todayIso\(\)/);
+  assert.match(source, /retainedStartDate\(stage\)/);
+  assert.match(source, /No usable predecessor completion date is recorded\. Enter a start date or leave it blank\./);
 });
 
 test('editing a pending update uses save wording', () => {

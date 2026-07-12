@@ -1,0 +1,39 @@
+{
+  "MediaLibrary": {
+    "Enabled": true,
+    "AutoMigrate": false,
+    "CacheRoot": "App_Data/media-cache",
+    "Catalogue": {
+      "Enabled": true,
+      "SynchronizePrismMedia": true,
+      "SynchronizeIntervalMinutes": 30
+    },
+    "ExternalSources": {
+      "Enabled": false,
+      "ScannerWorkerEnabled": false,
+      "DefaultScanIntervalMinutes": 30,
+      "ScanBatchSize": 250,
+      "IdleDelaySeconds": 20,
+      "ScanLeaseMinutes": 15,
+      "Sources": []
+    },
+    "Processing": {
+      "WorkerEnabled": true,
+      "IdleDelaySeconds": 20,
+      "BatchSize": 1,
+      "MaxAttempts": 5,
+      "MaxImageFileSizeBytes": 209715200,
+      "ThumbnailMaxPixels": 480,
+      "PreviewMaxPixels": 1920,
+      "WebpQuality": 84
+    },
+    "Classification": {
+      "Enabled": true,
+      "ScreenshotDetectionEnabled": true
+    },
+    "People": {
+      "Enabled": false,
+      "WorkerEnabled": false
+    }
+  }
+}

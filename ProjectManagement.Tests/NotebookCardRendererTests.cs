@@ -91,6 +91,8 @@ public sealed class NotebookCardRendererTests : IClassFixture<NotebookCardRender
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            builder.UsePrismTestInfrastructure("notebookcardrenderer");
+
             builder.ConfigureServices(services =>
             {
                 // SECTION: Keep partial-render tests independent from configured PostgreSQL startup

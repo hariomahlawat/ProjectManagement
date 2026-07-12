@@ -1,4 +1,5 @@
 @using System.Text.Json
+@using ProjectManagement.ViewModels.Workspace
 @model ProjectManagement.Pages.Workspace.IndexModel
 @{
     var vm = Model.CommandWorkspace;
@@ -205,58 +206,14 @@
                 <div class="cw-officer-grid" data-officer-grid aria-label="Project Officer workload cards">
                     @foreach (var officer in vm.Officers)
                     {
-                        var accentSeed = (officer.UserId ?? officer.OfficerName).Aggregate(0, (total, character) => total + character);
-                        var accentIndex = Math.Abs(accentSeed) % 6;
-                        <article class="cw-officer-card cw-officer-card--accent-@accentIndex" data-officer-id="@officer.UserId">
-                            <header class="cw-officer-card__header">
-                                <button type="button" class="cw-drag-handle" aria-label="Rearrange @(string.IsNullOrWhiteSpace(officer.Rank) ? officer.OfficerName : $"{officer.Rank} {officer.OfficerName}")" title="Drag to rearrange"><i class="bi bi-grip-vertical"></i></button>
-                                <span class="cw-avatar">@((officer.OfficerName.FirstOrDefault()).ToString().ToUpperInvariant())</span>
-                                <div class="cw-officer-identity">
-                                    <h3>@(string.IsNullOrWhiteSpace(officer.Rank) ? officer.OfficerName : $"{officer.Rank} {officer.OfficerName}")</h3>
-                                    <p><span><strong>@officer.ProjectCount</strong> projects</span><span><strong>@officer.IdeaCount</strong> ideas</span><span><strong>@officer.OtherTaskCount</strong> other tasks</span></p>
-                                </div>
-                            </header>
-                            <div class="cw-work-sections">
-                                <section class="cw-work-section cw-work-section--projects">
-                                    <div class="cw-work-section__heading"><span><i class="bi bi-kanban"></i>Projects</span><b>@officer.ProjectCount</b></div>
-                                    @if (officer.Projects.Count == 0)
-                                    {
-                                        <p class="cw-none">No assigned projects</p>
-                                    }
-                                    else
-                                    {
-                                        <ul>
-                                            @foreach (var project in officer.Projects)
-                                            {
-                                                <li><a href="@project.OpenUrl" title="@project.Name">@project.Name</a><span>@project.StageCode · @project.StageName</span></li>
-                                            }
-                                        </ul>
-                                    }
-                                </section>
-                                <section class="cw-work-section cw-work-section--ideas">
-                                    <div class="cw-work-section__heading"><span><i class="bi bi-lightbulb"></i>Ideas</span><b>@officer.IdeaCount</b></div>
-                                    @if (officer.Ideas.Count == 0)
-                                    {
-                                        <p class="cw-none">No assigned ideas</p>
-                                    }
-                                    else
-                                    {
-                                        <ul>@foreach(var idea in officer.Ideas){<li><a href="@idea.OpenUrl" title="@idea.Title">@idea.Title</a><span>@idea.Status</span></li>}</ul>
-                                    }
-                                </section>
-                                <section class="cw-work-section cw-work-section--tasks">
-                                    <div class="cw-work-section__heading"><span><i class="bi bi-list-check"></i>Other tasks</span><b>@officer.OtherTaskCount</b></div>
-                                    @if (officer.OtherTasks.Count == 0)
-                                    {
-                                        <p class="cw-none">No other assigned tasks</p>
-                                    }
-                                    else
-                                    {
-                                        <ul>@foreach(var task in officer.OtherTasks){<li><a href="@task.OpenUrl" title="@task.Title">@task.Title</a><span>@task.Status · Due @task.DueDate.ToString("dd MMM")</span></li>}</ul>
-                                    }
-                                </section>
-                            </div>
-                        </article>
+                        @await Html.PartialAsync(
+                            "_OfficerWorkloadCard",
+                            new OfficerWorkloadCardRenderVm
+                            {
+                                Officer = officer,
+                                CanReorder = true,
+                                ShowConferenceAction = true
+                            })
                     }
                 </div>
                 <div class="cw-order-feedback" data-officer-order-feedback aria-live="polite"></div>

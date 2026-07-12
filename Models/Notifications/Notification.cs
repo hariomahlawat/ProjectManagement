@@ -8,6 +8,8 @@ public sealed class Notification
 
     public string RecipientUserId { get; set; } = string.Empty;
 
+    public NotificationKind? Kind { get; set; }
+
     public string? Module { get; set; }
 
     public string? EventType { get; set; }
@@ -28,7 +30,16 @@ public sealed class Notification
 
     public string? Summary { get; set; }
 
+    /// <summary>
+    /// UTC time at which the source business event occurred and was queued.
+    /// Retained as CreatedUtc for compatibility with existing data and integrations.
+    /// </summary>
     public DateTime CreatedUtc { get; set; }
+
+    /// <summary>
+    /// UTC time at which the outbox item was materialised for the recipient.
+    /// </summary>
+    public DateTime? DeliveredUtc { get; set; }
 
     public DateTime? SeenUtc { get; set; }
 

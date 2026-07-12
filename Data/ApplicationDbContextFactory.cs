@@ -18,8 +18,13 @@ namespace ProjectManagement.Data
                 .AddEnvironmentVariables()
                 .Build();
 
-            var cs = cfg.GetConnectionString("DefaultConnection")
-                 ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+            var cs = cfg.GetConnectionString("DefaultConnection");
+            if (string.IsNullOrWhiteSpace(cs))
+            {
+                throw new InvalidOperationException(
+                    "Connection string 'DefaultConnection' is required. Set ConnectionStrings__DefaultConnection for the selected environment.");
+            }
+
             var b = new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(cs);
 
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);

@@ -1,4 +1,4 @@
-﻿import { notifySessionExpired } from '../core/session-auth.js';
+import { notifySessionExpired } from '../core/session-auth.js';
 
 // SECTION: Notebook API error type and fetch wrapper
 export class NotebookApiError extends Error {
@@ -28,7 +28,7 @@ function logNotebookRequest(url, method, headers, body) {
     url,
     method,
     contentType: headers.get('Content-Type'),
-    hasAntiForgeryToken: headers.has('RequestVerificationToken'),
+    hasAntiForgeryToken: headers.has('X-CSRF-TOKEN'),
     hasBody: body !== undefined && body !== null
   });
 }
@@ -182,7 +182,7 @@ export async function request(url, options = {}) {
     headers.set('Content-Type', 'application/json; charset=utf-8');
   }
 
-  if (isUnsafeMethod(method)) headers.set('RequestVerificationToken', getAntiForgeryToken());
+  if (isUnsafeMethod(method)) headers.set('X-CSRF-TOKEN', getAntiForgeryToken());
   logNotebookRequest(url, method, headers, options.body);
 
   let response;

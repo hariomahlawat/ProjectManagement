@@ -1,0 +1,376 @@
+@page "{id:guid}"
+@using System.Globalization
+@using ProjectManagement.Features.MediaLibrary.Domain
+@model ProjectManagement.Pages.Photos.People.DetailsModel
+@{
+    ViewData["Title"] = Model.Person.DisplayName;
+    ViewData["PageShell"] = "wide";
+    var firstSeen = Model.Person.FirstMediaDateUtc?.ToLocalTime();
+    var lastSeen = Model.Person.LatestMediaDateUtc?.ToLocalTime();
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/photos-people.css" asp-append-version="true" />
+}
+
+<div class="people-workspace" data-person-details>
+    <header class="person-profile-header">
+        <div class="person-profile-header__portrait">
+            @if (Model.Person.RepresentativeFaceId.HasValue)
+            {
+                <img src="@Url.Page("/Photos/FaceThumbnail", new { id = Model.Person.RepresentativeFaceId })"
+                     alt="Representative face for @Model.Person.DisplayName" />
+            }
+            else
+            {
+                <i class="bi bi-person" aria-hidden="true"></i>
+            }
+        </div>
+        <div class="person-profile-header__identity">
+            <span class="people-eyebrow">Human-confirmed identity</span>
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                <h1>@Model.Person.DisplayName</h1>
+                @if (Model.Person.IsHidden)
+                {
+                    <span class="badge text-bg-secondary"><i class="bi bi-eye-slash"></i> Hidden</span>
+                }
+            </div>
+            <p>
+                @Model.Person.ConfirmedFaceCount confirmed appearance@(Model.Person.ConfirmedFaceCount == 1 ? string.Empty : "s")
+                in @Model.Person.PhotoCount photo@(Model.Person.PhotoCount == 1 ? string.Empty : "s")
+                · @Model.Person.TrustedReferenceCount trusted matching reference@(Model.Person.TrustedReferenceCount == 1 ? string.Empty : "s")
+                @if (firstSeen.HasValue && lastSeen.HasValue)
+                {
+                    if (firstSeen.Value.Date == lastSeen.Value.Date)
+                    {
+                        <span> · Seen @firstSeen.Value.ToString("dd MMM yyyy")</span>
+                    }
+                    else
+                    {
+                        <span> · First seen @firstSeen.Value.ToString("dd MMM yyyy") · Last seen @lastSeen.Value.ToString("dd MMM yyyy")</span>
+                    }
+                }
+            </p>
+        </div>
+        <nav class="people-header__actions" aria-label="Person navigation">
+            <a class="btn btn-outline-secondary" asp-page="./Index"><i class="bi bi-people"></i> People</a>
+            <a class="btn btn-primary" asp-page="/Photos/Index" asp-route-PersonIds="@Model.Person.Id">
+                <i class="bi bi-images"></i> Open in Photos
+            </a>
+        </nav>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+    {
+        <div class="alert alert-success" role="status">@Model.StatusMessage</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+    }
+
+    @if (Model.Person.TrustedReferenceCount == 0)
+    {
+        <div class="alert alert-warning" role="alert">
+            <strong>No trusted matching reference.</strong> This person remains fully confirmed, but PRISM will not use these appearances for future identity suggestions until a clear, verified face is explicitly trusted.
+        </div>
+    }
+    else if (Model.Person.ConfirmedFaceCount > Model.Person.TrustedReferenceCount)
+    {
+        <div class="alert alert-info" role="status">
+            Only the @Model.Person.TrustedReferenceCount explicitly trusted reference@(Model.Person.TrustedReferenceCount == 1 ? string.Empty : "s") influence future matching. Other confirmed appearances remain part of this person but do not train or expand the reference set automatically.
+        </div>
+    }
+
+    <section class="person-governance" aria-labelledby="identityGovernanceTitle">
+        <div>
+            <span class="people-eyebrow">Identity governance</span>
+            <h2 id="identityGovernanceTitle">Manage this person</h2>
+            <p>Every identity change is human initiated and recorded. Corrections and merges require a reason.</p>
+        </div>
+        <details>
+            <summary><i class="bi bi-pencil"></i> Rename</summary>
+            <form method="post" asp-page-handler="Rename" class="people-action-form">
+                <input type="hidden" name="id" value="@Model.Person.Id" />
+                <label for="displayName">Display name</label>
+                <input id="displayName" class="form-control" name="displayName" value="@Model.Person.DisplayName" maxlength="200" required />
+                <button class="btn btn-primary" type="submit">Save name</button>
+            </form>
+        </details>
+        <details>
+            <summary><i class="bi @(Model.Person.IsHidden ? "bi-eye" : "bi-eye-slash")"></i> @(Model.Person.IsHidden ? "Restore" : "Hide")</summary>
+            <form method="post" asp-page-handler="Visibility" class="people-action-form">
+                <input type="hidden" name="id" value="@Model.Person.Id" />
+                <input type="hidden" name="hidden" value="@(!Model.Person.IsHidden)" />
+                <p>@(Model.Person.IsHidden ? "Restore this person to the normal People and Photos experience." : "Hide this person without deleting appearances or history.")</p>
+                <button class="btn @(Model.Person.IsHidden ? "btn-primary" : "btn-outline-danger")" type="submit">
+                    @(Model.Person.IsHidden ? "Restore person" : "Hide person")
+                </button>
+            </form>
+        </details>
+        @if (Model.Person.MergeTargets.Count > 0)
+        {
+            <details>
+                <summary><i class="bi bi-intersect"></i> Merge duplicate</summary>
+                <form method="post" asp-page-handler="Merge" class="people-action-form"
+                      onsubmit="return confirm('Merge this person into the selected identity? Review the target carefully before continuing.');">
+                    <input type="hidden" name="id" value="@Model.Person.Id" />
+                    <label for="targetPersonId">Merge into</label>
+                    <select id="targetPersonId" name="targetPersonId" class="form-select" required>
+                        <option value="">Select the surviving person</option>
+                        @foreach (var target in Model.Person.MergeTargets)
+                        {
+                            <option value="@target.Id">@target.DisplayName</option>
+                        }
+                    </select>
+                    <label for="mergeReason">Reason</label>
+                    <textarea id="mergeReason" name="reason" class="form-control" rows="2" maxlength="1024"
+                              placeholder="Why are these duplicate identity records?" required></textarea>
+                    <p class="text-danger mb-0"><strong>Controlled operation:</strong> all active appearances move to the selected person. Conflicting same-photo identities must be corrected first.</p>
+                    <button class="btn btn-danger" type="submit">Merge duplicate</button>
+                </form>
+            </details>
+        }
+    </section>
+
+    @if (Model.Person.Photos.Count == 0)
+    {
+        <section class="people-empty">
+            <i class="bi bi-image"></i>
+            <h2>No available photographs</h2>
+            <p>This person has no active appearances in currently available media.</p>
+        </section>
+    }
+    else
+    {
+        <section class="person-photo-section" aria-labelledby="personPhotosTitle">
+            <header>
+                <div>
+                    <span class="people-eyebrow">Confirmed appearances</span>
+                    <h2 id="personPhotosTitle">Photographs</h2>
+                </div>
+                <div class="person-photo-section__tools">
+                    <span data-selection-summary>0 selected</span>
+                    <button type="button" class="btn btn-outline-primary" data-correct-selected disabled
+                            data-bs-toggle="modal" data-bs-target="#appearanceCorrectionModal">
+                        <i class="bi bi-arrow-left-right"></i> Correct selected
+                    </button>
+                </div>
+            </header>
+            <p class="person-photo-section__guidance">Select one or more appearances to move them to another person, split them into a new person, or return them to review.</p>
+            <div class="person-photo-grid" role="list">
+                @foreach (var photo in Model.Person.Photos)
+                {
+                    var left = Math.Clamp(photo.FaceLeft * 100d, 0d, 100d).ToString("0.###", CultureInfo.InvariantCulture);
+                    var top = Math.Clamp(photo.FaceTop * 100d, 0d, 100d).ToString("0.###", CultureInfo.InvariantCulture);
+                    var width = Math.Clamp(photo.FaceWidth * 100d, 0d, 100d).ToString("0.###", CultureInfo.InvariantCulture);
+                    var height = Math.Clamp(photo.FaceHeight * 100d, 0d, 100d).ToString("0.###", CultureInfo.InvariantCulture);
+                    <article class="person-photo-card @(photo.IsRepresentative ? "is-representative" : null)" role="listitem">
+                        <label class="person-photo-card__select" title="Select this appearance for correction">
+                            <input type="checkbox" value="@photo.FaceId" data-person-face-select />
+                            <span class="visually-hidden">Select appearance from @photo.ContextTitle</span>
+                        </label>
+                        <div class="person-photo-card__visuals">
+                            <div class="person-photo-card__face-crop">
+                                <img src="@Url.Page("/Photos/FaceThumbnail", new { id = photo.FaceId })"
+                                     alt="Confirmed face from @photo.ContextTitle" loading="lazy" decoding="async" />
+                                @if (photo.IsRepresentative)
+                                {
+                                    <span class="person-photo-card__cover"><i class="bi bi-star-fill"></i> Cover</span>
+                                }
+                                @if (photo.ReferenceStatus == FaceReferenceStatus.TrustedReference)
+                                {
+                                    <span class="person-photo-card__reference is-trusted"><i class="bi bi-shield-check"></i> Trusted reference</span>
+                                }
+                                else if (photo.ReferenceStatus == FaceReferenceStatus.Excluded)
+                                {
+                                    <span class="person-photo-card__reference is-excluded"><i class="bi bi-shield-x"></i> Excluded from matching</span>
+                                }
+                            </div>
+                            <a href="@Url.Page("/Photos/Media", new { id = photo.AssetId, variant = "preview" })"
+                               target="_blank" rel="noopener" class="person-photo-card__context"
+                               title="Open the complete photograph">
+                                <img src="@Url.Page("/Photos/Media", new { id = photo.AssetId, variant = "thumb" })"
+                                     alt="Context photograph: @photo.ContextTitle" loading="lazy" decoding="async" />
+                                <span class="person-photo-card__face-box"
+                                      style="left:@left%;top:@top%;width:@width%;height:@height%;"></span>
+                                <span class="person-photo-card__context-label">Photograph context <i class="bi bi-arrow-up-right"></i></span>
+                            </a>
+                        </div>
+                        <div class="person-photo-card__body">
+                            <strong>@photo.ContextTitle</strong>
+                            <span>@photo.ContextSubtitle</span>
+                            <small>@photo.MediaDateUtc.ToLocalTime().ToString("dd MMM yyyy") · @photo.SourceLabel</small>
+                            <span class="person-photo-card__quality" title="Face-image quality used for processing; this is not identity confidence.">
+                                Face quality @(Math.Round(photo.FaceQualityScore * 100))% · @photo.AssignmentType
+                            </span>
+                            <div class="person-photo-card__actions">
+                                @if (!photo.IsRepresentative)
+                                {
+                                    <form method="post" asp-page-handler="Representative">
+                                        <input type="hidden" name="id" value="@Model.Person.Id" />
+                                        <input type="hidden" name="faceId" value="@photo.FaceId" />
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary"><i class="bi bi-star"></i> Use as cover</button>
+                                    </form>
+                                }
+                                <details class="person-reference-menu">
+                                    <summary class="btn btn-sm @(photo.ReferenceStatus == FaceReferenceStatus.TrustedReference ? "btn-outline-success" : "btn-outline-primary")">
+                                        <i class="bi bi-shield-check"></i> Matching reference
+                                    </summary>
+                                    <form method="post" asp-page-handler="Reference" class="person-correction-menu person-reference-form">
+                                        <input type="hidden" name="id" value="@Model.Person.Id" />
+                                        <input type="hidden" name="faceId" value="@photo.FaceId" />
+                                        @if (photo.ReferenceStatus == FaceReferenceStatus.TrustedReference)
+                                        {
+                                            <input type="hidden" name="referenceAction" value="exclude" />
+                                            <strong>Exclude from matching</strong>
+                                            <p>This appearance remains confirmed but will no longer influence future suggestions.</p>
+                                            <textarea class="form-control form-control-sm" name="reason" maxlength="1024" rows="2"
+                                                      placeholder="Why should this face no longer be a matching reference?" required></textarea>
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Exclude reference</button>
+                                        }
+                                        else
+                                        {
+                                            <input type="hidden" name="referenceAction" value="trust" />
+                                            <strong>Trust for matching</strong>
+                                            <p>Use this clear, verified face as evidence for future known-person suggestions.</p>
+                                            <textarea class="form-control form-control-sm" name="reason" maxlength="1024" rows="2"
+                                                      placeholder="Why is this appearance suitable as a trusted reference?" required></textarea>
+                                            <button type="submit" class="btn btn-sm btn-primary">Trust reference</button>
+                                        }
+                                    </form>
+                                </details>
+                                <details>
+                                    <summary class="btn btn-sm btn-outline-danger"><i class="bi bi-person-x"></i> Correct appearance</summary>
+                                    <div class="person-correction-menu">
+                                        <form method="post" asp-page-handler="RemoveAssignment" class="person-remove-form person-remove-form--static">
+                                            <input type="hidden" name="id" value="@Model.Person.Id" />
+                                            <input type="hidden" name="faceId" value="@photo.FaceId" />
+                                            <label for="remove-reason-@photo.FaceId">Return to review</label>
+                                            <textarea id="remove-reason-@photo.FaceId" class="form-control form-control-sm" name="reason" maxlength="1024"
+                                                      rows="2" placeholder="Why is this assignment incorrect?" required></textarea>
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Remove assignment</button>
+                                        </form>
+                                        <form method="post" asp-page-handler="SuppressFace" class="person-remove-form person-remove-form--static"
+                                              onsubmit="return confirm('Mark this detection as not a valid face? Its embedding and active assignment will be retired.');">
+                                            <input type="hidden" name="id" value="@Model.Person.Id" />
+                                            <input type="hidden" name="faceId" value="@photo.FaceId" />
+                                            <label for="suppress-reason-@photo.FaceId">Not a valid face</label>
+                                            <textarea id="suppress-reason-@photo.FaceId" class="form-control form-control-sm" name="reason" maxlength="1024"
+                                                      rows="2" placeholder="Why is this detection invalid?" required></textarea>
+                                            <button type="submit" class="btn btn-sm btn-danger w-100">Retire invalid detection</button>
+                                        </form>
+                                    </div>
+                                </details>
+                            </div>
+                        </div>
+                    </article>
+                }
+            </div>
+        </section>
+    }
+
+    <section class="identity-history" aria-labelledby="identityHistoryTitle">
+        <header>
+            <div>
+                <span class="people-eyebrow">Audit trail</span>
+                <h2 id="identityHistoryTitle">Identity history</h2>
+            </div>
+            <span>@Model.Person.IdentityHistory.Count recorded event@(Model.Person.IdentityHistory.Count == 1 ? string.Empty : "s")</span>
+        </header>
+        @if (Model.Person.IdentityHistory.Count == 0)
+        {
+            <p class="identity-history__empty">No identity-governance events are available for this person.</p>
+        }
+        else
+        {
+            <ol class="identity-history__list">
+                @foreach (var item in Model.Person.IdentityHistory)
+                {
+                    <li>
+                        <span class="identity-history__icon"><i class="bi bi-shield-check"></i></span>
+                        <div>
+                            <strong>@item.ActionLabel</strong>
+                            @if (!string.IsNullOrWhiteSpace(item.Notes))
+                            {
+                                <p>@item.Notes</p>
+                            }
+                            <small>
+                                @item.PerformedAtUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm") ·
+                                reviewer <span title="Authenticated reviewer identifier">@item.PerformedByUserId</span>
+                            </small>
+                        </div>
+                    </li>
+                }
+            </ol>
+        }
+    </section>
+</div>
+
+@if (Model.Person.Photos.Count > 0)
+{
+    <div class="modal fade" id="appearanceCorrectionModal" tabindex="-1" aria-labelledby="appearanceCorrectionTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="post" asp-page-handler="CorrectAppearances" data-appearance-correction-form>
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title fs-5" id="appearanceCorrectionTitle">Correct selected appearances</h2>
+                            <p class="mb-0 small text-body-secondary" data-modal-selection-summary>No appearances selected.</p>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body d-grid gap-3">
+                        <input type="hidden" name="id" value="@Model.Person.Id" />
+                        <div data-selected-face-inputs></div>
+                        <div>
+                            <label for="correctionAction" class="form-label">Correction</label>
+                            <select id="correctionAction" name="correctionAction" class="form-select" data-correction-action required>
+                                <option value="">Choose an action</option>
+                                @if (Model.Person.MergeTargets.Count > 0)
+                                {
+                                    <option value="move">Move to an existing person</option>
+                                }
+                                <option value="split">Create a new person from the selection</option>
+                                <option value="review">Return to People Classification</option>
+                            </select>
+                        </div>
+                        @if (Model.Person.MergeTargets.Count > 0)
+                        {
+                            <div data-target-person hidden>
+                                <label for="correctionTargetPerson" class="form-label">Correct person</label>
+                                <select id="correctionTargetPerson" name="targetPersonId" class="form-select">
+                                    <option value="">Select a person</option>
+                                    @foreach (var target in Model.Person.MergeTargets)
+                                    {
+                                        <option value="@target.Id">@target.DisplayName</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                        <div data-new-person hidden>
+                            <label for="correctionNewName" class="form-label">New person name</label>
+                            <input id="correctionNewName" name="newDisplayName" class="form-control" maxlength="200" autocomplete="off" />
+                        </div>
+                        <div>
+                            <label for="correctionReason" class="form-label">Reason</label>
+                            <textarea id="correctionReason" name="reason" class="form-control" rows="3" maxlength="1024"
+                                      placeholder="Record why this correction is required" required></textarea>
+                        </div>
+                        <div class="alert alert-info mb-0 small">
+                            The original photographs are not deleted. All assignment changes remain in the identity audit history.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" data-correction-submit disabled>Apply correction</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script src="~/js/pages/photos-person-details.js" asp-append-version="true"></script>
+}

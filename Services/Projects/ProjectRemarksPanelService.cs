@@ -147,6 +147,8 @@ public sealed class ProjectRemarksPanelService
 
         var showComposer = !viewerOnly && (canPostAsHoDOrAbove || canPostAsMco || canPostAsPo);
         var allowExternal = !viewerOnly && canPostAsHoDOrAbove;
+        var allowConference = !viewerOnly && remarkRoleSet.Any(role =>
+            role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant);
 
         return new ProjectRemarksPanelViewModel
         {
@@ -159,6 +161,7 @@ public sealed class ProjectRemarksPanelService
             ShowComposer = showComposer,
             AllowInternal = showComposer,
             AllowExternal = allowExternal,
+            AllowConference = allowConference,
             ShowDeletedToggle = !viewerOnly && remarkRoleSet.Contains(RemarkActorRole.Administrator),
             ActorHasOverride = canOverride,
             StageOptions = stageOptions,

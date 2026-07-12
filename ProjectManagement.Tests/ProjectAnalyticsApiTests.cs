@@ -115,6 +115,8 @@ public class ProjectAnalyticsApiTests
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            builder.UsePrismTestInfrastructure("projectanalyticsapi");
+
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll(typeof(IProjectAnalyticsService));

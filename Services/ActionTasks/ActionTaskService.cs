@@ -118,13 +118,23 @@ public class ActionTaskService : IActionTaskService
     }
 
     // SECTION: Task mutation APIs
-    public async Task<ActionTaskItem> CreateTaskAsync(ActionTaskItem task, CancellationToken cancellationToken = default)
+    public Task<ActionTaskItem> CreateTaskAsync(
+        ActionTaskItem task,
+        CancellationToken cancellationToken = default)
+        => CreateTaskAsync(task, auditRemarks: null, cancellationToken);
+
+    public async Task<ActionTaskItem> CreateTaskAsync(
+        ActionTaskItem task,
+        string? auditRemarks,
+        CancellationToken cancellationToken = default)
     {
         // SECTION: Validation
         if (string.IsNullOrWhiteSpace(task.AssignedToUserId) || string.IsNullOrWhiteSpace(task.AssignedToRole))
         {
             throw new InvalidOperationException("Direct tasks require a responsible person.");
         }
+
+        var normalizedAuditRemarks = NormalizeAuditRemarks(auditRemarks);
 
         // SECTION: State Mutation
         task.AssignedOn = _clock.UtcNow;
@@ -143,7 +153,7 @@ public class ActionTaskService : IActionTaskService
             role: task.CreatedByRole,
             oldValue: null,
             newValue: task.Status,
-            remarks: null,
+            remarks: normalizedAuditRemarks,
             task: task));
 
         // SECTION: Persistence
@@ -156,6 +166,22 @@ public class ActionTaskService : IActionTaskService
         }
 
         return task;
+    }
+
+    private static string? NormalizeAuditRemarks(string? auditRemarks)
+    {
+        if (string.IsNullOrWhiteSpace(auditRemarks))
+        {
+            return null;
+        }
+
+        var normalized = auditRemarks.Trim();
+        if (normalized.Length > 2000)
+        {
+            throw new InvalidOperationException("Task creation audit remarks cannot exceed 2000 characters.");
+        }
+
+        return normalized;
     }
 
     public async Task<ActionTaskItem> CreateBacklogItemAsync(ActionTaskItem task, CancellationToken cancellationToken = default)

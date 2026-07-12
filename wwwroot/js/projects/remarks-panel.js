@@ -325,6 +325,7 @@
             this.currentUserId = this.config.currentUserId || null;
             this.actorHasOverride = !!this.config.actorHasOverride;
             this.allowExternal = !!this.config.allowExternal;
+            this.allowConference = !!this.config.allowConference;
             this.viewerOnly = !!this.config.viewerOnly;
             const parsedPageSize = Number.parseInt(this.config.pageSize, 10);
             this.pageSize = Number.isFinite(parsedPageSize) && parsedPageSize > 0 ? parsedPageSize : 20;
@@ -906,6 +907,8 @@
                 this.state.type = 'Internal';
             } else if (value === 'external') {
                 this.state.type = 'External';
+            } else if (value === 'conference') {
+                this.state.type = 'Conference';
             } else {
                 this.state.type = 'all';
             }
@@ -1046,7 +1049,7 @@
                 params.set('scope', this.state.scope);
             }
 
-            if (this.state.type === 'Internal' || this.state.type === 'External') {
+            if (this.state.type === 'Internal' || this.state.type === 'External' || this.state.type === 'Conference') {
                 params.set('type', this.state.type);
             }
 
@@ -1389,6 +1392,7 @@
         buildRemarkElement(remark) {
             const article = document.createElement('article');
             article.className = 'remarks-item remarks-item-compact d-flex flex-column';
+            article.classList.add(`remarks-type-${remark.type.toLowerCase()}`);
             article.setAttribute('data-remark-id', String(remark.id));
             article.setAttribute('data-row-version', remark.rowVersion || '');
 
@@ -1444,8 +1448,8 @@
             const metaRow = document.createElement('div');
             metaRow.className = 'remarks-meta d-flex flex-wrap align-items-center gap-2';
             const typeBadge = document.createElement('span');
-            typeBadge.className = 'badge rounded-pill text-bg-secondary';
-            typeBadge.textContent = remark.type === 'External' ? 'External' : 'Internal';
+            typeBadge.className = `badge rounded-pill remarks-type-badge remarks-type-badge-${remark.type.toLowerCase()}`;
+            typeBadge.textContent = remark.type;
             metaRow.appendChild(typeBadge);
 
             const canonicalScope = this.resolveCanonicalScope(remark.scope);
@@ -1467,13 +1471,19 @@
                 const stageLabel = this.getStageLabel(remark.stageRef) || remark.stageName;
                 if (stageLabel) {
                     const stageBadge = document.createElement('span');
-                    stageBadge.className = 'badge rounded-pill bg-light border';
+                    stageBadge.className = 'badge rounded-pill bg-light text-dark border';
                     stageBadge.textContent = stageLabel;
                     metaRow.appendChild(stageBadge);
                 }
+            } else if (remark.type === 'Conference' && (remark.stageRef || remark.stageName)) {
+                const stageLabel = this.getStageLabel(remark.stageRef) || remark.stageName || remark.stageRef;
+                const stageContext = document.createElement('span');
+                stageContext.className = 'remarks-stage-context';
+                stageContext.textContent = `Stage when issued: ${stageLabel}`;
+                metaRow.appendChild(stageContext);
             } else if (remark.stageName) {
                 const stageBadge = document.createElement('span');
-                stageBadge.className = 'badge rounded-pill bg-light border';
+                stageBadge.className = 'badge rounded-pill bg-light text-dark border';
                 stageBadge.textContent = remark.stageName;
                 metaRow.appendChild(stageBadge);
             }
@@ -2183,8 +2193,12 @@
 
             const idRaw = data.id ?? data.Id;
             const projectRaw = data.projectId ?? data.ProjectId ?? this.config.projectId ?? 0;
-            const typeRaw = data.type ?? data.Type ?? 'Internal';
-            const type = typeRaw === 'External' ? 'External' : 'Internal';
+            const typeRaw = String(data.type ?? data.Type ?? 'Internal').toLowerCase();
+            const type = typeRaw === 'external'
+                ? 'External'
+                : typeRaw === 'conference'
+                    ? 'Conference'
+                    : 'Internal';
             const id = Number.parseInt(idRaw, 10);
 
             return {
@@ -2224,14 +2238,19 @@
         buildHeaders() {
             const headers = { 'Content-Type': 'application/json' };
             if (this.tokenInput && this.tokenInput.value) {
-                headers.RequestVerificationToken = this.tokenInput.value;
+                headers['X-CSRF-TOKEN'] = this.tokenInput.value;
             }
 
             return headers;
         }
 
         setComposerType(type) {
-            const target = type === 'External' && this.allowExternal ? 'External' : 'Internal';
+            const requested = String(type || 'Internal').toLowerCase();
+            const target = requested === 'external' && this.allowExternal
+                ? 'External'
+                : requested === 'conference' && this.allowConference
+                    ? 'Conference'
+                    : 'Internal';
             this.composerType = target;
 
             if (this.composerForm) {
@@ -2415,8 +2434,11 @@
                     return;
                 }
 
-                this.setFeedback('Remark added.', 'success');
+                const successMessage = this.composerType === 'Conference'
+                    ? 'Conference remark added.'
+                    : 'Remark added.';
                 this.resetComposer();
+                this.setFeedback(successMessage, 'success');
                 this.state.page = 1;
                 await this.fetchPage(1, false);
             } catch (error) {

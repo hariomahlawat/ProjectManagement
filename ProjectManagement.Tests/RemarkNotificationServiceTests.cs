@@ -188,6 +188,33 @@ public class RemarkNotificationServiceTests
         Assert.Equal("RemarkMentioned", mentionEvent.EventType);
     }
 
+    [Theory]
+    [InlineData("hod-1", RemarkActorRole.HeadOfDepartment)]
+    [InlineData("comdt-1", RemarkActorRole.Commandant)]
+    public async Task NotifyRemarkCreatedAsync_DoesNotNotifyAuthor_WhenAuthorIsAlsoAuthorityRecipient(
+        string actorUserId,
+        RemarkActorRole actorRole)
+    {
+        await using var scope = await CreateContextAsync();
+        var (service, publisher) = await CreateServiceAsync(scope.Db);
+
+        var remark = CreateRemark(RemarkType.Conference);
+        remark.Mentions.Add(new RemarkMention { RemarkId = remark.Id, UserId = actorUserId });
+
+        var actor = new RemarkActorContext(actorUserId, actorRole, new[] { actorRole });
+        var project = new RemarkProjectInfo(remark.ProjectId, "Conference Project", "po-1", "hod-1");
+
+        await service.NotifyRemarkCreatedAsync(remark, actor, project, CancellationToken.None);
+
+        Assert.DoesNotContain(
+            publisher.Events.SelectMany(notification => notification.Recipients),
+            recipient => string.Equals(recipient, actorUserId, StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(
+            publisher.Events,
+            notification => notification.Kind == NotificationKind.MentionedInRemark
+                && notification.Recipients.Contains(actorUserId, StringComparer.OrdinalIgnoreCase));
+    }
+
     [Fact]
     public async Task NotifyRemarkCreatedAsync_RemovesMentionedUsersFromGeneralNotificationEvenWhenRoleRecipient()
     {

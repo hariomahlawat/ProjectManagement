@@ -1,0 +1,66 @@
+name: Production Database Migration Gate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  postgres-migrations:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: prism
+          POSTGRES_PASSWORD: prism_test_password
+          POSTGRES_DB: prism_test_migrations
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U prism -d prism_test_migrations"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      PRISM_RUN_POSTGRES_MIGRATION_TESTS: "true"
+      PRISM_TEST_POSTGRES_CONNECTION: "Host=localhost;Port=5432;Database=prism_test_migrations;Username=prism;Password=prism_test_password;Include Error Detail=true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Restore frontend dependencies
+        run: npm ci
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build Release
+        run: dotnet build -c Release --no-restore
+
+      - name: Verify immutable migration metadata
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter "FullyQualifiedName~ApplicationDatabaseMigrationsTests|FullyQualifiedName~MediaLibraryMigrationMetadataTests"
+
+      - name: Run PostgreSQL migration integration test
+        run: >-
+          dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
+          -c Release
+          --no-build
+          --filter FullyQualifiedName~PostgresMigrationIntegrationTests

@@ -484,9 +484,31 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
             return null;
         }
 
-        var path = GetAssetPath(photo.StorageKey, normalizedSize);
+        var resolvedSize = normalizedSize;
+        var path = GetAssetPath(photo.StorageKey, resolvedSize);
+
+        // Older records may not have every configured derivative. Fall back to the
+        // original image rather than exposing a broken image in the UI.
+        if ((path is null || !File.Exists(path)) && resolvedSize != "original")
+        {
+            _logger.LogInformation(
+                "Derivative {Size} is unavailable for social media event {EventId} photo {PhotoId}; using original asset.",
+                resolvedSize,
+                eventId,
+                photoId);
+
+            resolvedSize = "original";
+            path = GetAssetPath(photo.StorageKey, resolvedSize);
+        }
+
         if (path is null || !File.Exists(path))
         {
+            _logger.LogWarning(
+                "Social media event photo asset is missing for event {EventId}, photo {PhotoId}, requested size {Size}, storage key {StorageKey}.",
+                eventId,
+                photoId,
+                normalizedSize,
+                photo.StorageKey);
             return null;
         }
 
@@ -494,7 +516,7 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
         {
             var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
             var info = new FileInfo(path);
-            var contentType = normalizedSize == "original" ? photo.ContentType : "image/jpeg";
+            var contentType = resolvedSize == "original" ? photo.ContentType : "image/jpeg";
             return new SocialMediaEventPhotoAsset(stream, contentType, info.LastWriteTimeUtc);
         }
         catch (Exception ex)

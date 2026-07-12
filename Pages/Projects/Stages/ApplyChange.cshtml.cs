@@ -11,7 +11,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Utilities;
 
@@ -59,6 +61,8 @@ public class ApplyChangeModel : PageModel
         public string Status { get; set; } = string.Empty;
 
         public DateOnly? Date { get; set; }
+
+        public DateOnly? StartDate { get; set; }
 
         [StringLength(1024)]
         public string? Note { get; set; }
@@ -133,6 +137,7 @@ public class ApplyChangeModel : PageModel
                 input.StageCode,
                 statusMatch,
                 input.Date,
+                input.StartDate,
                 input.Note,
                 hodUserId,
                 input.ForceBackfillPredecessors,
@@ -177,19 +182,102 @@ public class ApplyChangeModel : PageModel
         {
             return ValidationFailure(ex.Details, ex.MissingPredecessors);
         }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            var reference = CreateDiagnosticReference();
+            _logger.LogWarning(
+                ex,
+                "Concurrent direct stage update rejected. ProjectId={ProjectId}; StageCode={StageCode}; Reference={Reference}.",
+                input.ProjectId,
+                input.StageCode,
+                reference);
+
+            return StatusCode(StatusCodes.Status409Conflict, new
+            {
+                ok = false,
+                error = "concurrency-conflict",
+                message = "The stage changed while this form was open. Refresh the timeline and try again.",
+                reference
+            });
+        }
         catch (DbUpdateException ex)
         {
-            _logger.LogError(ex, "Failed to apply direct stage change for project {ProjectId} stage {StageCode}.", input.ProjectId, input.StageCode);
-            return ValidationFailure(new[]
+            var reference = CreateDiagnosticReference();
+            var postgres = FindPostgresException(ex);
+
+            _logger.LogError(
+                ex,
+                "Database rejected direct stage update. ProjectId={ProjectId}; StageCode={StageCode}; SqlState={SqlState}; Constraint={Constraint}; Table={Table}; Column={Column}; Reference={Reference}.",
+                input.ProjectId,
+                input.StageCode,
+                postgres?.SqlState,
+                postgres?.ConstraintName,
+                postgres?.TableName,
+                postgres?.ColumnName,
+                reference);
+
+            if (string.Equals(
+                    postgres?.ConstraintName,
+                    ApplicationDatabaseSchemaValidator.ProjectStageCompletionConstraint,
+                    StringComparison.Ordinal))
             {
-                "Could not save stage update. The database may not allow blank dates for admin completion."
+                return StatusCode(StatusCodes.Status409Conflict, new
+                {
+                    ok = false,
+                    error = "database-schema-conflict",
+                    message = "The project-stage database rule is not aligned with this application version. Restart after applying the pending database migration, then retry.",
+                    reference
+                });
+            }
+
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                ok = false,
+                error = "database-error",
+                message = "The stage update could not be saved. No changes were committed.",
+                reference
             });
         }
         catch (OperationCanceledException)
         {
             throw;
         }
+        catch (Exception ex)
+        {
+            var reference = CreateDiagnosticReference();
+            _logger.LogError(
+                ex,
+                "Unexpected direct stage update failure. ProjectId={ProjectId}; StageCode={StageCode}; Reference={Reference}.",
+                input.ProjectId,
+                input.StageCode,
+                reference);
+
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                ok = false,
+                error = "server-error",
+                message = "The stage update could not be completed. No changes were committed.",
+                reference
+            });
+        }
     }
+
+
+    private static PostgresException? FindPostgresException(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is PostgresException postgres)
+            {
+                return postgres;
+            }
+        }
+
+        return null;
+    }
+
+    private static string CreateDiagnosticReference()
+        => $"STG-{Guid.NewGuid():N}"[..14].ToUpperInvariant();
 
     private static UnprocessableEntityObjectResult ValidationFailure(
         IEnumerable<string> details,

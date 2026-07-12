@@ -23,17 +23,20 @@ public sealed class ActionTaskNotificationService : IActionTaskNotificationServi
     private readonly INotificationPublisher _publisher;
     private readonly INotificationPreferenceService _preferences;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IClock _clock;
     private readonly ILogger<ActionTaskNotificationService> _logger;
 
     public ActionTaskNotificationService(
         INotificationPublisher publisher,
         INotificationPreferenceService preferences,
         UserManager<ApplicationUser> userManager,
+        IClock clock,
         ILogger<ActionTaskNotificationService> logger)
     {
         _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
         _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -58,13 +61,21 @@ public sealed class ActionTaskNotificationService : IActionTaskNotificationServi
             cancellationToken: cancellationToken);
 
     public Task NotifyProgressUpdatedAsync(ActionTaskItem task, ActionTaskUpdate? update, string actorUserId, CancellationToken cancellationToken = default)
-        => PublishForTaskAsync(
+    {
+        var isConferenceRemark = string.Equals(
+            update?.UpdateType,
+            ActionTaskUpdateTypes.Conference,
+            StringComparison.OrdinalIgnoreCase);
+
+        return PublishForTaskAsync(
             NotificationKind.ActionTaskProgressUpdated,
             task,
             actorUserId,
-            "ActionTaskProgressUpdated",
-            "Task progress updated",
-            $"{BuildTaskReference(task)} - {BuildTitlePreview(task)} has a new progress update.",
+            isConferenceRemark ? "ActionTaskConferenceRemarkAdded" : "ActionTaskProgressUpdated",
+            isConferenceRemark ? "Conference direction added" : "Task progress updated",
+            isConferenceRemark
+                ? $"{BuildTaskReference(task)} - {BuildTitlePreview(task)} has a new conference direction."
+                : $"{BuildTaskReference(task)} - {BuildTitlePreview(task)} has a new progress update.",
             string.Format(CultureInfo.InvariantCulture, "action-task:{0}:update:{1}", task.Id, update?.Id.ToString(CultureInfo.InvariantCulture) ?? DateTimeOffset.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture)),
             recipients =>
             {
@@ -76,6 +87,7 @@ public sealed class ActionTaskNotificationService : IActionTaskNotificationServi
             currentStatus: task.Status,
             dueDate: null,
             cancellationToken: cancellationToken);
+    }
 
     public Task NotifyStatusChangedAsync(ActionTaskItem task, string previousStatus, string newStatus, string actorUserId, CancellationToken cancellationToken = default)
         => PublishForTaskAsync(
@@ -168,7 +180,7 @@ public sealed class ActionTaskNotificationService : IActionTaskNotificationServi
             "ActionTaskDueDateChanged",
             "Task due date changed",
             string.Format(CultureInfo.InvariantCulture, "{0} due date changed from {1} to {2}.", BuildTaskReference(task), FormatDisplayDate(oldDate), FormatDisplayDate(newDate)),
-            string.Format(CultureInfo.InvariantCulture, "action-task:{0}:due:{1:yyyyMMdd}", task.Id, newDate.Date),
+            BuildDueDateFingerprint(task, oldDate, newDate),
             recipients =>
             {
                 AddRecipient(recipients, task.AssignedToUserId);
@@ -380,7 +392,37 @@ public sealed class ActionTaskNotificationService : IActionTaskNotificationServi
         => Uri.EscapeDataString(value.Trim().ToLowerInvariant().Replace(' ', '-'));
 
     private static string BuildAssignedFingerprint(ActionTaskItem task)
-        => string.Format(CultureInfo.InvariantCulture, "action-task:{0}:assigned:{1}", task.Id, task.AssignedToUserId);
+        => string.Format(
+            CultureInfo.InvariantCulture,
+            "action-task:{0}:assigned:{1}:{2}",
+            task.Id,
+            NormalizeFingerprintPart(task.AssignedToUserId),
+            ResolveMutationVersion(task, task.AssignedOn));
+
+    private string BuildDueDateFingerprint(ActionTaskItem task, DateTime oldDate, DateTime newDate)
+        => string.Format(
+            CultureInfo.InvariantCulture,
+            "action-task:{0}:due:{1:yyyyMMdd}:{2:yyyyMMdd}:{3}",
+            task.Id,
+            oldDate.Date,
+            newDate.Date,
+            ResolveMutationVersion(task, _clock.UtcNow.UtcDateTime));
+
+    private static string ResolveMutationVersion(ActionTaskItem task, DateTime fallbackTimestamp)
+    {
+        if (task.RowVersion is { Length: > 0 })
+        {
+            return Convert.ToHexString(task.RowVersion).ToLowerInvariant();
+        }
+
+        var utc = fallbackTimestamp.Kind switch
+        {
+            DateTimeKind.Utc => fallbackTimestamp,
+            DateTimeKind.Local => fallbackTimestamp.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(fallbackTimestamp, DateTimeKind.Utc)
+        };
+        return utc.Ticks.ToString(CultureInfo.InvariantCulture);
+    }
 
     private sealed record ActionTaskNotificationPayload(
         int TaskId,

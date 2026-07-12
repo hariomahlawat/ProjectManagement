@@ -738,3 +738,88 @@
         justify-self: start;
     }
 }
+
+/* SECTION: Typed task updates keep conference directions in the common timeline. */
+.at-update-type-selector {
+    display: inline-flex;
+    align-items: center;
+    gap: .2rem;
+    margin-bottom: .6rem;
+    padding: .2rem;
+    border: 1px solid var(--at-border);
+    border-radius: .65rem;
+    background: #f8fafc;
+}
+
+.at-update-type-selector button {
+    min-height: 1.8rem;
+    padding: .28rem .62rem;
+    border: 0;
+    border-radius: .48rem;
+    background: transparent;
+    color: var(--at-muted);
+    font-size: .7rem;
+    font-weight: 760;
+}
+
+.at-update-type-selector button.is-active {
+    background: #fff;
+    color: #1f3f84;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, .12);
+}
+
+.at-journal-card.is-conference {
+    border-color: rgba(79, 70, 229, .26);
+    background: rgba(79, 70, 229, .025);
+}
+
+.at-journal-card.is-conference textarea {
+    border-color: rgba(79, 70, 229, .34);
+}
+
+.at-update-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-bottom: .38rem;
+}
+
+.at-update-type,
+.at-update-role {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.25rem;
+    padding: .08rem .42rem;
+    border: 1px solid #dbe3ee;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: .62rem;
+    font-weight: 800;
+    letter-spacing: .035em;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.at-update-type.is-conference {
+    border-color: rgba(79, 70, 229, .28);
+    background: rgba(79, 70, 229, .1);
+    color: #3730a3;
+}
+
+.at-task-command-body .at-activity-update-card.is-conference {
+    border-color: rgba(79, 70, 229, .24);
+    background: rgba(79, 70, 229, .04);
+}
+
+.at-update-context {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .35rem .8rem;
+    margin-top: .42rem;
+    color: #667085;
+    font-size: .68rem;
+    font-weight: 650;
+}

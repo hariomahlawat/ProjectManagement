@@ -1,0 +1,49 @@
+{
+  "MediaLibrary": {
+    "People": {
+      "Enabled": false,
+      "WorkerEnabled": false,
+      "ProcessPhotographsOnly": true,
+      "MaximumConcurrentAssets": 1,
+      "MaximumFacesPerAsset": 25,
+      "MinimumFacePixels": 64,
+      "MinimumDetectionConfidence": 0.85,
+      "MinimumQualityScore": 0.6,
+      "CandidateLimit": 5,
+      "CandidateSimilarityThreshold": 0.58,
+      "AutoConfirmEnabled": false,
+      "BatchSize": 1,
+      "IdleDelaySeconds": 30,
+      "InferenceMaxDimension": 1600,
+      "ModelRoot": "App_Data/media-models",
+      "Detector": {
+        "Key": "",
+        "Version": "",
+        "FileName": "",
+        "Sha256": "",
+        "License": "",
+        "SourceUrl": "",
+        "InputWidth": 640,
+        "InputHeight": 640,
+        "InputName": "input",
+        "BoxesOutputName": "boxes",
+        "ScoresOutputName": "scores",
+        "LandmarksOutputName": "landmarks",
+        "BoxesAreNormalized": true
+      },
+      "Embedder": {
+        "Key": "",
+        "Version": "",
+        "FileName": "",
+        "Sha256": "",
+        "License": "",
+        "SourceUrl": "",
+        "InputWidth": 112,
+        "InputHeight": 112,
+        "InputName": "input",
+        "EmbeddingOutputName": "embedding",
+        "EmbeddingDimension": 512
+      }
+    }
+  }
+}

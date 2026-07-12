@@ -8,6 +8,7 @@ using ProjectManagement.Contracts.Stages;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Services.Stages;
 
@@ -29,18 +30,21 @@ public class StageRequestService
     private readonly IClock _clock;
     private readonly IStageValidationService _validationService;
     private readonly IProjectStageWorkflowPolicy? _workflowPolicy;
+    private readonly ProjectFactsReadService? _factsRead;
 
     public StageRequestService(
         ApplicationDbContext db,
         IClock clock,
         IStageValidationService validationService,
-        IProjectStageWorkflowPolicy? workflowPolicy = null)
+        IProjectStageWorkflowPolicy? workflowPolicy = null,
+        ProjectFactsReadService? factsRead = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _validationService = validationService
             ?? throw new ArgumentNullException(nameof(validationService));
         _workflowPolicy = workflowPolicy;
+        _factsRead = factsRead;
     }
 
     public async Task<StageRequestResult> CreateAsync(
@@ -64,6 +68,7 @@ public class StageRequestService
                         StageCode = input.StageCode,
                         RequestedStatus = input.RequestedStatus,
                         RequestedDate = input.RequestedDate,
+                        RequestedStartDate = input.RequestedStartDate,
                         Note = input.Note
                     }
                 }
@@ -136,6 +141,7 @@ public class StageRequestService
                 stageCode,
                 requestedStatus,
                 item.RequestedDate,
+                item.RequestedStartDate,
                 string.IsNullOrWhiteSpace(item.Note) ? null : item.Note.Trim()));
         }
 
@@ -254,7 +260,7 @@ public class StageRequestService
                 projectedStage.ProjectedStartDate = carriedStart;
             }
 
-            ApplyProjection(projectedStage, item.RequestedStatus, item.RequestedDate);
+            ApplyProjection(projectedStage, item.RequestedStatus, item.RequestedDate, item.RequestedStartDate);
         }
 
         var validationResults = new List<StageRequestItemResult>(preparedItems.Count);
@@ -268,6 +274,7 @@ public class StageRequestService
                 item.StageCode,
                 item.RequestedStatus.ToString(),
                 item.RequestedDate,
+                item.RequestedStartDate,
                 isHoD: false,
                 cancellationToken);
 
@@ -296,6 +303,14 @@ public class StageRequestService
                     $"Complete or skip the required predecessor stage{(predecessorNames.Length == 1 ? string.Empty : "s")}: {string.Join(", ", predecessorNames)}.");
             }
 
+            if (item.RequestedStatus == StageStatus.Completed
+                && _factsRead is not null
+                && !await _factsRead.HasRequiredFactsAsync(input.ProjectId, item.StageCode, cancellationToken))
+            {
+                errors.Add(
+                    $"Record the required {DisplayName(stageNames, item.StageCode)} information before submitting completion.");
+            }
+
             var requiresDecisionContext = item.RequestedStatus is StageStatus.Blocked or StageStatus.Skipped
                 || (item.RequestedStatus == StageStatus.InProgress
                     && stage.Status is StageStatus.Blocked or StageStatus.Completed or StageStatus.Skipped);
@@ -307,7 +322,7 @@ public class StageRequestService
 
             ValidateProjectedChronology(
                 item,
-                requiredPredecessors,
+                workflow,
                 projectedStates,
                 stageNames,
                 errors);
@@ -395,6 +410,7 @@ public class StageRequestService
                 StageCode = stage.StageCode,
                 RequestedStatus = item.RequestedStatus.ToString(),
                 RequestedDate = item.RequestedDate,
+                RequestedStartDate = item.RequestedStartDate,
                 Note = item.Note,
                 RequestedByUserId = userId,
                 RequestedOn = now.AddTicks(item.InputOrder),
@@ -414,7 +430,7 @@ public class StageRequestService
                     ToActualStart = item.RequestedStatus == StageStatus.InProgress
                         ? item.RequestedDate
                         : item.RequestedStatus == StageStatus.Completed
-                            ? projectedStates[item.StageCode].ProjectedStartDate
+                            ? item.RequestedStartDate ?? projectedStates[item.StageCode].ProjectedStartDate
                             : stage.ActualStart,
                     FromCompletedOn = stage.CompletedOn,
                     ToCompletedOn = item.RequestedStatus == StageStatus.Completed ? item.RequestedDate : stage.CompletedOn,
@@ -479,7 +495,7 @@ public class StageRequestService
                 continue;
             }
 
-            ApplyProjection(state, status, pending.RequestedDate);
+            ApplyProjection(state, status, pending.RequestedDate, pending.RequestedStartDate);
         }
 
         return states;
@@ -496,7 +512,8 @@ public class StageRequestService
     private static void ApplyProjection(
         ProjectedStageState state,
         StageStatus requestedStatus,
-        DateOnly? requestedDate)
+        DateOnly? requestedDate,
+        DateOnly? requestedStartDate)
     {
         state.ProjectedStatus = requestedStatus;
         state.ProjectedDate = requestedDate;
@@ -504,6 +521,10 @@ public class StageRequestService
         switch (requestedStatus)
         {
             case StageStatus.Completed:
+                if (requestedStartDate.HasValue)
+                {
+                    state.ProjectedStartDate = requestedStartDate.Value;
+                }
                 state.ProjectedCompletionDate = requestedDate ?? state.OfficialCompletionDate;
                 break;
             case StageStatus.InProgress:
@@ -533,50 +554,46 @@ public class StageRequestService
 
     private static void ValidateProjectedChronology(
         PreparedStageRequest item,
-        IReadOnlyList<string> requiredPredecessors,
+        ProjectStageWorkflowSnapshot? workflow,
         IReadOnlyDictionary<string, ProjectedStageState> projectedStates,
         IReadOnlyDictionary<string, string> stageNames,
         ICollection<string> errors)
     {
-        if (!item.RequestedDate.HasValue
-            || item.RequestedStatus is not StageStatus.InProgress and not StageStatus.Completed)
+        if (item.RequestedStatus is not StageStatus.InProgress and not StageStatus.Completed)
         {
             return;
         }
 
         var projectedStage = projectedStates[item.StageCode];
+        var proposedStartDate = item.RequestedStatus == StageStatus.InProgress
+            ? item.RequestedDate
+            : item.RequestedStartDate ?? projectedStage.ProjectedStartDate;
+
         if (item.RequestedStatus == StageStatus.Completed
-            && projectedStage.ProjectedStartDate.HasValue
-            && item.RequestedDate.Value < projectedStage.ProjectedStartDate.Value)
+            && item.RequestedDate.HasValue
+            && proposedStartDate.HasValue
+            && item.RequestedDate.Value < proposedStartDate.Value)
         {
             errors.Add(
-                $"{DisplayName(stageNames, item.StageCode)} cannot be completed before its recorded or projected start date " +
-                $"({projectedStage.ProjectedStartDate.Value:dd MMM yyyy}).");
+                $"{DisplayName(stageNames, item.StageCode)} cannot be completed before its proposed start date " +
+                $"({proposedStartDate.Value:dd MMM yyyy}).");
         }
 
-        var predecessorBoundaries = requiredPredecessors
-            .Select(code => projectedStates.TryGetValue(code, out var state)
-                ? new { Code = code, Date = state.ProjectedCompletionDate }
-                : null)
-            .Where(item => item?.Date is not null)
-            .Select(item => new { item!.Code, Date = item.Date!.Value })
-            .ToArray();
-
-        if (predecessorBoundaries.Length == 0)
+        var boundary = ResolveProjectedStartBoundary(workflow, projectedStates, item.StageCode);
+        var chronologyDate = proposedStartDate
+            ?? (item.RequestedStatus == StageStatus.Completed ? item.RequestedDate : null);
+        if (!chronologyDate.HasValue || !boundary.EarliestStartDate.HasValue)
         {
             return;
         }
 
-        var latest = predecessorBoundaries
-            .OrderByDescending(item => item.Date)
-            .First();
-        var earliestAllowed = latest.Date.AddDays(1);
-
-        if (item.RequestedDate.Value < earliestAllowed)
+        if (chronologyDate.Value < boundary.EarliestStartDate.Value)
         {
+            var dateLabel = proposedStartDate.HasValue ? "start date" : "completion date";
             errors.Add(
-                $"{DisplayName(stageNames, item.StageCode)} date must be on or after {earliestAllowed:dd MMM yyyy}, " +
-                $"the day after {DisplayName(stageNames, latest.Code)} completion.");
+                $"{DisplayName(stageNames, item.StageCode)} {dateLabel} must be on or after " +
+                $"{boundary.EarliestStartDate.Value:dd MMM yyyy}, the day after " +
+                $"{DisplayName(stageNames, boundary.SourceStageCode!)} completion.");
         }
     }
 
@@ -624,51 +641,88 @@ public class StageRequestService
                 continue;
             }
 
-            if (!pending.RequestedDate.HasValue)
-            {
-                continue;
-            }
-
             var projectedStage = projectedStates[pending.StageCode];
+            var proposedStartDate = pendingStatus == StageStatus.InProgress
+                ? pending.RequestedDate
+                : pending.RequestedStartDate ?? projectedStage.ProjectedStartDate;
+
             if (pendingStatus == StageStatus.Completed
-                && projectedStage.ProjectedStartDate.HasValue
-                && pending.RequestedDate.Value < projectedStage.ProjectedStartDate.Value)
+                && pending.RequestedDate.HasValue
+                && proposedStartDate.HasValue
+                && pending.RequestedDate.Value < proposedStartDate.Value)
             {
                 errors.Add(
                     $"The pending {DisplayName(stageNames, pending.StageCode)} completion dated {pending.RequestedDate.Value:dd MMM yyyy} " +
-                    $"is before its recorded start date ({projectedStage.ProjectedStartDate.Value:dd MMM yyyy}). " +
+                    $"is before its proposed start date ({proposedStartDate.Value:dd MMM yyyy}). " +
                     $"Include {DisplayName(stageNames, pending.StageCode)} in this submission to revise it.");
                 continue;
             }
 
-            var predecessorBoundaries = requiredPredecessors
-                .Select(code => projectedStates.TryGetValue(code, out var state)
-                    ? new { Code = code, Date = state.ProjectedCompletionDate }
-                    : null)
-                .Where(item => item?.Date is not null)
-                .Select(item => new { item!.Code, Date = item.Date!.Value })
-                .ToArray();
-
-            if (predecessorBoundaries.Length == 0)
+            var boundary = ResolveProjectedStartBoundary(workflow, projectedStates, pending.StageCode);
+            var chronologyDate = proposedStartDate
+                ?? (pendingStatus == StageStatus.Completed ? pending.RequestedDate : null);
+            if (!chronologyDate.HasValue || !boundary.EarliestStartDate.HasValue)
             {
                 continue;
             }
 
-            var latest = predecessorBoundaries
-                .OrderByDescending(item => item.Date)
-                .First();
-            var earliestAllowed = latest.Date.AddDays(1);
-
-            if (pending.RequestedDate.Value < earliestAllowed)
+            if (chronologyDate.Value < boundary.EarliestStartDate.Value)
             {
+                var dateLabel = proposedStartDate.HasValue ? "start date" : "completion date";
                 errors.Add(
-                    $"The pending {DisplayName(stageNames, pending.StageCode)} update dated {pending.RequestedDate.Value:dd MMM yyyy} " +
-                    $"conflicts with this revised sequence. Its date must be on or after {earliestAllowed:dd MMM yyyy}, " +
-                    $"the day after {DisplayName(stageNames, latest.Code)} completion. Include {DisplayName(stageNames, pending.StageCode)} in this submission to revise it.");
+                    $"The pending {DisplayName(stageNames, pending.StageCode)} {dateLabel} {chronologyDate.Value:dd MMM yyyy} " +
+                    $"conflicts with this revised sequence. It must be on or after {boundary.EarliestStartDate.Value:dd MMM yyyy}, " +
+                    $"the day after {DisplayName(stageNames, boundary.SourceStageCode!)} completion. " +
+                    $"Include {DisplayName(stageNames, pending.StageCode)} in this submission to revise it.");
             }
         }
 
         return DistinctMessages(errors);
+    }
+
+    private static ProjectedStartBoundary ResolveProjectedStartBoundary(
+        ProjectStageWorkflowSnapshot? workflow,
+        IReadOnlyDictionary<string, ProjectedStageState> projectedStates,
+        string stageCode)
+    {
+        if (workflow is null)
+        {
+            return ProjectedStartBoundary.None;
+        }
+
+        var targetIndex = workflow.OrderOf(stageCode);
+        if (targetIndex <= 0 || targetIndex == int.MaxValue)
+        {
+            return ProjectedStartBoundary.None;
+        }
+
+        for (var index = targetIndex - 1; index >= 0; index--)
+        {
+            var predecessorCode = workflow.Stages[index].Code;
+            if (!projectedStates.TryGetValue(predecessorCode, out var predecessor))
+            {
+                return ProjectedStartBoundary.None;
+            }
+
+            if (predecessor.ProjectedStatus == StageStatus.Skipped)
+            {
+                continue;
+            }
+
+            return predecessor.ProjectedStatus == StageStatus.Completed
+                   && predecessor.ProjectedCompletionDate.HasValue
+                ? new ProjectedStartBoundary(
+                    predecessor.ProjectedCompletionDate.Value.AddDays(1),
+                    predecessorCode)
+                : ProjectedStartBoundary.None;
+        }
+
+        return ProjectedStartBoundary.None;
+    }
+
+    private sealed record ProjectedStartBoundary(DateOnly? EarliestStartDate, string? SourceStageCode)
+    {
+        public static ProjectedStartBoundary None { get; } = new(null, null);
     }
 
     private static IReadOnlyDictionary<string, string> BuildStageNameLookup(
@@ -734,6 +788,7 @@ public class StageRequestService
         string StageCode,
         StageStatus RequestedStatus,
         DateOnly? RequestedDate,
+        DateOnly? RequestedStartDate,
         string? Note);
 
     private sealed class ProjectedStageState

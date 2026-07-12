@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Npgsql;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
@@ -22,12 +24,18 @@ namespace ProjectManagement.Pages.Projects.Procurement
         private readonly ProjectFactsService _facts;
         private readonly UserManager<ApplicationUser> _users;
         private readonly ApplicationDbContext _db;
+        private readonly ILogger<EditModel> _logger;
 
-        public EditModel(ProjectFactsService facts, UserManager<ApplicationUser> users, ApplicationDbContext db)
+        public EditModel(
+            ProjectFactsService facts,
+            UserManager<ApplicationUser> users,
+            ApplicationDbContext db,
+            ILogger<EditModel> logger)
         {
-            _facts = facts;
-            _users = users;
-            _db = db;
+            _facts = facts ?? throw new ArgumentNullException(nameof(facts));
+            _users = users ?? throw new ArgumentNullException(nameof(users));
+            _db = db ?? throw new ArgumentNullException(nameof(db));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         [BindProperty]
@@ -148,14 +156,75 @@ namespace ProjectManagement.Pages.Projects.Procurement
 
                 await tx.CommitAsync(ct);
             }
-            catch
+            catch (OperationCanceledException)
             {
-                await tx.RollbackAsync(ct);
+                await RollbackSafelyAsync(tx, id, CancellationToken.None);
                 throw;
+            }
+            catch (DbUpdateException ex)
+            {
+                await RollbackSafelyAsync(tx, id, CancellationToken.None);
+
+                var postgres = FindPostgresException(ex);
+                _logger.LogError(
+                    ex,
+                    "Database rejected procurement details for project {ProjectId}. SqlState={SqlState}; Constraint={Constraint}; Table={Table}.",
+                    id,
+                    postgres?.SqlState,
+                    postgres?.ConstraintName,
+                    postgres?.TableName);
+
+                TempData["Error"] = string.Equals(
+                    postgres?.ConstraintName,
+                    "CK_ProjectStages_CompletedHasDate",
+                    StringComparison.Ordinal)
+                    ? "Procurement details could not be saved because the project-stage database rule is not aligned. The application update must complete its pending migration before retrying."
+                    : "Procurement details could not be saved because the database rejected the update. No changes were committed.";
+
+                return RedirectToPage("/Projects/Overview", new { id, oc = "procurement" });
+            }
+            catch (Exception ex)
+            {
+                await RollbackSafelyAsync(tx, id, CancellationToken.None);
+                _logger.LogError(ex, "Failed to save procurement details for project {ProjectId}.", id);
+
+                TempData["Error"] = "Procurement details could not be saved. No changes were committed. Please try again or contact the administrator if the problem persists.";
+                return RedirectToPage("/Projects/Overview", new { id, oc = "procurement" });
             }
 
             TempData["Flash"] = "Procurement details updated.";
-            return RedirectToPage("/Projects/Overview", new { id });
+            return RedirectToPage("/Projects/Overview", new { id, oc = "procurement" });
+        }
+
+        private async Task RollbackSafelyAsync(
+            Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction,
+            int projectId,
+            CancellationToken ct)
+        {
+            try
+            {
+                await transaction.RollbackAsync(ct);
+            }
+            catch (Exception rollbackException)
+            {
+                _logger.LogError(
+                    rollbackException,
+                    "Rollback failed after procurement update error for project {ProjectId}.",
+                    projectId);
+            }
+        }
+
+        private static PostgresException? FindPostgresException(Exception exception)
+        {
+            for (var current = exception; current is not null; current = current.InnerException)
+            {
+                if (current is PostgresException postgres)
+                {
+                    return postgres;
+                }
+            }
+
+            return null;
         }
     }
 }

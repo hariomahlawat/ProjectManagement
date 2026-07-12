@@ -2,14 +2,24 @@
 @model ProjectManagement.Pages.ProjectIdeas.EditModel
 @{
     ViewData["UseFullWidth"] = true;
-    ViewData["Title"] = "Edit Idea";
+    ViewData["Title"] = Model.CanManageCore ? "Edit Idea" : "Edit Idea Description";
 }
 <link rel="stylesheet" href="~/css/project-ideas.css" asp-append-version="true" />
 
 <div class="pi-page pi-form-page">
     <a asp-page="Details" asp-route-id="@Model.Input.Id" class="pi-back">← Back to Idea Workspace</a>
+
     <div class="pi-form-card">
-        <h1>Edit Idea</h1>
+        <div class="mb-4">
+            <h1>@(Model.CanManageCore ? "Edit Idea" : "Edit Description")</h1>
+            @if (!Model.CanManageCore)
+            {
+                <p class="text-muted mb-0">
+                    Update the working description for <strong>@Model.CurrentTitle</strong>.
+                    Title, assignments and status remain controlled by HoD/Admin/Comdt.
+                </p>
+            }
+        </div>
 
         @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
         {
@@ -18,36 +28,66 @@
 
         <form method="post" class="pi-form-grid">
             <input type="hidden" asp-for="Input.Id" />
-            @* SECTION: Idea basics *@
             <div asp-validation-summary="ModelOnly" class="text-danger pi-form-field-wide"></div>
+
+            @if (Model.CanManageCore)
+            {
+                <div class="pi-form-field pi-form-field-wide">
+                    <label asp-for="Input.Title">Title</label>
+                    <input asp-for="Input.Title" class="form-control" />
+                    <span asp-validation-for="Input.Title" class="text-danger"></span>
+                </div>
+            }
+            else
+            {
+                <section class="pi-notice pi-form-field-wide" aria-label="Current idea details">
+                    <span class="bi bi-shield-check"></span>
+                    <span>
+                        <strong>@Model.CurrentTitle</strong><br />
+                        @Model.CurrentStatus · Assigned PO: @(Model.CurrentProjectOfficerName ?? "Unassigned")
+                    </span>
+                </section>
+            }
+
             <div class="pi-form-field pi-form-field-wide">
-                <label>Title</label>
-                <input asp-for="Input.Title" class="form-control" />
-                <span asp-validation-for="Input.Title" class="text-danger"></span>
-            </div>
-            <div class="pi-form-field pi-form-field-wide">
-                <label>Description</label>
-                <textarea asp-for="Input.Description" class="form-control" rows="5"></textarea>
+                <label asp-for="Input.Description">Description</label>
+                <textarea asp-for="Input.Description" class="form-control" rows="8" maxlength="2000"></textarea>
+                <div class="form-text">Describe the requirement, intended capability, operational value and any important constraints.</div>
                 <span asp-validation-for="Input.Description" class="text-danger"></span>
             </div>
 
-            @* SECTION: Ownership and status *@
-            <div class="pi-form-field">
-                <label>Assigned Project Officer</label>
-                <select asp-for="Input.AssignedProjectOfficerUserId" asp-items="Model.ProjectOfficerOptions" class="form-select"><option value="">Unassigned</option></select>
-            </div>
-            <div class="pi-form-field">
-                <label>Assigned HoD</label>
-                <select asp-for="Input.AssignedHodUserId" asp-items="Model.HodOptions" class="form-select"><option value="">Unassigned</option></select>
-            </div>
-            <div class="pi-form-field pi-form-field-wide">
-                <label>Status</label>
-                <select asp-for="Input.Status" asp-items="Model.EditableStatusOptions" class="form-select"></select>
-            </div>
+            @if (Model.CanManageCore)
+            {
+                <div class="pi-form-field">
+                    <label asp-for="Input.AssignedProjectOfficerUserId">Assigned Project Officer</label>
+                    <select asp-for="Input.AssignedProjectOfficerUserId" asp-items="Model.ProjectOfficerOptions" class="form-select">
+                        <option value="">Unassigned</option>
+                    </select>
+                </div>
+                <div class="pi-form-field">
+                    <label asp-for="Input.AssignedHodUserId">Assigned HoD</label>
+                    <select asp-for="Input.AssignedHodUserId" asp-items="Model.HodOptions" class="form-select">
+                        <option value="">Unassigned</option>
+                    </select>
+                </div>
+                <div class="pi-form-field pi-form-field-wide">
+                    <label asp-for="Input.Status">Status</label>
+                    <select asp-for="Input.Status" asp-items="Model.EditableStatusOptions" class="form-select"></select>
+                    <span asp-validation-for="Input.Status" class="text-danger"></span>
+                </div>
+            }
+
             <div class="pi-form-actions">
-                <button class="pi-btn pi-btn-primary">Save Changes</button>
+                <a asp-page="Details" asp-route-id="@Model.Input.Id" class="pi-btn">Cancel</a>
+                <button type="submit" class="pi-btn pi-btn-primary">
+                    @(Model.CanManageCore ? "Save Changes" : "Save Description")
+                </button>
             </div>
         </form>
     </div>
 </div>
-@section Scripts { <partial name="_ValidationScriptsPartial" /> }
+
+@section Scripts
+{
+    <partial name="_ValidationScriptsPartial" />
+}

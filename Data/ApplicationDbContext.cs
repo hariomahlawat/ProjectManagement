@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 using NpgsqlTypes;
+using ProjectManagement.Features.MediaLibrary.Outbox;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
@@ -136,6 +137,7 @@ namespace ProjectManagement.Data
         public DbSet<Activity> Activities => Set<Activity>();
         public DbSet<ActivityAttachment> ActivityAttachments => Set<ActivityAttachment>();
         public DbSet<ActivityDeleteRequest> ActivityDeleteRequests => Set<ActivityDeleteRequest>();
+        public DbSet<PrismMediaOutboxMessage> PrismMediaOutboxMessages => Set<PrismMediaOutboxMessage>();
         public DbSet<IndustryPartner> IndustryPartners => Set<IndustryPartner>();
         public DbSet<IndustryPartnerContact> IndustryPartnerContacts => Set<IndustryPartnerContact>();
         public DbSet<IndustryPartnerAttachment> IndustryPartnerAttachments => Set<IndustryPartnerAttachment>();
@@ -284,7 +286,16 @@ namespace ProjectManagement.Data
 
             builder.Entity<ProjectIdeaComment>(e =>
             {
+                e.Property(x => x.CommentType)
+                    .IsRequired()
+                    .HasMaxLength(32)
+                    .HasDefaultValue(ProjectIdeaCommentTypes.General);
+                e.Property(x => x.CreatedByRole).HasMaxLength(64);
+                e.Property(x => x.StatusSnapshot).HasMaxLength(32);
                 e.HasIndex(x => x.IsDeleted);
+                e.HasIndex(x => new { x.ProjectIdeaId, x.IsDeleted, x.CommentType, x.CreatedAt })
+                    .HasDatabaseName("IX_ProjectIdeaComments_IdeaId_Deleted_Type_CreatedAt")
+                    .IsDescending(false, false, false, true);
                 e.HasOne(x => x.ProjectIdea).WithMany(x => x.Comments).HasForeignKey(x => x.ProjectIdeaId).OnDelete(DeleteBehavior.Cascade);
                 e.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
             });
@@ -1396,6 +1407,9 @@ namespace ProjectManagement.Data
             builder.Entity<Notification>(e =>
             {
                 e.Property(x => x.RecipientUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.Kind)
+                    .HasConversion<string>()
+                    .HasMaxLength(64);
                 e.Property(x => x.Module).HasMaxLength(64);
                 e.Property(x => x.EventType).HasMaxLength(128);
                 e.Property(x => x.ScopeType).HasMaxLength(64);
@@ -1406,30 +1420,36 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Route).HasMaxLength(2048);
                 e.Property(x => x.Title).HasMaxLength(200);
                 e.Property(x => x.Summary).HasMaxLength(2000);
-                e.HasIndex(x => new { x.RecipientUserId, x.CreatedUtc });
+                e.HasIndex(x => new { x.RecipientUserId, x.CreatedUtc, x.Id });
                 e.HasIndex(x => new { x.RecipientUserId, x.SeenUtc, x.CreatedUtc });
                 e.HasIndex(x => new { x.RecipientUserId, x.ReadUtc, x.CreatedUtc });
-                var fingerprintIndex = e.HasIndex(x => x.Fingerprint);
+                var fingerprintIndex = e.HasIndex(x => new { x.RecipientUserId, x.Fingerprint })
+                    .IsUnique();
+                var sourceDispatchIndex = e.HasIndex(x => x.SourceDispatchId)
+                    .IsUnique();
 
                 if (Database.IsSqlServer())
                 {
                     fingerprintIndex.HasFilter("[Fingerprint] IS NOT NULL");
+                    sourceDispatchIndex.HasFilter("[SourceDispatchId] IS NOT NULL");
                     e.Property(x => x.CreatedUtc).HasDefaultValueSql("GETUTCDATE()");
                 }
                 else if (Database.IsNpgsql())
                 {
                     fingerprintIndex.HasFilter("\"Fingerprint\" IS NOT NULL");
+                    sourceDispatchIndex.HasFilter("\"SourceDispatchId\" IS NOT NULL");
                     e.Property(x => x.CreatedUtc).HasDefaultValueSql("now() at time zone 'utc'");
                 }
                 else
                 {
                     fingerprintIndex.HasFilter("Fingerprint IS NOT NULL");
+                    sourceDispatchIndex.HasFilter("SourceDispatchId IS NOT NULL");
                     e.Property(x => x.CreatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
                 }
 
                 e.HasOne(x => x.SourceDispatch)
-                    .WithMany()
-                    .HasForeignKey(x => x.SourceDispatchId)
+                    .WithOne()
+                    .HasForeignKey<Notification>(x => x.SourceDispatchId)
                     .OnDelete(DeleteBehavior.SetNull);
             });
 
@@ -1450,6 +1470,7 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Route).HasMaxLength(2048);
                 e.Property(x => x.Title).HasMaxLength(200);
                 e.Property(x => x.Summary).HasMaxLength(2000);
+                e.Property(x => x.LockToken).HasMaxLength(64);
 
                 var payloadProperty = e.Property(x => x.PayloadJson).IsRequired();
 
@@ -1464,6 +1485,8 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Error).HasMaxLength(2000);
                 e.Property(x => x.AttemptCount).HasDefaultValue(0);
                 e.HasIndex(x => x.DispatchedUtc);
+                e.HasIndex(x => new { x.DispatchedUtc, x.DeadLetteredUtc, x.LockedUntilUtc });
+                e.HasIndex(x => x.LockToken);
                 e.HasIndex(x => new { x.RecipientUserId, x.Kind, x.DispatchedUtc });
                 e.HasIndex(x => new { x.Module, x.EventType, x.DispatchedUtc });
                 e.HasIndex(x => new { x.ScopeType, x.ScopeId, x.DispatchedUtc });
@@ -2018,9 +2041,15 @@ namespace ProjectManagement.Data
 
                 // SECTION: Action task update field constraints
                 e.Property(x => x.CreatedByUserId).IsRequired().HasMaxLength(450);
+                e.Property(x => x.CreatedByRole).HasMaxLength(64);
                 e.Property(x => x.UpdateType).IsRequired().HasMaxLength(32);
                 e.Property(x => x.Body).IsRequired().HasMaxLength(4000);
+                e.Property(x => x.StatusSnapshot).HasMaxLength(32);
+                e.Property(x => x.DueDateSnapshot).HasColumnType("date");
                 e.Property(x => x.IsDeleted).HasDefaultValue(false);
+                e.HasIndex(x => new { x.TaskId, x.IsDeleted, x.UpdateType, x.CreatedAtUtc })
+                    .HasDatabaseName("IX_ActionTaskUpdates_TaskId_IsDeleted_UpdateType_CreatedAtUtc")
+                    .IsDescending(false, false, false, true);
 
                 // SECTION: Action task update relationship constraints
                 e.HasOne<ActionTaskItem>()
@@ -2153,6 +2182,7 @@ namespace ProjectManagement.Data
                 e.Property(x => x.StageCode).HasMaxLength(32).IsRequired();
                 e.Property(x => x.RequestedStatus).HasMaxLength(16).IsRequired();
                 e.Property(x => x.RequestedDate).HasColumnType("date");
+                e.Property(x => x.RequestedStartDate).HasColumnType("date");
                 e.Property(x => x.Note).HasMaxLength(1024);
                 e.Property(x => x.RequestedByUserId).HasMaxLength(450).IsRequired();
                 e.Property(x => x.DecisionStatus).HasMaxLength(12).HasDefaultValue("Pending").IsRequired();
@@ -2291,7 +2321,7 @@ namespace ProjectManagement.Data
             e.ToTable("ProjectStages", tb =>
                 tb.HasCheckConstraint(
                     "CK_ProjectStages_CompletedHasDate",
-                    "\"Status\" <> 'Completed' OR (\"CompletedOn\" IS NOT NULL AND \"ActualStart\" IS NOT NULL) OR \"RequiresBackfill\" IS TRUE"));
+                    "\"Status\" <> 'Completed' OR \"CompletedOn\" IS NOT NULL OR \"RequiresBackfill\" IS TRUE"));
         });
 
             builder.Entity<StageShiftLog>(e =>
@@ -2420,6 +2450,9 @@ namespace ProjectManagement.Data
                     .IsDescending(false, false, true);
                 e.HasIndex(x => new { x.ProjectId, x.IsDeleted, x.Type, x.EventDate })
                     .HasDatabaseName("IX_Remarks_ProjectId_IsDeleted_Type_EventDate");
+                e.HasIndex(x => new { x.ProjectId, x.IsDeleted, x.Type, x.CreatedAtUtc })
+                    .HasDatabaseName("IX_Remarks_ProjectId_Deleted_Type_CreatedAt")
+                    .IsDescending(false, false, false, true);
                 e.HasIndex(x => new { x.ProjectId, x.IsDeleted, x.Scope, x.CreatedAtUtc })
                     .HasDatabaseName("IX_Remarks_ProjectId_IsDeleted_Scope_CreatedAtUtc")
                     .IsDescending(false, false, false, true);
@@ -3055,6 +3088,28 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.UploadedByUserId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+
+            // SECTION: Transactional media-ingestion outbox
+            builder.Entity<PrismMediaOutboxMessage>(entity =>
+            {
+                entity.ToTable("PrismMediaOutboxMessages");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.EventId).IsRequired();
+                entity.Property(x => x.EventType).HasConversion<string>().HasMaxLength(64).IsRequired();
+                entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+                entity.Property(x => x.StorageKey).HasMaxLength(260);
+                entity.Property(x => x.Reason).HasMaxLength(512);
+                entity.Property(x => x.LockedBy).HasMaxLength(128);
+                entity.Property(x => x.LastError).HasMaxLength(2048);
+                entity.Property(x => x.MaxAttempts).HasDefaultValue(10);
+                entity.HasIndex(x => x.EventId).IsUnique();
+                entity.HasIndex(x => new { x.Status, x.AvailableAfterUtc, x.Id })
+                    .HasDatabaseName("IX_PrismMediaOutboxMessages_Queue");
+                entity.HasIndex(x => new { x.ActivityId, x.Status });
+                entity.HasIndex(x => new { x.AttachmentId, x.Status });
+                entity.HasIndex(x => x.LockExpiresAtUtc);
             });
 
 

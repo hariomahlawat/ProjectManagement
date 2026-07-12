@@ -16,6 +16,7 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.5" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.19" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.19" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.19" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.19" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.6.0" />
@@ -36,6 +37,18 @@
   <ItemGroup>
     <ProjectReference Include="..\ProjectManagement.csproj" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="TestData\MediaClassification\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\Migrations\immutable-migration-ids.txt"
+          Link="TestData\application-migration-ids.txt"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Features\MediaLibrary\Data\Migrations\immutable-migration-ids.txt"
+          Link="TestData\media-migration-ids.txt"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -88,11 +88,11 @@ public sealed class AssignRolesPageTests
         Assert.Equal(10, notification.ProjectId);
         Assert.Equal("actor-1", notification.ActorUserId);
         Assert.Equal("/projects/overview/10", notification.Route);
-        Assert.Equal("Transit Hub project officer updated", notification.Title);
+        Assert.Equal("Project officer changed", notification.Title);
 
         var expectedSummary = string.Format(
             CultureInfo.InvariantCulture,
-            "Project officer assignment changed from {0} to {1}. Review the project overview for details.",
+            "Changed from {0} to {1}.",
             "Olivia Officer",
             "Noah Officer");
         Assert.Equal(expectedSummary, notification.Summary);

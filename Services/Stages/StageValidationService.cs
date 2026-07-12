@@ -27,6 +27,16 @@ public interface IStageValidationService
         DateOnly? targetDate,
         bool isHoD,
         CancellationToken ct = default);
+
+    Task<StageValidationResult> ValidateAsync(
+        int projectId,
+        string stageCode,
+        string targetStatus,
+        DateOnly? targetDate,
+        DateOnly? requestedStartDate,
+        bool isHoD,
+        CancellationToken ct = default)
+        => ValidateAsync(projectId, stageCode, targetStatus, targetDate, isHoD, ct);
 }
 
 public sealed class StageValidationService : IStageValidationService
@@ -47,21 +57,36 @@ public sealed class StageValidationService : IStageValidationService
         _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
     }
 
-    public async Task<StageValidationResult> ValidateAsync(
+    public Task<StageValidationResult> ValidateAsync(
         int projectId,
         string stageCode,
         string targetStatus,
         DateOnly? targetDate,
         bool isHoD,
         CancellationToken ct = default)
+        => ValidateAsync(
+            projectId,
+            stageCode,
+            targetStatus,
+            targetDate,
+            null,
+            isHoD,
+            ct);
+
+    public async Task<StageValidationResult> ValidateAsync(
+        int projectId,
+        string stageCode,
+        string targetStatus,
+        DateOnly? targetDate,
+        DateOnly? requestedStartDate,
+        bool isHoD,
+        CancellationToken ct = default)
     {
-        // SECTION: Initialization
         var errors = new List<string>();
         var warnings = new List<string>();
         var missingPredecessors = new List<string>();
         DateOnly? suggestedAutoStart = null;
 
-        // SECTION: Basic input validation
         if (string.IsNullOrWhiteSpace(stageCode))
         {
             errors.Add("A stage code is required.");
@@ -85,7 +110,7 @@ public sealed class StageValidationService : IStageValidationService
 
         var stages = await _db.ProjectStages
             .AsNoTracking()
-            .Where(s => s.ProjectId == projectId)
+            .Where(stage => stage.ProjectId == projectId)
             .ToListAsync(ct);
 
         if (stages.Count == 0)
@@ -94,7 +119,9 @@ public sealed class StageValidationService : IStageValidationService
             return BuildResult();
         }
 
-        var stageLookup = stages.ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
+        var stageLookup = stages
+            .Where(item => !string.IsNullOrWhiteSpace(item.StageCode))
+            .ToDictionary(item => item.StageCode, StringComparer.OrdinalIgnoreCase);
 
         if (!stageLookup.TryGetValue(normalizedStageCode, out var stage))
         {
@@ -102,12 +129,16 @@ public sealed class StageValidationService : IStageValidationService
             return BuildResult();
         }
 
-        // SECTION: Date validation
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, IndiaTimeZone).Date);
 
         if (targetDate.HasValue && targetDate.Value > today)
         {
             errors.Add("Date cannot be in the future.");
+        }
+
+        if (requestedStartDate.HasValue && requestedStartDate.Value > today)
+        {
+            errors.Add("Start date cannot be in the future.");
         }
 
         if (!StageTransitionPolicy.TryValidateTransition(stage.Status, desiredStatus, targetDate, out var transitionError))
@@ -123,48 +154,53 @@ public sealed class StageValidationService : IStageValidationService
         if (desiredStatus is StageStatus.InProgress or StageStatus.Completed)
         {
             var workflow = await _workflowPolicy.GetAsync(projectId, ct);
-            var predecessors = workflow.RequiredPredecessorClosure(stage.StageCode);
+            var suggestion = StageDateSuggestionResolver.Resolve(workflow, stages, stage.StageCode);
+            suggestedAutoStart = suggestion.SuggestedStartDate;
 
-            if (predecessors.Count > 0)
+            foreach (var predecessorCode in workflow.RequiredPredecessorClosure(stage.StageCode))
             {
-                List<DateOnly>? predecessorCompletionDates = desiredStatus == StageStatus.Completed
-                    ? new List<DateOnly>()
-                    : null;
-
-                foreach (var predecessorCode in predecessors)
+                if (!stageLookup.TryGetValue(predecessorCode, out var predecessor)
+                    || predecessor.Status is not StageStatus.Completed and not StageStatus.Skipped)
                 {
-                    if (!stageLookup.TryGetValue(predecessorCode, out var predecessor)
-                        || predecessor.Status is not StageStatus.Completed and not StageStatus.Skipped)
-                    {
-                        missingPredecessors.Add(predecessorCode);
-                        continue;
-                    }
-
-                    if (desiredStatus == StageStatus.Completed
-                        && predecessor.Status == StageStatus.Completed
-                        && predecessor.CompletedOn.HasValue)
-                    {
-                        predecessorCompletionDates!.Add(predecessor.CompletedOn.Value);
-                    }
-                }
-
-                if (desiredStatus == StageStatus.Completed && predecessorCompletionDates is { Count: > 0 })
-                {
-                    suggestedAutoStart = predecessorCompletionDates.Max().AddDays(1);
+                    missingPredecessors.Add(predecessorCode);
                 }
             }
-        }
 
-        if (desiredStatus == StageStatus.Completed &&
-            targetDate.HasValue &&
-            suggestedAutoStart.HasValue &&
-            targetDate.Value < suggestedAutoStart.Value)
-        {
-            errors.Add($"Completion cannot be before the inferred stage start ({suggestedAutoStart.Value:yyyy-MM-dd}).");
+            var effectiveStartDate = desiredStatus == StageStatus.InProgress
+                ? targetDate
+                : requestedStartDate ?? stage.ActualStart;
 
-            if (isHoD)
+            if (effectiveStartDate.HasValue
+                && suggestedAutoStart.HasValue
+                && effectiveStartDate.Value < suggestedAutoStart.Value)
             {
-                warnings.Add("Completion before the inferred stage start requires correction.");
+                var source = string.IsNullOrWhiteSpace(suggestion.SourceStageName)
+                    ? "the effective predecessor"
+                    : suggestion.SourceStageName;
+                errors.Add(
+                    $"Start date must be on or after {suggestedAutoStart.Value:yyyy-MM-dd}, " +
+                    $"the day after {source} completion.");
+            }
+
+            if (desiredStatus == StageStatus.Completed && targetDate.HasValue)
+            {
+                if (effectiveStartDate.HasValue && targetDate.Value < effectiveStartDate.Value)
+                {
+                    errors.Add(
+                        $"Completion date cannot be before the selected start date " +
+                        $"({effectiveStartDate.Value:yyyy-MM-dd}).");
+                }
+                else if (!effectiveStartDate.HasValue
+                    && suggestedAutoStart.HasValue
+                    && targetDate.Value < suggestedAutoStart.Value)
+                {
+                    var source = string.IsNullOrWhiteSpace(suggestion.SourceStageName)
+                        ? "the effective predecessor"
+                        : suggestion.SourceStageName;
+                    errors.Add(
+                        $"Completion date must be on or after {suggestedAutoStart.Value:yyyy-MM-dd}, " +
+                        $"the day after {source} completion.");
+                }
             }
         }
 
@@ -172,15 +208,16 @@ public sealed class StageValidationService : IStageValidationService
 
         StageValidationResult BuildResult()
         {
-            var isValid = errors.Count == 0 && missingPredecessors.Count == 0;
+            var normalizedMissing = missingPredecessors
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var isValid = errors.Count == 0 && normalizedMissing.Length == 0;
             return new StageValidationResult(
                 isValid,
-                errors.AsReadOnly(),
-                warnings.AsReadOnly(),
-                missingPredecessors.AsReadOnly(),
+                errors.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                warnings.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                normalizedMissing,
                 suggestedAutoStart);
         }
     }
-
-
 }

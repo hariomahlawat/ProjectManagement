@@ -51,10 +51,11 @@ public static class ProjectModuleNavDefinition
 
         new()
         {
-            Text = "Create",
+            Text = "Create project",
             Page = "/Projects/Create",
-            Icon = "bi-plus-circle",
-            AuthorizationPolicy = "Project.Create"
+            Icon = "bi-plus-lg",
+            AuthorizationPolicy = "Project.Create",
+            IsAction = true
         },
 
         new()

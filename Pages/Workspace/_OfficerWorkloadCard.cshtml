@@ -1,0 +1,104 @@
+@using ProjectManagement.ViewModels.Workspace
+@model OfficerWorkloadCardRenderVm
+@{
+    var officer = Model.Officer;
+    var accentKey = string.IsNullOrWhiteSpace(officer.UserId)
+        ? officer.OfficerName
+        : officer.UserId;
+    var accentSeed = accentKey.Aggregate(0L, (total, character) => total + character);
+    var accentIndex = (int)(Math.Abs(accentSeed) % 6);
+    var displayName = string.IsNullOrWhiteSpace(officer.Rank)
+        ? officer.OfficerName
+        : $"{officer.Rank} {officer.OfficerName}";
+    var initial = string.IsNullOrWhiteSpace(officer.OfficerName)
+        ? "P"
+        : officer.OfficerName[0].ToString().ToUpperInvariant();
+}
+<article class="cw-officer-card cw-officer-card--accent-@accentIndex" data-officer-id="@officer.UserId">
+    <header class="cw-officer-card__header">
+        @if (Model.CanReorder)
+        {
+            <button type="button"
+                    class="cw-drag-handle"
+                    aria-label="Rearrange @displayName"
+                    title="Drag to rearrange">
+                <i class="bi bi-grip-vertical" aria-hidden="true"></i>
+            </button>
+        }
+        else
+        {
+            <span class="cw-drag-handle cw-drag-handle--static" aria-hidden="true">
+                <i class="bi bi-grip-vertical"></i>
+            </span>
+        }
+        <span class="cw-avatar">@initial</span>
+        <div class="cw-officer-identity">
+            <h3>@displayName</h3>
+            <p>
+                <span><strong>@officer.ProjectCount</strong> projects</span>
+                <span><strong>@officer.IdeaCount</strong> ideas</span>
+                <span><strong>@officer.OtherTaskCount</strong> other tasks</span>
+            </p>
+        </div>
+        @if (Model.ShowConferenceAction)
+        {
+            <a asp-page="/Workspace/Conference"
+               asp-route-officerUserId="@officer.UserId"
+               class="cw-conference-action"
+               aria-label="Review @displayName workload in conference"
+               title="Review officer workload">
+                <i class="bi bi-journal-check" aria-hidden="true"></i>
+            </a>
+        }
+    </header>
+    <div class="cw-work-sections">
+        <section class="cw-work-section cw-work-section--projects">
+            <div class="cw-work-section__heading"><span><i class="bi bi-kanban" aria-hidden="true"></i>Projects</span><b>@officer.ProjectCount</b></div>
+            @if (officer.Projects.Count == 0)
+            {
+                <p class="cw-none">No assigned projects</p>
+            }
+            else
+            {
+                <ul>
+                    @foreach (var project in officer.Projects)
+                    {
+                        <li><a href="@project.OpenUrl" title="@project.Name">@project.Name</a><span>@project.StageCode · @project.StageName</span></li>
+                    }
+                </ul>
+            }
+        </section>
+        <section class="cw-work-section cw-work-section--ideas">
+            <div class="cw-work-section__heading"><span><i class="bi bi-lightbulb" aria-hidden="true"></i>Ideas</span><b>@officer.IdeaCount</b></div>
+            @if (officer.Ideas.Count == 0)
+            {
+                <p class="cw-none">No assigned ideas</p>
+            }
+            else
+            {
+                <ul>
+                    @foreach (var idea in officer.Ideas)
+                    {
+                        <li><a href="@idea.OpenUrl" title="@idea.Title">@idea.Title</a><span>@idea.Status</span></li>
+                    }
+                </ul>
+            }
+        </section>
+        <section class="cw-work-section cw-work-section--tasks">
+            <div class="cw-work-section__heading"><span><i class="bi bi-list-check" aria-hidden="true"></i>Other tasks</span><b>@officer.OtherTaskCount</b></div>
+            @if (officer.OtherTasks.Count == 0)
+            {
+                <p class="cw-none">No other assigned tasks</p>
+            }
+            else
+            {
+                <ul>
+                    @foreach (var task in officer.OtherTasks)
+                    {
+                        <li><a href="@task.OpenUrl" title="@task.Title">@task.Title</a><span>@task.Status · Due @task.DueDate.ToString("dd MMM")</span></li>
+                    }
+                </ul>
+            }
+        </section>
+    </div>
+</article>

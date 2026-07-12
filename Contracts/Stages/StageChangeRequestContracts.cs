@@ -9,6 +9,7 @@ public sealed record StageChangeRequestInput
     public string StageCode { get; init; } = string.Empty;
     public string RequestedStatus { get; init; } = string.Empty;
     public DateOnly? RequestedDate { get; init; }
+    public DateOnly? RequestedStartDate { get; init; }
     public string? Note { get; init; }
 }
 
@@ -17,6 +18,7 @@ public sealed record StageChangeRequestItemInput
     public string StageCode { get; init; } = string.Empty;
     public string RequestedStatus { get; init; } = string.Empty;
     public DateOnly? RequestedDate { get; init; }
+    public DateOnly? RequestedStartDate { get; init; }
     public string? Note { get; init; }
 }
 

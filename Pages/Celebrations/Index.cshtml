@@ -1,122 +1,127 @@
 @page
 @model ProjectManagement.Pages.Celebrations.IndexModel
-@attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @{
-    ViewData["Title"] = "Celebrations";
+    ViewData["Title"] = "Birthdays & anniversaries";
 }
 
-<h2 class="h5 fw-semibold mb-3">Celebrations</h2>
-<form method="get" class="row g-2 mb-3">
-    <div class="col-sm-2">
-        <select name="Type" class="form-select form-select-sm">
-            @if (Model.Type=="birthday")
-            {
-                <option value="all">All</option>
-                <option value="birthday" selected>Birthday</option>
-                <option value="anniversary">Anniversary</option>
-            }
-            else if (Model.Type=="anniversary")
-            {
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+    <div>
+        <h1 class="h4 fw-semibold mb-1">Birthdays &amp; anniversaries</h1>
+        <p class="text-muted mb-0">Maintain the recurring celebrations shown on the institutional calendar.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-page="/Calendar/Index" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Calendar
+        </a>
+        @if (Model.CanEdit)
+        {
+            <a asp-page="Edit" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>@Model.AddButtonLabel
+            </a>
+        }
+    </div>
+</div>
+
+
+<form method="get" class="card card-body border-0 shadow-sm mb-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-sm-3 col-lg-2">
+            <label class="form-label small text-muted" for="celebrationTypeFilter">Type</label>
+            <select id="celebrationTypeFilter" asp-for="Type" class="form-select form-select-sm">
                 <option value="all">All</option>
                 <option value="birthday">Birthday</option>
-                <option value="anniversary" selected>Anniversary</option>
+                <option value="anniversary">Anniversary</option>
+            </select>
+        </div>
+        <div class="col-sm-3 col-lg-2">
+            <label class="form-label small text-muted" for="celebrationWindowFilter">Window</label>
+            <select id="celebrationWindowFilter" asp-for="Window" class="form-select form-select-sm">
+                <option value="all">All</option>
+                <option value="today">Today</option>
+                <option value="7">Next 7 days</option>
+                <option value="15">Next 15 days</option>
+                <option value="30">Next 30 days</option>
+            </select>
+        </div>
+        <div class="col-sm-4 col-lg-5">
+            <label class="form-label small text-muted" for="celebrationSearch">Search</label>
+            <input id="celebrationSearch"
+                   type="search"
+                   asp-for="Q"
+                   class="form-control form-control-sm"
+                   placeholder="Search by name" />
+        </div>
+        <div class="col-sm-2 col-lg-1">
+            <button type="submit" class="btn btn-sm btn-outline-primary w-100">Filter</button>
+        </div>
+        <div class="col-lg-2 text-lg-end">
+            <a asp-page="Index" class="btn btn-sm btn-link text-decoration-none">Clear</a>
+        </div>
+    </div>
+</form>
+
+<div class="card border-0 shadow-sm overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Next occurrence</th>
+                    <th scope="col" class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (Model.Items.Length == 0)
+            {
+                <tr>
+                    <td colspan="4" class="text-center text-muted py-5">No matching birthdays or anniversaries.</td>
+                </tr>
             }
             else
             {
-                <option value="all" selected>All</option>
-                <option value="birthday">Birthday</option>
-                <option value="anniversary">Anniversary</option>
-            }
-        </select>
-    </div>
-    <div class="col-sm-2">
-        <select name="Window" class="form-select form-select-sm">
-            @switch(Model.Window)
-            {
-                case "today":
-                    <text>
-                    <option value="all">All</option>
-                    <option value="today" selected>Today</option>
-                    <option value="7">7 days</option>
-                    <option value="15">15 days</option>
-                    <option value="30">30 days</option>
-                    </text>; break;
-                case "7":
-                    <text>
-                    <option value="all">All</option>
-                    <option value="today">Today</option>
-                    <option value="7" selected>7 days</option>
-                    <option value="15">15 days</option>
-                    <option value="30">30 days</option>
-                    </text>; break;
-                case "15":
-                    <text>
-                    <option value="all">All</option>
-                    <option value="today">Today</option>
-                    <option value="7">7 days</option>
-                    <option value="15" selected>15 days</option>
-                    <option value="30">30 days</option>
-                    </text>; break;
-                case "30":
-                    <text>
-                    <option value="all">All</option>
-                    <option value="today">Today</option>
-                    <option value="7">7 days</option>
-                    <option value="15">15 days</option>
-                    <option value="30" selected>30 days</option>
-                    </text>; break;
-                default:
-                    <text>
-                    <option value="all" selected>All</option>
-                    <option value="today">Today</option>
-                    <option value="7">7 days</option>
-                    <option value="15">15 days</option>
-                    <option value="30">30 days</option>
-                    </text>; break;
-            }
-        </select>
-    </div>
-    <div class="col-sm-4">
-        <input type="text" name="Q" value="@Model.Q" class="form-control form-control-sm" placeholder="Search name" />
-    </div>
-    <div class="col-sm-2">
-        <button type="submit" class="btn btn-sm btn-primary w-100">Filter</button>
-    </div>
-    @if (Model.CanEdit)
-    {
-        <div class="col-sm-2 text-end">
-            <a asp-page="Edit" class="btn btn-sm btn-success w-100">Add new</a>
-        </div>
-    }
-</form>
-
-<table class="table table-sm">
-    <thead>
-        <tr>
-            <th>Name</th>
-            <th>Type</th>
-            <th>Next</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-    @foreach (var r in Model.Items)
-    {
-        <tr>
-            <td>@r.Name</td>
-            <td>@r.EventType</td>
-            <td>@r.NextOccurrence.ToString("dd MMM yyyy") (@(r.DaysAway==0?"today":$"{r.DaysAway}d"))</td>
-            <td class="text-end">
-                @if (Model.CanEdit)
+                @foreach (var row in Model.Items)
                 {
-                    <a asp-page="Edit" asp-route-id="@r.Id" class="btn btn-sm btn-link">Edit</a>
-                    <form method="post" asp-page-handler="Delete" asp-route-id="@r.Id" class="d-inline">
-                        @Html.AntiForgeryToken()
-                        <button type="submit" class="btn btn-sm btn-link text-danger">Delete</button>
-                    </form>
+                    <tr>
+                        <td class="fw-medium">@row.Name</td>
+                        <td>
+                            <span class="badge rounded-pill @(row.EventType == ProjectManagement.Models.CelebrationType.Birthday ? "text-bg-primary" : "text-bg-warning")">
+                                @row.EventType
+                            </span>
+                        </td>
+                        <td>
+                            @row.NextOccurrence.ToString("dd MMM yyyy")
+                            <span class="text-muted small ms-1">
+                                @(row.DaysAway == 0 ? "Today" : $"in {row.DaysAway} days")
+                            </span>
+                        </td>
+                        <td class="text-end text-nowrap">
+                            @if (Model.CanManage(row.EventType))
+                            {
+                                <a asp-page="Edit"
+                                   asp-route-id="@row.Id"
+                                   class="btn btn-sm btn-link text-decoration-none">Edit</a>
+                                <form method="post"
+                                      asp-page-handler="Delete"
+                                      asp-route-id="@row.Id"
+                                      class="d-inline"
+                                      onsubmit="return confirm('Delete this entry?');">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="Type" value="@Model.Type" />
+                                    <input type="hidden" name="Window" value="@Model.Window" />
+                                    <input type="hidden" name="Q" value="@Model.Q" />
+                                    <button type="submit" class="btn btn-sm btn-link text-danger text-decoration-none">Delete</button>
+                                </form>
+                            }
+                            else
+                            {
+                                <span class="text-muted small">View only</span>
+                            }
+                        </td>
+                    </tr>
                 }
-            </td>
-        </tr>
-    }
-    </tbody>
-</table>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

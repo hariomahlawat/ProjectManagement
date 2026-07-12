@@ -53,12 +53,12 @@ public sealed class ViewPhotoModel : PageModel
         var headers = Response.GetTypedHeaders();
         headers.CacheControl = new CacheControlHeaderValue
         {
-            Public = true,
+            Private = true,
             MaxAge = TimeSpan.FromDays(7)
         };
         headers.LastModified = asset.LastModifiedUtc.UtcDateTime;
 
-        var etag = new EntityTagHeaderValue($"\"social-media-photo-{id}-{photoId}-{normalizedSize}\"");
+        var etag = new EntityTagHeaderValue($"\"social-media-photo-{id}-{photoId}-{normalizedSize}-{asset.LastModifiedUtc.UtcDateTime.Ticks}\"");
         headers.ETag = etag;
 
         var ifNoneMatch = Request.GetTypedHeaders().IfNoneMatch;

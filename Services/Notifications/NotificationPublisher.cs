@@ -1,19 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Text.RegularExpressions;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Notifications;
-using ProjectManagement.Services;
 
 namespace ProjectManagement.Services.Notifications;
 
-public sealed class NotificationPublisher : INotificationPublisher
+public sealed class NotificationPublisher : INotificationPublisher, INotificationOutboxWriter
 {
     private const int ModuleMaxLength = 64;
     private const int EventTypeMaxLength = 128;
@@ -25,7 +26,10 @@ public sealed class NotificationPublisher : INotificationPublisher
     private const int FingerprintMaxLength = 128;
     private const int ActorUserIdMaxLength = 450;
 
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
@@ -78,55 +82,91 @@ public sealed class NotificationPublisher : INotificationPublisher
         string? fingerprint,
         CancellationToken cancellationToken = default)
     {
-        if (recipientUserIds is null)
+        var queued = await QueueAsync(
+            kind,
+            recipientUserIds,
+            payload,
+            module,
+            eventType,
+            scopeType,
+            scopeId,
+            projectId,
+            actorUserId,
+            route,
+            title,
+            summary,
+            fingerprint,
+            cancellationToken);
+
+        if (queued == 0)
         {
-            throw new ArgumentNullException(nameof(recipientUserIds));
+            return;
         }
 
-        if (payload is null)
-        {
-            throw new ArgumentNullException(nameof(payload));
-        }
+        await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation(
+            "Queued notification {Kind} for {RecipientCount} recipients.",
+            kind,
+            queued);
+    }
+
+    public async Task<int> QueueAsync(
+        NotificationKind kind,
+        IReadOnlyCollection<string> recipientUserIds,
+        object payload,
+        string? module,
+        string? eventType,
+        string? scopeType,
+        string? scopeId,
+        int? projectId,
+        string? actorUserId,
+        string? route,
+        string? title,
+        string? summary,
+        string? fingerprint,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(recipientUserIds);
+        ArgumentNullException.ThrowIfNull(payload);
 
         var recipients = recipientUserIds
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .Select(id => id.Trim())
-            .Where(id => id.Length > 0)
+            .Where(id => id.Length <= ActorUserIdMaxLength)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         if (recipients.Length == 0)
         {
-            _logger.LogInformation("No recipients supplied for notification kind {Kind}.", kind);
-            return;
+            _logger.LogInformation("No valid recipients supplied for notification kind {Kind}.", kind);
+            return 0;
         }
 
-        var normalizedModule = NormalizeMetadata(module, ModuleMaxLength, nameof(module));
-        var normalizedEventType = NormalizeMetadata(eventType, EventTypeMaxLength, nameof(eventType));
-        var normalizedScopeType = NormalizeMetadata(scopeType, ScopeTypeMaxLength, nameof(scopeType));
-        var normalizedScopeId = NormalizeMetadata(scopeId, ScopeIdMaxLength, nameof(scopeId));
-        var normalizedActorUserId = NormalizeMetadata(actorUserId, ActorUserIdMaxLength, nameof(actorUserId));
-        var normalizedRoute = NormalizeRouteSegments(
-            NormalizeMetadata(route, RouteMaxLength, nameof(route)));
-        var normalizedTitle = NormalizeMetadata(title, TitleMaxLength, nameof(title));
-        var normalizedSummary = NormalizeMetadata(summary, SummaryMaxLength, nameof(summary));
-        var normalizedFingerprint = NormalizeMetadata(fingerprint, FingerprintMaxLength, nameof(fingerprint));
-
-        int? validatedProjectId = projectId;
-        if (validatedProjectId.HasValue && validatedProjectId.Value <= 0)
+        if (projectId is <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(projectId), "Project identifier must be a positive number.");
         }
 
-        var timestamp = _clock.UtcNow.UtcDateTime;
+        var normalizedModule = NormalizeText(module, ModuleMaxLength, appendEllipsis: false);
+        var normalizedEventType = NormalizeText(eventType, EventTypeMaxLength, appendEllipsis: false);
+        var normalizedScopeType = NormalizeText(scopeType, ScopeTypeMaxLength, appendEllipsis: false);
+        var normalizedScopeId = NormalizeText(scopeId, ScopeIdMaxLength, appendEllipsis: false);
+        var normalizedActorUserId = NormalizeText(actorUserId, ActorUserIdMaxLength, appendEllipsis: false);
+        var normalizedRoute = NormalizeRouteSegments(route);
+        var normalizedTitle = NormalizeText(title, TitleMaxLength, appendEllipsis: true);
+        var normalizedSummary = NormalizeText(summary, SummaryMaxLength, appendEllipsis: true);
+        var normalizedFingerprint = NormalizeFingerprint(fingerprint);
+        var occurredUtc = _clock.UtcNow.UtcDateTime;
 
         var envelope = new NotificationEnvelopeV1(
             Version: "v1",
+            Kind: kind.ToString(),
+            OccurredUtc: occurredUtc,
             Module: normalizedModule,
             EventType: normalizedEventType,
             ScopeType: normalizedScopeType,
             ScopeId: normalizedScopeId,
-            ProjectId: validatedProjectId,
+            ProjectId: projectId,
             ActorUserId: normalizedActorUserId,
             Route: normalizedRoute,
             Title: normalizedTitle,
@@ -135,7 +175,6 @@ public sealed class NotificationPublisher : INotificationPublisher
             Payload: payload);
 
         var payloadJson = JsonSerializer.Serialize(envelope, SerializerOptions);
-
         var dispatches = recipients.Select(userId => new NotificationDispatch
         {
             RecipientUserId = userId,
@@ -144,70 +183,97 @@ public sealed class NotificationPublisher : INotificationPublisher
             EventType = normalizedEventType,
             ScopeType = normalizedScopeType,
             ScopeId = normalizedScopeId,
-            ProjectId = validatedProjectId,
+            ProjectId = projectId,
             ActorUserId = normalizedActorUserId,
             Route = normalizedRoute,
             Title = normalizedTitle,
             Summary = normalizedSummary,
             Fingerprint = normalizedFingerprint,
             PayloadJson = payloadJson,
-            CreatedUtc = timestamp,
-            AttemptCount = 0
+            CreatedUtc = occurredUtc,
+            AttemptCount = 0,
         }).ToArray();
 
         await _db.NotificationDispatches.AddRangeAsync(dispatches, cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        _logger.LogInformation(
-            "Queued notification {Kind} for {RecipientCount} recipients.",
-            kind,
-            dispatches.Length);
+        return dispatches.Length;
     }
 
     internal static string? NormalizeRouteSegments(string? route)
     {
-        if (route is null)
+        if (string.IsNullOrWhiteSpace(route))
         {
             return null;
         }
 
-        // SECTION: Project route normalization
-        var normalized = Regex.Replace(route, "/projects(?<id>\\d+)(?=/)", "/projects/${id}");
+        var trimmed = route.Trim();
+        if (trimmed.Length > RouteMaxLength
+            || !trimmed.StartsWith("/", StringComparison.Ordinal)
+            || trimmed.StartsWith("//", StringComparison.Ordinal)
+            || trimmed.Contains('\\')
+            || trimmed.Any(char.IsControl))
+        {
+            return null;
+        }
+
+        // SECTION: Backward-compatible project route normalization.
+        var normalized = Regex.Replace(
+            trimmed,
+            "/projects(?<id>\\d+)(?=/)",
+            "/projects/${id}",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         normalized = Regex.Replace(
             normalized,
             "/projects/(?<id>\\d+)/overview(?<rest>(?:[/?#].*)?)",
-            m => $"/projects/overview/{m.Groups["id"].Value}{m.Groups["rest"].Value}");
+            match => $"/projects/overview/{match.Groups["id"].Value}{match.Groups["rest"].Value}",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
         return normalized;
     }
 
-    private static string? NormalizeMetadata(string? value, int maxLength, string parameterName)
+    private static string? NormalizeText(string? value, int maxLength, bool appendEllipsis)
     {
-        if (value is null)
+        if (string.IsNullOrWhiteSpace(value))
         {
             return null;
         }
 
-        var trimmed = value.Trim();
+        var normalized = Regex.Replace(value.Trim(), "\\s+", " ");
+        if (normalized.Length <= maxLength)
+        {
+            return normalized;
+        }
 
-        if (trimmed.Length == 0)
+        if (!appendEllipsis || maxLength < 2)
+        {
+            return normalized[..maxLength];
+        }
+
+        return normalized[..(maxLength - 1)] + "…";
+    }
+
+    private static string? NormalizeFingerprint(string? fingerprint)
+    {
+        if (string.IsNullOrWhiteSpace(fingerprint))
         {
             return null;
         }
 
-        if (trimmed.Length > maxLength)
+        var normalized = fingerprint.Trim();
+        if (normalized.Length <= FingerprintMaxLength)
         {
-            throw new ArgumentException(
-                $"The value for {parameterName} exceeds the maximum length of {maxLength}.",
-                parameterName);
+            return normalized;
         }
 
-        return trimmed;
+        var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalized)))
+            .ToLowerInvariant();
+        return $"sha256:{digest}";
     }
 
     private sealed record NotificationEnvelopeV1(
         string Version,
+        string Kind,
+        DateTime OccurredUtc,
         string? Module,
         string? EventType,
         string? ScopeType,

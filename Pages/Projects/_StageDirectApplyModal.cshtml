@@ -10,7 +10,7 @@
         <div class="modal-content">
             <form method="post" data-direct-apply-form novalidate>
                 <div class="modal-header">
-                    <h5 class="modal-title" id="stageDirectApplyLabel">Update stage</h5>
+                    <h5 class="modal-title" id="stageDirectApplyLabel" data-direct-apply-title>Update stage</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -27,6 +27,18 @@
                     </div>
 
                     <div class="alert alert-danger d-none" role="alert" data-direct-apply-errors></div>
+
+                    <div class="alert alert-info d-none" role="status" data-direct-apply-completion-note>
+                        This stage will be completed without a separate start action. Review or edit the prefilled start date before saving.
+                    </div>
+
+                    <div class="mb-3 d-none" data-direct-apply-start-group>
+                        <label class="form-label" for="directApplyStartDate">Start date <span class="text-muted">(optional)</span></label>
+                        <input type="date" class="form-control" id="directApplyStartDate" name="startDate" />
+                        <div class="form-text" data-direct-apply-start-hint>
+                            Enter the actual start date. Where available, the day after the effective predecessor's completion is suggested.
+                        </div>
+                    </div>
 
                     <div class="mb-3">
                         <label class="form-label" for="directApplyDate" data-direct-apply-date-label>Effective date</label>

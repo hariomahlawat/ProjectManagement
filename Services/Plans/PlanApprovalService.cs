@@ -102,20 +102,7 @@ public class PlanApprovalService
         bool isHoD,
         CancellationToken cancellationToken = default)
     {
-        // SECTION: Authorization guard
-        if (!ApprovalAuthorization.CanApproveProjectChanges(isAdmin, isHoD))
-        {
-            _logger.LogWarning(
-                "Plan approval forbidden. ProjectId={ProjectId}, UserId={UserId}",
-                projectId,
-                hodUserId);
-            throw new ForbiddenException("Only Admin or HoD users can approve plan drafts.");
-        }
-
-        if (string.IsNullOrWhiteSpace(hodUserId))
-        {
-            throw new ArgumentException("A valid approver identifier is required.", nameof(hodUserId));
-        }
+        EnsureCanDecide(hodUserId, isAdmin, isHoD, "approve");
 
         var plan = await _db.PlanVersions
             .Include(p => p.StagePlans)
@@ -125,7 +112,38 @@ public class PlanApprovalService
             .ThenByDescending(p => p.VersionNo)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (plan == null)
+        return await ApproveLoadedPlanAsync(plan, hodUserId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Approves the exact plan version reviewed by the decision maker. This prevents
+    /// a newer submission from being approved through an older browser tab.
+    /// </summary>
+    public async Task<bool> ApproveVersionAsync(
+        int planVersionId,
+        string hodUserId,
+        bool isAdmin,
+        bool isHoD,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureCanDecide(hodUserId, isAdmin, isHoD, "approve");
+
+        var plan = await _db.PlanVersions
+            .Include(p => p.StagePlans)
+            .Include(p => p.Project)
+            .SingleOrDefaultAsync(
+                p => p.Id == planVersionId && p.Status == PlanVersionStatus.PendingApproval,
+                cancellationToken);
+
+        return await ApproveLoadedPlanAsync(plan, hodUserId, cancellationToken);
+    }
+
+    private async Task<bool> ApproveLoadedPlanAsync(
+        PlanVersion? plan,
+        string hodUserId,
+        CancellationToken cancellationToken)
+    {
+        if (plan is null)
         {
             return false;
         }
@@ -134,21 +152,32 @@ public class PlanApprovalService
         {
             _logger.LogWarning(
                 "Plan approval forbidden for self-approval. ProjectId={ProjectId}, UserId={UserId}",
-                projectId,
+                plan.ProjectId,
                 hodUserId);
             throw new ForbiddenException("You cannot approve your own plan submission.");
         }
 
-        var project = await _db.Projects
-            .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
+        var project = plan.Project
+            ?? await _db.Projects
+                .FirstOrDefaultAsync(p => p.Id == plan.ProjectId, cancellationToken)
             ?? throw new InvalidOperationException("Project not found.");
 
         var now = _clock.UtcNow;
 
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
+        var workflowVersion = project.WorkflowVersion ?? PlanConstants.StageTemplateVersionV1;
+        var workflowOrder = await _db.StageTemplates
+            .AsNoTracking()
+            .Where(template => template.Version == workflowVersion)
+            .ToDictionaryAsync(
+                template => template.Code,
+                template => template.Sequence,
+                StringComparer.OrdinalIgnoreCase,
+                cancellationToken);
+
         var currentStages = await _db.ProjectStages
-            .Where(ps => ps.ProjectId == projectId)
+            .Where(ps => ps.ProjectId == plan.ProjectId)
             .ToListAsync(cancellationToken);
 
         var stageLookup = currentStages
@@ -162,9 +191,9 @@ public class PlanApprovalService
             {
                 stage = new ProjectStage
                 {
-                    ProjectId = projectId,
+                    ProjectId = plan.ProjectId,
                     StageCode = code,
-                    SortOrder = ResolveSortOrder(code),
+                    SortOrder = workflowOrder.TryGetValue(code, out var order) ? order : int.MaxValue,
                     Status = StageStatus.NotStarted
                 };
                 _db.ProjectStages.Add(stage);
@@ -177,7 +206,7 @@ public class PlanApprovalService
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        await _snapshots.CreateSnapshotAsync(projectId, hodUserId, cancellationToken);
+        await _snapshots.CreateSnapshotAsync(plan.ProjectId, hodUserId, cancellationToken);
 
         project.ActivePlanVersionNo = plan.VersionNo;
         project.PlanApprovedAt = now;
@@ -193,17 +222,14 @@ public class PlanApprovalService
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} approved by {UserId}.", plan.Id, projectId, hodUserId);
+        _logger.LogInformation(
+            "Plan version {PlanVersionId} for project {ProjectId} approved by {UserId}.",
+            plan.Id,
+            plan.ProjectId,
+            hodUserId);
 
-        if (plan.Project is null)
-        {
-            plan.Project = project;
-        }
-
-        if (plan.Project is not null)
-        {
-            await _notifications.NotifyPlanApprovedAsync(plan, plan.Project, hodUserId, cancellationToken);
-        }
+        plan.Project ??= project;
+        await _notifications.NotifyPlanApprovedAsync(plan, project, hodUserId, cancellationToken);
         return true;
     }
 
@@ -221,6 +247,23 @@ public class PlanApprovalService
         }
     }
 
+    private void EnsureCanDecide(string hodUserId, bool isAdmin, bool isHoD, string action)
+    {
+        if (!ApprovalAuthorization.CanApproveProjectChanges(isAdmin, isHoD))
+        {
+            _logger.LogWarning(
+                "Plan {Action} forbidden. UserId={UserId}",
+                action,
+                hodUserId);
+            throw new ForbiddenException($"Only Admin or HoD users can {action} plan drafts.");
+        }
+
+        if (string.IsNullOrWhiteSpace(hodUserId))
+        {
+            throw new ArgumentException("A valid approver identifier is required.", nameof(hodUserId));
+        }
+    }
+
     public async Task<List<string>> GetValidationErrorsAsync(int planVersionId, CancellationToken cancellationToken = default)
     {
         var plan = await _db.PlanVersions
@@ -235,12 +278,6 @@ public class PlanApprovalService
         return await ValidateStagePlansAsync(plan, cancellationToken);
     }
 
-    private static int ResolveSortOrder(string code)
-    {
-        var index = Array.IndexOf(StageCodes.All, code);
-        return index >= 0 ? index : int.MaxValue;
-    }
-
     public async Task<bool> RejectLatestPendingAsync(
         int projectId,
         string hodUserId,
@@ -249,20 +286,7 @@ public class PlanApprovalService
         string? reason,
         CancellationToken cancellationToken = default)
     {
-        // SECTION: Authorization guard
-        if (!ApprovalAuthorization.CanApproveProjectChanges(isAdmin, isHoD))
-        {
-            _logger.LogWarning(
-                "Plan rejection forbidden. ProjectId={ProjectId}, UserId={UserId}",
-                projectId,
-                hodUserId);
-            throw new ForbiddenException("Only Admin or HoD users can reject plan drafts.");
-        }
-
-        if (string.IsNullOrWhiteSpace(hodUserId))
-        {
-            throw new ArgumentException("A valid approver identifier is required.", nameof(hodUserId));
-        }
+        EnsureCanDecide(hodUserId, isAdmin, isHoD, "reject");
 
         var plan = await _db.PlanVersions
             .Include(p => p.ApprovalLogs)
@@ -272,7 +296,39 @@ public class PlanApprovalService
             .ThenByDescending(p => p.VersionNo)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (plan == null)
+        return await RejectLoadedPlanAsync(plan, hodUserId, reason, cancellationToken);
+    }
+
+    /// <summary>
+    /// Rejects the exact pending plan version reviewed by the decision maker.
+    /// </summary>
+    public async Task<bool> RejectVersionAsync(
+        int planVersionId,
+        string hodUserId,
+        bool isAdmin,
+        bool isHoD,
+        string? reason,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureCanDecide(hodUserId, isAdmin, isHoD, "reject");
+
+        var plan = await _db.PlanVersions
+            .Include(p => p.ApprovalLogs)
+            .Include(p => p.Project)
+            .SingleOrDefaultAsync(
+                p => p.Id == planVersionId && p.Status == PlanVersionStatus.PendingApproval,
+                cancellationToken);
+
+        return await RejectLoadedPlanAsync(plan, hodUserId, reason, cancellationToken);
+    }
+
+    private async Task<bool> RejectLoadedPlanAsync(
+        PlanVersion? plan,
+        string hodUserId,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        if (plan is null)
         {
             return false;
         }
@@ -299,7 +355,11 @@ public class PlanApprovalService
         });
 
         await _db.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} was rejected by {UserId}.", plan.Id, projectId, hodUserId);
+        _logger.LogInformation(
+            "Plan version {PlanVersionId} for project {ProjectId} was rejected by {UserId}.",
+            plan.Id,
+            plan.ProjectId,
+            hodUserId);
 
         if (plan.Project is not null)
         {

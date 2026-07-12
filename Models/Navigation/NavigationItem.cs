@@ -30,4 +30,11 @@ public record class NavigationItem
     public string? Icon { get; init; }
 
     public string? Accent { get; init; }
+
+    /// <summary>
+    /// Renders the item as a module-level command instead of a navigation tab.
+    /// Use this for actions such as creating a new project so navigation and
+    /// commands remain visually and semantically distinct.
+    /// </summary>
+    public bool IsAction { get; init; }
 }

@@ -1226,7 +1226,8 @@ namespace ProjectManagement.Pages.Projects
                 .Select(g => new
                 {
                     Internal = g.Sum(r => r.Type == RemarkType.Internal ? 1 : 0),
-                    External = g.Sum(r => r.Type == RemarkType.External ? 1 : 0)
+                    External = g.Sum(r => r.Type == RemarkType.External ? 1 : 0),
+                    Conference = g.Sum(r => r.Type == RemarkType.Conference ? 1 : 0)
                 })
                 .SingleOrDefaultAsync(ct);
 
@@ -1259,6 +1260,7 @@ namespace ProjectManagement.Pages.Projects
             {
                 InternalCount = remarkCounts?.Internal ?? 0,
                 ExternalCount = remarkCounts?.External ?? 0,
+                ConferenceCount = remarkCounts?.Conference ?? 0,
                 LastRemarkId = lastRemark?.Id,
                 LastRemarkType = lastRemark?.Type,
                 LastRemarkActorRole = lastRemark?.AuthorRole,

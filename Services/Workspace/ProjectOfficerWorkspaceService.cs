@@ -6,6 +6,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.DocRepo;
@@ -22,10 +23,7 @@ public sealed class ProjectOfficerWorkspaceService
     private readonly ActionTaskMyWorkQueueBuilder _myWorkQueueBuilder;
     private readonly IActionTrackerClock _clock;
     private readonly IAotsUnreadService _aotsUnreadService;
-
-    private sealed record WorkspaceActionQueueBuildResult(
-        IReadOnlyList<WorkspaceActionQueueItemVm> Items,
-        int TotalCount);
+    private readonly IOfficerWorkloadReadService _officerWorkloadReadService;
 
     public ProjectOfficerWorkspaceService(
         ApplicationDbContext db,
@@ -34,7 +32,8 @@ public sealed class ProjectOfficerWorkspaceService
         WorkspaceNudgeService nudges,
         ActionTaskMyWorkQueueBuilder myWorkQueueBuilder,
         IActionTrackerClock clock,
-        IAotsUnreadService aotsUnreadService)
+        IAotsUnreadService aotsUnreadService,
+        IOfficerWorkloadReadService officerWorkloadReadService)
     {
         _db = db;
         _users = users;
@@ -43,6 +42,7 @@ public sealed class ProjectOfficerWorkspaceService
         _myWorkQueueBuilder = myWorkQueueBuilder;
         _clock = clock;
         _aotsUnreadService = aotsUnreadService;
+        _officerWorkloadReadService = officerWorkloadReadService;
     }
 
     // SECTION: Workspace composition
@@ -68,7 +68,21 @@ public sealed class ProjectOfficerWorkspaceService
         var tasks = await LoadOtherAssignedTasksAsync(userId, today, ct);
         var ideaVms = await LoadProjectIdeasAsync(userId, today, ct);
         var reminders = await LoadPersonalRemindersAsync(userId, ct);
+        var commandWorkloadCard = await _officerWorkloadReadService.GetOfficerAsync(userId, ct);
+        var upcomingEvents = await WorkspaceUpcomingEventQuery.LoadAsync(
+            _db,
+            userId,
+            _clock.UtcNow,
+            ct);
         var health = await _health.CalculateForProjectsAsync(projects, userId, ct);
+        var allMatrixRows = projects
+            .Select(project => BuildMatrixRow(project, health[project.Id], userId, today))
+            .OrderBy(ProjectAttentionRank)
+            .ThenByDescending(row => row.RecordGapCount)
+            .ThenByDescending(row => row.DaysInCurrentStage ?? 0)
+            .ThenBy(row => row.ProjectName)
+            .ToList();
+        var matrix = allMatrixRows.Take(8).ToList();
 
         var remarksDue = _nudges.BuildRemarksDue(projects, userId, today).ToList();
         var returnedItems = await BuildReturnedItemsAsync(userId, ct);
@@ -86,13 +100,14 @@ public sealed class ProjectOfficerWorkspaceService
         var aotsUnreadCount = await _aotsUnreadService.GetUnreadCountAsync(userId, ct);
         var aotsDocuments = await LoadUnreadAotsDocumentsAsync(userId, ct);
         var timelineAlerts = _nudges.BuildTimelineAlerts(projects, today).ToList();
-        var actionQueueResult = BuildActionQueue(
+        var actionQueueResult = WorkspaceActionQueueBuilder.Build(
             returnedItems,
             officialTasksDue,
             remarksDue,
             ideasNeedingUpdate,
             aotsDocuments,
-            aotsUnreadCount);
+            aotsUnreadCount,
+            allMatrixRows);
         var actionQueue = actionQueueResult.Items;
         var dailyActionCount = actionQueueResult.TotalCount;
 
@@ -120,14 +135,6 @@ public sealed class ProjectOfficerWorkspaceService
             .ToListAsync(ct);
         var myWorkQueue = _myWorkQueueBuilder.Build(taskRows, activeSprint: null);
         var waitingOnOthers = await BuildWaitingOnOthersAsync(userId, myWorkQueue.SubmittedAwaitingClosureTasks, ct);
-        var matrix = projects
-            .Select(p => BuildMatrixRow(p, health[p.Id], userId, today))
-            .OrderBy(ProjectAttentionRank)
-            .ThenByDescending(row => row.RecordGapCount)
-            .ThenByDescending(row => row.DaysInCurrentStage ?? 0)
-            .ThenBy(row => row.ProjectName)
-            .Take(8)
-            .ToList();
         var engagement = await BuildEngagementAsync(userId, user, monthStartUtc, ct);
         var avgHealth = health.Count == 0 ? 0 : (int)Math.Round(health.Values.Average(h => h.HealthPercent));
         var improveProjectsResult = BuildImproveProjects(health.Values, maxProjects: 3);
@@ -150,6 +157,8 @@ public sealed class ProjectOfficerWorkspaceService
             AotsUnreadCount = aotsUnreadCount,
             AotsUrl = WorkspaceRouteHelper.AotsInbox(),
             RecordGapCount = health.Values.Sum(h => h.GapDetails.Count),
+            ProjectsNeedingAttentionCount = allMatrixRows.Count(RequiresProjectAttention),
+            ProjectTimelineIssueCount = allMatrixRows.Count(HasProjectTimelineIssue),
             AssignedIdeaCount = ideaVms.Count,
             Engagement = engagement,
             CommandChips = BuildCommandChips(
@@ -160,6 +169,7 @@ public sealed class ProjectOfficerWorkspaceService
             DataCompletenessInsight = BuildDataCompletenessInsight(projects.Count, health),
             PendingWithMe = pending.Take(5).ToList(),
             ActionQueue = actionQueue,
+            ActionQueueGroups = actionQueueResult.Groups,
             ActionQueueTotalCount = actionQueueResult.TotalCount,
             RemarksDue = remarksDue.Take(5).ToList(),
             OfficialTasksDue = officialTasksDue,
@@ -175,14 +185,20 @@ public sealed class ProjectOfficerWorkspaceService
                 .ThenByDescending(i => i.LastActivityAtUtc)
                 .Take(4)
                 .ToList(),
-            RecordHealth = health.Values.OrderBy(h => h.HealthPercent).Take(5).ToList(),
+            RecordHealth = health.Values
+                .OrderBy(h => h.HealthPercent)
+                .ThenBy(h => h.ProjectName)
+                .ToList(),
             ImproveScoreItems = BuildImproveScoreItems(health.Values, maxItems: 4),
             ImproveProjects = improveProjectsResult.Items,
             ImproveProjectsTotalCount = improveProjectsResult.TotalCount,
             NextBestAction = BuildNextBestAction(actionQueue, timelineAlerts),
             PersonalReminders = reminders,
+            CommandWorkloadCard = commandWorkloadCard,
+            UpcomingEvents = upcomingEvents,
             QuickActions = BuildQuickActions(userId),
-            MyProjectsUrl = myProjectsUrl
+            MyProjectsUrl = myProjectsUrl,
+            GeneratedAtUtc = DateTime.SpecifyKind(_clock.UtcNow, DateTimeKind.Utc)
         };
 
         vm.RailItems = BuildRailItems(vm);
@@ -240,7 +256,7 @@ public sealed class ProjectOfficerWorkspaceService
             .Include(i => i.Documents)
             .Where(i =>
                 !i.IsDeleted &&
-                (i.AssignedProjectOfficerUserId == userId || i.CreatedByUserId == userId) &&
+                i.AssignedProjectOfficerUserId == userId &&
                 i.Status != ProjectIdeaStatuses.Archived)
             .OrderByDescending(i => i.UpdatedAt)
             .ToListAsync(ct);
@@ -337,101 +353,6 @@ public sealed class ProjectOfficerWorkspaceService
         return days >= 0 && days <= 3;
     }
 
-    // SECTION: Unified action queue prioritizes operational work without four competing inbox columns.
-    private static WorkspaceActionQueueBuildResult BuildActionQueue(
-        IReadOnlyList<WorkspaceAttentionItemVm> returnedItems,
-        IReadOnlyList<WorkspaceTaskVm> otherAssignedTasksDue,
-        IReadOnlyList<WorkspaceAttentionItemVm> remarksDue,
-        IReadOnlyList<WorkspaceIdeaVm> ideasNeedingUpdate,
-        IReadOnlyList<WorkspaceAotsDocumentVm> aotsDocuments,
-        int aotsUnreadTotalCount)
-    {
-        var items = new List<WorkspaceActionQueueItemVm>();
-
-        items.AddRange(returnedItems.Select(item => new WorkspaceActionQueueItemVm
-        {
-            Type = "Returned",
-            BadgeText = item.BadgeText,
-            Title = item.Title,
-            Detail = item.Detail,
-            Meta = "Returned item",
-            Severity = item.Severity,
-            ActionText = item.ActionText,
-            ActionUrl = item.ActionUrl,
-            SortDateUtc = item.DueOrEventDateUtc
-        }));
-
-        items.AddRange(otherAssignedTasksDue.Select(task => new WorkspaceActionQueueItemVm
-        {
-            Type = "Task",
-            BadgeText = task.IsOverdue ? "Overdue" : "Task",
-            Title = task.Title,
-            Detail = task.IsOverdue && task.DaysOverdue.HasValue
-                ? $"Overdue by {task.DaysOverdue.Value} days"
-                : task.DueDateUtc.HasValue ? $"Due {task.DueDateUtc.Value:dd MMM}" : "Assigned task",
-            Meta = $"{task.Priority} · {task.Status}",
-            Severity = task.IsOverdue ? "Danger" : "Warning",
-            ActionText = "Open",
-            ActionUrl = task.OpenUrl,
-            SortDateUtc = task.DueDateUtc
-        }));
-
-        items.AddRange(remarksDue.Select(item => new WorkspaceActionQueueItemVm
-        {
-            Type = "Remark",
-            BadgeText = "Remark",
-            Title = item.Title,
-            Detail = item.Detail,
-            Meta = "Project update",
-            Severity = item.Severity,
-            ActionText = "Add Remark",
-            ActionUrl = item.ActionUrl,
-            SortDateUtc = item.DueOrEventDateUtc
-        }));
-
-        items.AddRange(ideasNeedingUpdate.Select(idea => new WorkspaceActionQueueItemVm
-        {
-            Type = "Idea",
-            BadgeText = "Idea",
-            Title = idea.Title,
-            Detail = "Project idea needs update",
-            Meta = $"{idea.CommentCount} comments · {idea.DocumentCount} docs",
-            Severity = "Warning",
-            ActionText = "Open",
-            ActionUrl = idea.OpenUrl,
-            SortDateUtc = idea.LastActivityAtUtc
-        }));
-
-        items.AddRange(aotsDocuments.Select(document => new WorkspaceActionQueueItemVm
-        {
-            Type = "AOTS",
-            BadgeText = "AOTS",
-            Title = document.Subject,
-            Detail = "Unread AOTS document",
-            Meta = $"{document.Office} · {document.Category}",
-            Severity = "Warning",
-            ActionText = "Review",
-            ActionUrl = document.OpenUrl,
-            SortDateUtc = document.CreatedAtUtc
-        }));
-
-        var orderedItems = items
-            .OrderBy(GetActionQueuePriority)
-            .ThenByDescending(i => i.SortDateUtc)
-            .ToList();
-
-        var totalCount =
-            returnedItems.Count
-            + otherAssignedTasksDue.Count
-            + remarksDue.Count
-            + ideasNeedingUpdate.Count
-            + aotsUnreadTotalCount;
-
-        return new WorkspaceActionQueueBuildResult(
-            orderedItems.Take(8).ToList(),
-            totalCount);
-    }
-
     // SECTION: Next best action mirrors the daily queue, falling back to timeline follow-up only when daily actions are clear.
     private static WorkspaceAttentionItemVm? BuildNextBestAction(
         IReadOnlyList<WorkspaceActionQueueItemVm> actionQueue,
@@ -455,21 +376,6 @@ public sealed class ProjectOfficerWorkspaceService
         }
 
         return timelineAlerts.FirstOrDefault();
-    }
-
-    // SECTION: Queue priority keeps returned corrections and overdue work first.
-    private static int GetActionQueuePriority(WorkspaceActionQueueItemVm item)
-    {
-        return item.Type switch
-        {
-            "Returned" => 0,
-            "Task" when item.Severity == "Danger" => 1,
-            "Remark" => 2,
-            "Idea" => 3,
-            "AOTS" => 4,
-            "Task" => 5,
-            _ => 9
-        };
     }
 
     private static WorkspaceAttentionItemVm ToAttentionItem(WorkspaceTaskVm task) => new()
@@ -598,13 +504,27 @@ public sealed class ProjectOfficerWorkspaceService
         var overdue = _nudges.IsCurrentStageOverdue(stage, today);
         var issue = _nudges.HasCurrentStageTimelineIssue(stage);
 
+        var currentStagePdc = stage?.PlannedDue;
+        var daysUntilCurrentStagePdc = currentStagePdc.HasValue
+            ? currentStagePdc.Value.DayNumber - today.DayNumber
+            : (int?)null;
+        var daysSinceLastPoRemark = last.HasValue
+            ? Math.Max(0, today.DayNumber - WorkspaceNudgeService.ToIstDate(last.Value).DayNumber)
+            : (int?)null;
+
         return new WorkspaceProjectMatrixRowVm
         {
             ProjectId = p.Id,
             ProjectName = p.Name,
             CurrentStageCode = stage?.StageCode ?? "—",
-            CurrentStageName = stage?.StageCode ?? "Not started",
+            CurrentStageName = stage is null ? "Not started" : StageCodes.DisplayNameOf(stage.StageCode),
             DaysInCurrentStage = WorkspaceNudgeService.GetCurrentStageAgeDays(p, today),
+            CurrentStagePdc = currentStagePdc,
+            DaysUntilCurrentStagePdc = daysUntilCurrentStagePdc,
+            DaysSinceLastPoRemark = daysSinceLastPoRemark,
+            IsCurrentStageStartMissing = stage?.Status == StageStatus.InProgress && !stage.ActualStart.HasValue,
+            IsCurrentStagePdcMissing = stage?.Status == StageStatus.InProgress && !stage.PlannedDue.HasValue,
+            IsCurrentStageNotStarted = stage?.Status == StageStatus.NotStarted,
             UpdateStatus = _nudges.GetUpdateStatus(last, today),
             TimelineStatus = p.ProjectStages.Any(s => s.Status == StageStatus.Completed && !s.CompletedOn.HasValue) || overdue
                 ? "ActionRequired"
@@ -635,6 +555,14 @@ public sealed class ProjectOfficerWorkspaceService
         if (row.RecordGapCount > 0) return 3;
         return 4;
     }
+
+    private static bool HasProjectTimelineIssue(WorkspaceProjectMatrixRowVm row)
+        => row.HasOverdueCurrentStage || row.HasCurrentStageIssue || row.HasBackfill;
+
+    private static bool RequiresProjectAttention(WorkspaceProjectMatrixRowVm row)
+        => row.UpdateStatus is "ActionRequired" or "Attention"
+            || HasProjectTimelineIssue(row)
+            || row.RecordGapCount > 0;
 
     // SECTION: Pending item ordering keeps returned corrections above lower-priority nudges.
     private static int WorkspaceSeverityRank(string severity) => severity switch
@@ -1019,9 +947,8 @@ public sealed class ProjectOfficerWorkspaceService
             new() { Label = "Today", Icon = "bi-calendar-check", Anchor = "#today", Count = vm.DailyActionCount, IsPrimary = true },
             new() { Label = "Action Queue", Icon = "bi-list-check", Anchor = "#action-queue", Count = vm.ActionQueueTotalCount },
             new() { Label = "Assigned Projects", Icon = "bi-kanban", Anchor = "#assigned-projects", Count = vm.AssignedProjectCount },
-            new() { Label = "Record Gaps", Icon = "bi-folder-x", Anchor = "#record-gaps", Count = vm.RecordGapCount },
-            new() { Label = "My Ideas", Icon = "bi-lightbulb", Anchor = "#my-ideas-reminders", Count = vm.AssignedIdeaCount },
-            new() { Label = "Reminders", Icon = "bi-bell", Anchor = "#reminders", Count = vm.PersonalReminders.Count }
+            new() { Label = "Follow-ups", Icon = "bi-bell", Anchor = "#follow-ups", Count = vm.PersonalReminders.Count + vm.AssignedIdeaCount },
+            new() { Label = "Upcoming", Icon = "bi-calendar-event", Anchor = "#upcoming-events", Count = vm.UpcomingEvents.Count }
         };
     }
 }

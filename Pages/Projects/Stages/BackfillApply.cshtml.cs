@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Services.Stages;
@@ -86,8 +87,9 @@ public class BackfillApplyModel : PageModel
             return ValidationFailure(new[] { "At least one stage update must be provided." });
         }
 
-        var userId = User?.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? User?.Identity?.Name
+        var principal = User;
+        var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? principal.Identity?.Name
             ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(userId))
@@ -95,7 +97,7 @@ public class BackfillApplyModel : PageModel
             return Forbid();
         }
 
-        var isAdminOrHod = User.IsInRole(RoleNames.Admin) || User.IsInRole(RoleNames.HoD);
+        var isAdminOrHod = principal.IsInRole(RoleNames.Admin) || principal.IsInRole(RoleNames.HoD);
         if (!isAdminOrHod)
         {
             var isAssignedProjectOfficer = await _db.Projects
@@ -154,6 +156,37 @@ public class BackfillApplyModel : PageModel
                 error = "not-found"
             });
         }
+        catch (DbUpdateException ex)
+        {
+            var postgres = FindPostgresException(ex);
+            _logger.LogError(
+                ex,
+                "Database rejected stage backfill for project {ProjectId}. SqlState={SqlState}; Constraint={Constraint}; Table={Table}.",
+                input.ProjectId,
+                postgres?.SqlState,
+                postgres?.ConstraintName,
+                postgres?.TableName);
+
+            if (string.Equals(
+                    postgres?.ConstraintName,
+                    "CK_ProjectStages_CompletedHasDate",
+                    StringComparison.Ordinal))
+            {
+                return StatusCode(StatusCodes.Status409Conflict, new
+                {
+                    ok = false,
+                    error = "database-rule-conflict",
+                    message = "The stage dates could not be saved because the project-stage database upgrade did not complete. Restart the application and contact the administrator if the problem persists."
+                });
+            }
+
+            return StatusCode(StatusCodes.Status500InternalServerError, new
+            {
+                ok = false,
+                error = "database-error",
+                message = "The stage dates could not be saved. No changes were committed."
+            });
+        }
         catch (OperationCanceledException)
         {
             throw;
@@ -167,6 +200,19 @@ public class BackfillApplyModel : PageModel
                 error = "server-error"
             });
         }
+    }
+
+    private static PostgresException? FindPostgresException(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is PostgresException postgres)
+            {
+                return postgres;
+            }
+        }
+
+        return null;
     }
 
     private static UnprocessableEntityObjectResult ValidationFailure(IEnumerable<string> details)

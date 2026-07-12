@@ -1,0 +1,465 @@
+@page "/Photos"
+@model ProjectManagement.Pages.Photos.IndexModel
+@using ProjectManagement.Pages.Photos
+@{
+    ViewData["Title"] = Model.SelectedPeople.Count == 1
+        ? $"{Model.SelectedPeople[0].Name} — Photos"
+        : Model.SelectedPeople.Count > 1
+            ? "People together — Photos"
+            : "Photos";
+    ViewData["PageShell"] = "wide";
+    var hasPeopleFilter = Model.PersonIds.Length > 0;
+    var hasFilters = !string.IsNullOrWhiteSpace(Model.Q)
+                     || Model.Source != "all"
+                     || Model.Kind != "all"
+                     || Model.Classification != "all"
+                     || Model.ProjectId.HasValue
+                     || hasPeopleFilter
+                     || Model.Year.HasValue;
+    var activeFilterCount = new[]
+    {
+        !string.IsNullOrWhiteSpace(Model.Q),
+        Model.Source != "all",
+        Model.Kind != "all",
+        Model.Classification != "all",
+        Model.ProjectId.HasValue,
+        hasPeopleFilter,
+        Model.Year.HasValue
+    }.Count(value => value);
+    var galleryHeading = Model.SelectedPeople.Count == 1
+        ? Model.SelectedPeople[0].Name
+        : "Photos together";
+    var selectedNames = string.Join(", ", Model.SelectedPeople.Select(person => person.Name));
+}
+
+@section Styles { <link rel="stylesheet" href="~/css/pages/photos-library.css" asp-append-version="true" /> }
+
+<div class="photos-library @(Model.IsPeopleGallery ? "photos-library--people" : null)"
+     data-photos-library
+     data-library-version="@Model.LibraryRevision"
+     data-auto-refresh-url="@Url.Page("./Index", "Revision")">
+    <header class="photos-hero @(Model.IsPeopleGallery ? "photos-hero--person" : null)">
+        @if (Model.IsPeopleGallery && Model.SelectedPeople.Count > 0)
+        {
+            <div class="photos-person-hero">
+                <a class="photos-person-hero__back" asp-page="/Photos/People/Index"><i class="bi bi-chevron-left"></i> People</a>
+                <div class="photos-person-hero__main">
+                    <div class="photos-person-hero__faces" aria-hidden="true">
+                        @foreach (var person in Model.SelectedPeople.Take(4))
+                        {
+                            <span>
+                                @if (person.RepresentativeFaceId.HasValue)
+                                {
+                                    <img src="@Url.Page("/Photos/People/Portrait", new { id = person.Id })" alt="" />
+                                }
+                                else
+                                {
+                                    <i class="bi bi-person-fill"></i>
+                                }
+                            </span>
+                        }
+                    </div>
+                    <div>
+                        <span class="photos-eyebrow">People in Photos</span>
+                        <h1>@galleryHeading</h1>
+                        <p>
+                            @if (Model.SelectedPeople.Count == 1)
+                            {
+                                <text>@Model.Stats.Photos photograph@(Model.Stats.Photos == 1 ? "" : "s") featuring @Model.SelectedPeople[0].Name.</text>
+                            }
+                            else if (Model.MatchAllSelectedPeople)
+                            {
+                                <text>@Model.Stats.Photos photograph@(Model.Stats.Photos == 1 ? "" : "s") containing all selected people.</text>
+                            }
+                            else
+                            {
+                                <text>@Model.Stats.Photos photograph@(Model.Stats.Photos == 1 ? "" : "s") containing any selected person.</text>
+                            }
+                        </p>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div>
+                <span class="photos-eyebrow">Unified organisational media</span>
+                <h1>Photos</h1>
+                <p>Browse project photographs, visits, activities, events and videos in one place.</p>
+            </div>
+        }
+        <div class="photos-hero__actions">
+            @if (Model.IsPeopleGallery)
+            {
+                <a class="photos-action photos-action--quiet" href="@Model.BuildPeoplePickerUrl()"><i class="bi bi-people"></i><span>Choose people</span></a>
+                @if (Model.CanManagePeople && Model.SelectedPeople.Count == 1)
+                {
+                    <a class="photos-action photos-action--quiet" asp-page="/Photos/People/Details" asp-route-id="@Model.SelectedPeople[0].Id"><i class="bi bi-sliders"></i><span>Manage identity</span></a>
+                }
+            }
+            <button type="button" class="photos-action photos-action--quiet" data-photos-select-toggle><i class="bi bi-check2-circle"></i><span>Select</span></button>
+            <div class="dropdown">
+                <button class="photos-action photos-action--quiet" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More options"><i class="bi bi-three-dots"></i></button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                    @if (Model.IsPeopleGallery)
+                    {
+                        <li><a class="dropdown-item" href="@Model.BuildClearPeopleUrl()"><i class="bi bi-images me-2"></i>Remove people filter</a></li>
+                    }
+                    @if (Model.CanManagePeople)
+                    {
+                        <li><a class="dropdown-item" asp-page="/Admin/MediaIntelligence/Index"><i class="bi bi-cpu me-2"></i>Media intelligence</a></li>
+                        <li><a class="dropdown-item" asp-page="/Admin/MediaSources/Index"><i class="bi bi-hdd-network me-2"></i>Media sources</a></li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </header>
+
+    <nav class="photos-primary-tabs" aria-label="Photos sections">
+        <a asp-page="./Index" asp-route-View="photos" class="@(!Model.IsPeopleGallery && Model.View == "photos" ? "is-active" : null)">Photos</a>
+        <a asp-page="./Index" asp-route-View="collections" class="@(!Model.IsPeopleGallery && Model.View == "collections" ? "is-active" : null)">Collections</a>
+        @if (Model.PeopleFeatureEnabled)
+        {
+            <a class="@(Model.IsPeopleGallery ? "is-active" : null)" asp-page="/Photos/People/Index">People</a>
+        }
+    </nav>
+
+    @if (Model.IsPeopleGallery && Model.SelectedPeople.Count > 0)
+    {
+        <section class="photos-people-bar" aria-label="Selected people">
+            <div class="photos-people-chips">
+                @foreach (var person in Model.SelectedPeople)
+                {
+                    <a class="photos-person-chip" href="@Model.BuildRemovePersonUrl(person.Id)" title="Remove @person.Name from this gallery">
+                        @if (person.RepresentativeFaceId.HasValue)
+                        {
+                            <img src="@Url.Page("/Photos/People/Portrait", new { id = person.Id })" alt="" />
+                        }
+                        else
+                        {
+                            <i class="bi bi-person-fill"></i>
+                        }
+                        <span>@person.Name</span><i class="bi bi-x"></i>
+                    </a>
+                }
+                <a class="photos-person-chip photos-person-chip--add" href="@Model.BuildPeoplePickerUrl()"><i class="bi bi-plus"></i><span>Add people</span></a>
+            </div>
+            @if (Model.SelectedPeople.Count > 1)
+            {
+                <div class="photos-people-match" role="group" aria-label="People matching mode">
+                    <a class="@(Model.MatchAllSelectedPeople ? "is-active" : null)" href="@Model.BuildPeopleMatchUrl("all")">Together</a>
+                    <a class="@(!Model.MatchAllSelectedPeople ? "is-active" : null)" href="@Model.BuildPeopleMatchUrl("any")">Any selected</a>
+                </div>
+            }
+        </section>
+    }
+
+    <section class="photos-toolbar" aria-label="Media controls">
+        <form method="get" class="photos-search" role="search">
+            <input type="hidden" name="View" value="@Model.View" />
+            <i class="bi bi-search"></i>
+            <input type="search" name="Q" value="@Model.Q" placeholder="@(Model.IsPeopleGallery ? $"Search photos of {selectedNames}" : "Search photos, projects, visits, activities, events or people")" autocomplete="off" data-photos-search />
+            <input type="hidden" name="Source" value="@Model.Source" /><input type="hidden" name="Kind" value="@Model.Kind" /><input type="hidden" name="Classification" value="@Model.Classification" />
+            @if (Model.ProjectId.HasValue) { <input type="hidden" name="ProjectId" value="@Model.ProjectId" /> }
+            @foreach (var personId in Model.PersonIds) { <input type="hidden" name="PersonIds" value="@personId" /> }
+            @if (Model.PersonIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
+            @if (Model.Year.HasValue) { <input type="hidden" name="Year" value="@Model.Year" /> }
+        </form>
+        <div class="photos-toolbar__controls">
+            <button class="photos-control" type="button" data-bs-toggle="offcanvas" data-bs-target="#photosFilters"><i class="bi bi-sliders2"></i><span>Filters</span>@if(activeFilterCount>0){<b>@activeFilterCount</b>}</button>
+            <nav class="photos-segments" aria-label="Media type">
+                <a class="@(Model.Kind == "all" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("all")">All</a>
+                <a class="@(Model.Kind == "photo" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("photo")">Photos</a>
+                <a class="@(Model.Kind == "video" ? "is-active" : null)" href="@Model.BuildMediaTypeUrl("video")">Videos</a>
+            </nav>
+        </div>
+    </section>
+
+    <div class="photos-summary"><strong>@Model.Stats.Total</strong> items <span>·</span> @Model.Stats.Photos photos <span>·</span> @Model.Stats.Videos videos</div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ExternalLibraryWarning))
+    {
+        <div class="photos-library-warning" role="status">
+            <i class="bi bi-info-circle" aria-hidden="true"></i>
+            <span>@Model.ExternalLibraryWarning</span>
+        </div>
+    }
+
+    @if (Model.CatalogueCatchUpPending && Model.AwaitingCatalogueCount > 0)
+    {
+        <div class="photos-catalogue-status" role="status">
+            <i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>
+            <span><strong>@Model.SourceVisibleCount visible</strong> · @Model.CatalogueBackedCount fully processed · @Model.AwaitingCatalogueCount awaiting catalogue intelligence</span>
+        </div>
+    }
+
+    @if (hasFilters)
+    {
+        <div class="photos-active-filters">
+            @if (!string.IsNullOrWhiteSpace(Model.Q)) { <span class="photos-filter-chip"><i class="bi bi-search"></i>@Model.Q</span> }
+            @if (Model.Source != "all") { <span class="photos-filter-chip"><i class="bi bi-folder2"></i>@Model.Source</span> }
+            @if (Model.Classification != "all") { <span class="photos-filter-chip"><i class="bi bi-stars"></i>@Model.Classification</span> }
+            <a asp-page="./Index" asp-route-View="@Model.View">Clear filters</a>
+        </div>
+    }
+
+    @if (Model.Groups.Count == 0)
+    {
+        <section class="photos-empty">
+            <i class="bi bi-images"></i>
+            @if (Model.IsPeopleGallery && Model.SelectedPeople.Count > 1 && Model.MatchAllSelectedPeople)
+            {
+                <h2>No photographs found together</h2>
+                <p>These people do not yet have a confirmed photograph together. Try “Any selected” or choose different people.</p>
+                <a class="btn btn-outline-primary" href="@Model.BuildPeopleMatchUrl("any")">Show any selected person</a>
+            }
+            else if (Model.IsPeopleGallery)
+            {
+                <h2>No matching photographs</h2>
+                <p>Try clearing the search or another filter. Only human-confirmed appearances are included.</p>
+            }
+            else
+            {
+                <h2>No media found</h2><p>@(hasFilters ? "Try clearing one or more filters." : "New PRISM photos will appear here automatically.")</p>
+            }
+        </section>
+    }
+    else if (Model.View == "collections")
+    {
+        <section class="collections-grid" aria-label="Media collections">
+            @foreach (var group in Model.Groups.OrderByDescending(group => group.Date))
+            {
+                var cover = group.Items.FirstOrDefault(item => item.IsCover) ?? group.Items.First();
+                <article class="collection-card">
+                    <a class="collection-card__cover" href="@(cover.SourceUrl ?? "#")">
+                        <img src="@cover.ThumbnailUrl" alt="" loading="lazy" decoding="async" />
+                        @if(group.Items.Count > 1){<span class="collection-card__stack">@group.Items.Count</span>}
+                    </a>
+                    <div class="collection-card__body"><strong>@group.Title</strong><span>@group.Subtitle · @group.Items.Count item@(group.Items.Count == 1 ? "" : "s")</span></div>
+                </article>
+            }
+        </section>
+    }
+    else
+    {
+        <div class="photos-timeline">
+            @foreach (var day in Model.Groups.GroupBy(group => group.Date.Date).OrderByDescending(group => group.Key))
+            {
+                var dayItems = day.SelectMany(group => group.Items).OrderByDescending(item => item.MediaDate).ToList();
+                <section class="photos-day" aria-labelledby="day-@day.Key.ToString("yyyyMMdd")">
+                    <header class="photos-day__header"><h2 id="day-@day.Key.ToString("yyyyMMdd")">@day.Key.ToString("dd MMMM yyyy")</h2><span>@day.Key.ToString("dddd") · @dayItems.Count item@(dayItems.Count == 1 ? "" : "s")</span></header>
+                    <div class="photos-grid" role="list">
+                        @foreach (var item in dayItems)
+                        {
+                            <button type="button"
+                                                class="photos-tile"
+                                                role="listitem"
+                                                style="--media-ratio:@item.AspectRatio.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
+                                                data-aspect-ratio="@item.AspectRatio.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)"
+                                                data-media-item
+                                                data-media-key="@(item.AssetId.HasValue ? $"asset-{item.AssetId.Value}" : item.Id)"
+                                                data-kind="@item.Kind.ToString().ToLowerInvariant()"
+                                                data-title="@item.Title"
+                                                data-caption="@item.Caption"
+                                                data-context="@item.ContextTitle"
+                                                data-subtitle="@item.ContextSubtitle"
+                                                data-date="@item.MediaDate.ToString("dd MMMM yyyy")"
+                                                data-source-label="@item.SourceLabel"
+                                                data-classification="@IndexModel.ClassificationLabel(item.Classification)"
+                                                data-people="@Model.SerializeViewerPeople(item)"
+                                                data-unidentified="@item.UnidentifiedFaceCount"
+                                                data-asset-id="@item.AssetId"
+                                                data-display-url="@item.DisplayUrl"
+                                                data-original-url="@item.OriginalUrl"
+                                                data-download-url="@item.DownloadUrl"
+                                                data-source-url="@item.SourceUrl"
+                                                data-duration="@IndexModel.FormatDuration(item.DurationSeconds)"
+                                                data-width="@item.Width"
+                                                data-height="@item.Height"
+                                                aria-label="Open @item.Title">
+                                            <span class="photos-tile__placeholder" aria-hidden="true"></span>
+                                            <img src="@item.ThumbnailUrl" alt="" loading="lazy" decoding="async" data-media-image />
+                                            <span class="photos-tile__unavailable" aria-hidden="true"><i class="bi bi-image"></i><strong>Media unavailable</strong><small>Source file could not be opened</small></span>
+                                            <span class="photos-tile__shade"></span>
+                                            <span class="photos-tile__select" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
+                                            @if (item.Kind == IndexModel.MediaKind.Video)
+                                            {
+                                                <span class="photos-tile__play"><i class="bi bi-play-fill" aria-hidden="true"></i></span>
+                                                <span class="photos-tile__duration">@IndexModel.FormatDuration(item.DurationSeconds)</span>
+                                            }
+                                            @if (item.IsCover)
+                                            {
+                                                <span class="photos-tile__cover" title="Cover media"><i class="bi bi-bookmark-star-fill"></i></span>
+                                            }
+                                            @if (item.People.Count > 0 || item.UnidentifiedFaceCount > 0)
+                                            {
+                                                <span class="photos-tile__people" title="@IndexModel.PeopleBadgeTitle(item)"><i class="bi bi-person-fill"></i> @IndexModel.PeopleBadgeLabel(item)</span>
+                                            }
+                                            <span class="photos-tile__meta"><strong>@item.Title</strong><span>@item.ContextTitle</span></span>
+                                        </button>
+                        }
+                    </div>
+                </section>
+            }
+        </div>
+        <nav class="photos-pagination" aria-label="Media pages">
+            @if(Model.HasPreviousPage){<a class="photos-page-btn" href="@Model.BuildPageUrl(Model.CurrentPage - 1)"><i class="bi bi-arrow-left"></i> Previous</a>}
+            <span>Page @Model.CurrentPage</span>
+            @if(Model.HasNextPage){<a class="photos-page-btn" href="@Model.BuildPageUrl(Model.CurrentPage + 1)">Next <i class="bi bi-arrow-right"></i></a>}
+        </nav>
+    }
+</div>
+
+<div class="offcanvas offcanvas-end photos-filters" tabindex="-1" id="photosFilters" aria-labelledby="photosFiltersTitle">
+    <div class="offcanvas-header">
+        <div>
+            <span class="photos-library__eyebrow">Refine library</span>
+            <h2 class="offcanvas-title" id="photosFiltersTitle">Filters</h2>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+        <form method="get" class="photos-filter-form" data-photos-filter-form>
+            <input type="hidden" name="View" value="@Model.View" />
+            <input type="hidden" name="Q" value="@Model.Q" />
+            @foreach (var personId in Model.PersonIds) { <input type="hidden" name="PersonIds" value="@personId" /> }
+            @if (Model.PersonIds.Length > 1) { <input type="hidden" name="PeopleMatch" value="@Model.PeopleMatch" /> }
+            <div>
+                <label for="sourceFilter">Source</label>
+                <select id="sourceFilter" name="Source" class="form-select">
+                    <option value="all" selected="@(Model.Source == "all")">All sources</option>
+                    <option value="projects" selected="@(Model.Source == "projects")">Projects</option>
+                    <option value="visits" selected="@(Model.Source == "visits")">Visits to SDD</option>
+                    <option value="events" selected="@(Model.Source == "events")">Events</option>
+                    <option value="activities" selected="@(Model.Source == "activities")">Institutional activities</option>
+                    @if (Model.ExternalSourcesEnabled)
+                    {
+                        <option value="external" selected="@(Model.Source == "external")">External folders</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label for="kindFilter">Media type</label>
+                <select id="kindFilter" name="Kind" class="form-select">
+                    <option value="all" selected="@(Model.Kind == "all")">Photos and videos</option>
+                    <option value="photo" selected="@(Model.Kind == "photo")">Photos only</option>
+                    <option value="video" selected="@(Model.Kind == "video")">Videos only</option>
+                </select>
+            </div>
+            <div>
+                <label for="classificationFilter">Automatic classification</label>
+                <select id="classificationFilter" name="Classification" class="form-select">
+                    <option value="all" selected="@(Model.Classification == "all")">All classifications</option>
+                    <option value="photograph" selected="@(Model.Classification == "photograph")">Photographs</option>
+                    <option value="screenshot" selected="@(Model.Classification == "screenshot")">Screenshots</option>
+                    <option value="scanned-document" selected="@(Model.Classification == "scanned-document")">Scanned documents</option>
+                    <option value="diagram" selected="@(Model.Classification == "diagram")">Diagrams</option>
+                    <option value="presentation-slide" selected="@(Model.Classification == "presentation-slide")">Presentation slides</option>
+                    <option value="graphic" selected="@(Model.Classification == "graphic")">Graphics</option>
+                    <option value="unknown" selected="@(Model.Classification == "unknown")">Not yet classified</option>
+                </select>
+                <small>Classification is deterministic, auditable and can be overridden by authorised administrators.</small>
+            </div>
+            <div>
+                <label for="projectFilter">Project</label>
+                <select id="projectFilter" name="ProjectId" class="form-select">
+                    <option value="">All projects</option>
+                    @foreach (var project in Model.Projects)
+                    {
+                        <option value="@project.Id" selected="@(Model.ProjectId == project.Id)">@project.Name</option>
+                    }
+                </select>
+                <small>Selecting a project limits the library to project media.</small>
+            </div>
+            @if (Model.PeopleFeatureEnabled && Model.People.Count > 0)
+            {
+                <div>
+                    <label for="personFilter">People</label>
+                    @if (Model.PersonIds.Length == 0)
+                    {
+                        <select id="personFilter" name="PersonId" class="form-select">
+                            <option value="">All people</option>
+                            @foreach (var person in Model.People)
+                            {
+                                <option value="@person.Id">@person.Name (@person.PhotoCount)</option>
+                            }
+                        </select>
+                        <small>Select one person here, or use the People page to select a group.</small>
+                    }
+                    else
+                    {
+                        <div class="photos-filter-people-summary">
+                            @foreach (var person in Model.SelectedPeople)
+                            {
+                                <span>@person.Name</span>
+                            }
+                        </div>
+                        <a class="btn btn-sm btn-outline-primary mt-2" href="@Model.BuildPeoplePickerUrl()">Change selected people</a>
+                    }
+                </div>
+            }
+            <div>
+                <label for="yearFilter">Year</label>
+                <select id="yearFilter" name="Year" class="form-select">
+                    <option value="">All years</option>
+                    @foreach (var year in Model.Years)
+                    {
+                        <option value="@year" selected="@(Model.Year == year)">@year</option>
+                    }
+                </select>
+            </div>
+            <div class="photos-filter-form__actions">
+                <a asp-page="./Index" class="btn btn-outline-secondary">Reset</a>
+                <button type="submit" class="btn btn-primary" data-photos-filter-submit disabled>Apply filters</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="photos-viewer" data-photos-viewer hidden aria-hidden="true">
+    <div class="photos-viewer__backdrop" data-viewer-close></div>
+    <div class="photos-viewer__dialog" role="dialog" aria-modal="true" aria-labelledby="photosViewerTitle">
+        <header class="photos-viewer__header">
+            <div class="photos-viewer__heading">
+                <span data-viewer-context></span>
+                <div class="photos-viewer__title-line">
+                    <strong id="photosViewerTitle" data-viewer-title></strong>
+                    <span class="photos-viewer__position" data-viewer-position></span>
+                </div>
+            </div>
+            <div class="photos-viewer__actions">
+                <button type="button" data-viewer-zoom-out title="Zoom out" aria-label="Zoom out"><i class="bi bi-dash-lg"></i></button>
+                <button type="button" data-viewer-zoom-reset title="Reset zoom" aria-label="Reset zoom"><span data-viewer-zoom-label>100%</span></button>
+                <button type="button" data-viewer-zoom-in title="Zoom in" aria-label="Zoom in"><i class="bi bi-plus-lg"></i></button>
+                <a href="#" data-viewer-original target="_blank" rel="noopener" title="Open original" aria-label="Open original"><i class="bi bi-arrows-fullscreen"></i></a>
+                <a href="#" data-viewer-download title="Download" aria-label="Download"><i class="bi bi-download"></i></a>
+                <button type="button" data-viewer-info aria-pressed="false" title="Show information" aria-label="Show information"><i class="bi bi-info-circle"></i></button>
+                <button type="button" data-viewer-close title="Close" aria-label="Close"><i class="bi bi-x-lg"></i></button>
+            </div>
+        </header>
+        <main class="photos-viewer__stage">
+            <button type="button" class="photos-viewer__nav photos-viewer__nav--prev" data-viewer-prev aria-label="Previous item"><i class="bi bi-chevron-left"></i></button>
+            <div class="photos-viewer__media" data-viewer-media></div>
+            <button type="button" class="photos-viewer__nav photos-viewer__nav--next" data-viewer-next aria-label="Next item"><i class="bi bi-chevron-right"></i></button>
+        </main>
+        <aside class="photos-viewer__info" data-viewer-info-panel aria-hidden="true">
+            <h2>Information</h2>
+            <dl>
+                <div><dt>Collection</dt><dd data-info-context></dd></div>
+                <div><dt>Date</dt><dd data-info-date></dd></div>
+                <div><dt>Source</dt><dd data-info-source></dd></div>
+                <div><dt>Classification</dt><dd data-info-classification></dd></div>
+                <div data-info-people-row><dt>People</dt><dd data-info-people class="photos-viewer__people"></dd></div>
+                <div data-info-unidentified-row><dt>Unidentified</dt><dd data-info-unidentified></dd></div>
+                <div data-info-dimensions-row><dt>Dimensions</dt><dd data-info-dimensions></dd></div>
+                <div data-info-duration-row><dt>Duration</dt><dd data-info-duration></dd></div>
+            </dl>
+            <p data-info-caption></p>
+            <a href="#" data-info-source-link class="btn btn-outline-light">Open source record <i class="bi bi-arrow-up-right"></i></a>
+        </aside>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/pages/photos-library.js" asp-append-version="true"></script>
+}

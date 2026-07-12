@@ -17,32 +17,6 @@
         const modal = window.bootstrap.Modal.getOrCreateInstance(modalElement);
         modal.show();
     }
-    // SECTION: Lightweight searchable-select enhancement for offline deployment.
-    function initSearchableSelects() {
-        const selects = document.querySelectorAll("select[data-at-searchable-select='true']");
-        selects.forEach((select) => {
-            if (select.dataset.atSearchReady === "true") {
-                return;
-            }
-            const wrapper = document.createElement("div");
-            wrapper.className = "at-select-search-wrap";
-            select.parentNode.insertBefore(wrapper, select);
-            wrapper.appendChild(select);
-            const input = document.createElement("input");
-            input.type = "search";
-            input.className = "form-control form-control-sm at-select-search-input";
-            input.placeholder = select.dataset.atPlaceholder || "Search...";
-            wrapper.insertBefore(input, select);
-            input.addEventListener("input", () => {
-                const term = input.value.trim().toLowerCase();
-                Array.from(select.options).forEach((option, index) => {
-                    if (index === 0) { option.hidden = false; return; }
-                    option.hidden = !option.text.toLowerCase().includes(term);
-                });
-            });
-            select.dataset.atSearchReady = "true";
-        });
-    }
     // SECTION: Disable status update when selected value does not change status.
     function initStatusUpdateGuard() {
         const select = document.querySelector("[data-at-status-select]");
@@ -560,6 +534,10 @@
             }
 
             if (panelName === "update") {
+                const progressOption = panel.querySelector('[data-at-update-type-option="Progress"]');
+                if (progressOption) {
+                    progressOption.click();
+                }
                 applyStatusActionTarget(shell, targetStatus);
             }
 
@@ -614,6 +592,73 @@
         });
     }
 
+    // SECTION: Keep task progress and conference remarks in one typed update composer.
+    function initTypedUpdateComposers() {
+        document.querySelectorAll('[data-at-action-panel="update"] form').forEach((form) => {
+            const typeInput = form.querySelector('[data-at-update-type]');
+            const options = Array.from(form.querySelectorAll('[data-at-update-type-option]'));
+            if (!typeInput || options.length === 0) {
+                return;
+            }
+
+            const title = form.querySelector('[data-at-update-panel-title]');
+            const bodyLabel = form.querySelector('[data-at-update-body-label]');
+            const body = form.querySelector('[data-at-update-body]');
+            const guidance = form.querySelector('[data-at-conference-guidance]');
+            const statusFields = form.querySelector('[data-at-update-status-fields]');
+            const statusSelect = form.querySelector('[data-at-progress-status-select]');
+            const submitLabel = form.querySelector('[data-at-update-submit-label]');
+            const defaultTitle = title?.textContent?.trim() || 'Add update';
+            const defaultPlaceholder = body?.dataset.defaultPlaceholder || 'Write a clear progress update';
+
+            const applyType = (value) => {
+                const isConference = value === 'Conference';
+                typeInput.value = isConference ? 'Conference' : 'Progress';
+
+                options.forEach((option) => {
+                    const active = option.getAttribute('data-at-update-type-option') === typeInput.value;
+                    option.classList.toggle('is-active', active);
+                    option.setAttribute('aria-pressed', active ? 'true' : 'false');
+                });
+
+                form.classList.toggle('is-conference', isConference);
+                if (title) {
+                    title.textContent = isConference ? 'Add conference remark' : defaultTitle;
+                }
+                if (bodyLabel) {
+                    bodyLabel.textContent = isConference ? 'Conference direction' : 'Update';
+                }
+                if (body) {
+                    body.placeholder = isConference
+                        ? 'Record the direction or observation issued during the conference'
+                        : defaultPlaceholder;
+                }
+                if (guidance) {
+                    guidance.classList.toggle('d-none', !isConference);
+                }
+                if (statusFields) {
+                    statusFields.classList.toggle('d-none', isConference);
+                }
+                if (isConference && statusSelect) {
+                    statusSelect.value = '';
+                    statusSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                if (submitLabel) {
+                    submitLabel.textContent = isConference ? 'Add conference remark' : 'Post update';
+                }
+            };
+
+            options.forEach((option) => {
+                option.addEventListener('click', () => {
+                    applyType(option.getAttribute('data-at-update-type-option'));
+                    body?.focus({ preventScroll: true });
+                });
+            });
+
+            applyType(typeInput.value || 'Progress');
+        });
+    }
+
     // SECTION: Direct closure remarks gate keeps command closure deliberate without inline script.
     function initDirectClosureValidation() {
         document.querySelectorAll("[data-at-direct-close-form='true']").forEach((form) => {
@@ -644,6 +689,7 @@
         initSprintClosureReview();
         initActionConfirmations();
         initInspectorActionPanels();
+        initTypedUpdateComposers();
         initDirectClosureValidation();
     });
 })();

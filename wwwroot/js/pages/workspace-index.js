@@ -1,77 +1,86 @@
 (() => {
+    const root = document.documentElement;
     const nav = document.querySelector('.po-section-nav');
     const links = Array.from(document.querySelectorAll('.po-section-nav a[href^="#"]'));
-    if (!nav || !links.length) return;
+
+    if (!nav || links.length === 0) {
+        return;
+    }
 
     const entries = links
-        .map(link => ({ link, section: document.querySelector(link.getAttribute('href')) }))
-        .filter(entry => entry.section);
+        .map(link => {
+            const selector = link.getAttribute('href');
+            return selector ? { link, section: document.querySelector(selector) } : null;
+        })
+        .filter(entry => entry?.section);
 
+    if (entries.length === 0) {
+        return;
+    }
+
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     let manualActiveUntil = 0;
+    let ticking = false;
 
     const setActive = activeLink => {
         for (const { link } of entries) {
-            const active = link === activeLink;
-            link.classList.toggle('active', active);
-            if (active) link.setAttribute('aria-current', 'page');
-            else link.removeAttribute('aria-current');
+            const isActive = link === activeLink;
+            link.classList.toggle('active', isActive);
+            if (isActive) {
+                link.setAttribute('aria-current', 'page');
+            } else {
+                link.removeAttribute('aria-current');
+            }
         }
     };
 
-    const updateTopbarHeight = () => {
+    const updateStickyMeasurements = () => {
         const siteHeader = document.querySelector('.pm-topbar');
-        const headerHeight = Math.round(siteHeader?.getBoundingClientRect().height || 70);
-        document.documentElement.style.setProperty('--po-topbar-height', `${headerHeight}px`);
-        return headerHeight;
+        const topbarHeight = Math.max(0, Math.round(siteHeader?.getBoundingClientRect().height || 70));
+        const navHeight = Math.max(42, Math.round(nav.getBoundingClientRect().height));
+
+        root.style.setProperty('--po-topbar-height', `${topbarHeight}px`);
+        root.style.setProperty('--po-section-nav-height', `${navHeight}px`);
+
+        return { topbarHeight, navHeight };
     };
 
-    const stickyOffset = () => updateTopbarHeight() + Math.round(nav.getBoundingClientRect().height) + 14;
-
-    const scrollTrackedEntries = () => {
-        // On desktop the readiness panel is a parallel sticky rail, not a vertical
-        // chapter in the main document. Excluding it prevents a false active tab.
-        const includeParallelRail = window.matchMedia('(max-width: 980px)').matches;
-        return entries
-            .filter(entry => includeParallelRail || entry.section.id !== 'record-gaps')
-            .sort((a, b) => a.section.offsetTop - b.section.offsetTop);
+    const getScrollTarget = section => {
+        const { topbarHeight, navHeight } = updateStickyMeasurements();
+        const sectionTop = window.scrollY + section.getBoundingClientRect().top;
+        return Math.max(0, sectionTop - topbarHeight - navHeight - 14);
     };
 
     const activateFromScroll = () => {
-        const stickyTop = updateTopbarHeight();
-        const isStuck = nav.getBoundingClientRect().top <= stickyTop + 1 && window.scrollY > 12;
+        const { topbarHeight, navHeight } = updateStickyMeasurements();
+        const navTop = nav.getBoundingClientRect().top;
+        const isStuck = navTop <= topbarHeight + 1 && window.scrollY > 12;
         nav.classList.toggle('is-stuck', isStuck);
 
-        if (performance.now() < manualActiveUntil) return;
-
-        // Switch as the next section heading enters the content band directly
-        // below the toolbar, rather than waiting until most of it is visible.
-        const marker = stickyTop + nav.getBoundingClientRect().height + 14;
-        const tracked = scrollTrackedEntries();
-        let active = tracked[0];
-
-        for (const entry of tracked) {
-            const heading = entry.section.querySelector('.po-panel__head, .po-readiness__head') || entry.section;
-            if (heading.getBoundingClientRect().top <= marker) active = entry;
-            else break;
+        if (performance.now() < manualActiveUntil) {
+            return;
         }
 
-        if (active) setActive(active.link);
+        const marker = topbarHeight + navHeight + 16;
+        let activeEntry = entries[0];
+
+        for (const entry of entries) {
+            const heading = entry.section.querySelector('.po-panel__head') || entry.section;
+            if (heading.getBoundingClientRect().top <= marker) {
+                activeEntry = entry;
+            } else {
+                break;
+            }
+        }
+
+        setActive(activeEntry.link);
     };
 
-    for (const { link, section } of entries) {
-        link.addEventListener('click', event => {
-            event.preventDefault();
-            const top = window.scrollY + section.getBoundingClientRect().top - stickyOffset();
-            manualActiveUntil = performance.now() + 900;
-            window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-            history.replaceState(null, '', link.getAttribute('href'));
-            setActive(link);
-        });
-    }
-
-    let ticking = false;
     const requestActivation = () => {
-        if (ticking) return;
+        if (ticking) {
+            return;
+        }
+
         ticking = true;
         window.requestAnimationFrame(() => {
             activateFromScroll();
@@ -79,7 +88,37 @@
         });
     };
 
+    for (const { link, section } of entries) {
+        link.addEventListener('click', event => {
+            event.preventDefault();
+            manualActiveUntil = performance.now() + (reducedMotion.matches ? 100 : 900);
+            setActive(link);
+
+            window.scrollTo({
+                top: getScrollTarget(section),
+                behavior: reducedMotion.matches ? 'auto' : 'smooth'
+            });
+
+            history.replaceState(null, '', link.getAttribute('href'));
+        });
+    }
+
+    const resizeObserver = typeof ResizeObserver === 'function'
+        ? new ResizeObserver(requestActivation)
+        : null;
+
+    const siteHeader = document.querySelector('.pm-topbar');
+    if (resizeObserver) {
+        resizeObserver.observe(nav);
+        if (siteHeader) {
+            resizeObserver.observe(siteHeader);
+        }
+    }
+
     window.addEventListener('scroll', requestActivation, { passive: true });
     window.addEventListener('resize', requestActivation);
+    reducedMotion.addEventListener?.('change', requestActivation);
+
+    updateStickyMeasurements();
     activateFromScroll();
 })();

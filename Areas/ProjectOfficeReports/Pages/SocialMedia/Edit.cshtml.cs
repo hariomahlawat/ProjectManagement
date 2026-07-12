@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
@@ -27,19 +28,22 @@ public sealed class EditModel : PageModel
     private readonly ISocialMediaEventPhotoService _photoService;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly SocialMediaPhotoOptions _photoOptions;
+    private readonly ILogger<EditModel> _logger;
 
     public EditModel(
         SocialMediaEventService eventService,
         SocialMediaPlatformService platformService,
         ISocialMediaEventPhotoService photoService,
         UserManager<ApplicationUser> userManager,
-        IOptions<SocialMediaPhotoOptions> photoOptions)
+        IOptions<SocialMediaPhotoOptions> photoOptions,
+        ILogger<EditModel> logger)
     {
         _eventService = eventService ?? throw new ArgumentNullException(nameof(eventService));
         _platformService = platformService ?? throw new ArgumentNullException(nameof(platformService));
         _photoService = photoService ?? throw new ArgumentNullException(nameof(photoService));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         _photoOptions = photoOptions.Value;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     // SECTION: Upload configuration helpers
@@ -85,29 +89,9 @@ public sealed class EditModel : PageModel
             return NotFound();
         }
 
+        ValidateSelectionsAndUploads();
         if (!ModelState.IsValid)
         {
-            await LoadAsync(id, cancellationToken);
-            return Page();
-        }
-
-        if (Input.EventTypeId is null || Input.DateOfEvent is null || Input.PlatformId is null)
-        {
-            if (Input.EventTypeId is null)
-            {
-                ModelState.AddModelError(nameof(Input.EventTypeId), "Please select an event type.");
-            }
-
-            if (Input.DateOfEvent is null)
-            {
-                ModelState.AddModelError(nameof(Input.DateOfEvent), "Please select a date.");
-            }
-
-            if (Input.PlatformId is null)
-            {
-                ModelState.AddModelError(nameof(Input.PlatformId), "Please select a platform.");
-            }
-
             await LoadAsync(id, cancellationToken);
             return Page();
         }
@@ -125,46 +109,39 @@ public sealed class EditModel : PageModel
             return Challenge();
         }
 
-        var result = await _eventService.UpdateAsync(
+        var updateResult = await _eventService.UpdateAsync(
             id,
-            Input.EventTypeId.Value,
-            Input.PlatformId.Value,
-            Input.DateOfEvent.Value,
+            Input.EventTypeId!.Value,
+            Input.PlatformId!.Value,
+            Input.DateOfEvent!.Value,
             Input.Title,
             Input.Description,
             Input.RowVersion,
             userId,
             cancellationToken);
 
-        if (result.Outcome == SocialMediaEventMutationOutcome.Success)
+        if (updateResult.Outcome != SocialMediaEventMutationOutcome.Success)
         {
-            TempData["ToastMessage"] = "Social media event updated.";
-            return RedirectToPage(new { id });
+            AddUpdateError(updateResult);
+            await LoadAsync(id, cancellationToken);
+            return Page();
         }
 
-        if (result.Outcome == SocialMediaEventMutationOutcome.EventTypeInactive || result.Outcome == SocialMediaEventMutationOutcome.EventTypeNotFound)
+        var uploadResult = await UploadSelectedFilesAsync(id, userId, cancellationToken);
+        if (uploadResult.Errors.Count > 0)
         {
-            ModelState.AddModelError(nameof(Input.EventTypeId), "Please choose an active event type.");
-        }
-        else if (result.Outcome == SocialMediaEventMutationOutcome.PlatformInactive || result.Outcome == SocialMediaEventMutationOutcome.PlatformNotFound)
-        {
-            ModelState.AddModelError(nameof(Input.PlatformId), "Please choose an active platform.");
-        }
-        else if (result.Outcome == SocialMediaEventMutationOutcome.ConcurrencyConflict)
-        {
-            ModelState.AddModelError(string.Empty, "Another user updated this event. Please reload and try again.");
-        }
-        else if (result.Errors.Count > 0)
-        {
-            ModelState.AddModelError(string.Empty, result.Errors[0]);
+            TempData["ToastError"] = uploadResult.Successful > 0
+                ? $"Activity updated and {uploadResult.Successful} photograph(s) added. Some photographs could not be uploaded."
+                : "Activity updated, but the selected photographs could not be uploaded.";
         }
         else
         {
-            ModelState.AddModelError(string.Empty, "Unable to update the event.");
+            TempData["ToastMessage"] = uploadResult.Successful > 0
+                ? $"Activity updated and {uploadResult.Successful} photograph(s) added."
+                : "Social media activity updated.";
         }
 
-        await LoadAsync(id, cancellationToken);
-        return Page();
+        return RedirectToPage(new { id });
     }
 
     public async Task<IActionResult> OnPostUploadAsync(Guid id, CancellationToken cancellationToken)
@@ -245,19 +222,18 @@ public sealed class EditModel : PageModel
             }
         }
 
-        if (successfulUploads > 0)
+        if (errors.Count == 0)
         {
-            var suffix = successfulUploads == 1 ? "photo" : "photos";
-            TempData["ToastMessage"] = $"{successfulUploads} {suffix} uploaded.";
+            TempData["ToastMessage"] = successfulUploads == 1
+                ? "1 photograph uploaded."
+                : $"{successfulUploads} photographs uploaded.";
+            return RedirectToPage(new { id });
         }
 
-        foreach (var error in errors.Distinct())
-        {
-            ModelState.AddModelError(string.Empty, error);
-        }
-
-        await LoadAsync(id, cancellationToken);
-        return Page();
+        TempData["ToastError"] = successfulUploads > 0
+            ? $"{successfulUploads} photograph(s) uploaded. Some files could not be processed."
+            : errors.First();
+        return RedirectToPage(new { id });
     }
 
     public async Task<IActionResult> OnPostDeletePhotoAsync(Guid id, Guid photoId, string rowVersion, CancellationToken cancellationToken)
@@ -327,6 +303,115 @@ public sealed class EditModel : PageModel
         }
 
         return RedirectToPage(new { id });
+    }
+
+    private void ValidateSelectionsAndUploads()
+    {
+        if (Input.EventTypeId is null)
+        {
+            ModelState.AddModelError(nameof(Input.EventTypeId), "Please select an event type.");
+        }
+
+        if (Input.DateOfEvent is null)
+        {
+            ModelState.AddModelError(nameof(Input.DateOfEvent), "Please select a date.");
+        }
+
+        if (Input.PlatformId is null)
+        {
+            ModelState.AddModelError(nameof(Input.PlatformId), "Please select a platform.");
+        }
+
+        var uploads = Uploads?.Where(file => file is not null).ToList() ?? new List<IFormFile>();
+        if (uploads.Count > SocialPhotoMaxFiles)
+        {
+            ModelState.AddModelError(nameof(Uploads), $"You can add up to {SocialPhotoMaxFiles} photographs at a time.");
+        }
+
+        foreach (var file in uploads)
+        {
+            if (file.Length == 0)
+            {
+                ModelState.AddModelError(nameof(Uploads), $"{file.FileName}: the selected file is empty.");
+            }
+            else if (file.Length > SocialPhotoMaxBytes)
+            {
+                ModelState.AddModelError(nameof(Uploads), $"{file.FileName}: the file exceeds {SocialPhotoMaxMb} MB.");
+            }
+        }
+    }
+
+    private void AddUpdateError(SocialMediaEventMutationResult result)
+    {
+        if (result.Outcome is SocialMediaEventMutationOutcome.EventTypeInactive or SocialMediaEventMutationOutcome.EventTypeNotFound)
+        {
+            ModelState.AddModelError(nameof(Input.EventTypeId), "Please choose an active event type.");
+        }
+        else if (result.Outcome is SocialMediaEventMutationOutcome.PlatformInactive or SocialMediaEventMutationOutcome.PlatformNotFound)
+        {
+            ModelState.AddModelError(nameof(Input.PlatformId), "Please choose an active platform.");
+        }
+        else if (result.Outcome == SocialMediaEventMutationOutcome.ConcurrencyConflict)
+        {
+            ModelState.AddModelError(string.Empty, "Another user updated this activity. Please reload and try again.");
+        }
+        else if (result.Errors.Count > 0)
+        {
+            ModelState.AddModelError(string.Empty, result.Errors[0]);
+        }
+        else
+        {
+            ModelState.AddModelError(string.Empty, "Unable to update the activity.");
+        }
+    }
+
+    private async Task<(int Successful, List<string> Errors)> UploadSelectedFilesAsync(
+        Guid id,
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        var files = Uploads?.Where(file => file is not null && file.Length > 0).ToList() ?? new List<IFormFile>();
+        var errors = new List<string>();
+        var successful = 0;
+        var caption = string.IsNullOrWhiteSpace(UploadCaption) ? null : UploadCaption.Trim();
+
+        foreach (var file in files)
+        {
+            try
+            {
+                await using var stream = file.OpenReadStream();
+                var result = await _photoService.UploadAsync(
+                    id,
+                    stream,
+                    file.FileName,
+                    file.ContentType,
+                    caption,
+                    userId,
+                    cancellationToken);
+
+                if (result.Outcome == SocialMediaEventPhotoUploadOutcome.Success)
+                {
+                    successful++;
+                }
+                else
+                {
+                    errors.AddRange(result.Errors.Count > 0
+                        ? result.Errors
+                        : new[] { $"{file.FileName}: the photograph could not be processed." });
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to upload social media photograph {FileName} for activity {EventId}.", file.FileName, id);
+                errors.Add($"{file.FileName}: the photograph could not be processed.");
+            }
+        }
+
+        return (successful, errors.Distinct().ToList());
     }
 
     // SECTION: Page data loading

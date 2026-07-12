@@ -1,54 +1,61 @@
-/* ---------- SECTION: Pending approvals row navigation ---------- */
+const INITIALISED_ATTRIBUTE = 'decisionFilterInitialised';
+const SEARCH_DELAY_MS = 450;
+const MIN_SEARCH_LENGTH = 2;
 
-const INTERACTIVE_SELECTOR = 'a, button, input, select, textarea, label';
-
-function isInteractiveElement(target) {
-  return target.closest(INTERACTIVE_SELECTOR) !== null;
-}
-
-function getRowTarget(row) {
-  const url = row?.dataset?.approvalsUrl;
-  return url && url.trim().length > 0 ? url : null;
-}
-
-function handleRowClick(event) {
-  const row = event.currentTarget;
-  if (isInteractiveElement(event.target)) {
+/**
+ * Initialises the pending-approvals filter controls.
+ *
+ * The function is deliberately idempotent because shared page bootstrapping can
+ * run after partial-page updates as well as on the initial document load.
+ *
+ * @param {ParentNode} root DOM scope to inspect. Defaults to the full document.
+ */
+export function initPendingApprovalsRows(root = document) {
+  if (!root || typeof root.querySelector !== 'function') {
     return;
   }
 
-  const target = getRowTarget(row);
-  if (target) {
-    window.location.assign(target);
-  }
-}
-
-function handleRowKeydown(event) {
-  if (event.key !== 'Enter' && event.key !== ' ') {
+  const form = root.querySelector('[data-decision-filter-form]');
+  if (!(form instanceof HTMLFormElement)) {
     return;
   }
 
-  if (isInteractiveElement(event.target)) {
+  if (form.dataset[INITIALISED_ATTRIBUTE] === 'true') {
     return;
   }
 
-  event.preventDefault();
-  const row = event.currentTarget;
-  const target = getRowTarget(row);
-  if (target) {
-    window.location.assign(target);
-  }
-}
+  form.dataset[INITIALISED_ATTRIBUTE] = 'true';
 
-export function initPendingApprovalsRows() {
-  /* ---------- SECTION: DOM bindings ---------- */
-  const rows = document.querySelectorAll('[data-approvals-row="true"]');
-  if (!rows.length) {
-    return;
-  }
+  let searchTimer = null;
+  const search = form.querySelector('input[type="search"]');
 
-  rows.forEach((row) => {
-    row.addEventListener('click', handleRowClick);
-    row.addEventListener('keydown', handleRowKeydown);
+  const resetPageNumber = () => {
+    const pageField = form.querySelector('[name="PageNumber"]');
+    if (pageField instanceof HTMLInputElement) {
+      pageField.value = '1';
+    }
+  };
+
+  const submitFilters = () => {
+    resetPageNumber();
+    form.requestSubmit();
+  };
+
+  form.querySelectorAll('[data-auto-submit]').forEach((control) => {
+    control.addEventListener('change', submitFilters);
   });
+
+  if (search instanceof HTMLInputElement) {
+    search.addEventListener('input', () => {
+      window.clearTimeout(searchTimer);
+      searchTimer = window.setTimeout(() => {
+        const query = search.value.trim();
+        if (query.length === 0 || query.length >= MIN_SEARCH_LENGTH) {
+          submitFilters();
+        }
+      }, SEARCH_DELAY_MS);
+    });
+  }
 }
+
+export default initPendingApprovalsRows;

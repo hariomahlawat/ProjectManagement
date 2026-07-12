@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
@@ -40,11 +41,30 @@ public class StageProgressService
         _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
     }
 
+    public Task UpdateStageStatusAsync(
+        int projectId,
+        string stageCode,
+        StageStatus newStatus,
+        DateOnly? effectiveDate,
+        string userId,
+        CancellationToken cancellationToken = default)
+        => UpdateStageStatusAsync(
+            projectId,
+            stageCode,
+            newStatus,
+            effectiveDate,
+            explicitStartDate: null,
+            preserveBlankStartOnCompletion: false,
+            userId: userId,
+            cancellationToken: cancellationToken);
+
     public async Task UpdateStageStatusAsync(
         int projectId,
         string stageCode,
         StageStatus newStatus,
         DateOnly? effectiveDate,
+        DateOnly? explicitStartDate,
+        bool preserveBlankStartOnCompletion,
         string userId,
         CancellationToken cancellationToken = default)
     {
@@ -67,12 +87,21 @@ public class StageProgressService
 
         var previousStatus = stage.Status;
 
-        var today = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime);
+        var today = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
         var resolvedDate = effectiveDate ?? today;
 
         if (newStatus == StageStatus.Completed)
         {
-            await CompleteWithCascadeAsync(projectId, stage, resolvedDate, effectiveDate, previousStatus, userId, cancellationToken);
+            await CompleteWithCascadeAsync(
+                projectId,
+                stage,
+                resolvedDate,
+                effectiveDate,
+                explicitStartDate,
+                preserveBlankStartOnCompletion,
+                previousStatus,
+                userId,
+                cancellationToken);
             return;
         }
 
@@ -126,6 +155,8 @@ public class StageProgressService
         ProjectStage stage,
         DateOnly resolvedDate,
         DateOnly? explicitDate,
+        DateOnly? explicitStartDate,
+        bool preserveBlankStartOnCompletion,
         StageStatus previousStatus,
         string userId,
         CancellationToken ct)
@@ -138,25 +169,25 @@ public class StageProgressService
         var workflow = await _workflowPolicy.GetAsync(projectId, ct);
         var completionDate = explicitDate ?? stage.CompletedOn ?? resolvedDate;
 
-        stage.Status = StageStatus.Completed;
-        if (!stage.ActualStart.HasValue)
+        if (explicitStartDate.HasValue && completionDate < explicitStartDate.Value)
         {
-            var predecessorCodes = workflow.RequiredPredecessors(stage.StageCode);
-            var predecessorCompletions = predecessorCodes.Count == 0
-                ? Array.Empty<DateOnly>()
-                : await _db.ProjectStages
-                    .AsNoTracking()
-                    .Where(item =>
-                        item.ProjectId == projectId
-                        && predecessorCodes.Contains(item.StageCode)
-                        && item.Status == StageStatus.Completed
-                        && item.CompletedOn.HasValue)
-                    .Select(item => item.CompletedOn!.Value)
-                    .ToArrayAsync(ct);
+            throw new InvalidOperationException(
+                $"Completion date cannot be before the selected start date ({explicitStartDate.Value:dd MMM yyyy}).");
+        }
 
-            var inferredStart = predecessorCompletions.Length == 0
-                ? completionDate
-                : predecessorCompletions.Max().AddDays(1);
+        stage.Status = StageStatus.Completed;
+        if (explicitStartDate.HasValue)
+        {
+            stage.ActualStart = explicitStartDate.Value;
+        }
+        else if (!stage.ActualStart.HasValue && !preserveBlankStartOnCompletion)
+        {
+            var projectStages = await _db.ProjectStages
+                .AsNoTracking()
+                .Where(item => item.ProjectId == projectId)
+                .ToListAsync(ct);
+            var suggestion = StageDateSuggestionResolver.Resolve(workflow, projectStages, stage.StageCode);
+            var inferredStart = suggestion.SuggestedStartDate ?? completionDate;
 
             stage.ActualStart = inferredStart <= completionDate
                 ? inferredStart

@@ -17,6 +17,8 @@ public sealed class ProjectOfficerWorkspaceVm
     public int DailyActionCount { get; set; }
     public int OverdueTaskCount { get; set; }
     public int RecordGapCount { get; set; }
+    public int ProjectsNeedingAttentionCount { get; set; }
+    public int ProjectTimelineIssueCount { get; set; }
     public int AssignedIdeaCount { get; set; }
     public int AotsUnreadCount { get; set; }
     public string AotsUrl { get; set; } = "/DocumentRepository/Documents?scope=aots";
@@ -26,7 +28,57 @@ public sealed class ProjectOfficerWorkspaceVm
     public IReadOnlyList<WorkspaceRailItemVm> RailItems { get; set; } = Array.Empty<WorkspaceRailItemVm>();
     public IReadOnlyList<WorkspaceAttentionItemVm> PendingWithMe { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public IReadOnlyList<WorkspaceActionQueueItemVm> ActionQueue { get; set; } = Array.Empty<WorkspaceActionQueueItemVm>();
+    public IReadOnlyList<WorkspaceActionQueueGroupVm> ActionQueueGroups { get; set; } = Array.Empty<WorkspaceActionQueueGroupVm>();
     public int ActionQueueTotalCount { get; set; }
+
+    public string ActionHeadline => ActionQueueTotalCount switch
+    {
+        0 when RecordGapCount == 1 => "1 record gap requires attention",
+        0 when RecordGapCount > 1 => $"{RecordGapCount} record gaps require attention",
+        0 => "Your workspace is clear",
+        1 => "1 action requires attention",
+        _ => $"{ActionQueueTotalCount} actions require attention"
+    };
+
+    public int FollowUpCount => PersonalReminders.Count + Ideas.Count;
+
+    public string OperationalSummary
+    {
+        get
+        {
+            var parts = new List<string>();
+
+            if (ProjectsNeedingAttentionCount > 0)
+            {
+                parts.Add($"{ProjectsNeedingAttentionCount} project{(ProjectsNeedingAttentionCount == 1 ? string.Empty : "s")} affected");
+            }
+
+            if (ProjectTimelineIssueCount > 0)
+            {
+                parts.Add($"{ProjectTimelineIssueCount} timeline action{(ProjectTimelineIssueCount == 1 ? string.Empty : "s")} pending");
+            }
+
+            if (RecordGapCount > 0)
+            {
+                parts.Add($"{RecordGapCount} record gap{(RecordGapCount == 1 ? string.Empty : "s")}");
+            }
+
+            if (parts.Count == 0 && AotsUnreadCount > 0)
+            {
+                parts.Add($"{AotsUnreadCount} AOTS document{(AotsUnreadCount == 1 ? string.Empty : "s")} awaiting review");
+            }
+
+            if (parts.Count > 0)
+            {
+                return string.Join(" · ", parts);
+            }
+
+            return ActionQueueTotalCount > 0
+                ? $"{ActionQueueTotalCount} assigned action{(ActionQueueTotalCount == 1 ? string.Empty : "s")} sequenced below"
+                : "No overdue project actions or incomplete timelines";
+        }
+    }
+
     public int ActionQueueHiddenCount => Math.Max(0, ActionQueueTotalCount - ActionQueue.Count);
     public IReadOnlyList<WorkspaceAttentionItemVm> RemarksDue { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public IReadOnlyList<WorkspaceTaskVm> OfficialTasksDue { get; set; } = Array.Empty<WorkspaceTaskVm>();
@@ -49,6 +101,43 @@ public sealed class ProjectOfficerWorkspaceVm
     public WorkspaceAttentionItemVm? NextBestAction { get; set; }
     public IReadOnlyList<WorkspaceQuickActionVm> QuickActions { get; set; } = Array.Empty<WorkspaceQuickActionVm>();
     public IReadOnlyList<WorkspaceReminderVm> PersonalReminders { get; set; } = Array.Empty<WorkspaceReminderVm>();
+    public CommandOfficerWorkloadVm? CommandWorkloadCard { get; set; }
+    public IReadOnlyList<WorkspaceUpcomingEventVm> UpcomingEvents { get; set; } = Array.Empty<WorkspaceUpcomingEventVm>();
+}
+
+public sealed class WorkspaceUpcomingEventVm
+{
+    public string InstanceId { get; set; } = string.Empty;
+
+    public Guid SeriesId { get; set; }
+
+    public string Title { get; set; } = string.Empty;
+
+    public string CategoryLabel { get; set; } = string.Empty;
+
+    public string GroupLabel { get; set; } = string.Empty;
+
+    public string DateLabel { get; set; } = string.Empty;
+
+    public string TimeLabel { get; set; } = string.Empty;
+
+    public string? Location { get; set; }
+
+    public string Icon { get; set; } = "bi-calendar-event";
+
+    public string Tone { get; set; } = "event";
+
+    public DateOnly LocalDate { get; set; }
+
+    public DateTimeOffset StartUtc { get; set; }
+
+    public DateTimeOffset EndUtc { get; set; }
+
+    public bool IsAllDay { get; set; }
+
+    public bool IsCelebration { get; set; }
+
+    public string OpenUrl { get; set; } = "/Calendar";
 }
 
 public sealed class WorkspaceCommandChipVm
@@ -122,6 +211,8 @@ public sealed class WorkspaceAotsDocumentVm
 
 public sealed class WorkspaceActionQueueItemVm
 {
+    public int? ProjectId { get; set; }
+
     public string Type { get; set; } = string.Empty;
 
     public string BadgeText { get; set; } = string.Empty;
@@ -132,6 +223,8 @@ public sealed class WorkspaceActionQueueItemVm
 
     public string Meta { get; set; } = string.Empty;
 
+    public string PriorityReason { get; set; } = string.Empty;
+
     public string Severity { get; set; } = "Info";
 
     public string ActionText { get; set; } = string.Empty;
@@ -139,6 +232,28 @@ public sealed class WorkspaceActionQueueItemVm
     public string ActionUrl { get; set; } = string.Empty;
 
     public DateTime? SortDateUtc { get; set; }
+
+    // Lower values appear first in the unified action queue.
+    public int PriorityRank { get; set; } = 100;
+}
+
+public sealed class WorkspaceActionQueueGroupVm
+{
+    public string Key { get; set; } = string.Empty;
+
+    public int? ProjectId { get; set; }
+
+    public string Title { get; set; } = string.Empty;
+
+    public string PrimaryUrl { get; set; } = string.Empty;
+
+    public string Severity { get; set; } = "Info";
+
+    public bool IsRecommended { get; set; }
+
+    public IReadOnlyList<WorkspaceActionQueueItemVm> Actions { get; set; } = Array.Empty<WorkspaceActionQueueItemVm>();
+
+    public int ActionCount => Actions.Count;
 }
 
 public sealed class WorkspaceAttentionItemVm
@@ -171,6 +286,18 @@ public sealed class WorkspaceProjectMatrixRowVm
     public string CurrentStageName { get; set; } = string.Empty;
 
     public int? DaysInCurrentStage { get; set; }
+
+    public DateOnly? CurrentStagePdc { get; set; }
+
+    public int? DaysUntilCurrentStagePdc { get; set; }
+
+    public int? DaysSinceLastPoRemark { get; set; }
+
+    public bool IsCurrentStageStartMissing { get; set; }
+
+    public bool IsCurrentStagePdcMissing { get; set; }
+
+    public bool IsCurrentStageNotStarted { get; set; }
 
     public string UpdateStatus { get; set; } = "Ok";
 
@@ -428,37 +555,132 @@ public static class WorkspaceDisplayHelpers
         _ => status
     };
 
-    // SECTION: Compact status labels keep dense table cells readable.
-    public static string CompactStatusLabel(string status) => status switch
+    // SECTION: Project update labels separate the current state from the supporting age detail.
+    public static string ProjectUpdateStatusLabel(WorkspaceProjectMatrixRowVm row)
     {
-        "ActionRequired" => "Update overdue",
-        "NotApplicable" => "N/A",
-        "Ok" => "OK",
-        "Attention" => "Attention",
-        _ => status
-    };
+        if (!row.LastPoRemarkAtUtc.HasValue)
+        {
+            return "No update recorded";
+        }
 
+        return row.UpdateStatus switch
+        {
+            "ActionRequired" => "Update overdue",
+            "Attention" => "Update due",
+            "Ok" => "Current",
+            _ => StatusLabel(row.UpdateStatus)
+        };
+    }
 
+    public static string ProjectUpdateStatusDetail(WorkspaceProjectMatrixRowVm row)
+    {
+        if (!row.DaysSinceLastPoRemark.HasValue)
+        {
+            return "Add the first project update";
+        }
 
-    // SECTION: Timeline matrix labels separate data gaps from overdue performance states.
+        return row.DaysSinceLastPoRemark.Value switch
+        {
+            0 => "Updated today",
+            1 => "Updated yesterday",
+            var days => $"{days} days since update"
+        };
+    }
+
+    public static string CurrentStageDurationLabel(WorkspaceProjectMatrixRowVm row)
+    {
+        if (row.IsCurrentStageNotStarted)
+        {
+            return "Not started";
+        }
+
+        if (!row.DaysInCurrentStage.HasValue)
+        {
+            return "Start date not recorded";
+        }
+
+        return row.DaysInCurrentStage.Value == 1
+            ? "1 day in stage"
+            : $"{row.DaysInCurrentStage.Value} days in stage";
+    }
+
+    // SECTION: Timeline labels distinguish current-stage issues from historical record gaps.
     public static string TimelineStatusLabel(WorkspaceProjectMatrixRowVm row)
     {
-        if (row.HasBackfill)
-        {
-            return "Current-stage dates missing";
-        }
-
         if (row.HasOverdueCurrentStage)
         {
-            return "Overdue";
+            var overdueDays = Math.Abs(row.DaysUntilCurrentStagePdc ?? 0);
+            return overdueDays == 1 ? "Overdue by 1 day" : $"Overdue by {overdueDays} days";
         }
 
-        if (row.HasCurrentStageIssue)
+        if (row.IsCurrentStagePdcMissing)
         {
-            return "Update";
+            return "Current-stage PDC missing";
         }
 
-        return "OK";
+        if (row.IsCurrentStageStartMissing)
+        {
+            return "Current-stage start missing";
+        }
+
+        if (row.IsCurrentStageNotStarted)
+        {
+            return "Stage not started";
+        }
+
+        if (row.HasBackfill)
+        {
+            return "Historical dates incomplete";
+        }
+
+        if (row.DaysUntilCurrentStagePdc is 0)
+        {
+            return "Due today";
+        }
+
+        if (row.DaysUntilCurrentStagePdc is > 0 and <= 7)
+        {
+            return row.DaysUntilCurrentStagePdc == 1
+                ? "Due in 1 day"
+                : $"Due in {row.DaysUntilCurrentStagePdc} days";
+        }
+
+        return "On track";
+    }
+
+    public static string TimelineStatusDetail(WorkspaceProjectMatrixRowVm row)
+    {
+        if (row.HasOverdueCurrentStage && row.CurrentStagePdc.HasValue)
+        {
+            return $"PDC {row.CurrentStagePdc.Value:dd MMM yyyy}";
+        }
+
+        if (row.IsCurrentStagePdcMissing)
+        {
+            return "Set the PDC for the current stage";
+        }
+
+        if (row.IsCurrentStageStartMissing)
+        {
+            return "Record the current-stage start date";
+        }
+
+        if (row.IsCurrentStageNotStarted)
+        {
+            return "Timeline not yet active";
+        }
+
+        if (row.HasBackfill)
+        {
+            return "Complete missing historical stage dates";
+        }
+
+        if (row.CurrentStagePdc.HasValue)
+        {
+            return $"PDC {row.CurrentStagePdc.Value:dd MMM yyyy}";
+        }
+
+        return "Current-stage dates complete";
     }
 
     public static string TimelineStatusCss(WorkspaceProjectMatrixRowVm row)
@@ -468,12 +690,37 @@ public static class WorkspaceDisplayHelpers
             return "danger";
         }
 
-        if (row.HasBackfill || row.HasCurrentStageIssue)
+        if (row.HasCurrentStageIssue || row.HasBackfill)
         {
             return "warning";
         }
 
+        if (row.IsCurrentStageNotStarted)
+        {
+            return "neutral";
+        }
+
         return "good";
+    }
+
+    public static string TimelineActionLabel(WorkspaceProjectMatrixRowVm row)
+    {
+        if (row.HasOverdueCurrentStage)
+        {
+            return "Review timeline";
+        }
+
+        if (row.IsCurrentStagePdcMissing || row.IsCurrentStageStartMissing)
+        {
+            return "Update dates";
+        }
+
+        if (row.HasBackfill)
+        {
+            return "Complete timeline";
+        }
+
+        return "Open timeline";
     }
 
     // SECTION: Matrix action labels are shortened for dense enterprise table rows.

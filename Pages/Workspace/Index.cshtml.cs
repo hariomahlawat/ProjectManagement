@@ -23,7 +23,7 @@ public class IndexModel : PageModel
     public bool CanSwitchWorkspace { get; private set; }
 
     [BindProperty(SupportsGet = true)] public string? Mode { get; set; }
-    [BindProperty(SupportsGet = true)] public string View { get; set; } = "portfolio";
+    [BindProperty(SupportsGet = true)] public string View { get; set; } = "officers";
     [BindProperty(SupportsGet = true)] public List<int> ParentCategoryIds { get; set; } = new();
     [BindProperty(SupportsGet = true)] public string? ProjectSearch { get; set; }
     [BindProperty(SupportsGet = true)] public bool PopulatedStagesOnly { get; set; }
@@ -49,7 +49,9 @@ public class IndexModel : PageModel
 
         if (IsCommandMode)
         {
-            View = string.Equals(View, "officers", StringComparison.OrdinalIgnoreCase) ? "officers" : "portfolio";
+            View = string.Equals(View, "portfolio", StringComparison.OrdinalIgnoreCase)
+                ? "portfolio"
+                : "officers";
             if (View == "portfolio" && !Request.Query.ContainsKey(nameof(PopulatedStagesOnly)))
             {
                 PopulatedStagesOnly = true;

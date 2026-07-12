@@ -13,6 +13,7 @@ using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Authorization;
+using ProjectManagement.Services.Approvals;
 using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services.Stages;
@@ -38,6 +39,7 @@ public sealed class StageDecisionService
     private readonly ILogger<StageDecisionService> _logger;
     private readonly IProjectStageWorkflowPolicy _workflowPolicy;
     private readonly IPlanRealignment _planRealignment;
+    private readonly StageApprovalSequenceService? _sequenceService;
 
     public StageDecisionService(
         ApplicationDbContext db,
@@ -45,7 +47,8 @@ public sealed class StageDecisionService
         StageProgressService stageProgressService,
         ILogger<StageDecisionService> logger,
         IProjectStageWorkflowPolicy workflowPolicy,
-        IPlanRealignment? planRealignment = null)
+        IPlanRealignment? planRealignment = null,
+        StageApprovalSequenceService? sequenceService = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -53,6 +56,7 @@ public sealed class StageDecisionService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
         _planRealignment = planRealignment ?? new NullPlanRealignment();
+        _sequenceService = sequenceService;
     }
 
     public async Task<StageDecisionResult> DecideAsync(
@@ -139,10 +143,37 @@ public sealed class StageDecisionService
 
         if (input.Action == StageDecisionAction.Reject)
         {
-            request.DecisionStatus = RejectedDecisionStatus;
-            request.DecidedByUserId = decisionUserId;
-            request.DecidedOn = now;
-            request.DecisionNote = trimmedNote;
+            var useRejectTransaction = _db.Database.IsRelational();
+            await using var rejectTransaction = useRejectTransaction
+                ? await _db.Database.BeginTransactionAsync(cancellationToken)
+                : null;
+
+            if (useRejectTransaction)
+            {
+                var claimed = await _db.StageChangeRequests
+                    .Where(item => item.Id == request.Id && item.DecisionStatus == PendingDecisionStatus)
+                    .ExecuteUpdateAsync(
+                        setters => setters
+                            .SetProperty(item => item.DecisionStatus, RejectedDecisionStatus)
+                            .SetProperty(item => item.DecidedByUserId, decisionUserId)
+                            .SetProperty(item => item.DecidedOn, now)
+                            .SetProperty(item => item.DecisionNote, trimmedNote),
+                        cancellationToken);
+
+                if (claimed != 1)
+                {
+                    return StageDecisionResult.AlreadyDecided();
+                }
+
+                await _db.Entry(request).ReloadAsync(cancellationToken);
+            }
+            else
+            {
+                request.DecisionStatus = RejectedDecisionStatus;
+                request.DecidedByUserId = decisionUserId;
+                request.DecidedOn = now;
+                request.DecisionNote = trimmedNote;
+            }
 
             var rejectionLog = new StageChangeLog
             {
@@ -162,6 +193,11 @@ public sealed class StageDecisionService
 
             await _db.StageChangeLogs.AddAsync(rejectionLog, cancellationToken);
             await _db.SaveChangesAsync(cancellationToken);
+
+            if (rejectTransaction is not null)
+            {
+                await rejectTransaction.CommitAsync(cancellationToken);
+            }
 
             _logger.LogInformation(
                 "Stage decision rejected. RequestId={RequestId}, ProjectId={ProjectId}, StageCode={StageCode}, UserId={UserId}, ConnHash={ConnHash}",
@@ -195,6 +231,20 @@ public sealed class StageDecisionService
             return StageDecisionResult.ValidationFailed("The project stage already has the requested status.");
         }
 
+        if (_sequenceService is not null)
+        {
+            var assessment = await _sequenceService.AssessRequestAsync(request.Id, cancellationToken);
+            if (assessment is null)
+            {
+                return StageDecisionResult.RequestNotFound();
+            }
+
+            if (!assessment.CanApprove)
+            {
+                return StageDecisionResult.ValidationFailed(assessment.Message);
+            }
+        }
+
         var warnings = new List<string>();
         DateOnly? effectiveDate = request.RequestedDate;
         DateOnly? carriedForwardStart = null;
@@ -207,7 +257,8 @@ public sealed class StageDecisionService
                     "A completion date is required when approving completion.");
             }
 
-            carriedForwardStart = stage.ActualStart
+            carriedForwardStart = request.RequestedStartDate
+                ?? stage.ActualStart
                 ?? await FindCarriedForwardStartAsync(request, cancellationToken);
 
             if (carriedForwardStart.HasValue && request.RequestedDate.Value < carriedForwardStart.Value)
@@ -226,8 +277,8 @@ public sealed class StageDecisionService
 
             if (incompletePredecessors.Count > 0)
             {
-                warnings.Add(
-                    $"Predecessor stages are incomplete and approval will proceed: {string.Join(", ", incompletePredecessors)}.");
+                return StageDecisionResult.ValidationFailed(
+                    $"Approve or resolve the required predecessor stage{(incompletePredecessors.Count == 1 ? string.Empty : "s")} first: {string.Join(", ", incompletePredecessors)}.");
             }
         }
 
@@ -236,20 +287,56 @@ public sealed class StageDecisionService
             ? await _db.Database.BeginTransactionAsync(cancellationToken)
             : null;
 
-        if (requestedStatus == StageStatus.Completed
-            && !stage.ActualStart.HasValue
-            && carriedForwardStart.HasValue)
+        // Claim the still-pending request atomically before changing lifecycle state.
+        // This closes the race where two HoDs open the same request and approve it
+        // concurrently. The update remains inside this transaction and is rolled back
+        // automatically if stage application or final persistence fails.
+        if (useTransaction)
+        {
+            var claimed = await _db.StageChangeRequests
+                .Where(item => item.Id == request.Id && item.DecisionStatus == PendingDecisionStatus)
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(item => item.DecisionStatus, ApprovedDecisionStatus)
+                        .SetProperty(item => item.DecidedByUserId, decisionUserId)
+                        .SetProperty(item => item.DecidedOn, now),
+                    cancellationToken);
+
+            if (claimed != 1)
+            {
+                return StageDecisionResult.AlreadyDecided();
+            }
+
+            await _db.Entry(request).ReloadAsync(cancellationToken);
+        }
+
+        if (requestedStatus == StageStatus.Completed && carriedForwardStart.HasValue)
         {
             stage.ActualStart = carriedForwardStart;
         }
 
-        await _stageProgressService.UpdateStageStatusAsync(
-            stage.ProjectId,
-            stage.StageCode,
-            requestedStatus,
-            effectiveDate,
-            decisionUserId,
-            cancellationToken);
+        try
+        {
+            await _stageProgressService.UpdateStageStatusAsync(
+                stage.ProjectId,
+                stage.StageCode,
+                requestedStatus,
+                effectiveDate,
+                requestedStatus == StageStatus.Completed ? request.RequestedStartDate : null,
+                preserveBlankStartOnCompletion: requestedStatus == StageStatus.Completed,
+                userId: decisionUserId,
+                cancellationToken: cancellationToken);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Stage decision validation failed. RequestId={RequestId}, ProjectId={ProjectId}, StageCode={StageCode}",
+                input.RequestId,
+                stage.ProjectId,
+                stage.StageCode);
+            return StageDecisionResult.ValidationFailed(ex.Message);
+        }
 
         await _db.Entry(stage).ReloadAsync(cancellationToken);
 

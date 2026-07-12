@@ -70,19 +70,27 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
             throw new InvalidOperationException("Closed tasks cannot be updated.");
         }
 
+        var normalizedUpdateType = ActionTaskUpdateTypes.All
+            .FirstOrDefault(candidate => string.Equals(candidate, updateType, StringComparison.OrdinalIgnoreCase));
+        if (normalizedUpdateType is null)
+        {
+            throw new InvalidOperationException("Invalid update type.");
+        }
+
         if (!_permission.CanAddTaskUpdate(role, userId, task.AssignedToUserId))
         {
             throw new InvalidOperationException("You are not authorized to add updates for this task.");
         }
 
+        if (string.Equals(normalizedUpdateType, ActionTaskUpdateTypes.Conference, StringComparison.Ordinal)
+            && !_permission.CanAddConferenceUpdate(role))
+        {
+            throw new InvalidOperationException("Only Comdt or HoD may add conference remarks.");
+        }
+
         if (hasFiles && !_permission.CanUploadTaskAttachment(role, userId, task.AssignedToUserId))
         {
             throw new InvalidOperationException("You are not authorized to add updates for this task.");
-        }
-
-        if (!ActionTaskUpdateTypes.All.Contains(updateType, StringComparer.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("Invalid update type.");
         }
 
         if (!hasBody && !hasFiles)
@@ -102,9 +110,12 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
             {
                 TaskId = taskId,
                 CreatedByUserId = userId,
+                CreatedByRole = NormalizeRoleSnapshot(role),
                 CreatedAtUtc = _clock.UtcNow,
-                UpdateType = ActionTaskUpdateTypes.All.First(x => string.Equals(x, updateType, StringComparison.OrdinalIgnoreCase)),
+                UpdateType = normalizedUpdateType,
                 Body = hasBody ? body.Trim() : "Supporting file uploaded.",
+                StatusSnapshot = task.Status,
+                DueDateSnapshot = DateOnly.FromDateTime(task.DueDate),
                 IsDeleted = false
             };
 
@@ -179,9 +190,12 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
                 {
                     TaskId = taskId,
                     CreatedByUserId = userId,
+                    CreatedByRole = NormalizeRoleSnapshot(role),
                     CreatedAtUtc = _clock.UtcNow,
                     UpdateType = ActionTaskUpdateTypes.Progress,
                     Body = hasUserNote ? trimmedBody : BuildAutomaticProgressMessage(previousStatus, requestedStatus, hasFiles),
+                    StatusSnapshot = previousStatus,
+                    DueDateSnapshot = DateOnly.FromDateTime(task.DueDate),
                     IsDeleted = false
                 };
                 _context.ActionTaskUpdates.Add(update);
@@ -587,4 +601,10 @@ public sealed class ActionTaskCollaborationService : IActionTaskCollaborationSer
 
         try { if (File.Exists(path)) File.Delete(path); } catch { }
     }
+    private static string? NormalizeRoleSnapshot(string? role)
+    {
+        var normalized = role?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
 }

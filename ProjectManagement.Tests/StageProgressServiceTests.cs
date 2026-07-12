@@ -101,6 +101,78 @@ public class StageProgressServiceTests
     }
 
     [Fact]
+    public async Task UpdateStageStatusAsync_DirectCompletion_PreservesBlankStartWhenRequested()
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 2, 15, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.FS, StageStatus.NotStarted));
+
+        var service = CreateService(db, clock);
+        var completedOn = new DateOnly(2024, 2, 15);
+
+        await service.UpdateStageStatusAsync(
+            1,
+            StageCodes.FS,
+            StageStatus.Completed,
+            completedOn,
+            explicitStartDate: null,
+            preserveBlankStartOnCompletion: true,
+            userId: "tester");
+
+        var stage = await db.ProjectStages.SingleAsync(item => item.StageCode == StageCodes.FS);
+        Assert.Equal(StageStatus.Completed, stage.Status);
+        Assert.Null(stage.ActualStart);
+        Assert.Equal(completedOn, stage.CompletedOn);
+    }
+
+    [Fact]
+    public async Task UpdateStageStatusAsync_DirectCompletion_UsesEditableExplicitStart()
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 2, 15, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.FS, StageStatus.NotStarted));
+
+        var service = CreateService(db, clock);
+        var selectedStart = new DateOnly(2024, 2, 5);
+        var completedOn = new DateOnly(2024, 2, 15);
+
+        await service.UpdateStageStatusAsync(
+            1,
+            StageCodes.FS,
+            StageStatus.Completed,
+            completedOn,
+            explicitStartDate: selectedStart,
+            preserveBlankStartOnCompletion: true,
+            userId: "tester");
+
+        var stage = await db.ProjectStages.SingleAsync(item => item.StageCode == StageCodes.FS);
+        Assert.Equal(selectedStart, stage.ActualStart);
+        Assert.Equal(completedOn, stage.CompletedOn);
+    }
+
+    [Fact]
+    public async Task UpdateStageStatusAsync_DirectCompletion_RejectsCompletionBeforeEditableStart()
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 2, 15, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(db, (StageCodes.FS, StageStatus.NotStarted));
+
+        var service = CreateService(db, clock);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateStageStatusAsync(
+                1,
+                StageCodes.FS,
+                StageStatus.Completed,
+                new DateOnly(2024, 2, 10),
+                explicitStartDate: new DateOnly(2024, 2, 11),
+                preserveBlankStartOnCompletion: true,
+                userId: "tester"));
+
+        Assert.Contains("selected start date", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task UpdateStageStatusAsync_CompletingStageCascadesPredecessors()
     {
         var clock = new TestClock(new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero));

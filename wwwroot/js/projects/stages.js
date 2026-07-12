@@ -76,7 +76,7 @@
     };
 
     if (token) {
-      headers.RequestVerificationToken = token;
+      headers['X-CSRF-TOKEN'] = token;
     }
 
     let requestUrl = path;
@@ -528,9 +528,14 @@
 
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     const form = modalEl.querySelector('[data-direct-apply-form]');
+    const modalTitle = modalEl.querySelector('[data-direct-apply-title]');
     const stageLabel = modalEl.querySelector('[data-direct-apply-stage]');
     const statusLabelEl = modalEl.querySelector('[data-direct-apply-status]');
     const dateInput = modalEl.querySelector('input[name="date"]');
+    const startDateInput = modalEl.querySelector('input[name="startDate"]');
+    const startDateGroup = modalEl.querySelector('[data-direct-apply-start-group]');
+    const startDateHint = modalEl.querySelector('[data-direct-apply-start-hint]');
+    const completionNote = modalEl.querySelector('[data-direct-apply-completion-note]');
     const noteInput = modalEl.querySelector('textarea[name="note"]');
     const projectInput = modalEl.querySelector('input[name="projectId"]');
     const stageInput = modalEl.querySelector('input[name="stageCode"]');
@@ -547,6 +552,7 @@
     const noDateWarning = modalEl.querySelector('[data-direct-apply-no-date-warning]');
     const actorCanOverride = modalEl.getAttribute('data-authorised-override') === 'true';
     let activeStatus = '';
+    let activeDirectCompletion = false;
 
     function updateSubmitButton(status) {
       if (!submitButton) return;
@@ -570,6 +576,31 @@
       const shouldShow = actorCanOverride && status === 'Completed' && !dateInput.value;
       noDateWarning.classList.toggle('d-none', !shouldShow);
       updateSubmitButton(status);
+    }
+
+    function configureStartDate(status, defaultStartDate, sourceName, isDirectCompletion) {
+      if (!startDateInput || !startDateGroup) return;
+
+      const showStartDate = status === 'Completed';
+      startDateGroup.classList.toggle('d-none', !showStartDate);
+      startDateInput.disabled = !showStartDate;
+      startDateInput.required = false;
+      startDateInput.value = showStartDate ? (defaultStartDate || '') : '';
+
+      if (completionNote) {
+        completionNote.classList.toggle('d-none', !(showStartDate && isDirectCompletion));
+      }
+
+      if (!startDateHint) return;
+      if (!showStartDate) {
+        startDateHint.textContent = '';
+      } else if (defaultStartDate && sourceName) {
+        startDateHint.textContent = `Suggested as the day after ${sourceName} was completed. You may edit this date.`;
+      } else if (defaultStartDate) {
+        startDateHint.textContent = 'A start date has been prefilled from the project timeline. You may edit it.';
+      } else {
+        startDateHint.textContent = 'No usable predecessor completion date is recorded. The start date may be entered or left blank.';
+      }
     }
 
     function applyDateState(status, { resetValue = false } = {}) {
@@ -637,13 +668,29 @@
       const status = trigger.getAttribute('data-status') || '';
       const stageName = trigger.getAttribute('data-stage-name') || '';
       const defaultDate = trigger.getAttribute('data-default-date') || '';
+      const defaultStartDate = trigger.getAttribute('data-default-start-date') || '';
+      const startSource = trigger.getAttribute('data-start-source') || '';
       activeStatus = status;
+      activeDirectCompletion = trigger.getAttribute('data-direct-completion') === 'true';
 
       if (projectInput) projectInput.value = projectId;
       if (stageInput) stageInput.value = stageCode;
       if (statusInput) statusInput.value = status;
+      if (modalTitle) {
+        modalTitle.textContent = activeDirectCompletion
+          ? 'Complete stage directly'
+          : status === 'InProgress'
+            ? 'Start stage'
+            : status === 'Completed'
+              ? 'Complete stage'
+              : 'Update stage';
+      }
       if (stageLabel) stageLabel.textContent = `${stageCode ? stageCode + ' — ' : ''}${stageName}`.trim();
-      if (statusLabelEl) statusLabelEl.textContent = `Change to ${statusLabel(status)}`;
+      if (statusLabelEl) {
+        statusLabelEl.textContent = activeDirectCompletion
+          ? 'Complete without a separate start action'
+          : `Change to ${statusLabel(status)}`;
+      }
       if (errorContainer) {
         errorContainer.classList.add('d-none');
         errorContainer.textContent = '';
@@ -660,8 +707,9 @@
 
       const requiresDate = applyDateState(status, { resetValue: true });
       if (dateInput) {
-        dateInput.value = defaultDate || (requiresDate ? todayIso() : '');
+        dateInput.value = defaultDate || (status === 'Completed' ? todayIso() : (requiresDate ? todayIso() : ''));
       }
+      configureStartDate(status, defaultStartDate, startSource, activeDirectCompletion);
       updateNoDateWarning(status);
 
       if (submitButton) {
@@ -685,6 +733,12 @@
       renderMissingPredecessors(missingPredecessorsContainer, []);
       setForceGroupVisible(false);
       setForceHintHighlighted(false);
+      if (startDateInput) {
+        startDateInput.value = '';
+        startDateInput.disabled = true;
+      }
+      startDateGroup?.classList.add('d-none');
+      completionNote?.classList.add('d-none');
       if (submitButton) submitButton.disabled = false;
     };
 
@@ -709,6 +763,9 @@
         stageCode: stageInput.value,
         status: statusInput.value,
         date: dateInput && dateInput.value ? dateInput.value : null,
+        startDate: startDateInput && !startDateInput.disabled && startDateInput.value
+          ? startDateInput.value
+          : null,
         note: noteInput && noteInput.value ? noteInput.value.trim() : null,
         forceBackfillPredecessors: !!(forceCheckbox?.checked)
       };
@@ -758,6 +815,12 @@
           } else {
             showToast('Unable to update the stage right now.', 'danger');
           }
+          resetControls();
+          return;
+        }
+
+        if (response.status === 400) {
+          showToast('The security token is no longer valid. Refresh the page and try again.', 'warning');
           resetControls();
           return;
         }
@@ -860,6 +923,8 @@
         sortOrder: Number.parseInt(button.getAttribute('data-stage-sort-order') || '', 10) || 0,
         currentStatus: button.getAttribute('data-current-status') || 'NotStarted',
         actualStart: button.getAttribute('data-actual-start') || '',
+        suggestedStart: button.getAttribute('data-suggested-start') || '',
+        startSource: button.getAttribute('data-start-source') || '',
         pendingStatus: button.getAttribute('data-pending-status') || '',
         pendingDate: button.getAttribute('data-pending-date') || '',
         pendingStartDate: button.getAttribute('data-pending-start-date') || '',
@@ -873,7 +938,7 @@
         case 'NotStarted':
           return [
             { value: 'InProgress', label: 'Start stage' },
-            { value: 'Completed', label: 'Record completion' },
+            { value: 'Completed', label: 'Complete stage directly' },
             { value: 'Blocked', label: 'Mark blocked' },
             { value: 'Skipped', label: 'Skip stage' }
           ];
@@ -950,42 +1015,90 @@
     }
 
     function setDateState(row, status, { resetValue = false, preferredValue = '' } = {}) {
+      const stageSelect = row.querySelector('[data-stage-request-stage]');
+      const stage = stageOptionFor(stageSelect?.value || '');
       const dateInput = row.querySelector('[data-stage-request-date]');
       const label = row.querySelector('[data-stage-request-date-label]');
       const hint = row.querySelector('[data-stage-request-date-hint]');
       const config = dateConfiguration(status);
       if (label) label.textContent = config.label;
-      if (hint) hint.textContent = config.hint;
+      if (hint) {
+        if (status === 'InProgress' && stage?.suggestedStart && !preferredValue) {
+          hint.textContent = stage.startSource
+            ? `Suggested as the day after ${stage.startSource} was completed. You may edit it.`
+            : 'Suggested from the preceding workflow stage. You may edit it.';
+        } else {
+          hint.textContent = config.hint;
+        }
+      }
       if (dateInput) {
         dateInput.required = config.required;
         if (preferredValue) {
           dateInput.value = preferredValue;
         } else if (resetValue) {
-          dateInput.value = config.required ? todayIso() : '';
+          dateInput.value = status === 'InProgress'
+            ? (stage?.suggestedStart || todayIso())
+            : (config.required ? todayIso() : '');
         }
       }
     }
 
     function retainedStartDate(stage) {
       if (!stage) return '';
+      if (stage.pendingStartDate) return stage.pendingStartDate;
       if (stage.actualStart) return stage.actualStart;
       if (stage.pendingStatus === 'InProgress' && stage.pendingDate) return stage.pendingDate;
-      return stage.pendingStartDate || '';
+      return stage.suggestedStart || '';
+    }
+
+    function setStartDateState(row, status, { resetValue = false, preferredValue = '' } = {}) {
+      const stageSelect = row.querySelector('[data-stage-request-stage]');
+      const group = row.querySelector('[data-stage-request-start-group]');
+      const input = row.querySelector('[data-stage-request-start-date]');
+      const hint = row.querySelector('[data-stage-request-start-hint]');
+      const stage = stageOptionFor(stageSelect?.value || '');
+      const visible = status === 'Completed';
+
+      group?.classList.toggle('d-none', !visible);
+      if (input) {
+        input.disabled = !visible;
+        input.required = false;
+        if (!visible) {
+          input.value = '';
+        } else if (preferredValue) {
+          input.value = preferredValue;
+        } else if (resetValue) {
+          input.value = retainedStartDate(stage);
+        }
+      }
+
+      if (!hint) return;
+      if (!visible) {
+        hint.textContent = '';
+      } else if (stage?.actualStart) {
+        hint.textContent = 'Existing stage start. Edit it only when the recorded date needs correction.';
+      } else if (stage?.startSource && stage?.suggestedStart) {
+        hint.textContent = `Suggested as the day after ${stage.startSource} was completed. You may edit it.`;
+      } else if (stage?.suggestedStart) {
+        hint.textContent = 'Suggested from the preceding workflow stage. You may edit it.';
+      } else {
+        hint.textContent = 'No usable predecessor completion date is recorded. Enter a start date or leave it blank.';
+      }
     }
 
     function refreshCarriedStartState(row) {
-      const stageSelect = row.querySelector('[data-stage-request-stage]');
       const targetSelect = row.querySelector('[data-stage-request-target]');
+      const startInput = row.querySelector('[data-stage-request-start-date]');
       const container = row.querySelector('[data-stage-request-carried-start]');
       const text = row.querySelector('[data-stage-request-carried-start-text]');
       if (!container || !text) return;
 
-      const stage = stageOptionFor(stageSelect?.value || '');
-      const startDate = targetSelect?.value === 'Completed' ? retainedStartDate(stage) : '';
-      container.classList.toggle('d-none', !startDate);
+      const visible = targetSelect?.value === 'Completed';
+      const startDate = visible ? (startInput?.value || '') : '';
+      container.classList.toggle('d-none', !visible);
       text.textContent = startDate
-        ? `Proposed start ${formatDate(startDate)} will be retained when this completion update is saved.`
-        : '';
+        ? `Proposed start: ${formatDate(startDate)}. This field remains editable until submission.`
+        : 'No start date will be proposed for this completion update.';
     }
 
     function refreshNoteState() {
@@ -1054,7 +1167,7 @@
       });
     }
 
-    function updateRowFromStage(row, preferredTarget = '', preferredDate = '', preferredNote = '') {
+    function updateRowFromStage(row, preferredTarget = '', preferredDate = '', preferredStartDate = '', preferredNote = '') {
       const stageSelect = row.querySelector('[data-stage-request-stage]');
       const stageCode = stageSelect?.value || '';
       const stage = stageOptionFor(stageCode);
@@ -1076,6 +1189,10 @@
       const effectiveNote = preferredNote || stage?.pendingNote || '';
       const selectedTarget = configureTargetSelect(row, currentStatus, effectiveTarget);
       setDateState(row, selectedTarget, { resetValue: !effectiveDate, preferredValue: effectiveDate });
+      setStartDateState(row, selectedTarget, {
+        resetValue: !preferredStartDate,
+        preferredValue: preferredStartDate
+      });
 
       const noteInput = row.querySelector('[data-stage-request-note]');
       if (noteInput) noteInput.value = effectiveNote;
@@ -1084,12 +1201,12 @@
       renderSummary();
     }
 
-    function proposalDescription(stage, currentStatus, targetStatus, requestedDate) {
+    function proposalDescription(stage, currentStatus, targetStatus, requestedDate, requestedStartDate = '') {
       const stageName = stage?.name || stage?.code || 'Stage';
       const dateText = requestedDate ? formatDate(requestedDate) : null;
 
       if (targetStatus === 'Completed') {
-        const startDate = retainedStartDate(stage);
+        const startDate = requestedStartDate || retainedStartDate(stage);
         const parts = [];
         if (startDate) parts.push(`Start ${formatDate(startDate)}`);
         parts.push(dateText ? `Complete ${dateText}` : 'Complete');
@@ -1130,12 +1247,14 @@
         const stageSelect = row.querySelector('[data-stage-request-stage]');
         const targetSelect = row.querySelector('[data-stage-request-target]');
         const dateInput = row.querySelector('[data-stage-request-date]');
+        const startDateInput = row.querySelector('[data-stage-request-start-date]');
         const noteInput = row.querySelector('[data-stage-request-note]');
         if (!stageSelect?.value || !targetSelect?.value) return;
         rowsByStage.set(stageSelect.value, {
           currentStatus: row.dataset.currentStatus || stageOptionFor(stageSelect.value)?.currentStatus || 'NotStarted',
           targetStatus: targetSelect.value,
           requestedDate: dateInput?.value || '',
+          requestedStartDate: startDateInput?.value || '',
           note: noteInput?.value?.trim() || ''
         });
       });
@@ -1148,23 +1267,24 @@
         if (hasPending && row) {
           const changed = row.targetStatus !== stage.pendingStatus
             || row.requestedDate !== (stage.pendingDate || '')
+            || row.requestedStartDate !== (stage.pendingStartDate || '')
             || row.note !== (stage.pendingNote || '').trim();
 
           if (changed) {
             appendSummaryItem(
-              proposalDescription(stage, stage.currentStatus, stage.pendingStatus, stage.pendingDate),
+              proposalDescription(stage, stage.currentStatus, stage.pendingStatus, stage.pendingDate, stage.pendingStartDate),
               'Existing pending',
               ''
             );
             appendSummaryItem(
-              proposalDescription(stage, row.currentStatus, row.targetStatus, row.requestedDate),
+              proposalDescription(stage, row.currentStatus, row.targetStatus, row.requestedDate, row.requestedStartDate),
               'Current revision',
               'is-revision'
             );
             itemCount += 2;
           } else {
             appendSummaryItem(
-              proposalDescription(stage, stage.currentStatus, stage.pendingStatus, stage.pendingDate),
+              proposalDescription(stage, stage.currentStatus, stage.pendingStatus, stage.pendingDate, stage.pendingStartDate),
               'Pending update',
               ''
             );
@@ -1175,7 +1295,7 @@
 
         if (hasPending) {
           appendSummaryItem(
-            proposalDescription(stage, stage.currentStatus, stage.pendingStatus, stage.pendingDate),
+            proposalDescription(stage, stage.currentStatus, stage.pendingStatus, stage.pendingDate, stage.pendingStartDate),
             'Existing pending',
             ''
           );
@@ -1185,7 +1305,7 @@
 
         if (row) {
           appendSummaryItem(
-            proposalDescription(stage, row.currentStatus, row.targetStatus, row.requestedDate),
+            proposalDescription(stage, row.currentStatus, row.targetStatus, row.requestedDate, row.requestedStartDate),
             'New update',
             'is-new'
           );
@@ -1200,7 +1320,7 @@
       }
     }
 
-    function createRow({ stageCode = '', targetStatus = '', requestedDate = '', note = '', locked = false } = {}) {
+    function createRow({ stageCode = '', targetStatus = '', requestedDate = '', requestedStartDate = '', note = '', locked = false } = {}) {
       if (!rowsContainer || !rowTemplate) return null;
       const fragment = rowTemplate.content.cloneNode(true);
       const row = fragment.querySelector('[data-stage-request-row]');
@@ -1219,7 +1339,7 @@
       }
 
       rowsContainer.appendChild(fragment);
-      updateRowFromStage(row, targetStatus, requestedDate, note);
+      updateRowFromStage(row, targetStatus, requestedDate, requestedStartDate, note);
 
       const removeButton = row.querySelector('[data-stage-request-remove]');
       removeButton?.addEventListener('click', () => {
@@ -1236,12 +1356,17 @@
       const targetSelect = row.querySelector('[data-stage-request-target]');
       targetSelect?.addEventListener('change', () => {
         setDateState(row, targetSelect.value, { resetValue: true });
+        setStartDateState(row, targetSelect.value, { resetValue: true });
         refreshCarriedStartState(row);
         refreshNoteState();
         renderSummary();
       });
 
       row.querySelector('[data-stage-request-date]')?.addEventListener('input', renderSummary);
+      row.querySelector('[data-stage-request-start-date]')?.addEventListener('input', () => {
+        refreshCarriedStartState(row);
+        renderSummary();
+      });
       row.querySelector('[data-stage-request-note]')?.addEventListener('input', renderSummary);
 
       setRemoveButtonsState();
@@ -1259,6 +1384,7 @@
       const stageName = trigger.getAttribute('data-stage-name') || stageCode || 'stage';
       const pendingStatus = trigger.getAttribute('data-pending-status') || '';
       const pendingDate = trigger.getAttribute('data-pending-date') || '';
+      const pendingStartDate = trigger.getAttribute('data-pending-start-date') || '';
       const pendingNote = trigger.getAttribute('data-pending-note') || '';
       const isEditingPending = Boolean(pendingStatus);
 
@@ -1269,6 +1395,7 @@
           stageCode,
           targetStatus: pendingStatus,
           requestedDate: pendingDate,
+          requestedStartDate: pendingStartDate,
           note: pendingNote,
           locked: true
         });
@@ -1318,12 +1445,16 @@
         const stageSelect = row.querySelector('[data-stage-request-stage]');
         const targetSelect = row.querySelector('[data-stage-request-target]');
         const dateInput = row.querySelector('[data-stage-request-date]');
+        const startDateInput = row.querySelector('[data-stage-request-start-date]');
         const noteInput = row.querySelector('[data-stage-request-note]');
         if (!stageSelect?.value || !targetSelect?.value) return;
         stagesPayload.push({
           stageCode: stageSelect.value,
           requestedStatus: targetSelect.value,
           requestedDate: dateInput?.value || null,
+          requestedStartDate: targetSelect.value === 'Completed' && startDateInput?.value
+            ? startDateInput.value
+            : null,
           note: noteInput?.value?.trim() || null
         });
       });

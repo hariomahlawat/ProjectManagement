@@ -112,6 +112,107 @@ public sealed class RemarkServiceTests
     }
 
     [Fact]
+    public async Task CreateRemarkAsync_AllowsConferenceForCommandRole()
+    {
+        await using var scope = await CreateContextAsync();
+        var db = scope.Db;
+        await SeedProjectAsync(db, 102);
+        await SeedStageAsync(db, 102, StageCodes.FS);
+        var service = CreateService(db, FakeClock.ForIstDate(2024, 10, 1, 10, 0, 0), out _, out _);
+        var actor = new RemarkActorContext(
+            "hod",
+            RemarkActorRole.HeadOfDepartment,
+            new[] { RemarkActorRole.HeadOfDepartment });
+
+        var remark = await service.CreateRemarkAsync(
+            new CreateRemarkRequest(
+                102,
+                actor,
+                RemarkType.Conference,
+                RemarkScope.General,
+                "Complete the pending action.",
+                new DateOnly(2024, 9, 30),
+                StageCodes.FS,
+                null,
+                null),
+            CancellationToken.None);
+
+        Assert.Equal(RemarkType.Conference, remark.Type);
+        Assert.Equal(RemarkActorRole.HeadOfDepartment, remark.AuthorRole);
+    }
+
+    [Fact]
+    public async Task CreateRemarkAsync_ConferenceAutomaticallyCapturesCanonicalCurrentStage()
+    {
+        await using var scope = await CreateContextAsync();
+        var db = scope.Db;
+        await SeedProjectAsync(db, 104);
+        db.ProjectStages.Add(new ProjectStage
+        {
+            ProjectId = 104,
+            StageCode = StageCodes.FS,
+            SortOrder = 900,
+            Status = StageStatus.Completed,
+            ActualStart = new DateOnly(2024, 9, 1),
+            CompletedOn = new DateOnly(2024, 9, 15)
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, FakeClock.ForIstDate(2024, 10, 1, 10, 0, 0), out _, out _);
+        var actor = new RemarkActorContext(
+            "comdt",
+            RemarkActorRole.Commandant,
+            new[] { RemarkActorRole.Commandant });
+
+        var remark = await service.CreateRemarkAsync(
+            new CreateRemarkRequest(
+                104,
+                actor,
+                RemarkType.Conference,
+                RemarkScope.General,
+                "Proceed with SOW vetting.",
+                new DateOnly(2024, 9, 30),
+                null,
+                null,
+                null),
+            CancellationToken.None);
+
+        Assert.Equal(StageCodes.SOW, remark.StageRef);
+        Assert.Equal(StageCodes.DisplayNameOf(ProcurementWorkflow.VersionV2, StageCodes.SOW), remark.StageNameSnapshot);
+    }
+
+    [Fact]
+    public async Task CreateRemarkAsync_RejectsConferenceForAdministratorWithoutCommandRole()
+    {
+        await using var scope = await CreateContextAsync();
+        var db = scope.Db;
+        await SeedProjectAsync(db, 103);
+        await SeedStageAsync(db, 103, StageCodes.FS);
+        var service = CreateService(db, FakeClock.ForIstDate(2024, 10, 1, 10, 0, 0), out _, out var metrics);
+        var actor = new RemarkActorContext(
+            "admin",
+            RemarkActorRole.Administrator,
+            new[] { RemarkActorRole.Administrator });
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CreateRemarkAsync(
+                new CreateRemarkRequest(
+                    103,
+                    actor,
+                    RemarkType.Conference,
+                    RemarkScope.General,
+                    "Command direction",
+                    new DateOnly(2024, 9, 30),
+                    StageCodes.FS,
+                    null,
+                    null),
+                CancellationToken.None));
+
+        Assert.Equal("Only Comdt or HoD may add conference remarks.", exception.Message);
+        AssertPermissionDenied(metrics, "Create", "ConferenceRequiresCommandRole");
+    }
+
+    [Fact]
     public async Task CreateRemarkAsync_ThrowsWhenExternalWithoutPrivilege()
     {
         await using var scope = await CreateContextAsync();

@@ -11,7 +11,12 @@ public static class RoleNames
     public const string Mco = "MCO";
     public const string Ta = "TA";
     public const string Ito = "ITO";
+
+    // The current seeded role uses Main_Office_Clerk. Main Office is retained as a
+    // compatibility alias for installations that already use the older display-name role.
     public const string MainOfficeClerk = "Main_Office_Clerk";
+    public const string MainOfficeAlternate = "Main Office";
+
     public const string McCellClerk = "MC_Cell_Clerk";
     public const string ItCellClerk = "IT_Cell_Clerk";
 }

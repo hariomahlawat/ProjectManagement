@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
@@ -52,11 +53,56 @@ public sealed class StageDirectApplyService
     }
 
 
-    public async Task<DirectApplyResult> ApplyAsync(
+    public Task<DirectApplyResult> ApplyAsync(
         int projectId,
         string stageCode,
         string status,
         DateOnly? date,
+        string? note,
+        string hodUserId,
+        bool forceBackfillPredecessors,
+        CancellationToken ct)
+        => ApplyCoreAsync(
+            projectId,
+            stageCode,
+            status,
+            date,
+            null,
+            false,
+            note,
+            hodUserId,
+            forceBackfillPredecessors,
+            ct);
+
+    public Task<DirectApplyResult> ApplyAsync(
+        int projectId,
+        string stageCode,
+        string status,
+        DateOnly? date,
+        DateOnly? startDate,
+        string? note,
+        string hodUserId,
+        bool forceBackfillPredecessors,
+        CancellationToken ct)
+        => ApplyCoreAsync(
+            projectId,
+            stageCode,
+            status,
+            date,
+            startDate,
+            true,
+            note,
+            hodUserId,
+            forceBackfillPredecessors,
+            ct);
+
+    private async Task<DirectApplyResult> ApplyCoreAsync(
+        int projectId,
+        string stageCode,
+        string status,
+        DateOnly? date,
+        DateOnly? startDate,
+        bool startDateWasSubmitted,
         string? note,
         string hodUserId,
         bool forceBackfillPredecessors,
@@ -76,6 +122,10 @@ public sealed class StageDirectApplyService
         {
             throw new ArgumentException("A valid user identifier is required.", nameof(hodUserId));
         }
+
+        await using var transaction = await RelationalTransactionScope.CreateAsync(
+            _db.Database,
+            ct);
 
         var normalizedStageCode = stageCode.Trim().ToUpperInvariant();
         var normalizedStatus = status.Trim();
@@ -148,8 +198,11 @@ public sealed class StageDirectApplyService
             normalizedStageCode,
             validationTargetStatus,
             date,
+            string.Equals(validationTargetStatus, StageStatus.Completed.ToString(), StringComparison.OrdinalIgnoreCase)
+                ? startDate
+                : null,
             isHoD: true,
-            ct);
+            ct: ct);
 
         var validationErrors = validation.Errors
             .Where(e => !string.IsNullOrWhiteSpace(e))
@@ -221,7 +274,7 @@ public sealed class StageDirectApplyService
         }
 
         var now = _clock.UtcNow;
-        var today = DateOnly.FromDateTime(now.UtcDateTime);
+        var today = DateOnly.FromDateTime(IstClock.ToIst(now).DateTime);
 
         var pendingRequest = await _db.StageChangeRequests
             .SingleOrDefaultAsync(
@@ -338,9 +391,9 @@ public sealed class StageDirectApplyService
             stage.CompletedOn = null;
             if (targetStatus == StageStatus.InProgress)
             {
-                var startDate = date ?? today;
+                var reopenedStartDate = date ?? today;
                 stage.Status = StageStatus.InProgress;
-                stage.ActualStart = startDate;
+                stage.ActualStart = reopenedStartDate;
                 stage.RequiresBackfill = false;
             }
             else
@@ -382,8 +435,23 @@ public sealed class StageDirectApplyService
 
                         var completionDate = date.Value;
 
-                        if (!stage.ActualStart.HasValue && validation.SuggestedAutoStart.HasValue && completionDate >= validation.SuggestedAutoStart.Value)
+                        if (startDateWasSubmitted)
                         {
+                            // The direct-completion form owns the editable start
+                            // date. A blank value deliberately leaves a stage that
+                            // has never started without an ActualStart; an existing
+                            // start is preserved unless the user supplies a change.
+                            if (startDate.HasValue)
+                            {
+                                stage.ActualStart = startDate.Value;
+                            }
+                        }
+                        else if (!stage.ActualStart.HasValue
+                            && validation.SuggestedAutoStart.HasValue
+                            && completionDate >= validation.SuggestedAutoStart.Value)
+                        {
+                            // Backward-compatible behaviour for older callers that
+                            // do not submit the new start-date field.
                             stage.ActualStart = validation.SuggestedAutoStart.Value;
                         }
 
@@ -490,6 +558,10 @@ public sealed class StageDirectApplyService
         {
             warnings.Add("Pending request was superseded by this change.");
         }
+
+        // Stage materialisation, predecessor backfill, request supersession, audit logs
+        // and any realignment draft are one atomic operation.
+        await transaction.CommitAsync(ct);
 
         return new DirectApplyResult(
             finalStatus.ToString(),

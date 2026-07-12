@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Configuration;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Services.ProjectIdeas;
 
@@ -27,9 +28,12 @@ public class DetailsModel : PageModel
     // SECTION: Page state
     public ProjectIdea Idea { get; private set; } = default!;
     public bool CanEdit { get; private set; }
+    public bool CanEditCore { get; private set; }
+    public bool ShowRestrictedEditNotice => CanEdit && !CanEditCore;
     public bool CanArchive { get; private set; }
     public bool CanRestore { get; private set; }
     public bool CanAddComment { get; private set; }
+    public bool CanAddConferenceComment { get; private set; }
     public bool CanAddNote { get; private set; }
     public bool CanUpload { get; private set; }
     public bool IsArchived => Idea.Status == ProjectIdeaStatuses.Archived;
@@ -40,11 +44,13 @@ public class DetailsModel : PageModel
 
     // SECTION: Bound form state
     [BindProperty, Required, MaxLength(4000)] public string CommentText { get; set; } = string.Empty;
+    [BindProperty, MaxLength(32)] public string CommentType { get; set; } = ProjectIdeaCommentTypes.General;
     [BindProperty, Required, MaxLength(200)] public string NoteTitle { get; set; } = string.Empty;
     [BindProperty, Required] public string NoteBody { get; set; } = string.Empty;
     [BindProperty] public bool IsPinned { get; set; }
     [BindProperty, MaxLength(1000)] public string? ArchiveReason { get; set; }
     [BindProperty] public IFormFile? DocumentUpload { get; set; }
+    [BindProperty(SupportsGet = true)] public bool OpenNoteComposer { get; set; }
 
     // SECTION: Page handlers
     public async Task<IActionResult> OnGetAsync(int id)
@@ -58,9 +64,43 @@ public class DetailsModel : PageModel
     {
         if (!await LoadAsync(id)) return NotFound();
         if (!_permissions.CanAddComment(User, Idea)) return Forbid();
-        if (string.IsNullOrWhiteSpace(CommentText)) { ErrorMessage = "Comment cannot be empty."; return RedirectToPage(new { id }); }
-        await _commands.AddCommentAsync(Idea, CommentText.Trim(), CurrentUserId());
-        StatusMessage = "Comment added.";
+
+        var comment = CommentText?.Trim();
+        if (string.IsNullOrWhiteSpace(comment))
+        {
+            ErrorMessage = "Comment cannot be empty.";
+            return RedirectToPage(new { id });
+        }
+
+        if (comment.Length > 4000)
+        {
+            ErrorMessage = "Comment cannot exceed 4,000 characters.";
+            return RedirectToPage(new { id });
+        }
+
+        var commentType = ProjectIdeaCommentTypes.All.FirstOrDefault(type =>
+            string.Equals(type, CommentType, StringComparison.OrdinalIgnoreCase));
+        if (commentType is null)
+        {
+            return BadRequest("Invalid comment type.");
+        }
+
+        if (string.Equals(commentType, ProjectIdeaCommentTypes.Conference, StringComparison.Ordinal))
+        {
+            if (!_permissions.CanAddConferenceComment(User, Idea)) return Forbid();
+
+            var actorRole = CurrentConferenceRole();
+            if (actorRole is null) return Forbid();
+
+            await _commands.AddConferenceCommentAsync(Idea, comment, CurrentUserId(), actorRole);
+            StatusMessage = "Conference remark added.";
+        }
+        else
+        {
+            await _commands.AddCommentAsync(Idea, comment, CurrentUserId());
+            StatusMessage = "Comment added.";
+        }
+
         return RedirectToPage(new { id });
     }
 
@@ -68,8 +108,22 @@ public class DetailsModel : PageModel
     {
         if (!await LoadAsync(id)) return NotFound();
         if (!_permissions.CanAddNote(User, Idea)) return Forbid();
-        if (string.IsNullOrWhiteSpace(NoteTitle) || string.IsNullOrWhiteSpace(NoteBody)) { ErrorMessage = "Note title and body are required."; return RedirectToPage(new { id }); }
-        await _commands.AddNoteAsync(Idea, NoteTitle.Trim(), NoteBody.Trim(), IsPinned, CurrentUserId());
+
+        var title = NoteTitle?.Trim();
+        var body = NoteBody?.Trim();
+        if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(body))
+        {
+            ErrorMessage = "Note title and body are required.";
+            return RedirectToPage(new { id, openNoteComposer = true });
+        }
+
+        if (title.Length > 200)
+        {
+            ErrorMessage = "Note title cannot exceed 200 characters.";
+            return RedirectToPage(new { id, openNoteComposer = true });
+        }
+
+        await _commands.AddNoteAsync(Idea, title, body, IsPinned, CurrentUserId());
         StatusMessage = "Note added.";
         return RedirectToPage(new { id });
     }
@@ -78,13 +132,20 @@ public class DetailsModel : PageModel
     {
         if (!await LoadAsync(id)) return NotFound();
         if (!_permissions.CanArchiveIdea(User) || IsArchived) return Forbid();
-        if (string.IsNullOrWhiteSpace(ArchiveReason))
+        var archiveReason = ArchiveReason?.Trim();
+        if (string.IsNullOrWhiteSpace(archiveReason))
         {
             ErrorMessage = "Please enter a closing note or reason before archiving the idea.";
             return RedirectToPage(new { id });
         }
 
-        await _commands.ArchiveAsync(Idea, ArchiveReason.Trim());
+        if (archiveReason.Length > 1000)
+        {
+            ErrorMessage = "The closing note cannot exceed 1,000 characters.";
+            return RedirectToPage(new { id });
+        }
+
+        await _commands.ArchiveAsync(Idea, archiveReason);
         StatusMessage = "Idea archived.";
         return RedirectToPage(new { id });
     }
@@ -177,7 +238,8 @@ public class DetailsModel : PageModel
     // SECTION: Attachment view helpers
     public bool CanDeleteDocument(ProjectIdeaDocument document) => _permissions.CanDeleteDocument(User, document, Idea);
 
-    public string DisplayUser(ProjectManagement.Models.ApplicationUser user) => user.FullName ?? user.UserName ?? user.Email ?? "Unknown";
+    public string DisplayUser(ProjectManagement.Models.ApplicationUser? user, string fallback = "Unknown") =>
+        user?.FullName ?? user?.UserName ?? user?.Email ?? fallback;
 
     public static bool IsImage(ProjectIdeaDocument document)
     {
@@ -248,6 +310,18 @@ public class DetailsModel : PageModel
         };
     }
 
+    public static string DisplayCommentType(string? commentType)
+        => string.Equals(commentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase)
+            ? "Conference"
+            : "General";
+
+    public static string DisplayRole(string? role)
+    {
+        if (string.Equals(role, RoleNames.Comdt, StringComparison.OrdinalIgnoreCase)) return "Comdt";
+        if (string.Equals(role, RoleNames.HoD, StringComparison.OrdinalIgnoreCase)) return "HoD";
+        return role?.Trim() ?? string.Empty;
+    }
+
     public static string Initials(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return "U";
@@ -263,10 +337,12 @@ public class DetailsModel : PageModel
         var idea = await _read.GetDetailsAsync(id);
         if (idea is null) return false;
         Idea = idea;
-        CanEdit = _permissions.CanEditIdeaCore(User, idea);
+        CanEdit = _permissions.CanEditIdea(User, idea);
+        CanEditCore = _permissions.CanEditIdeaCore(User, idea);
         CanArchive = _permissions.CanArchiveIdea(User);
         CanRestore = _permissions.CanRestoreIdea(User);
         CanAddComment = _permissions.CanAddComment(User, idea);
+        CanAddConferenceComment = _permissions.CanAddConferenceComment(User, idea);
         CanAddNote = _permissions.CanAddNote(User, idea);
         CanUpload = _permissions.CanUploadDocument(User, idea);
         Documents = idea.Documents
@@ -277,4 +353,11 @@ public class DetailsModel : PageModel
     }
 
     private string CurrentUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+
+    private string? CurrentConferenceRole()
+    {
+        if (User.IsInRole(RoleNames.Comdt)) return RoleNames.Comdt;
+        if (User.IsInRole(RoleNames.HoD)) return RoleNames.HoD;
+        return null;
+    }
 }

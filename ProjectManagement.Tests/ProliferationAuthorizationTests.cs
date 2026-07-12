@@ -147,6 +147,8 @@ public sealed class ProliferationAuthorizationTests
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            builder.UsePrismTestInfrastructure("proliferationauthorization");
+
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll(typeof(DbContextOptions<ApplicationDbContext>));

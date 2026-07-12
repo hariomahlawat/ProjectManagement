@@ -1,0 +1,27 @@
+{
+  "ManifestVersion": 1,
+  "Artifacts": [
+    {
+      "ArtifactId": "PRISM-YUNET-2026MAY-001",
+      "ModelKey": "opencv-yunet",
+      "Version": "2026may",
+      "Adapter": "YuNet",
+      "FileName": "face_detection_yunet_2026may.onnx",
+      "Sha256": "EBAFCE4E3C118D6554634BE5C27AB333B4C047A9A8C3FAF1D7CF93101C22F0F0",
+      "License": "MIT",
+      "Publisher": "OpenCV Zoo",
+      "ApprovedOn": "2026-06-28"
+    },
+    {
+      "ArtifactId": "PRISM-SFACE-2021DEC-001",
+      "ModelKey": "opencv-sface",
+      "Version": "2021dec",
+      "Adapter": "SFace",
+      "FileName": "face_recognition_sface_2021dec.onnx",
+      "Sha256": "0BA9FBFA01B5270C96627C4EF784DA859931E02F04419C829E83484087C34E79",
+      "License": "Apache-2.0",
+      "Publisher": "OpenCV Zoo",
+      "ApprovedOn": "2026-06-28"
+    }
+  ]
+}

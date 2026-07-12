@@ -27,14 +27,14 @@ function createSearchableSelectDom() {
     return { document };
 }
 
-// SECTION: Searchable select placeholder behavior.
-test('searchable select uses the configured Direct Task assignee placeholder', () => {
+// SECTION: Native assignee select placeholder behavior.
+test('native Direct Task assignee select preserves the configured placeholder', () => {
     const { document } = createSearchableSelectDom();
-    const searchInput = document.querySelector('.at-select-search-input');
-    const placeholderOption = document.querySelector('select option[value=""]');
+    const select = document.querySelector('select[data-at-searchable-select="true"]');
+    const placeholderOption = select.querySelector('option[value=""]');
 
-    assert.ok(searchInput);
-    assert.equal(searchInput.placeholder, 'Select user');
+    assert.ok(select);
+    assert.equal(document.querySelector('.at-select-search-input'), null);
     assert.equal(placeholderOption.textContent, 'Select user');
 });
 
@@ -219,4 +219,85 @@ test('direct close submit stays disabled until closure remarks are entered', () 
     remarks.value = '   ';
     remarks.dispatchEvent(new window.Event('input', { bubbles: true }));
     assert.equal(submit.disabled, true);
+});
+
+// SECTION: Typed task update composer behavior.
+function createTypedUpdateComposerDom() {
+    const dom = new JSDOM(`<!DOCTYPE html><html><body>
+        <div class="at-task-command-shell" data-at-action-shell="true">
+            <details data-at-action-panel="update" open>
+                <summary>Update</summary>
+                <form>
+                    <input type="hidden" value="Progress" data-at-update-type />
+                    <div data-at-update-panel-title>Add update</div>
+                    <div role="group" aria-label="Update type">
+                        <button type="button" class="is-active" data-at-update-type-option="Progress" aria-pressed="true">Progress</button>
+                        <button type="button" data-at-update-type-option="Conference" aria-pressed="false">Conference</button>
+                    </div>
+                    <label data-at-update-body-label>Update</label>
+                    <textarea data-at-update-body data-default-placeholder="Write a clear progress update" placeholder="Write a clear progress update"></textarea>
+                    <div class="d-none" data-at-conference-guidance>Conference guidance</div>
+                    <div data-at-update-status-fields>
+                        <select data-at-progress-status-select data-current-status="Open">
+                            <option value="">No status change</option>
+                            <option value="In Progress">In Progress</option>
+                        </select>
+                    </div>
+                    <button type="submit"><span data-at-update-submit-label>Post update</span></button>
+                </form>
+            </details>
+        </div>
+    </body></html>`, { url: 'https://example.test/ActionTasks?TaskId=1', runScripts: 'dangerously' });
+
+    const { window } = dom;
+    const document = window.document;
+    const scriptEl = document.createElement('script');
+    scriptEl.textContent = scriptContent;
+    document.body.appendChild(scriptEl);
+    document.dispatchEvent(new window.Event('DOMContentLoaded', { bubbles: true }));
+
+    return { window, document };
+}
+
+test('typed update composer keeps conference remarks in the common update form without permitting a status change', () => {
+    const { window, document } = createTypedUpdateComposerDom();
+    const form = document.querySelector('[data-at-action-panel="update"] form');
+    const typeInput = document.querySelector('[data-at-update-type]');
+    const progressButton = document.querySelector('[data-at-update-type-option="Progress"]');
+    const conferenceButton = document.querySelector('[data-at-update-type-option="Conference"]');
+    const title = document.querySelector('[data-at-update-panel-title]');
+    const bodyLabel = document.querySelector('[data-at-update-body-label]');
+    const body = document.querySelector('[data-at-update-body]');
+    const guidance = document.querySelector('[data-at-conference-guidance]');
+    const statusFields = document.querySelector('[data-at-update-status-fields]');
+    const statusSelect = document.querySelector('[data-at-progress-status-select]');
+    const submitLabel = document.querySelector('[data-at-update-submit-label]');
+
+    statusSelect.value = 'In Progress';
+    conferenceButton.dispatchEvent(new window.Event('click', { bubbles: true }));
+
+    assert.equal(typeInput.value, 'Conference');
+    assert.equal(form.classList.contains('is-conference'), true);
+    assert.equal(conferenceButton.getAttribute('aria-pressed'), 'true');
+    assert.equal(progressButton.getAttribute('aria-pressed'), 'false');
+    assert.equal(title.textContent, 'Add conference remark');
+    assert.equal(bodyLabel.textContent, 'Conference direction');
+    assert.equal(body.placeholder, 'Record the direction or observation issued during the conference');
+    assert.equal(guidance.classList.contains('d-none'), false);
+    assert.equal(statusFields.classList.contains('d-none'), true);
+    assert.equal(statusSelect.value, '');
+    assert.equal(submitLabel.textContent, 'Add conference remark');
+
+    progressButton.dispatchEvent(new window.Event('click', { bubbles: true }));
+
+    assert.equal(typeInput.value, 'Progress');
+    assert.equal(form.classList.contains('is-conference'), false);
+    assert.equal(progressButton.getAttribute('aria-pressed'), 'true');
+    assert.equal(conferenceButton.getAttribute('aria-pressed'), 'false');
+    assert.equal(title.textContent, 'Add update');
+    assert.equal(bodyLabel.textContent, 'Update');
+    assert.equal(body.placeholder, 'Write a clear progress update');
+    assert.equal(guidance.classList.contains('d-none'), true);
+    assert.equal(statusFields.classList.contains('d-none'), false);
+    assert.equal(submitLabel.textContent, 'Post update');
 });

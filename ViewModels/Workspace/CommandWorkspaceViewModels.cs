@@ -61,3 +61,12 @@ public sealed class CommandOfficerWorkloadVm
 public sealed record CommandOfficerProjectVm(int ProjectId, string Name, string StageCode, string StageName, string OpenUrl);
 public sealed record CommandOfficerIdeaVm(int IdeaId, string Title, string Status, string OpenUrl);
 public sealed record CommandOfficerTaskVm(int TaskId, string Title, string Status, DateTime DueDate, string OpenUrl);
+
+public sealed class OfficerWorkloadCardRenderVm
+{
+    public CommandOfficerWorkloadVm Officer { get; init; } = new();
+
+    public bool CanReorder { get; init; }
+
+    public bool ShowConferenceAction { get; init; }
+}

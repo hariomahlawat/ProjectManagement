@@ -68,6 +68,12 @@
     search: ''
   };
 
+  function getCsrfToken() {
+    const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')?.trim();
+    if (!token) throw new Error('Security token is unavailable. Refresh the page and try again.');
+    return token;
+  }
+
   function sanitizeId(value) {
     const text = String(value ?? '').trim();
     return /^[0-9]+$/.test(text) ? text : '';
@@ -1396,7 +1402,7 @@
       };
       const response = await fetch(api.setPreference, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
         body: JSON.stringify(payload)
       });
       if (!response.ok) {
@@ -1891,7 +1897,7 @@
       const method = id ? 'PUT' : 'POST';
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
         body: JSON.stringify(payload)
       });
       if (!response.ok) {
@@ -1928,7 +1934,7 @@
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
         body: JSON.stringify(payload)
       });
       if (!response.ok) {
@@ -2033,7 +2039,7 @@
     editor.btnDelete.disabled = true;
     try {
       const url = kind === 'yearly' ? api.deleteYearly(id, rowVersion) : api.deleteGranular(id, rowVersion);
-      const response = await fetch(url, { method: 'DELETE' });
+      const response = await fetch(url, { method: 'DELETE', headers: { 'X-CSRF-TOKEN': getCsrfToken() }, credentials: 'same-origin' });
       if (!response.ok) {
         const text = await response.text();
         throw new Error(text || 'Delete failed');

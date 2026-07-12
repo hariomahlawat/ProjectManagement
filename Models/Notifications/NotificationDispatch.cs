@@ -32,13 +32,20 @@ public sealed class NotificationDispatch
 
     public string PayloadJson { get; set; } = string.Empty;
 
+    /// <summary>
+    /// UTC time at which the source business event was queued.
+    /// </summary>
     public DateTime CreatedUtc { get; set; }
+
+    public string? LockToken { get; set; }
 
     public DateTime? LockedUntilUtc { get; set; }
 
     public int AttemptCount { get; set; }
 
     public DateTime? DispatchedUtc { get; set; }
+
+    public DateTime? DeadLetteredUtc { get; set; }
 
     public string? Error { get; set; }
 }

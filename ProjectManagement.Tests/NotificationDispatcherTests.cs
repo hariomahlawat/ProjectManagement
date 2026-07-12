@@ -100,6 +100,19 @@ public sealed class NotificationDispatcherTests
 
         var unreadCount = Assert.Single(client.UnreadCounts);
         Assert.Equal(1, unreadCount);
+
+        using (var verificationScope = provider.CreateScope())
+        {
+            var db = verificationScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var persisted = await db.Notifications.AsNoTracking().SingleAsync();
+            var dispatch = await db.NotificationDispatches.AsNoTracking().SingleAsync();
+
+            Assert.Equal(NotificationKind.RemarkCreated, persisted.Kind);
+            Assert.Equal(dispatch.Id, persisted.SourceDispatchId);
+            Assert.Equal(new DateTime(2024, 10, 1, 12, 0, 0, DateTimeKind.Utc), persisted.CreatedUtc);
+            Assert.Equal(new DateTime(2024, 10, 1, 12, 0, 0, DateTimeKind.Utc), persisted.DeliveredUtc);
+            Assert.Equal(persisted.DeliveredUtc, dispatch.DispatchedUtc);
+        }
     }
 
     private static UserManager<ApplicationUser> CreateUserManager(IServiceProvider services)
@@ -222,6 +235,15 @@ public sealed class NotificationDispatcherTests
             UnreadCounts.Add(count);
             return Task.CompletedTask;
         }
+
+        public Task ReceiveNotificationStateChanged(NotificationMutationDto mutation)
+            => Task.CompletedTask;
+
+        public Task ReceiveNotificationSeen(NotificationSeenDto mutation)
+            => Task.CompletedTask;
+
+        public Task ReceiveProjectMuteChanged(NotificationProjectMuteDto mutation)
+            => Task.CompletedTask;
     }
 
     private sealed class NoOpGroupManager : IGroupManager

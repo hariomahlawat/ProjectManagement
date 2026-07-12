@@ -68,7 +68,7 @@
             let payload = {};
             const headers = {
                 'Content-Type': 'application/json',
-                'RequestVerificationToken': tokenInput.value
+                'X-CSRF-TOKEN': tokenInput.value
             };
 
             if (action === 'trash' && modalEl) {
@@ -352,7 +352,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        RequestVerificationToken: tokenInput.value
+                        'X-CSRF-TOKEN': tokenInput.value
                     },
                     body: JSON.stringify(payload),
                     credentials: 'same-origin'
@@ -375,6 +375,8 @@
                         ? data.message
                         : 'Some stages no longer require backfill. Refresh the page and try again.';
                     renderErrors([message]);
+                } else if (response.status === 400) {
+                    renderErrors(['The security token is no longer valid. Refresh the page and try again.']);
                 } else if (response.status === 404) {
                     renderErrors(['Project or stages were not found. Refresh the page and try again.']);
                 } else if (response.status === 403) {

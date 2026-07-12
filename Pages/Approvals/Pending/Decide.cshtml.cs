@@ -53,6 +53,9 @@ public class DecideModel : PageModel
         switch (result.Outcome)
         {
             case ApprovalDecisionOutcome.Success:
+                TempData["Success"] = result.Message ?? (action == ApprovalDecisionAction.Approve
+                    ? "Request approved successfully."
+                    : "Request rejected successfully.");
                 return RedirectToSuccessDestination(action);
             case ApprovalDecisionOutcome.AlreadyDecided:
                 TempData["Error"] = result.Message ?? "This request has already been decided.";

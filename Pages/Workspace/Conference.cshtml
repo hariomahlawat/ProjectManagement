@@ -1,0 +1,116 @@
+@page "/Workspace/Conference/{officerUserId}"
+@model ProjectManagement.Pages.Workspace.ConferenceModel
+@using ProjectManagement.ViewModels.Workspace
+@{
+    ViewData["Title"] = $"{Model.Conference.OfficerDisplayName} · Conference Review";
+    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "wide";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/command-workspace.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/officer-conference.css" asp-append-version="true" />
+}
+
+<div class="officer-conference" data-officer-conference>
+    <form method="post" class="oc-antiforgery" aria-hidden="true">
+        @Html.AntiForgeryToken()
+    </form>
+
+    <header class="oc-header">
+        <div class="oc-header__identity">
+            <a asp-page="/Workspace/Index"
+               asp-route-mode="command"
+               asp-route-view="officers"
+               class="oc-back"
+               aria-label="Back to officer workload"
+               title="Back to officer workload">
+                <i class="bi bi-arrow-left" aria-hidden="true"></i>
+            </a>
+            <span class="oc-avatar">@Model.Conference.OfficerInitial</span>
+            <div>
+                <span class="oc-eyebrow">Officer conference review</span>
+                <h1>@Model.Conference.OfficerDisplayName</h1>
+                <p>
+                    <span><strong>@Model.Conference.ProjectCount</strong> @(Model.Conference.ProjectCount == 1 ? "project" : "projects")</span>
+                    <span><strong>@Model.Conference.IdeaCount</strong> @(Model.Conference.IdeaCount == 1 ? "idea" : "ideas")</span>
+                    <span><strong data-oc-header-task-count>@Model.Conference.OtherTaskCount</strong> <span data-oc-header-task-label>@(Model.Conference.OtherTaskCount == 1 ? "other task" : "other tasks")</span></span>
+                </p>
+            </div>
+        </div>
+
+        <nav class="oc-officer-nav" aria-label="Officer conference navigation">
+            @if (!string.IsNullOrWhiteSpace(Model.Conference.PreviousOfficerUserId))
+            {
+                <a asp-page="/Workspace/Conference"
+                   asp-route-officerUserId="@Model.Conference.PreviousOfficerUserId"
+                   class="oc-nav-button"
+                   aria-label="Previous officer"
+                   title="Previous officer">
+                    <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                </a>
+            }
+            else
+            {
+                <span class="oc-nav-button is-disabled" aria-hidden="true"><i class="bi bi-chevron-left"></i></span>
+            }
+
+            <label class="oc-officer-select">
+                <span class="visually-hidden">Select officer</span>
+                <select data-officer-selector>
+                    @foreach (var option in Model.Conference.OfficerOptions)
+                    {
+                        var optionUrl = Url.Page(
+                            "/Workspace/Conference",
+                            new { officerUserId = option.UserId });
+                        if (option.IsSelected)
+                        {
+                            <option value="@optionUrl" selected>@option.DisplayName</option>
+                        }
+                        else
+                        {
+                            <option value="@optionUrl">@option.DisplayName</option>
+                        }
+                    }
+                </select>
+                <i class="bi bi-chevron-down" aria-hidden="true"></i>
+            </label>
+
+            @if (!string.IsNullOrWhiteSpace(Model.Conference.NextOfficerUserId))
+            {
+                <a asp-page="/Workspace/Conference"
+                   asp-route-officerUserId="@Model.Conference.NextOfficerUserId"
+                   class="oc-nav-button"
+                   aria-label="Next officer"
+                   title="Next officer">
+                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                </a>
+            }
+            else
+            {
+                <span class="oc-nav-button is-disabled" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
+            }
+        </nav>
+    </header>
+
+    <main class="oc-sections">
+        @foreach (var section in Model.Conference.Sections)
+        {
+            @await Html.PartialAsync(
+                "_ConferenceSection",
+                new OfficerConferenceSectionRenderVm
+                {
+                    OfficerUserId = Model.Conference.OfficerUserId,
+                    OfficerDisplayName = Model.Conference.OfficerDisplayName,
+                    MinimumTaskDueDate = Model.MinimumTaskDueDate,
+                    DefaultTaskDueDate = Model.DefaultTaskDueDate,
+                    Section = section
+                })
+        }
+    </main>
+
+</div>
+
+@section Scripts {
+    <script type="module" src="~/js/pages/officer-conference.js" asp-append-version="true"></script>
+}

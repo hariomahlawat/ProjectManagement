@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Projects;
@@ -24,11 +25,16 @@ namespace ProjectManagement.Services.Projects
     {
         private readonly ApplicationDbContext _db;
         private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
+        private readonly IClock _clock;
 
-        public OngoingProjectsReadService(ApplicationDbContext db, IWorkflowStageMetadataProvider workflowStageMetadataProvider)
+        public OngoingProjectsReadService(
+            ApplicationDbContext db,
+            IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+            IClock clock)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _workflowStageMetadataProvider = workflowStageMetadataProvider ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
+            _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         }
 
         public async Task<IReadOnlyList<OngoingProjectRowDto>> GetAsync(
@@ -192,6 +198,7 @@ namespace ProjectManagement.Services.Projects
 
             var selectedStageBucket = ParseStageBucketFilter(stageBucket);
             var result = new List<OngoingProjectRowDto>(projects.Count);
+            var today = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
 
             foreach (var proj in projects)
             {
@@ -255,7 +262,6 @@ namespace ProjectManagement.Services.Projects
                 var stageCodes = ProcurementWorkflow.StageCodesFor(proj.WorkflowVersion);
                 var stageDtos = new List<OngoingProjectStageDto>(stageCodes.Length);
 
-                int? inProgressIndex = null;
                 int lastCompletedIndex = -1;
                 DateOnly? previousApplicableCompletion = null;
 
@@ -297,11 +303,6 @@ namespace ProjectManagement.Services.Projects
                         isDataMissing = true;
                     }
 
-                    if (status == StageStatus.InProgress && inProgressIndex == null)
-                    {
-                        inProgressIndex = i;
-                    }
-
                     if (status == StageStatus.Completed)
                     {
                         lastCompletedIndex = i;
@@ -325,20 +326,11 @@ namespace ProjectManagement.Services.Projects
                     });
                 }
 
-                // pick "current" stage
-                int currentIndex;
-                if (inProgressIndex.HasValue)
-                {
-                    currentIndex = inProgressIndex.Value;
-                }
-                else if (lastCompletedIndex >= 0 && lastCompletedIndex + 1 < stageDtos.Count)
-                {
-                    currentIndex = lastCompletedIndex + 1;
-                }
-                else
-                {
-                    currentIndex = 0;
-                }
+                // SECTION: Resolve the present stage using terminal-state semantics.
+                // Completed and skipped stages are both traversed; the first actionable
+                // stage becomes current unless an explicit in-progress stage exists.
+                var currentIndex = OngoingStagePresentationPolicy.ResolveCurrentStageIndex(
+                    stageDtos.Select(stage => stage.Status).ToArray());
 
                 stageDtos[currentIndex].IsCurrent = true;
 
@@ -371,7 +363,18 @@ namespace ProjectManagement.Services.Projects
                 var presentStage = PresentStageHelper.ComputePresentStageAndAge(
                     stageSnapshots,
                     _workflowStageMetadataProvider,
-                    proj.WorkflowVersion);
+                    proj.WorkflowVersion,
+                    today);
+
+                var isCurrentStageProlonged = OngoingStagePresentationPolicy.IsProlonged(
+                    stageDtos[currentIndex].Code,
+                    presentStage,
+                    today);
+                var isCurrentStageApproachingProlonged = !isCurrentStageProlonged
+                    && OngoingStagePresentationPolicy.IsApproachingProlonged(
+                        stageDtos[currentIndex].Code,
+                        presentStage,
+                        today);
 
                 string? lastCompletedName = null;
                 DateOnly? lastCompletedDate = null;
@@ -463,6 +466,8 @@ namespace ProjectManagement.Services.Projects
                     CurrentStageSortOrder = currentIndex >= 0 ? currentIndex : int.MaxValue,
                     CurrentStagePdc = presentStagePdc,
                     DaysInCurrentStage = presentStage.DaysSinceStartOrLastCompletion,
+                    IsCurrentStageProlonged = isCurrentStageProlonged,
+                    IsCurrentStageApproachingProlonged = isCurrentStageApproachingProlonged,
 
                     LastCompletedStageName = lastCompletedName,
                     LastCompletedStageDate = lastCompletedDate,
@@ -481,12 +486,9 @@ namespace ProjectManagement.Services.Projects
                 });
             }
 
-            // SECTION: Operational ordering for review dashboard
-            var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
-            var reverseStageFlow = string.Equals(
-                stageFlow,
-                "reverse",
-                StringComparison.OrdinalIgnoreCase);
+            // SECTION: Operational ordering for review dashboard. Later-to-earlier
+            // is the default; callers must explicitly request forward ordering.
+            var reverseStageFlow = OngoingStagePresentationPolicy.IsReverseStageFlow(stageFlow);
 
             IOrderedEnumerable<OngoingProjectRowDto> ordered = reverseStageFlow
                 ? result.OrderByDescending(row => row.CurrentStageSortOrder)
@@ -667,37 +669,13 @@ namespace ProjectManagement.Services.Projects
             IReadOnlyList<string> stageCodes,
             IReadOnlyDictionary<string, StageStatus> stageStatuses)
         {
-            int? inProgressIndex = null;
-            var lastCompletedIndex = -1;
+            var statuses = stageCodes
+                .Select(code => stageStatuses.TryGetValue(code, out var status)
+                    ? status
+                    : StageStatus.NotStarted)
+                .ToArray();
 
-            for (var i = 0; i < stageCodes.Count; i++)
-            {
-                var status = stageStatuses.TryGetValue(stageCodes[i], out var stageStatus)
-                    ? stageStatus
-                    : StageStatus.NotStarted;
-
-                if (status == StageStatus.InProgress && inProgressIndex == null)
-                {
-                    inProgressIndex = i;
-                }
-
-                if (status == StageStatus.Completed)
-                {
-                    lastCompletedIndex = i;
-                }
-            }
-
-            if (inProgressIndex.HasValue)
-            {
-                return inProgressIndex.Value;
-            }
-
-            if (lastCompletedIndex >= 0 && lastCompletedIndex + 1 < stageCodes.Count)
-            {
-                return lastCompletedIndex + 1;
-            }
-
-            return 0;
+            return OngoingStagePresentationPolicy.ResolveCurrentStageIndex(statuses);
         }
 
         // -------------------- Category scope helpers --------------------
@@ -824,6 +802,8 @@ namespace ProjectManagement.Services.Projects
         public int CurrentStageSortOrder { get; init; }
         public DateOnly? CurrentStagePdc { get; init; }
         public int? DaysInCurrentStage { get; init; }
+        public bool IsCurrentStageProlonged { get; init; }
+        public bool IsCurrentStageApproachingProlonged { get; init; }
 
         public string? LastCompletedStageName { get; init; }
         public DateOnly? LastCompletedStageDate { get; init; }

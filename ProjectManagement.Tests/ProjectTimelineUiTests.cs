@@ -53,6 +53,34 @@ public class ProjectTimelineUiTests
     }
 
     [Fact]
+    public async Task NotStartedStage_OffersDirectCompletionWithSuggestedEditableStart()
+    {
+        var timeline = new TimelineVm
+        {
+            ProjectId = 1,
+            Items = new[]
+            {
+                new TimelineItemVm
+                {
+                    Code = "BID",
+                    Name = "Bidding/Tendering",
+                    Status = StageStatus.NotStarted,
+                    SortOrder = 1,
+                    SuggestedStartDate = new DateOnly(2026, 6, 11),
+                    SuggestedStartSourceName = "Acceptance of Necessity"
+                }
+            }
+        };
+
+        var html = await RenderAsync(timeline, isHoD: true, isAssignedProjectOfficer: false);
+
+        Assert.Contains("Complete stage directly", html, StringComparison.Ordinal);
+        Assert.Contains("data-direct-completion=\"true\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-default-start-date=\"2026-06-11\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-start-source=\"Acceptance of Necessity\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ActionsDropdown_FiltersActionsByCurrentStatusAndAuthority()
     {
         var timeline = new TimelineVm

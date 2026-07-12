@@ -31,7 +31,7 @@ public sealed class NotificationDeliveryService : INotificationDeliveryService
         }
 
         _logger.LogInformation(
-            "Queued {NotificationCount} notifications for downstream delivery.",
+            "Materialised {NotificationCount} in-app notifications for realtime delivery.",
             notifications.Count);
 
         return Task.CompletedTask;

@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
@@ -82,7 +83,7 @@ public sealed class StageBackfillService
             throw new StageBackfillNotFoundException(missing);
         }
 
-        var today = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime.Date);
+        var today = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
         var validationErrors = new List<string>();
         var conflicts = new List<string>();
 

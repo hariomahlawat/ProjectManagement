@@ -191,6 +191,8 @@ public sealed class FfcCountriesManagePageTests
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            builder.UsePrismTestInfrastructure("ffccountriesmanagepage");
+
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll(typeof(DbContextOptions<ApplicationDbContext>));

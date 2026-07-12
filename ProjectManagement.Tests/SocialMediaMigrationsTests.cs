@@ -1,45 +1,37 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using ProjectManagement.Data;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+using Xunit;
 
 namespace ProjectManagement.Tests;
 
 public sealed class SocialMediaMigrationsTests
 {
     [Fact]
-    public async Task LatestMigration_AppliesAndSeedsSocialMediaDefaults()
+    public void CurrentModel_DefinesRequiredSocialMediaDefaults()
     {
-        await using var connection = new SqliteConnection("DataSource=:memory:");
-        await connection.OpenAsync();
-
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseSqlite(connection)
+            .UseInMemoryDatabase($"social-media-model-{Guid.NewGuid():N}")
             .Options;
 
-        await using (var context = new ApplicationDbContext(options))
-        {
-            await context.Database.MigrateAsync();
-        }
+        using var context = new ApplicationDbContext(options);
+        var entityType = context.Model.FindEntityType(typeof(SocialMediaEventType));
+        Assert.NotNull(entityType);
 
-        await using (var context = new ApplicationDbContext(options))
-        {
-            var pending = await context.Database.GetPendingMigrationsAsync();
-            Assert.Empty(pending);
+        var seedRows = entityType!.GetSeedData()
+            .Select(row => row.ToDictionary(entry => entry.Key, entry => entry.Value))
+            .ToArray();
 
-            var eventTypes = await context.SocialMediaEventTypes
-                .AsNoTracking()
-                .OrderBy(x => x.Name)
-                .ToListAsync();
-
-            Assert.Equal(3, eventTypes.Count);
-            Assert.All(eventTypes, type => Assert.True(type.IsActive));
-
-            Assert.Contains(eventTypes, type => type.Name == "Campaign Launch" && type.CreatedByUserId == "system");
-            Assert.Contains(eventTypes, type => type.Name == "Milestone Update");
-            Assert.Contains(eventTypes, type => type.Name == "Community Engagement");
-        }
+        Assert.Contains(seedRows, row =>
+            Equals(row["Name"], "Campaign Launch")
+            && Equals(row["CreatedByUserId"], "system")
+            && Equals(row["IsActive"], true));
+        Assert.Contains(seedRows, row =>
+            Equals(row["Name"], "Milestone Update")
+            && Equals(row["IsActive"], true));
+        Assert.Contains(seedRows, row =>
+            Equals(row["Name"], "Community Engagement")
+            && Equals(row["IsActive"], true));
     }
 }

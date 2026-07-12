@@ -13,18 +13,18 @@ using ProjectManagement.Data;
 using ProjectManagement.Hubs;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Notifications;
-using ProjectManagement.Services;
 
 namespace ProjectManagement.Services.Notifications;
 
 public sealed class NotificationDispatcher : BackgroundService
 {
     private const int BatchSize = 20;
+    private const int MaximumAttempts = 8;
     private const int ErrorMessageMaxLength = 2000;
 
     private static readonly TimeSpan IdleDelay = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan ErrorDelay = TimeSpan.FromSeconds(15);
-    private static readonly TimeSpan LockDuration = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan LockDuration = TimeSpan.FromMinutes(2);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IClock _clock;
@@ -54,15 +54,11 @@ public sealed class NotificationDispatcher : BackgroundService
             {
                 break;
             }
-            catch (TaskCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Notification dispatcher encountered an error while processing a batch.");
-                processedAny = true; // force error backoff below
                 await DelayAsync(ErrorDelay, stoppingToken);
+                continue;
             }
 
             if (!processedAny)
@@ -83,29 +79,11 @@ public sealed class NotificationDispatcher : BackgroundService
         var principalFactory = scope.ServiceProvider.GetRequiredService<IUserClaimsPrincipalFactory<ApplicationUser>>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-        var now = _clock.UtcNow.UtcDateTime;
-
-        var dispatches = await db.NotificationDispatches
-            .Where(d => d.DispatchedUtc == null)
-            .Where(d => d.LockedUntilUtc == null || d.LockedUntilUtc <= now)
-            .OrderBy(d => d.CreatedUtc)
-            .ThenBy(d => d.Id)
-            .Take(BatchSize)
-            .ToListAsync(stoppingToken);
-
+        var dispatches = await ClaimBatchAsync(db, stoppingToken);
         if (dispatches.Count == 0)
         {
             return false;
         }
-
-        var lockExpiry = now.Add(LockDuration);
-        foreach (var dispatch in dispatches)
-        {
-            dispatch.LockedUntilUtc = lockExpiry;
-            dispatch.AttemptCount += 1;
-        }
-
-        await db.SaveChangesAsync(stoppingToken);
 
         var notificationsToDeliver = new List<Notification>();
 
@@ -115,6 +93,25 @@ public sealed class NotificationDispatcher : BackgroundService
 
             try
             {
+                var recipientIsActive = await db.Users
+                    .AsNoTracking()
+                    .AnyAsync(user =>
+                        user.Id == dispatch.RecipientUserId
+                        && !user.IsDisabled
+                        && !user.PendingDeletion,
+                        stoppingToken);
+
+                if (!recipientIsActive)
+                {
+                    CompleteDispatch(dispatch, _clock.UtcNow.UtcDateTime);
+                    await db.SaveChangesAsync(stoppingToken);
+                    _logger.LogWarning(
+                        "Discarded notification dispatch {DispatchId} because recipient {RecipientUserId} is missing or inactive.",
+                        dispatch.Id,
+                        dispatch.RecipientUserId);
+                    continue;
+                }
+
                 var allowed = await preferenceService.AllowsAsync(
                     dispatch.Kind,
                     dispatch.RecipientUserId,
@@ -123,41 +120,24 @@ public sealed class NotificationDispatcher : BackgroundService
 
                 if (!allowed)
                 {
-                    dispatch.DispatchedUtc = _clock.UtcNow.UtcDateTime;
-                    dispatch.LockedUntilUtc = null;
-                    dispatch.Error = null;
+                    CompleteDispatch(dispatch, _clock.UtcNow.UtcDateTime);
+                    await db.SaveChangesAsync(stoppingToken);
                     continue;
                 }
 
-                Notification? existing = null;
-                if (!string.IsNullOrWhiteSpace(dispatch.Fingerprint))
-                {
-                    existing = db.Notifications.Local.FirstOrDefault(n =>
-                        string.Equals(n.RecipientUserId, dispatch.RecipientUserId, StringComparison.Ordinal) &&
-                        string.Equals(n.Fingerprint, dispatch.Fingerprint, StringComparison.Ordinal));
-
-                    if (existing is null)
-                    {
-                        existing = await db.Notifications
-                            .Where(n => n.RecipientUserId == dispatch.RecipientUserId)
-                            .Where(n => n.Fingerprint == dispatch.Fingerprint)
-                            .FirstOrDefaultAsync(stoppingToken);
-                    }
-                }
-
+                var existing = await FindExistingNotificationAsync(db, dispatch, stoppingToken);
                 if (existing is not null)
                 {
-                    dispatch.DispatchedUtc = _clock.UtcNow.UtcDateTime;
-                    dispatch.LockedUntilUtc = null;
-                    dispatch.Error = null;
+                    CompleteDispatch(dispatch, _clock.UtcNow.UtcDateTime);
+                    await db.SaveChangesAsync(stoppingToken);
                     continue;
                 }
 
-                var dispatchedAt = _clock.UtcNow.UtcDateTime;
-
+                var deliveredUtc = _clock.UtcNow.UtcDateTime;
                 var notification = new Notification
                 {
                     RecipientUserId = dispatch.RecipientUserId,
+                    Kind = dispatch.Kind,
                     Module = dispatch.Module,
                     EventType = dispatch.EventType,
                     ScopeType = dispatch.ScopeType,
@@ -165,19 +145,50 @@ public sealed class NotificationDispatcher : BackgroundService
                     ProjectId = dispatch.ProjectId,
                     ActorUserId = dispatch.ActorUserId,
                     Fingerprint = dispatch.Fingerprint,
-                    Route = dispatch.Route,
+                    Route = NotificationPublisher.NormalizeRouteSegments(dispatch.Route),
                     Title = dispatch.Title,
                     Summary = dispatch.Summary,
-                    CreatedUtc = dispatchedAt,
-                    SourceDispatch = dispatch
+                    CreatedUtc = EnsureUtc(dispatch.CreatedUtc),
+                    DeliveredUtc = deliveredUtc,
+                    SourceDispatch = dispatch,
                 };
 
                 db.Notifications.Add(notification);
-                notificationsToDeliver.Add(notification);
+                CompleteDispatch(dispatch, deliveredUtc);
 
-                dispatch.DispatchedUtc = dispatchedAt;
-                dispatch.LockedUntilUtc = null;
-                dispatch.Error = null;
+                try
+                {
+                    await db.SaveChangesAsync(stoppingToken);
+                    notificationsToDeliver.Add(notification);
+                }
+                catch (DbUpdateException)
+                {
+                    // A second app instance may have materialised this durable dispatch, or an
+                    // equivalent producer fingerprint, after our pre-check. Unique indexes on
+                    // SourceDispatchId and recipient/fingerprint make the operation idempotent.
+                    db.Entry(notification).State = EntityState.Detached;
+
+                    var duplicate = await db.Notifications
+                        .AsNoTracking()
+                        .AnyAsync(n =>
+                            n.SourceDispatchId == dispatch.Id
+                            || (!string.IsNullOrWhiteSpace(dispatch.Fingerprint)
+                                && n.RecipientUserId == dispatch.RecipientUserId
+                                && n.Fingerprint == dispatch.Fingerprint),
+                            stoppingToken);
+
+                    if (!duplicate)
+                    {
+                        throw;
+                    }
+
+                    CompleteDispatch(dispatch, deliveredUtc);
+                    await db.SaveChangesAsync(stoppingToken);
+                    _logger.LogInformation(
+                        "Suppressed duplicate notification dispatch {DispatchId} for recipient {RecipientUserId}.",
+                        dispatch.Id,
+                        dispatch.RecipientUserId);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -185,66 +196,234 @@ public sealed class NotificationDispatcher : BackgroundService
             }
             catch (Exception ex)
             {
-                var retryDelay = GetRetryDelay(dispatch.AttemptCount);
-                var nextAttempt = _clock.UtcNow.UtcDateTime.Add(retryDelay);
-
-                dispatch.LockedUntilUtc = nextAttempt;
-                dispatch.DispatchedUtc = null;
-                dispatch.Error = Truncate(ex.Message, ErrorMessageMaxLength);
-
-                _logger.LogError(
-                    ex,
-                    "Failed to dispatch notification {DispatchId} on attempt {AttemptCount}.",
-                    dispatch.Id,
-                    dispatch.AttemptCount);
+                await RegisterFailureAsync(db, dispatch, ex, stoppingToken);
             }
         }
 
-        await db.SaveChangesAsync(stoppingToken);
-
         if (notificationsToDeliver.Count > 0)
         {
-            await deliveryService.DeliverAsync(notificationsToDeliver, stoppingToken);
-
-            var notificationsByUser = notificationsToDeliver
-                .GroupBy(n => n.RecipientUserId, StringComparer.Ordinal)
-                .ToList();
-
-            foreach (var userGroup in notificationsByUser)
+            try
             {
-                stoppingToken.ThrowIfCancellationRequested();
+                await deliveryService.DeliverAsync(notificationsToDeliver, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                // Notification rows are already durable. A secondary delivery channel must not
+                // poison the outbox batch or cause completed dispatches to be processed again.
+                _logger.LogError(
+                    exception,
+                    "A secondary notification delivery channel failed for {NotificationCount} durable notification(s).",
+                    notificationsToDeliver.Count);
+            }
 
-                var userId = userGroup.Key;
-                if (string.IsNullOrWhiteSpace(userId))
-                {
-                    continue;
-                }
+            await BroadcastNewNotificationsAsync(
+                notificationsToDeliver,
+                notificationService,
+                hubContext,
+                userManager,
+                principalFactory,
+                _logger,
+                stoppingToken);
+        }
 
+        return true;
+    }
+
+    private async Task<List<NotificationDispatch>> ClaimBatchAsync(
+        ApplicationDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var now = _clock.UtcNow.UtcDateTime;
+        var lockExpiry = now.Add(LockDuration);
+        var claimToken = Guid.NewGuid().ToString("N");
+
+        var candidateIds = await db.NotificationDispatches
+            .AsNoTracking()
+            .Where(d => d.DispatchedUtc == null && d.DeadLetteredUtc == null)
+            .Where(d => d.LockedUntilUtc == null || d.LockedUntilUtc <= now)
+            .OrderBy(d => d.CreatedUtc)
+            .ThenBy(d => d.Id)
+            .Select(d => d.Id)
+            .Take(BatchSize)
+            .ToListAsync(cancellationToken);
+
+        if (candidateIds.Count == 0)
+        {
+            return new List<NotificationDispatch>();
+        }
+
+        if (db.Database.IsRelational())
+        {
+            await db.NotificationDispatches
+                .Where(d => candidateIds.Contains(d.Id))
+                .Where(d => d.DispatchedUtc == null && d.DeadLetteredUtc == null)
+                .Where(d => d.LockedUntilUtc == null || d.LockedUntilUtc <= now)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(d => d.LockToken, claimToken)
+                    .SetProperty(d => d.LockedUntilUtc, lockExpiry)
+                    .SetProperty(d => d.AttemptCount, d => d.AttemptCount + 1),
+                    cancellationToken);
+
+            return await db.NotificationDispatches
+                .Where(d => d.LockToken == claimToken)
+                .OrderBy(d => d.CreatedUtc)
+                .ThenBy(d => d.Id)
+                .ToListAsync(cancellationToken);
+        }
+
+        // EF's in-memory provider does not support ExecuteUpdateAsync. This branch keeps the
+        // service testable while production providers use the atomic compare-and-set claim.
+        var inMemoryRows = await db.NotificationDispatches
+            .Where(d => candidateIds.Contains(d.Id))
+            .Where(d => d.DispatchedUtc == null && d.DeadLetteredUtc == null)
+            .Where(d => d.LockedUntilUtc == null || d.LockedUntilUtc <= now)
+            .OrderBy(d => d.CreatedUtc)
+            .ThenBy(d => d.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var row in inMemoryRows)
+        {
+            row.LockToken = claimToken;
+            row.LockedUntilUtc = lockExpiry;
+            row.AttemptCount += 1;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return inMemoryRows;
+    }
+
+    private static async Task<Notification?> FindExistingNotificationAsync(
+        ApplicationDbContext db,
+        NotificationDispatch dispatch,
+        CancellationToken cancellationToken)
+    {
+        var local = db.Notifications.Local.FirstOrDefault(n =>
+            n.SourceDispatchId == dispatch.Id
+            || (!string.IsNullOrWhiteSpace(dispatch.Fingerprint)
+                && string.Equals(n.RecipientUserId, dispatch.RecipientUserId, StringComparison.Ordinal)
+                && string.Equals(n.Fingerprint, dispatch.Fingerprint, StringComparison.Ordinal)));
+
+        if (local is not null)
+        {
+            return local;
+        }
+
+        return await db.Notifications
+            .AsNoTracking()
+            .FirstOrDefaultAsync(n =>
+                n.SourceDispatchId == dispatch.Id
+                || (!string.IsNullOrWhiteSpace(dispatch.Fingerprint)
+                    && n.RecipientUserId == dispatch.RecipientUserId
+                    && n.Fingerprint == dispatch.Fingerprint),
+                cancellationToken);
+    }
+
+    private async Task RegisterFailureAsync(
+        ApplicationDbContext db,
+        NotificationDispatch dispatch,
+        Exception exception,
+        CancellationToken cancellationToken)
+    {
+        var now = _clock.UtcNow.UtcDateTime;
+        dispatch.Error = Truncate(exception.Message, ErrorMessageMaxLength);
+        dispatch.LockToken = null;
+
+        if (dispatch.AttemptCount >= MaximumAttempts)
+        {
+            dispatch.DeadLetteredUtc = now;
+            dispatch.LockedUntilUtc = null;
+
+            _logger.LogError(
+                exception,
+                "Dead-lettered notification dispatch {DispatchId} after {AttemptCount} attempts.",
+                dispatch.Id,
+                dispatch.AttemptCount);
+        }
+        else
+        {
+            dispatch.LockedUntilUtc = now.Add(GetRetryDelay(dispatch.AttemptCount));
+
+            _logger.LogWarning(
+                exception,
+                "Failed to dispatch notification {DispatchId} on attempt {AttemptCount}; it will be retried.",
+                dispatch.Id,
+                dispatch.AttemptCount);
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static void CompleteDispatch(NotificationDispatch dispatch, DateTime dispatchedUtc)
+    {
+        dispatch.DispatchedUtc = EnsureUtc(dispatchedUtc);
+        dispatch.LockedUntilUtc = null;
+        dispatch.LockToken = null;
+        dispatch.Error = null;
+    }
+
+    private static async Task BroadcastNewNotificationsAsync(
+        IReadOnlyCollection<Notification> notifications,
+        UserNotificationService notificationService,
+        IHubContext<NotificationsHub, INotificationsClient> hubContext,
+        UserManager<ApplicationUser> userManager,
+        IUserClaimsPrincipalFactory<ApplicationUser> principalFactory,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        foreach (var userGroup in notifications.GroupBy(n => n.RecipientUserId, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var userId = userGroup.Key;
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                continue;
+            }
+
+            try
+            {
                 var user = await userManager.FindByIdAsync(userId);
-                if (user is null)
+                if (user is null || user.IsDisabled || user.PendingDeletion)
                 {
                     continue;
                 }
 
                 var principal = await principalFactory.CreateAsync(user);
-
                 var items = await notificationService.ProjectAsync(
                     principal,
                     userId,
                     userGroup.ToList(),
-                    stoppingToken);
+                    cancellationToken);
 
                 foreach (var item in items)
                 {
                     await hubContext.Clients.User(userId).ReceiveNotification(item);
                 }
 
-                var unreadCount = await notificationService.CountUnreadAsync(principal, userId, stoppingToken);
+                var unreadCount = await notificationService.CountUnreadAsync(
+                    principal,
+                    userId,
+                    cancellationToken);
                 await hubContext.Clients.User(userId).ReceiveUnreadCount(unreadCount);
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                // SignalR is a realtime optimisation. The durable notification remains available
+                // through the API and polling even when this user's connection or backplane fails.
+                logger.LogWarning(
+                    exception,
+                    "Realtime notification broadcast failed for recipient {RecipientUserId}; polling will recover the durable notification.",
+                    userId);
+            }
         }
-
-        return true;
     }
 
     private static async Task DelayAsync(TimeSpan delay, CancellationToken stoppingToken)
@@ -258,9 +437,9 @@ public sealed class NotificationDispatcher : BackgroundService
         {
             await Task.Delay(delay, stoppingToken);
         }
-        catch (TaskCanceledException) when (stoppingToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            // Swallow cancellation to allow graceful shutdown.
+            // Graceful shutdown.
         }
     }
 
@@ -271,16 +450,20 @@ public sealed class NotificationDispatcher : BackgroundService
             2 => TimeSpan.FromSeconds(15),
             3 => TimeSpan.FromMinutes(1),
             4 => TimeSpan.FromMinutes(5),
-            _ => TimeSpan.FromMinutes(15)
+            5 => TimeSpan.FromMinutes(15),
+            _ => TimeSpan.FromHours(1),
         };
 
     private static string? Truncate(string? value, int maxLength)
-    {
-        if (string.IsNullOrEmpty(value))
-        {
-            return value;
-        }
+        => string.IsNullOrEmpty(value) || value.Length <= maxLength
+            ? value
+            : value[..maxLength];
 
-        return value.Length <= maxLength ? value : value[..maxLength];
-    }
+    private static DateTime EnsureUtc(DateTime value)
+        => value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
+        };
 }

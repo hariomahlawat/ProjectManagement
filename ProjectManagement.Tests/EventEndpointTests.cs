@@ -15,7 +15,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Helpers;
 using ProjectManagement.Models;
 using Xunit;
@@ -30,10 +32,14 @@ namespace ProjectManagement.Tests
         {
             _factory = factory.WithWebHostBuilder(builder =>
             {
+                builder.UsePrismTestInfrastructure("event-endpoints");
+
                 builder.ConfigureServices(services =>
                 {
                     services.RemoveAll(typeof(DbContextOptions<ApplicationDbContext>));
+                    services.RemoveAll(typeof(DbContextOptions<MediaLibraryDbContext>));
                     services.AddDbContext<ApplicationDbContext>(o => o.UseInMemoryDatabase("events"));
+                    services.AddDbContext<MediaLibraryDbContext>(o => o.UseInMemoryDatabase("events-media"));
                 });
                 builder.ConfigureTestServices(services =>
                 {
@@ -64,16 +70,92 @@ namespace ProjectManagement.Tests
         private record PreferenceVm(bool showCelebrations);
 
         [Fact]
-        public async Task PostRequiresEditorRole()
+        public async Task GeneralEventWritePolicyRejectsOrdinaryUsers()
         {
             using var scope = _factory.Services.CreateScope();
             var auth = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Authorization.IAuthorizationService>();
-            var user = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Role, "User") }, "Test"));
-            var policy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
-                .RequireRole("Admin", "TA", "HoD").Build();
-            var result = await auth.AuthorizeAsync(user, null, policy.Requirements);
+            var user = PrincipalWithRole("User");
+
+            var result = await auth.AuthorizeAsync(
+                user,
+                resource: null,
+                policyName: Policies.Calendar.ManageEvents);
+
             Assert.False(result.Succeeded);
         }
+
+        [Theory]
+        [InlineData(RoleNames.Admin)]
+        [InlineData(RoleNames.HoD)]
+        [InlineData(RoleNames.Ta)]
+        [InlineData(RoleNames.Comdt)]
+        [InlineData(RoleNames.Mco)]
+        [InlineData(RoleNames.ProjectOfficer)]
+        [InlineData(RoleNames.ProjectOffice)]
+        [InlineData(RoleNames.ProjectOfficeAlternate)]
+        public async Task GeneralEventWritePolicyAllowsConfiguredRoles(string role)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var auth = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Authorization.IAuthorizationService>();
+
+            var result = await auth.AuthorizeAsync(
+                PrincipalWithRole(role),
+                resource: null,
+                policyName: Policies.Calendar.ManageEvents);
+
+            Assert.True(result.Succeeded);
+        }
+
+        [Theory]
+        [InlineData(RoleNames.Admin, true)]
+        [InlineData(RoleNames.HoD, false)]
+        [InlineData(RoleNames.Ta, true)]
+        [InlineData(RoleNames.Comdt, false)]
+        [InlineData(RoleNames.MainOfficeClerk, true)]
+        [InlineData(RoleNames.MainOfficeAlternate, true)]
+        [InlineData(RoleNames.Mco, false)]
+        [InlineData(RoleNames.ProjectOfficer, false)]
+        [InlineData(RoleNames.ProjectOffice, false)]
+        [InlineData(RoleNames.ProjectOfficeAlternate, false)]
+        public async Task BirthdayPolicyUsesTheRequiredRoleMatrix(string role, bool expected)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var auth = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Authorization.IAuthorizationService>();
+
+            var result = await auth.AuthorizeAsync(
+                PrincipalWithRole(role),
+                resource: null,
+                policyName: Policies.Calendar.ManageBirthdays);
+
+            Assert.Equal(expected, result.Succeeded);
+        }
+
+        [Theory]
+        [InlineData(RoleNames.Admin, true)]
+        [InlineData(RoleNames.HoD, false)]
+        [InlineData(RoleNames.Ta, true)]
+        [InlineData(RoleNames.Comdt, false)]
+        [InlineData(RoleNames.MainOfficeClerk, true)]
+        [InlineData(RoleNames.MainOfficeAlternate, true)]
+        [InlineData(RoleNames.Mco, false)]
+        [InlineData(RoleNames.ProjectOfficer, false)]
+        [InlineData(RoleNames.ProjectOffice, false)]
+        [InlineData(RoleNames.ProjectOfficeAlternate, false)]
+        public async Task AnniversaryPolicyUsesTheRequiredRoleMatrix(string role, bool expected)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var auth = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Authorization.IAuthorizationService>();
+
+            var result = await auth.AuthorizeAsync(
+                PrincipalWithRole(role),
+                resource: null,
+                policyName: Policies.Calendar.ManageAnniversaries);
+
+            Assert.Equal(expected, result.Succeeded);
+        }
+
+        private static ClaimsPrincipal PrincipalWithRole(string role) =>
+            new(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Role, role) }, "Test"));
 
         [Fact]
         public async Task HoDCaseInsensitive()
@@ -98,6 +180,95 @@ namespace ProjectManagement.Tests
             Assert.Equal(System.Net.HttpStatusCode.OK, put.StatusCode);
             var del = await hod.DeleteAsync($"/calendar/events/{ev.Id}");
             Assert.Equal(System.Net.HttpStatusCode.OK, del.StatusCode);
+        }
+
+        [Fact]
+        public async Task CreateEventAcceptsMinutePrecisionOutsideQuarterHourSlots()
+        {
+            var client = CreateClient(RoleNames.Admin);
+            var start = new DateTimeOffset(2026, 7, 10, 9, 20, 0, TimeSpan.FromHours(5.5));
+            var response = await client.PostAsJsonAsync("/calendar/events", new
+            {
+                title = "Minute precision event",
+                description = "Created from the calendar editor",
+                category = "Other",
+                location = "Conference Room",
+                startUtc = start,
+                endUtc = start.AddHours(1),
+                isAllDay = false,
+                recurrenceRule = (string?)null,
+                recurrenceUntilUtc = (DateTimeOffset?)null
+            });
+
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.Equal(System.Net.HttpStatusCode.Created, response.StatusCode);
+            Assert.True(body.Contains("id", StringComparison.OrdinalIgnoreCase), body);
+        }
+
+        [Fact]
+        public async Task CreateEventRejectsWhitespaceTitle()
+        {
+            var client = CreateClient(RoleNames.Admin);
+            var start = DateTimeOffset.UtcNow.AddHours(1);
+            var response = await client.PostAsJsonAsync("/calendar/events", new
+            {
+                title = "   ",
+                category = "Other",
+                startUtc = start,
+                endUtc = start.AddHours(1),
+                isAllDay = false
+            });
+
+            Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.True(body.Contains("Title is required", StringComparison.OrdinalIgnoreCase), body);
+        }
+
+        [Fact]
+        public async Task CreateEventRejectsRecurrenceEndBeforeStart()
+        {
+            var client = CreateClient(RoleNames.Admin);
+            var start = DateTimeOffset.UtcNow.AddDays(2);
+            var response = await client.PostAsJsonAsync("/calendar/events", new
+            {
+                title = "Invalid recurring event",
+                category = "Conference",
+                startUtc = start,
+                endUtc = start.AddHours(1),
+                isAllDay = false,
+                recurrenceRule = "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO",
+                recurrenceUntilUtc = start.AddDays(-1)
+            });
+
+            Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode);
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.True(body.Contains("cannot be before", StringComparison.OrdinalIgnoreCase), body);
+        }
+
+        [Fact]
+        public async Task SoftDeletedEventCannotBeReadOrAddedToTasks()
+        {
+            var eventId = Guid.NewGuid();
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                db.Events.Add(new ProjectManagement.Models.Event
+                {
+                    Id = eventId,
+                    Title = "Deleted",
+                    Category = ProjectManagement.Models.EventCategory.Other,
+                    StartUtc = DateTimeOffset.UtcNow,
+                    EndUtc = DateTimeOffset.UtcNow.AddHours(1),
+                    IsDeleted = true,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                });
+                await db.SaveChangesAsync();
+            }
+
+            var client = CreateClient(RoleNames.Admin);
+            Assert.Equal(System.Net.HttpStatusCode.NotFound, (await client.GetAsync($"/calendar/events/{eventId}")).StatusCode);
+            Assert.Equal(System.Net.HttpStatusCode.NotFound, (await client.PostAsync($"/calendar/events/{eventId}/task", null)).StatusCode);
         }
 
         [Fact]

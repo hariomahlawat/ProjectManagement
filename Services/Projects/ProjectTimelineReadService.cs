@@ -10,6 +10,7 @@ using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Stages;
 using ProjectManagement.Utilities;
 using ProjectManagement.ViewModels;
 
@@ -210,7 +211,8 @@ public sealed class ProjectTimelineReadService
                     CurrentStatus = stageRow?.Status ?? StageStatus.NotStarted,
                     RequestedStatus = r.RequestedStatus,
                     RequestedDate = r.RequestedDate,
-                    ProposedStartDate = stageRow?.ActualStart
+                    ProposedStartDate = r.RequestedStartDate
+                        ?? stageRow?.ActualStart
                         ?? (proposedStartLookup.TryGetValue(r.StageCode, out var proposedStart)
                             ? proposedStart
                             : string.Equals(r.RequestedStatus, StageStatus.InProgress.ToString(), StringComparison.OrdinalIgnoreCase)
@@ -230,7 +232,6 @@ public sealed class ProjectTimelineReadService
 
         var items = new List<TimelineItemVm>();
         var index = 0;
-        DateOnly? previousApplicableCompletion = null;
         foreach (var stage in workflowStages)
         {
             var code = stage.Code;
@@ -244,11 +245,16 @@ public sealed class ProjectTimelineReadService
             var actualEnd = r?.CompletedOn;
             var status = r?.Status ?? StageStatus.NotStarted;
 
+            var startSuggestion = StageDateSuggestionResolver.Resolve(workflowStages, rows, code);
+
             DateOnly? effectiveActualStart = actualStart;
             var isActualStartInferred = false;
-            if (status == StageStatus.Completed && !effectiveActualStart.HasValue && actualEnd.HasValue && previousApplicableCompletion.HasValue)
+            if (status == StageStatus.Completed
+                && !effectiveActualStart.HasValue
+                && actualEnd.HasValue
+                && startSuggestion.SuggestedStartDate.HasValue)
             {
-                var inferred = previousApplicableCompletion.Value.AddDays(1);
+                var inferred = startSuggestion.SuggestedStartDate.Value;
                 effectiveActualStart = inferred > actualEnd.Value ? actualEnd.Value : inferred;
                 isActualStartInferred = true;
             }
@@ -276,6 +282,9 @@ public sealed class ProjectTimelineReadService
                 EffectiveActualStart = effectiveActualStart,
                 IsActualStartInferred = isActualStartInferred,
                 CompletedOn = actualEnd,
+                SuggestedStartDate = startSuggestion.SuggestedStartDate,
+                SuggestedStartSourceCode = startSuggestion.SourceStageCode,
+                SuggestedStartSourceName = startSuggestion.SourceStageName,
                 IsAutoCompleted = r?.IsAutoCompleted ?? false,
                 AutoCompletedFromCode = r?.AutoCompletedFromCode,
                 RequiresBackfill = status == StageStatus.Completed && !actualEnd.HasValue,
@@ -286,7 +295,8 @@ public sealed class ProjectTimelineReadService
                 PendingDate = pendingRequest?.RequestedDate,
                 PendingStartDate = pendingRequest is null
                     ? null
-                    : actualStart
+                    : pendingRequest.RequestedStartDate
+                        ?? actualStart
                         ?? (string.Equals(pendingRequest.RequestedStatus, StageStatus.InProgress.ToString(), StringComparison.OrdinalIgnoreCase)
                             ? pendingRequest.RequestedDate
                             : proposedStartLookup.TryGetValue(code, out var pendingStart)
@@ -302,10 +312,6 @@ public sealed class ProjectTimelineReadService
                 PendingRequestId = pendingRequest?.Id
             });
 
-            if (status == StageStatus.Completed && actualEnd.HasValue)
-            {
-                previousApplicableCompletion = actualEnd;
-            }
         }
 
         var completed = items.Count(i => i.Status == StageStatus.Completed);

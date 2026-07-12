@@ -41,6 +41,102 @@
     const str = (raw || '').toString();
     return canonMap[str.toLowerCase()] || (str || 'Other');
   };
+
+  const getCelebrationPresentation = (event) => {
+    const title = (event?.title || '').trim();
+    const explicitType = event?.extendedProps?.celebrationType;
+    const titlePrefix = title.match(/^([^:]+):/i)?.[1];
+    const type = canon(explicitType || titlePrefix || 'Celebration');
+    const name = title
+      .replace(/^(Birthday|Anniversary|Celebration)\s*:\s*/i, '')
+      .trim() || title || 'Celebration';
+
+    return {
+      type,
+      name,
+      iconClass: type === 'Anniversary' ? 'bi-hearts' : 'bi-gift'
+    };
+  };
+
+  const getStandardEventTitle = (event) => {
+    const title = (event?.title || '').toString().trim();
+    return title || 'Untitled event';
+  };
+
+  const isListView = (view) => (view?.type || '').toString().startsWith('list');
+
+  const createEventTextElement = (tagName, className, text) => {
+    const element = document.createElement(tagName);
+    element.className = className;
+    element.textContent = text;
+    return element;
+  };
+
+  const buildStandardEventContent = (info) => {
+    const title = getStandardEventTitle(info?.event);
+    const timeText = (info?.timeText || '').toString().trim();
+    const showTime = !!timeText && !isListView(info?.view);
+    const isRecurring = !!info?.event?.extendedProps?.isRecurring;
+
+    // Mirror FullCalendar's native inner structure so the same renderer remains stable in
+    // month, week, day and list views. All text is assigned through textContent.
+    const frame = document.createElement('div');
+    frame.className = 'fc-event-main-frame pm-calendar-event__content';
+
+    if (showTime) {
+      frame.appendChild(createEventTextElement(
+        'div',
+        'fc-event-time pm-calendar-event__time',
+        timeText));
+    }
+
+    const titleContainer = document.createElement('div');
+    titleContainer.className = 'fc-event-title-container pm-calendar-event__title-container';
+
+    const titleElement = createEventTextElement(
+      'div',
+      'fc-event-title fc-sticky pm-calendar-event__title',
+      title);
+    titleContainer.appendChild(titleElement);
+    frame.appendChild(titleContainer);
+
+    if (isRecurring) {
+      const recurrence = document.createElement('span');
+      recurrence.className = 'pm-calendar-event__recurrence';
+      recurrence.setAttribute('aria-hidden', 'true');
+      recurrence.setAttribute('title', 'Recurring event');
+
+      const recurrenceIcon = document.createElement('i');
+      recurrenceIcon.className = 'bi bi-arrow-repeat';
+      recurrence.appendChild(recurrenceIcon);
+      frame.appendChild(recurrence);
+    }
+
+    return { domNodes: [frame] };
+  };
+
+  const buildCelebrationEventContent = (event) => {
+    const presentation = getCelebrationPresentation(event);
+    const content = document.createElement('span');
+    content.className = 'pm-celebration-event__content';
+
+    const icon = document.createElement('span');
+    icon.className = 'pm-celebration-event__icon';
+    icon.setAttribute('aria-hidden', 'true');
+
+    const iconGlyph = document.createElement('i');
+    iconGlyph.className = `bi ${presentation.iconClass}`;
+    icon.appendChild(iconGlyph);
+
+    const name = createEventTextElement(
+      'span',
+      'pm-celebration-event__name',
+      presentation.name);
+
+    content.append(icon, name);
+    return { domNodes: [content] };
+  };
+
   let activeCategory = "";
 
   const holidayMap = new Map();
@@ -60,20 +156,82 @@
 
   // helpers
   const pad = (n) => String(n).padStart(2,'0');
-  const toLocalInputValue = (d) => {
-    const dt = new Date(d);
-    return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
-  };
-
   const toLocalDateInputValue = (d) => {
     const dt = new Date(d);
     return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
   };
 
+  const toLocalTimeInputValue = (d) => {
+    const dt = new Date(d);
+    return `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+  };
+
+  const combineLocalDateTime = (datePart, timePart) => {
+    if (!datePart || !timePart) return null;
+    return new Date(`${datePart}T${timePart}`);
+  };
+
+  const roundUpToInterval = (date, minutes = 15) => {
+    const dt = new Date(date);
+    dt.setSeconds(0, 0);
+    const ms = minutes * 60 * 1000;
+    const rounded = new Date(Math.ceil(dt.getTime() / ms) * ms);
+    if (rounded.getTime() === dt.getTime()) {
+      return rounded;
+    }
+    rounded.setSeconds(0, 0);
+    return rounded;
+  };
+
+  const isValidDate = (value) => value instanceof Date && !Number.isNaN(value.getTime());
+
+  const isSameLocalDate = (left, right) =>
+    left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate();
+
+  const atLocalTime = (date, hours, minutes = 0) => {
+    const value = new Date(date);
+    value.setHours(hours, minutes, 0, 0);
+    return value;
+  };
+
+  const getDefaultTimedStart = (selectedDate = null) => {
+    const now = new Date();
+    const selected = selectedDate ? new Date(selectedDate) : null;
+
+    if (selected && !isSameLocalDate(selected, now)) {
+      return atLocalTime(selected, 9, 0);
+    }
+
+    let candidate = roundUpToInterval(now, 15);
+    if (candidate.getHours() < 8) {
+      candidate = atLocalTime(candidate, 8, 0);
+    } else if (candidate.getHours() >= 18) {
+      candidate.setDate(candidate.getDate() + 1);
+      candidate = atLocalTime(candidate, 9, 0);
+    }
+
+    if (selected) {
+      candidate.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
+    }
+
+    return candidate;
+  };
+
   const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' });
+  const longDateFormatter = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric'
+  });
   const formatDisplayDate = (date) => {
     const d = date instanceof Date ? date : new Date(date);
     return `${pad(d.getDate())} ${monthFormatter.format(d)} ${d.getFullYear()}`;
+  };
+  const formatLongDisplayDate = (date) => {
+    const d = date instanceof Date ? date : new Date(date);
+    return longDateFormatter.format(d);
   };
   const formatDisplayDateTime = (date) => {
     const d = date instanceof Date ? date : new Date(date);
@@ -214,7 +372,7 @@
     renderHolidayListBadges();
   };
 
-  // cache form elements
+  // Cache event-editor elements. These are absent for read-only users.
   const form = document.getElementById('eventForm');
   const titleBox = form ? form.querySelector('[name="title"]') : null;
   const idBox = form ? form.querySelector('[name="id"]') : null;
@@ -222,20 +380,333 @@
   const locBox = form ? form.querySelector('[name="location"]') : null;
   const descBox = form ? form.querySelector('[name="description"]') : null;
   const isAllDayBox = document.getElementById('toggleAllDay');
-  const timePickers = document.getElementById('timePickers');
-  const datePickers = document.getElementById('datePickers');
+  const timedDateTimeFields = document.getElementById('timedDateTimeFields');
+  const allDayDateFields = document.getElementById('allDayDateFields');
+  const startDateTimedBox = document.getElementById('eventStartDateTimed');
+  const startTimeTimedBox = document.getElementById('eventStartTimeTimed');
+  const endDateTimedBox = document.getElementById('eventEndDateTimed');
+  const endTimeTimedBox = document.getElementById('eventEndTimeTimed');
+  const startDateAllDayBox = document.getElementById('eventStartDateAllDay');
+  const endDateAllDayBox = document.getElementById('eventEndDateAllDay');
+  const advancedOptions = document.getElementById('eventAdvancedOptions');
   const btnDelete = document.getElementById('btnDeleteEvent');
+  const btnSave = document.getElementById('btnSaveEvent');
+  const saveSpinner = document.getElementById('eventSaveSpinner');
+  const saveIcon = document.getElementById('eventSaveIcon');
+  const saveText = document.getElementById('eventSaveText');
+  const formHint = document.getElementById('eventFormHint');
+  const editorFormBody = form?.querySelector('.calendar-event-form-body');
+  const formAlert = document.getElementById('eventFormAlert');
+  const dateRangeError = document.getElementById('eventDateRangeError');
+  const durationHint = document.getElementById('eventDurationHint');
 
   // ----- repeat UI wiring -----
-  const repeatFreq     = document.getElementById('repeatFreq');
-  const repeatWeekly   = document.getElementById('repeatWeekly');
-  const repeatMonthly  = document.getElementById('repeatMonthly');
+  const repeatFreq = document.getElementById('repeatFreq');
+  const repeatOptions = document.getElementById('repeatOptions');
+  const repeatWeekly = document.getElementById('repeatWeekly');
+  const repeatMonthly = document.getElementById('repeatMonthly');
   const repeatMonthDay = document.getElementById('repeatMonthDay');
-  const repeatUntil    = document.getElementById('repeatUntil');
+  const repeatUntil = document.getElementById('repeatUntil');
+  const repeatUntilFeedback = repeatUntil?.parentElement?.querySelector('.invalid-feedback');
+  const repeatEndNever = document.getElementById('repeatEndNever');
+  const repeatEndOn = document.getElementById('repeatEndOn');
+
+  let linkedDurationMinutes = 60;
+  let endWasManuallyEdited = false;
+  let suppressEndDirtyTracking = false;
+
+  function getTimedStart() {
+    return combineLocalDateTime(startDateTimedBox?.value, startTimeTimedBox?.value);
+  }
+
+  function getTimedEnd() {
+    return combineLocalDateTime(endDateTimedBox?.value, endTimeTimedBox?.value);
+  }
+
+  function setTimedValues(start, end, preserveDuration = true) {
+    if (!isValidDate(start) || !isValidDate(end)) return;
+    suppressEndDirtyTracking = true;
+    if (startDateTimedBox) startDateTimedBox.value = toLocalDateInputValue(start);
+    if (startTimeTimedBox) startTimeTimedBox.value = toLocalTimeInputValue(start);
+    if (endDateTimedBox) endDateTimedBox.value = toLocalDateInputValue(end);
+    if (endTimeTimedBox) endTimeTimedBox.value = toLocalTimeInputValue(end);
+    suppressEndDirtyTracking = false;
+
+    if (preserveDuration) {
+      const minutes = Math.round((end - start) / 60000);
+      linkedDurationMinutes = minutes > 0 ? minutes : 60;
+      endWasManuallyEdited = false;
+    }
+  }
+
+  function setAllDayValues(start, endInclusive) {
+    if (!isValidDate(start) || !isValidDate(endInclusive)) return;
+    if (startDateAllDayBox) startDateAllDayBox.value = toLocalDateInputValue(start);
+    if (endDateAllDayBox) endDateAllDayBox.value = toLocalDateInputValue(endInclusive);
+  }
+
+  function syncEndToStartIfLinked() {
+    if (endWasManuallyEdited) return;
+    const start = getTimedStart();
+    if (!isValidDate(start)) return;
+    const duration = Math.max(1, linkedDurationMinutes || 60);
+    const end = new Date(start.getTime() + duration * 60000);
+    suppressEndDirtyTracking = true;
+    if (endDateTimedBox) endDateTimedBox.value = toLocalDateInputValue(end);
+    if (endTimeTimedBox) endTimeTimedBox.value = toLocalTimeInputValue(end);
+    suppressEndDirtyTracking = false;
+  }
+
+  function syncModeValues(nextAllDay) {
+    if (nextAllDay) {
+      const start = getTimedStart();
+      const end = getTimedEnd();
+      if (isValidDate(start)) {
+        const safeEnd = isValidDate(end) && end >= start ? end : start;
+        setAllDayValues(start, safeEnd);
+      }
+      return;
+    }
+
+    const startDate = startDateAllDayBox?.value;
+    const endDate = endDateAllDayBox?.value || startDate;
+    if (!startDate) return;
+
+    const existingStartTime = startTimeTimedBox?.value || '09:00';
+    const existingEndTime = endTimeTimedBox?.value || '10:00';
+    const start = combineLocalDateTime(startDate, existingStartTime);
+    let end = combineLocalDateTime(endDate, existingEndTime);
+    if (!isValidDate(start)) return;
+    if (!isValidDate(end) || end <= start) {
+      end = new Date(start.getTime() + Math.max(1, linkedDurationMinutes || 60) * 60000);
+    }
+    setTimedValues(start, end, true);
+  }
+
+  function activeSeriesStartDateValue() {
+    return isAllDayBox?.checked
+      ? startDateAllDayBox?.value || ''
+      : startDateTimedBox?.value || '';
+  }
+
+  function validateRepeatEnd() {
+    if (!repeatUntil) return true;
+    const defaultMessage = 'Select the repeat end date.';
+    repeatUntil.setCustomValidity('');
+    if (repeatUntilFeedback) repeatUntilFeedback.textContent = defaultMessage;
+
+    if (!repeatFreq?.value || !repeatEndOn?.checked) return true;
+    if (!repeatUntil.value) {
+      const message = 'Select when the recurring event ends.';
+      repeatUntil.setCustomValidity(message);
+      if (repeatUntilFeedback) repeatUntilFeedback.textContent = message;
+      return false;
+    }
+
+    const startDate = activeSeriesStartDateValue();
+    if (startDate && repeatUntil.value < startDate) {
+      const message = 'The repeat end date cannot be before the event start date.';
+      repeatUntil.setCustomValidity(message);
+      if (repeatUntilFeedback) repeatUntilFeedback.textContent = message;
+      return false;
+    }
+
+    return true;
+  }
+
+  function revealInvalidField(input) {
+    if (!input) return;
+    if (advancedOptions?.contains(input)) {
+      advancedOptions.open = true;
+    }
+    window.requestAnimationFrame(() => {
+      input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      input.focus({ preventScroll: true });
+    });
+  }
+
+  async function readErrorMessage(response) {
+    const raw = await response.text();
+    if (!raw) return `Error ${response.status}`;
+
+    try {
+      const problem = JSON.parse(raw);
+      if (typeof problem === 'string') return problem;
+      if (problem.detail) return problem.detail;
+      if (problem.message) return problem.message;
+      if (problem.errors && typeof problem.errors === 'object') {
+        const messages = Object.values(problem.errors)
+          .flatMap(value => Array.isArray(value) ? value : [value])
+          .filter(Boolean);
+        if (messages.length) return messages.join(' ');
+      }
+      if (problem.title) return problem.title;
+    } catch { }
+
+    return raw;
+  }
+
+  function clearFormAlert() {
+    if (!formAlert) return;
+    formAlert.textContent = '';
+    formAlert.classList.add('d-none');
+  }
+
+  function showFormAlert(message) {
+    if (!formAlert) {
+      alert(message);
+      return;
+    }
+    formAlert.textContent = message;
+    formAlert.classList.remove('d-none');
+    formAlert.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  function setSaving(isSaving) {
+    if (!btnSave) return;
+    btnSave.disabled = isSaving;
+    btnSave.setAttribute('aria-busy', isSaving ? 'true' : 'false');
+    saveSpinner?.classList.toggle('d-none', !isSaving);
+    saveIcon?.classList.toggle('d-none', isSaving);
+  }
+
+  function resetEditorScroll() {
+    if (editorFormBody) editorFormBody.scrollTop = 0;
+  }
+
+  function setEditorMode(isEditing) {
+    const label = document.getElementById('eventFormLabel');
+    if (label) label.textContent = isEditing ? 'Edit event' : 'New event';
+    if (formHint) {
+      formHint.textContent = isEditing
+        ? 'Review the details and save only the changes that are required.'
+        : 'Add the essential details now; optional fields can be completed later.';
+    }
+    if (saveText) saveText.textContent = isEditing ? 'Save changes' : 'Create event';
+  }
+
+  function clearDateRangeError() {
+    endTimeTimedBox?.setCustomValidity('');
+    endDateTimedBox?.setCustomValidity('');
+    endDateAllDayBox?.setCustomValidity('');
+    if (dateRangeError) {
+      dateRangeError.textContent = '';
+      dateRangeError.classList.add('d-none');
+    }
+  }
+
+  function showDateRangeError(message, input) {
+    clearDateRangeError();
+    input?.setCustomValidity(message);
+    if (dateRangeError) {
+      dateRangeError.textContent = message;
+      dateRangeError.classList.remove('d-none');
+    }
+  }
+
+  function validateDateRange() {
+    clearDateRangeError();
+    if (!form || !isAllDayBox) return true;
+
+    if (isAllDayBox.checked) {
+      if (!startDateAllDayBox?.value || !endDateAllDayBox?.value) return true;
+      const start = new Date(`${startDateAllDayBox.value}T00:00:00`);
+      const end = new Date(`${endDateAllDayBox.value}T00:00:00`);
+      if (!isValidDate(start) || !isValidDate(end)) return true;
+      if (end < start) {
+        showDateRangeError('End date cannot be before the start date.', endDateAllDayBox);
+        return false;
+      }
+      return true;
+    }
+
+    if (!startDateTimedBox?.value || !startTimeTimedBox?.value || !endDateTimedBox?.value || !endTimeTimedBox?.value) return true;
+    const start = combineLocalDateTime(startDateTimedBox.value, startTimeTimedBox.value);
+    const end = combineLocalDateTime(endDateTimedBox.value, endTimeTimedBox.value);
+    if (!isValidDate(start) || !isValidDate(end)) return true;
+    if (end <= start) {
+      showDateRangeError('End time must be after the start time.', endTimeTimedBox);
+      return false;
+    }
+    return true;
+  }
+
+  function updateDurationHint() {
+    if (!durationHint || !isAllDayBox) return;
+    durationHint.textContent = '';
+
+    if (isAllDayBox.checked) {
+      if (!startDateAllDayBox?.value || !endDateAllDayBox?.value) return;
+      const start = new Date(`${startDateAllDayBox.value}T00:00:00`);
+      const end = new Date(`${endDateAllDayBox.value}T00:00:00`);
+      if (!isValidDate(start) || !isValidDate(end) || end < start) return;
+      const days = Math.round((end - start) / 86400000) + 1;
+      durationHint.textContent = days === 1 ? '1 all-day event' : `${days} calendar days`;
+      return;
+    }
+
+    if (!startDateTimedBox?.value || !startTimeTimedBox?.value || !endDateTimedBox?.value || !endTimeTimedBox?.value) return;
+    const start = combineLocalDateTime(startDateTimedBox.value, startTimeTimedBox.value);
+    const end = combineLocalDateTime(endDateTimedBox.value, endTimeTimedBox.value);
+    if (!isValidDate(start) || !isValidDate(end)) return;
+    const minutes = Math.round((end - start) / 60000);
+    if (minutes <= 0) return;
+
+    if (minutes < 60) {
+      durationHint.textContent = `${minutes} minutes`;
+    } else if (minutes % 60 === 0) {
+      const hours = minutes / 60;
+      durationHint.textContent = hours === 1 ? '1 hour' : `${hours} hours`;
+    } else {
+      const hours = Math.floor(minutes / 60);
+      const remainder = minutes % 60;
+      durationHint.textContent = `${hours} hr ${remainder} min`;
+    }
+  }
+
+  function syncRepeatEndUI() {
+    if (!repeatUntil) return;
+    const enabled = !!repeatFreq?.value && !!repeatEndOn?.checked;
+    repeatUntil.disabled = !enabled;
+    repeatUntil.required = enabled;
+    if (!enabled) repeatUntil.setCustomValidity('');
+  }
+
+  function syncRepeatUI() {
+    if (!repeatFreq) return;
+    const frequency = repeatFreq.value;
+    const isWeekly = frequency === 'WEEKLY';
+    const isMonthly = frequency === 'MONTHLY';
+
+    repeatOptions?.classList.toggle('d-none', !frequency);
+    repeatWeekly?.classList.toggle('d-none', !isWeekly);
+    repeatMonthly?.classList.toggle('d-none', !isMonthly);
+    repeatWeekly?.querySelectorAll('input').forEach(input => { input.disabled = !isWeekly; });
+    if (repeatMonthDay) repeatMonthDay.disabled = !isMonthly;
+    syncRepeatEndUI();
+  }
 
   repeatFreq?.addEventListener('change', () => {
-    repeatWeekly.classList.toggle('d-none', repeatFreq.value !== 'WEEKLY');
-    repeatMonthly.classList.toggle('d-none', repeatFreq.value !== 'MONTHLY');
+    syncRepeatUI();
+    validateRepeatEnd();
+    clearFormAlert();
+  });
+  repeatEndNever?.addEventListener('change', () => {
+    syncRepeatEndUI();
+    validateRepeatEnd();
+  });
+  repeatEndOn?.addEventListener('change', () => {
+    syncRepeatEndUI();
+    validateRepeatEnd();
+    if (repeatEndOn.checked) repeatUntil?.focus();
+  });
+  titleBox?.addEventListener('input', () => {
+    titleBox.setCustomValidity(titleBox.value.trim() ? '' : 'Enter a title for the event.');
+    clearFormAlert();
+  });
+  repeatUntil?.addEventListener('input', () => {
+    validateRepeatEnd();
+    clearFormAlert();
   });
 
   function buildRRule(startLocalIso) {
@@ -244,7 +715,7 @@
     const parts = [`FREQ=${f}`, 'INTERVAL=1'];
 
     if (f === 'WEEKLY') {
-      const days = Array.from(repeatWeekly.querySelectorAll('input:checked')).map(x => x.value);
+      const days = Array.from(repeatWeekly?.querySelectorAll('input:checked') || []).map(x => x.value);
       if (!days.length) {
         const map = ['SU','MO','TU','WE','TH','FR','SA'];
         days.push(map[new Date(startLocalIso).getDay()]);
@@ -252,49 +723,163 @@
       parts.push(`BYDAY=${days.join(',')}`);
     }
     if (f === 'MONTHLY') {
-      const d = parseInt(repeatMonthDay.value, 10) || new Date(startLocalIso).getDate();
+      const d = parseInt(repeatMonthDay?.value, 10) || new Date(startLocalIso).getDate();
       parts.push(`BYMONTHDAY=${d}`);
     }
-    const endChoice = (document.querySelector('input[name="repeatEnd"]:checked')||{}).value;
-    if (endChoice === 'on' && repeatUntil.value) {
-      const u = new Date(repeatUntil.value + 'T23:59:59');
-      const z = new Date(Date.UTC(u.getFullYear(), u.getMonth(), u.getDate(), 23,59,59));
-      parts.push(`UNTIL=${z.toISOString().replace(/[-:]/g,'').split('.')[0]}Z`);
-    }
+    // The end date is stored separately in RecurrenceUntilUtc. Keeping it out of
+    // the RRULE avoids conflicting UTC/local interpretations of UNTIL.
     return parts.join(';');
   }
 
-  function hydrateRepeatUI(rrule) {
+  function hydrateRepeatUI(rrule, recurrenceUntilUtc = null) {
     if (!repeatFreq) return;
     repeatFreq.value = '';
-    repeatWeekly.classList.add('d-none');
-    repeatMonthly.classList.add('d-none');
-    repeatWeekly.querySelectorAll('input').forEach(i => i.checked=false);
-    repeatMonthDay.value = '';
-    repeatUntil.value='';
-    document.querySelector('input[name="repeatEnd"][value="never"]').checked = true;
-    if (!rrule) return;
+    repeatWeekly?.querySelectorAll('input').forEach(i => { i.checked = false; });
+    if (repeatMonthDay) repeatMonthDay.value = '';
+    if (repeatUntil) repeatUntil.value = '';
+    if (repeatEndNever) repeatEndNever.checked = true;
+    if (repeatEndOn) repeatEndOn.checked = false;
 
-    const m = Object.fromEntries(rrule.split(';').map(p => p.split('=')));
-    if (m.FREQ === 'WEEKLY') {
-      repeatFreq.value='WEEKLY'; repeatWeekly.classList.remove('d-none');
-      (m.BYDAY||'').split(',').forEach(code => { const box = repeatWeekly.querySelector(`input[value="${code}"]`); if (box) box.checked = true; });
-    } else if (m.FREQ === 'MONTHLY') {
-      repeatFreq.value='MONTHLY'; repeatMonthly.classList.remove('d-none');
-      if (m.BYMONTHDAY) repeatMonthDay.value = m.BYMONTHDAY;
+    let ruleUntil = null;
+    if (rrule) {
+      const m = Object.fromEntries(rrule.split(';').map(part => {
+        const separator = part.indexOf('=');
+        return separator > 0
+          ? [part.slice(0, separator).toUpperCase(), part.slice(separator + 1)]
+          : [part.toUpperCase(), ''];
+      }));
+      const frequency = (m.FREQ || '').toUpperCase();
+      if (frequency === 'WEEKLY') {
+        repeatFreq.value = 'WEEKLY';
+        (m.BYDAY || '').toUpperCase().split(',').forEach(code => {
+          const box = repeatWeekly?.querySelector(`input[value="${code}"]`);
+          if (box) box.checked = true;
+        });
+      } else if (frequency === 'MONTHLY') {
+        repeatFreq.value = 'MONTHLY';
+        if (m.BYMONTHDAY && repeatMonthDay) repeatMonthDay.value = m.BYMONTHDAY;
+      }
+      if (m.UNTIL && /^\d{8}/.test(m.UNTIL)) {
+        ruleUntil = `${m.UNTIL.slice(0, 4)}-${m.UNTIL.slice(4, 6)}-${m.UNTIL.slice(6, 8)}`;
+      }
     }
-    if (m.UNTIL) {
-      const y = m.UNTIL.slice(0,4), mo=m.UNTIL.slice(4,6), d=m.UNTIL.slice(6,8);
-      repeatUntil.value = `${y}-${mo}-${d}`;
-      document.querySelector('input[name="repeatEnd"][value="on"]').checked = true;
+
+    if (repeatUntil) {
+      if (ruleUntil) {
+        repeatUntil.value = ruleUntil;
+      } else if (recurrenceUntilUtc) {
+        const until = new Date(recurrenceUntilUtc);
+        if (isValidDate(until)) repeatUntil.value = toLocalDateInputValue(until);
+      }
     }
+
+    if (repeatUntil?.value) {
+      if (repeatEndOn) repeatEndOn.checked = true;
+      if (repeatEndNever) repeatEndNever.checked = false;
+    }
+
+    syncRepeatUI();
+    validateRepeatEnd();
   }
+
   function setAllDayUI(on) {
-    if (!timePickers || !datePickers) return;
-    if (on) { timePickers.classList.add('d-none'); datePickers.classList.remove('d-none'); }
-    else    { datePickers.classList.add('d-none'); timePickers.classList.remove('d-none'); }
+    if (!timedDateTimeFields || !allDayDateFields) return;
+    timedDateTimeFields.classList.toggle('d-none', on);
+    allDayDateFields.classList.toggle('d-none', !on);
+
+    [startDateTimedBox, startTimeTimedBox, endDateTimedBox, endTimeTimedBox].forEach(input => {
+      if (input) input.disabled = on;
+    });
+    [startDateAllDayBox, endDateAllDayBox].forEach(input => {
+      if (input) input.disabled = !on;
+    });
+
+    clearDateRangeError();
+    updateDurationHint();
   }
-  isAllDayBox && isAllDayBox.addEventListener('change', () => setAllDayUI(isAllDayBox.checked));
+
+  function resetEditorValidation() {
+    if (!form) return;
+    form.classList.remove('was-validated');
+    titleBox?.setCustomValidity('');
+    repeatUntil?.setCustomValidity('');
+    clearDateRangeError();
+    clearFormAlert();
+    setSaving(false);
+    linkedDurationMinutes = 60;
+    endWasManuallyEdited = false;
+    suppressEndDirtyTracking = false;
+  }
+
+  function setAdvancedOptionsOpen(isOpen) {
+    if (!advancedOptions) return;
+    advancedOptions.open = !!isOpen;
+  }
+
+  isAllDayBox?.addEventListener('change', () => {
+    syncModeValues(isAllDayBox.checked);
+    setAllDayUI(isAllDayBox.checked);
+    validateDateRange();
+    validateRepeatEnd();
+    updateDurationHint();
+  });
+
+  [startDateTimedBox, startTimeTimedBox].forEach(input => {
+    input?.addEventListener('input', () => {
+      syncEndToStartIfLinked();
+      validateDateRange();
+      validateRepeatEnd();
+      updateDurationHint();
+    });
+    input?.addEventListener('change', () => {
+      syncEndToStartIfLinked();
+      validateDateRange();
+      validateRepeatEnd();
+      updateDurationHint();
+    });
+  });
+
+  [endDateTimedBox, endTimeTimedBox].forEach(input => {
+    input?.addEventListener('input', () => {
+      if (!suppressEndDirtyTracking) endWasManuallyEdited = true;
+      validateDateRange();
+      updateDurationHint();
+    });
+    input?.addEventListener('change', () => {
+      if (!suppressEndDirtyTracking) endWasManuallyEdited = true;
+      validateDateRange();
+      updateDurationHint();
+    });
+  });
+
+  [startDateAllDayBox, endDateAllDayBox].forEach(input => {
+    input?.addEventListener('input', () => {
+      validateDateRange();
+      validateRepeatEnd();
+      updateDurationHint();
+    });
+    input?.addEventListener('change', () => {
+      validateDateRange();
+      validateRepeatEnd();
+      updateDurationHint();
+    });
+  });
+
+  if (form) {
+    setAllDayUI(!!isAllDayBox?.checked);
+    syncRepeatUI();
+
+    const eventFormCanvasEl = document.getElementById('eventFormCanvas');
+    eventFormCanvasEl?.addEventListener('hidden.bs.offcanvas', () => {
+      form.reset();
+      setAllDayUI(false);
+      hydrateRepeatUI(null);
+      setAdvancedOptionsOpen(false);
+      resetEditorValidation();
+      resetEditorScroll();
+      btnDelete?.classList.add('d-none');
+    });
+  }
 
   // undo toast
   const undoToastEl = document.getElementById('undoToast');
@@ -340,10 +925,9 @@
       body: JSON.stringify(payload)
     });
     if (!res.ok) {
-      let msg = await res.text();
-      try { const j = JSON.parse(msg); msg = j.detail || j.title || j; } catch {}
+      const message = await readErrorMessage(res);
       info.revert();
-      alert(`Update failed: ${msg || res.status}`);
+      alert(`Update failed: ${message}`);
     } else {
       showUndo('Event updated.', async () => {
         await fetch(`/calendar/events/${id}`, {
@@ -388,29 +972,59 @@
       extraParams: () => ({ includeCelebrations: 'false' }),
       failure: (e) => { console.error('Events feed failed', e); alert('Couldn\u2019t load events. See console/Network.'); }
     }],
+    eventContent(info) {
+      return info.event.extendedProps?.isCelebration
+        ? buildCelebrationEventContent(info.event)
+        : buildStandardEventContent(info);
+    },
     eventDidMount(info) {
-      let categorySource = info.event.extendedProps.category;
-      if (info.event.extendedProps.isCelebration) {
-        categorySource = info.event.extendedProps.celebrationType || categorySource;
-        if (!categorySource) {
-          const match = (info.event.title || '').match(/^([^:]+):/);
-          if (match) categorySource = match[1];
-        }
-      }
+      const isCelebration = !!info.event.extendedProps.isCelebration;
+      const celebrationPresentation = isCelebration
+        ? getCelebrationPresentation(info.event)
+        : null;
+      const categorySource = celebrationPresentation?.type
+        || info.event.extendedProps.category;
       const key = canon(categorySource);
+
       info.event.setExtendedProp('category', key);
       info.el.classList.add('pm-cat-' + key.toLowerCase());
-      const loc = info.event.extendedProps.location;
-      info.el.setAttribute('title',
-        info.event.title + (loc ? ' — ' + loc : '')
-      );
-      info.el.setAttribute('aria-label', info.el.title);
+
+      if (celebrationPresentation) {
+        info.el.classList.add('pm-celebration-event');
+        info.el.dataset.celebrationType = celebrationPresentation.type.toLowerCase();
+      } else {
+        info.el.classList.add('pm-standard-event');
+        if (!(info.event.title || '').toString().trim()) {
+          info.el.classList.add('pm-event--untitled');
+        }
+      }
+
+      const loc = (info.event.extendedProps.location || '').toString().trim();
+      const accessibleTitle = celebrationPresentation
+        ? `${celebrationPresentation.type}: ${celebrationPresentation.name}`
+        : getStandardEventTitle(info.event);
+      const accessibleParts = [];
+      const timeText = (info.timeText || '').toString().trim();
+      if (timeText) accessibleParts.push(timeText);
+      accessibleParts.push(accessibleTitle);
+      if (loc) accessibleParts.push(loc);
+      if (info.event.extendedProps.isRecurring && !isCelebration) {
+        accessibleParts.push('Recurring event');
+      }
+
+      const accessibleLabel = accessibleParts.join(' — ');
+      info.el.setAttribute('title', accessibleLabel);
+      info.el.setAttribute('aria-label', accessibleLabel);
 
       if (activeCategory && key !== activeCategory) {
         info.el.style.display = 'none';
       }
       if (info.event.extendedProps.isRecurring) {
-        info.el.classList.add('pm-recurring');
+        // Birthdays and anniversaries are inherently annual; a recurrence glyph adds noise
+        // and can wrap onto a second line in compact month cells.
+        if (!isCelebration) {
+          info.el.classList.add('pm-recurring');
+        }
         info.el.querySelectorAll('.fc-event-resizer').forEach(r => r.style.display = 'none');
       }
     },
@@ -429,40 +1043,25 @@
 
   calendar = new Calendar(calendarEl, opts);
 
-  const CELEBRATIONS_ENDPOINT = '/calendar/events/celebrations';
   const HOLIDAYS_ENDPOINT = '/calendar/events/holidays';
   let celebrationSource = null;
 
   async function loadCelebrationEvents(info) {
     const params = new URLSearchParams({
       start: info.startStr,
-      end: info.endStr
+      end: info.endStr,
+      includeCelebrations: 'true'
     });
 
-    const tryFetch = async (url) => {
-      const res = await fetch(url);
-      if (!res.ok) {
-        const error = new Error(`Celebrations feed failed: ${res.status}`);
-        error.status = res.status;
-        throw error;
-      }
-      const data = await res.json().catch(() => []);
-      return Array.isArray(data) ? data : [];
-    };
-
-    try {
-      return await tryFetch(`${CELEBRATIONS_ENDPOINT}?${params}`);
-    } catch (err) {
-      if (err && typeof err === 'object' && 'status' in err && err.status === 404) {
-        try {
-          const fallback = await tryFetch(`/calendar/events?${params}&includeCelebrations=true`);
-          return fallback.filter(ev => ev?.isCelebration);
-        } catch (fallbackErr) {
-          throw fallbackErr;
-        }
-      }
-      throw err;
+    const res = await fetch(`/calendar/events?${params}`);
+    if (!res.ok) {
+      const error = new Error(`Celebrations feed failed: ${res.status}`);
+      error.status = res.status;
+      throw error;
     }
+
+    const data = await res.json().catch(() => []);
+    return Array.isArray(data) ? data.filter(event => event?.isCelebration) : [];
   }
 
   async function loadHolidayEvents(info, signal) {
@@ -568,7 +1167,7 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(antiforgeryInput?.value ? { 'RequestVerificationToken': antiforgeryInput.value } : {})
+          ...(antiforgeryInput?.value ? { 'X-CSRF-TOKEN': antiforgeryInput.value } : {})
         },
         body: JSON.stringify({ showCelebrations: value })
       });
@@ -722,9 +1321,15 @@
 
   const viewCanvas = document.getElementById('eventDetailsCanvas');
   const viewTitle = document.getElementById('eventDetailsLabel');
+  const viewEyebrow = document.getElementById('eventDetailsEyebrow');
+  const viewIcon = document.getElementById('eventDetailsIcon');
   const viewTime = document.getElementById('eventDetailsTime');
+  const viewRepeat = document.getElementById('eventDetailsRepeat');
+  const viewCategoryRow = document.getElementById('eventDetailsCategoryRow');
   const viewCategory = document.getElementById('eventDetailsCategory');
+  const viewLocationRow = document.getElementById('eventDetailsLocationRow');
   const viewLocation = document.getElementById('eventDetailsLocation');
+  const viewDescriptionRow = document.getElementById('eventDetailsDescriptionRow');
   const viewDescription = document.getElementById('eventDetailsDescription');
   const btnAddToTasks = document.getElementById('btnAddToTasks');
   let currentTaskUrl = null;
@@ -736,27 +1341,100 @@
 
   function showEventDetails(payload) {
     if (!viewCanvas) return;
+
+    const category = canon(payload.category);
+    const isCelebration = !!payload.isCelebration
+      || category === 'Birthday'
+      || category === 'Anniversary'
+      || category === 'Celebration';
+    const presentation = isCelebration
+      ? getCelebrationPresentation({
+          title: payload.title,
+          extendedProps: { celebrationType: category }
+        })
+      : null;
     const start = toDate(payload.start) || new Date();
     const endRaw = toDate(payload.end);
     const end = endRaw || start;
 
-    if (viewTitle) viewTitle.textContent = payload.title || '';
-    if (viewCategory) viewCategory.textContent = canon(payload.category);
-    if (viewLocation) viewLocation.textContent = payload.location || '';
-    if (viewDescription) viewDescription.innerHTML = payload.descriptionHtml || payload.description || '';
+    viewCanvas.classList.toggle('is-celebration', isCelebration);
+    viewCanvas.dataset.eventType = isCelebration
+      ? presentation.type.toLowerCase()
+      : category.toLowerCase();
+
+    if (viewTitle) {
+      viewTitle.textContent = presentation?.name || payload.title || '';
+    }
+    if (viewEyebrow) {
+      viewEyebrow.textContent = presentation?.type || category || 'Calendar event';
+    }
+    if (viewIcon) {
+      viewIcon.className = 'calendar-details-icon';
+      viewIcon.classList.add(
+        presentation?.type === 'Anniversary'
+          ? 'is-anniversary'
+          : presentation
+            ? 'is-birthday'
+            : 'is-event'
+      );
+      const glyph = viewIcon.querySelector('i');
+      if (glyph) {
+        glyph.className = `bi ${
+          presentation?.type === 'Anniversary'
+            ? 'bi-hearts'
+            : presentation
+              ? 'bi-gift'
+              : 'bi-calendar-event'
+        }`;
+      }
+    }
+
+    if (viewCategory) {
+      viewCategory.textContent = category;
+      viewCategory.className = 'calendar-details-category';
+      viewCategory.classList.add(`is-${category.toLowerCase()}`);
+    }
+    viewCategoryRow?.classList.toggle('d-none', isCelebration);
+
+    const location = (payload.location || '').trim();
+    if (viewLocation) viewLocation.textContent = location;
+    viewLocationRow?.classList.toggle('d-none', !location);
+
+    const hasDescription = !!(payload.descriptionHtml || (payload.description || '').trim());
+    if (viewDescription) {
+      if (payload.descriptionHtml) {
+        viewDescription.innerHTML = payload.descriptionHtml;
+      } else {
+        viewDescription.textContent = payload.description || '';
+      }
+    }
+    viewDescriptionRow?.classList.toggle('d-none', !hasDescription);
 
     if (viewTime) {
       if (payload.allDay) {
-        const endInc = new Date(end);
-        endInc.setDate(endInc.getDate() - 1);
-        const endDisplay = payload.end ? endInc : start;
-        viewTime.textContent = `${formatDisplayDate(start)} – ${formatDisplayDate(endDisplay)}`;
+        const endInclusive = new Date(end);
+        if (payload.end) {
+          endInclusive.setDate(endInclusive.getDate() - 1);
+        }
+        const isSingleDay = isSameLocalDate(start, endInclusive);
+
+        if (isCelebration || isSingleDay) {
+          viewTime.textContent = isCelebration
+            ? formatLongDisplayDate(start)
+            : formatDisplayDate(start);
+        } else {
+          viewTime.textContent = `${formatDisplayDate(start)} – ${formatDisplayDate(endInclusive)}`;
+        }
       } else {
         viewTime.textContent = `${formatDisplayDateTime(start)} – ${formatDisplayDateTime(end)}`;
       }
     }
 
-    currentTaskUrl = payload.taskUrl || null;
+    if (viewRepeat) {
+      viewRepeat.classList.toggle('d-none', !isCelebration);
+    }
+
+    currentTaskUrl = isCelebration ? null : payload.taskUrl || null;
     if (btnAddToTasks) {
       const hasTaskUrl = !!currentTaskUrl;
       btnAddToTasks.disabled = !hasTaskUrl;
@@ -800,17 +1478,27 @@
           allDay: ev.allDay,
           category: canon(ev.extendedProps.category),
           location: ev.extendedProps.location || '',
-          descriptionHtml: ev.extendedProps.description || '',
-          taskUrl: ev.extendedProps.taskUrl || null
+          description: ev.extendedProps.description || '',
+          taskUrl: ev.extendedProps.taskUrl || null,
+          isCelebration: true
         });
         return;
       }
 
       const seriesId = ev.extendedProps.seriesId || ev.id;
       const res = await fetch(`/calendar/events/${seriesId}`);
-      if (!res.ok) { console.error('Failed to load event'); return; }
+      if (!res.ok) {
+        console.error('Failed to load event');
+        alert('The event could not be loaded. Please try again.');
+        return;
+      }
+
       const data = await res.json();
+      form.reset();
+      resetEditorValidation();
+      setEditorMode(true);
       editingOriginal = data;
+
       idBox.value = data.id;
       titleBox.value = data.title || '';
       catBox.value = data.category || 'Other';
@@ -818,19 +1506,33 @@
       descBox.value = data.rawDescription || '';
       isAllDayBox.checked = !!data.allDay;
       setAllDayUI(isAllDayBox.checked);
-      hydrateRepeatUI(data.recurrenceRule);
-      if (isAllDayBox.checked) {
-        const start = new Date(data.start);
-        const endEx = new Date(data.end); endEx.setDate(endEx.getDate() - 1);
-        form.querySelector('[name="startDate"]').value = toLocalDateInputValue(start);
-        form.querySelector('[name="endDate"]').value = toLocalDateInputValue(endEx);
-      } else {
-        form.querySelector('[name="start"]').value = toLocalInputValue(data.start);
-        form.querySelector('[name="end"]').value = toLocalInputValue(data.end);
+      hydrateRepeatUI(data.recurrenceRule, data.recurrenceUntilUtc);
+      setAdvancedOptionsOpen(!!(data.recurrenceRule || data.recurrenceUntilUtc || data.rawDescription));
+
+      const start = new Date(data.start);
+      const end = new Date(data.end);
+      if (!isValidDate(start) || !isValidDate(end)) {
+        alert('The stored event contains an invalid date range and cannot be edited safely.');
+        return;
       }
-      document.getElementById('eventFormLabel').textContent = 'Edit event';
-      btnDelete && btnDelete.classList.remove('d-none');
+
+      if (isAllDayBox.checked) {
+        const endInclusive = new Date(end);
+        endInclusive.setDate(endInclusive.getDate() - 1);
+        setAllDayValues(start, endInclusive);
+        const timedStart = atLocalTime(start, 9, 0);
+        setTimedValues(timedStart, new Date(timedStart.getTime() + 60 * 60 * 1000));
+      } else {
+        setTimedValues(start, end);
+        setAllDayValues(start, end);
+      }
+
+      validateRepeatEnd();
+      updateDurationHint();
+      resetEditorScroll();
+      btnDelete?.classList.remove('d-none');
       bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('eventFormCanvas')).show();
+      window.setTimeout(() => titleBox?.focus(), 250);
     });
 
     const btnNew = document.getElementById('btnNewEvent');
@@ -838,36 +1540,52 @@
     function openNewEvent(start = null, end = null, allDay = false) {
       if (!form) return;
       form.reset();
+      resetEditorValidation();
+      setEditorMode(false);
       editingOriginal = null;
       idBox.value = '';
+      hydrateRepeatUI(null);
+      setAdvancedOptionsOpen(false);
       isAllDayBox.checked = !!allDay;
       setAllDayUI(!!allDay);
-      hydrateRepeatUI(null);
-      btnDelete && btnDelete.classList.add('d-none');
-
-      const startDate = start ? new Date(start) : new Date();
-      const endDate = end ? new Date(end) : new Date(startDate.getTime() + 60 * 60 * 1000);
+      btnDelete?.classList.add('d-none');
 
       if (allDay) {
-        const inclusiveEnd = new Date(endDate);
-        if (end) inclusiveEnd.setDate(inclusiveEnd.getDate() - 1);
-        form.querySelector('[name="startDate"]').value = toLocalDateInputValue(startDate);
-        form.querySelector('[name="endDate"]').value = toLocalDateInputValue(inclusiveEnd);
+        const startValue = start ? new Date(start) : new Date();
+        const endExclusive = end ? new Date(end) : new Date(startValue.getTime() + 24 * 60 * 60 * 1000);
+        const inclusiveEnd = new Date(endExclusive);
+        inclusiveEnd.setDate(inclusiveEnd.getDate() - 1);
+        setAllDayValues(startValue, inclusiveEnd);
+        const timedStart = atLocalTime(startValue, 9, 0);
+        setTimedValues(timedStart, new Date(timedStart.getTime() + 60 * 60 * 1000));
       } else {
-        form.querySelector('[name="start"]').value = toLocalInputValue(startDate);
-        form.querySelector('[name="end"]').value = toLocalInputValue(endDate);
+        const suppliedStart = start ? new Date(start) : null;
+        const startValue = isValidDate(suppliedStart)
+          ? suppliedStart
+          : getDefaultTimedStart();
+        const endValueCandidate = end ? new Date(end) : null;
+        const endValue = isValidDate(endValueCandidate) && endValueCandidate > startValue
+          ? endValueCandidate
+          : new Date(startValue.getTime() + 60 * 60 * 1000);
+        setTimedValues(startValue, endValue);
+        setAllDayValues(startValue, endValue);
       }
 
-      const lbl = document.getElementById('eventFormLabel');
-      lbl && (lbl.textContent = 'New event');
+      validateRepeatEnd();
+      updateDurationHint();
+      resetEditorScroll();
       bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('eventFormCanvas')).show();
       window.setTimeout(() => titleBox?.focus(), 250);
     }
 
-    btnNew && btnNew.addEventListener('click', () => openNewEvent());
+    btnNew?.addEventListener('click', () => openNewEvent());
 
     calendar.setOption('dateClick', (info) => {
-      openNewEvent(info.date, null, info.allDay);
+      if ((calendar.view?.type || '').startsWith('dayGrid')) {
+        openNewEvent(getDefaultTimedStart(info.date), null, false);
+      } else {
+        openNewEvent(info.date, null, info.allDay);
+      }
     });
 
     calendar.setOption('select', (info) => {
@@ -875,40 +1593,65 @@
       calendar.unselect();
     });
 
-    form && form.addEventListener('submit', async (ev) => {
+    form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
-      const fd = new FormData(form);
-      const isAllDay = !!fd.get('isAllDay');
+      clearFormAlert();
 
-      let startUtc, endUtc;
-      if (isAllDay) {
-        const s = fd.get('startDate'); const e = fd.get('endDate');
-        if (!s || !e) { alert('Select start & end dates.'); return; }
-        const start = new Date(`${s}T00:00:00`);
-        const end   = new Date(`${e}T00:00:00`); end.setDate(end.getDate()+1); // exclusive
-        startUtc = start.toISOString(); endUtc = end.toISOString();
-      } else {
-        const s = fd.get('start'); const e = fd.get('end');
-        if (!s || !e) { alert('Select start & end times.'); return; }
-        startUtc = new Date(s).toISOString();
-        endUtc   = new Date(e).toISOString();
+      const trimmedTitle = titleBox.value.trim();
+      titleBox.setCustomValidity(trimmedTitle ? '' : 'Enter a title for the event.');
+
+      validateDateRange();
+      validateRepeatEnd();
+      form.classList.add('was-validated');
+
+      if (!form.checkValidity()) {
+        revealInvalidField(form.querySelector(':invalid'));
+        return;
       }
-      if (new Date(endUtc) <= new Date(startUtc)) { alert('End must be after start.'); return; }
 
-      const startLocalIso = isAllDay
-        ? `${fd.get('startDate')}T00:00`
-        : fd.get('start');
+      const fd = new FormData(form);
+      const isAllDay = !!isAllDayBox.checked;
+      let startUtc;
+      let endUtc;
+      let startLocalIso;
+
+      if (isAllDay) {
+        const start = new Date(`${startDateAllDayBox.value}T00:00:00`);
+        const end = new Date(`${endDateAllDayBox.value}T00:00:00`);
+        if (!isValidDate(start) || !isValidDate(end)) {
+          showFormAlert('Select a valid all-day date range.');
+          return;
+        }
+        end.setDate(end.getDate() + 1); // API uses an exclusive all-day end.
+        startUtc = start.toISOString();
+        endUtc = end.toISOString();
+        startLocalIso = `${startDateAllDayBox.value}T00:00`;
+      } else {
+        const start = getTimedStart();
+        const end = getTimedEnd();
+        if (!isValidDate(start) || !isValidDate(end)) {
+          showFormAlert('Select a valid start and end date/time.');
+          return;
+        }
+        startUtc = start.toISOString();
+        endUtc = end.toISOString();
+        startLocalIso = `${startDateTimedBox.value}T${startTimeTimedBox.value}`;
+      }
       const rrule = buildRRule(startLocalIso);
+      const recurrenceUntilUtc = rrule && repeatEndOn?.checked && repeatUntil?.value
+        ? new Date(`${repeatUntil.value}T23:59:59`).toISOString()
+        : null;
 
       const dto = {
-        title: (fd.get('title')||'').toString().trim(),
-        description: (fd.get('description')||'').toString(),
-        category: (fd.get('category')||'Other').toString(),
-        location: (fd.get('location')||'').toString() || null,
+        title: trimmedTitle,
+        description: (fd.get('description') || '').toString().trim(),
+        category: (fd.get('category') || 'Other').toString(),
+        location: (fd.get('location') || '').toString().trim() || null,
         isAllDay,
-        startUtc, endUtc,
+        startUtc,
+        endUtc,
         recurrenceRule: rrule,
-        recurrenceUntilUtc: repeatUntil.value ? new Date(repeatUntil.value + 'T23:59:59').toISOString() : null
+        recurrenceUntilUtc
       };
 
       const id = fd.get('id');
@@ -924,61 +1667,96 @@
           location: editingOriginal.location,
           isAllDay: editingOriginal.allDay,
           startUtc: new Date(editingOriginal.start).toISOString(),
-          endUtc: new Date(editingOriginal.end).toISOString()
+          endUtc: new Date(editingOriginal.end).toISOString(),
+          recurrenceRule: editingOriginal.recurrenceRule || null,
+          recurrenceUntilUtc: editingOriginal.recurrenceUntilUtc
+            ? new Date(editingOriginal.recurrenceUntilUtc).toISOString()
+            : null
         };
       }
 
-      const r = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dto)
-      });
-      if (!r.ok) {
-        let msg = await r.text();
-        try { const j = JSON.parse(msg); msg = j.detail || j.title || j; } catch {}
-        alert(`Save failed: ${msg || r.status}`);
-        return;
-      }
+      setSaving(true);
+      try {
+        const response = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dto)
+        });
 
-      let createdId = null;
-      if (!id) {
-        const j = await r.json();
-        createdId = j.id;
-      }
+        if (!response.ok) {
+          const message = await readErrorMessage(response);
+          showFormAlert(`The event could not be saved. ${message}`);
+          return;
+        }
 
-      form.reset(); setAllDayUI(false); hydrateRepeatUI(null);
-      btnDelete && btnDelete.classList.add('d-none');
-      const canvasEl = document.getElementById('eventFormCanvas');
-      const canvas = canvasEl ? bootstrap.Offcanvas.getOrCreateInstance(canvasEl) : null;
-      canvas && canvas.hide();
-      editingOriginal = null;
-      calendar.refetchEvents();
+        let createdId = null;
+        if (!id) {
+          const payload = await response.json();
+          createdId = payload.id;
+        }
 
-      if (id && undoPayload) {
-        showUndo('Event saved.', async () => {
-          await fetch(`/calendar/events/${id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(undoPayload)
+        form.reset();
+        setAllDayUI(false);
+        hydrateRepeatUI(null);
+        setAdvancedOptionsOpen(false);
+        resetEditorValidation();
+        btnDelete?.classList.add('d-none');
+
+        const canvasEl = document.getElementById('eventFormCanvas');
+        const canvas = canvasEl ? bootstrap.Offcanvas.getOrCreateInstance(canvasEl) : null;
+        canvas?.hide();
+        editingOriginal = null;
+        calendar.refetchEvents();
+
+        if (id && undoPayload) {
+          showUndo('Event saved.', async () => {
+            await fetch(`/calendar/events/${id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(undoPayload)
+            });
           });
-        });
-      } else if (createdId) {
-        showUndo('Event created.', async () => {
-          await fetch(`/calendar/events/${createdId}`, { method: 'DELETE' });
-        });
+        } else if (createdId) {
+          showUndo('Event created.', async () => {
+            await fetch(`/calendar/events/${createdId}`, { method: 'DELETE' });
+          });
+        }
+      } catch (error) {
+        console.error(error);
+        showFormAlert('The event could not be saved because the server could not be reached.');
+      } finally {
+        setSaving(false);
       }
     });
 
-    btnDelete && btnDelete.addEventListener('click', async () => {
+    btnDelete?.addEventListener('click', async () => {
       const id = idBox.value;
-      if (!id) return;
-      if (!confirm('Delete this event?')) return;
-      const r = await fetch(`/calendar/events/${id}`, { method: 'DELETE' });
-      if (!r.ok) { alert('Delete failed'); return; }
-      bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('eventFormCanvas')).hide();
-      form.reset(); setAllDayUI(false); hydrateRepeatUI(null);
-      btnDelete.classList.add('d-none');
-      calendar.refetchEvents();
+      if (!id || !confirm('Delete this event?')) return;
+
+      clearFormAlert();
+      btnDelete.disabled = true;
+      try {
+        const response = await fetch(`/calendar/events/${id}`, { method: 'DELETE' });
+        if (!response.ok) {
+          showFormAlert('The event could not be deleted. Please try again.');
+          return;
+        }
+
+        bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('eventFormCanvas')).hide();
+        form.reset();
+        setAllDayUI(false);
+        hydrateRepeatUI(null);
+        setAdvancedOptionsOpen(false);
+        resetEditorValidation();
+        btnDelete.classList.add('d-none');
+        editingOriginal = null;
+        calendar.refetchEvents();
+      } catch (error) {
+        console.error(error);
+        showFormAlert('The event could not be deleted because the server could not be reached.');
+      } finally {
+        btnDelete.disabled = false;
+      }
     });
   } else {
     // Read-only event details for non-editors
@@ -993,8 +1771,9 @@
           allDay: ev.allDay,
           category: canon(ev.extendedProps.category),
           location: ev.extendedProps.location || '',
-          descriptionHtml: ev.extendedProps.description || '',
-          taskUrl: ev.extendedProps.taskUrl || null
+          description: ev.extendedProps.description || '',
+          taskUrl: ev.extendedProps.taskUrl || null,
+          isCelebration: true
         });
         return;
       }

@@ -11,7 +11,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.AspNetCore.Server.IIS;
 using Microsoft.EntityFrameworkCore;
@@ -31,10 +30,14 @@ using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 using ProjectManagement.Configuration;
 using ProjectManagement.Contracts;
 using ProjectManagement.Contracts.Activities;
-using ProjectManagement.Contracts.Notifications;
 using ProjectManagement.Contracts.Stages;
 using ProjectManagement.Data;
 using ProjectManagement.Features.Analytics;
+using ProjectManagement.Features.MediaLibrary;
+using ProjectManagement.Features.MediaLibrary.Data;
+using ProjectManagement.Features.MediaLibrary.Outbox;
+using ProjectManagement.Features.MediaLibrary.Services;
+using ProjectManagement.Features.Notifications;
 using ProjectManagement.Features.Remarks;
 using ProjectManagement.Features.Users;
 using ProjectManagement.Helpers;
@@ -75,7 +78,6 @@ using ProjectManagement.Utilities;
 using ProjectManagement.Utilities.Reporting;
 using System;
 using System.Collections.Generic;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Data.Common;
@@ -105,7 +107,8 @@ builder.Logging.AddFilter("ProjectManagement.Services.TodoPurgeWorker", LogLevel
 var keysDir = Environment.GetEnvironmentVariable("DP_KEYS_DIR");
 if (string.IsNullOrWhiteSpace(keysDir))
 {
-    // SECTION: Stable data-protection key persistence for authentication cookies.
+    // Preserve the repository used by the currently deployed production build so
+    // existing authentication and antiforgery keys remain readable after upgrade.
     keysDir = builder.Environment.IsDevelopment()
         ? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -122,7 +125,15 @@ builder.Services.AddDataProtection()
 
 builder.Services.AddMetrics();
 
-builder.Services.AddSignalR();
+builder.Services.AddSignalR(options =>
+{
+    // Tolerate short workstation sleep, tab suspension and transient proxy pauses without
+    // prematurely abandoning an otherwise healthy authenticated notification connection.
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(90);
+    options.HandshakeTimeout = TimeSpan.FromSeconds(15);
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+});
 
 builder.Services.AddScoped<IsoCountrySeeder>();
 
@@ -136,8 +147,15 @@ if (string.IsNullOrWhiteSpace(connectionString))
 }
 
 var csb = new NpgsqlConnectionStringBuilder(connectionString);
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(csb.ConnectionString));
+
+builder.Services.AddSingleton<PrismMediaOutboxSaveChangesInterceptor>();
+builder.Services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
+    options
+        .UseNpgsql(csb.ConnectionString)
+        .AddInterceptors(serviceProvider.GetRequiredService<PrismMediaOutboxSaveChangesInterceptor>()));
+
+// ---------- Enterprise media library (PRISM + optional local/UNC folders) ----------
+builder.Services.AddMediaLibrary(builder.Configuration, csb.ConnectionString);
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
@@ -165,6 +183,16 @@ builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("Project.Create", policy =>
         policy.RequireRole("Admin", "HoD"));
+
+    // SECTION: Calendar authorization policies
+    options.AddPolicy(Policies.Calendar.ManageEvents, policy =>
+        policy.RequireRole(Policies.Calendar.EventManagerRoles));
+    options.AddPolicy(Policies.Calendar.ManageCelebrations, policy =>
+        policy.RequireRole(Policies.Calendar.CelebrationManagerRoles));
+    options.AddPolicy(Policies.Calendar.ManageBirthdays, policy =>
+        policy.RequireRole(Policies.Calendar.BirthdayManagerRoles));
+    options.AddPolicy(Policies.Calendar.ManageAnniversaries, policy =>
+        policy.RequireRole(Policies.Calendar.AnniversaryManagerRoles));
     options.AddPolicy("Checklist.View", policy =>
         policy.RequireAuthenticatedUser());
     options.AddPolicy("Checklist.Edit", policy =>
@@ -228,6 +256,10 @@ builder.Services.AddAuthorization(options =>
     // SECTION: Action tracker authorization policy
     options.AddPolicy("ActionTracker.Access", policy =>
         policy.RequireRole(RoleNames.Comdt, RoleNames.HoD, RoleNames.ProjectOfficer, RoleNames.Mco, RoleNames.Ta, RoleNames.Ito));
+
+    // SECTION: Conference remark authorization policy
+    options.AddPolicy(Policies.ConferenceRemarks.Manage, policy =>
+        policy.RequireRole(Policies.ConferenceRemarks.ManageAllowedRoles));
 
 
 });
@@ -438,6 +470,7 @@ builder.Services.AddScoped<ITodoService, TodoService>();
 // SECTION: My Notebook services
 builder.Services.Configure<NotebookTrashOptions>(builder.Configuration.GetSection(NotebookTrashOptions.SectionName));
 builder.Services.AddScoped<INotebookService, NotebookService>();
+builder.Services.AddScoped<INotebookNotificationService, NotebookNotificationService>();
 builder.Services.AddHostedService<NotebookTrashRetentionWorker>();
 builder.Services.AddScoped<INotebookCardModelFactory, NotebookCardModelFactory>();
 builder.Services.AddScoped<INotebookCardRenderer, RazorNotebookCardRenderer>();
@@ -445,11 +478,17 @@ builder.Services.AddScoped<INotebookTodoImportService, NotebookTodoImportService
 // SECTION: Project Ideas services
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaReadService>();
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaCommandService>();
+builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.IProjectIdeaCommandService>(sp =>
+    sp.GetRequiredService<ProjectManagement.Services.ProjectIdeas.ProjectIdeaCommandService>());
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaPermissionService>();
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaDocumentService>();
 // SECTION: Project Officer workspace services
 builder.Services.AddScoped<ProjectManagement.Services.Navigation.DefaultLandingPageResolver>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectOfficerWorkspaceService>();
+builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerWorkloadReadService, ProjectManagement.Services.Workspace.OfficerWorkloadReadService>();
+builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerConferenceReadService, ProjectManagement.Services.Workspace.OfficerConferenceReadService>();
+builder.Services.AddScoped<ProjectManagement.Services.ConferenceRemarks.IConferenceRemarkCommandService, ProjectManagement.Services.ConferenceRemarks.ConferenceRemarkCommandService>();
+builder.Services.AddScoped<ProjectManagement.Services.Workspace.IConferenceTaskCommandService, ProjectManagement.Services.Workspace.ConferenceTaskCommandService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.CommandWorkspaceService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectRecordHealthService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.WorkspaceNudgeService>();
@@ -506,9 +545,11 @@ builder.Services.AddScoped<StageDirectApplyService>();
 builder.Services.AddScoped<StageBackfillService>();
 builder.Services.AddScoped<StageActualsUpdateService>();
 builder.Services.AddScoped<StageDecisionService>();
+builder.Services.AddScoped<StageApprovalSequenceService>();
 builder.Services.AddScoped<PlanSnapshotService>();
 builder.Services.AddScoped<PlanCompareService>();
 builder.Services.AddScoped<IApprovalQueueService, ApprovalQueueService>();
+builder.Services.AddScoped<RepositoryDocumentDeleteApprovalService>();
 builder.Services.AddScoped<ApprovalDecisionService>();
 builder.Services.AddScoped<ProjectFactsService>();
 builder.Services.AddScoped<ProjectFactsReadService>();
@@ -532,12 +573,24 @@ builder.Services.AddScoped<IStageNotificationService, StageNotificationService>(
 builder.Services.AddScoped<IDocumentNotificationService, DocumentNotificationService>();
 builder.Services.AddScoped<IRoleNotificationService, RoleNotificationService>();
 builder.Services.AddSingleton<IRemarkMetrics, RemarkMetrics>();
-builder.Services.AddScoped<INotificationPublisher, NotificationPublisher>();
+builder.Services.AddScoped<NotificationPublisher>();
+builder.Services.AddScoped<INotificationPublisher>(serviceProvider =>
+    serviceProvider.GetRequiredService<NotificationPublisher>());
+builder.Services.AddScoped<INotificationOutboxWriter>(serviceProvider =>
+    serviceProvider.GetRequiredService<NotificationPublisher>());
 builder.Services.AddScoped<INotificationDeliveryService, NotificationDeliveryService>();
 builder.Services.AddHostedService<NotificationDispatcher>();
 builder.Services.AddOptions<NotificationRetentionOptions>()
     .Bind(builder.Configuration.GetSection("Notifications:Retention"));
 builder.Services.AddHostedService<NotificationRetentionService>();
+builder.Services.AddOptions<AuditRetentionOptions>()
+    .Bind(builder.Configuration.GetSection(AuditRetentionOptions.SectionName))
+    .Validate(options => !options.Enabled || options.RetentionDays >= 30,
+        "Audit retention must be disabled or retain at least 30 days of records.")
+    .Validate(options => options.BatchSize is >= 100 and <= 25000,
+        "Audit retention batch size must be between 100 and 25000.")
+    .ValidateOnStart();
+builder.Services.AddHostedService<AuditRetentionWorker>();
 builder.Services.AddScoped<UserNotificationService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddSingleton<IDocumentPreviewTokenService, DocumentPreviewTokenService>();
@@ -599,29 +652,24 @@ builder.Services.AddOptions<ProjectDocumentOptions>()
     .ValidateOnStart();
 builder.Services.AddSingleton<IValidateOptions<ProjectDocumentOptions>, ProjectDocumentOptionsValidator>();
 
-// SECTION: Centralized upload request limits (configuration-driven)
-var configuredMaxSizeMb = builder.Configuration.GetValue<int?>("ProjectDocuments:MaxSizeMb") ?? 0;
-var configuredMaxBodySizeBytes = configuredMaxSizeMb > 0
-    ? (long?)configuredMaxSizeMb * 1024L * 1024L
-    : null;
+// SECTION: Centralized transport limit for every configured upload workflow.
+// Individual upload services continue to enforce their own lower per-file and per-batch limits.
+var configuredMaxBodySizeBytes = UploadRequestLimitResolver.Resolve(builder.Configuration);
 
-if (configuredMaxBodySizeBytes.HasValue)
+builder.Services.Configure<FormOptions>(options =>
 {
-    builder.Services.Configure<FormOptions>(options =>
-    {
-        options.MultipartBodyLengthLimit = configuredMaxBodySizeBytes.Value;
-    });
+    options.MultipartBodyLengthLimit = configuredMaxBodySizeBytes;
+});
 
-    builder.Services.Configure<IISServerOptions>(options =>
-    {
-        options.MaxRequestBodySize = configuredMaxBodySizeBytes.Value;
-    });
+builder.Services.Configure<IISServerOptions>(options =>
+{
+    options.MaxRequestBodySize = configuredMaxBodySizeBytes;
+});
 
-    builder.WebHost.ConfigureKestrel(options =>
-    {
-        options.Limits.MaxRequestBodySize = configuredMaxBodySizeBytes.Value;
-    });
-}
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = configuredMaxBodySizeBytes;
+});
 
 builder.Services.AddOptions<ProjectVideoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectVideos"));
@@ -748,89 +796,157 @@ var developmentLoopbackOrigins = builder.Environment.IsDevelopment()
 
 var app = builder.Build();
 
+app.Logger.LogInformation(
+    "Data-protection keys will persist to {Directory}.",
+    keysDir);
+
+if (!app.Environment.IsDevelopment()
+    && string.Equals(csb.Username, "postgres", StringComparison.OrdinalIgnoreCase))
+{
+    app.Logger.LogWarning(
+        "The application is connecting with the PostgreSQL superuser account. Use a dedicated PRISM database-owner role with only the permissions required for application access and startup migrations.");
+}
+
 // SECTION: Database startup policy
-// Migrations and initial data seeding are intentionally controlled independently.
-// - Development always applies pending migrations.
-// - Other environments apply migrations only when Database:ApplyMigrationsOnStartup is true.
-// - Seeders run only when Database:RunSeedersOnStartup is true.
-var applyMigrationsOnStartup = app.Environment.IsDevelopment()
-    || app.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup");
+// Every migration shipped in the deployed build is a mandatory part of the deployment
+// boundary. The application does not accept traffic until migration closure and physical
+// schema validation have both succeeded.
+var configuredMigrationPreference =
+    app.Configuration.GetValue<bool?>("Database:ApplyMigrationsOnStartup");
+const bool applyMigrationsOnStartup = true;
 var runSeedersOnStartup = app.Configuration.GetValue<bool>("Database:RunSeedersOnStartup");
+var mediaLibraryEnabled = app.Configuration.GetValue<bool?>("MediaLibrary:Enabled") ?? true;
+
+if (configuredMigrationPreference == false)
+{
+    app.Logger.LogWarning(
+        "Database:ApplyMigrationsOnStartup=false is deprecated and ignored. All deployed EF Core migrations are mandatory before startup.");
+}
 
 app.Logger.LogInformation(
-    "Database startup policy: Environment={Environment}; ApplyMigrationsOnStartup={ApplyMigrations}; RunSeedersOnStartup={RunSeeders}",
+    "Database startup policy: Environment={Environment}; AutomaticMigrations=Mandatory; RunSeedersOnStartup={RunSeeders}; MediaLibraryEnabled={MediaLibraryEnabled}",
     app.Environment.EnvironmentName,
-    applyMigrationsOnStartup,
-    runSeedersOnStartup);
+    runSeedersOnStartup,
+    mediaLibraryEnabled);
 
-// Ensure the database schema is up to date before handling requests
-string? latestAppliedMigration = null;
-List<string> pendingMigrations = new();
+DatabaseStartupMigrationResult applicationMigrationResult =
+    DatabaseStartupMigrationResult.NotApplicable("ApplicationDbContext");
+DatabaseStartupMigrationResult mediaMigrationResult =
+    DatabaseStartupMigrationResult.NotApplicable("MediaLibraryDbContext");
 var databaseIsRelational = false;
+var mediaLibraryStartupHealthy = !mediaLibraryEnabled;
 
-using (var scope = app.Services.CreateScope())
+try
 {
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    if (db.Database.IsRelational())
+    using var scope = app.Services.CreateScope();
+    var applicationDb = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+    if (applicationDb.Database.IsRelational())
     {
         databaseIsRelational = true;
-
-        // SECTION: Startup database identity and migration gate
-        var connection = db.Database.GetDbConnection();
+        var connection = applicationDb.Database.GetDbConnection();
         app.Logger.LogInformation(
-            "Database provider: {Provider}; Server: {Server}; Database: {Database}",
-            db.Database.ProviderName,
+            "Application database provider: {Provider}; Server: {Server}; Database: {Database}",
+            applicationDb.Database.ProviderName,
             connection.DataSource,
             connection.Database);
+    }
 
-        pendingMigrations = (await db.Database.GetPendingMigrationsAsync()).ToList();
-        if (pendingMigrations.Count > 0)
+    var applicationMigrationManifest = MigrationLineageManifest.LoadRequired(
+        Path.Combine(app.Environment.ContentRootPath, "Migrations", "immutable-migration-ids.txt"),
+        "ApplicationDbContext",
+        typeof(ApplicationDbContext).Assembly,
+        "ProjectManagement.Migrations.immutable-migration-ids.txt");
+
+    applicationMigrationResult = (await DatabaseStartupMigrator.ApplyDeploymentBoundaryAsync(
+        applicationDb,
+        app.Logger,
+        new[]
         {
-            var message = $"Database has {pendingMigrations.Count} pending migration(s): {string.Join(", ", pendingMigrations)}";
-            app.Logger.LogCritical(message);
+            new DatabaseStartupMigrationPlan(
+                applicationDb,
+                "ApplicationDbContext",
+                applyMigrationsOnStartup,
+                async cancellationToken =>
+                {
+                    await ApplicationDatabaseSchemaValidator.ValidateAsync(
+                        applicationDb,
+                        app.Logger,
+                        cancellationToken);
 
-            if (!applyMigrationsOnStartup)
-            {
-                throw new InvalidOperationException(
-                    message +
-                    ". Automatic migration is disabled. Set Database:ApplyMigrationsOnStartup=true " +
-                    "or apply the migrations manually before starting the application.");
-            }
+                    if (applicationDb.Database.IsRelational())
+                    {
+                        await EnsureNotebookVersionSchemaAsync(applicationDb, app.Logger, cancellationToken);
+                        await EnsureDocRepoFavouritesSchemaAsync(applicationDb, app.Logger, cancellationToken);
+                        await ProjectDocumentSearchVectorMaintenance.ValidateAsync(applicationDb, cancellationToken);
+                    }
+                },
+                applicationMigrationManifest)
+        }))[0];
 
-            app.Logger.LogWarning(
-                "Applying {Count} pending database migration(s) automatically: {Migrations}",
-                pendingMigrations.Count,
-                string.Join(", ", pendingMigrations));
-
-            try
-            {
-                await db.Database.MigrateAsync();
-            }
-            catch (Exception ex)
-            {
-                app.Logger.LogCritical(
-                    ex,
-                    "Automatic database migration failed. Application startup is being aborted.");
-                throw;
-            }
-
-            app.Logger.LogInformation("Automatic database migration completed successfully.");
-            pendingMigrations = (await db.Database.GetPendingMigrationsAsync()).ToList();
-        }
-
-        var applied = (await db.Database.GetAppliedMigrationsAsync()).ToList();
-        latestAppliedMigration = applied.Count > 0 ? applied[^1] : "(none)";
-
-        if (pendingMigrations.Count > 0)
+    if (mediaLibraryEnabled)
+    {
+        try
         {
-            var message = $"Database still has {pendingMigrations.Count} pending migration(s): {string.Join(", ", pendingMigrations)}";
-            app.Logger.LogCritical(message);
-            throw new InvalidOperationException(message);
-        }
+            var mediaDb = scope.ServiceProvider.GetRequiredService<MediaLibraryDbContext>();
+            var mediaMigrationManifest = MigrationLineageManifest.LoadRequired(
+                Path.Combine(
+                    app.Environment.ContentRootPath,
+                    "Features",
+                    "MediaLibrary",
+                    "Data",
+                    "Migrations",
+                    "immutable-migration-ids.txt"),
+                "MediaLibraryDbContext",
+                typeof(MediaLibraryDbContext).Assembly,
+                "ProjectManagement.MediaLibrary.Migrations.immutable-migration-ids.txt");
 
-        await EnsureNotebookVersionSchemaAsync(db, app.Logger);
-        await EnsureDocRepoFavouritesSchemaAsync(db, app.Logger);
-        await ProjectDocumentSearchVectorMaintenance.EnsureUpToDateAsync(db);
+            mediaMigrationResult = (await DatabaseStartupMigrator.ApplyDeploymentBoundaryAsync(
+                mediaDb,
+                app.Logger,
+                new[]
+                {
+                    new DatabaseStartupMigrationPlan(
+                        mediaDb,
+                        "MediaLibraryDbContext",
+                        applyMigrationsOnStartup,
+                        async cancellationToken =>
+                        {
+                            scope.ServiceProvider
+                                .GetRequiredService<MediaLibrarySchemaStatusCache>()
+                                .Invalidate();
+
+                            var schema = scope.ServiceProvider.GetRequiredService<IMediaLibrarySchemaService>();
+                            var status = await schema.GetStatusAsync(cancellationToken);
+                            if (!status.IsCurrent)
+                            {
+                                throw new InvalidOperationException(
+                                    "Media-library schema validation failed after migration. " +
+                                    (status.Error ?? $"Reference {status.DiagnosticReference}."));
+                            }
+                        },
+                        mediaMigrationManifest)
+                }))[0];
+
+            mediaLibraryStartupHealthy = true;
+        }
+        catch (Exception exception)
+        {
+            var diagnosticPath = StartupFailureReporter.TryWrite(
+                app.Configuration,
+                app.Environment,
+                "media-library-startup-gate",
+                exception);
+
+            app.Logger.LogCritical(
+                exception,
+                "Media Library startup migration/readiness failed. The core ERP will continue, but Photos and media workers will remain unavailable until the media schema is corrected. DiagnosticPath={DiagnosticPath}",
+                diagnosticPath ?? "(unavailable)");
+        }
+    }
+    else
+    {
+        app.Logger.LogInformation("Media Library is disabled; its startup migration/readiness gate was skipped.");
     }
 
     if (runSeedersOnStartup)
@@ -844,6 +960,20 @@ using (var scope = app.Services.CreateScope())
         app.Logger.LogInformation("Initial data seeding is disabled; IsoCountrySeeder was skipped.");
     }
 }
+catch (Exception exception)
+{
+    var diagnosticPath = StartupFailureReporter.TryWrite(
+        app.Configuration,
+        app.Environment,
+        "application-database-startup-gate",
+        exception);
+
+    app.Logger.LogCritical(
+        exception,
+        "PRISM application database startup gate failed. DiagnosticPath={DiagnosticPath}",
+        diagnosticPath ?? "(unavailable)");
+    throw;
+}
 
 if (runForecastBackfill)
 {
@@ -854,16 +984,18 @@ if (runForecastBackfill)
     return;
 }
 
-var migrationLabel = latestAppliedMigration ?? (databaseIsRelational ? "(none)" : "(not available)");
 app.Logger.LogInformation(
-    "Using database {Database} on host {Host}; latest migration {Migration}",
+    "Using database {Database} on host {Host}; application migration {ApplicationMigration}; media migration {MediaMigration}; media startup healthy={MediaHealthy}",
     csb.Database,
     csb.Host,
-    migrationLabel);
+    applicationMigrationResult.LatestAppliedMigration ?? (databaseIsRelational ? "(none)" : "(not available)"),
+    mediaMigrationResult.LatestAppliedMigration ?? (mediaLibraryEnabled ? "(not available)" : "(disabled)"),
+    mediaLibraryStartupHealthy);
 
-if (databaseIsRelational && pendingMigrations.Count == 0)
+if (databaseIsRelational)
 {
-    app.Logger.LogInformation("Database schema is up to date.");
+    app.Logger.LogInformation(
+        "ApplicationDbContext migrations are closed and the critical application schema is validated.");
 }
 
 app.UseForwardedHeaders();
@@ -871,7 +1003,9 @@ app.UseForwardedHeaders();
 // ---------- HTTP pipeline ----------
 if (app.Environment.IsDevelopment())
 {
-    app.UseMigrationsEndPoint();
+    // Startup owns migrations in every environment. Development receives detailed
+    // diagnostics, but no second HTTP-triggered migration pathway is exposed.
+    app.UseDeveloperExceptionPage();
 }
 else
 {
@@ -978,10 +1112,31 @@ app.UseStaticFiles(new StaticFileOptions
 });
 app.UseRouting();
 
+// SECTION: Antiforgery header compatibility
+// The application standard is X-CSRF-TOKEN. Older JavaScript modules still send
+// RequestVerificationToken; copy that value only when the canonical header is absent.
+// This preserves existing AJAX workflows while clients are migrated incrementally.
+app.Use(async (context, next) =>
+{
+    const string canonicalHeader = "X-CSRF-TOKEN";
+    const string legacyHeader = "RequestVerificationToken";
+
+    if (!context.Request.Headers.ContainsKey(canonicalHeader)
+        && context.Request.Headers.TryGetValue(legacyHeader, out var legacyToken)
+        && legacyToken.Count > 0
+        && !string.IsNullOrWhiteSpace(legacyToken[0]))
+    {
+        context.Request.Headers[canonicalHeader] = legacyToken;
+    }
+
+    await next();
+});
+
 app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseAntiforgery();
 
 app.MapHub<NotificationsHub>("/hubs/notifications")
     .RequireAuthorization();
@@ -990,6 +1145,62 @@ app.MapControllers();
 
 // Calendar API endpoints
 var eventsApi = app.MapGroup("/calendar/events");
+
+static string? NormalizeCalendarOptionalText(string? value)
+    => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+static string? ValidateCalendarEventRequest(CalendarEventDto dto)
+{
+    var title = dto.Title?.Trim();
+    if (string.IsNullOrWhiteSpace(title))
+        return "Title is required.";
+    if (title.Length > 160)
+        return "Title cannot exceed 160 characters.";
+    if (dto.Description?.Length > 4000)
+        return "Description cannot exceed 4000 characters.";
+    if (NormalizeCalendarOptionalText(dto.Location)?.Length > 160)
+        return "Location cannot exceed 160 characters.";
+    if (dto.EndUtc <= dto.StartUtc)
+        return "End date/time must be after the start date/time.";
+
+    var recurrenceRule = NormalizeCalendarOptionalText(dto.RecurrenceRule);
+    if (recurrenceRule is null)
+    {
+        if (dto.RecurrenceUntilUtc.HasValue)
+            return "A recurrence end date cannot be supplied for a non-recurring event.";
+        return null;
+    }
+
+    if (recurrenceRule.Length > 256)
+        return "Recurrence rule cannot exceed 256 characters.";
+
+    try
+    {
+        _ = new Ical.Net.DataTypes.RecurrencePattern(recurrenceRule);
+    }
+    catch
+    {
+        return "The recurrence rule is invalid.";
+    }
+
+    var frequency = recurrenceRule
+        .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Select(part => part.Split('=', 2, StringSplitOptions.TrimEntries))
+        .FirstOrDefault(parts => parts.Length == 2 &&
+            string.Equals(parts[0], "FREQ", StringComparison.OrdinalIgnoreCase));
+
+    if (frequency is null ||
+        !(string.Equals(frequency[1], "WEEKLY", StringComparison.OrdinalIgnoreCase) ||
+          string.Equals(frequency[1], "MONTHLY", StringComparison.OrdinalIgnoreCase)))
+    {
+        return "Only weekly and monthly recurrence are supported.";
+    }
+
+    if (dto.RecurrenceUntilUtc.HasValue && dto.RecurrenceUntilUtc.Value < dto.StartUtc)
+        return "The recurrence end date cannot be before the event start date.";
+
+    return null;
+}
 
 static IEnumerable<CalendarEventVm> BuildCelebrationOccurrences(
     IEnumerable<Celebration> celebrations,
@@ -1054,6 +1265,9 @@ eventsApi.MapGet("", async (ApplicationDbContext db,
                              [FromQuery(Name = "end")] DateTimeOffset end,
                              [FromQuery(Name = "includeCelebrations")] bool? includeCelebrations) =>
 {
+    if (end <= start)
+        return Results.BadRequest("End must be after start.");
+
     // Guard against huge windows
     if ((end - start).TotalDays > 400)
         end = start.AddDays(400);
@@ -1122,9 +1336,9 @@ eventsApi.MapGet("/holidays", async (
         [FromQuery(Name = "start")] DateTimeOffset start,
         [FromQuery(Name = "end")] DateTimeOffset end) =>
 {
-    if (end < start)
+    if (end <= start)
     {
-        return Results.BadRequest("End must be on or after start.");
+        return Results.BadRequest("End must be after start.");
     }
 
     if ((end - start).TotalDays > 400)
@@ -1142,7 +1356,7 @@ eventsApi.MapGet("/holidays", async (
 
     var holidays = await db.Holidays
         .AsNoTracking()
-        .Where(h => h.Date >= startDate && h.Date <= endDate)
+        .Where(h => h.Date >= startDate && h.Date < endDate)
         .OrderBy(h => h.Date)
         .ToListAsync();
 
@@ -1170,7 +1384,7 @@ eventsApi.MapGet("/holidays", async (
 eventsApi.MapGet("/{id:guid}", async (Guid id, ApplicationDbContext db) =>
 {
     var sanitizer = new HtmlSanitizer();
-    var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id);
+    var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
     if (ev == null) return Results.NotFound();
     var html = ev.Description == null ? null : sanitizer.Sanitize(Markdown.ToHtml(ev.Description));
     return Results.Ok(new
@@ -1194,24 +1408,24 @@ eventsApi.MapPost("", async (ApplicationDbContext db,
                            HttpContext ctx,
                            [FromBody] CalendarEventDto dto) =>
 {
-    if (dto.EndUtc <= dto.StartUtc)
-        return Results.BadRequest("EndUtc must be after StartUtc.");
+    var validationError = ValidateCalendarEventRequest(dto);
+    if (validationError is not null)
+        return Results.BadRequest(validationError);
 
     var cat = CategoryParser.ParseOrOther(dto.Category);
-
     var uid = users.GetUserId(ctx.User) ?? "";
 
     var ev = new Event
     {
         Id = Guid.NewGuid(),
         Title = dto.Title.Trim(),
-        Description = dto.Description,
+        Description = NormalizeCalendarOptionalText(dto.Description),
         Category = cat,
-        Location = dto.Location,
+        Location = NormalizeCalendarOptionalText(dto.Location),
         StartUtc = dto.StartUtc.ToUniversalTime(),
         EndUtc = dto.EndUtc.ToUniversalTime(),
         IsAllDay = dto.IsAllDay,
-        RecurrenceRule = string.IsNullOrWhiteSpace(dto.RecurrenceRule) ? null : dto.RecurrenceRule,
+        RecurrenceRule = NormalizeCalendarOptionalText(dto.RecurrenceRule),
         RecurrenceUntilUtc = dto.RecurrenceUntilUtc?.ToUniversalTime(),
         CreatedById = uid,
         UpdatedById = uid,
@@ -1222,7 +1436,7 @@ eventsApi.MapPost("", async (ApplicationDbContext db,
     db.Events.Add(ev);
     await db.SaveChangesAsync();
     return Results.Created($"/calendar/events/{ev.Id}", new { id = ev.Id });
-}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HoD" });
+}).RequireAuthorization(Policies.Calendar.ManageEvents);
 
 eventsApi.MapPut("/{id:guid}", async (ApplicationDbContext db,
                                    UserManager<ApplicationUser> users,
@@ -1230,40 +1444,43 @@ eventsApi.MapPut("/{id:guid}", async (ApplicationDbContext db,
                                    Guid id,
                                    [FromBody] CalendarEventDto dto) =>
 {
-    var ev = await db.Events.FirstOrDefaultAsync(x => x.Id == id);
+    var ev = await db.Events.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
     if (ev is null) return Results.NotFound();
-    if (dto.EndUtc <= dto.StartUtc) return Results.BadRequest("EndUtc must be after StartUtc.");
+
+    var validationError = ValidateCalendarEventRequest(dto);
+    if (validationError is not null)
+        return Results.BadRequest(validationError);
 
     var cat = CategoryParser.ParseOrOther(dto.Category);
-
     var uid = users.GetUserId(ctx.User) ?? "";
 
     ev.Title = dto.Title.Trim();
-    if (dto.Description != null) ev.Description = dto.Description;
+    if (dto.Description is not null)
+        ev.Description = NormalizeCalendarOptionalText(dto.Description);
     ev.Category = cat;
-    ev.Location = dto.Location;
+    ev.Location = NormalizeCalendarOptionalText(dto.Location);
     ev.StartUtc = dto.StartUtc.ToUniversalTime();
     ev.EndUtc = dto.EndUtc.ToUniversalTime();
     ev.IsAllDay = dto.IsAllDay;
-    ev.RecurrenceRule = string.IsNullOrWhiteSpace(dto.RecurrenceRule) ? null : dto.RecurrenceRule;
+    ev.RecurrenceRule = NormalizeCalendarOptionalText(dto.RecurrenceRule);
     ev.RecurrenceUntilUtc = dto.RecurrenceUntilUtc?.ToUniversalTime();
     ev.UpdatedById = uid;
     ev.UpdatedAt = DateTimeOffset.UtcNow;
 
     await db.SaveChangesAsync();
     return Results.Ok();
-}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HoD" });
+}).RequireAuthorization(Policies.Calendar.ManageEvents);
 
 eventsApi.MapDelete("/{id:guid}", async (Guid id, ApplicationDbContext db, IClock clock, UserManager<ApplicationUser> users, ClaimsPrincipal user) =>
 {
-    var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id);
+    var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
     if (ev == null) return Results.NotFound();
     ev.IsDeleted = true;
     ev.UpdatedAt = clock.UtcNow;
     ev.UpdatedById = users.GetUserId(user);
     await db.SaveChangesAsync();
     return Results.Ok();
-}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HoD" });
+}).RequireAuthorization(Policies.Calendar.ManageEvents);
 
 eventsApi.MapPost("/preferences/show-celebrations", async (UserManager<ApplicationUser> users,
                                                            ClaimsPrincipal user,
@@ -1293,122 +1510,7 @@ eventsApi.MapPost("/preferences/show-celebrations", async (UserManager<Applicati
     return Results.Ok(new { showCelebrations = appUser.ShowCelebrationsInCalendar });
 }).RequireAuthorization();
 
-var notificationsApi = app.MapGroup("/api/notifications")
-    .RequireAuthorization();
-
-notificationsApi.MapGet("", async ([AsParameters] NotificationListRequest request,
-                                     HttpContext httpContext,
-                                     UserNotificationService notifications,
-                                     CancellationToken cancellationToken) =>
-{
-    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(userId))
-    {
-        return Results.Unauthorized();
-    }
-
-    var options = new NotificationListOptions
-    {
-        Limit = request.Limit,
-        OnlyUnread = request.UnreadOnly ?? false,
-        ProjectId = request.ProjectId,
-    };
-
-    var items = await notifications.ListAsync(httpContext.User, userId, options, cancellationToken);
-    return Results.Ok(items);
-});
-
-notificationsApi.MapGet("/count", async (HttpContext httpContext,
-                                         UserNotificationService notifications,
-                                         CancellationToken cancellationToken) =>
-{
-    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(userId))
-    {
-        return Results.Unauthorized();
-    }
-
-    var unread = await notifications.CountUnreadAsync(httpContext.User, userId, cancellationToken);
-    return Results.Ok(new NotificationCountDto(unread));
-});
-
-notificationsApi.MapPost("/{id:int}/read", async (int id,
-                                                   HttpContext httpContext,
-                                                   UserNotificationService notifications,
-                                                   IHubContext<NotificationsHub, INotificationsClient> hubContext,
-                                                   CancellationToken cancellationToken) =>
-{
-    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(userId))
-    {
-        return Results.Unauthorized();
-    }
-
-    var result = await notifications.MarkReadAsync(httpContext.User, userId, id, cancellationToken);
-
-    return await HandleNotificationOperationResultAsync(result, httpContext.User, userId, notifications, hubContext, cancellationToken);
-});
-
-notificationsApi.MapDelete("/{id:int}/read", async (int id,
-                                                      HttpContext httpContext,
-                                                      UserNotificationService notifications,
-                                                      IHubContext<NotificationsHub, INotificationsClient> hubContext,
-                                                      CancellationToken cancellationToken) =>
-{
-    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(userId))
-    {
-        return Results.Unauthorized();
-    }
-
-    var result = await notifications.MarkUnreadAsync(httpContext.User, userId, id, cancellationToken);
-
-    return await HandleNotificationOperationResultAsync(result, httpContext.User, userId, notifications, hubContext, cancellationToken);
-});
-
-notificationsApi.MapPost("/projects/{projectId:int}/mute", async (int projectId,
-                                                                   HttpContext httpContext,
-                                                                   UserNotificationService notifications,
-                                                                   CancellationToken cancellationToken) =>
-{
-    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(userId))
-    {
-        return Results.Unauthorized();
-    }
-
-    var result = await notifications.SetProjectMuteAsync(httpContext.User, userId, projectId, true, cancellationToken);
-
-    return result switch
-    {
-        NotificationOperationResult.Success => Results.NoContent(),
-        NotificationOperationResult.NotFound => Results.NotFound(),
-        NotificationOperationResult.Forbidden => Results.Forbid(),
-        _ => Results.BadRequest()
-    };
-});
-
-notificationsApi.MapDelete("/projects/{projectId:int}/mute", async (int projectId,
-                                                                      HttpContext httpContext,
-                                                                      UserNotificationService notifications,
-                                                                      CancellationToken cancellationToken) =>
-{
-    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(userId))
-    {
-        return Results.Unauthorized();
-    }
-
-    var result = await notifications.SetProjectMuteAsync(httpContext.User, userId, projectId, false, cancellationToken);
-
-    return result switch
-    {
-        NotificationOperationResult.Success => Results.NoContent(),
-        NotificationOperationResult.NotFound => Results.NotFound(),
-        NotificationOperationResult.Forbidden => Results.Forbid(),
-        _ => Results.BadRequest()
-    };
-});
+app.MapNotificationApi();
 
 var projectsApi = app.MapGroup("/api/projects").RequireAuthorization();
 
@@ -2168,7 +2270,7 @@ lookupApi.MapGet("/training-types", async (
 
 eventsApi.MapPost("/{id:guid}/task", async (Guid id, ApplicationDbContext db, ITodoService todos, UserManager<ApplicationUser> users, ClaimsPrincipal user) =>
 {
-    var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id);
+    var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
     if (ev == null) return Results.NotFound();
     var userId = users.GetUserId(user);
     await todos.CreateAsync(userId!, ev.Title, TimeZoneInfo.ConvertTime(ev.StartUtc, IstClock.TimeZone));
@@ -2460,7 +2562,7 @@ app.MapPost("/celebrations/{id:guid}/task", async (Guid id, HttpContext ctx, App
     return Results.Ok();
 }).RequireAuthorization();
 
-// ensure database is up-to-date, seed roles and purge old audit logs
+// post-migration diagnostics and explicitly enabled seeders
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -2490,108 +2592,9 @@ using (var scope = app.Services.CreateScope())
 
     if (db.Database.IsRelational())
     {
-        // SECTION: Startup schema repairs only; migrations are owned by the earlier migration gate.
-        var projectStagesExists = true;
-        if (db.Database.IsNpgsql())
-        {
-            var maintenanceConnectionString = db.Database.GetConnectionString();
-            if (!string.IsNullOrWhiteSpace(maintenanceConnectionString))
-            {
-                await using var maintenanceConnection = new NpgsqlConnection(maintenanceConnectionString);
-                await maintenanceConnection.OpenAsync();
-                await using (var maintenanceCommand = maintenanceConnection.CreateCommand())
-                {
-                    maintenanceCommand.CommandText = @"select to_regclass('""ProjectStages""') is not null";
-                    var maintenanceResult = await maintenanceCommand.ExecuteScalarAsync();
-                    projectStagesExists = maintenanceResult is bool exists && exists;
-                }
-                await maintenanceConnection.CloseAsync();
-            }
-
-            if (!projectStagesExists)
-            {
-                app.Logger.LogWarning("ProjectStages table not found; skipping maintenance SQL for stages.");
-            }
-        }
-
-        if (projectStagesExists)
-        {
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ADD COLUMN IF NOT EXISTS ""AutoCompletedFromCode"" character varying(16);
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ADD COLUMN IF NOT EXISTS ""IsAutoCompleted"" boolean NOT NULL DEFAULT FALSE;
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ADD COLUMN IF NOT EXISTS ""RequiresBackfill"" boolean NOT NULL DEFAULT FALSE;
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                UPDATE ""ProjectStages""
-                SET ""IsAutoCompleted"" = FALSE
-                WHERE ""IsAutoCompleted"" IS NULL;
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                UPDATE ""ProjectStages""
-                SET ""RequiresBackfill"" = FALSE
-                WHERE ""RequiresBackfill"" IS NULL;
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ALTER COLUMN ""IsAutoCompleted"" SET DEFAULT FALSE;
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ALTER COLUMN ""RequiresBackfill"" SET DEFAULT FALSE;
-            ");
-        }
-
-        if (db.Database.IsNpgsql())
-        {
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""SocialMediaEvents""
-                DROP COLUMN IF EXISTS ""Reach"";
-            ");
-        }
-        else if (db.Database.IsSqlServer())
-        {
-            await db.Database.ExecuteSqlRawAsync(@"
-                IF COL_LENGTH(N'dbo.SocialMediaEvents', 'Reach') IS NOT NULL
-                BEGIN
-                    ALTER TABLE [dbo].[SocialMediaEvents] DROP COLUMN [Reach];
-                END
-            ");
-        }
-
-        if (projectStagesExists)
-        {
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ALTER COLUMN ""ActualStart"" DROP NOT NULL;
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ALTER COLUMN ""CompletedOn"" DROP NOT NULL;
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                DROP CONSTRAINT IF EXISTS ""CK_ProjectStages_CompletedHasDate"";
-            ");
-            await db.Database.ExecuteSqlRawAsync(@"
-                ALTER TABLE ""ProjectStages""
-                ADD CONSTRAINT ""CK_ProjectStages_CompletedHasDate""
-                CHECK (""Status"" <> 'Completed' OR (""CompletedOn"" IS NOT NULL AND ""ActualStart"" IS NOT NULL) OR ""RequiresBackfill"" IS TRUE);
-            ");
-        }
-        var migrations = await db.Database.GetAppliedMigrationsAsync();
-        if (!migrations.Contains("20250909153316_UseXminForTodoItem"))
-        {
-            app.Logger.LogWarning("Migration 20250909153316_UseXminForTodoItem not applied. TodoItems may still have a RowVersion column.");
-        }
-        var cutoff = DateTime.UtcNow.AddDays(-90);
-        db.AuditLogs.Where(a => a.TimeUtc < cutoff).ExecuteDelete();
+        // Schema changes are exclusively migration-owned. The mandatory startup gate has
+        // already verified migration closure and critical physical invariants.
+        app.Logger.LogDebug("Post-migration database diagnostics completed.");
     }
 
     if (runSeedersOnStartup)
@@ -2607,7 +2610,10 @@ using (var scope = app.Services.CreateScope())
 }
 
 
-static async Task EnsureNotebookVersionSchemaAsync(ApplicationDbContext db, ILogger logger)
+static async Task EnsureNotebookVersionSchemaAsync(
+    ApplicationDbContext db,
+    ILogger logger,
+    CancellationToken cancellationToken = default)
 {
     if (!db.Database.IsRelational())
     {
@@ -2615,7 +2621,7 @@ static async Task EnsureNotebookVersionSchemaAsync(ApplicationDbContext db, ILog
     }
 
     // SECTION: Validate Notebook migration ordering and schema compatibility
-    var migrations = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+    var migrations = (await db.Database.GetAppliedMigrationsAsync(cancellationToken)).ToList();
     var moduleIndex = migrations.FindIndex(x => x.EndsWith("_AddNotebookModule", StringComparison.Ordinal));
     var versionIndex = migrations.FindIndex(x => x.EndsWith("_AddNotebookItemVersion", StringComparison.Ordinal));
 
@@ -2630,7 +2636,7 @@ static async Task EnsureNotebookVersionSchemaAsync(ApplicationDbContext db, ILog
     var shouldClose = false;
     if (connection.State != ConnectionState.Open)
     {
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
         shouldClose = true;
     }
 
@@ -2642,7 +2648,7 @@ static async Task EnsureNotebookVersionSchemaAsync(ApplicationDbContext db, ILog
               SELECT EXISTS (
                   SELECT 1
                   FROM information_schema.columns
-                  WHERE table_schema = 'public'
+                  WHERE table_schema = current_schema()
                     AND table_name = 'NotebookItems'
                     AND column_name = 'Version'
                     AND data_type = 'uuid'
@@ -2659,7 +2665,7 @@ static async Task EnsureNotebookVersionSchemaAsync(ApplicationDbContext db, ILog
               ) THEN 1 ELSE 0 END;
               """;
 
-        var result = await command.ExecuteScalarAsync();
+        var result = await command.ExecuteScalarAsync(cancellationToken);
         var valid = result switch
         {
             bool boolean => boolean,
@@ -2684,7 +2690,10 @@ static async Task EnsureNotebookVersionSchemaAsync(ApplicationDbContext db, ILog
     }
 }
 
-static async Task EnsureDocRepoFavouritesSchemaAsync(ApplicationDbContext db, ILogger logger)
+static async Task EnsureDocRepoFavouritesSchemaAsync(
+    ApplicationDbContext db,
+    ILogger logger,
+    CancellationToken cancellationToken = default)
 {
     if (!db.Database.IsRelational())
     {
@@ -2692,7 +2701,7 @@ static async Task EnsureDocRepoFavouritesSchemaAsync(ApplicationDbContext db, IL
     }
 
     // SECTION: Validate DocRepo favourites migration is applied
-    var appliedMigrations = await db.Database.GetAppliedMigrationsAsync();
+    var appliedMigrations = await db.Database.GetAppliedMigrationsAsync(cancellationToken);
     if (!appliedMigrations.Contains("20261119120000_AddDocRepoFavourites"))
     {
         var message = "Required migration 20261119120000_AddDocRepoFavourites has not been applied.";
@@ -2713,7 +2722,7 @@ static async Task EnsureDocRepoFavouritesSchemaAsync(ApplicationDbContext db, IL
     var shouldClose = false;
     if (connection.State != ConnectionState.Open)
     {
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
         shouldClose = true;
     }
 
@@ -2721,11 +2730,11 @@ static async Task EnsureDocRepoFavouritesSchemaAsync(ApplicationDbContext db, IL
     {
         if (db.Database.IsNpgsql())
         {
-            await ValidateDocRepoFavouritesForNpgsqlAsync(connection, expectedColumns, logger);
+            await ValidateDocRepoFavouritesForNpgsqlAsync(connection, expectedColumns, logger, cancellationToken);
         }
         else if (db.Database.IsSqlServer())
         {
-            await ValidateDocRepoFavouritesForSqlServerAsync(connection, expectedColumns, logger);
+            await ValidateDocRepoFavouritesForSqlServerAsync(connection, expectedColumns, logger, cancellationToken);
         }
         else
         {
@@ -2744,7 +2753,8 @@ static async Task EnsureDocRepoFavouritesSchemaAsync(ApplicationDbContext db, IL
 static async Task ValidateDocRepoFavouritesForNpgsqlAsync(
     DbConnection connection,
     IReadOnlySet<string> expectedColumns,
-    ILogger logger)
+    ILogger logger,
+    CancellationToken cancellationToken)
 {
     var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     await using (var columnCommand = connection.CreateCommand())
@@ -2752,11 +2762,11 @@ static async Task ValidateDocRepoFavouritesForNpgsqlAsync(
         columnCommand.CommandText = @"
             SELECT column_name
             FROM information_schema.columns
-            WHERE table_schema = 'public'
+            WHERE table_schema = current_schema()
               AND table_name = 'DocRepoFavourites';
         ";
-        await using var reader = await columnCommand.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await columnCommand.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
         {
             columns.Add(reader.GetString(0));
         }
@@ -2782,11 +2792,11 @@ static async Task ValidateDocRepoFavouritesForNpgsqlAsync(
         indexCommand.CommandText = @"
             SELECT 1
             FROM pg_indexes
-            WHERE schemaname = 'public'
+            WHERE schemaname = current_schema()
               AND tablename = 'DocRepoFavourites'
               AND indexname = 'IX_DocRepoFavourites_UserId_DocumentId';
         ";
-        var indexExists = await indexCommand.ExecuteScalarAsync() != null;
+        var indexExists = await indexCommand.ExecuteScalarAsync(cancellationToken) != null;
         if (!indexExists)
         {
             var message = "DocRepoFavourites is missing the unique index on (UserId, DocumentId).";
@@ -2799,7 +2809,8 @@ static async Task ValidateDocRepoFavouritesForNpgsqlAsync(
 static async Task ValidateDocRepoFavouritesForSqlServerAsync(
     DbConnection connection,
     IReadOnlySet<string> expectedColumns,
-    ILogger logger)
+    ILogger logger,
+    CancellationToken cancellationToken)
 {
     var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     await using (var columnCommand = connection.CreateCommand())
@@ -2810,8 +2821,8 @@ static async Task ValidateDocRepoFavouritesForSqlServerAsync(
             WHERE TABLE_SCHEMA = 'dbo'
               AND TABLE_NAME = 'DocRepoFavourites';
         ";
-        await using var reader = await columnCommand.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await columnCommand.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
         {
             columns.Add(reader.GetString(0));
         }
@@ -2841,7 +2852,7 @@ static async Task ValidateDocRepoFavouritesForSqlServerAsync(
               AND i.name = 'IX_DocRepoFavourites_UserId_DocumentId'
               AND OBJECT_NAME(i.object_id) = 'DocRepoFavourites';
         ";
-        var indexExists = await indexCommand.ExecuteScalarAsync() != null;
+        var indexExists = await indexCommand.ExecuteScalarAsync(cancellationToken) != null;
         if (!indexExists)
         {
             var message = "DocRepoFavourites is missing the unique index on (UserId, DocumentId).";
@@ -3097,35 +3108,6 @@ static string BuildDirectiveWithExtras(
         .ToArray();
 
     return string.Join(" ", normalizedSources);
-}
-
-static async Task<IResult> HandleNotificationOperationResultAsync(
-    NotificationOperationResult result,
-    ClaimsPrincipal principal,
-    string userId,
-    UserNotificationService notifications,
-    IHubContext<NotificationsHub, INotificationsClient> hubContext,
-    CancellationToken cancellationToken)
-{
-    return result switch
-    {
-        NotificationOperationResult.Success => await SendUnreadCountAsync(principal, userId, notifications, hubContext, cancellationToken),
-        NotificationOperationResult.NotFound => Results.NotFound(),
-        NotificationOperationResult.Forbidden => Results.Forbid(),
-        _ => Results.BadRequest(),
-    };
-}
-
-static async Task<IResult> SendUnreadCountAsync(
-    ClaimsPrincipal principal,
-    string userId,
-    UserNotificationService notifications,
-    IHubContext<NotificationsHub, INotificationsClient> hubContext,
-    CancellationToken cancellationToken)
-{
-    var unread = await notifications.CountUnreadAsync(principal, userId, cancellationToken);
-    await hubContext.Clients.User(userId).ReceiveUnreadCount(unread);
-    return Results.NoContent();
 }
 
 static bool IsProjectArchiveActor(ClaimsPrincipal principal) =>

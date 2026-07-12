@@ -70,7 +70,7 @@ test('updateItem sends JSON content type, serialised body, and anti-forgery toke
   assert.equal(captured.url, '/api/notebook/items/note-1/content');
   assert.equal(captured.options.method, 'PATCH');
   assert.equal(headers.get('Content-Type'), 'application/json; charset=utf-8');
-  assert.equal(headers.get('RequestVerificationToken'), 'anti-forgery-token');
+  assert.equal(headers.get('X-CSRF-TOKEN'), 'anti-forgery-token');
   assert.equal(captured.options.credentials, 'same-origin');
   assert.deepEqual(JSON.parse(captured.options.body), { title: 'Updated', body: 'Body', version: 'version-1' });
 });

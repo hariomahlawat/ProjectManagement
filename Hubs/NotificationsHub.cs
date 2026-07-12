@@ -17,7 +17,7 @@ public sealed class NotificationsHub : Hub<INotificationsClient>
 
     public NotificationsHub(UserNotificationService notifications)
     {
-        _notifications = notifications;
+        _notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
     }
 
     public async Task RequestUnreadCount(CancellationToken cancellationToken = default)
@@ -28,7 +28,10 @@ public sealed class NotificationsHub : Hub<INotificationsClient>
             throw new HubException("User identifier is not available.");
         }
 
-        var count = await _notifications.CountUnreadAsync(Context.User ?? new ClaimsPrincipal(), userId, cancellationToken);
+        var count = await _notifications.CountUnreadAsync(
+            Context.User ?? new ClaimsPrincipal(),
+            userId,
+            cancellationToken);
         await Clients.Caller.ReceiveUnreadCount(count);
     }
 
@@ -42,10 +45,16 @@ public sealed class NotificationsHub : Hub<INotificationsClient>
 
         var options = new NotificationListOptions
         {
-            Limit = limit,
+            Limit = Math.Clamp(limit, 1, 100),
+            IncludeMuted = false,
+            IncludeFilterOptions = false,
         };
 
-        var notifications = await _notifications.ListAsync(Context.User ?? new ClaimsPrincipal(), userId, options, cancellationToken);
+        var notifications = await _notifications.ListAsync(
+            Context.User ?? new ClaimsPrincipal(),
+            userId,
+            options,
+            cancellationToken);
         await Clients.Caller.ReceiveNotifications(notifications);
     }
 }
@@ -57,4 +66,10 @@ public interface INotificationsClient
     Task ReceiveNotification(NotificationListItem notification);
 
     Task ReceiveNotifications(IReadOnlyList<NotificationListItem> notifications);
+
+    Task ReceiveNotificationStateChanged(NotificationMutationDto mutation);
+
+    Task ReceiveNotificationSeen(NotificationSeenDto mutation);
+
+    Task ReceiveProjectMuteChanged(NotificationProjectMuteDto mutation);
 }

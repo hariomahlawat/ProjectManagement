@@ -2,7 +2,7 @@ using System;
 
 namespace ProjectManagement.Contracts.Notifications;
 
-// SECTION: Notification List Payload
+// SECTION: Stable notification payload shared by the bell, Notification Centre and SignalR.
 public sealed record NotificationListItem(
     int Id,
     string? Module,
@@ -19,4 +19,12 @@ public sealed record NotificationListItem(
     string CreatedDisplayIst,
     DateTime? SeenUtc,
     DateTime? ReadUtc,
-    bool IsProjectMuted);
+    bool IsProjectMuted,
+    string? Kind = null,
+    string? ActorDisplayName = null,
+    string Category = "General",
+    string IconCssClass = "bi bi-bell",
+    string Priority = "Normal",
+    bool IsActionRequired = false,
+    DateTime? DeliveredUtc = null,
+    string? SummaryTooltip = null);

@@ -1,0 +1,237 @@
+@page
+@model ProjectManagement.Pages.Admin.MediaIntelligence.IndexModel
+@{
+    ViewData["Title"] = "Media intelligence";
+}
+<link rel="stylesheet" href="~/css/pages/media-intelligence.css" asp-append-version="true" />
+<div class="container-fluid py-4 media-intelligence-page">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <div class="text-primary small text-uppercase fw-semibold mb-1">Photos administration</div>
+            <h1 class="h3 mb-1">Media intelligence</h1>
+            <p class="text-muted mb-0">Controlled, offline media classification and human-reviewed face intelligence.</p>
+        </div>
+        <a class="btn btn-outline-secondary" asp-page="/Admin/MediaSources/Index">Media sources</a>
+    </div>
+
+    <nav class="intel-tabs mb-4" aria-label="Media intelligence sections">
+        <a class="active" asp-page="/Admin/MediaIntelligence/Index">Overview</a>
+        <a asp-page="/Admin/MediaIntelligence/Classifications">Classification</a>
+        @if (Model.PeopleEnabled)
+        {
+            <a asp-page="/Photos/People/Review" asp-route-Mode="matches">Identify people</a>
+            <a asp-page="/Photos/People/Index">People</a>
+        }
+    </nav>
+
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage)) { <div class="alert alert-success">@Model.StatusMessage</div> }
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage)) { <div class="alert alert-danger">@Model.ErrorMessage</div> }
+
+    @if (!Model.SchemaReady)
+    {
+        <div class="alert alert-danger d-flex align-items-start gap-3" role="alert">
+            <i class="bi bi-database-exclamation fs-4" aria-hidden="true"></i>
+            <div>
+                <strong>Media catalogue database upgrade incomplete</strong>
+                <div class="mt-1">@(Model.SchemaStatus.Error ?? "The deployed MediaLibraryDbContext schema could not be validated.")</div>
+                @if (Model.SchemaStatus.PendingMigrations.Count > 0)
+                {
+                    <div class="small mt-2">Pending migrations: @string.Join(", ", Model.SchemaStatus.PendingMigrations)</div>
+                }
+                <div class="small mt-2">Diagnostic reference: <code>@Model.SchemaStatus.DiagnosticReference</code>. Processing actions remain disabled until startup migration and validation complete.</div>
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(Model.TelemetryWarning))
+    {
+        <div class="alert alert-warning" role="alert">
+            <strong>Telemetry temporarily unavailable.</strong> @Model.TelemetryWarning
+        </div>
+    }
+
+    <section class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <div class="d-flex flex-wrap justify-content-between gap-3 align-items-start mb-3">
+                <div>
+                    <h2 class="h5 mb-1">Readiness</h2>
+                    <p class="text-muted mb-0">Every dependency must pass before photographs can be queued.</p>
+                </div>
+                <form method="post" asp-page-handler="RefreshReadiness">
+                    <button class="btn btn-outline-primary btn-sm" type="submit" disabled="@(!Model.SchemaReady)">Refresh readiness</button>
+                </form>
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-lg-6">
+                    <div class="alert @(Model.DetectorStatus.IsReady ? "alert-success" : "alert-warning") h-100 mb-0">
+                        <strong>Classification detector:</strong> @Model.DetectorStatus.Message
+                        <span class="d-block small mt-1">This detector-only path never creates embeddings or identities.</span>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="alert @(Model.ModelStatus.IsReady ? "alert-success" : "alert-warning") h-100 mb-0">
+                        <strong>People intelligence:</strong> @Model.ModelStatus.Message
+                        <span class="d-block small mt-1">Checked @Model.ModelStatus.CheckedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</span>
+                    </div>
+                </div>
+            </div>
+            <h3 class="h6 mb-2">Detector-only classification path</h3>
+            <div class="readiness-grid mb-4">
+                @foreach (var check in Model.DetectorStatus.Checks)
+                {
+                    <div class="readiness-item @(check.IsSatisfied ? "is-ready" : "is-blocked")">
+                        <div class="d-flex justify-content-between gap-2">
+                            <strong>@check.Label</strong>
+                            <span class="badge @(check.IsSatisfied ? "text-bg-success" : "text-bg-secondary")" title="@check.Status">@check.Status</span>
+                        </div>
+                        @if (!check.IsSatisfied && !string.IsNullOrWhiteSpace(check.Action))
+                        {
+                            <div class="small text-muted mt-2">@check.Action</div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <h3 class="h6 mb-2">People and identity-processing path</h3>
+            <div class="readiness-grid">
+                @foreach (var check in Model.ModelStatus.Checks)
+                {
+                    <div class="readiness-item @(check.IsSatisfied ? "is-ready" : "is-blocked")">
+                        <div class="d-flex justify-content-between gap-2">
+                            <strong>@check.Label</strong>
+                            <span class="badge @(check.IsSatisfied ? "text-bg-success" : "text-bg-secondary")" title="@check.Status">@check.Status</span>
+                        </div>
+                        @if (!check.IsSatisfied && !string.IsNullOrWhiteSpace(check.Action))
+                        {
+                            <div class="small text-muted mt-2">@check.Action</div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-xl"><div class="metric-card"><span>Available images</span><strong>@Model.AvailableImages</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Approved for face scan</span><strong>@Model.Eligible</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Unknown / needs review</span><strong>@Model.NeedsReview</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Confirmed non-photos</span><strong>@Model.ConfirmedNonPhotographs</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Low-confidence decisions</span><strong>@Model.LowConfidence</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Face admission pending</span><strong>@Model.FaceAdmissionPending</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Pending analysis</span><strong>@Model.PendingClassification</strong></div></div>
+        <div class="col-6 col-xl"><div class="metric-card"><span>Analysis failures</span><strong>@Model.FailedClassification</strong></div></div>
+        @if (Model.PeopleEnabled)
+        {
+            <div class="col-6 col-xl"><div class="metric-card"><span>Faces detected</span><strong>@Model.Faces</strong></div></div>
+            <div class="col-6 col-xl"><div class="metric-card"><span>Embeddings</span><strong>@Model.Embedded</strong></div></div>
+        }
+    </div>
+
+    <section class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                <div>
+                    <h2 class="h5 mb-1">Classification safety telemetry</h2>
+                    <p class="text-muted mb-0">Current v7 decisions, safety-gate referrals and detector-only face-assistance outcomes.</p>
+                </div>
+                <a class="btn btn-outline-primary btn-sm" asp-page="/Admin/MediaIntelligence/Classifications" asp-route-mode="risk">Review safety conflicts</a>
+            </div>
+            <div class="row g-3">
+                <div class="col-6 col-lg"><div class="metric-card"><span>Current classifier</span><strong>@Model.CurrentClassifierAssets</strong></div></div>
+                <div class="col-6 col-lg"><div class="metric-card"><span>Safety-gate referrals</span><strong>@Model.SafetyGateReferrals</strong></div></div>
+                <div class="col-6 col-lg"><div class="metric-card"><span>Face evidence used</span><strong>@Model.FaceEvidenceUsed</strong></div></div>
+                <div class="col-6 col-lg"><div class="metric-card"><span>Face-like evidence blocked</span><strong>@Model.FaceEvidenceBlocked</strong></div></div>
+                <div class="col-6 col-lg"><div class="metric-card"><span>Manual corrections</span><strong>@Model.ManualCorrections</strong></div></div>
+            </div>
+        </div>
+    </section>
+
+    @if (Model.PeopleEnabled)
+    {
+            <section class="card shadow-sm border-0 mb-4">
+                <div class="card-body p-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                        <div>
+                            <h2 class="h5 mb-1">Identify people</h2>
+                            <p class="text-muted mb-0">New face embeddings are matched against confirmed people in the background. Every identity remains human-confirmed.</p>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <form method="post" asp-page-handler="RefreshIdentityCandidates">
+                                <button class="btn btn-outline-primary btn-sm" type="submit" disabled="@(!Model.SchemaReady || !Model.ModelStatus.IsReady)">Refresh identity matches</button>
+                            </form>
+                            <a class="btn btn-primary btn-sm" asp-page="/Photos/People/Review" asp-route-Mode="matches">Review people</a>
+                            <a class="btn btn-outline-secondary btn-sm" asp-page="/Photos/People/Index">Open people</a>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-6 col-lg"><div class="metric-card"><span>Confirmed people</span><strong>@Model.Persons</strong></div></div>
+                        <div class="col-6 col-lg"><div class="metric-card"><span>Confirmed appearances</span><strong>@Model.ConfirmedAppearances</strong></div></div>
+                        <div class="col-6 col-lg"><div class="metric-card"><span>Known-person suggestions</span><strong>@Model.KnownPersonSuggestions</strong></div></div>
+                        <div class="col-6 col-lg"><div class="metric-card"><span>Unidentified appearances</span><strong>@Model.UnidentifiedFaces</strong></div></div>
+                        <div class="col-6 col-lg"><div class="metric-card"><span>Matching in progress</span><strong>@Model.CandidateSearchPending</strong></div></div>
+                        <div class="col-6 col-lg"><div class="metric-card"><span>Matching failures</span><strong>@Model.CandidateSearchFailures</strong></div></div>
+                    </div>
+                </div>
+            </section>
+    }
+    else
+    {
+        <section class="card shadow-sm border-0 mb-4">
+            <div class="card-body p-4 d-flex align-items-start gap-3">
+                <i class="bi bi-people fs-4 text-muted" aria-hidden="true"></i>
+                <div>
+                    <h2 class="h5 mb-1">People intelligence is disabled</h2>
+                    <p class="text-muted mb-0">Classification and media-catalogue telemetry remain available. Enable the People capability only after approved models, licensing and operating policy are in place.</p>
+                </div>
+            </div>
+        </section>
+    }
+
+    <div class="row g-4">
+        <div class="col-xl-7">
+            <section class="card shadow-sm border-0 h-100">
+                <div class="card-body p-4">
+                    <h2 class="h5 mb-1">Controlled processing</h2>
+                    <p class="text-muted">Queues approved photographs for face detection and embedding. Identity assignment remains human-controlled.</p>
+                    @if (Model.PeopleEnabled)
+                    {
+                        <form method="post" asp-page-handler="Queue" class="row g-3 align-items-end">
+                            <div class="col-sm-4">
+                                <label class="form-label fw-semibold" for="faceBatchSize">Batch size</label>
+                                <div class="input-group"><input id="faceBatchSize" class="form-control" type="number" name="limit" min="1" max="250" value="25" /><span class="input-group-text">photos</span></div>
+                            </div>
+                            <div class="col-sm-auto">
+                                <button class="btn btn-primary" type="submit" disabled="@(!Model.SchemaReady || !Model.ModelStatus.IsReady)">Queue eligible photographs</button>
+                            </div>
+                            <div class="col-12">
+                                @if (!Model.ModelStatus.IsReady)
+                                {
+                                    <div class="small text-warning-emphasis">Queueing is locked until configuration, models, checksums, licensing, schema and cache checks pass and the worker is enabled.</div>
+                                }
+                            </div>
+                        </form>
+                    }
+                    else
+                    {
+                        <div class="alert alert-light border mb-0">People processing is disabled in MediaLibrary configuration.</div>
+                    }
+                </div>
+            </section>
+        </div>
+        <div class="col-xl-5">
+            <section class="card shadow-sm border-0 h-100">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start mb-3"><div><h2 class="h5 mb-1">Media processing worker</h2><p class="text-muted mb-0">Catalogue, derivatives and durable job telemetry. Face queue discovery is reported separately in readiness.</p></div><span class="badge text-bg-success">@Model.ProcessingRuntime.State</span></div>
+                    <dl class="row mb-0 small">
+                        <dt class="col-6">Media worker</dt><dd class="col-6">@(Model.ProcessingRuntime.WorkerStarted ? "Running" : Model.ProcessingRuntime.WorkerConfigured ? "Configured" : "Disabled")</dd>
+                        <dt class="col-6">Face jobs active</dt><dd class="col-6">@Model.PendingFaceJobs</dd>
+                        <dt class="col-6">Face jobs failed</dt><dd class="col-6">@Model.FailedFaceJobs</dd>
+                        <dt class="col-6">Current asset</dt><dd class="col-6">@(Model.ProcessingRuntime.CurrentAssetId?.ToString() ?? "None")</dd>
+                        <dt class="col-6">Runtime completed</dt><dd class="col-6">@Model.ProcessingRuntime.CompletedSinceStart</dd>
+                        <dt class="col-6">Runtime failures</dt><dd class="col-6">@Model.ProcessingRuntime.FailedSinceStart</dd>
+                        <dt class="col-6">Last heartbeat</dt><dd class="col-6">@(Model.ProcessingRuntime.LastHeartbeatUtc?.ToLocalTime().ToString("dd MMM HH:mm:ss") ?? "Not started")</dd>
+                    </dl>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>

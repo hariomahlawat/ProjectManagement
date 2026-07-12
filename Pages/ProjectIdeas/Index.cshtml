@@ -6,132 +6,494 @@
     ViewData["Title"] = "Ideation Board";
 }
 <link rel="stylesheet" href="~/css/project-ideas.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/project-ideas-board.css" asp-append-version="true" />
 
-<div class="pi-page">
-    @* SECTION: Board header and search controls *@
-    <div class="pi-board-header">
-        <div class="pi-title-wrap">
-            <div class="pi-breadcrumb">ERP / Project Ideas</div>
-            <h1><span class="bi bi-lightbulb"></span> Ideation Board</h1>
+<div class="pi-page pi-index-page">
+    @* SECTION: Clear page identity and primary action *@
+    <header class="pi-page-hero">
+        <div class="pi-page-identity">
+            <div class="pi-breadcrumb" aria-label="Breadcrumb">ERP / Project Ideas</div>
+            <div class="pi-page-title-row">
+                <span class="pi-page-title-icon" aria-hidden="true">
+                    <span class="bi bi-lightbulb"></span>
+                </span>
+                <div>
+                    <h1>Ideation Board</h1>
+                    <p>Capture, refine and progress future capability ideas.</p>
+                </div>
+            </div>
         </div>
 
-        <form class="pi-search" method="get">
-            <input type="hidden" name="Status" value="@Model.Status" />
-            @if (Model.MyIdeas)
-            {
-                <input type="hidden" name="MyIdeas" value="true" />
-            }
-            <span class="bi bi-search"></span>
-            <input name="Query" value="@Model.Query" placeholder="Search ideas by title, keyword, or owner..." />
-        </form>
-
-        <div class="pi-create-block">
-            <small>Create permission:<br />HoD / Admin / Comdt only</small>
-            @if (Model.CanCreate)
-            {
-                <a class="pi-btn pi-btn-primary" asp-page="Create"><span class="bi bi-plus-lg"></span> New Idea</a>
-            }
-        </div>
-    </div>
-
-    @* SECTION: Status tabs and My Ideas filter *@
-    <div class="pi-tabs">
-        @foreach (var status in ProjectIdeaStatuses.All)
+        @if (Model.CanCreate)
         {
-            <a asp-page="/ProjectIdeas/Index"
-               asp-route-Status="@status"
-               asp-route-Query="@Model.Query"
-               asp-route-MyIdeas="@Model.ActiveMyIdeasRouteValue"
-               class="@(Model.Status == status ? "active" : null)">
-                @ProjectIdeaStatuses.ToDisplay(status)
+            <a class="pi-btn pi-btn-primary pi-new-idea" asp-page="Create">
+                <span class="bi bi-plus-lg" aria-hidden="true"></span>
+                <span>New Idea</span>
             </a>
         }
+    </header>
 
-        <a asp-page="/ProjectIdeas/Index"
-           asp-route-Status="@Model.Status"
-           asp-route-Query="@Model.Query"
-           asp-route-MyIdeas="@Model.ToggleMyIdeasRouteValue"
-           class="pi-chip @(Model.MyIdeas ? "active" : null)">
-            <span class="bi bi-person"></span> My Ideas
-        </a>
-    </div>
+    @* SECTION: One coherent command surface for status, filters, sorting and view *@
+    <section class="pi-command-surface" aria-label="Ideation board controls">
+        <div class="pi-command-primary">
+            <nav class="pi-tabs" aria-label="Idea status filters">
+                @foreach (var status in ProjectIdeaStatuses.All)
+                {
+                    <a asp-page="/ProjectIdeas/Index"
+                       asp-route-Status="@status"
+                       asp-route-Query="@Model.Query"
+                       asp-route-MyIdeas="@Model.ActiveMyIdeasRouteValue"
+                       asp-route-ProjectOfficerUserId="@Model.ProjectOfficerUserId"
+                       asp-route-Assignment="@Model.Assignment"
+                       asp-route-View="@Model.View"
+                       asp-route-Sort="@Model.Sort"
+                       class="@(Model.Status == status ? "active" : null)"
+                       aria-current="@(Model.Status == status ? "page" : null)">
+                        <span>@ProjectIdeaStatuses.ToDisplay(status)</span>
+                        <span class="pi-tab-count">@Model.StatusCount(status)</span>
+                    </a>
+                }
+            </nav>
 
-    @if (Model.MyIdeas)
-    {
-        <div class="pi-active-filter">
-            <span>Showing only ideas created by you or assigned to you.</span>
-            <a asp-page="/ProjectIdeas/Index"
-               asp-route-Status="@Model.Status"
-               asp-route-Query="@Model.Query">
-                Clear
-            </a>
+            <div class="pi-view-toggle" role="group" aria-label="Idea display view">
+                <a asp-page="/ProjectIdeas/Index"
+                   asp-route-Status="@Model.Status"
+                   asp-route-Query="@Model.Query"
+                   asp-route-MyIdeas="@Model.ActiveMyIdeasRouteValue"
+                   asp-route-ProjectOfficerUserId="@Model.ProjectOfficerUserId"
+                   asp-route-Assignment="@Model.Assignment"
+                   asp-route-View="@IndexModel.CardsView"
+                   asp-route-Sort="@Model.Sort"
+                   class="@(!Model.IsTableView ? "active" : null)"
+                   aria-pressed="@((!Model.IsTableView).ToString().ToLowerInvariant())"
+                   title="Card view">
+                    <span class="bi bi-grid" aria-hidden="true"></span>
+                    <span>Cards</span>
+                </a>
+                <a asp-page="/ProjectIdeas/Index"
+                   asp-route-Status="@Model.Status"
+                   asp-route-Query="@Model.Query"
+                   asp-route-MyIdeas="@Model.ActiveMyIdeasRouteValue"
+                   asp-route-ProjectOfficerUserId="@Model.ProjectOfficerUserId"
+                   asp-route-Assignment="@Model.Assignment"
+                   asp-route-View="@IndexModel.TableView"
+                   asp-route-Sort="@Model.Sort"
+                   class="@(Model.IsTableView ? "active" : null)"
+                   aria-pressed="@(Model.IsTableView.ToString().ToLowerInvariant())"
+                   title="Table view">
+                    <span class="bi bi-table" aria-hidden="true"></span>
+                    <span>Table</span>
+                </a>
+            </div>
         </div>
-    }
 
-    @* SECTION: Board cards and guidance panel *@
-    <div class="pi-board-shell">
-        <section class="pi-card-grid">
-            @if (!Model.Ideas.Any())
-            {
-                <div class="pi-empty">
-                    <span class="bi bi-lightbulb"></span>
-                    <h2>No project ideas yet.</h2>
-                    <p>Capture early concepts, feasibility thoughts, or future R&amp;D opportunities.</p>
-                    @if (Model.CanCreate)
+        <div class="pi-command-secondary">
+            <form class="pi-filter-form" method="get" role="search">
+                <input type="hidden" name="Status" value="@Model.Status" />
+                <input type="hidden" name="View" value="@Model.View" />
+                @if (Model.MyIdeas)
+                {
+                    <input type="hidden" name="MyIdeas" value="true" />
+                }
+
+                <div class="pi-search-field">
+                    <span class="bi bi-search" aria-hidden="true"></span>
+                    <label class="visually-hidden" for="ideaSearch">Search project ideas</label>
+                    <input id="ideaSearch"
+                           name="Query"
+                           value="@Model.Query"
+                           placeholder="Search title, summary or owner"
+                           autocomplete="off"
+                           maxlength="200" />
+                    @if (!string.IsNullOrWhiteSpace(Model.Query))
                     {
-                        <a class="pi-btn pi-btn-primary" asp-page="Create">Create First Idea</a>
-                    }
-                    else
-                    {
-                        <p class="pi-muted">Only HoD, Admin and Comdt roles can create new ideas.</p>
+                        <button type="button" class="pi-search-clear js-clear-search" aria-label="Clear search" title="Clear search">
+                            <span class="bi bi-x-lg" aria-hidden="true"></span>
+                        </button>
                     }
                 </div>
-            }
 
+                <div class="pi-select-field">
+                    <label for="projectOfficerFilter">Project Officer</label>
+                    <select id="projectOfficerFilter"
+                            name="ProjectOfficerUserId"
+                            class="js-auto-submit"
+                            aria-label="Filter by Project Officer">
+                        @if (string.IsNullOrWhiteSpace(Model.ProjectOfficerUserId))
+                        {
+                            <option value="" selected>All officers</option>
+                        }
+                        else
+                        {
+                            <option value="">All officers</option>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.ProjectOfficerUserId) && Model.SelectedProjectOfficerName is null)
+                        {
+                            <option value="@Model.ProjectOfficerUserId" selected>Selected officer</option>
+                        }
+                        @foreach (var officer in Model.ProjectOfficerOptions)
+                        {
+                            if (officer.UserId == Model.ProjectOfficerUserId)
+                            {
+                                <option value="@officer.UserId" selected>@officer.DisplayName</option>
+                            }
+                            else
+                            {
+                                <option value="@officer.UserId">@officer.DisplayName</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="pi-select-field">
+                    <label for="assignmentFilter">Assignment</label>
+                    <select id="assignmentFilter"
+                            name="Assignment"
+                            class="js-auto-submit"
+                            aria-label="Filter by assignment state">
+                        @foreach (var assignment in ProjectIdeaAssignmentFilters.Values)
+                        {
+                            if (Model.Assignment == assignment)
+                            {
+                                <option value="@assignment" selected>@ProjectIdeaAssignmentFilters.ToDisplay(assignment)</option>
+                            }
+                            else
+                            {
+                                <option value="@assignment">@ProjectIdeaAssignmentFilters.ToDisplay(assignment)</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="pi-select-field pi-sort-field">
+                    <label for="ideaSort">Sort</label>
+                    <select id="ideaSort" name="Sort" class="js-auto-submit" aria-label="Sort project ideas">
+                        @foreach (var sort in ProjectIdeaSorts.All)
+                        {
+                            if (Model.Sort == sort)
+                            {
+                                <option value="@sort" selected>@ProjectIdeaSorts.ToDisplay(sort)</option>
+                            }
+                            else
+                            {
+                                <option value="@sort">@ProjectIdeaSorts.ToDisplay(sort)</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <button type="submit" class="pi-search-submit">
+                    <span class="bi bi-arrow-right" aria-hidden="true"></span>
+                    <span class="visually-hidden">Apply search</span>
+                </button>
+            </form>
+
+            <a asp-page="/ProjectIdeas/Index"
+               asp-route-Status="@Model.Status"
+               asp-route-Query="@Model.Query"
+               asp-route-MyIdeas="@Model.ToggleMyIdeasRouteValue"
+               asp-route-View="@Model.View"
+               asp-route-Sort="@Model.Sort"
+               class="pi-involvement-filter @(Model.MyIdeas ? "active" : null)"
+               aria-pressed="@(Model.MyIdeas.ToString().ToLowerInvariant())"
+               title="Show ideas assigned to you as Project Officer">
+                <span class="bi bi-person-check" aria-hidden="true"></span>
+                <span>My Ideas</span>
+            </a>
+        </div>
+
+        @if (Model.HasActiveFilters)
+        {
+            <div class="pi-active-filters" aria-label="Active filters">
+                <span class="pi-active-filters-label">Filtered by</span>
+                @if (!string.IsNullOrWhiteSpace(Model.Query))
+                {
+                    <span class="pi-filter-token"><span class="bi bi-search" aria-hidden="true"></span>“@Model.Query”</span>
+                }
+                @if (Model.MyIdeas)
+                {
+                    <span class="pi-filter-token"><span class="bi bi-person-check" aria-hidden="true"></span>Assigned to me</span>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.ProjectOfficerUserId))
+                {
+                    <span class="pi-filter-token"><span class="bi bi-person" aria-hidden="true"></span>@(Model.SelectedProjectOfficerName ?? "Selected officer")</span>
+                }
+                else if (Model.Assignment != ProjectIdeaAssignmentFilters.All)
+                {
+                    <span class="pi-filter-token"><span class="bi bi-diagram-3" aria-hidden="true"></span>@ProjectIdeaAssignmentFilters.ToDisplay(Model.Assignment)</span>
+                }
+                <a class="pi-clear-filters"
+                   asp-page="/ProjectIdeas/Index"
+                   asp-route-Status="@Model.Status"
+                   asp-route-View="@Model.View">
+                    Clear all
+                </a>
+            </div>
+        }
+    </section>
+
+    @if (!Model.Ideas.Any())
+    {
+        <section class="pi-empty" aria-labelledby="pi-empty-title">
+            <span class="pi-empty-icon bi bi-lightbulb" aria-hidden="true"></span>
+            <h2 id="pi-empty-title">No @(Model.CurrentStatusLabel.ToLowerInvariant()) ideas found</h2>
+            <p>
+                @if (Model.HasActiveFilters)
+                {
+                    <text>Adjust or clear the filters to widen the result set.</text>
+                }
+                else
+                {
+                    <text>Capture early concepts, feasibility thoughts or future R&amp;D opportunities.</text>
+                }
+            </p>
+            @if (Model.HasActiveFilters)
+            {
+                <a class="pi-btn"
+                   asp-page="/ProjectIdeas/Index"
+                   asp-route-Status="@Model.Status"
+                   asp-route-View="@Model.View">
+                    Clear filters
+                </a>
+            }
+            else if (Model.CanCreate)
+            {
+                <a class="pi-btn pi-btn-primary" asp-page="Create">
+                    <span class="bi bi-plus-lg" aria-hidden="true"></span>
+                    Create First Idea
+                </a>
+            }
+        </section>
+    }
+    else if (Model.IsTableView)
+    {
+        @* SECTION: Natural-scroll comparison table; no nested vertical scrollbar *@
+        <section class="pi-table-card" aria-label="Project ideas table">
+            <div class="pi-table-scroll">
+                <table class="pi-table">
+                    <caption class="visually-hidden">@Model.CurrentStatusLabel project ideas matching the selected filters</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Idea</th>
+                            <th scope="col" class="pi-table-officer-heading">Project Officer</th>
+                            <th scope="col">
+                                <span class="pi-column-label">
+                                    Last updated
+                                    @if (Model.Sort == ProjectIdeaSorts.LatestActivity)
+                                    {
+                                        <span class="bi bi-arrow-down" aria-label="Sorted descending"></span>
+                                    }
+                                </span>
+                            </th>
+                            <th scope="col" class="pi-table-updates-heading">Updates</th>
+                            <th scope="col" class="pi-table-open-heading"><span class="visually-hidden">Open</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var idea in Model.Ideas)
+                        {
+                            var lastActivity = IndexModel.LastActivity(idea);
+                            var lastActivityIso = lastActivity.ToUniversalTime().ToString("O");
+                var commentCount = idea.Comments.Count(comment => !comment.IsDeleted);
+                            var noteCount = idea.Notes.Count(note => !note.IsDeleted);
+                            var documentCount = idea.Documents.Count(document => !document.IsDeleted);
+                            var totalActivity = commentCount + noteCount + documentCount;
+                            var commentLabel = IndexModel.CountLabel(commentCount, "comment");
+                            var noteLabel = IndexModel.CountLabel(noteCount, "note");
+                            var documentLabel = IndexModel.CountLabel(documentCount, "document");
+                            var detailsUrl = Url.Page("/ProjectIdeas/Details", new { id = idea.Id });
+                            var needsDetails = IndexModel.NeedsDetails(idea);
+                            var isStale = IndexModel.IsStale(idea);
+
+                            <tr class="pi-table-row js-idea-row"
+                                data-href="@detailsUrl"
+                                tabindex="0"
+                                aria-label="Open idea @idea.Title">
+                                <td class="pi-table-idea-cell">
+                                    <a class="pi-table-title" asp-page="/ProjectIdeas/Details" asp-route-id="@idea.Id">@idea.Title</a>
+                                    <p class="@(needsDetails ? "pi-description-missing" : null)">@IndexModel.DisplayDescription(idea)</p>
+
+                                    @if (needsDetails || idea.AssignedProjectOfficerUser is null || isStale)
+                                    {
+                                        <div class="pi-row-signals" aria-label="Operational indicators">
+                                            @if (needsDetails)
+                                            {
+                                                <span class="pi-signal pi-signal-warning">
+                                                    <span class="bi bi-pencil-square" aria-hidden="true"></span>
+                                                    Needs details
+                                                </span>
+                                            }
+                                            @if (idea.AssignedProjectOfficerUser is null)
+                                            {
+                                                <span class="pi-signal pi-signal-neutral">
+                                                    <span class="bi bi-person-plus" aria-hidden="true"></span>
+                                                    Unassigned
+                                                </span>
+                                            }
+                                            @if (isStale)
+                                            {
+                                                <span class="pi-signal pi-signal-danger">
+                                                    <span class="bi bi-clock-history" aria-hidden="true"></span>
+                                                    No update for 30+ days
+                                                </span>
+                                            }
+                                        </div>
+                                    }
+
+                                    <span class="pi-table-mobile-officer">
+                                        <span class="bi bi-person" aria-hidden="true"></span>
+                                        @Model.DisplayUser(idea.AssignedProjectOfficerUser)
+                                    </span>
+                                </td>
+                                <td class="pi-table-officer-cell">
+                                    <div class="pi-table-person @(idea.AssignedProjectOfficerUser is null ? "is-unassigned" : null)">
+                                        <span class="pi-person-avatar" aria-hidden="true">
+                                            <span class="bi bi-person"></span>
+                                        </span>
+                                        <span>@Model.DisplayUser(idea.AssignedProjectOfficerUser)</span>
+                                    </div>
+                                </td>
+                                <td class="pi-table-date-cell">
+                                    <time datetime="@lastActivityIso" title="@Model.DisplayDateTime(lastActivity)">
+                                        @Model.DisplayRelativeDate(lastActivity)
+                                    </time>
+                                    <small>@Model.DisplayDateTime(lastActivity)</small>
+                                </td>
+                                <td>
+                                    @if (totalActivity == 0)
+                                    {
+                                        <span class="pi-no-updates" aria-label="No comments, notes or documents">—</span>
+                                    }
+                                    else
+                                    {
+                                        <div class="pi-table-updates" aria-label="@commentLabel, @noteLabel, @documentLabel">
+                                            @if (commentCount > 0)
+                                            {
+                                                <span title="@commentLabel" aria-label="@commentLabel">
+                                                    <span class="bi bi-chat" aria-hidden="true"></span>
+                                                    <b>@commentCount</b>
+                                                </span>
+                                            }
+                                            @if (noteCount > 0)
+                                            {
+                                                <span title="@noteLabel" aria-label="@noteLabel">
+                                                    <span class="bi bi-journal-text" aria-hidden="true"></span>
+                                                    <b>@noteCount</b>
+                                                </span>
+                                            }
+                                            @if (documentCount > 0)
+                                            {
+                                                <span title="@documentLabel" aria-label="@documentLabel">
+                                                    <span class="bi bi-paperclip" aria-hidden="true"></span>
+                                                    <b>@documentCount</b>
+                                                </span>
+                                            }
+                                        </div>
+                                    }
+                                </td>
+                                <td class="pi-table-open-cell" aria-hidden="true">
+                                    <span class="pi-table-open">
+                                        <span class="bi bi-chevron-right"></span>
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+    else
+    {
+        @* SECTION: Full-width card board without a competing guidance sidebar *@
+        <section class="pi-card-grid" aria-label="Project ideas cards">
             @foreach (var idea in Model.Ideas)
             {
+                var lastActivity = IndexModel.LastActivity(idea);
+                var lastActivityIso = lastActivity.ToUniversalTime().ToString("O");
+                var commentCount = idea.Comments.Count(comment => !comment.IsDeleted);
+                var noteCount = idea.Notes.Count(note => !note.IsDeleted);
+                var documentCount = idea.Documents.Count(document => !document.IsDeleted);
+                var totalActivity = commentCount + noteCount + documentCount;
+                var commentLabel = IndexModel.CountLabel(commentCount, "comment");
+                var noteLabel = IndexModel.CountLabel(noteCount, "note");
+                var documentLabel = IndexModel.CountLabel(documentCount, "document");
+                var needsDetails = IndexModel.NeedsDetails(idea);
+                var isStale = IndexModel.IsStale(idea);
+
                 <a class="pi-idea-card" asp-page="/ProjectIdeas/Details" asp-route-id="@idea.Id">
-                    <div class="pi-card-top">
-                        <div class="pi-card-icon"><span class="bi bi-lightbulb"></span></div>
-                        <div class="pi-card-content">
-                            <div class="pi-card-heading">
-                                <div class="pi-card-title-wrap">
-                                    <h2>@idea.Title</h2>
-                                    <p class="pi-clamp">@idea.Description</p>
-                                </div>
-                                <span class="pi-status pi-status-@idea.Status.ToLowerInvariant()">@ProjectIdeaStatuses.ToDisplay(idea.Status)</span>
-                            </div>
+                    <div class="pi-card-heading">
+                        <span class="pi-card-icon" aria-hidden="true"><span class="bi bi-lightbulb"></span></span>
+                        <div class="pi-card-title-wrap">
+                            <h2>@idea.Title</h2>
+                            <span class="pi-status pi-status-@idea.Status.ToLowerInvariant()">@ProjectIdeaStatuses.ToDisplay(idea.Status)</span>
                         </div>
                     </div>
 
-                    <div class="pi-card-submeta">
+                    <p class="pi-card-description @(needsDetails ? "pi-description-missing" : null)">@IndexModel.DisplayDescription(idea)</p>
+
+                    @if (needsDetails || idea.AssignedProjectOfficerUser is null || isStale)
+                    {
+                        <div class="pi-card-signals" aria-label="Operational indicators">
+                            @if (needsDetails)
+                            {
+                                <span class="pi-signal pi-signal-warning"><span class="bi bi-pencil-square" aria-hidden="true"></span>Needs details</span>
+                            }
+                            @if (idea.AssignedProjectOfficerUser is null)
+                            {
+                                <span class="pi-signal pi-signal-neutral"><span class="bi bi-person-plus" aria-hidden="true"></span>Unassigned</span>
+                            }
+                            @if (isStale)
+                            {
+                                <span class="pi-signal pi-signal-danger"><span class="bi bi-clock-history" aria-hidden="true"></span>30+ days idle</span>
+                            }
+                        </div>
+                    }
+
+                    <div class="pi-card-metadata">
                         <span>
-                            <span class="bi bi-person"></span>
-                            PO: @Model.DisplayUser(idea.AssignedProjectOfficerUser)
+                            <span class="bi bi-person" aria-hidden="true"></span>
+                            <b>@Model.DisplayUser(idea.AssignedProjectOfficerUser)</b>
                         </span>
-                        <span>
-                            <span class="bi bi-clock"></span>
-                            Updated @Model.DisplayDateTime(IndexModel.LastActivity(idea))
-                        </span>
+                        <time datetime="@lastActivityIso" title="@Model.DisplayDateTime(lastActivity)">
+                            <span class="bi bi-clock" aria-hidden="true"></span>
+                            Updated @Model.DisplayRelativeDate(lastActivity)
+                        </time>
                     </div>
 
                     <div class="pi-card-footer">
-                        <span><span class="bi bi-chat"></span> @idea.Comments.Count(c => !c.IsDeleted)</span>
-                        <span><span class="bi bi-paperclip"></span> @idea.Documents.Count(d => !d.IsDeleted)</span>
+                        @if (totalActivity == 0)
+                        {
+                            <span class="pi-card-no-updates">No updates yet</span>
+                        }
+                        else
+                        {
+                            <div class="pi-card-updates" aria-label="@commentLabel, @noteLabel, @documentLabel">
+                                @if (commentCount > 0)
+                                {
+                                    <span title="@commentLabel"><span class="bi bi-chat" aria-hidden="true"></span>@commentCount</span>
+                                }
+                                @if (noteCount > 0)
+                                {
+                                    <span title="@noteLabel"><span class="bi bi-journal-text" aria-hidden="true"></span>@noteCount</span>
+                                }
+                                @if (documentCount > 0)
+                                {
+                                    <span title="@documentLabel"><span class="bi bi-paperclip" aria-hidden="true"></span>@documentCount</span>
+                                }
+                            </div>
+                        }
+                        <span class="pi-card-open" aria-hidden="true">
+                            Open
+                            <span class="bi bi-arrow-right"></span>
+                        </span>
                     </div>
                 </a>
             }
         </section>
-
-        <aside class="pi-side-panel">
-            <div class="pi-hero-icon"><span class="bi bi-lightbulb"></span></div>
-            <h2>Welcome to Project Ideas</h2>
-            <p>Capture early ideas, discuss them, attach notes and documents, and archive for future reference.</p>
-            <ul>
-                <li><span class="bi bi-chat-dots"></span><b>Discuss</b><small>Collaborate and refine ideas.</small></li>
-                <li><span class="bi bi-paperclip"></span><b>Attach</b><small>Add notes, files and support.</small></li>
-                <li><span class="bi bi-archive"></span><b>Archive</b><small>Keep ideas for future use.</small></li>
-            </ul>
-        </aside>
-    </div>
+    }
 </div>
+
+@section Scripts {
+    <script src="~/js/pages/project-ideas-index.js" asp-append-version="true" defer></script>
+}

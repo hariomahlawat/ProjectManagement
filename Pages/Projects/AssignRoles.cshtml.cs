@@ -231,11 +231,36 @@ namespace ProjectManagement.Pages.Projects
                 project.LeadPoUserId,
                 currentPoName);
 
-            var summary = string.Format(
-                CultureInfo.InvariantCulture,
-                "Project officer assignment changed from {0} to {1}. Review the project overview for details.",
-                previousPoName ?? "Unassigned",
-                currentPoName ?? "Unassigned");
+            var previousWasAssigned = !string.IsNullOrWhiteSpace(previousPoUserId);
+            var currentIsAssigned = !string.IsNullOrWhiteSpace(project.LeadPoUserId);
+
+            string title;
+            string summary;
+            if (!previousWasAssigned && currentIsAssigned)
+            {
+                title = "Project officer assigned";
+                summary = string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Assigned to {0}.",
+                    currentPoName ?? "the selected officer");
+            }
+            else if (previousWasAssigned && !currentIsAssigned)
+            {
+                title = "Project officer unassigned";
+                summary = string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Removed {0} as project officer.",
+                    previousPoName ?? "the previous officer");
+            }
+            else
+            {
+                title = "Project officer changed";
+                summary = string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Changed from {0} to {1}.",
+                    previousPoName ?? "Unassigned",
+                    currentPoName ?? "Unassigned");
+            }
 
             await _notifications.PublishAsync(
                 NotificationKind.ProjectAssignmentChanged,
@@ -248,12 +273,7 @@ namespace ProjectManagement.Pages.Projects
                 projectId: project.Id,
                 actorUserId: actorUserId,
                 route: $"/projects/overview/{project.Id}",
-                title: string.IsNullOrWhiteSpace(project.Name)
-                    ? "Project officer assignment updated"
-                    : string.Format(
-                        CultureInfo.InvariantCulture,
-                        "{0} project officer updated",
-                        project.Name),
+                title: title,
                 summary: summary,
                 fingerprint: null);
         }

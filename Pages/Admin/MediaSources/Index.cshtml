@@ -1,0 +1,851 @@
+@page "/Admin/MediaSources"
+@model ProjectManagement.Pages.Admin.MediaSources.IndexModel
+@using ProjectManagement.Features.MediaLibrary.Domain
+@{
+    ViewData["Title"] = "Media Sources";
+    ViewData["PageShell"] = "wide";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/media-sources.css" asp-append-version="true" />
+}
+
+<div class="container-xxl py-4">
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
+        <div>
+            <div class="text-uppercase small fw-semibold text-primary mb-1">Photos administration</div>
+            <h1 class="h3 mb-1">Media sources</h1>
+            <p class="text-muted mb-0">Connect optional local or network folders without affecting PRISM-owned media.</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a asp-page="/Admin/MediaIntelligence/Index" class="btn btn-outline-secondary">
+                <i class="bi bi-cpu me-1" aria-hidden="true"></i> Media intelligence
+            </a>
+            <a asp-page="/Photos/Index" class="btn btn-outline-primary">
+                <i class="bi bi-images me-1" aria-hidden="true"></i> Open Photos
+            </a>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+    {
+        <div class="alert alert-success" role="status">@Model.StatusMessage</div>
+    }
+    @if (Model.CatalogueAvailable && !string.IsNullOrWhiteSpace(Model.WarningMessage))
+    {
+        <div class="alert alert-warning" role="alert">@Model.WarningMessage</div>
+    }
+
+    @if (!Model.CatalogueAvailable)
+    {
+        <section class="card border-0 shadow-sm mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+                    <div>
+                        <h2 class="h5 mb-2">Media catalogue schema unavailable</h2>
+                        <p class="text-muted mb-2">
+                            Database migrations are applied only by the fail-fast application startup gate. Deploy the complete Release publish and recycle the application; do not attempt schema changes while the site is serving requests.
+                        </p>
+                        @if (Model.PendingMigrations.Count > 0)
+                        {
+                            <div class="small text-muted">Pending migrations: @string.Join(", ", Model.PendingMigrations)</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.CatalogueError))
+                        {
+                            <div class="small text-danger mt-2">@Model.CatalogueError</div>
+                        }
+                        <div class="small text-muted mt-2">Reference @Model.CatalogueDiagnosticReference</div>
+                    </div>
+                    <span class="badge text-bg-secondary align-self-start">Startup-managed</span>
+                </div>
+            </div>
+        </section>
+    }
+    else
+    {
+        @if (!Model.CatalogueSchemaCurrent)
+        {
+            <div class="alert alert-warning d-flex gap-2 align-items-start" role="alert">
+                <i class="bi bi-exclamation-triangle mt-1" aria-hidden="true"></i>
+                <div class="flex-grow-1">
+                    <strong>The catalogue is operational, but its migration metadata is not fully current.</strong>
+                    @if (Model.PendingMigrations.Count > 0)
+                    {
+                        <span> @Model.PendingMigrations.Count migration(s) remain pending.</span>
+                    }
+                    @if (!Model.CatalogueMigrationHistoryConsistent)
+                    {
+                        <span> The dedicated media migration history requires repair.</span>
+                    }
+                    <div class="small mt-1">Reference @Model.CatalogueDiagnosticReference</div>
+                </div>
+                <span class="badge text-bg-secondary">Recycle after full deployment</span>
+            </div>
+        }
+
+        @if (!Model.ExternalSourcesEnabled)
+        {
+            <div class="alert alert-info d-flex gap-2 align-items-start">
+                <i class="bi bi-info-circle mt-1" aria-hidden="true"></i>
+                <div>
+                    <strong>External folders are disabled.</strong>
+                    Enable <code>MediaLibrary:ExternalSources:Enabled</code> and
+                    <code>ScannerWorkerEnabled</code> in production configuration when this capability is required.
+                    The Photos module continues to use PRISM-owned media normally.
+                </div>
+            </div>
+        }
+
+        <div class="row g-3 mb-4">
+            <div class="col-sm-6 col-xl-3">
+                <div class="border rounded-3 p-3 h-100 bg-body">
+                    <div class="text-muted small">Available catalogue</div>
+                    <div class="fs-3 fw-semibold">@Model.PrismAssetCount.ToString("N0")</div>
+                    <div class="small text-muted">available PRISM assets</div>
+                    @if (Model.HistoricalAvailabilityCandidates > 0)
+                    {
+                        <div class="small text-warning mt-1">@Model.HistoricalAvailabilityCandidates historical item(s) awaiting availability reconciliation</div>
+                    }
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="border rounded-3 p-3 h-100 bg-body">
+                    <div class="text-muted small">Processing</div>
+                    <div class="fs-3 fw-semibold">@(Model.PendingJobs + Model.RetryingJobs + Model.RunningJobs)</div>
+                    <div class="small text-muted">@Model.PendingJobs pending · @Model.RunningJobs running · @Model.RetryingJobs delayed</div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="border rounded-3 p-3 h-100 bg-body">
+                    <div class="text-muted small">Completed processing jobs</div>
+                    <div class="fs-3 fw-semibold text-success">@Model.CompletedJobs</div>
+                    <div class="small text-muted">successful catalogue, derivative and intelligence jobs</div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="border rounded-3 p-3 h-100 bg-body">
+                    <div class="text-muted small">Unavailable media</div>
+                    <div class="fs-3 fw-semibold @(Model.UnavailableAssetCount > 0 ? "text-warning" : "text-success")">@Model.UnavailableAssetCount</div>
+                    <div class="small text-muted">hidden from Photos · retained for audit</div>
+                </div>
+            </div>
+        </div>
+
+        <section class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+                    <div>
+                        <h2 class="h5 mb-1">PRISM ingestion pipeline</h2>
+                        <p class="small text-muted mb-0">Source-domain media is committed first, then projected durably into the catalogue and intelligence workers.</p>
+                    </div>
+                    @if (Model.RetryableIngestionEvents > 0)
+                    {
+                        <form method="post" asp-page-handler="RetryIngestion">
+                            <button type="submit" class="btn btn-outline-danger">
+                                <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
+                                Retry failed ingestion
+                                <span class="badge text-bg-danger ms-1">@Model.RetryableIngestionEvents</span>
+                            </button>
+                        </form>
+                    }
+                </div>
+
+                @if (!Model.OutboxSchemaAvailable)
+                {
+                    <div class="alert alert-danger mt-3 mb-0" role="alert">
+                        <strong>PRISM media ingestion schema is incomplete.</strong>
+                        @Model.OutboxSchemaWarning
+                    </div>
+                }
+
+                <div class="row g-3 mt-1">
+                    <div class="col-6 col-lg-3">
+                        <div class="small text-muted">Current PRISM source records</div>
+                        <div class="fs-4 fw-semibold">@Model.PrismSourceRecordCount.ToString("N0")</div>
+                    </div>
+                    <div class="col-6 col-lg-3">
+                        <div class="small text-muted">Catalogue representations</div>
+                        <div class="fs-4 fw-semibold @(Model.MissingFromCatalogue > 0 ? "text-warning" : "text-success")">@Model.PrismCatalogueRecordCount.ToString("N0")</div>
+                        <div class="small text-muted">@Model.PrismAssetCount.ToString("N0") available · @Model.PrismUnavailableCatalogueCount.ToString("N0") unavailable</div>
+                    </div>
+                    <div class="col-6 col-lg-3">
+                        <div class="small text-muted">Awaiting catalogue</div>
+                        <div class="fs-4 fw-semibold @(Model.MissingFromCatalogue > 0 ? "text-warning" : "text-success")">@Model.MissingFromCatalogue.ToString("N0")</div>
+                    </div>
+                    <div class="col-6 col-lg-3">
+                        <div class="small text-muted">Outbox work</div>
+                        <div class="fs-4 fw-semibold">@(Model.PendingIngestionEvents + Model.ProcessingIngestionEvents)</div>
+                        <div class="small text-muted">@Model.PendingIngestionEvents pending · @Model.ProcessingIngestionEvents processing</div>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-3 small mt-3 pt-3 border-top">
+                    <span><strong>Activity source photos:</strong> @Model.ActivitySourcePhotoCount</span>
+                    <span><strong>Activity representations:</strong> @Model.ActivityCatalogueRepresentationCount</span>
+                    <span><strong>Activity availability:</strong> @Model.ActivityCataloguePhotoCount available · @Model.ActivityUnavailableCataloguePhotoCount unavailable</span>
+                    <span><strong>Outbox worker:</strong> @(Model.OutboxRuntime.IsRunning ? "Running" : "Stopped")</span>
+                    <span><strong>Backfill:</strong> @Model.OutboxRuntime.BackfillStatus</span>
+                    @if (Model.OutboxRuntime.LastHeartbeatUtc.HasValue)
+                    {
+                        <span><strong>Heartbeat:</strong> @Model.OutboxRuntime.LastHeartbeatUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</span>
+                    }
+                    @if (Model.OldestPendingIngestionAtUtc.HasValue)
+                    {
+                        <span><strong>Oldest pending:</strong> @Model.OldestPendingIngestionAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</span>
+                    }
+                </div>
+
+                @if (Model.MissingFromCatalogue > 0)
+                {
+                    <div class="alert alert-warning mt-3 mb-0" role="status">
+                        <strong>@Model.MissingFromCatalogue PRISM media record(s) are awaiting catalogue ingestion.</strong>
+                        @Model.PrismUnavailableCatalogueCount historical record(s) are already represented but remain unavailable.
+                        The transactional outbox retries automatically; use <em>Synchronize PRISM</em> only for an immediate full reconciliation.
+                        @if (!string.IsNullOrWhiteSpace(Model.LastIngestionError))
+                        {
+                            <div class="small mt-1"><strong>Latest ingestion error:</strong> @Model.LastIngestionError</div>
+                        }
+                    </div>
+                }
+                else if (Model.DeadLetterIngestionEvents == 0)
+                {
+                    <div class="small text-success mt-3"><i class="bi bi-check-circle me-1" aria-hidden="true"></i>Source and catalogue representations are converged.</div>
+                }
+                @if (Model.PrismOrphanedCatalogueCount > 0)
+                {
+                    <div class="small text-warning mt-2"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>@Model.PrismOrphanedCatalogueCount orphaned catalogue record(s) require reconciliation.</div>
+                }
+            </div>
+        </section>
+
+        <section class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-body border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3 py-3">
+                <div>
+                    <h2 class="h5 mb-1">Catalogue operations</h2>
+                    <p class="small text-muted mb-0">Verify the unified timeline independently from optional filters and aggregates.</p>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <form method="post" asp-page-handler="TestCatalogue">
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="bi bi-activity me-1" aria-hidden="true"></i> Test catalogue
+                        </button>
+                    </form>
+                    <form method="post" asp-page-handler="SynchronizePrism">
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i> Synchronize PRISM
+                        </button>
+                    </form>
+                    <form method="post" asp-page-handler="CheckConsistency">
+                        <button type="submit" class="btn btn-outline-secondary">
+                            <i class="bi bi-check2-square me-1" aria-hidden="true"></i> Consistency check
+                        </button>
+                    </form>
+                    @if (Model.HistoricalAvailabilityCandidates > 0)
+                    {
+                        <form method="post" asp-page-handler="ReconcileAvailability">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>
+                                Reconcile catalogue
+                                <span class="badge text-bg-dark ms-1">@Model.HistoricalAvailabilityCandidates</span>
+                            </button>
+                        </form>
+                    }
+                    @if (Model.UnavailableAssetCount > 0)
+                    {
+                        <form method="post" asp-page-handler="RecheckUnavailable">
+                            <button type="submit" class="btn btn-outline-warning">
+                                <i class="bi bi-folder-check me-1" aria-hidden="true"></i> Recheck unavailable media
+                            </button>
+                        </form>
+                    }
+                    @if (Model.FailedJobs + Model.DeadLetterJobs > 0)
+                    {
+                        <form method="post" asp-page-handler="RetryFailed">
+                            <button type="submit" class="btn btn-outline-danger">
+                                <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i> Retry recoverable jobs
+                            </button>
+                        </form>
+                    }
+                </div>
+            </div>
+            <div class="card-body">
+                @if (Model.CatalogueHealth is null)
+                {
+                    <p class="text-muted mb-0">Run a catalogue test to verify the timeline and optional facets.</p>
+                }
+                else
+                {
+                    <div class="row g-3">
+                        <div class="col-sm-6 col-xl-3">
+                            <div class="small text-muted">Database</div>
+                            <div class="fw-semibold @(Model.CatalogueHealth.DatabaseReachable ? "text-success" : "text-danger")">
+                                @(Model.CatalogueHealth.DatabaseReachable ? "Reachable" : "Unavailable")
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-xl-3">
+                            <div class="small text-muted">Schema</div>
+                            <div class="fw-semibold @(Model.CatalogueHealth.SchemaCurrent ? "text-success" : "text-danger")">
+                                @(Model.CatalogueHealth.SchemaCurrent ? "Current" : "Requires migration")
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-xl-3">
+                            <div class="small text-muted">Timeline query</div>
+                            <div class="fw-semibold @(Model.CatalogueHealth.TimelineQueryHealthy ? "text-success" : "text-danger")">
+                                @(Model.CatalogueHealth.TimelineQueryHealthy ? "Healthy" : "Failed")
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-xl-3">
+                            <div class="small text-muted">Optional facets</div>
+                            <div class="fw-semibold @(Model.CatalogueHealth.FacetsHealthy ? "text-success" : "text-warning")">
+                                @(Model.CatalogueHealth.FacetsHealthy ? "Healthy" : "Degraded")
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (Model.CatalogueHealth.Checks.Any(check => !check.Healthy))
+                    {
+                        <div class="table-responsive mt-3">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead>
+                                    <tr><th>Operation</th><th>Status</th><th>Reference</th><th>Duration</th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var check in Model.CatalogueHealth.Checks)
+                                    {
+                                        <tr>
+                                            <td>@check.Operation</td>
+                                            <td><span class="badge @(check.Healthy ? "text-bg-success" : "text-bg-danger")">@(check.Healthy ? "Healthy" : "Failed")</span></td>
+                                            <td><code>@check.Reference</code></td>
+                                            <td>@check.DurationMilliseconds ms</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                }
+            </div>
+        </section>
+
+        @if (Model.HistoricalAvailabilityCandidates > 0 || Model.LastAvailabilityCheckUtc.HasValue)
+        {
+            <section class="card border-0 shadow-sm mb-4">
+                <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+                    <div>
+                        <h2 class="h6 mb-1">Availability reconciliation</h2>
+                        <p class="small text-muted mb-0">
+                            @if (Model.HistoricalAvailabilityCandidates > 0)
+                            {
+                                <text>@Model.HistoricalAvailabilityCandidates historical missing-media record(s) still require verification.</text>
+                            }
+                            else
+                            {
+                                <text>Historical availability is reconciled.</text>
+                            }
+                            @if (Model.LastAvailabilityCheckUtc.HasValue)
+                            {
+                                <text> Last checked @Model.LastAvailabilityCheckUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm").</text>
+                            }
+                        </p>
+                    </div>
+                    @if (Model.HistoricalAvailabilityCandidates > 0)
+                    {
+                        <form method="post" asp-page-handler="ReconcileAvailability">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-folder-check me-1" aria-hidden="true"></i> Verify next batch
+                            </button>
+                        </form>
+                    }
+                </div>
+            </section>
+        }
+
+        <section class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-body border-bottom py-3">
+                <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+                    <div>
+                        <h2 class="h5 mb-1">Media processing</h2>
+                        <p class="small text-muted mb-0">Worker runtime, cache health and retry diagnostics.</p>
+                    </div>
+                    <span class="badge @(Model.ProcessingRuntime.WorkerStarted ? "text-bg-success" : "text-bg-warning")">
+                        @Model.ProcessingRuntime.State
+                    </span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-3 mb-3">
+                    <div class="col-sm-6 col-xl-3">
+                        <div class="small text-muted">Worker</div>
+                        <div class="fw-semibold">@(Model.ProcessingRuntime.WorkerConfigured ? (Model.ProcessingRuntime.WorkerStarted ? "Running" : "Configured, not started") : "Disabled")</div>
+                        @if (Model.ProcessingRuntime.LastHeartbeatUtc.HasValue)
+                        {
+                            <div class="small text-muted">Heartbeat @Model.ProcessingRuntime.LastHeartbeatUtc.Value.ToLocalTime().ToString("dd MMM HH:mm:ss")</div>
+                        }
+                    </div>
+                    <div class="col-sm-6 col-xl-3">
+                        <div class="small text-muted">Current work</div>
+                        <div class="fw-semibold">@(Model.ProcessingRuntime.CurrentJobId.HasValue ? $"Job {Model.ProcessingRuntime.CurrentJobId}" : "None")</div>
+                        @if (Model.ProcessingRuntime.CurrentAssetId.HasValue)
+                        {
+                            <div class="small text-muted">Asset @Model.ProcessingRuntime.CurrentAssetId</div>
+                        }
+                    </div>
+                    <div class="col-sm-6 col-xl-3">
+                        <div class="small text-muted">This application runtime</div>
+                        <div class="fw-semibold">@Model.ProcessingRuntime.CompletedSinceStart jobs completed</div>
+                        <div class="small text-muted">@Model.ProcessingRuntime.FailedSinceStart failed attempts · @Model.SourceUnavailableJobs source-unavailable outcomes</div>
+                    </div>
+                    <div class="col-sm-6 col-xl-3">
+                        <div class="small text-muted">Derivative cache</div>
+                        @if (Model.CacheHealth is null)
+                        {
+                            <div class="fw-semibold text-muted">Not tested</div>
+                        }
+                        else
+                        {
+                            <div class="fw-semibold @(Model.CacheHealth.IsHealthy ? "text-success" : "text-danger")">@(Model.CacheHealth.IsHealthy ? "Writable" : "Unavailable")</div>
+                            <div class="small text-muted text-break" title="@Model.CacheHealth.CacheRoot">@Model.CacheHealth.CacheRoot</div>
+                        }
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(Model.ProcessingRuntime.LastFailureMessage))
+                {
+                    <div class="alert alert-warning py-2 mb-3">
+                        <strong>Latest worker failure:</strong> @Model.ProcessingRuntime.LastFailureCode — @Model.ProcessingRuntime.LastFailureMessage
+                    </div>
+                }
+                @if (Model.CacheHealth is { IsHealthy: false })
+                {
+                    <div class="alert alert-danger py-2 mb-3">@Model.CacheHealth.Message</div>
+                }
+
+                @if (Model.RecentProblemJobs.Count > 0)
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                                <tr><th>Job</th><th>Status</th><th>Attempts</th><th>Last error</th><th>Next action</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var job in Model.RecentProblemJobs)
+                                {
+                                    <tr>
+                                        <td><div class="fw-semibold">#@job.Id</div><div class="small text-muted">Asset @job.MediaAssetId</div></td>
+                                        <td><span class="badge @(job.Status == MediaProcessingJobStatus.DeadLetter ? "text-bg-danger" : "text-bg-warning")">@job.Status</span></td>
+                                        <td>@job.AttemptCount / @job.MaxAttempts</td>
+                                        <td class="small" style="max-width: 34rem;">
+                                            <div class="fw-semibold">@(job.FailureCode ?? "Unknown")</div>
+                                            <div class="text-muted text-break">@(job.FailureMessage ?? "No failure detail was recorded.")</div>
+                                        </td>
+                                        <td class="small">@job.AvailableAfterUtc.ToLocalTime().ToString("dd MMM HH:mm:ss")</td>
+                                        <td class="text-end">
+                                            <form method="post" asp-page-handler="RetryJob">
+                                                <input type="hidden" name="id" value="@job.Id" />
+                                                @if (job.Status == MediaProcessingJobStatus.DeadLetter)
+                                                {
+                                                    <input type="hidden" name="forcePermanent" value="true" />
+                                                    <button class="btn btn-sm btn-outline-secondary" type="submit"
+                                                            onclick="return confirm('Retry only after restoring or correcting the source content. Continue?');">
+                                                        Force retry
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button class="btn btn-sm btn-outline-secondary" type="submit">Retry</button>
+                                                }
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted mb-0">No retrying, failed or dead-letter jobs.</p>
+                }
+            </div>
+        </section>
+
+        @if (Model.UnavailableAssetCount > 0)
+        {
+            <section class="card border-0 shadow-sm mb-4 media-unavailable-card">
+                <div class="card-header bg-body border-bottom py-3">
+                    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+                        <div>
+                            <h2 class="h5 mb-1">Unavailable media</h2>
+                            <p class="small text-muted mb-0">Excluded from Photos, preserved in the catalogue, and available for restoration checks.</p>
+                            <p class="small text-muted mb-0 mt-1">Recheck only verifies whether an original file has returned; it cannot recreate a missing upload. Restore the historical upload storage or correct its configured root first.</p>
+                        </div>
+                        <form method="post" asp-page-handler="RecheckUnavailable">
+                            <button type="submit" class="btn btn-outline-warning">
+                                <i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i> Recheck unavailable media
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 mt-3" aria-label="Unavailable media summary">
+                        @foreach (var status in new[]
+                        {
+                            MediaAvailabilityStatus.SourceMissing,
+                            MediaAvailabilityStatus.AccessDenied,
+                            MediaAvailabilityStatus.TemporarilyUnavailable,
+                            MediaAvailabilityStatus.Corrupt,
+                            MediaAvailabilityStatus.Unsupported
+                        })
+                        {
+                            var count = Model.GetUnavailableStatusCount(status);
+                            if (count > 0)
+                            {
+                                <a asp-page="./Index"
+                                   asp-route-us="@status"
+                                   asp-route-uq="@Model.UnavailableQuery"
+                                   class="badge rounded-pill text-bg-light border text-decoration-none px-3 py-2">
+                                    @IndexModel.GetAvailabilityStatusLabel(status) · @count
+                                </a>
+                            }
+                        }
+                    </div>
+
+                    <form method="get" class="row g-2 mt-2" role="search">
+                        <div class="col-12 col-lg-7">
+                            <label class="visually-hidden" for="unavailable-search">Search unavailable media</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-body"><i class="bi bi-search" aria-hidden="true"></i></span>
+                                <input id="unavailable-search" name="uq" value="@Model.UnavailableQuery" class="form-control"
+                                       placeholder="Search collection, filename or source" />
+                            </div>
+                        </div>
+                        <div class="col-8 col-lg-3">
+                            <label class="visually-hidden" for="unavailable-status">Availability status</label>
+                            <select id="unavailable-status" name="us" class="form-select">
+                                <option value="">All unavailable statuses</option>
+                                @foreach (var status in new[]
+                                {
+                                    MediaAvailabilityStatus.SourceMissing,
+                                    MediaAvailabilityStatus.AccessDenied,
+                                    MediaAvailabilityStatus.TemporarilyUnavailable,
+                                    MediaAvailabilityStatus.Corrupt,
+                                    MediaAvailabilityStatus.Unsupported
+                                })
+                                {
+                                    <option value="@status" selected="@(Model.UnavailableStatusFilter == status ? "selected" : null)">
+                                        @IndexModel.GetAvailabilityStatusLabel(status) (@Model.GetUnavailableStatusCount(status))
+                                    </option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-4 col-lg-2 d-grid">
+                            <button type="submit" class="btn btn-outline-secondary">Apply</button>
+                        </div>
+                    </form>
+                </div>
+
+                @if (Model.UnavailableAssets.Count == 0)
+                {
+                    <div class="card-body text-center py-5">
+                        <i class="bi bi-search fs-3 text-muted" aria-hidden="true"></i>
+                        <p class="mb-1 mt-2 fw-semibold">No unavailable media matches these filters</p>
+                        <a asp-page="./Index" class="small">Clear unavailable-media filters</a>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0 media-unavailable-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Media</th>
+                                    <th>Source</th>
+                                    <th>Status</th>
+                                    <th>Last checked</th>
+                                    <th class="text-end">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var asset in Model.UnavailableAssets)
+                                {
+                                    <tr>
+                                        <td class="min-w-0">
+                                            <div class="fw-semibold text-truncate" style="max-width: 28rem;" title="@asset.ContextTitle">@asset.ContextTitle</div>
+                                            <div class="small text-muted text-truncate" style="max-width: 28rem;" title="@asset.OriginalFileName">@asset.OriginalFileName</div>
+                                            <details class="small mt-2">
+                                                <summary class="text-secondary">Technical details</summary>
+                                                <dl class="row g-0 mt-2 mb-0 media-technical-details">
+                                                    <dt class="col-4">Asset</dt><dd class="col-8">@asset.Id</dd>
+                                                    <dt class="col-4">Origin</dt><dd class="col-8">@asset.Origin</dd>
+                                                    <dt class="col-4">Unavailable since</dt><dd class="col-8">@asset.UnavailableSinceDisplay</dd>
+                                                    <dt class="col-4">Recorded reason</dt><dd class="col-8 text-break">@asset.ReasonDetail</dd>
+                                                </dl>
+                                            </details>
+                                        </td>
+                                        <td>
+                                            <div class="fw-medium">@asset.SourceLabel</div>
+                                            <div class="small text-muted">@asset.Origin</div>
+                                        </td>
+                                        <td>
+                                            <span class="badge text-bg-secondary">@asset.StatusLabel</span>
+                                            <div class="small text-muted mt-2" style="max-width: 24rem;">@asset.ReasonSummary</div>
+                                        </td>
+                                        <td class="small text-nowrap">@asset.LastCheckedDisplay</td>
+                                        <td class="text-end">
+                                            <form method="post" asp-page-handler="RecheckUnavailableAsset">
+                                                <input type="hidden" name="id" value="@asset.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-secondary">Recheck source</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    @if (Model.UnavailableTotalPages > 1)
+                    {
+                        <div class="card-footer bg-body d-flex flex-wrap align-items-center justify-content-between gap-2">
+                            <div class="small text-muted">
+                                Page @Model.UnavailablePage of @Model.UnavailableTotalPages · @Model.UnavailableAssetCount total unavailable
+                            </div>
+                            <nav aria-label="Unavailable media pages">
+                                <ul class="pagination pagination-sm mb-0">
+                                    <li class="page-item @(Model.UnavailablePage <= 1 ? "disabled" : string.Empty)">
+                                        <a class="page-link" asp-page="./Index" asp-route-uq="@Model.UnavailableQuery" asp-route-us="@Model.UnavailableStatusFilter" asp-route-up="@(Model.UnavailablePage - 1)">Previous</a>
+                                    </li>
+                                    <li class="page-item disabled"><span class="page-link">@Model.UnavailablePage / @Model.UnavailableTotalPages</span></li>
+                                    <li class="page-item @(Model.UnavailablePage >= Model.UnavailableTotalPages ? "disabled" : string.Empty)">
+                                        <a class="page-link" asp-page="./Index" asp-route-uq="@Model.UnavailableQuery" asp-route-us="@Model.UnavailableStatusFilter" asp-route-up="@(Model.UnavailablePage + 1)">Next</a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+                    }
+                }
+            </section>
+        }
+
+        <div class="row g-4">
+            <div class="col-12 col-xl-8">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-body border-bottom d-flex align-items-center justify-content-between gap-3 py-3">
+                        <div>
+                            <h2 class="h5 mb-1">Configured sources</h2>
+                            <p class="small text-muted mb-0">Original files are always opened read-only.</p>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Source</th>
+                                    <th>Health</th>
+                                    <th class="text-end">Assets</th>
+                                    <th>Last scan</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.Sources.Count == 0)
+                                {
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted py-5">No catalogue sources are available.</td>
+                                    </tr>
+                                }
+                                @foreach (var source in Model.Sources)
+                                {
+                                    var healthClass = source.HealthStatus == "Reachable" || source.HealthStatus == "Internal"
+                                        ? "text-bg-success"
+                                        : source.HealthStatus is "Checking" or "Unknown"
+                                            ? "text-bg-secondary"
+                                            : "text-bg-warning";
+                                    <tr>
+                                        <td class="min-w-0">
+                                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                                <span class="fw-semibold">@source.Name</span>
+                                                @if (source.IsConfigurationManaged)
+                                                {
+                                                    <span class="badge text-bg-light border">Configuration managed</span>
+                                                }
+                                            </div>
+                                            <div class="small text-muted mt-1">
+                                                @if (source.Type == MediaLibrarySourceType.Prism)
+                                                {
+                                                    <text>System managed · Always included in Photos</text>
+                                                }
+                                                else
+                                                {
+                                                    <text>File-system folder · @(source.IsEnabled ? "Scanning enabled" : "Scanning paused") · @(source.IsVisibleInLibrary ? "Visible" : "Hidden")</text>
+                                                }
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(source.RootPath))
+                                            {
+                                                <code class="small d-block text-break mt-1">@source.RootPath</code>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(source.LastError))
+                                            {
+                                                <div class="small text-danger mt-1">@source.LastError</div>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="badge @healthClass">@source.HealthStatus</span>
+                                            @if (!string.IsNullOrWhiteSpace(source.HealthMessage))
+                                            {
+                                                <div class="small text-muted mt-1" title="@source.HealthMessage">
+                                                    @source.HealthMessage
+                                                </div>
+                                            }
+                                        </td>
+                                        <td class="text-end">@source.AssetCount.ToString("N0")</td>
+                                        <td class="small">
+                                            @(source.LastSuccessfulScanAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "Never")
+                                        </td>
+                                        <td class="text-end">
+                                            @if (source.Type == MediaLibrarySourceType.FileSystem)
+                                            {
+                                                <div class="dropdown">
+                                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                        Manage
+                                                    </button>
+                                                    <ul class="dropdown-menu dropdown-menu-end">
+                                                        <li>
+                                                            <form method="post" asp-page-handler="Test">
+                                                                <input type="hidden" name="id" value="@source.Id" />
+                                                                <button type="submit" class="dropdown-item">
+                                                                    <i class="bi bi-plug me-2" aria-hidden="true"></i>Test connection
+                                                                </button>
+                                                            </form>
+                                                        </li>
+                                                        <li>
+                                                            <form method="post" asp-page-handler="Scan">
+                                                                <input type="hidden" name="id" value="@source.Id" />
+                                                                <button type="submit" class="dropdown-item" disabled="@(!source.IsEnabled)">
+                                                                    <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>Scan now
+                                                                </button>
+                                                            </form>
+                                                        </li>
+                                                        @if (!source.IsConfigurationManaged)
+                                                        {
+                                                            <li><a class="dropdown-item" asp-route-edit="@source.Id"><i class="bi bi-pencil me-2" aria-hidden="true"></i>Edit</a></li>
+                                                            <li><hr class="dropdown-divider" /></li>
+                                                            <li>
+                                                                <form method="post" asp-page-handler="SetState">
+                                                                    <input type="hidden" name="id" value="@source.Id" />
+                                                                    <input type="hidden" name="enabled" value="@(!source.IsEnabled)" />
+                                                                    <input type="hidden" name="visible" value="@source.IsVisibleInLibrary" />
+                                                                    <button type="submit" class="dropdown-item">
+                                                                        <i class="bi @(source.IsEnabled ? "bi-pause-circle" : "bi-play-circle") me-2" aria-hidden="true"></i>
+                                                                        @(source.IsEnabled ? "Pause scanning" : "Resume scanning")
+                                                                    </button>
+                                                                </form>
+                                                            </li>
+                                                            <li>
+                                                                <form method="post" asp-page-handler="SetState">
+                                                                    <input type="hidden" name="id" value="@source.Id" />
+                                                                    <input type="hidden" name="enabled" value="@source.IsEnabled" />
+                                                                    <input type="hidden" name="visible" value="@(!source.IsVisibleInLibrary)" />
+                                                                    <button type="submit" class="dropdown-item">
+                                                                        <i class="bi @(source.IsVisibleInLibrary ? "bi-eye-slash" : "bi-eye") me-2" aria-hidden="true"></i>
+                                                                        @(source.IsVisibleInLibrary ? "Hide indexed media" : "Show indexed media")
+                                                                    </button>
+                                                                </form>
+                                                            </li>
+                                                            <li><hr class="dropdown-divider" /></li>
+                                                            <li>
+                                                                <form method="post" asp-page-handler="Disconnect" onsubmit="return confirm('Disconnect this folder? Indexed records will be hidden, but no original file will be changed or deleted.');">
+                                                                    <input type="hidden" name="id" value="@source.Id" />
+                                                                    <button type="submit" class="dropdown-item text-danger">
+                                                                        <i class="bi bi-x-circle me-2" aria-hidden="true"></i>Disconnect
+                                                                    </button>
+                                                                </form>
+                                                            </li>
+                                                        }
+                                                    </ul>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <span class="small text-muted">Automatic</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-xl-4">
+                <div class="card border-0 shadow-sm position-sticky" style="top: 5.5rem;">
+                    <div class="card-header bg-body border-bottom py-3">
+                        <h2 class="h5 mb-1">@(Model.IsEditing ? "Edit external folder" : "Connect external folder")</h2>
+                        <p class="small text-muted mb-0">Supports a local disk folder or a UNC share on a NAS/another server.</p>
+                    </div>
+                    <div class="card-body">
+                        @if (!Model.ExternalSourcesEnabled)
+                        {
+                            <p class="text-muted mb-0">Enable external sources in production configuration before adding a folder.</p>
+                        }
+                        else
+                        {
+                            <form method="post" class="vstack gap-3">
+                                <input asp-for="Input.Id" type="hidden" />
+                                <div>
+                                    <label asp-for="Input.Name" class="form-label">Display name</label>
+                                    <input asp-for="Input.Name" class="form-control" placeholder="Official photo archive" />
+                                    <span asp-validation-for="Input.Name" class="text-danger small"></span>
+                                </div>
+                                <div>
+                                    <label asp-for="Input.Key" class="form-label">Stable key <span class="text-muted fw-normal">(optional)</span></label>
+                                    <input asp-for="Input.Key" class="form-control" placeholder="official-photo-archive" />
+                                    <span asp-validation-for="Input.Key" class="text-danger small"></span>
+                                </div>
+                                <div>
+                                    <label asp-for="Input.RootPath" class="form-label">Folder path</label>
+                                    <input asp-for="Input.RootPath" class="form-control font-monospace" placeholder="D:\Photos or \\SERVER\Share\Photos" />
+                                    <div class="form-text">Use a local absolute path or UNC path. Do not use a mapped drive letter from another user session.</div>
+                                    <span asp-validation-for="Input.RootPath" class="text-danger small"></span>
+                                </div>
+                                <div>
+                                    <label asp-for="Input.AllowedExtensions" class="form-label">Allowed extensions</label>
+                                    <textarea asp-for="Input.AllowedExtensions" class="form-control font-monospace" rows="3"></textarea>
+                                    <span asp-validation-for="Input.AllowedExtensions" class="text-danger small"></span>
+                                </div>
+                                <div>
+                                    <label asp-for="Input.ScanIntervalMinutes" class="form-label">Scan interval (minutes)</label>
+                                    <input asp-for="Input.ScanIntervalMinutes" class="form-control" min="1" max="10080" />
+                                    <span asp-validation-for="Input.ScanIntervalMinutes" class="text-danger small"></span>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input asp-for="Input.IncludeSubfolders" class="form-check-input" />
+                                    <label asp-for="Input.IncludeSubfolders" class="form-check-label">Include subfolders</label>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input asp-for="Input.IsEnabled" class="form-check-input" />
+                                    <label asp-for="Input.IsEnabled" class="form-check-label">Enable background scanning</label>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <input asp-for="Input.IsVisibleInLibrary" class="form-check-input" />
+                                    <label asp-for="Input.IsVisibleInLibrary" class="form-check-label">Show indexed media in Photos</label>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2 pt-2">
+                                    <button type="submit" asp-page-handler="Save" class="btn btn-primary">
+                                        <i class="bi bi-check2 me-1" aria-hidden="true"></i>@(Model.IsEditing ? "Save changes" : "Connect folder")
+                                    </button>
+                                    <button type="submit" asp-page-handler="Test" class="btn btn-outline-secondary" formnovalidate>
+                                        <i class="bi bi-plug me-1" aria-hidden="true"></i>Test
+                                    </button>
+                                    @if (Model.IsEditing)
+                                    {
+                                        <a asp-page="./Index" class="btn btn-link">Cancel</a>
+                                    }
+                                </div>
+                            </form>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>

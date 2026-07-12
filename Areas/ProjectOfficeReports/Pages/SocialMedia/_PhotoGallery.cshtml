@@ -3,10 +3,10 @@
 
 @if (Model.Photos.Count == 0)
 {
-    <div class="social-gallery-empty text-center py-5">
-        <div class="social-empty__icon" aria-hidden="true"><i class="bi bi-images"></i></div>
-        <h3 class="social-empty__title">No photos yet</h3>
-        <p class="social-empty__subtitle">Upload images to showcase this event.</p>
+    <div class="social-gallery-empty">
+        <div class="social-empty-state__icon"><i class="bi bi-images" aria-hidden="true"></i></div>
+        <h3>No photographs added</h3>
+        <p>@(Model.CanManage ? "Use the upload area below to add activity photographs." : "No photographs are available for this activity.")</p>
     </div>
 }
 else
@@ -22,38 +22,43 @@ else
             var versionedFull = string.IsNullOrWhiteSpace(photo.VersionStamp)
                 ? full ?? string.Empty
                 : (full is null ? string.Empty : QueryHelpers.AddQueryString(full, "v", photo.VersionStamp));
+            var altText = string.IsNullOrWhiteSpace(photo.Caption) ? "Activity photograph" : photo.Caption;
+
             <article class="social-gallery-card">
                 <a href="@versionedFull" target="_blank" rel="noopener" class="social-gallery-card__image">
-                    <span class="visually-hidden">Open full-size photo in new tab</span>
+                    <span class="visually-hidden">Open full-size photograph in a new tab</span>
                     <div class="social-gallery-card__frame">
-                        <img src="@versionedThumbnail" alt="Event photo" />
+                        <img src="@versionedThumbnail" alt="" loading="lazy" data-social-photo />
+                        <div class="social-photo-fallback" hidden data-social-photo-fallback>
+                            <i class="bi bi-image" aria-hidden="true"></i>
+                            <strong>Photograph unavailable</strong>
+                            <span>The stored image could not be loaded.</span>
+                        </div>
                         @if (photo.IsCover)
                         {
-                            <span class="social-gallery-card__badge">Cover photo</span>
+                            <span class="social-gallery-card__badge"><i class="bi bi-star-fill" aria-hidden="true"></i>Cover</span>
                         }
                     </div>
                 </a>
                 <div class="social-gallery-card__info">
-                    @if (!string.IsNullOrWhiteSpace(photo.Caption))
-                    {
-                        <p class="social-gallery-card__caption mb-0">@photo.Caption</p>
-                    }
-                    else
-                    {
-                        <p class="social-gallery-card__caption social-gallery-card__caption--muted mb-0">No caption provided</p>
-                    }
+                    <p class="social-gallery-card__caption @(string.IsNullOrWhiteSpace(photo.Caption) ? "social-gallery-card__caption--muted" : string.Empty)">
+                        @(string.IsNullOrWhiteSpace(photo.Caption) ? "No caption" : photo.Caption)
+                    </p>
                     @if (Model.CanManage)
                     {
                         <div class="social-gallery-card__actions">
-                            <form method="post" asp-page-handler="SetCover" asp-route-id="@Model.EventId" class="social-gallery-card__form" data-social-disable-on-submit>
+                            @if (!photo.IsCover)
+                            {
+                                <form method="post" asp-page-handler="SetCover" asp-route-id="@Model.EventId" data-social-disable-on-submit>
+                                    <input type="hidden" name="photoId" value="@photo.Id" />
+                                    <input type="hidden" name="rowVersion" value="@photo.RowVersion" />
+                                    <button type="submit" class="btn btn-sm btn-outline-primary" data-social-busy-label="Setting…"><i class="bi bi-star" aria-hidden="true"></i>Set cover</button>
+                                </form>
+                            }
+                            <form method="post" asp-page-handler="DeletePhoto" asp-route-id="@Model.EventId" data-social-disable-on-submit data-confirm="Delete this photograph?">
                                 <input type="hidden" name="photoId" value="@photo.Id" />
                                 <input type="hidden" name="rowVersion" value="@photo.RowVersion" />
-                                <button type="submit" class="btn btn-sm btn-outline-primary" @(photo.IsCover ? "disabled" : null) data-social-busy-label="Setting cover…">Set cover</button>
-                            </form>
-                            <form method="post" asp-page-handler="DeletePhoto" asp-route-id="@Model.EventId" class="social-gallery-card__form" data-social-disable-on-submit data-confirm="Delete this photo?">
-                                <input type="hidden" name="photoId" value="@photo.Id" />
-                                <input type="hidden" name="rowVersion" value="@photo.RowVersion" />
-                                <button type="submit" class="btn btn-sm btn-outline-danger" data-social-busy-label="Deleting…">Delete</button>
+                                <button type="submit" class="btn btn-sm btn-outline-danger" data-social-busy-label="Deleting…"><i class="bi bi-trash" aria-hidden="true"></i>Remove</button>
                             </form>
                         </div>
                     }

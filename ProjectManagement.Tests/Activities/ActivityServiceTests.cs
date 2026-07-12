@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Application.Security;
 using ProjectManagement.Contracts.Activities;
+using ProjectManagement.Features.MediaLibrary.Services;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Activities;
 using ProjectManagement.Models.Activities;
@@ -297,6 +298,7 @@ public class ActivityServiceTests : IDisposable
     private readonly TestUserContext _userContext;
     private readonly TestClock _clock = new();
     private readonly TestUploadRootProvider _uploadRoot;
+    private readonly IPrismMediaIngestionCoordinator _mediaIngestion = new StubPrismMediaIngestionCoordinator();
     private readonly ActivityService _service;
 
     public ActivityServiceTests()
@@ -329,6 +331,7 @@ public class ActivityServiceTests : IDisposable
             _attachmentManager,
             _userContext,
             _clock,
+            _mediaIngestion,
             NullLogger<ActivityService>.Instance);
     }
 
@@ -357,6 +360,7 @@ public class ActivityServiceTests : IDisposable
             _attachmentManager,
             otherUser,
             _clock,
+            _mediaIngestion,
             NullLogger<ActivityService>.Instance);
 
         await Assert.ThrowsAsync<ActivityAuthorizationException>(() => otherService.UpdateAsync(created.Id, new ActivityInput("Workshop", null, null, type.Id, null, null)));
@@ -374,6 +378,7 @@ public class ActivityServiceTests : IDisposable
             _attachmentManager,
             hodContext,
             _clock,
+            _mediaIngestion,
             NullLogger<ActivityService>.Instance);
 
         var updated = await hodService.UpdateAsync(created.Id, new ActivityInput("Seminar Updated", null, null, type.Id, null, null));
@@ -392,6 +397,7 @@ public class ActivityServiceTests : IDisposable
             _attachmentManager,
             projectOfficeContext,
             _clock,
+            _mediaIngestion,
             NullLogger<ActivityService>.Instance);
 
         var updated = await projectOfficeService.UpdateAsync(created.Id, new ActivityInput("Briefing Updated", null, null, type.Id, null, null));
@@ -667,6 +673,7 @@ public class ActivityServiceTests : IDisposable
             _attachmentManager,
             userContext,
             _clock,
+            _mediaIngestion,
             NullLogger<ActivityService>.Instance);
     }
 
@@ -800,4 +807,13 @@ internal static class ActivityTestHelpers
             .Options;
         return new ApplicationDbContext(options);
     }
+
+}
+
+internal sealed class StubPrismMediaIngestionCoordinator : IPrismMediaIngestionCoordinator
+{
+    public Task<PrismMediaIngestionResult> ReconcileAfterSourceChangeAsync(
+        string reason,
+        CancellationToken cancellationToken)
+        => Task.FromResult(new PrismMediaIngestionResult(true, "Synchronized"));
 }

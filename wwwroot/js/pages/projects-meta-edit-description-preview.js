@@ -44,7 +44,7 @@
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-          RequestVerificationToken: tokenInput?.value || ''
+          'X-CSRF-TOKEN': tokenInput?.value || ''
         },
         body: body.toString()
       });

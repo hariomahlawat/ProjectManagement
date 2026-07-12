@@ -315,6 +315,8 @@ public sealed class FfcRecordsManagePageTests
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            builder.UsePrismTestInfrastructure("ffcrecordsmanagepage");
+
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll(typeof(DbContextOptions<ApplicationDbContext>));

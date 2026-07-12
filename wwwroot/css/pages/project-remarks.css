@@ -91,3 +91,9 @@
     .project-record-health-modal__summary { align-items:flex-start; flex-direction:column; }
     .project-record-health-modal__summary p { text-align:left; }
 }
+
+/* Conference directions remain in the common feed with restrained emphasis. */
+.project-remarks-feed .remarks-item.remarks-type-conference {
+    border-color: rgba(79, 70, 229, .24) !important;
+    background: rgba(79, 70, 229, .045) !important;
+}

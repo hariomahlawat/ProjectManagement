@@ -56,12 +56,12 @@ public sealed class NotificationBellViewComponent : ViewComponent
         var options = new NotificationListOptions
         {
             Limit = limit,
+            IncludeMuted = false,
+            IncludeFilterOptions = false,
         };
 
-        var recent = await _notifications.ListAsync(principal, userId, options, cancellationToken);
-        var unreadCount = await _notifications.CountUnreadAsync(principal, userId, cancellationToken);
-
-        var displayItems = recent
+        var page = await _notifications.ListPageAsync(principal, userId, options, cancellationToken);
+        var displayItems = page.Items
             .Select(NotificationDisplayModel.FromContract)
             .ToList();
 
@@ -69,7 +69,7 @@ public sealed class NotificationBellViewComponent : ViewComponent
         {
             IsAuthenticated = true,
             Notifications = displayItems,
-            UnreadCount = unreadCount,
+            UnreadCount = page.UnreadCount,
             NotificationCenterUrl = _linkGenerator.GetPathByPage(HttpContext, page: "/Notifications/Index") ?? "/Notifications",
             ApiBaseUrl = Url.Content("~/api/notifications"),
             UnreadCountUrl = Url.Content("~/api/notifications/count"),
