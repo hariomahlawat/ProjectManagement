@@ -3801,6 +3801,11 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("timestamp without time zone")
                         .HasDefaultValueSql("now() at time zone 'utc'");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
@@ -4668,6 +4673,11 @@ namespace ProjectManagement.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
                         .HasDefaultValue(0);
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
 
                     b.HasKey("Id");
 
@@ -5621,6 +5631,11 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("integer")
                         .HasDefaultValue(0);
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Name");
@@ -6197,6 +6212,11 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("timestamp without time zone")
                         .HasDefaultValueSql("now() at time zone 'utc'");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
@@ -6588,6 +6608,11 @@ namespace ProjectManagement.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
                         .HasDefaultValue(0);
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
 
                     b.HasKey("Id");
 

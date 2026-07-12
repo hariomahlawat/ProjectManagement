@@ -17,27 +17,31 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Documents;
+using ProjectManagement.Services.Admin;
 
 namespace ProjectManagement.Areas.Admin.Pages.Documents;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Policy = ProjectManagement.Configuration.AdminPolicies.RecoveryManage)]
 public class RecycleModel : PageModel
 {
     private readonly ApplicationDbContext _db;
     private readonly IDocumentService _documents;
     private readonly IAuditService _audit;
     private readonly ILogger<RecycleModel> _logger;
+    private readonly IAdminTimeService _time;
 
     public RecycleModel(
         ApplicationDbContext db,
         IDocumentService documents,
         IAuditService audit,
-        ILogger<RecycleModel> logger)
+        ILogger<RecycleModel> logger,
+        IAdminTimeService time)
     {
         _db = db;
         _documents = documents;
         _audit = audit;
         _logger = logger;
+        _time = time;
     }
 
     [BindProperty(SupportsGet = true)]
@@ -296,14 +300,14 @@ public class RecycleModel : PageModel
 
         if (DeletedFrom.HasValue)
         {
-            var fromUtc = ConvertToUtc(DeletedFrom.Value);
+            var fromUtc = _time.StartOfIstDayUtc(DateOnly.FromDateTime(DeletedFrom.Value));
             query = query.Where(d => d.ArchivedAtUtc >= fromUtc);
         }
 
         if (DeletedTo.HasValue)
         {
-            var toUtc = ConvertToUtc(DeletedTo.Value.AddDays(1).AddTicks(-1));
-            query = query.Where(d => d.ArchivedAtUtc <= toUtc);
+            var toUtcExclusive = _time.EndExclusiveOfIstDayUtc(DateOnly.FromDateTime(DeletedTo.Value));
+            query = query.Where(d => d.ArchivedAtUtc < toUtcExclusive);
         }
 
         if (!string.IsNullOrWhiteSpace(DeletedBy))
@@ -361,12 +365,7 @@ public class RecycleModel : PageModel
         return $"The operation could not be completed. Reference: {traceId}.";
     }
 
-    private static DateTimeOffset ConvertToUtc(DateTime date)
-    {
-        var unspecified = DateTime.SpecifyKind(date, DateTimeKind.Unspecified);
-        var utc = TimeZoneInfo.ConvertTimeToUtc(unspecified, IstClock.TimeZone);
-        return new DateTimeOffset(utc, TimeSpan.Zero);
-    }
+    public string FormatIst(DateTimeOffset? value) => _time.FormatIst(value);
 
     private object GetRouteValues() => new
     {

@@ -184,8 +184,8 @@ function init() {
       if (points.length) {
         const p = chart.data.datasets[points[0].datasetIndex].data[points[0].index];
         const localDate = String(p.iso).slice(0, 10);
-        const loginName = p.loginName || '';
-        window.location.href = `/Admin/Logs?User=${encodeURIComponent(loginName)}&From=${localDate}&To=${localDate}`;
+        const userId = p.userId || '';
+        window.location.href = `/Admin/Logs?UserId=${encodeURIComponent(userId)}&From=${localDate}&To=${localDate}`;
       }
     };
 

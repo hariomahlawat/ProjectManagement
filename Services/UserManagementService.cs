@@ -8,6 +8,7 @@ using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Admin;
 
 namespace ProjectManagement.Services
 {
@@ -20,6 +21,7 @@ namespace ProjectManagement.Services
         private readonly IAuditService _audit;
         private readonly IRoleNotificationService _roleNotifications;
         private readonly ILogger<UserManagementService> _logger;
+        private readonly IAdminAuditService? _adminAudit;
 
         public UserManagementService(
             ApplicationDbContext db,
@@ -28,7 +30,8 @@ namespace ProjectManagement.Services
             IHttpContextAccessor httpContextAccessor,
             IAuditService audit,
             IRoleNotificationService roleNotifications,
-            ILogger<UserManagementService>? logger = null)
+            ILogger<UserManagementService>? logger = null,
+            IAdminAuditService? adminAudit = null)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
@@ -37,6 +40,7 @@ namespace ProjectManagement.Services
             _audit = audit ?? throw new ArgumentNullException(nameof(audit));
             _roleNotifications = roleNotifications ?? throw new ArgumentNullException(nameof(roleNotifications));
             _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<UserManagementService>.Instance;
+            _adminAudit = adminAudit;
         }
 
         private static bool IsAdministrativelyActive(ApplicationUser user) =>
@@ -118,16 +122,11 @@ namespace ProjectManagement.Services
                     return stampResult;
                 }
 
-                await _audit.LogAsync(
+                await RecordAuditAsync(
                     "AdminUserCreated",
-                    userId: user.Id,
-                    userName: user.UserName,
-                    data: new Dictionary<string, string?>
-                    {
-                        ["Roles"] = string.Join(',', roleResolution.Roles),
-                        ["FullName"] = user.FullName,
-                        ["Rank"] = user.Rank
-                    });
+                    user,
+                    before: null,
+                    after: new { user.FullName, user.Rank, Roles = roleResolution.Roles });
 
                 await transaction.CommitAsync();
                 return IdentityResult.Success;
@@ -220,19 +219,11 @@ namespace ProjectManagement.Services
                     return stampResult;
                 }
 
-                await _audit.LogAsync(
+                await RecordAuditAsync(
                     "AdminUserUpdated",
-                    userId: user.Id,
-                    userName: user.UserName,
-                    data: new Dictionary<string, string?>
-                    {
-                        ["PreviousFullName"] = previousFullName,
-                        ["FullName"] = user.FullName,
-                        ["PreviousRank"] = previousRank,
-                        ["Rank"] = user.Rank,
-                        ["AddedRoles"] = string.Join(',', toAdd),
-                        ["RemovedRoles"] = string.Join(',', toRemove)
-                    });
+                    user,
+                    before: new { FullName = previousFullName, Rank = previousRank, Roles = previousRoles },
+                    after: new { user.FullName, user.Rank, Roles = targetRoles.OrderBy(role => role).ToArray() });
 
                 await transaction.CommitAsync();
             }
@@ -317,7 +308,7 @@ namespace ProjectManagement.Services
                     return stampResult;
                 }
 
-                await _audit.LogAsync("AdminUserPasswordReset", userId: user.Id, userName: user.UserName);
+                await RecordAuditAsync("AdminUserPasswordReset", user, before: null, after: new { user.MustChangePassword });
                 await transaction.CommitAsync();
                 return IdentityResult.Success;
             }
@@ -366,7 +357,7 @@ namespace ProjectManagement.Services
                     return result;
                 }
 
-                await _audit.LogAsync("AdminUserDeleted", userId: user.Id, userName: user.UserName);
+                await RecordAuditAsync("AdminUserDeleted", user, before: new { user.FullName, user.Rank, Roles = roles }, after: null);
                 await transaction.CommitAsync();
                 return IdentityResult.Success;
             }
@@ -377,6 +368,29 @@ namespace ProjectManagement.Services
                 _logger.LogError(ex, "Atomic user deletion failed for {UserId}.", userId);
                 return Failure("The user could not be deleted.");
             }
+        }
+
+        private Task RecordAuditAsync(
+            string action,
+            ApplicationUser user,
+            object? before,
+            object? after,
+            string? reason = null)
+        {
+            if (_adminAudit is not null)
+            {
+                return _adminAudit.RecordAsync(new AdminAuditEntry(
+                    action,
+                    "ApplicationUser",
+                    user.Id,
+                    before,
+                    after,
+                    reason,
+                    Message: user.UserName,
+                    ActorUserId: GetCurrentActorUserId()));
+            }
+
+            return _audit.LogAsync(action, userId: user.Id, userName: user.UserName);
         }
 
         private async Task<(IdentityResult Result, IReadOnlyList<string> Roles)> ResolveRolesAsync(IEnumerable<string>? requestedRoles)

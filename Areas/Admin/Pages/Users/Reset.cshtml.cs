@@ -6,11 +6,12 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Infrastructure;
+using ProjectManagement.Services.Admin;
 using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.Admin.Pages.Users
 {
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = ProjectManagement.Configuration.AdminPolicies.UsersManage)]
     public class ResetModel : PageModel
     {
         private readonly IUserManagementService _userService;
@@ -50,7 +51,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             if (result.Succeeded)
             {
                 _logger.LogInformation("Admin {Admin} reset password for user {UserId}", User.Identity?.Name, id);
-                TempData["ok"] = "Password reset.";
+                TempData[FlashMessageKeys.AdminUsersSuccess] = "Password reset.";
                 return RedirectToPage("Index");
             }
 

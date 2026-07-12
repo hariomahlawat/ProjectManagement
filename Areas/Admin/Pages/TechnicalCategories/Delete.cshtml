@@ -15,6 +15,7 @@ else
     <div class="alert alert-warning">This action cannot be undone.</div>
 
     <form method="post" class="card card-body shadow-sm">
+        <input asp-for="RowVersion" type="hidden" />
         <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
         <dl class="row mb-3">

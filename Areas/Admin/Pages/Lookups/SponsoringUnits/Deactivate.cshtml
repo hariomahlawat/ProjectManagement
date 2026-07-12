@@ -32,6 +32,7 @@
     </div>
 
     <form method="post" class="d-flex gap-2">
+    <input asp-for="RowVersion" type="hidden" />
         <button type="submit" class="btn btn-@(Model.Restore ? "success" : "danger")">@actionVerb</button>
         <a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a>
     </form>

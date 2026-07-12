@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Services.Activities;
+using ProjectManagement.Services.Admin;
 
 namespace ProjectManagement.Areas.Admin.Pages.ActivityTypes;
 
@@ -21,7 +22,7 @@ public sealed class CreateModel : PageModel
     [BindProperty]
     public InputModel Input { get; set; } = new();
 
-    [TempData]
+    [TempData(Key = FlashMessageKeys.AdminMasterDataError)]
     public string? ErrorMessage { get; set; }
 
     public void OnGet()
@@ -40,7 +41,7 @@ public sealed class CreateModel : PageModel
         try
         {
             var created = await _activityTypeService.CreateAsync(request, cancellationToken);
-            TempData["StatusMessage"] = $"Created '{created.Name}'.";
+            TempData[FlashMessageKeys.AdminMasterDataSuccess] = $"Created '{created.Name}'.";
             return RedirectToPage("Index");
         }
         catch (ActivityValidationException ex)

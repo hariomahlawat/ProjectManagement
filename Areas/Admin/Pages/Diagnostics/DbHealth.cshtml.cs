@@ -1,74 +1,64 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
-using Npgsql;
-using ProjectManagement.Data;
+using ProjectManagement.Configuration;
+using ProjectManagement.Services.Admin;
 
 namespace ProjectManagement.Areas.Admin.Pages.Diagnostics;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Policy = AdminPolicies.SecurityView)]
 public sealed class DbHealthModel : PageModel
 {
-    private readonly ApplicationDbContext _db;
+    private readonly IDatabaseHealthService _health;
 
-    public DbHealthModel(ApplicationDbContext db)
+    public DbHealthModel(IDatabaseHealthService health)
     {
-        _db = db;
+        _health = health ?? throw new ArgumentNullException(nameof(health));
     }
 
-    public bool IsRelational { get; private set; }
+    public DatabaseHealthSnapshot Snapshot { get; private set; } = new(
+        false,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        "(not available)",
+        Array.Empty<string>(),
+        Array.Empty<string>(),
+        Array.Empty<string>(),
+        Array.Empty<string>(),
+        Array.Empty<DatabaseHealthCheck>());
 
-    public string? DatabaseName { get; private set; }
-
-    public string? Host { get; private set; }
-
-    public string LatestMigration { get; private set; } = "(not available)";
-
-    public IReadOnlyList<string> PendingMigrations { get; private set; } = Array.Empty<string>();
-
-    public bool HasPendingMigrations => PendingMigrations.Count > 0;
-
-    public async Task OnGetAsync()
+    public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        IsRelational = _db.Database.IsRelational();
-        if (!IsRelational)
-        {
-            return;
-        }
-
-        ResolveConnectionMetadata();
-
-        var applied = (await _db.Database.GetAppliedMigrationsAsync()).ToList();
-        LatestMigration = applied.Count > 0 ? applied[^1] : "(none)";
-
-        PendingMigrations = (await _db.Database.GetPendingMigrationsAsync())
-            .OrderBy(m => m)
-            .ToList();
+        Snapshot = await _health.CheckAsync(cancellationToken);
     }
 
-    private void ResolveConnectionMetadata()
+    public static string StatusCss(AdminHealthStatus status) => status switch
     {
-        var connectionString = _db.Database.GetConnectionString();
-        if (string.IsNullOrWhiteSpace(connectionString))
+        AdminHealthStatus.Healthy => "text-bg-success",
+        AdminHealthStatus.Warning => "text-bg-warning",
+        AdminHealthStatus.Critical => "text-bg-danger",
+        _ => "text-bg-secondary"
+    };
+
+    public static string FormatBytes(long? bytes)
+    {
+        if (!bytes.HasValue)
         {
-            return;
+            return "—";
         }
 
-        try
+        var size = (double)bytes.Value;
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        var index = 0;
+        while (size >= 1024 && index < units.Length - 1)
         {
-            var builder = new NpgsqlConnectionStringBuilder(connectionString);
-            DatabaseName = builder.Database;
-            Host = builder.Host;
+            size /= 1024;
+            index++;
         }
-        catch (ArgumentException)
-        {
-            var connection = _db.Database.GetDbConnection();
-            DatabaseName = connection.Database;
-            Host = connection.DataSource;
-        }
+
+        return $"{size:0.##} {units[index]}";
     }
 }

@@ -7,18 +7,23 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData;
 
 namespace ProjectManagement.Areas.Admin.Pages.Lookups.SponsoringUnits;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Policy = AdminPolicies.MasterDataManage)]
 public class IndexModel : PageModel
 {
     private readonly ApplicationDbContext _db;
+    private readonly IAdminMasterDataCommandService _commands;
 
-    public IndexModel(ApplicationDbContext db)
+    public IndexModel(ApplicationDbContext db, IAdminMasterDataCommandService commands)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _commands = commands ?? throw new ArgumentNullException(nameof(commands));
     }
 
     private const int PageSize = 20;
@@ -39,8 +44,11 @@ public class IndexModel : PageModel
 
     public int TotalPages { get; private set; }
 
-    [TempData]
+    [TempData(Key = FlashMessageKeys.AdminMasterDataSuccess)]
     public string? StatusMessage { get; set; }
+
+    [TempData(Key = FlashMessageKeys.AdminMasterDataError)]
+    public string? ErrorMessage { get; set; }
 
     public async Task OnGetAsync()
     {
@@ -91,59 +99,10 @@ public class IndexModel : PageModel
             .ToListAsync();
     }
 
-    public async Task<IActionResult> OnPostMoveAsync(int id, int offset)
+    public async Task<IActionResult> OnPostMoveAsync(int id, int offset, CancellationToken cancellationToken)
     {
-        if (offset == 0)
-        {
-            StatusMessage = "No changes made.";
-            return RedirectToPage(new { pageNumber = Math.Max(1, PageNumber), q = Q, status = Status });
-        }
-
-        var units = await _db.SponsoringUnits
-            .OrderBy(u => u.SortOrder)
-            .ThenBy(u => u.Name)
-            .ToListAsync();
-
-        var currentIndex = units.FindIndex(u => u.Id == id);
-        if (currentIndex < 0)
-        {
-            return NotFound();
-        }
-
-        var targetIndex = Math.Clamp(currentIndex + offset, 0, units.Count - 1);
-        if (targetIndex == currentIndex)
-        {
-            StatusMessage = offset < 0 ? "Already at the top." : "Already at the bottom.";
-            return RedirectToPage(new { pageNumber = Math.Max(1, PageNumber), q = Q, status = Status });
-        }
-
-        var unit = units[currentIndex];
-        units.RemoveAt(currentIndex);
-        units.Insert(targetIndex, unit);
-
-        var anyChanges = false;
-        for (var i = 0; i < units.Count; i++)
-        {
-            var desiredOrder = i + 1;
-            if (units[i].SortOrder != desiredOrder)
-            {
-                units[i].SortOrder = desiredOrder;
-                anyChanges = true;
-            }
-        }
-
-        if (anyChanges)
-        {
-            await _db.SaveChangesAsync();
-            StatusMessage = offset < 0
-                ? $"Moved '{unit.Name}' up."
-                : $"Moved '{unit.Name}' down.";
-        }
-        else
-        {
-            StatusMessage = "No changes made.";
-        }
-
+        var result = await _commands.MoveSponsoringUnitAsync(id, offset, cancellationToken);
+        TempData[result.Succeeded ? FlashMessageKeys.AdminMasterDataSuccess : FlashMessageKeys.AdminMasterDataError] = result.UserMessage;
         return RedirectToPage(new { pageNumber = Math.Max(1, PageNumber), q = Q, status = Status });
     }
 

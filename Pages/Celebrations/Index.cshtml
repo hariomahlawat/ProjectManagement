@@ -22,6 +22,14 @@
     </div>
 </div>
 
+@if (TempData[FlashMessageKeys.CelebrationsSuccess] is string successMessage)
+{
+    <div class="alert alert-success" role="status">@successMessage</div>
+}
+@if (TempData[FlashMessageKeys.CelebrationsError] is string errorMessage)
+{
+    <div class="alert alert-danger" role="alert">@errorMessage</div>
+}
 
 <form method="get" class="card card-body border-0 shadow-sm mb-3">
     <div class="row g-2 align-items-end">

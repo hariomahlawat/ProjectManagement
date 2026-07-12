@@ -5,11 +5,12 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Admin;
 using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.Admin.Pages.Users
 {
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = ProjectManagement.Configuration.AdminPolicies.UsersManage)]
     [ResponseCache(NoStore = true)]
     public class DisableModel : PageModel
     {
@@ -39,7 +40,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             if (UserEntity == null) return NotFound();
             if (UserEntity.IsDisabled)
             {
-                TempData["ok"] = "User already disabled.";
+                TempData[FlashMessageKeys.AdminUsersSuccess] = "User already disabled.";
                 return RedirectToPage("Index");
             }
             return Page();
@@ -67,7 +68,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             try
             {
                 await _lifecycle.DisableAsync(id, actorId, Reason);
-                TempData["ok"] = "User disabled.";
+                TempData[FlashMessageKeys.AdminUsersSuccess] = "User disabled.";
                 return RedirectToPage("Index");
             }
             catch (System.Exception ex)

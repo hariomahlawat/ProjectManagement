@@ -132,15 +132,7 @@
                         </td>
                         <td class="text-end">@row.FileSizeDisplay</td>
                         <td>
-                            @if (row.DeletedAtUtc.HasValue)
-                            {
-                                var deletedIst = IstClock.ToIst(row.DeletedAtUtc.Value.UtcDateTime);
-                                <div>@deletedIst.ToString("dd MMM yyyy HH:mm") IST</div>
-                            }
-                            else
-                            {
-                                <div class="text-muted">—</div>
-                            }
+                            <div>@Model.FormatIst(row.DeletedAtUtc)</div>
                             <div class="text-muted small">@row.DeletedByDisplay</div>
                         </td>
                         <td class="text-end">

@@ -31,7 +31,7 @@
   </div>
   <div class="col-md-3"><div class="pm-card pm-shadow p-3"><div class="text-muted">Total users</div><div class="fs-3">@Model.TotalUsers</div></div></div>
   <div class="col-md-3"><div class="pm-card pm-shadow p-3"><div class="text-muted">Active</div><div class="fs-3">@Model.ActiveUsers</div></div></div>
-  <div class="col-md-3"><div class="pm-card pm-shadow p-3"><div class="text-muted">Disabled</div><div class="fs-3">@Model.DisabledUsers</div></div></div>
+  <div class="col-md-3"><div class="pm-card pm-shadow p-3"><div class="text-muted">Access restricted</div><div class="fs-3">@Model.RestrictedUsers</div></div></div>
 </div>
 
 <div class="pm-card pm-shadow chart-card mb-4">
@@ -54,7 +54,7 @@
     <thead><tr><th>User</th><th>Last login</th><th>Total logins</th></tr></thead>
     <tbody>
       @foreach (var u in Model.TopUsers)
-      { <tr><td>@u.UserName</td><td>@TimeFmt.ToIst(u.LastLogin)</td><td>@u.Count</td></tr> }
+      { <tr><td>@u.UserName</td><td>@Model.FormatIst(u.LastLoginUtc)</td><td>@u.LoginCount</td></tr> }
     </tbody>
   </table>
 </div>

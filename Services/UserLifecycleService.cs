@@ -8,6 +8,7 @@ using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Admin;
 
 namespace ProjectManagement.Services
 {
@@ -19,6 +20,7 @@ namespace ProjectManagement.Services
         private readonly UserLifecycleOptions _options;
         private readonly IClock _clock;
         private readonly ILogger<UserLifecycleService> _logger;
+        private readonly IAdminAuditService? _adminAudit;
 
         public UserLifecycleService(
             ApplicationDbContext db,
@@ -26,7 +28,8 @@ namespace ProjectManagement.Services
             IAuditService audit,
             IOptions<UserLifecycleOptions> options,
             IClock clock,
-            ILogger<UserLifecycleService>? logger = null)
+            ILogger<UserLifecycleService>? logger = null,
+            IAdminAuditService? adminAudit = null)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
@@ -34,6 +37,7 @@ namespace ProjectManagement.Services
             _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
             _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<UserLifecycleService>.Instance;
+            _adminAudit = adminAudit;
         }
 
         private async Task<bool> IsLastActiveAdminAsync(ApplicationUser target)
@@ -91,15 +95,13 @@ namespace ProjectManagement.Services
                 await EnsureSucceededAsync(_userManager.UpdateAsync(user), "The account could not be disabled.");
                 await EnsureSucceededAsync(_userManager.UpdateSecurityStampAsync(user), "The account security state could not be refreshed.");
 
-                await _audit.LogAsync(
+                await RecordAuditAsync(
                     "AdminUserDisabled",
-                    userId: user.Id,
-                    userName: user.UserName,
-                    data: new Dictionary<string, string?>
-                    {
-                        ["Reason"] = reason?.Trim(),
-                        ["Actor"] = actorUserId
-                    });
+                    user,
+                    before,
+                    CaptureState(user),
+                    reason,
+                    actorUserId);
 
                 await transaction.CommitAsync();
             }
@@ -138,11 +140,12 @@ namespace ProjectManagement.Services
                 await EnsureSucceededAsync(_userManager.UpdateAsync(user), "The account could not be enabled.");
                 await EnsureSucceededAsync(_userManager.UpdateSecurityStampAsync(user), "The account security state could not be refreshed.");
 
-                await _audit.LogAsync(
+                await RecordAuditAsync(
                     "AdminUserEnabled",
-                    userId: user.Id,
-                    userName: user.UserName,
-                    data: new Dictionary<string, string?> { ["Actor"] = actorUserId });
+                    user,
+                    before,
+                    CaptureState(user),
+                    actorUserId: actorUserId);
 
                 await transaction.CommitAsync();
             }
@@ -209,16 +212,12 @@ namespace ProjectManagement.Services
                 await EnsureSucceededAsync(_userManager.UpdateAsync(user), "The deletion request could not be recorded.");
                 await EnsureSucceededAsync(_userManager.UpdateSecurityStampAsync(user), "The account security state could not be refreshed.");
 
-                await _audit.LogAsync(
+                await RecordAuditAsync(
                     "AdminUserDeleteRequested",
-                    userId: user.Id,
-                    userName: user.UserName,
-                    data: new Dictionary<string, string?>
-                    {
-                        ["Actor"] = actorUserId,
-                        ["PreviousDisabled"] = before.IsDisabled ? "true" : "false",
-                        ["PreviousLockoutEnd"] = before.LockoutEnd?.ToString("O")
-                    });
+                    user,
+                    before,
+                    CaptureState(user),
+                    actorUserId: actorUserId);
 
                 await transaction.CommitAsync();
 
@@ -264,16 +263,12 @@ namespace ProjectManagement.Services
                 await EnsureSucceededAsync(_userManager.UpdateAsync(user), "The deletion request could not be undone.");
                 await EnsureSucceededAsync(_userManager.UpdateSecurityStampAsync(user), "The account security state could not be refreshed.");
 
-                await _audit.LogAsync(
+                await RecordAuditAsync(
                     "AdminUserDeleteUndone",
-                    userId: user.Id,
-                    userName: user.UserName,
-                    data: new Dictionary<string, string?>
-                    {
-                        ["Actor"] = actorUserId,
-                        ["RestoredDisabled"] = previous.IsDisabled ? "true" : "false",
-                        ["RestoredLockoutEnd"] = previous.LockoutEnd?.ToString("O")
-                    });
+                    user,
+                    deleteRequestState,
+                    CaptureState(user),
+                    actorUserId: actorUserId);
 
                 await transaction.CommitAsync();
                 return true;
@@ -314,7 +309,7 @@ namespace ProjectManagement.Services
                     return false;
                 }
 
-                await _audit.LogAsync("AdminUserPurged", userId: user.Id, userName: user.UserName);
+                await RecordAuditAsync("AdminUserPurged", user, CaptureState(user), after: null);
                 await transaction.CommitAsync();
                 return true;
             }
@@ -325,6 +320,30 @@ namespace ProjectManagement.Services
                 _logger.LogError(ex, "Failed to purge user {UserId} atomically.", targetUserId);
                 return false;
             }
+        }
+
+        private Task RecordAuditAsync(
+            string action,
+            ApplicationUser user,
+            object? before,
+            object? after,
+            string? reason = null,
+            string? actorUserId = null)
+        {
+            if (_adminAudit is not null)
+            {
+                return _adminAudit.RecordAsync(new AdminAuditEntry(
+                    action,
+                    "ApplicationUser",
+                    user.Id,
+                    before,
+                    after,
+                    reason,
+                    Message: user.UserName,
+                    ActorUserId: actorUserId));
+            }
+
+            return _audit.LogAsync(action, userId: user.Id, userName: user.UserName);
         }
 
         private async Task<ApplicationUser> FindRequiredUserAsync(string userId) =>

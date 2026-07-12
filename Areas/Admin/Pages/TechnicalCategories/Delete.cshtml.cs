@@ -1,76 +1,67 @@
-using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData;
 
-namespace ProjectManagement.Areas.Admin.Pages.TechnicalCategories
+namespace ProjectManagement.Areas.Admin.Pages.TechnicalCategories;
+
+[Authorize(Policy = AdminPolicies.MasterDataManage)]
+public sealed class DeleteModel : PageModel
 {
-    public class DeleteModel : PageModel
-    {
-        private readonly ApplicationDbContext _db;
+    private readonly ApplicationDbContext _db;
+    private readonly IAdminMasterDataCommandService _commands;
 
-        public DeleteModel(ApplicationDbContext db)
+    public DeleteModel(ApplicationDbContext db, IAdminMasterDataCommandService commands)
+    {
+        _db = db;
+        _commands = commands;
+    }
+
+    public TechnicalCategory? Category { get; private set; }
+
+    [BindProperty]
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
+    public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
+    {
+        Category = await _db.TechnicalCategories
+            .Include(item => item.Parent)
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+
+        if (Category is null)
         {
-            _db = db;
+            return NotFound();
         }
 
-        [BindProperty]
-        public TechnicalCategory? Category { get; set; }
+        RowVersion = Category.RowVersion;
+        return Page();
+    }
 
-        [TempData]
-        public string? StatusMessage { get; set; }
-
-        public async Task<IActionResult> OnGetAsync(int id)
+    public async Task<IActionResult> OnPostAsync(int id, CancellationToken cancellationToken)
+    {
+        var result = await _commands.DeleteTechnicalCategoryAsync(id, RowVersion, cancellationToken);
+        if (!result.Succeeded)
         {
-            var category = await _db.TechnicalCategories
-                .Include(c => c.Parent)
-                .AsNoTracking()
-                .SingleOrDefaultAsync(c => c.Id == id);
-
-            if (category is null)
+            if (result.ErrorCode == "NotFound")
             {
                 return NotFound();
             }
 
-            Category = category;
+            Category = await _db.TechnicalCategories
+                .Include(item => item.Parent)
+                .AsNoTracking()
+                .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+            ModelState.AddModelError(string.Empty, result.UserMessage ?? "The technical category could not be deleted.");
             return Page();
         }
 
-        public async Task<IActionResult> OnPostAsync(int id)
-        {
-            var category = await _db.TechnicalCategories.SingleOrDefaultAsync(c => c.Id == id);
-            if (category is null)
-            {
-                return NotFound();
-            }
-
-            var childCount = await _db.TechnicalCategories.CountAsync(c => c.ParentId == id);
-            if (childCount > 0)
-            {
-                await _db.Entry(category).Reference(c => c.Parent).LoadAsync();
-                var childLabel = childCount == 1 ? "child category" : "child categories";
-                ModelState.AddModelError(string.Empty, $"This technical category has {childCount} {childLabel}. Reassign or delete them first.");
-                Category = category;
-                return Page();
-            }
-
-            var projectCount = await _db.Projects.CountAsync(p => p.TechnicalCategoryId == id);
-            if (projectCount > 0)
-            {
-                await _db.Entry(category).Reference(c => c.Parent).LoadAsync();
-                var projectLabel = projectCount == 1 ? "project" : "projects";
-                ModelState.AddModelError(string.Empty, $"Cannot delete yet. {projectCount} {projectLabel} currently use this technical category. Reassign them before deleting.");
-                Category = category;
-                return Page();
-            }
-
-            _db.TechnicalCategories.Remove(category);
-            await _db.SaveChangesAsync();
-
-            TempData["StatusMessage"] = $"Deleted '{category.Name}'.";
-            return RedirectToPage("Index");
-        }
+        TempData[FlashMessageKeys.AdminMasterDataSuccess] = result.UserMessage;
+        return RedirectToPage("Index");
     }
 }

@@ -1,101 +1,81 @@
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Helpers;
-using ProjectManagement.Models;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData;
 
-namespace ProjectManagement.Areas.Admin.Pages.TechnicalCategories
+namespace ProjectManagement.Areas.Admin.Pages.TechnicalCategories;
+
+[Authorize(Policy = AdminPolicies.MasterDataManage)]
+public sealed class CreateModel : PageModel
 {
-    public class CreateModel : PageModel
+    private readonly ApplicationDbContext _db;
+    private readonly IAdminMasterDataCommandService _commands;
+
+    public CreateModel(ApplicationDbContext db, IAdminMasterDataCommandService commands)
     {
-        private readonly ApplicationDbContext _db;
+        _db = db;
+        _commands = commands;
+    }
 
-        public CreateModel(ApplicationDbContext db)
+    [BindProperty]
+    public InputModel Input { get; set; } = new();
+
+    public IList<SelectListItem> ParentOptions { get; private set; } = new List<SelectListItem>();
+
+    public async Task OnGetAsync(int? parentId, CancellationToken cancellationToken)
+    {
+        Input.ParentId = parentId;
+        ParentOptions = await LoadParentOptionsAsync(parentId, null);
+    }
+
+    public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
+    {
+        ParentOptions = await LoadParentOptionsAsync(Input.ParentId, null);
+        if (!ModelState.IsValid)
         {
-            _db = db;
+            return Page();
         }
 
-        [BindProperty]
-        public InputModel Input { get; set; } = new();
+        var result = await _commands.CreateTechnicalCategoryAsync(
+            new CategoryCreateCommand(Input.Name, Input.ParentId, Input.IsActive),
+            cancellationToken);
 
-        public IList<SelectListItem> ParentOptions { get; private set; } = new List<SelectListItem>();
-
-        [TempData]
-        public string? StatusMessage { get; set; }
-
-        public async Task OnGetAsync(int? parentId)
+        if (!result.Succeeded)
         {
-            Input.ParentId = parentId;
-            ParentOptions = await LoadParentOptionsAsync(parentId, null);
+            var key = result.ErrorCode is "ParentNotFound" or "SelfParent" or "DescendantParent" or "HierarchyCycleDetected"
+                ? "Input.ParentId"
+                : "Input.Name";
+            ModelState.AddModelError(key, result.UserMessage ?? "The technical category could not be created.");
+            return Page();
         }
 
-        public async Task<IActionResult> OnPostAsync()
-        {
-            ParentOptions = await LoadParentOptionsAsync(Input.ParentId, null);
+        TempData[FlashMessageKeys.AdminMasterDataSuccess] = result.UserMessage;
+        return RedirectToPage("Index");
+    }
 
-            if (!ModelState.IsValid)
-            {
-                return Page();
-            }
+    private Task<List<SelectListItem>> LoadParentOptionsAsync(int? selectedId, int? excludeId) =>
+        CategoryHierarchyBuilder.BuildSelectListAsync(
+            _db.TechnicalCategories,
+            selectedId,
+            excludeId,
+            item => item.Id,
+            item => item.ParentId,
+            item => item.SortOrder,
+            item => item.Name);
 
-            var trimmedName = Input.Name.Trim();
-            var duplicateExists = await _db.TechnicalCategories
-                .AnyAsync(c => c.ParentId == Input.ParentId && c.Name == trimmedName);
+    public sealed class InputModel
+    {
+        [Required, StringLength(120)]
+        public string Name { get; set; } = string.Empty;
 
-            if (duplicateExists)
-            {
-                ModelState.AddModelError("Input.Name", "A category with this name already exists under the selected parent.");
-                return Page();
-            }
+        public int? ParentId { get; set; }
 
-            var category = new TechnicalCategory
-            {
-                Name = trimmedName,
-                ParentId = Input.ParentId,
-                IsActive = Input.IsActive
-            };
-
-            var maxSortOrder = await _db.TechnicalCategories
-                .Where(c => c.ParentId == Input.ParentId)
-                .MaxAsync(c => (int?)c.SortOrder);
-
-            category.SortOrder = (maxSortOrder ?? -1) + 1;
-
-            _db.TechnicalCategories.Add(category);
-            await _db.SaveChangesAsync();
-
-            TempData["StatusMessage"] = $"Created '{category.Name}'.";
-
-            return RedirectToPage("Index");
-        }
-
-        private Task<List<SelectListItem>> LoadParentOptionsAsync(int? selectedId, int? excludeId)
-        {
-            return CategoryHierarchyBuilder.BuildSelectListAsync(
-                _db.TechnicalCategories,
-                selectedId,
-                excludeId,
-                c => c.Id,
-                c => c.ParentId,
-                c => c.SortOrder,
-                c => c.Name);
-        }
-
-        public class InputModel
-        {
-            [Required]
-            [MaxLength(120)]
-            public string Name { get; set; } = string.Empty;
-
-            public int? ParentId { get; set; }
-
-            public bool IsActive { get; set; } = true;
-        }
+        public bool IsActive { get; set; } = true;
     }
 }

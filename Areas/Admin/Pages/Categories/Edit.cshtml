@@ -8,6 +8,7 @@
 
 <form method="post" class="card card-body shadow-sm">
     <input asp-for="Input.Id" type="hidden" />
+    <input asp-for="Input.RowVersion" type="hidden" />
     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
     <div class="mb-3">

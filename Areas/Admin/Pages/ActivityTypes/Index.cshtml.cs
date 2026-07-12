@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Services.Activities;
+using ProjectManagement.Services.Admin;
 
 namespace ProjectManagement.Areas.Admin.Pages.ActivityTypes;
 
@@ -22,10 +23,10 @@ public sealed class IndexModel : PageModel
 
     public IReadOnlyList<ActivityTypeRow> ActivityTypes { get; private set; } = Array.Empty<ActivityTypeRow>();
 
-    [TempData]
+    [TempData(Key = FlashMessageKeys.AdminMasterDataSuccess)]
     public string? StatusMessage { get; set; }
 
-    [TempData]
+    [TempData(Key = FlashMessageKeys.AdminMasterDataError)]
     public string? ErrorMessage { get; set; }
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
@@ -46,7 +47,7 @@ public sealed class IndexModel : PageModel
         {
             await _activityTypeService.UpdateAsync(
                 id,
-                new ActivityTypeInput(existing.Name, existing.Description, !existing.IsActive),
+                new ActivityTypeInput(existing.Name, existing.Description, !existing.IsActive, existing.RowVersion),
                 cancellationToken);
 
             StatusMessage = existing.IsActive

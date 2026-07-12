@@ -6,11 +6,12 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Infrastructure;
+using ProjectManagement.Services.Admin;
 using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.Admin.Pages.Users
 {
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = ProjectManagement.Configuration.AdminPolicies.UsersManage)]
     public class CreateModel : PageModel
     {
         private readonly IUserManagementService _users;
@@ -89,7 +90,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
                     Input.Rank,
                     string.Join(',', Input.Roles));
 
-                TempData["ok"] = "User created.";
+                TempData[FlashMessageKeys.AdminUsersSuccess] = "User created.";
                 return RedirectToPage("Index");
             }
 

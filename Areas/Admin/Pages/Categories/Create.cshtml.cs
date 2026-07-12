@@ -1,90 +1,75 @@
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
-using ProjectManagement.Models;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData;
 
-namespace ProjectManagement.Areas.Admin.Pages.Categories
+namespace ProjectManagement.Areas.Admin.Pages.Categories;
+
+[Authorize(Policy = AdminPolicies.MasterDataManage)]
+public sealed class CreateModel : PageModel
 {
-    public class CreateModel : PageModel
+    private readonly ApplicationDbContext _db;
+    private readonly IAdminMasterDataCommandService _commands;
+
+    public CreateModel(ApplicationDbContext db, IAdminMasterDataCommandService commands)
     {
-        private readonly ApplicationDbContext _db;
+        _db = db;
+        _commands = commands;
+    }
 
-        public CreateModel(ApplicationDbContext db)
+    [BindProperty]
+    public InputModel Input { get; set; } = new();
+
+    public IList<SelectListItem> ParentOptions { get; private set; } = new List<SelectListItem>();
+
+    public async Task OnGetAsync(int? parentId, CancellationToken cancellationToken)
+    {
+        Input.ParentId = parentId;
+        ParentOptions = await CategorySelectListBuilder.BuildAsync(_db, parentId);
+    }
+
+    public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
+    {
+        ParentOptions = await CategorySelectListBuilder.BuildAsync(_db, Input.ParentId);
+        if (!ModelState.IsValid)
         {
-            _db = db;
+            return Page();
         }
 
-        [BindProperty]
-        public InputModel Input { get; set; } = new();
+        var result = await _commands.CreateProjectCategoryAsync(
+            new CategoryCreateCommand(Input.Name, Input.ParentId, Input.IsActive),
+            cancellationToken);
 
-        public IList<SelectListItem> ParentOptions { get; private set; } = new List<SelectListItem>();
-
-        [TempData]
-        public string? StatusMessage { get; set; }
-
-        public async Task OnGetAsync(int? parentId)
+        if (!result.Succeeded)
         {
-            Input.ParentId = parentId;
-            ParentOptions = await CategorySelectListBuilder.BuildAsync(_db, parentId);
+            AddResultError(result, "Input.Name");
+            return Page();
         }
 
-        public async Task<IActionResult> OnPostAsync()
-        {
-            ParentOptions = await CategorySelectListBuilder.BuildAsync(_db, Input.ParentId);
+        TempData[FlashMessageKeys.AdminMasterDataSuccess] = result.UserMessage;
+        return RedirectToPage("Index");
+    }
 
-            if (!ModelState.IsValid)
-            {
-                return Page();
-            }
+    private void AddResultError<T>(AdminOperationResult<T> result, string defaultKey)
+    {
+        var key = result.ErrorCode is "ParentNotFound" or "SelfParent" or "DescendantParent" or "HierarchyCycleDetected"
+            ? "Input.ParentId"
+            : defaultKey;
+        ModelState.AddModelError(key, result.UserMessage ?? "The category could not be created.");
+    }
 
-            var trimmedName = Input.Name.Trim();
-            var duplicateExists = await _db.ProjectCategories
-                .AnyAsync(c => c.ParentId == Input.ParentId && c.Name == trimmedName);
+    public sealed class InputModel
+    {
+        [Required, StringLength(120)]
+        public string Name { get; set; } = string.Empty;
 
-            if (duplicateExists)
-            {
-                ModelState.AddModelError("Input.Name", "A category with this name already exists under the selected parent.");
-                return Page();
-            }
+        public int? ParentId { get; set; }
 
-            var category = new ProjectCategory
-            {
-                Name = trimmedName,
-                ParentId = Input.ParentId,
-                IsActive = Input.IsActive
-            };
-
-            var maxSortOrder = await _db.ProjectCategories
-                .Where(c => c.ParentId == Input.ParentId)
-                .MaxAsync(c => (int?)c.SortOrder);
-
-            var nextSort = (maxSortOrder ?? -1) + 1;
-
-            category.SortOrder = nextSort;
-
-            _db.ProjectCategories.Add(category);
-            await _db.SaveChangesAsync();
-
-            TempData["StatusMessage"] = $"Created '{category.Name}'.";
-
-            return RedirectToPage("Index");
-        }
-
-        public class InputModel
-        {
-            [Required]
-            [MaxLength(120)]
-            public string Name { get; set; } = string.Empty;
-
-            public int? ParentId { get; set; }
-
-            public bool IsActive { get; set; } = true;
-        }
+        public bool IsActive { get; set; } = true;
     }
 }

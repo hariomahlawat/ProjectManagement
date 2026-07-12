@@ -53,6 +53,8 @@ using ProjectManagement.Services;
 using ProjectManagement.Services.Activities;
 using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.ActionTasks;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData;
 using ProjectManagement.Services.Dashboard;
 using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Documents;
@@ -181,6 +183,16 @@ builder.Services
 
 builder.Services.AddAuthorization(options =>
 {
+    // SECTION: Administrative capability policies
+    options.AddPolicy(AdminPolicies.Access, policy => policy.RequireRole(RoleNames.Admin));
+    options.AddPolicy(AdminPolicies.UsersManage, policy => policy.RequireRole(RoleNames.Admin));
+    options.AddPolicy(AdminPolicies.SecurityView, policy => policy.RequireRole(RoleNames.Admin));
+    options.AddPolicy(AdminPolicies.LogsView, policy => policy.RequireRole(RoleNames.Admin));
+    options.AddPolicy(AdminPolicies.RecoveryManage, policy => policy.RequireRole(RoleNames.Admin));
+    options.AddPolicy(AdminPolicies.MasterDataManage, policy => policy.RequireRole(RoleNames.Admin));
+    options.AddPolicy(AdminPolicies.ActivityTypesManage, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
+    options.AddPolicy(AdminPolicies.IngestionManage, policy => policy.RequireRole(RoleNames.Admin));
+    options.AddPolicy(AdminPolicies.MediaManage, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
     options.AddPolicy("Project.Create", policy =>
         policy.RequireRole("Admin", "HoD"));
 
@@ -257,7 +269,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("ActionTracker.Access", policy =>
         policy.RequireRole(RoleNames.Comdt, RoleNames.HoD, RoleNames.ProjectOfficer, RoleNames.Mco, RoleNames.Ta, RoleNames.Ito));
 
-    // SECTION: Conference remark authorization policy
+    // SECTION: Conference review authorization policy
     options.AddPolicy(Policies.ConferenceRemarks.Manage, policy =>
         policy.RequireRole(Policies.ConferenceRemarks.ManageAllowedRoles));
 
@@ -465,6 +477,18 @@ builder.Services.AddScoped<IIprWriteService, IprWriteService>();
 builder.Services.AddScoped<IUserLifecycleService, UserLifecycleService>();
 builder.Services.AddHostedService<UserPurgeWorker>();
 builder.Services.AddSingleton<IClock, SystemClock>();
+// SECTION: Shared Admin module foundations
+builder.Services.AddScoped<IAdminTimeService, AdminTimeService>();
+builder.Services.AddScoped<IUserAccountStateResolver, UserAccountStateResolver>();
+builder.Services.AddScoped<ISafeCsvWriter, SafeCsvWriter>();
+builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
+builder.Services.AddScoped<IAdminHierarchyValidationService, AdminHierarchyValidationService>();
+builder.Services.AddScoped<IAdminMasterDataCommandService, AdminMasterDataCommandService>();
+builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
+builder.Services.AddScoped<IAdminLoginOverviewService, AdminLoginOverviewService>();
+builder.Services.AddScoped<IAdminUserQueryService, AdminUserQueryService>();
+builder.Services.AddScoped<IAdminLogQueryService, AdminLogQueryService>();
+builder.Services.AddScoped<IDatabaseHealthService, DatabaseHealthService>();
 builder.Services.AddSingleton<IActionTrackerClock, SystemActionTrackerClock>();
 builder.Services.AddScoped<ITodoService, TodoService>();
 // SECTION: My Notebook services
@@ -478,8 +502,8 @@ builder.Services.AddScoped<INotebookTodoImportService, NotebookTodoImportService
 // SECTION: Project Ideas services
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaReadService>();
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaCommandService>();
-builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.IProjectIdeaCommandService>(sp =>
-    sp.GetRequiredService<ProjectManagement.Services.ProjectIdeas.ProjectIdeaCommandService>());
+builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.IProjectIdeaCommandService>(serviceProvider =>
+    serviceProvider.GetRequiredService<ProjectManagement.Services.ProjectIdeas.ProjectIdeaCommandService>());
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaPermissionService>();
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaDocumentService>();
 // SECTION: Project Officer workspace services
@@ -1585,11 +1609,6 @@ projectsApi.MapPost("/{id:int}/restore-trash", async (
     ProjectModerationService moderation,
     CancellationToken cancellationToken) =>
 {
-    if (!httpContext.User.IsInRole("Admin"))
-    {
-        return Results.Forbid();
-    }
-
     var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
     if (string.IsNullOrEmpty(userId))
     {
@@ -1598,7 +1617,7 @@ projectsApi.MapPost("/{id:int}/restore-trash", async (
 
     var result = await moderation.RestoreFromTrashAsync(id, userId, cancellationToken);
     return MapProjectModerationResult(result);
-});
+}).RequireAuthorization(AdminPolicies.RecoveryManage);
 
 projectsApi.MapPost("/{id:int}/purge", async (
     int id,
@@ -1607,11 +1626,6 @@ projectsApi.MapPost("/{id:int}/purge", async (
     PurgeProjectRequest request,
     CancellationToken cancellationToken) =>
 {
-    if (!httpContext.User.IsInRole("Admin"))
-    {
-        return Results.Forbid();
-    }
-
     var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
     if (string.IsNullOrEmpty(userId))
     {
@@ -1620,7 +1634,7 @@ projectsApi.MapPost("/{id:int}/purge", async (
 
     var result = await moderation.PurgeAsync(id, userId, request.RemoveAssets, cancellationToken);
     return MapProjectModerationResult(result);
-});
+}).RequireAuthorization(AdminPolicies.RecoveryManage);
 
 var processFlowApi = app.MapGroup("/api/processes/{version}/flow")
     .RequireAuthorization("Checklist.View");

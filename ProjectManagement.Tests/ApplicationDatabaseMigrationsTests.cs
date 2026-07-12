@@ -26,6 +26,7 @@ public sealed class ApplicationDatabaseMigrationsTests
         Assert.Contains("20261201160000_FinalizeProjectStageCompletionConstraint", migrations);
         Assert.Contains("20261201170000_AddConferenceRemarkFoundation", migrations);
         Assert.Contains("20261201180000_AdminPhaseASafetyHardening", migrations);
+        Assert.Contains("20261201190000_AdminPhaseB3MasterDataHardening", migrations);
         Assert.Equal(migrations.Length, migrations.Distinct(StringComparer.Ordinal).Count());
     }
 
@@ -129,7 +130,7 @@ public sealed class ApplicationDatabaseMigrationsTests
             migrations.OrderBy(id => id, StringComparer.Ordinal).ToArray(),
             migrations);
         Assert.Equal(
-            "20261201180000_AdminPhaseASafetyHardening",
+            "20261201190000_AdminPhaseB3MasterDataHardening",
             migrations[^1]);
     }
 

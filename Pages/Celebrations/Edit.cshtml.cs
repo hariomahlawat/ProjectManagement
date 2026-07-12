@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Admin;
 
 namespace ProjectManagement.Pages.Celebrations;
 
@@ -205,7 +206,7 @@ public class EditModel : PageModel
 
         await _db.SaveChangesAsync();
 
-        TempData["ok"] = Input.Id is null
+        TempData[FlashMessageKeys.CelebrationsSuccess] = Input.Id is null
             ? (celebration.EventType == CelebrationType.Birthday ? "Birthday added." : "Anniversary added.")
             : (celebration.EventType == CelebrationType.Birthday ? "Birthday updated." : "Anniversary updated.");
 

@@ -12,9 +12,9 @@
 {
     var due = Model.UserEntity.DeletionRequestedUtc!.Value.AddMinutes(Model.Options.UndoWindowMinutes);
     <div class="alert alert-warning">
-        Account scheduled for deletion at @TimeFmt.ToIst(due).
+        Account scheduled for deletion at @Model.FormatIst(due).
     </div>
-    @if (DateTime.UtcNow < due)
+    @if (Model.UtcNow < due)
     {
         <form method="post" asp-page-handler="Undo">
             <button class="btn btn-danger" type="submit">Undo</button>

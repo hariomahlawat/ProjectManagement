@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Models.Activities;
 using ProjectManagement.Services.Activities;
+using ProjectManagement.Services.Admin;
 
 namespace ProjectManagement.Areas.Admin.Pages.ActivityTypes;
 
@@ -23,7 +24,7 @@ public sealed class EditModel : PageModel
     [BindProperty]
     public InputModel Input { get; set; } = new();
 
-    [TempData]
+    [TempData(Key = FlashMessageKeys.AdminMasterDataError)]
     public string? ErrorMessage { get; set; }
 
     public int ActivityTypeId { get; private set; }
@@ -41,7 +42,8 @@ public sealed class EditModel : PageModel
         {
             Name = type.Name,
             Description = type.Description,
-            IsActive = type.IsActive
+            IsActive = type.IsActive,
+            RowVersion = type.RowVersion
         };
 
         return Page();
@@ -56,12 +58,12 @@ public sealed class EditModel : PageModel
             return Page();
         }
 
-        var request = new ActivityTypeInput(Input.Name, Input.Description, Input.IsActive);
+        var request = new ActivityTypeInput(Input.Name, Input.Description, Input.IsActive, Input.RowVersion);
 
         try
         {
             var updated = await _activityTypeService.UpdateAsync(id, request, cancellationToken);
-            TempData["StatusMessage"] = $"Updated '{updated.Name}'.";
+            TempData[FlashMessageKeys.AdminMasterDataSuccess] = $"Updated '{updated.Name}'.";
             return RedirectToPage("Index");
         }
         catch (ActivityValidationException ex)
@@ -108,5 +110,8 @@ public sealed class EditModel : PageModel
         public string? Description { get; set; }
 
         public bool IsActive { get; set; }
+
+        [Required]
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
 }

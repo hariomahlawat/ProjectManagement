@@ -38,9 +38,13 @@ namespace ProjectManagement.Infrastructure.Activities
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        public async Task UpdateAsync(ActivityType activityType, CancellationToken cancellationToken = default)
+        public async Task UpdateAsync(ActivityType activityType, byte[]? rowVersion = null, CancellationToken cancellationToken = default)
         {
-            _dbContext.ActivityTypes.Update(activityType);
+            if (rowVersion is { Length: > 0 })
+            {
+                _dbContext.Entry(activityType).Property(x => x.RowVersion).OriginalValue = rowVersion;
+            }
+
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
     }

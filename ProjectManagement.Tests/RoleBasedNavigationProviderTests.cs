@@ -48,8 +48,8 @@ public class RoleBasedNavigationProviderTests
         var children = adminPanel.Children.ToList();
 
         Assert.Contains(children, c => c.Text == "Project trash");
-        Assert.Contains(children, c => c.Text == "Document recycle bin");
-        Assert.Contains(children, c => c.Text == "Calendar deleted events");
+        Assert.Contains(children, c => c.Text == "Recycle bin");
+        Assert.Contains(children, c => c.Text == "Deleted events");
         Assert.Contains(children, c => c.Text == "Activity types" && c.Page == "/ActivityTypes/Index");
 
         var archivedProjects = children.Single(c => c.Text == "Archived projects");

@@ -12,6 +12,11 @@
     <div class="alert alert-success" role="status">@Model.StatusMessage</div>
 }
 
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+
 <p>
     <a class="btn btn-primary btn-sm" asp-page="Create">Add root category</a>
 </p>

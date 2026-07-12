@@ -7,18 +7,23 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData;
 
 namespace ProjectManagement.Areas.Admin.Pages.Lookups.ProjectTypes;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Policy = AdminPolicies.MasterDataManage)]
 public class IndexModel : PageModel
 {
     private readonly ApplicationDbContext _db;
+    private readonly IAdminMasterDataCommandService _commands;
 
-    public IndexModel(ApplicationDbContext db)
+    public IndexModel(ApplicationDbContext db, IAdminMasterDataCommandService commands)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _commands = commands ?? throw new ArgumentNullException(nameof(commands));
     }
 
     private const int PageSize = 20;
@@ -39,8 +44,11 @@ public class IndexModel : PageModel
 
     public int TotalPages { get; private set; }
 
-    [TempData]
+    [TempData(Key = FlashMessageKeys.AdminMasterDataSuccess)]
     public string? StatusMessage { get; set; }
+
+    [TempData(Key = FlashMessageKeys.AdminMasterDataError)]
+    public string? ErrorMessage { get; set; }
 
     public async Task OnGetAsync()
     {
@@ -92,60 +100,10 @@ public class IndexModel : PageModel
             .ToListAsync();
     }
 
-    public async Task<IActionResult> OnPostMoveAsync(int id, int offset)
+    public async Task<IActionResult> OnPostMoveAsync(int id, int offset, CancellationToken cancellationToken)
     {
-        if (offset == 0)
-        {
-            StatusMessage = "No changes made.";
-            return RedirectToPage(new { pageNumber = Math.Max(1, PageNumber), q = Q, status = Status });
-        }
-
-        // SECTION: Reorder project types
-        var types = await _db.ProjectTypes
-            .OrderBy(u => u.SortOrder)
-            .ThenBy(u => u.Name)
-            .ToListAsync();
-
-        var currentIndex = types.FindIndex(u => u.Id == id);
-        if (currentIndex < 0)
-        {
-            return NotFound();
-        }
-
-        var targetIndex = Math.Clamp(currentIndex + offset, 0, types.Count - 1);
-        if (targetIndex == currentIndex)
-        {
-            StatusMessage = offset < 0 ? "Already at the top." : "Already at the bottom.";
-            return RedirectToPage(new { pageNumber = Math.Max(1, PageNumber), q = Q, status = Status });
-        }
-
-        var projectType = types[currentIndex];
-        types.RemoveAt(currentIndex);
-        types.Insert(targetIndex, projectType);
-
-        var anyChanges = false;
-        for (var i = 0; i < types.Count; i++)
-        {
-            var desiredOrder = i + 1;
-            if (types[i].SortOrder != desiredOrder)
-            {
-                types[i].SortOrder = desiredOrder;
-                anyChanges = true;
-            }
-        }
-
-        if (anyChanges)
-        {
-            await _db.SaveChangesAsync();
-            StatusMessage = offset < 0
-                ? $"Moved '{projectType.Name}' up."
-                : $"Moved '{projectType.Name}' down.";
-        }
-        else
-        {
-            StatusMessage = "No changes made.";
-        }
-
+        var result = await _commands.MoveProjectTypeAsync(id, offset, cancellationToken);
+        TempData[result.Succeeded ? FlashMessageKeys.AdminMasterDataSuccess : FlashMessageKeys.AdminMasterDataError] = result.UserMessage;
         return RedirectToPage(new { pageNumber = Math.Max(1, PageNumber), q = Q, status = Status });
     }
 

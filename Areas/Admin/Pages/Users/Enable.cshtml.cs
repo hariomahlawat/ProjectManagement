@@ -4,11 +4,12 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Admin;
 using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.Admin.Pages.Users
 {
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = ProjectManagement.Configuration.AdminPolicies.UsersManage)]
     [ResponseCache(NoStore = true)]
     public class EnableModel : PageModel
     {
@@ -35,7 +36,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             if (UserEntity == null) return NotFound();
             if (!UserEntity.IsDisabled)
             {
-                TempData["ok"] = "User already active.";
+                TempData[FlashMessageKeys.AdminUsersSuccess] = "User already active.";
                 return RedirectToPage("Index");
             }
             return Page();
@@ -61,7 +62,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             try
             {
                 await _lifecycle.EnableAsync(id, actorId);
-                TempData["ok"] = "User enabled.";
+                TempData[FlashMessageKeys.AdminUsersSuccess] = "User enabled.";
                 return RedirectToPage("Index");
             }
             catch (System.Exception ex)

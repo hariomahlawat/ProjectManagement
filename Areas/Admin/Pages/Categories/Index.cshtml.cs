@@ -1,109 +1,61 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
-using ProjectManagement.Models;
 using ProjectManagement.Helpers;
+using ProjectManagement.Models;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData;
 
-namespace ProjectManagement.Areas.Admin.Pages.Categories
+namespace ProjectManagement.Areas.Admin.Pages.Categories;
+
+[Authorize(Policy = AdminPolicies.MasterDataManage)]
+public sealed class IndexModel : PageModel
 {
-    public class IndexModel : PageModel
+    private readonly ApplicationDbContext _db;
+    private readonly IAdminMasterDataCommandService _commands;
+
+    public IndexModel(ApplicationDbContext db, IAdminMasterDataCommandService commands)
     {
-        private readonly ApplicationDbContext _db;
+        _db = db;
+        _commands = commands;
+    }
 
-        public IndexModel(ApplicationDbContext db)
-        {
-            _db = db;
-        }
+    [TempData(Key = FlashMessageKeys.AdminMasterDataSuccess)]
+    public string? StatusMessage { get; set; }
 
-        [TempData]
-        public string? StatusMessage { get; set; }
+    [TempData(Key = FlashMessageKeys.AdminMasterDataError)]
+    public string? ErrorMessage { get; set; }
 
-        public IReadOnlyList<CategoryHierarchyBuilder.CategoryNode<ProjectCategory>> Nodes { get; private set; }
-            = Array.Empty<CategoryHierarchyBuilder.CategoryNode<ProjectCategory>>();
+    public IReadOnlyList<CategoryHierarchyBuilder.CategoryNode<ProjectCategory>> Nodes { get; private set; }
+        = Array.Empty<CategoryHierarchyBuilder.CategoryNode<ProjectCategory>>();
 
-        public async Task OnGetAsync()
-        {
-            Nodes = await LoadTreeAsync();
-        }
+    public async Task OnGetAsync(CancellationToken cancellationToken)
+    {
+        Nodes = await CategoryHierarchyBuilder.LoadHierarchyAsync(
+            _db.ProjectCategories,
+            item => item.Id,
+            item => item.ParentId,
+            item => item.SortOrder,
+            item => item.Name);
+    }
 
-        public async Task<IActionResult> OnPostToggleAsync(int id)
-        {
-            var category = await _db.ProjectCategories.SingleOrDefaultAsync(c => c.Id == id);
-            if (category is null)
-            {
-                return NotFound();
-            }
+    public async Task<IActionResult> OnPostToggleAsync(int id, CancellationToken cancellationToken)
+    {
+        var result = await _commands.ToggleProjectCategoryAsync(id, cancellationToken);
+        return RedirectWithResult(result);
+    }
 
-            category.IsActive = !category.IsActive;
-            await _db.SaveChangesAsync();
+    public async Task<IActionResult> OnPostMoveAsync(int id, int offset, CancellationToken cancellationToken)
+    {
+        var result = await _commands.MoveProjectCategoryAsync(id, offset, cancellationToken);
+        return RedirectWithResult(result);
+    }
 
-            StatusMessage = category.IsActive
-                ? $"Activated '{category.Name}'."
-                : $"Deactivated '{category.Name}'.";
-
-            return RedirectToPage();
-        }
-
-        public async Task<IActionResult> OnPostMoveAsync(int id, int offset)
-        {
-            if (offset == 0)
-            {
-                return RedirectToPage();
-            }
-
-            var category = await _db.ProjectCategories.SingleOrDefaultAsync(c => c.Id == id);
-            if (category is null)
-            {
-                return NotFound();
-            }
-
-            var siblings = await _db.ProjectCategories
-                .Where(c => c.ParentId == category.ParentId)
-                .OrderBy(c => c.SortOrder)
-                .ThenBy(c => c.Name)
-                .ToListAsync();
-
-            var index = siblings.FindIndex(c => c.Id == id);
-            if (index < 0)
-            {
-                return RedirectToPage();
-            }
-
-            var targetIndex = Math.Clamp(index + offset, 0, siblings.Count - 1);
-            if (targetIndex == index)
-            {
-                return RedirectToPage();
-            }
-
-            var moving = siblings[index];
-            siblings.RemoveAt(index);
-            siblings.Insert(targetIndex, moving);
-
-            for (var i = 0; i < siblings.Count; i++)
-            {
-                siblings[i].SortOrder = i;
-            }
-
-            await _db.SaveChangesAsync();
-
-            StatusMessage = $"Reordered siblings for '{category.Name}'.";
-
-            return RedirectToPage();
-        }
-
-        private async Task<IReadOnlyList<CategoryHierarchyBuilder.CategoryNode<ProjectCategory>>> LoadTreeAsync()
-        {
-            return await CategoryHierarchyBuilder.LoadHierarchyAsync(
-                _db.ProjectCategories,
-                c => c.Id,
-                c => c.ParentId,
-                c => c.SortOrder,
-                c => c.Name);
-        }
+    private IActionResult RedirectWithResult(AdminOperationResult result)
+    {
+        TempData[result.Succeeded ? FlashMessageKeys.AdminMasterDataSuccess : FlashMessageKeys.AdminMasterDataError] = result.UserMessage;
+        return RedirectToPage();
     }
 }

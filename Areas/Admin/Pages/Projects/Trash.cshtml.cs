@@ -9,20 +9,21 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Admin;
 
 namespace ProjectManagement.Areas.Admin.Pages.Projects;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Policy = ProjectManagement.Configuration.AdminPolicies.RecoveryManage)]
 public class TrashModel : PageModel
 {
     private readonly ApplicationDbContext _db;
-    private readonly IClock _clock;
+    private readonly IAdminTimeService _time;
     private readonly ProjectRetentionOptions _retentionOptions;
 
-    public TrashModel(ApplicationDbContext db, IClock clock, IOptions<ProjectRetentionOptions> retentionOptions)
+    public TrashModel(ApplicationDbContext db, IAdminTimeService time, IOptions<ProjectRetentionOptions> retentionOptions)
     {
         _db = db;
-        _clock = clock;
+        _time = time;
         _retentionOptions = retentionOptions.Value;
     }
 
@@ -34,7 +35,7 @@ public class TrashModel : PageModel
 
     public async Task OnGetAsync()
     {
-        var now = _clock.UtcNow;
+        var now = _time.UtcNow;
 
         var rows = await _db.Projects
             .IgnoreQueryFilters()
@@ -87,19 +88,11 @@ public class TrashModel : PageModel
         Projects = rows;
     }
 
-    public string FormatTimestamp(DateTimeOffset? value)
-    {
-        return value.HasValue
-            ? value.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")
-            : "—";
-    }
+    public string FormatTimestamp(DateTimeOffset? value) => _time.FormatIst(value);
 
-    public string FormatDate(DateTimeOffset? value)
-    {
-        return value.HasValue
-            ? value.Value.ToLocalTime().ToString("dd MMM yyyy")
-            : "—";
-    }
+    public string FormatDate(DateTimeOffset? value) => value.HasValue
+        ? _time.ToIst(value.Value).ToString("dd MMM yyyy")
+        : "—";
 
     public sealed class ProjectTrashRow
     {

@@ -1,177 +1,103 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
-using ProjectManagement.Data;
-using ProjectManagement.Infrastructure;
-using ProjectManagement.Models;
-using ProjectManagement.Services;
+using Microsoft.AspNetCore.Routing;
+using ProjectManagement.Configuration;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Navigation.ModuleNav;
 
-namespace ProjectManagement.Areas.Admin.Pages
+namespace ProjectManagement.Areas.Admin.Pages;
+
+[Authorize(Policy = AdminPolicies.Access)]
+public sealed class AdminIndexModel : PageModel
 {
-    [Authorize(Roles = "Admin")]
-    public class AdminIndexModel : PageModel
+    private readonly IAdminDashboardService _dashboard;
+
+    public AdminIndexModel(IAdminDashboardService dashboard)
     {
-        private readonly ApplicationDbContext _db;
-        private readonly IClock _clock;
+        _dashboard = dashboard ?? throw new ArgumentNullException(nameof(dashboard));
+    }
 
-        public AdminIndexModel(ApplicationDbContext db, IClock clock)
+    public AdminDashboardMetrics Metrics { get; private set; } = new();
+    public IReadOnlyList<AdminDashboardAction> RecentAdminActions { get; private set; } = Array.Empty<AdminDashboardAction>();
+    public AttentionViewModel Attention { get; private set; } = new();
+    public IReadOnlyList<QuickLinkViewModel> QuickLinks { get; private set; } = Array.Empty<QuickLinkViewModel>();
+
+    public async Task OnGetAsync(CancellationToken cancellationToken)
+    {
+        var snapshot = await _dashboard.GetAsync(cancellationToken);
+        Metrics = snapshot.Metrics;
+        RecentAdminActions = snapshot.RecentActions;
+        Attention = new AttentionViewModel
         {
-            _db = db;
-            _clock = clock;
-        }
-
-        public MetricsVM Metrics { get; set; } = new();
-        public List<ActionVM> RecentAdminActions { get; set; } = new();
-        public AttentionVM Attention { get; set; } = new();
-
-        public class MetricsVM
-        {
-            public int TotalUsers { get; set; }
-            public int DisabledUsers { get; set; }
-            public int MustChangePwd { get; set; }
-            public int LoginsLast7d { get; set; }
-            public int UniqueLoginsLast7d { get; set; }
-            public int FailedLoginsLast7d { get; set; }
-            public int AuditEvents24h { get; set; }
-            public int WarningEvents24h { get; set; }
-            public int ErrorEvents24h { get; set; }
-            public int ArchivedProjects { get; set; }
-            public int TrashedProjects { get; set; }
-            public int DeletedDocuments { get; set; }
-            public int DeletedEvents { get; set; }
-
-            public int DisabledPct => TotalUsers == 0 ? 0 : (int)Math.Round(100.0 * DisabledUsers / TotalUsers);
-            public int MustChangePwdPct => TotalUsers == 0 ? 0 : (int)Math.Round(100.0 * MustChangePwd / TotalUsers);
-            public int UniqueLoginPct => LoginsLast7d == 0 ? 0 : (int)Math.Round(100.0 * UniqueLoginsLast7d / LoginsLast7d);
-            public int LoginAttemptsLast7d => LoginsLast7d + FailedLoginsLast7d;
-            public int FailedLoginPct => LoginAttemptsLast7d == 0
-                ? 0
-                : (int)Math.Round(100.0 * FailedLoginsLast7d / LoginAttemptsLast7d);
-            public int WarningPct => AuditEvents24h == 0 ? 0 : (int)Math.Round(100.0 * WarningEvents24h / AuditEvents24h);
-            public int ErrorPct => AuditEvents24h == 0 ? 0 : (int)Math.Round(100.0 * ErrorEvents24h / AuditEvents24h);
-        }
-
-        public class ActionVM
-        {
-            public string Level { get; set; } = string.Empty;
-            public string Message { get; set; } = string.Empty;
-            public string WhenLocal { get; set; } = string.Empty;
-        }
-
-        public class AttentionVM
-        {
-            public List<AttentionItem> Items { get; set; } = new();
-        }
-
-        public class AttentionItem
-        {
-            public string Text { get; set; } = string.Empty;
-            public string? LinkText { get; set; }
-            public string? Href { get; set; }
-        }
-
-        public async Task OnGet()
-        {
-            var nowUtc = _clock.UtcNow;
-
-            var since7d = nowUtc.AddDays(-7);
-            var since24h = nowUtc.AddDays(-1).UtcDateTime;
-            var usersQuery = _db.Users.AsNoTracking();
-            var successfulLoginQuery = _db.AuthEvents.AsNoTracking()
-                .Where(authEvent =>
-                    authEvent.Event == AuthenticationEventNames.LoginSucceeded
-                    && authEvent.WhenUtc >= since7d);
-            var loginAuditQuery = _db.AuditLogs.AsNoTracking()
-                .Where(audit => audit.TimeUtc >= since7d.UtcDateTime);
-            var recentEventsQuery = _db.AuditLogs.AsNoTracking()
-                .Where(a => a.TimeUtc >= since24h);
-            var projectsQuery = _db.Projects.AsNoTracking();
-            var documentsQuery = _db.ProjectDocuments.AsNoTracking()
-                .Where(d => d.Status == ProjectDocumentStatus.SoftDeleted);
-            var deletedEventsQuery = _db.Events.AsNoTracking()
-                .Where(e => e.IsDeleted);
-
-            Metrics.TotalUsers = await usersQuery.CountAsync();
-            Metrics.DisabledUsers = await usersQuery.Where(u => u.IsDisabled || u.PendingDeletion).CountAsync();
-            Metrics.MustChangePwd = await usersQuery.Where(u => u.MustChangePassword).CountAsync();
-
-            Metrics.LoginsLast7d = await successfulLoginQuery.CountAsync();
-            Metrics.UniqueLoginsLast7d = await successfulLoginQuery
-                .Select(authEvent => authEvent.UserId)
-                .Distinct()
-                .CountAsync();
-            Metrics.FailedLoginsLast7d = await loginAuditQuery
-                .Where(audit => audit.Action == AuthenticationEventNames.AuditLoginFailed)
-                .CountAsync();
-
-            Metrics.AuditEvents24h = await recentEventsQuery.CountAsync();
-            Metrics.WarningEvents24h = await recentEventsQuery.Where(a => a.Level == "Warning").CountAsync();
-            Metrics.ErrorEvents24h = await recentEventsQuery.Where(a => a.Level == "Error").CountAsync();
-
-            Metrics.ArchivedProjects = await projectsQuery.Where(p => !p.IsDeleted && p.IsArchived).CountAsync();
-            Metrics.TrashedProjects = await projectsQuery.Where(p => p.IsDeleted).CountAsync();
-            Metrics.DeletedDocuments = await documentsQuery.CountAsync();
-            Metrics.DeletedEvents = await deletedEventsQuery.CountAsync();
-
-            if (Metrics.MustChangePwd > 0)
-                Attention.Items.Add(new AttentionItem
+            Items = snapshot.AttentionItems
+                .Select(item => new AttentionItemViewModel
                 {
-                    Text = $"{Metrics.MustChangePwd} users must change password",
-                    LinkText = "View",
-                    Href = Url.Page("/Users/Index", values: new { area = "Admin", status = "" })
-                });
-            if (Metrics.DisabledUsers > 0)
-                Attention.Items.Add(new AttentionItem
-                {
-                    Text = $"{Metrics.DisabledUsers} users are disabled",
-                    LinkText = "Manage",
-                    Href = Url.Page("/Users/Index", values: new { area = "Admin", status = "disabled" })
-                });
-            if (Metrics.ErrorEvents24h > 0)
-                Attention.Items.Add(new AttentionItem
-                {
-                    Text = $"{Metrics.ErrorEvents24h} error logs in last 24 hours",
-                    LinkText = "Investigate",
-                    Href = Url.Page("/Logs/Index", values: new { area = "Admin" })
-                });
-            if (Metrics.TrashedProjects > 0)
-                Attention.Items.Add(new AttentionItem
-                {
-                    Text = $"{Metrics.TrashedProjects} project(s) in trash",
-                    LinkText = "Review",
-                    Href = Url.Page("/Projects/Trash", values: new { area = "Admin" })
-                });
-            if (Metrics.DeletedDocuments > 0)
-                Attention.Items.Add(new AttentionItem
-                {
-                    Text = $"{Metrics.DeletedDocuments} document(s) in recycle bin",
-                    LinkText = "Restore",
-                    Href = Url.Page("/Documents/Recycle", values: new { area = "Admin" })
-                });
-            if (Metrics.DeletedEvents > 0)
-                Attention.Items.Add(new AttentionItem
-                {
-                    Text = $"{Metrics.DeletedEvents} calendar event(s) deleted",
-                    LinkText = "Recover",
-                    Href = Url.Page("/Calendar/Deleted", values: new { area = "Admin" })
-                });
-
-            RecentAdminActions = await _db.AuditLogs.AsNoTracking()
-                .OrderByDescending(a => a.TimeUtc)
-                .Take(10)
-                .Select(a => new ActionVM
-                {
-                    Level = a.Level,
-                    Message = a.Message ?? a.Action,
-                    WhenLocal = TimeFmt.ToIst(a.TimeUtc)
+                    Text = item.Text,
+                    LinkText = item.LinkText,
+                    Href = NavigationHref(item.NavigationKey, item.RouteValues)
                 })
-                .ToListAsync();
+                .ToArray()
+        };
+
+        QuickLinks = AdminNavigationCatalog.Entries
+            .Where(entry => entry.ShowInQuickLinks)
+            .OrderBy(entry => entry.Order)
+            .Select(entry => new QuickLinkViewModel
+            {
+                Text = entry.Item.Text,
+                Icon = entry.Item.Icon,
+                Href = NavigationHref(entry.Key)
+            })
+            .Where(link => !string.IsNullOrWhiteSpace(link.Href))
+            .ToArray();
+    }
+
+    public string? NavigationHref(
+        string navigationKey,
+        IReadOnlyDictionary<string, object?>? additionalRouteValues = null)
+    {
+        var destination = AdminNavigationCatalog.Get(navigationKey);
+        if (string.IsNullOrWhiteSpace(destination.Page))
+        {
+            return null;
         }
+
+        var routeValues = new RouteValueDictionary();
+        if (destination.Area is not null)
+        {
+            routeValues["area"] = destination.Area;
+        }
+
+        foreach (var value in destination.RouteValues ?? new Dictionary<string, object?>())
+        {
+            routeValues[value.Key] = value.Value;
+        }
+
+        foreach (var value in additionalRouteValues ?? new Dictionary<string, object?>())
+        {
+            routeValues[value.Key] = value.Value;
+        }
+
+        return Url.Page(destination.Page, values: routeValues);
+    }
+
+    public sealed class AttentionViewModel
+    {
+        public IReadOnlyList<AttentionItemViewModel> Items { get; init; } = Array.Empty<AttentionItemViewModel>();
+    }
+
+    public sealed class AttentionItemViewModel
+    {
+        public string Text { get; init; } = string.Empty;
+        public string LinkText { get; init; } = string.Empty;
+        public string? Href { get; init; }
+    }
+
+    public sealed class QuickLinkViewModel
+    {
+        public string Text { get; init; } = string.Empty;
+        public string? Icon { get; init; }
+        public string? Href { get; init; }
     }
 }
-

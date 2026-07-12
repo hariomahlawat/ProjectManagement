@@ -7,18 +7,23 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData;
 
 namespace ProjectManagement.Areas.Admin.Pages.Lookups.LineDirectorates;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Policy = AdminPolicies.MasterDataManage)]
 public class IndexModel : PageModel
 {
     private readonly ApplicationDbContext _db;
+    private readonly IAdminMasterDataCommandService _commands;
 
-    public IndexModel(ApplicationDbContext db)
+    public IndexModel(ApplicationDbContext db, IAdminMasterDataCommandService commands)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _commands = commands ?? throw new ArgumentNullException(nameof(commands));
     }
 
     private const int PageSize = 20;
@@ -39,8 +44,11 @@ public class IndexModel : PageModel
 
     public int TotalPages { get; private set; }
 
-    [TempData]
+    [TempData(Key = FlashMessageKeys.AdminMasterDataSuccess)]
     public string? StatusMessage { get; set; }
+
+    [TempData(Key = FlashMessageKeys.AdminMasterDataError)]
+    public string? ErrorMessage { get; set; }
 
     public async Task OnGetAsync()
     {
@@ -90,60 +98,11 @@ public class IndexModel : PageModel
             .ToListAsync();
     }
 
-    public async Task<IActionResult> OnPostMoveAsync(int id, int offset)
+    public async Task<IActionResult> OnPostMoveAsync(int id, int offset, CancellationToken cancellationToken)
     {
-        if (offset == 0)
-        {
-            StatusMessage = "No changes made.";
-            return RedirectToPage(new { q = Q, status = Status, pageNumber = PageNumber });
-        }
-
-        var lineDirectorate = await _db.LineDirectorates.SingleOrDefaultAsync(l => l.Id == id);
-        if (lineDirectorate is null)
-        {
-            return NotFound();
-        }
-
-        var siblings = await _db.LineDirectorates
-            .OrderBy(l => l.SortOrder)
-            .ThenBy(l => l.Name)
-            .ToListAsync();
-
-        var index = siblings.FindIndex(l => l.Id == id);
-        if (index < 0)
-        {
-            StatusMessage = "Unable to reorder line directorates.";
-            return RedirectToPage(new { q = Q, status = Status, pageNumber = PageNumber });
-        }
-
-        var targetIndex = Math.Clamp(index + offset, 0, siblings.Count - 1);
-        if (targetIndex == index)
-        {
-            StatusMessage = offset < 0
-                ? $"'{lineDirectorate.Name}' is already at the top."
-                : $"'{lineDirectorate.Name}' is already at the bottom.";
-            return RedirectToPage(new { q = Q, status = Status, pageNumber = PageNumber });
-        }
-
-        var moving = siblings[index];
-        siblings.RemoveAt(index);
-        siblings.Insert(targetIndex, moving);
-
-        for (var i = 0; i < siblings.Count; i++)
-        {
-            if (siblings[i].SortOrder != i)
-            {
-                siblings[i].SortOrder = i;
-            }
-        }
-
-        await _db.SaveChangesAsync();
-
-        StatusMessage = offset < 0
-            ? $"Moved '{lineDirectorate.Name}' up."
-            : $"Moved '{lineDirectorate.Name}' down.";
-
-        return RedirectToPage(new { q = Q, status = Status, pageNumber = PageNumber });
+        var result = await _commands.MoveLineDirectorateAsync(id, offset, cancellationToken);
+        TempData[result.Succeeded ? FlashMessageKeys.AdminMasterDataSuccess : FlashMessageKeys.AdminMasterDataError] = result.UserMessage;
+        return RedirectToPage(new { pageNumber = Math.Max(1, PageNumber), q = Q, status = Status });
     }
 
     public sealed class Row

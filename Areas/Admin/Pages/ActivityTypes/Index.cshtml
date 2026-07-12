@@ -54,7 +54,7 @@ else
             <div class="fw-semibold">@type.Name</div>
             @if (type.LastModifiedAtUtc is { } modified)
             {
-              <div class="small text-muted">Updated @($"{modified.ToLocalTime():g}")</div>
+              <div class="small text-muted">Updated @TimeFmt.ToIst(modified.UtcDateTime)</div>
             }
           </td>
           <td>

@@ -1,28 +1,34 @@
-using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Infrastructure;
+using ProjectManagement.Configuration;
+using ProjectManagement.Services.Admin;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Areas.Admin.Pages.Analytics
 {
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = AdminPolicies.SecurityView)]
     public class LoginsModel : PageModel
     {
         private const int MaximumLookbackDays = 365;
 
         private readonly ILoginAnalyticsService _service;
         private readonly UserManager<ApplicationUser> _users;
+        private readonly ISafeCsvWriter _csv;
 
-        public LoginsModel(ILoginAnalyticsService service, UserManager<ApplicationUser> users)
+        public LoginsModel(
+            ILoginAnalyticsService service,
+            UserManager<ApplicationUser> users,
+            ISafeCsvWriter csv)
         {
             _service = service;
             _users = users;
+            _csv = csv;
         }
 
         public IList<ApplicationUser> Users { get; private set; } = new List<ApplicationUser>();
@@ -72,26 +78,20 @@ namespace ProjectManagement.Areas.Admin.Pages.Analytics
             var workEnd = new TimeSpan(18, 0, 0);
             var dto = await _service.GetAsync(safeDays, weekendOdd, timeZone, workStart, workEnd, user);
 
-            var builder = new StringBuilder();
-            SafeCsv.AppendRow(builder, "WhenIST", "UserId", "LoginName", "DisplayName", "MinutesOfDay", "IsOdd", "Reason");
-
-            foreach (var point in dto.Points)
-            {
-                SafeCsv.AppendRow(
-                    builder,
+            var bytes = _csv.Write(
+                new[] { "WhenIST", "UserId", "LoginName", "DisplayName", "MinutesOfDay", "IsOdd", "Reason" },
+                dto.Points.Select(point => (IReadOnlyList<object?>)new object?[]
+                {
                     point.Local.ToString("yyyy-MM-dd HH:mm:ss zzz"),
                     point.UserId,
                     point.LoginName,
                     point.DisplayName,
                     point.MinutesOfDay,
                     point.IsOdd,
-                    point.Reason);
-            }
+                    point.Reason
+                }));
 
-            return File(
-                SafeCsv.ToUtf8WithBom(builder.ToString()),
-                "text/csv; charset=utf-8",
-                "logins.csv");
+            return File(bytes, "text/csv; charset=utf-8", "logins.csv");
         }
     }
 }

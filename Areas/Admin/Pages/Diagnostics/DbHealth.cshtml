@@ -1,7 +1,10 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Diagnostics.DbHealthModel
+@using ProjectManagement.Services.Admin
+@using ProjectManagement.Areas.Admin.Pages.Diagnostics
 @{
     ViewData["Title"] = "Database health";
+    var health = Model.Snapshot;
 }
 
 <div class="container-xxl py-4">
@@ -12,61 +15,107 @@
         </ol>
     </nav>
 
-    <div class="d-flex align-items-center mb-3">
-        <h1 class="h3 mb-0">Database health</h1>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h1 class="h3 mb-1">Database health</h1>
+            <p class="text-muted mb-0">Connectivity, server metadata and migration-lineage checks.</p>
+        </div>
+        <a class="btn btn-sm btn-outline-primary" asp-page="/Diagnostics/DbHealth"><i class="bi bi-arrow-clockwise me-1"></i>Run checks again</a>
     </div>
 
-    @if (!Model.IsRelational)
+    @if (!health.IsRelational)
     {
         <div class="alert alert-info" role="alert">
-            Migration status is unavailable because the configured provider is not relational.
+            Relational database diagnostics are unavailable for the configured provider.
         </div>
     }
     else
     {
-        if (Model.HasPendingMigrations)
-        {
-            <div class="alert alert-warning" role="alert">
-                <strong>Pending migrations detected.</strong> Apply the migration(s) below to keep the schema in sync.
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="card h-100 shadow-sm"><div class="card-body">
+                    <div class="small text-muted">Host</div>
+                    <div class="fw-semibold">@(health.Host ?? "Unknown")</div>
+                    <div class="small text-muted mt-2">@(health.DatabaseName ?? "Unknown database")</div>
+                </div></div>
             </div>
-        }
-        else
-        {
-            <div class="alert alert-success" role="alert">
-                <strong>No pending migrations.</strong> The application and database schemas are aligned.
+            <div class="col-md-3">
+                <div class="card h-100 shadow-sm"><div class="card-body">
+                    <div class="small text-muted">Server</div>
+                    <div class="fw-semibold">@(health.ServerVersion ?? "Unavailable")</div>
+                    <div class="small text-muted mt-2">@health.Provider</div>
+                </div></div>
             </div>
-        }
-
-        <div class="card mb-4">
-            <div class="card-header">Connection summary</div>
-            <div class="card-body">
-                <dl class="row mb-0">
-                    <dt class="col-sm-3">Host</dt>
-                    <dd class="col-sm-9">@(!string.IsNullOrWhiteSpace(Model.Host) ? Model.Host : "(unknown)")</dd>
-                    <dt class="col-sm-3">Database</dt>
-                    <dd class="col-sm-9">@(!string.IsNullOrWhiteSpace(Model.DatabaseName) ? Model.DatabaseName : "(unknown)")</dd>
-                    <dt class="col-sm-3">Latest migration</dt>
-                    <dd class="col-sm-9">@Model.LatestMigration</dd>
-                </dl>
+            <div class="col-md-3">
+                <div class="card h-100 shadow-sm"><div class="card-body">
+                    <div class="small text-muted">Database size</div>
+                    <div class="fw-semibold">@DbHealthModel.FormatBytes(health.DatabaseSizeBytes)</div>
+                    <div class="small text-muted mt-2">Query latency: @(health.QueryLatencyMilliseconds.HasValue ? $"{health.QueryLatencyMilliseconds} ms" : "—")</div>
+                </div></div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100 shadow-sm"><div class="card-body">
+                    <div class="small text-muted">Latest applied migration</div>
+                    <div class="fw-semibold text-break">@health.LatestMigration</div>
+                    <div class="small text-muted mt-2">@health.AppliedMigrations.Count applied · @health.PendingMigrations.Count pending</div>
+                </div></div>
             </div>
         </div>
 
-        <div class="card">
-            <div class="card-header">Pending migrations (@Model.PendingMigrations.Count)</div>
-            <div class="card-body">
-                @if (Model.PendingMigrations.Count == 0)
+        <div class="card shadow-sm mb-4">
+            <div class="card-header fw-semibold">Health checks</div>
+            <div class="list-group list-group-flush">
+                @foreach (var check in health.Checks)
                 {
-                    <p class="mb-0 text-muted">None.</p>
+                    <div class="list-group-item d-flex justify-content-between align-items-start gap-3">
+                        <div>
+                            <div class="fw-semibold">@check.Label</div>
+                            <div>@check.Summary</div>
+                            @if (!string.IsNullOrWhiteSpace(check.Detail))
+                            {
+                                <div class="small text-muted text-break mt-1">@check.Detail</div>
+                            }
+                        </div>
+                        <span class="badge @DbHealthModel.StatusCss(check.Status)">@check.Status</span>
+                    </div>
                 }
-                else
-                {
-                    <ul class="mb-0">
-                        @foreach (var migration in Model.PendingMigrations)
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-lg-6">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-header">Pending migrations (@health.PendingMigrations.Count)</div>
+                    <div class="card-body">
+                        @if (health.PendingMigrations.Count == 0)
                         {
-                            <li>@migration</li>
+                            <p class="text-muted mb-0">None.</p>
                         }
-                    </ul>
-                }
+                        else
+                        {
+                            <ul class="mb-0">
+                                @foreach (var migration in health.PendingMigrations) { <li>@migration</li> }
+                            </ul>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-header">Applied but missing from assembly (@health.AppliedButMissingMigrations.Count)</div>
+                    <div class="card-body">
+                        @if (health.AppliedButMissingMigrations.Count == 0)
+                        {
+                            <p class="text-muted mb-0">None.</p>
+                        }
+                        else
+                        {
+                            <div class="alert alert-danger mb-0">
+                                @foreach (var migration in health.AppliedButMissingMigrations) { <div>@migration</div> }
+                            </div>
+                        }
+                    </div>
+                </div>
             </div>
         </div>
     }

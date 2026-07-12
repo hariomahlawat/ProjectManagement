@@ -14,11 +14,13 @@ namespace ProjectManagement.Services
     {
         private readonly ApplicationDbContext _db;
         private readonly IHttpContextAccessor _http;
+        private readonly IClock _clock;
 
-        public AuditService(ApplicationDbContext db, IHttpContextAccessor http)
+        public AuditService(ApplicationDbContext db, IHttpContextAccessor http, IClock? clock = null)
         {
             _db = db;
             _http = http;
+            _clock = clock ?? new SystemClock();
         }
 
         private static readonly string[] SensitiveKeys = new[]
@@ -54,7 +56,7 @@ namespace ProjectManagement.Services
 
             var log = new AuditLog
             {
-                TimeUtc = DateTime.UtcNow,
+                TimeUtc = _clock.UtcNow.UtcDateTime,
                 Level = level,
                 Action = action,
                 UserId = userId,

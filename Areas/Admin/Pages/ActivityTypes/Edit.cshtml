@@ -15,6 +15,7 @@
 <h1 class="mb-4">Edit activity type</h1>
 
 <form method="post" class="col-lg-6 col-xl-5">
+  <input asp-for="Input.RowVersion" type="hidden" />
   <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
   <div class="mb-3">

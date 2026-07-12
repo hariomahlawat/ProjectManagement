@@ -1654,6 +1654,7 @@ namespace ProjectManagement.Data
 
             builder.Entity<ProjectCategory>(e =>
             {
+                ConfigureRowVersion(e);
                 e.Property(x => x.Name).HasMaxLength(120).IsRequired();
                 e.HasIndex(x => new { x.ParentId, x.Name }).IsUnique();
                 e.Property(x => x.SortOrder).HasDefaultValue(0);
@@ -1668,6 +1669,7 @@ namespace ProjectManagement.Data
 
             builder.Entity<TechnicalCategory>(e =>
             {
+                ConfigureRowVersion(e);
                 e.Property(x => x.Name).HasMaxLength(120).IsRequired();
                 e.HasIndex(x => new { x.ParentId, x.Name }).IsUnique();
                 e.Property(x => x.SortOrder).HasDefaultValue(0);
@@ -1683,6 +1685,7 @@ namespace ProjectManagement.Data
             // SECTION: Project type lookup
             builder.Entity<ProjectType>(e =>
             {
+                ConfigureRowVersion(e);
                 e.Property(x => x.Name).HasMaxLength(200).IsRequired();
                 e.HasIndex(x => x.Name);
                 e.Property(x => x.SortOrder).HasDefaultValue(0);
@@ -1691,6 +1694,7 @@ namespace ProjectManagement.Data
 
             builder.Entity<SponsoringUnit>(e =>
             {
+                ConfigureRowVersion(e);
                 e.Property(x => x.Name).HasMaxLength(200).IsRequired();
                 e.HasIndex(x => x.Name).IsUnique();
                 e.Property(x => x.IsActive).HasDefaultValue(true);
@@ -1715,6 +1719,7 @@ namespace ProjectManagement.Data
 
             builder.Entity<LineDirectorate>(e =>
             {
+                ConfigureRowVersion(e);
                 e.Property(x => x.Name).HasMaxLength(200).IsRequired();
                 e.HasIndex(x => x.Name).IsUnique();
                 e.Property(x => x.IsActive).HasDefaultValue(true);

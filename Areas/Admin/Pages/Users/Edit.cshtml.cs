@@ -4,10 +4,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Admin;
 
 namespace ProjectManagement.Areas.Admin.Pages.Users
 {
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = ProjectManagement.Configuration.AdminPolicies.UsersManage)]
     public class EditModel : PageModel
     {
         private readonly IUserManagementService _users;
@@ -105,7 +106,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
                 Input.Rank,
                 string.Join(',', Input.Roles));
 
-            TempData["ok"] = "User updated.";
+            TempData[FlashMessageKeys.AdminUsersSuccess] = "User updated.";
             return RedirectToPage("Index");
         }
     }

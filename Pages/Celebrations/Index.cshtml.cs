@@ -7,6 +7,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Helpers;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Admin;
 
 namespace ProjectManagement.Pages.Celebrations;
 
@@ -140,7 +141,7 @@ public class IndexModel : PageModel
         celebration.UpdatedUtc = DateTimeOffset.UtcNow;
         await _db.SaveChangesAsync();
 
-        TempData["ok"] = celebration.EventType == CelebrationType.Birthday
+        TempData[FlashMessageKeys.CelebrationsSuccess] = celebration.EventType == CelebrationType.Birthday
             ? "Birthday deleted."
             : "Anniversary deleted.";
 
