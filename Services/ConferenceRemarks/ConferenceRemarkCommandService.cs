@@ -1,5 +1,3 @@
-using System.Net;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -24,9 +22,6 @@ namespace ProjectManagement.Services.ConferenceRemarks;
 /// </summary>
 public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandService
 {
-    private static readonly Regex HtmlTagRegex = new("<[^>]+>", RegexOptions.Compiled);
-    private static readonly Regex WhitespaceRegex = new("\\s+", RegexOptions.Compiled);
-
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _users;
     private readonly IRemarkService _projectRemarks;
@@ -163,7 +158,7 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
             new ConferenceDirectionVm
             {
                 Id = remark.Id,
-                Body = ToPlainText(remark.Body),
+                Body = ConferenceDirectionTextFormatter.ToDisplayText(remark.Body),
                 AuthorName = DisplayName(actor),
                 AuthorRole = DisplayRole(commandRole),
                 CreatedAtUtc = AsUtc(remark.CreatedAtUtc),
@@ -204,7 +199,7 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
             new ConferenceDirectionVm
             {
                 Id = comment.Id,
-                Body = comment.CommentText,
+                Body = ConferenceDirectionTextFormatter.ToDisplayText(comment.CommentText),
                 AuthorName = DisplayName(actor),
                 AuthorRole = DisplayRole(commandRole),
                 CreatedAtUtc = AsUtc(comment.CreatedAt),
@@ -249,7 +244,7 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
             new ConferenceDirectionVm
             {
                 Id = update.Id,
-                Body = update.Body,
+                Body = ConferenceDirectionTextFormatter.ToDisplayText(update.Body),
                 AuthorName = DisplayName(actor),
                 AuthorRole = DisplayRole(commandRole),
                 CreatedAtUtc = AsUtc(update.CreatedAtUtc),
@@ -304,17 +299,6 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
         return dueDate.HasValue
             ? $"{state} · due {dueDate.Value:dd MMM yyyy}"
             : state;
-    }
-
-    private static string ToPlainText(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        var withoutTags = HtmlTagRegex.Replace(value, " ");
-        return WhitespaceRegex.Replace(WebUtility.HtmlDecode(withoutTags), " ").Trim();
     }
 
     private static DateTime AsUtc(DateTime value)

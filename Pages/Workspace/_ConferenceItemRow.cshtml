@@ -13,9 +13,10 @@
     };
     var directionDate = direction is null
         ? null
-        : IstClock.ToIst(direction.CreatedAtUtc).ToString("dd MMM yyyy");
+        : IstClock.ToIst(direction.CreatedAtUtc).ToString("dd MMM yyyy, hh:mm tt");
     var editorId = $"oc-editor-{(int)item.Kind}-{item.ItemId}";
     var feedbackId = $"{editorId}-feedback";
+    var directionBodyId = $"oc-direction-body-{(int)item.Kind}-{item.ItemId}";
 }
 
 <article class="oc-item @(item.RequiresAttention ? "oc-item--attention" : string.Empty)"
@@ -66,7 +67,13 @@
                     <span><i class="bi bi-journal-check" aria-hidden="true"></i>Conference</span>
                     <small>@direction.AuthorRole · @directionDate</small>
                 </div>
-                <p data-oc-direction-body title="@direction.Body">@direction.Body</p>
+                <p id="@directionBodyId" class="oc-direction__body" data-oc-direction-body>@direction.Body</p>
+                <button type="button"
+                        class="oc-direction-toggle"
+                        data-oc-direction-toggle
+                        aria-controls="@directionBodyId"
+                        aria-expanded="false"
+                        hidden>More</button>
                 <div class="oc-direction__meta">
                     <span data-oc-direction-author>@direction.AuthorName</span>
                     <span data-oc-direction-snapshot>@direction.SnapshotLabel: @direction.SnapshotValue</span>

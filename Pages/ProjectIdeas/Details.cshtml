@@ -7,7 +7,11 @@
 
     var updatedLocal = Model.Idea.UpdatedAt.ToLocalTime();
     var updatedUtcIso = Model.Idea.UpdatedAt.ToUniversalTime().ToString("O");
-    var comments = Model.Idea.Comments.Where(c => !c.IsDeleted).OrderBy(c => c.CreatedAt).ToList();
+    var comments = Model.Idea.Comments
+        .Where(c => !c.IsDeleted)
+        .OrderByDescending(c => c.CreatedAt)
+        .ThenByDescending(c => c.Id)
+        .ToList();
     var notes = Model.Idea.Notes.Where(n => !n.IsDeleted).OrderByDescending(n => n.IsPinned).ThenByDescending(n => n.UpdatedAt).ToList();
     var commentCount = comments.Count;
     var noteCount = notes.Count;

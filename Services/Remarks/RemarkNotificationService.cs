@@ -54,6 +54,11 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
             var recipients = await ResolveRecipientsAsync(project, remark, cancellationToken);
             var mentionRecipients = ResolveMentionRecipients(remark);
 
+            // The author may also be the Project Officer, HoD, Comdt or an explicit mention.
+            // Never notify a user about the remark they have just issued.
+            recipients.Remove(actor.UserId);
+            mentionRecipients.Remove(actor.UserId);
+
             if (mentionRecipients.Count > 0)
             {
                 recipients.ExceptWith(mentionRecipients);

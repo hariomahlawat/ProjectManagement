@@ -32,9 +32,9 @@
                 <span class="oc-eyebrow">Officer conference review</span>
                 <h1>@Model.Conference.OfficerDisplayName</h1>
                 <p>
-                    <span><strong>@Model.Conference.ProjectCount</strong> projects</span>
-                    <span><strong>@Model.Conference.IdeaCount</strong> ideas</span>
-                    <span><strong>@Model.Conference.OtherTaskCount</strong> other tasks</span>
+                    <span><strong>@Model.Conference.ProjectCount</strong> @(Model.Conference.ProjectCount == 1 ? "project" : "projects")</span>
+                    <span><strong>@Model.Conference.IdeaCount</strong> @(Model.Conference.IdeaCount == 1 ? "idea" : "ideas")</span>
+                    <span><strong>@Model.Conference.OtherTaskCount</strong> @(Model.Conference.OtherTaskCount == 1 ? "other task" : "other tasks")</span>
                 </p>
             </div>
         </div>
@@ -106,7 +106,6 @@
         }
     </main>
 
-    <div class="oc-page-feedback" data-oc-page-feedback aria-live="polite"></div>
 </div>
 
 @section Scripts {

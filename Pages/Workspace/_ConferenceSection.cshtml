@@ -22,7 +22,14 @@
 
     @if (sectionModel.Items.Count == 0)
     {
-        <div class="oc-section__empty">No current @(sectionModel.Title.ToLowerInvariant()) assigned.</div>
+        var emptyMessage = sectionModel.Kind switch
+        {
+            ConferenceItemKind.Project => "No projects assigned.",
+            ConferenceItemKind.ProjectIdea => "No ideas assigned.",
+            ConferenceItemKind.ActionTask => "No other tasks assigned.",
+            _ => "No items assigned."
+        };
+        <div class="oc-section__empty">@emptyMessage</div>
     }
     else
     {

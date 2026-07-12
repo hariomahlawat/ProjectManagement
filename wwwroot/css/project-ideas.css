@@ -457,6 +457,7 @@
     font-size: .84rem;
     line-height: 1.5;
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 
 .pi-comment-composer {
@@ -867,11 +868,17 @@
 }
 
 .pi-comment-conference {
-    margin-inline: -.65rem;
+    width: 100%;
+    margin-inline: 0;
     padding-inline: .65rem;
     border: 1px solid rgba(79, 70, 229, .2);
     border-radius: .75rem;
     background: rgba(79, 70, 229, .04);
+    box-sizing: border-box;
+}
+
+.pi-feed {
+    overflow-x: hidden;
 }
 
 .pi-comment-context {

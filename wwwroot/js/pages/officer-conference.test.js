@@ -36,3 +36,20 @@ test('conference save surfaces server trace references and row-local feedback', 
     assert.match(source, /setRowStatus\(item, 'Direction saved\.'/);
     assert.match(source, /setRowStatus\(item, 'Save failed\.', true\)/);
 });
+
+
+test('conference direction metadata includes time', () => {
+    assert.match(source, /hour: '2-digit'/);
+    assert.match(source, /minute: '2-digit'/);
+});
+
+test('conference directions expose accessible more and less controls', () => {
+    assert.match(source, /data-oc-direction-toggle/);
+    assert.match(source, /aria-expanded/);
+    assert.match(source, /toggle\.textContent = expanded \? 'Less' : 'More'/);
+});
+
+test('conference save uses only row-local success feedback', () => {
+    assert.doesNotMatch(source, /setPageFeedback/);
+    assert.match(source, /setRowStatus\(item, 'Direction saved\.'/);
+});

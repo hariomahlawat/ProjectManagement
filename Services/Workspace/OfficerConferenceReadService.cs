@@ -1,5 +1,3 @@
-using System.Net;
-using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
@@ -10,6 +8,7 @@ using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.ConferenceRemarks;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.ViewModels.Workspace;
 
@@ -22,9 +21,6 @@ namespace ProjectManagement.Services.Workspace;
 /// </summary>
 public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
 {
-    private static readonly Regex HtmlTagRegex = new("<[^>]+>", RegexOptions.Compiled);
-    private static readonly Regex WhitespaceRegex = new("\\s+", RegexOptions.Compiled);
-
     private readonly ApplicationDbContext _db;
     private readonly IOfficerWorkloadReadService _workload;
     private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
@@ -489,7 +485,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                     : new ConferenceDirectionVm
                     {
                         Id = direction.Id,
-                        Body = ToPlainText(direction.Body),
+                        Body = ConferenceDirectionTextFormatter.ToDisplayText(direction.Body),
                         AuthorName = ResolveAuthor(authorNames, direction.AuthorUserId),
                         AuthorRole = DisplayRole(direction.AuthorRole),
                         CreatedAtUtc = AsUtc(direction.CreatedAtUtc),
@@ -502,7 +498,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                     subsequent.Count),
                 LatestProgressText = latestProgress is null
                     ? null
-                    : ToPlainText(latestProgress.Body)
+                    : ConferenceDirectionTextFormatter.ToDisplayText(latestProgress.Body)
             });
         }
 
@@ -561,7 +557,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                     : new ConferenceDirectionVm
                     {
                         Id = direction.Id,
-                        Body = direction.CommentText,
+                        Body = ConferenceDirectionTextFormatter.ToDisplayText(direction.CommentText),
                         AuthorName = ResolveAuthor(authorNames, direction.CreatedByUserId),
                         AuthorRole = DisplayRole(direction.CreatedByRole),
                         CreatedAtUtc = AsUtc(direction.CreatedAt),
@@ -573,7 +569,9 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                     row.Status,
                     subsequent.Count,
                     "comment"),
-                LatestProgressText = latestProgress?.CommentText
+                LatestProgressText = latestProgress is null
+                    ? null
+                    : ConferenceDirectionTextFormatter.ToDisplayText(latestProgress.CommentText)
             });
         }
 
@@ -648,7 +646,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                     : new ConferenceDirectionVm
                     {
                         Id = direction.Id,
-                        Body = direction.Body,
+                        Body = ConferenceDirectionTextFormatter.ToDisplayText(direction.Body),
                         AuthorName = ResolveAuthor(authorNames, direction.CreatedByUserId),
                         AuthorRole = DisplayRole(direction.CreatedByRole),
                         CreatedAtUtc = AsUtc(direction.CreatedAtUtc),
@@ -660,7 +658,9 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                     row.Status,
                     dueDate,
                     subsequent.Count),
-                LatestProgressText = latestProgress?.Body
+                LatestProgressText = latestProgress is null
+                    ? null
+                    : ConferenceDirectionTextFormatter.ToDisplayText(latestProgress.Body)
             });
         }
 
@@ -812,17 +812,6 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         IReadOnlyDictionary<string, string> authors,
         string userId)
         => authors.TryGetValue(userId, out var name) ? name : userId;
-
-    private static string ToPlainText(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        var withoutTags = HtmlTagRegex.Replace(value, " ");
-        return WhitespaceRegex.Replace(WebUtility.HtmlDecode(withoutTags), " ").Trim();
-    }
 
     private static DateTime AsUtc(DateTime value)
         => value.Kind == DateTimeKind.Utc

@@ -5,15 +5,19 @@ if (root) {
     const selector = root.querySelector('[data-officer-selector]');
     let openEditor = null;
 
-    const formatIstDate = (value) => {
+    const formatIstDateTime = (value) => {
         if (!value) return '';
         const date = new Date(value);
         if (Number.isNaN(date.getTime())) return '';
+
         return new Intl.DateTimeFormat('en-GB', {
             timeZone: 'Asia/Kolkata',
             day: '2-digit',
             month: 'short',
-            year: 'numeric'
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
         }).format(date);
     };
 
@@ -30,16 +34,6 @@ if (root) {
                 status.classList.remove('is-error');
             }, 3500);
         }
-    };
-
-    const setPageFeedback = (message) => {
-        const feedback = root.querySelector('[data-oc-page-feedback]');
-        if (!feedback) return;
-        feedback.textContent = message;
-        window.clearTimeout(setPageFeedback.timeoutId);
-        setPageFeedback.timeoutId = window.setTimeout(() => {
-            feedback.textContent = '';
-        }, 3000);
     };
 
     const getAddButton = (editor) => editor?.closest('[data-oc-item]')?.querySelector('[data-oc-add]') ?? null;
@@ -89,7 +83,35 @@ if (root) {
         requestAnimationFrame(() => input?.focus());
     };
 
-    const buildDirection = (direction) => {
+    const setDirectionExpanded = (direction, expanded) => {
+        const body = direction?.querySelector('[data-oc-direction-body]');
+        const toggle = direction?.querySelector('[data-oc-direction-toggle]');
+        if (!body || !toggle) return;
+
+        body.classList.toggle('is-expanded', expanded);
+        toggle.setAttribute('aria-expanded', String(expanded));
+        toggle.textContent = expanded ? 'Less' : 'More';
+    };
+
+    const configureDirectionToggle = (direction) => {
+        const body = direction?.querySelector('[data-oc-direction-body]');
+        const toggle = direction?.querySelector('[data-oc-direction-toggle]');
+        if (!body || !toggle) return;
+
+        const wasExpanded = toggle.getAttribute('aria-expanded') === 'true';
+        setDirectionExpanded(direction, false);
+        toggle.hidden = true;
+
+        requestAnimationFrame(() => {
+            const isOverflowing = body.scrollHeight > body.clientHeight + 1;
+            toggle.hidden = !isOverflowing;
+            if (isOverflowing && wasExpanded) {
+                setDirectionExpanded(direction, true);
+            }
+        });
+    };
+
+    const buildDirection = (direction, item) => {
         const wrapper = document.createElement('div');
         wrapper.className = 'oc-direction';
         wrapper.dataset.ocDirectionContent = '';
@@ -104,13 +126,23 @@ if (root) {
         badge.append(icon, document.createTextNode('Conference'));
 
         const meta = document.createElement('small');
-        meta.textContent = `${direction.authorRole} · ${formatIstDate(direction.createdAtUtc)}`;
+        meta.textContent = `${direction.authorRole} · ${formatIstDateTime(direction.createdAtUtc)}`;
         label.append(badge, meta);
 
         const body = document.createElement('p');
+        body.className = 'oc-direction__body';
         body.dataset.ocDirectionBody = '';
+        body.id = `oc-direction-body-${item.dataset.itemKind}-${item.dataset.itemId}`;
         body.textContent = direction.body;
-        body.title = direction.body;
+
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'oc-direction-toggle';
+        toggle.dataset.ocDirectionToggle = '';
+        toggle.setAttribute('aria-controls', body.id);
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.textContent = 'More';
+        toggle.hidden = true;
 
         const detail = document.createElement('div');
         detail.className = 'oc-direction__meta';
@@ -122,14 +154,16 @@ if (root) {
         snapshot.textContent = `${direction.snapshotLabel}: ${direction.snapshotValue}`;
         detail.append(author, snapshot);
 
-        wrapper.append(label, body, detail);
+        wrapper.append(label, body, toggle, detail);
         return wrapper;
     };
 
     const applySavedDirection = (item, payload) => {
         const directionHost = item.querySelector('[data-oc-direction]');
         if (directionHost) {
-            directionHost.replaceChildren(buildDirection(payload.direction));
+            const direction = buildDirection(payload.direction, item);
+            directionHost.replaceChildren(direction);
+            configureDirectionToggle(direction);
         }
 
         const progressLabel = item.querySelector('[data-oc-progress-label]');
@@ -198,7 +232,6 @@ if (root) {
             applySavedDirection(item, payload);
             closeEditor(editor, { restoreFocus: true });
             setRowStatus(item, 'Direction saved.');
-            setPageFeedback('Conference direction saved.');
         } catch (error) {
             editor.classList.remove('is-saving');
             editor.setAttribute('aria-busy', 'false');
@@ -221,6 +254,14 @@ if (root) {
     });
 
     root.addEventListener('click', (event) => {
+        const directionToggle = event.target.closest('[data-oc-direction-toggle]');
+        if (directionToggle) {
+            const direction = directionToggle.closest('[data-oc-direction-content]');
+            const expanded = directionToggle.getAttribute('aria-expanded') === 'true';
+            setDirectionExpanded(direction, !expanded);
+            return;
+        }
+
         const addButton = event.target.closest('[data-oc-add]');
         if (addButton) {
             openInlineEditor(addButton.closest('[data-oc-item]'));
@@ -272,5 +313,15 @@ if (root) {
         if (!editor) return;
         event.preventDefault();
         void saveDirection(editor);
+    });
+
+    root.querySelectorAll('[data-oc-direction-content]').forEach(configureDirectionToggle);
+
+    let resizeTimer = 0;
+    window.addEventListener('resize', () => {
+        window.clearTimeout(resizeTimer);
+        resizeTimer = window.setTimeout(() => {
+            root.querySelectorAll('[data-oc-direction-content]').forEach(configureDirectionToggle);
+        }, 120);
     });
 }
