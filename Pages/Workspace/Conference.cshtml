@@ -33,7 +33,7 @@
                 <h1>@Model.Conference.OfficerDisplayName</h1>
                 <p>
                     <span><strong>@Model.Conference.ProjectCount</strong> @(Model.Conference.ProjectCount == 1 ? "project" : "projects")</span>
-                    <span><strong>@Model.Conference.IdeaCount</strong> @(Model.Conference.IdeaCount == 1 ? "idea" : "ideas")</span>
+                    <span><strong data-oc-header-idea-count>@Model.Conference.IdeaCount</strong> <span data-oc-header-idea-label>@(Model.Conference.IdeaCount == 1 ? "idea" : "ideas")</span></span>
                     <span><strong data-oc-header-task-count>@Model.Conference.OtherTaskCount</strong> <span data-oc-header-task-label>@(Model.Conference.OtherTaskCount == 1 ? "other task" : "other tasks")</span></span>
                 </p>
             </div>
@@ -104,6 +104,7 @@
                     OfficerDisplayName = Model.Conference.OfficerDisplayName,
                     MinimumTaskDueDate = Model.MinimumTaskDueDate,
                     DefaultTaskDueDate = Model.DefaultTaskDueDate,
+                    IdeaCreation = Model.IdeaCreation,
                     Section = section
                 })
         }

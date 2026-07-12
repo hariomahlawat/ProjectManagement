@@ -17,6 +17,7 @@ public sealed class ConferenceModel : PageModel
     private readonly IOfficerConferenceReadService _readService;
     private readonly IConferenceRemarkCommandService _remarkCommandService;
     private readonly IConferenceTaskCommandService _taskCommandService;
+    private readonly IConferenceIdeaCommandService _ideaCommandService;
     private readonly UserManager<ApplicationUser> _users;
     private readonly IActionTrackerClock _taskClock;
     private readonly ILogger<ConferenceModel> _logger;
@@ -25,6 +26,7 @@ public sealed class ConferenceModel : PageModel
         IOfficerConferenceReadService readService,
         IConferenceRemarkCommandService remarkCommandService,
         IConferenceTaskCommandService taskCommandService,
+        IConferenceIdeaCommandService ideaCommandService,
         UserManager<ApplicationUser> users,
         IActionTrackerClock taskClock,
         ILogger<ConferenceModel> logger)
@@ -32,6 +34,7 @@ public sealed class ConferenceModel : PageModel
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
         _remarkCommandService = remarkCommandService ?? throw new ArgumentNullException(nameof(remarkCommandService));
         _taskCommandService = taskCommandService ?? throw new ArgumentNullException(nameof(taskCommandService));
+        _ideaCommandService = ideaCommandService ?? throw new ArgumentNullException(nameof(ideaCommandService));
         _users = users ?? throw new ArgumentNullException(nameof(users));
         _taskClock = taskClock ?? throw new ArgumentNullException(nameof(taskClock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -40,6 +43,7 @@ public sealed class ConferenceModel : PageModel
     public OfficerConferenceVm Conference { get; private set; } = new();
     public DateTime MinimumTaskDueDate => _taskClock.IstToday;
     public DateTime DefaultTaskDueDate => _taskClock.IstToday.AddDays(7);
+    public ConferenceIdeaCreationOptionsVm IdeaCreation { get; private set; } = new();
 
     public async Task<IActionResult> OnGetAsync(
         string officerUserId,
@@ -61,6 +65,7 @@ public sealed class ConferenceModel : PageModel
         }
 
         Conference = conference;
+        IdeaCreation = await BuildIdeaCreationOptionsAsync(userId);
         return Page();
     }
 
@@ -200,6 +205,151 @@ public sealed class ConferenceModel : PageModel
                 "The task could not be assigned.",
                 traceId);
         }
+    }
+
+    public async Task<IActionResult> OnPostCreateIdeaAsync(
+        string officerUserId,
+        [FromForm] CreateConferenceIdeaInput input,
+        CancellationToken cancellationToken)
+    {
+        var userId = _users.GetUserId(User);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Unauthorized();
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return new JsonResult(new
+            {
+                message = "Review the idea details and correct the highlighted fields.",
+                errors = GetModelErrors()
+            })
+            {
+                StatusCode = StatusCodes.Status400BadRequest
+            };
+        }
+
+        try
+        {
+            var result = await _ideaCommandService.CreateAsync(
+                userId,
+                new CreateConferenceIdeaRequest(
+                    officerUserId,
+                    input.Title,
+                    input.Description,
+                    input.AssignedHodUserId),
+                cancellationToken);
+
+            return new JsonResult(new
+            {
+                saved = true,
+                idea = result.Idea
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return JsonError(StatusCodes.Status403Forbidden, ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return JsonError(StatusCodes.Status400BadRequest, ex.Message);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            var traceId = HttpContext.TraceIdentifier;
+            _logger.LogError(
+                ex,
+                "Conference idea creation failed. TraceId={TraceId}, Officer={OfficerUserId}",
+                traceId,
+                officerUserId);
+
+            return JsonError(
+                StatusCodes.Status500InternalServerError,
+                "The idea could not be created.",
+                traceId);
+        }
+    }
+
+    private async Task<ConferenceIdeaCreationOptionsVm> BuildIdeaCreationOptionsAsync(string actorUserId)
+    {
+        var actor = await _users.FindByIdAsync(actorUserId);
+        if (actor is null || actor.IsDisabled || actor.PendingDeletion)
+        {
+            return new ConferenceIdeaCreationOptionsVm
+            {
+                CanCreate = false,
+                UnavailableReason = "The command user account is unavailable."
+            };
+        }
+
+        var actorRoles = await _users.GetRolesAsync(actor);
+        if (actorRoles.Contains(RoleNames.HoD, StringComparer.OrdinalIgnoreCase))
+        {
+            return new ConferenceIdeaCreationOptionsVm
+            {
+                CanCreate = true,
+                RequiresHodSelection = false,
+                FixedHodUserId = actor.Id,
+                FixedHodDisplayName = DisplayUser(actor)
+            };
+        }
+
+        if (!actorRoles.Contains(RoleNames.Comdt, StringComparer.OrdinalIgnoreCase))
+        {
+            return new ConferenceIdeaCreationOptionsVm
+            {
+                CanCreate = false,
+                UnavailableReason = "Only Comdt or HoD can create ideas from this page."
+            };
+        }
+
+        var hodUsers = (await _users.GetUsersInRoleAsync(RoleNames.HoD))
+            .Where(IsActiveAssignableUser)
+            .OrderBy(user => user.Rank, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(DisplayUser, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (hodUsers.Count == 0)
+        {
+            return new ConferenceIdeaCreationOptionsVm
+            {
+                CanCreate = false,
+                RequiresHodSelection = true,
+                UnavailableReason = "No active HoD account is available for idea oversight."
+            };
+        }
+
+        return new ConferenceIdeaCreationOptionsVm
+        {
+            CanCreate = true,
+            RequiresHodSelection = true,
+            HodOptions = hodUsers
+                .Select((user, index) => new ConferenceHodOptionVm(
+                    user.Id,
+                    DisplayUser(user),
+                    hodUsers.Count == 1 && index == 0))
+                .ToList()
+        };
+    }
+
+    private bool IsActiveAssignableUser(ApplicationUser user)
+        => !user.IsDisabled
+            && !user.PendingDeletion
+            && (!user.LockoutEnd.HasValue
+                || user.LockoutEnd.Value.UtcDateTime <= _taskClock.UtcNow);
+
+    private static string DisplayUser(ApplicationUser user)
+    {
+        var name = string.IsNullOrWhiteSpace(user.FullName)
+            ? user.UserName ?? user.Email ?? user.Id
+            : user.FullName.Trim();
+        return string.IsNullOrWhiteSpace(user.Rank)
+            ? name
+            : $"{user.Rank.Trim()} {name}";
     }
 
     private Dictionary<string, string[]> GetModelErrors()

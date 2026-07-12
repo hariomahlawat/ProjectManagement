@@ -9,6 +9,32 @@ namespace ProjectManagement.Tests;
 public sealed class ProjectIdeaCommandServiceTests
 {
     [Fact]
+    public async Task CreateAsync_PersistsIdeaThroughCommandBoundary()
+    {
+        await using var db = CreateDb();
+        var service = new ProjectIdeaCommandService(db);
+        var idea = new ProjectIdea
+        {
+            Title = "Conference idea",
+            Description = "Explore the concept.",
+            Status = ProjectIdeaStatuses.Active,
+            AssignedProjectOfficerUserId = "po-1",
+            AssignedHodUserId = "hod-1",
+            CreatedByUserId = "hod-1"
+        };
+
+        var created = await service.CreateAsync(idea);
+
+        Assert.True(created.Id > 0);
+        var stored = await db.ProjectIdeas.SingleAsync();
+        Assert.Equal("Conference idea", stored.Title);
+        Assert.Equal("po-1", stored.AssignedProjectOfficerUserId);
+        Assert.Equal("hod-1", stored.AssignedHodUserId);
+        Assert.Equal(ProjectIdeaStatuses.Active, stored.Status);
+        Assert.Equal(stored.CreatedAt, stored.UpdatedAt);
+    }
+
+    [Fact]
     public async Task AddCommentAsync_CapturesGeneralTypeAndStatusSnapshot()
     {
         await using var db = CreateDb();

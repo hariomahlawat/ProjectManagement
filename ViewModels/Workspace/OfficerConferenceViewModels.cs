@@ -122,6 +122,49 @@ public sealed record AddConferenceRemarkResult(
     string? LatestProgressText);
 
 
+
+
+public sealed class CreateConferenceIdeaInput
+{
+    [Display(Name = "Idea title")]
+    [Required]
+    [StringLength(200)]
+    public string Title { get; set; } = string.Empty;
+
+    [Display(Name = "Concept / problem statement")]
+    [Required]
+    [StringLength(2000)]
+    public string Description { get; set; } = string.Empty;
+
+    [Display(Name = "HoD oversight")]
+    [StringLength(450)]
+    public string? AssignedHodUserId { get; set; }
+}
+
+public sealed record CreateConferenceIdeaRequest(
+    string OfficerUserId,
+    string Title,
+    string Description,
+    string? AssignedHodUserId);
+
+public sealed record CreateConferenceIdeaResult(OfficerConferenceItemVm Idea);
+
+public sealed class ConferenceIdeaCreationOptionsVm
+{
+    public bool CanCreate { get; init; }
+    public bool RequiresHodSelection { get; init; }
+    public string? FixedHodUserId { get; init; }
+    public string? FixedHodDisplayName { get; init; }
+    public string? UnavailableReason { get; init; }
+    public IReadOnlyList<ConferenceHodOptionVm> HodOptions { get; init; }
+        = Array.Empty<ConferenceHodOptionVm>();
+}
+
+public sealed record ConferenceHodOptionVm(
+    string UserId,
+    string DisplayName,
+    bool IsSelected);
+
 public sealed class CreateConferenceTaskInput
 {
     [Display(Name = "Task title")]
@@ -159,6 +202,7 @@ public sealed class OfficerConferenceSectionRenderVm
     public string OfficerDisplayName { get; init; } = string.Empty;
     public DateTime MinimumTaskDueDate { get; init; }
     public DateTime DefaultTaskDueDate { get; init; }
+    public ConferenceIdeaCreationOptionsVm IdeaCreation { get; init; } = new();
     public OfficerConferenceSectionVm Section { get; init; } = new();
 }
 

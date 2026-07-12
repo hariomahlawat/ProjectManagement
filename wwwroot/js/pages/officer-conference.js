@@ -4,6 +4,7 @@ if (root) {
     const antiforgeryToken = root.querySelector('.oc-antiforgery input[name="__RequestVerificationToken"]')?.value ?? '';
     const selector = root.querySelector('[data-officer-selector]');
     let openEditor = null;
+    let openIdeaEditor = null;
     let openTaskEditor = null;
 
     const formatIstDateTime = (value) => {
@@ -73,6 +74,9 @@ if (root) {
         if (openEditor && openEditor !== editor) {
             closeEditor(openEditor);
         }
+        if (openIdeaEditor) {
+            closeIdeaEditor(openIdeaEditor);
+        }
         if (openTaskEditor) {
             closeTaskEditor(openTaskEditor);
         }
@@ -85,6 +89,213 @@ if (root) {
 
         const input = editor.querySelector('[data-oc-input]');
         requestAnimationFrame(() => input?.focus());
+    };
+
+    const getIdeaAddButton = (editor) => editor?.closest('[data-oc-section="ideas"]')?.querySelector('[data-oc-idea-add]') ?? null;
+
+    const clearIdeaErrors = (editor) => {
+        editor?.querySelectorAll('[data-oc-idea-error]').forEach((element) => {
+            element.textContent = '';
+        });
+        editor?.querySelectorAll('[data-oc-idea-input]').forEach((input) => {
+            input.removeAttribute('aria-invalid');
+        });
+    };
+
+    const ideaFormIsComplete = (editor) => {
+        const title = editor?.querySelector('[data-oc-idea-input="Title"]')?.value.trim() ?? '';
+        const description = editor?.querySelector('[data-oc-idea-input="Description"]')?.value.trim() ?? '';
+        const hod = editor?.querySelector('[data-oc-idea-input="AssignedHodUserId"]');
+        const hasHod = !hod || hod.value.trim().length > 0;
+        return title.length > 0
+            && description.length > 0
+            && hasHod
+            && (typeof editor.checkValidity !== 'function' || editor.checkValidity());
+    };
+
+    const syncIdeaSaveState = (editor) => {
+        const save = editor?.querySelector('[data-oc-idea-save]');
+        if (save) save.disabled = !ideaFormIsComplete(editor) || editor.classList.contains('is-saving');
+    };
+
+    const closeIdeaEditor = (editor, { clear = true, restoreFocus = false } = {}) => {
+        if (!editor) return;
+
+        editor.hidden = true;
+        editor.classList.remove('is-saving');
+        editor.setAttribute('aria-busy', 'false');
+        clearIdeaErrors(editor);
+
+        const feedback = editor.querySelector('[data-oc-idea-feedback]');
+        if (feedback) {
+            feedback.textContent = '';
+            feedback.classList.remove('is-error');
+        }
+
+        if (clear) editor.reset();
+        syncIdeaSaveState(editor);
+
+        const addButton = getIdeaAddButton(editor);
+        addButton?.setAttribute('aria-expanded', 'false');
+        if (restoreFocus) addButton?.focus();
+        if (openIdeaEditor === editor) openIdeaEditor = null;
+    };
+
+    const openIdeaCreation = (section) => {
+        const editor = section?.querySelector('[data-oc-idea-editor]');
+        if (!editor) return;
+
+        if (openEditor) closeEditor(openEditor);
+        if (openTaskEditor) closeTaskEditor(openTaskEditor);
+        if (openIdeaEditor && openIdeaEditor !== editor) closeIdeaEditor(openIdeaEditor);
+
+        editor.hidden = false;
+        editor.setAttribute('aria-busy', 'false');
+        clearIdeaErrors(editor);
+        getIdeaAddButton(editor)?.setAttribute('aria-expanded', 'true');
+        openIdeaEditor = editor;
+        syncIdeaSaveState(editor);
+
+        requestAnimationFrame(() => editor.querySelector('[data-oc-idea-input="Title"]')?.focus());
+    };
+
+    const applyIdeaErrors = (editor, errors) => {
+        if (!errors || typeof errors !== 'object') return;
+
+        Object.entries(errors).forEach(([field, messages]) => {
+            const input = editor.querySelector(`[data-oc-idea-input="${field}"]`);
+            const error = editor.querySelector(`[data-oc-idea-error="${field}"]`);
+            const message = Array.isArray(messages) ? messages[0] : String(messages ?? '');
+            if (input) input.setAttribute('aria-invalid', 'true');
+            if (error) error.textContent = message;
+        });
+    };
+
+    const appendCreatedIdea = (idea) => {
+        const section = root.querySelector('[data-oc-section="ideas"]');
+        const template = section?.querySelector('[data-oc-idea-item-template]');
+        if (!section || !template || !idea) return null;
+
+        const item = template.content.firstElementChild.cloneNode(true);
+        const currentOfficerId = section.querySelector('[data-oc-idea-editor]')?.dataset.officerId ?? '';
+        const itemKind = String(idea.kind ?? 2);
+        const itemId = String(idea.itemId ?? '');
+        const editorId = `oc-editor-${itemKind}-${itemId}`;
+        const feedbackId = `${editorId}-feedback`;
+
+        item.dataset.officerId = currentOfficerId;
+        item.dataset.itemKind = itemKind;
+        item.dataset.itemId = itemId;
+
+        const title = item.querySelector('[data-oc-new-idea-title]');
+        if (title) {
+            title.textContent = idea.title ?? 'New idea';
+            title.href = idea.openUrl ?? '#';
+        }
+
+        const state = item.querySelector('[data-oc-new-idea-state]');
+        if (state) state.textContent = idea.currentStateName ?? idea.currentStateCode ?? 'Active';
+
+        const context = item.querySelector('[data-oc-new-idea-context]');
+        if (context) context.textContent = idea.currentContext ?? 'Created just now';
+
+        const openLink = item.querySelector('[data-oc-new-idea-open]');
+        if (openLink) openLink.href = idea.openUrl ?? '#';
+
+        const addDirection = item.querySelector('[data-oc-add]');
+        addDirection?.setAttribute('aria-controls', editorId);
+
+        const directionEditor = item.querySelector('[data-oc-editor]');
+        if (directionEditor) {
+            directionEditor.id = editorId;
+            directionEditor.querySelector('input[name="officerUserId"]').value = currentOfficerId;
+            directionEditor.querySelector('input[name="kind"]').value = itemKind;
+            directionEditor.querySelector('input[name="itemId"]').value = itemId;
+            const textarea = directionEditor.querySelector('[data-oc-input]');
+            const feedback = directionEditor.querySelector('[data-oc-feedback]');
+            if (textarea) textarea.setAttribute('aria-describedby', feedbackId);
+            if (feedback) feedback.id = feedbackId;
+        }
+
+        let list = section.querySelector('[data-oc-item-list]');
+        if (!list) {
+            list = document.createElement('div');
+            list.className = 'oc-item-list';
+            list.dataset.ocItemList = '';
+            section.querySelector('[data-oc-section-empty]')?.remove();
+            template.before(list);
+        }
+        list.prepend(item);
+
+        const count = section.querySelector('[data-oc-section-count]');
+        const nextCount = Number.parseInt(count?.textContent ?? '0', 10) + 1;
+        if (count) count.textContent = String(nextCount);
+
+        const headerCount = root.querySelector('[data-oc-header-idea-count]');
+        const headerLabel = root.querySelector('[data-oc-header-idea-label]');
+        if (headerCount) headerCount.textContent = String(nextCount);
+        if (headerLabel) headerLabel.textContent = nextCount === 1 ? 'idea' : 'ideas';
+
+        item.classList.add('is-saved');
+        window.setTimeout(() => item.classList.remove('is-saved'), 1200);
+        return item;
+    };
+
+    const saveIdea = async (editor) => {
+        if (!editor || editor.classList.contains('is-saving')) return;
+        if (!ideaFormIsComplete(editor)) {
+            editor.reportValidity?.();
+            return;
+        }
+
+        const save = editor.querySelector('[data-oc-idea-save]');
+        const feedback = editor.querySelector('[data-oc-idea-feedback]');
+        editor.classList.add('is-saving');
+        editor.setAttribute('aria-busy', 'true');
+        clearIdeaErrors(editor);
+        if (save) save.disabled = true;
+        if (feedback) {
+            feedback.textContent = 'Creating idea…';
+            feedback.classList.remove('is-error');
+        }
+
+        const data = new FormData(editor);
+        if (antiforgeryToken && !data.has('__RequestVerificationToken')) {
+            data.append('__RequestVerificationToken', antiforgeryToken);
+        }
+
+        try {
+            const response = await fetch(editor.action, {
+                method: 'POST',
+                body: data,
+                headers: antiforgeryToken ? { 'X-CSRF-TOKEN': antiforgeryToken } : {},
+                credentials: 'same-origin'
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                applyIdeaErrors(editor, payload.errors);
+                const reference = payload.traceId ? ` Reference: ${payload.traceId}.` : '';
+                throw new Error(`${payload.message || 'The idea could not be created.'}${reference}`);
+            }
+
+            const item = appendCreatedIdea(payload.idea);
+            closeIdeaEditor(editor, { restoreFocus: true });
+            if (item) {
+                setRowStatus(item, 'Idea created.');
+                item.querySelector('[data-oc-new-idea-title]')?.focus({ preventScroll: true });
+            }
+        } catch (error) {
+            editor.classList.remove('is-saving');
+            editor.setAttribute('aria-busy', 'false');
+            syncIdeaSaveState(editor);
+            const message = error instanceof Error ? error.message : 'The idea could not be created.';
+            if (feedback) {
+                feedback.textContent = message;
+                feedback.classList.add('is-error');
+            }
+            const firstInvalid = editor.querySelector('[aria-invalid="true"]');
+            (firstInvalid ?? editor.querySelector('[data-oc-idea-input="Title"]'))?.focus();
+        }
     };
 
     const getTaskAddButton = (editor) => editor?.closest('[data-oc-section="tasks"]')?.querySelector('[data-oc-task-add]') ?? null;
@@ -141,6 +352,7 @@ if (root) {
         if (!editor) return;
 
         if (openEditor) closeEditor(openEditor);
+        if (openIdeaEditor) closeIdeaEditor(openIdeaEditor);
         if (openTaskEditor && openTaskEditor !== editor) closeTaskEditor(openTaskEditor);
 
         editor.hidden = false;
@@ -568,6 +780,18 @@ if (root) {
     });
 
     root.addEventListener('click', (event) => {
+        const addIdeaButton = event.target.closest('[data-oc-idea-add]');
+        if (addIdeaButton) {
+            openIdeaCreation(addIdeaButton.closest('[data-oc-section="ideas"]'));
+            return;
+        }
+
+        const cancelIdeaButton = event.target.closest('[data-oc-idea-cancel]');
+        if (cancelIdeaButton) {
+            closeIdeaEditor(cancelIdeaButton.closest('[data-oc-idea-editor]'), { restoreFocus: true });
+            return;
+        }
+
         const addTaskButton = event.target.closest('[data-oc-task-add]');
         if (addTaskButton) {
             openTaskCreation(addTaskButton.closest('[data-oc-section="tasks"]'));
@@ -609,6 +833,22 @@ if (root) {
     });
 
     root.addEventListener('input', (event) => {
+        const ideaInput = event.target.closest('[data-oc-idea-input]');
+        if (ideaInput) {
+            const editor = ideaInput.closest('[data-oc-idea-editor]');
+            ideaInput.removeAttribute('aria-invalid');
+            const field = ideaInput.dataset.ocIdeaInput;
+            const error = editor?.querySelector(`[data-oc-idea-error="${field}"]`);
+            if (error) error.textContent = '';
+            const feedback = editor?.querySelector('[data-oc-idea-feedback]');
+            if (feedback?.classList.contains('is-error')) {
+                feedback.textContent = '';
+                feedback.classList.remove('is-error');
+            }
+            syncIdeaSaveState(editor);
+            return;
+        }
+
         const taskInput = event.target.closest('[data-oc-task-input]');
         if (taskInput) {
             const editor = taskInput.closest('[data-oc-task-editor]');
@@ -640,12 +880,33 @@ if (root) {
     });
 
     root.addEventListener('change', (event) => {
+        const ideaInput = event.target.closest('[data-oc-idea-input]');
+        if (ideaInput) {
+            syncIdeaSaveState(ideaInput.closest('[data-oc-idea-editor]'));
+            return;
+        }
+
         const taskInput = event.target.closest('[data-oc-task-input]');
         if (!taskInput) return;
         syncTaskSaveState(taskInput.closest('[data-oc-task-editor]'));
     });
 
     root.addEventListener('keydown', (event) => {
+        const ideaEditor = event.target.closest('[data-oc-idea-editor]');
+        if (ideaEditor) {
+            if (event.key === 'Escape') {
+                if (ideaEditor.classList.contains('is-saving')) return;
+                event.preventDefault();
+                closeIdeaEditor(ideaEditor, { restoreFocus: true });
+                return;
+            }
+            if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                void saveIdea(ideaEditor);
+                return;
+            }
+        }
+
         const taskEditor = event.target.closest('[data-oc-task-editor]');
         if (taskEditor) {
             if (event.key === 'Escape') {
@@ -680,6 +941,13 @@ if (root) {
     });
 
     root.addEventListener('submit', (event) => {
+        const ideaEditor = event.target.closest('[data-oc-idea-editor]');
+        if (ideaEditor) {
+            event.preventDefault();
+            void saveIdea(ideaEditor);
+            return;
+        }
+
         const taskEditor = event.target.closest('[data-oc-task-editor]');
         if (taskEditor) {
             event.preventDefault();

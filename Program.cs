@@ -489,6 +489,7 @@ builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerWorkload
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerConferenceReadService, ProjectManagement.Services.Workspace.OfficerConferenceReadService>();
 builder.Services.AddScoped<ProjectManagement.Services.ConferenceRemarks.IConferenceRemarkCommandService, ProjectManagement.Services.ConferenceRemarks.ConferenceRemarkCommandService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IConferenceTaskCommandService, ProjectManagement.Services.Workspace.ConferenceTaskCommandService>();
+builder.Services.AddScoped<ProjectManagement.Services.Workspace.IConferenceIdeaCommandService, ProjectManagement.Services.Workspace.ConferenceIdeaCommandService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.CommandWorkspaceService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectRecordHealthService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.WorkspaceNudgeService>();

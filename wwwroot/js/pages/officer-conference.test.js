@@ -114,3 +114,30 @@ test('new task rendering uses textContent for server-returned values', () => {
     assert.match(source, /context\.textContent = task\.currentContext/);
     assert.doesNotMatch(source, /task\.title.*innerHTML/);
 });
+
+test('conference page creates Project Ideas without leaving the officer review', () => {
+    assert.match(source, /data-oc-idea-add/);
+    assert.match(source, /const saveIdea = async/);
+    assert.match(source, /appendCreatedIdea\(payload\.idea\)/);
+    assert.doesNotMatch(source, /window\.location.*ProjectIdeas/);
+});
+
+test('conference idea creation uses antiforgery and same-origin credentials', () => {
+    assert.match(source, /data\.append\('__RequestVerificationToken'/);
+    assert.match(source, /credentials: 'same-origin'/);
+    assert.match(source, /editor\.classList\.contains\('is-saving'\)/);
+});
+
+test('conference idea form supports keyboard create, cancel and field-level validation', () => {
+    assert.match(source, /const applyIdeaErrors/);
+    assert.match(source, /data-oc-idea-error/);
+    assert.match(source, /void saveIdea\(ideaEditor\)/);
+    assert.match(source, /closeIdeaEditor\(ideaEditor, \{ restoreFocus: true \}\)/);
+});
+
+test('new idea rendering uses textContent and updates idea counts', () => {
+    assert.match(source, /title\.textContent = idea\.title/);
+    assert.match(source, /context\.textContent = idea\.currentContext/);
+    assert.match(source, /data-oc-header-idea-count/);
+    assert.doesNotMatch(source, /idea\.title.*innerHTML/);
+});

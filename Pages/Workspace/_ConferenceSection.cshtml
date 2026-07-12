@@ -9,7 +9,14 @@
         ConferenceItemKind.ActionTask => "tasks",
         _ => "general"
     };
+    var isIdeaSection = sectionModel.Kind == ConferenceItemKind.ProjectIdea;
     var isTaskSection = sectionModel.Kind == ConferenceItemKind.ActionTask;
+
+    var ideaEditorId = $"oc-idea-create-{Model.OfficerUserId}";
+    var ideaTitleErrorId = $"{ideaEditorId}-title-error";
+    var ideaDescriptionErrorId = $"{ideaEditorId}-description-error";
+    var ideaHodErrorId = $"{ideaEditorId}-hod-error";
+
     var taskEditorId = $"oc-task-create-{Model.OfficerUserId}";
     var minimumTaskDate = Model.MinimumTaskDueDate.ToString("yyyy-MM-dd");
     var defaultTaskDate = Model.DefaultTaskDueDate.ToString("yyyy-MM-dd");
@@ -29,6 +36,30 @@
         </h2>
         <div class="oc-section__header-actions">
             <b data-oc-section-count>@sectionModel.Items.Count</b>
+            @if (isIdeaSection)
+            {
+                if (Model.IdeaCreation.CanCreate)
+                {
+                    <button type="button"
+                            class="oc-add-idea"
+                            data-oc-idea-add
+                            aria-controls="@ideaEditorId"
+                            aria-expanded="false">
+                        <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                        <span>Add idea</span>
+                    </button>
+                }
+                else
+                {
+                    <button type="button"
+                            class="oc-add-idea"
+                            disabled
+                            title="@Model.IdeaCreation.UnavailableReason">
+                        <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                        <span>Add idea</span>
+                    </button>
+                }
+            }
             @if (isTaskSection)
             {
                 <button type="button"
@@ -42,6 +73,104 @@
             }
         </div>
     </header>
+
+    @if (isIdeaSection && Model.IdeaCreation.CanCreate)
+    {
+        <form method="post"
+              asp-page-handler="CreateIdea"
+              asp-route-officerUserId="@Model.OfficerUserId"
+              id="@ideaEditorId"
+              class="oc-idea-editor"
+              data-oc-idea-editor
+              data-officer-id="@Model.OfficerUserId"
+              aria-busy="false"
+              hidden>
+            @Html.AntiForgeryToken()
+            <div class="oc-idea-editor__heading">
+                <div>
+                    <span>New idea</span>
+                    <strong>Assign to @Model.OfficerDisplayName</strong>
+                </div>
+                <small>The idea will be created as Active in the Ideation Board.</small>
+            </div>
+
+            <div class="oc-idea-editor__grid">
+                <label class="oc-idea-field oc-idea-field--title">
+                    <span>Idea title <em aria-hidden="true">*</em></span>
+                    <input name="Title"
+                           type="text"
+                           maxlength="200"
+                           autocomplete="off"
+                           placeholder="State the idea clearly"
+                           aria-describedby="@ideaTitleErrorId"
+                           required
+                           data-oc-idea-input="Title" />
+                    <small id="@ideaTitleErrorId" data-oc-idea-error="Title"></small>
+                </label>
+
+                <label class="oc-idea-field oc-idea-field--description">
+                    <span>Concept / problem statement <em aria-hidden="true">*</em></span>
+                    <textarea name="Description"
+                              rows="2"
+                              maxlength="2000"
+                              placeholder="What problem should be explored, and what is the proposed concept?"
+                              aria-describedby="@ideaDescriptionErrorId"
+                              required
+                              data-oc-idea-input="Description"></textarea>
+                    <small id="@ideaDescriptionErrorId" data-oc-idea-error="Description"></small>
+                </label>
+
+                @if (Model.IdeaCreation.RequiresHodSelection)
+                {
+                    <label class="oc-idea-field oc-idea-field--hod">
+                        <span>HoD oversight <em aria-hidden="true">*</em></span>
+                        <select name="AssignedHodUserId"
+                                aria-describedby="@ideaHodErrorId"
+                                required
+                                data-oc-idea-input="AssignedHodUserId">
+                            <option value="">Select HoD</option>
+                            @foreach (var option in Model.IdeaCreation.HodOptions)
+                            {
+                                if (option.IsSelected)
+                                {
+                                    <option value="@option.UserId" selected>@option.DisplayName</option>
+                                }
+                                else
+                                {
+                                    <option value="@option.UserId">@option.DisplayName</option>
+                                }
+                            }
+                        </select>
+                        <small id="@ideaHodErrorId" data-oc-idea-error="AssignedHodUserId"></small>
+                    </label>
+                }
+                else
+                {
+                    <div class="oc-idea-field oc-idea-field--hod">
+                        <span>HoD oversight</span>
+                        <div class="oc-fixed-owner">
+                            <i class="bi bi-person-check" aria-hidden="true"></i>
+                            <strong>@Model.IdeaCreation.FixedHodDisplayName</strong>
+                        </div>
+                        <input type="hidden"
+                               name="AssignedHodUserId"
+                               value="@Model.IdeaCreation.FixedHodUserId" />
+                    </div>
+                }
+            </div>
+
+            <div class="oc-idea-editor__footer">
+                <span class="oc-idea-feedback" data-oc-idea-feedback aria-live="polite"></span>
+                <div>
+                    <button type="button" class="oc-idea-cancel" data-oc-idea-cancel>Cancel</button>
+                    <button type="submit" class="oc-idea-save" data-oc-idea-save disabled>
+                        <span>Create idea</span>
+                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </div>
+        </form>
+    }
 
     @if (isTaskSection)
     {
@@ -151,6 +280,66 @@
                     })
             }
         </div>
+    }
+
+    @if (isIdeaSection)
+    {
+        <template data-oc-idea-item-template>
+            <article class="oc-item" data-oc-item data-officer-id="" data-item-kind="@((int)ConferenceItemKind.ProjectIdea)" data-item-id="">
+                <div class="oc-item__main">
+                    <div class="oc-item__title-row">
+                        <a href="" target="_blank" rel="noopener" title="Open idea" data-oc-new-idea-title></a>
+                    </div>
+                    <div class="oc-state"><strong data-oc-new-idea-state></strong></div>
+                    <p class="oc-current-context" data-oc-new-idea-context></p>
+                </div>
+
+                <div class="oc-item__direction oc-item__direction--empty" data-oc-direction>
+                    <div class="oc-no-direction" data-oc-empty-direction>
+                        <i class="bi bi-file-earmark" aria-hidden="true"></i>
+                        <span>No conference direction recorded</span>
+                    </div>
+                </div>
+
+                <div class="oc-item__progress">
+                    <div data-oc-progress-content></div>
+                    <div class="oc-item__actions oc-item__actions--empty">
+                        <button type="button" class="oc-add-direction" data-oc-add aria-controls="" aria-expanded="false">
+                            <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                            <span>Add direction</span>
+                        </button>
+                        <a href="" target="_blank" rel="noopener" class="oc-open-item" data-oc-new-idea-open>
+                            Open <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                        </a>
+                        <span class="oc-row-status" data-oc-row-status aria-live="polite"></span>
+                    </div>
+                </div>
+
+                <form method="post" class="oc-inline-editor" data-oc-editor aria-busy="false" hidden>
+                    <input type="hidden" name="officerUserId" value="" />
+                    <input type="hidden" name="kind" value="@((int)ConferenceItemKind.ProjectIdea)" />
+                    <input type="hidden" name="itemId" value="" />
+                    <label class="oc-inline-editor__field">
+                        <span>Conference direction</span>
+                        <textarea name="body"
+                                  rows="2"
+                                  maxlength="4000"
+                                  placeholder="Record the direction or observation..."
+                                  data-oc-input></textarea>
+                    </label>
+                    <div class="oc-inline-editor__footer">
+                        <span class="oc-editor-feedback" data-oc-feedback aria-live="polite"></span>
+                        <div>
+                            <button type="button" class="oc-editor-cancel" data-oc-cancel>Cancel</button>
+                            <button type="submit" class="oc-editor-save" data-oc-save disabled>
+                                <span>Add direction</span>
+                                <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </article>
+        </template>
     }
 
     @if (isTaskSection)
