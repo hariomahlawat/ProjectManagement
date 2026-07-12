@@ -61,11 +61,12 @@
                     </div>
                 }
                 <div class="project-remarks-filter">
-                    <span class="project-remarks-filter__label">Audience</span>
-                    <div class="btn-group btn-group-sm" role="group" aria-label="Filter remarks by audience" data-remarks-type-group>
+                    <span class="project-remarks-filter__label">Type</span>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Filter remarks by type" data-remarks-type-group>
                         <button type="button" class="btn btn-outline-primary active" data-remarks-type="all" aria-pressed="true">All</button>
                         <button type="button" class="btn btn-outline-primary" data-remarks-type="Internal" aria-pressed="false">Internal</button>
                         <button type="button" class="btn btn-outline-primary" data-remarks-type="External" aria-pressed="false">External</button>
+                        <button type="button" class="btn btn-outline-primary" data-remarks-type="Conference" aria-pressed="false">Conference</button>
                     </div>
                 </div>
                 <div class="project-remarks-filter">
@@ -119,12 +120,16 @@
                                 </div>
                             }
                             <div class="project-remarks-option-group">
-                                <span>Audience</span>
-                                <div class="btn-group btn-group-sm" role="group" aria-label="Remark audience" data-remarks-composer-type>
+                                <span>Type</span>
+                                <div class="btn-group btn-group-sm" role="group" aria-label="Remark type" data-remarks-composer-type>
                                     <button type="button" class="btn btn-outline-secondary active" data-remarks-composer-option="Internal" aria-pressed="true">Internal</button>
                                     @if (Model.RemarksPanel.AllowExternal)
                                     {
                                         <button type="button" class="btn btn-outline-secondary" data-remarks-composer-option="External" aria-pressed="false">External</button>
+                                    }
+                                    @if (Model.RemarksPanel.AllowConference)
+                                    {
+                                        <button type="button" class="btn btn-outline-secondary remarks-conference-option" data-remarks-composer-option="Conference" aria-pressed="false">Conference</button>
                                     }
                                 </div>
                             </div>

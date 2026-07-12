@@ -103,3 +103,54 @@
         autoSize(textarea);
     });
 })();
+
+// SECTION: Unified General / Conference comment composer.
+(() => {
+    const composer = document.querySelector('[data-pi-comment-composer]');
+    if (!composer) {
+        return;
+    }
+
+    const typeInput = composer.querySelector('[data-pi-comment-type]');
+    const body = composer.querySelector('[data-pi-comment-body]');
+    const guidance = composer.querySelector('[data-pi-comment-guidance]');
+    const submitLabel = composer.querySelector('[data-pi-comment-submit-label]');
+    const options = Array.from(composer.querySelectorAll('[data-pi-comment-type-option]'));
+
+    const applyType = value => {
+        const isConference = value === 'Conference';
+        if (typeInput) {
+            typeInput.value = isConference ? 'Conference' : 'General';
+        }
+
+        options.forEach(option => {
+            const active = option.getAttribute('data-pi-comment-type-option') === (isConference ? 'Conference' : 'General');
+            option.classList.toggle('is-active', active);
+            option.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+
+        composer.classList.toggle('is-conference', isConference);
+        if (body) {
+            body.placeholder = isConference
+                ? 'Record the direction or observation issued during the conference...'
+                : 'Write a comment...';
+        }
+        if (guidance) {
+            guidance.textContent = isConference
+                ? 'Visible as a command direction in the same discussion record.'
+                : 'Share a concise update or question.';
+        }
+        if (submitLabel) {
+            submitLabel.textContent = isConference ? 'Add direction' : 'Send';
+        }
+    };
+
+    options.forEach(option => {
+        option.addEventListener('click', () => {
+            applyType(option.getAttribute('data-pi-comment-type-option'));
+            body?.focus({ preventScroll: true });
+        });
+    });
+
+    applyType(typeInput?.value || 'General');
+})();

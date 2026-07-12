@@ -11177,3 +11177,65 @@ main[role="main"].analytics-main > .pm-page-shell {
         grid-row: 1 / span 2;
     }
 }
+
+/* ---------- Conference remark treatment ---------- */
+.remarks-item.remarks-type-conference {
+    border-color: rgba(79, 70, 229, .24);
+    background-color: rgba(79, 70, 229, .045);
+}
+
+.badge.remarks-type-badge {
+    border: 1px solid transparent;
+    font-size: var(--pm-font-size-xs);
+    font-weight: 700;
+    letter-spacing: .025em;
+    text-transform: uppercase;
+}
+
+.badge.remarks-type-badge-internal {
+    border-color: rgba(100, 116, 139, .24);
+    background-color: rgba(100, 116, 139, .1);
+    color: #475569;
+}
+
+.badge.remarks-type-badge-external {
+    border-color: rgba(2, 132, 199, .25);
+    background-color: rgba(14, 165, 233, .1);
+    color: #075985;
+}
+
+.badge.remarks-type-badge-conference {
+    border-color: rgba(79, 70, 229, .28);
+    background-color: rgba(79, 70, 229, .11);
+    color: #3730a3;
+}
+
+.remarks-conference-option.active,
+.remarks-conference-option[aria-pressed="true"] {
+    border-color: #4f46e5;
+    background-color: #4f46e5;
+    color: #fff;
+}
+
+[data-bs-theme="dark"] .remarks-item.remarks-type-conference {
+    border-color: rgba(165, 180, 252, .3);
+    background-color: rgba(99, 102, 241, .12);
+}
+
+[data-bs-theme="dark"] .badge.remarks-type-badge-internal {
+    border-color: rgba(203, 213, 225, .24);
+    background-color: rgba(148, 163, 184, .13);
+    color: #e2e8f0;
+}
+
+[data-bs-theme="dark"] .badge.remarks-type-badge-external {
+    border-color: rgba(125, 211, 252, .28);
+    background-color: rgba(14, 165, 233, .16);
+    color: #bae6fd;
+}
+
+[data-bs-theme="dark"] .badge.remarks-type-badge-conference {
+    border-color: rgba(165, 180, 252, .32);
+    background-color: rgba(99, 102, 241, .2);
+    color: #c7d2fe;
+}

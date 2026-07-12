@@ -188,7 +188,7 @@
             </div>
             <div class="card-body pm-card-body d-flex flex-column gap-3">
                 <div class="small text-muted">
-                    Internal: @remarkSummary.InternalCount · External: @remarkSummary.ExternalCount
+                    Internal: @remarkSummary.InternalCount · External: @remarkSummary.ExternalCount · Conference: @remarkSummary.ConferenceCount
                 </div>
                 @if (remarkSummary.LastActivityUtc is DateTime lastActivity)
                 {
@@ -227,11 +227,15 @@
                                             }
                                         </div>
                                     }
-                                    <div class="btn-group btn-group-sm" role="group" aria-label="Remark audience" data-remarks-composer-type>
+                                    <div class="btn-group btn-group-sm" role="group" aria-label="Remark type" data-remarks-composer-type>
                                         <button type="button" class="btn btn-outline-secondary active" data-remarks-composer-option="Internal" aria-pressed="true">Internal</button>
                                         @if (Model.RemarksPanel.AllowExternal)
                                         {
                                             <button type="button" class="btn btn-outline-secondary" data-remarks-composer-option="External" aria-pressed="false">External</button>
+                                        }
+                                        @if (Model.RemarksPanel.AllowConference)
+                                        {
+                                            <button type="button" class="btn btn-outline-secondary remarks-conference-option" data-remarks-composer-option="Conference" aria-pressed="false">Conference</button>
                                         }
                                     </div>
                                     <div class="remarks-composer-external d-flex flex-wrap align-items-end gap-2 d-none" data-remarks-external-fields>
@@ -297,6 +301,7 @@
     {
         RemarkType.External => "External",
         RemarkType.Internal => "Internal",
+        RemarkType.Conference => "Conference",
         _ => string.Empty
     };
 }

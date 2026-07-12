@@ -61,13 +61,21 @@ public sealed class ActionTaskNotificationService : IActionTaskNotificationServi
             cancellationToken: cancellationToken);
 
     public Task NotifyProgressUpdatedAsync(ActionTaskItem task, ActionTaskUpdate? update, string actorUserId, CancellationToken cancellationToken = default)
-        => PublishForTaskAsync(
+    {
+        var isConferenceRemark = string.Equals(
+            update?.UpdateType,
+            ActionTaskUpdateTypes.Conference,
+            StringComparison.OrdinalIgnoreCase);
+
+        return PublishForTaskAsync(
             NotificationKind.ActionTaskProgressUpdated,
             task,
             actorUserId,
-            "ActionTaskProgressUpdated",
-            "Task progress updated",
-            $"{BuildTaskReference(task)} - {BuildTitlePreview(task)} has a new progress update.",
+            isConferenceRemark ? "ActionTaskConferenceRemarkAdded" : "ActionTaskProgressUpdated",
+            isConferenceRemark ? "Conference direction added" : "Task progress updated",
+            isConferenceRemark
+                ? $"{BuildTaskReference(task)} - {BuildTitlePreview(task)} has a new conference direction."
+                : $"{BuildTaskReference(task)} - {BuildTitlePreview(task)} has a new progress update.",
             string.Format(CultureInfo.InvariantCulture, "action-task:{0}:update:{1}", task.Id, update?.Id.ToString(CultureInfo.InvariantCulture) ?? DateTimeOffset.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture)),
             recipients =>
             {
@@ -79,6 +87,7 @@ public sealed class ActionTaskNotificationService : IActionTaskNotificationServi
             currentStatus: task.Status,
             dueDate: null,
             cancellationToken: cancellationToken);
+    }
 
     public Task NotifyStatusChangedAsync(ActionTaskItem task, string previousStatus, string newStatus, string actorUserId, CancellationToken cancellationToken = default)
         => PublishForTaskAsync(

@@ -46,6 +46,12 @@ public class ProjectIdeaPermissionService
 
     // SECTION: Collaboration permissions
     public bool CanAddComment(ClaimsPrincipal user, ProjectIdea idea) => !IsArchived(idea) && CanViewIdea(user, idea);
+
+    public bool CanAddConferenceComment(ClaimsPrincipal user, ProjectIdea idea)
+        => !IsArchived(idea)
+            && CanViewIdea(user, idea)
+            && IsConferenceAuthority(user);
+
     public bool CanAddNote(ClaimsPrincipal user, ProjectIdea idea) => !IsArchived(idea) && (IsPrivileged(user) || IsAssignedProjectOfficer(user, idea));
     public bool CanUploadDocument(ClaimsPrincipal user, ProjectIdea idea) => !IsArchived(idea) && (IsPrivileged(user) || IsAssignedProjectOfficer(user, idea));
 
@@ -65,6 +71,12 @@ public class ProjectIdeaPermissionService
             && (user.IsInRole(RoleNames.Admin)
                 || user.IsInRole(RoleNames.HoD)
                 || user.IsInRole(RoleNames.Comdt));
+    }
+
+    private static bool IsConferenceAuthority(ClaimsPrincipal user)
+    {
+        return user?.Identity?.IsAuthenticated == true
+            && Policies.ConferenceRemarks.ManageAllowedRoles.Any(user.IsInRole);
     }
 
     private static bool IsAssignedProjectOfficer(ClaimsPrincipal user, ProjectIdea idea)

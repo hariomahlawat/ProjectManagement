@@ -9,7 +9,8 @@ public sealed class ProjectRemarkSummaryViewModel
 
     public int InternalCount { get; init; }
     public int ExternalCount { get; init; }
-    public int TotalCount => InternalCount + ExternalCount;
+    public int ConferenceCount { get; init; }
+    public int TotalCount => InternalCount + ExternalCount + ConferenceCount;
     public bool HasRemarks => TotalCount > 0;
     public DateTime? LastActivityUtc { get; init; }
     public int? LastRemarkId { get; init; }

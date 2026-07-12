@@ -86,6 +86,30 @@ public sealed class ActionTaskNotificationServiceTests
     }
 
     [Fact]
+    public async Task ConferenceRemark_UsesDirectionSpecificNotificationMetadata()
+    {
+        var publisher = new RecordingNotificationPublisher();
+        var service = CreateService(publisher);
+        var task = NewTask(createdBy: "creator", assignedTo: "assignee");
+        var update = new ActionTaskUpdate
+        {
+            Id = 73,
+            TaskId = task.Id,
+            UpdateType = ActionTaskUpdateTypes.Conference
+        };
+
+        await service.NotifyProgressUpdatedAsync(task, update, "creator");
+
+        var evt = Assert.Single(publisher.Events);
+        Assert.Equal(NotificationKind.ActionTaskProgressUpdated, evt.Kind);
+        Assert.Equal("ActionTaskConferenceRemarkAdded", evt.EventType);
+        Assert.Equal("Conference direction added", evt.Title);
+        Assert.Contains("new conference direction", evt.Summary, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(new[] { "assignee" }, evt.Recipients);
+        Assert.Equal("action-task:12:update:73", evt.Fingerprint);
+    }
+
+    [Fact]
     public async Task StatusChanged_NotifiesCreatorAndAssignee()
     {
         // SECTION: Arrange

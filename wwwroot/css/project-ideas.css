@@ -819,3 +819,101 @@
     color: #0f3f9e;
     text-decoration: underline;
 }
+
+/* SECTION: Conference comments share the discussion stream with restrained command emphasis. */
+.pi-comment {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .7rem;
+    border-bottom: 1px solid #eef2f7;
+}
+
+.pi-comment:last-child {
+    border-bottom: 0;
+}
+
+.pi-comment-content {
+    min-width: 0;
+}
+
+.pi-comment-heading {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .35rem .5rem;
+}
+
+.pi-comment-type,
+.pi-comment-role {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.25rem;
+    padding: .08rem .42rem;
+    border: 1px solid #dbe3ee;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: .62rem;
+    font-weight: 800;
+    letter-spacing: .035em;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.pi-comment-type.is-conference {
+    border-color: rgba(79, 70, 229, .28);
+    background: rgba(79, 70, 229, .1);
+    color: #3730a3;
+}
+
+.pi-comment-conference {
+    margin-inline: -.65rem;
+    padding-inline: .65rem;
+    border: 1px solid rgba(79, 70, 229, .2);
+    border-radius: .75rem;
+    background: rgba(79, 70, 229, .04);
+}
+
+.pi-comment-context {
+    margin-top: .4rem;
+    color: #667085;
+    font-size: .68rem;
+    font-weight: 650;
+}
+
+.pi-comment-type-selector {
+    display: inline-flex;
+    align-items: center;
+    gap: .2rem;
+    margin-bottom: .55rem;
+    padding: .2rem;
+    border: 1px solid #dbe3ee;
+    border-radius: .65rem;
+    background: #f8fafc;
+}
+
+.pi-comment-type-selector button {
+    min-height: 1.8rem;
+    padding: .28rem .62rem;
+    border: 0;
+    border-radius: .48rem;
+    background: transparent;
+    color: #64748b;
+    font-size: .7rem;
+    font-weight: 750;
+}
+
+.pi-comment-type-selector button.is-active {
+    background: #fff;
+    color: #1f3f84;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, .12);
+}
+
+.pi-comment-composer.is-conference {
+    border-top-color: rgba(79, 70, 229, .28);
+}
+
+.pi-comment-composer.is-conference textarea {
+    border-color: rgba(79, 70, 229, .34);
+    background: rgba(79, 70, 229, .025);
+}

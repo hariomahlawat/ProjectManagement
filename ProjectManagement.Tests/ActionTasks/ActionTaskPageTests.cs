@@ -201,6 +201,32 @@ public class ActionTaskPageTests
     }
 
     [Fact]
+    public async Task OnPostAddUpdateAsync_ConferenceRemarkUsesTypedUpdateWithoutStatusMutation()
+    {
+        var setup = await CreateSetupAsync(RoleNames.HoD);
+        var page = setup.Page;
+        var task = await setup.Db.ActionTasks.SingleAsync();
+        page.UpdateInput = new IndexModel.AddTaskUpdateInput
+        {
+            TaskId = task.Id,
+            RowVersion = Convert.ToBase64String(task.RowVersion),
+            UpdateType = ActionTaskUpdateTypes.Conference,
+            Body = "Complete the pending action by Friday.",
+            Files = new List<IFormFile>()
+        };
+
+        var result = await page.OnPostAddUpdateAsync();
+
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal(task.Id, redirect.RouteValues![nameof(IndexModel.TaskId)]);
+        Assert.Equal(1, setup.Collab.TypedUpdateCallCount);
+        Assert.Equal(ActionTaskUpdateTypes.Conference, setup.Collab.LastTypedUpdateType);
+        Assert.Equal("Complete the pending action by Friday.", setup.Collab.LastTypedUpdateBody);
+        Assert.Equal(0, setup.Collab.AtomicUpdateCallCount);
+        Assert.Equal("Conference remark added.", page.TempData["ToastMessage"]);
+    }
+
+    [Fact]
     public async Task MyWorkPartial_RendersOpenPersonalQueueWithoutCommandNoise()
     {
         // SECTION: Arrange
@@ -1923,12 +1949,28 @@ public class ActionTaskPageTests
     private sealed class StubCollabService : IActionTaskCollaborationService
     {
         public int AtomicUpdateCallCount { get; private set; }
+        public int TypedUpdateCallCount { get; private set; }
+        public string? LastTypedUpdateType { get; private set; }
+        public string? LastTypedUpdateBody { get; private set; }
         public int? LastAtomicUpdateTaskId { get; private set; }
         public string? LastAtomicUpdateBody { get; private set; }
         public string? LastAtomicUpdateStatus { get; private set; }
         public IReadOnlyList<IFormFile>? LastAtomicUpdateFiles { get; private set; }
 
-        public Task<ActionTaskUpdate> AddUpdateAsync(int taskId, string body, string updateType, string userId, string role, IReadOnlyList<IFormFile> files, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<ActionTaskUpdate> AddUpdateAsync(int taskId, string body, string updateType, string userId, string role, IReadOnlyList<IFormFile> files, CancellationToken cancellationToken = default)
+        {
+            TypedUpdateCallCount++;
+            LastTypedUpdateType = updateType;
+            LastTypedUpdateBody = body;
+            return Task.FromResult(new ActionTaskUpdate
+            {
+                TaskId = taskId,
+                Body = body,
+                UpdateType = updateType,
+                CreatedByUserId = userId,
+                CreatedByRole = role
+            });
+        }
 
         public Task<ActionTaskUpdate?> AddUpdateAndMaybeChangeStatusAsync(
             int taskId,

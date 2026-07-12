@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Configuration;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.Services.ProjectIdeas;
 
@@ -32,6 +33,7 @@ public class DetailsModel : PageModel
     public bool CanArchive { get; private set; }
     public bool CanRestore { get; private set; }
     public bool CanAddComment { get; private set; }
+    public bool CanAddConferenceComment { get; private set; }
     public bool CanAddNote { get; private set; }
     public bool CanUpload { get; private set; }
     public bool IsArchived => Idea.Status == ProjectIdeaStatuses.Archived;
@@ -42,6 +44,7 @@ public class DetailsModel : PageModel
 
     // SECTION: Bound form state
     [BindProperty, Required, MaxLength(4000)] public string CommentText { get; set; } = string.Empty;
+    [BindProperty, MaxLength(32)] public string CommentType { get; set; } = ProjectIdeaCommentTypes.General;
     [BindProperty, Required, MaxLength(200)] public string NoteTitle { get; set; } = string.Empty;
     [BindProperty, Required] public string NoteBody { get; set; } = string.Empty;
     [BindProperty] public bool IsPinned { get; set; }
@@ -75,8 +78,29 @@ public class DetailsModel : PageModel
             return RedirectToPage(new { id });
         }
 
-        await _commands.AddCommentAsync(Idea, comment, CurrentUserId());
-        StatusMessage = "Comment added.";
+        var commentType = ProjectIdeaCommentTypes.All.FirstOrDefault(type =>
+            string.Equals(type, CommentType, StringComparison.OrdinalIgnoreCase));
+        if (commentType is null)
+        {
+            return BadRequest("Invalid comment type.");
+        }
+
+        if (string.Equals(commentType, ProjectIdeaCommentTypes.Conference, StringComparison.Ordinal))
+        {
+            if (!_permissions.CanAddConferenceComment(User, Idea)) return Forbid();
+
+            var actorRole = CurrentConferenceRole();
+            if (actorRole is null) return Forbid();
+
+            await _commands.AddConferenceCommentAsync(Idea, comment, CurrentUserId(), actorRole);
+            StatusMessage = "Conference remark added.";
+        }
+        else
+        {
+            await _commands.AddCommentAsync(Idea, comment, CurrentUserId());
+            StatusMessage = "Comment added.";
+        }
+
         return RedirectToPage(new { id });
     }
 
@@ -286,6 +310,18 @@ public class DetailsModel : PageModel
         };
     }
 
+    public static string DisplayCommentType(string? commentType)
+        => string.Equals(commentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase)
+            ? "Conference"
+            : "General";
+
+    public static string DisplayRole(string? role)
+    {
+        if (string.Equals(role, RoleNames.Comdt, StringComparison.OrdinalIgnoreCase)) return "Comdt";
+        if (string.Equals(role, RoleNames.HoD, StringComparison.OrdinalIgnoreCase)) return "HoD";
+        return role?.Trim() ?? string.Empty;
+    }
+
     public static string Initials(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return "U";
@@ -306,6 +342,7 @@ public class DetailsModel : PageModel
         CanArchive = _permissions.CanArchiveIdea(User);
         CanRestore = _permissions.CanRestoreIdea(User);
         CanAddComment = _permissions.CanAddComment(User, idea);
+        CanAddConferenceComment = _permissions.CanAddConferenceComment(User, idea);
         CanAddNote = _permissions.CanAddNote(User, idea);
         CanUpload = _permissions.CanUploadDocument(User, idea);
         Documents = idea.Documents
@@ -316,4 +353,11 @@ public class DetailsModel : PageModel
     }
 
     private string CurrentUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+
+    private string? CurrentConferenceRole()
+    {
+        if (User.IsInRole(RoleNames.Comdt)) return RoleNames.Comdt;
+        if (User.IsInRole(RoleNames.HoD)) return RoleNames.HoD;
+        return null;
+    }
 }

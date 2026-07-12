@@ -33,7 +33,8 @@
     var canOpenChangeDateAction = Model.SelectedTask is not null && Model.CanChangeTaskDate(Model.SelectedTask);
     var canMoveTaskToBacklogAction = Model.SelectedTask is not null && Model.CanMoveTaskToBacklog(Model.SelectedTask);
     var canRemoveFromSprintKeepAssignedAction = canMoveTaskToBacklogAction && Model.SelectedTask?.SprintId.HasValue == true;
-    var canUseUpdateWorkflow = Model.SelectedTask is not null && !selectedTaskIsClosed && (selectedTaskIsBacklog || Model.CanAddProgressUpdate(Model.SelectedTask));
+    var canAddConferenceUpdate = Model.SelectedTask is not null && Model.CanAddConferenceUpdate(Model.SelectedTask);
+    var canUseUpdateWorkflow = Model.SelectedTask is not null && !selectedTaskIsClosed && (selectedTaskIsBacklog || Model.CanAddProgressUpdate(Model.SelectedTask) || canAddConferenceUpdate);
     var hasPlanningActions = !selectedTaskIsClosed && (canOpenChangeDateAction || canRemoveFromSprintKeepAssignedAction);
     var hasDangerActions = !selectedTaskIsClosed && canMoveTaskToBacklogAction;
     var hasMoreActions = hasPlanningActions || hasDangerActions;
@@ -186,22 +187,31 @@
             <section class="at-command-section at-action-form-section" aria-label="Task action form area">
                 <div class="at-context-panel-host" data-at-action-host="true">
                     <details class="at-action-drawer" data-at-action-panel="update">
-                        <summary class="visually-hidden">Open update progress panel</summary>
+                        <summary class="visually-hidden">Open task update panel</summary>
                         <form method="post" asp-page-handler="UpdateProgress" class="at-action-card at-journal-card" enctype="multipart/form-data">
                             <input type="hidden" asp-for="UpdateInput.TaskId" value="@Model.SelectedTask.Id" />
                             <input type="hidden" asp-for="UpdateInput.RowVersion" value="@Convert.ToBase64String(Model.SelectedTask.RowVersion)" />
+                            <input type="hidden" asp-for="UpdateInput.UpdateType" value="@ProjectManagement.Models.ActionTaskUpdateTypes.Progress" data-at-update-type />
                             <input type="hidden" name="ViewMode" value="@Model.ResolvedViewMode" />
                             <input type="hidden" name="SelectedSprintId" value="@Model.SelectedSprintId" />
                             <input type="hidden" name="PlanningTab" value="@Model.ResolvedPlanningTab" />
                             <input type="hidden" name="PlanningView" value="@Model.ResolvedPlanningView" />
-                            <div class="at-action-title">@updatePanelTitle</div>
+                            <div class="at-action-title" data-at-update-panel-title>@updatePanelTitle</div>
+                            @if (canAddConferenceUpdate)
+                            {
+                                <div class="at-update-type-selector" role="group" aria-label="Update type">
+                                    <button type="button" class="is-active" data-at-update-type-option="@ProjectManagement.Models.ActionTaskUpdateTypes.Progress" aria-pressed="true">Progress</button>
+                                    <button type="button" data-at-update-type-option="@ProjectManagement.Models.ActionTaskUpdateTypes.Conference" aria-pressed="false">Conference</button>
+                                </div>
+                            }
                             <div class="mb-2">
-                                <label class="form-label at-small" asp-for="UpdateInput.Body">Update</label>
-                                <textarea class="form-control form-control-sm" rows="4" asp-for="UpdateInput.Body" maxlength="4000" placeholder="@updatePlaceholder"></textarea>
+                                <label class="form-label at-small" asp-for="UpdateInput.Body" data-at-update-body-label>Update</label>
+                                <textarea class="form-control form-control-sm" rows="4" asp-for="UpdateInput.Body" maxlength="4000" placeholder="@updatePlaceholder" data-at-update-body data-default-placeholder="@updatePlaceholder"></textarea>
+                                <div class="form-text at-small d-none" data-at-conference-guidance>Record the direction or observation issued during the conference. It will remain in this task's update history.</div>
                             </div>
                             @if (!selectedTaskIsBacklog && Model.CanUpdateTaskStatus(Model.SelectedTask))
                             {
-                                <div class="mb-2">
+                                <div class="mb-2" data-at-update-status-fields>
                                     <label class="form-label at-small" asp-for="UpdateInput.NewStatus">Change status</label>
                                     <select class="form-select form-select-sm" asp-for="UpdateInput.NewStatus" data-at-progress-status-select data-at-change-status data-current-status="@Model.SelectedTask.Status">
                                         <option value="">No status change</option>
@@ -222,7 +232,7 @@
                                 <input class="form-control form-control-sm" asp-for="UpdateInput.Files" type="file" multiple />
                                 <div class="form-text at-small">Allowed: PDF, Word, Excel, JPG, PNG, TXT.</div>
                             </div>
-                            <div class="at-action-buttons"><button type="submit" class="btn btn-primary btn-sm" data-at-submit-update>Post update</button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="update" data-at-cancel-action>Cancel</button></div>
+                            <div class="at-action-buttons"><button type="submit" class="btn btn-primary btn-sm" data-at-submit-update><span data-at-update-submit-label>Post update</span></button><button type="button" class="btn btn-outline-secondary btn-sm" data-at-close-action="update" data-at-cancel-action>Cancel</button></div>
                         </form>
                     </details>
 
@@ -344,15 +354,37 @@
                     </div>
                     @if (!Model.SelectedTaskUpdates.Any())
                     {
-                        <div class="at-empty-state at-empty-state-compact mt-2"><div>No progress updates recorded for this task yet.</div></div>
+                        <div class="at-empty-state at-empty-state-compact mt-2"><div>No updates recorded for this task yet.</div></div>
                     }
                     else
                     {
                         <div class="at-activity-stream mt-2">
                             @foreach (var update in Model.SelectedTaskUpdates.OrderByDescending(update => update.CreatedAtUtc))
                             {
-                                <article class="at-activity-update-card">
+                                var isConferenceUpdate = string.Equals(update.UpdateType, ProjectManagement.Models.ActionTaskUpdateTypes.Conference, StringComparison.OrdinalIgnoreCase);
+                                var updateRole = ProjectManagement.Pages.ActionTasks.IndexModel.DisplayUpdateRole(update.CreatedByRole);
+                                <article class="at-activity-update-card@(isConferenceUpdate ? " is-conference" : string.Empty)">
+                                    <div class="at-update-header">
+                                        <span class="at-update-type@(isConferenceUpdate ? " is-conference" : string.Empty)">@ProjectManagement.Pages.ActionTasks.IndexModel.DisplayUpdateType(update.UpdateType)</span>
+                                        @if (isConferenceUpdate && !string.IsNullOrWhiteSpace(updateRole))
+                                        {
+                                            <span class="at-update-role">@updateRole</span>
+                                        }
+                                    </div>
                                     <div class="at-update-body at-remarks-text">@update.Body</div>
+                                    @if (isConferenceUpdate && (!string.IsNullOrWhiteSpace(update.StatusSnapshot) || update.DueDateSnapshot.HasValue))
+                                    {
+                                        <div class="at-update-context">
+                                            @if (!string.IsNullOrWhiteSpace(update.StatusSnapshot))
+                                            {
+                                                <span>Status when issued: @update.StatusSnapshot</span>
+                                            }
+                                            @if (update.DueDateSnapshot.HasValue)
+                                            {
+                                                <span>Due: @update.DueDateSnapshot.Value.ToString("dd MMM yyyy")</span>
+                                            }
+                                        </div>
+                                    }
                                     <div class="at-update-meta">
                                         <span>@Model.ResolveActorName(update.CreatedByUserId)</span>
                                         <span>@TimeFmt.ToIst(update.CreatedAtUtc)</span>

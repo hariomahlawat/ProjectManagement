@@ -135,7 +135,7 @@
                         Discussion
                         <span class="pi-section-count">@commentCount</span>
                     </h2>
-                    <p>Questions, observations and collaborative discussion.</p>
+                    <p>Questions, observations, progress updates and conference directions.</p>
                 </div>
             </div>
 
@@ -153,12 +153,25 @@
                     @foreach (var comment in comments)
                     {
                         var commentUtcIso = comment.CreatedAt.ToUniversalTime().ToString("O");
-                        <article class="pi-comment">
+                        var isConferenceComment = string.Equals(comment.CommentType, ProjectIdeaCommentTypes.Conference, StringComparison.OrdinalIgnoreCase);
+                        var roleLabel = DetailsModel.DisplayRole(comment.CreatedByRole);
+                        <article class="pi-comment@(isConferenceComment ? " pi-comment-conference" : string.Empty)">
                             <div class="pi-avatar">@DetailsModel.Initials(comment.CreatedByUser?.FullName ?? comment.CreatedByUser?.UserName)</div>
-                            <div>
-                                <b>@(comment.CreatedByUser?.FullName ?? comment.CreatedByUser?.UserName ?? "Unknown")</b>
+                            <div class="pi-comment-content">
+                                <div class="pi-comment-heading">
+                                    <b>@(comment.CreatedByUser?.FullName ?? comment.CreatedByUser?.UserName ?? "Unknown")</b>
+                                    <span class="pi-comment-type@(isConferenceComment ? " is-conference" : string.Empty)">@DetailsModel.DisplayCommentType(comment.CommentType)</span>
+                                    @if (!string.IsNullOrWhiteSpace(roleLabel))
+                                    {
+                                        <span class="pi-comment-role">@roleLabel</span>
+                                    }
+                                </div>
                                 <time datetime="@commentUtcIso">@comment.CreatedAt.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt")</time>
                                 <p>@comment.CommentText</p>
+                                @if (isConferenceComment && !string.IsNullOrWhiteSpace(comment.StatusSnapshot))
+                                {
+                                    <div class="pi-comment-context">Status when issued: @ProjectIdeaStatuses.ToDisplay(comment.StatusSnapshot)</div>
+                                }
                             </div>
                         </article>
                     }
@@ -167,14 +180,22 @@
 
             @if (Model.CanAddComment)
             {
-                <form method="post" asp-page-handler="Comment" asp-route-id="@Model.Idea.Id" class="pi-inline-form pi-comment-composer">
+                <form method="post" asp-page-handler="Comment" asp-route-id="@Model.Idea.Id" class="pi-inline-form pi-comment-composer" data-pi-comment-composer>
+                    <input type="hidden" name="CommentType" value="@ProjectIdeaCommentTypes.General" data-pi-comment-type />
+                    @if (Model.CanAddConferenceComment)
+                    {
+                        <div class="pi-comment-type-selector" role="group" aria-label="Comment type">
+                            <button type="button" class="is-active" data-pi-comment-type-option="@ProjectIdeaCommentTypes.General" aria-pressed="true">General</button>
+                            <button type="button" data-pi-comment-type-option="@ProjectIdeaCommentTypes.Conference" aria-pressed="false">Conference</button>
+                        </div>
+                    }
                     <label class="visually-hidden" for="CommentText">Write a comment</label>
-                    <textarea id="CommentText" name="CommentText" placeholder="Write a comment..." maxlength="4000" required></textarea>
+                    <textarea id="CommentText" name="CommentText" placeholder="Write a comment..." maxlength="4000" required data-pi-comment-body></textarea>
                     <div class="pi-composer-actions">
-                        <span>Share a concise update or question.</span>
-                        <button class="pi-btn pi-btn-primary" type="submit">
+                        <span data-pi-comment-guidance>Share a concise update or question.</span>
+                        <button class="pi-btn pi-btn-primary" type="submit" data-pi-comment-submit>
                             <span class="bi bi-send" aria-hidden="true"></span>
-                            Send
+                            <span data-pi-comment-submit-label>Send</span>
                         </button>
                     </div>
                 </form>

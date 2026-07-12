@@ -27,6 +27,8 @@ public sealed class ProjectRemarksPanelViewModel
 
     public bool AllowExternal { get; init; }
 
+    public bool AllowConference { get; init; }
+
     public bool ShowDeletedToggle { get; init; }
 
     public bool ActorHasOverride { get; init; }

@@ -96,7 +96,7 @@ public class ActionTaskPermissionService
         => CanViewAll(role) || string.Equals(currentUserId, ownerUserId, StringComparison.Ordinal);
 
     public bool CanAddConferenceUpdate(string role)
-        => IsPlanningAuthority(role);
+        => Policies.ConferenceRemarks.ManageAllowedRoles.Contains(role, StringComparer.OrdinalIgnoreCase);
 
     // SECTION: Attachment Write Authorization
     public bool CanUploadTaskAttachment(string role, string currentUserId, string ownerUserId)

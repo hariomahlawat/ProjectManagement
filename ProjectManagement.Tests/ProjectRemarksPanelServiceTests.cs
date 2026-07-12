@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
@@ -78,6 +79,34 @@ public sealed class ProjectRemarksPanelServiceTests
         var viewModel = await service.BuildAsync(project, Array.Empty<ProjectStage>(), principal, CancellationToken.None);
 
         Assert.DoesNotContain(viewModel.ScopeOptions, option => option.Value == RemarkScope.TransferOfTechnology.ToString());
+    }
+
+    [Theory]
+    [InlineData(RoleNames.Comdt, true)]
+    [InlineData(RoleNames.HoD, true)]
+    [InlineData(RoleNames.Admin, false)]
+    [InlineData(RoleNames.ProjectOfficer, false)]
+    public async Task BuildAsync_ConferenceComposerIsLimitedToCommandRoles(string role, bool expected)
+    {
+        await using var db = CreateContext();
+        using var userManager = CreateUserManager(db);
+        var service = new ProjectRemarksPanelService(userManager, new FixedClock(DateTimeOffset.UtcNow), new WorkflowStageMetadataProvider());
+
+        var user = new ApplicationUser { Id = $"user-{role}", UserName = $"{role}@example.com" };
+        await userManager.CreateAsync(user);
+
+        var project = new Project { Id = 20, Name = "Project Conference", LeadPoUserId = role == RoleNames.ProjectOfficer ? user.Id : null };
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.Id),
+                new Claim(ClaimTypes.Role, role)
+            },
+            "TestAuth"));
+
+        var viewModel = await service.BuildAsync(project, Array.Empty<ProjectStage>(), principal, CancellationToken.None);
+
+        Assert.Equal(expected, viewModel.AllowConference);
     }
 
     [Fact]

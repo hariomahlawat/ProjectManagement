@@ -40,6 +40,29 @@ public class ProjectIdeaPermissionServiceTests
         Assert.True(_service.CanEditIdeaCore(user, idea));
     }
 
+    [Theory]
+    [InlineData(RoleNames.Comdt, true)]
+    [InlineData(RoleNames.HoD, true)]
+    [InlineData(RoleNames.Admin, false)]
+    [InlineData(RoleNames.ProjectOfficer, false)]
+    public void Conference_comments_are_limited_to_command_roles(string role, bool expected)
+    {
+        var idea = ActiveIdea(assignedProjectOfficerUserId: "po-1");
+        var userId = role == RoleNames.ProjectOfficer ? "po-1" : $"user-{role}";
+        var user = Principal(userId, role);
+
+        Assert.Equal(expected, _service.CanAddConferenceComment(user, idea));
+    }
+
+    [Fact]
+    public void Archived_idea_rejects_conference_comments()
+    {
+        var idea = ActiveIdea(assignedProjectOfficerUserId: "po-1");
+        idea.Status = ProjectIdeaStatuses.Archived;
+
+        Assert.False(_service.CanAddConferenceComment(Principal("hod-1", RoleNames.HoD), idea));
+    }
+
     [Fact]
     public void Archived_idea_is_read_only_for_assigned_project_officer()
     {
