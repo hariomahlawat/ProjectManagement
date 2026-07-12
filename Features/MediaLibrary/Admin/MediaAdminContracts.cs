@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using ProjectManagement.Features.MediaLibrary.Domain;
+using ProjectManagement.Features.MediaLibrary.Options;
 using ProjectManagement.Features.MediaLibrary.Outbox;
 using ProjectManagement.Features.MediaLibrary.Services;
 
