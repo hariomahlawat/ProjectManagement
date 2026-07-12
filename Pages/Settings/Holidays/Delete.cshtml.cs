@@ -1,42 +1,52 @@
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
-using ProjectManagement.Data;
-using ProjectManagement.Models.Scheduling;
+using ProjectManagement.Configuration;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.Calendar;
 
 namespace ProjectManagement.Pages.Settings.Holidays;
 
-[Authorize(Roles = "Admin,HoD")]
-public class DeleteModel : PageModel
+[Authorize(Policy = AdminPolicies.HolidaysManage)]
+public sealed class DeleteModel : PageModel
 {
-    private readonly ApplicationDbContext _db;
+    private readonly IHolidayAdminService _holidays;
 
-    public DeleteModel(ApplicationDbContext db) => _db = db;
+    public DeleteModel(IHolidayAdminService holidays) =>
+        _holidays = holidays ?? throw new ArgumentNullException(nameof(holidays));
 
-    public Holiday? Item { get; private set; }
+    public HolidayEditItem? Item { get; private set; }
+
+    [BindProperty]
+    public string RowVersion { get; set; } = string.Empty;
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
-        Item = await _db.Holidays
-            .AsNoTracking()
-            .SingleOrDefaultAsync(h => h.Id == id, cancellationToken);
+        Item = await _holidays.GetAsync(id, cancellationToken);
+        if (Item is null)
+        {
+            return NotFound();
+        }
 
+        RowVersion = Item.RowVersion;
         return Page();
     }
 
     public async Task<IActionResult> OnPostAsync(int id, CancellationToken cancellationToken)
     {
-        var holiday = await _db.Holidays.FindAsync(new object[] { id }, cancellationToken);
-        if (holiday is null)
+        var existing = await _holidays.GetAsync(id, cancellationToken);
+        var year = existing?.Date.Year;
+        var result = await _holidays.DeleteAsync(id, RowVersion, cancellationToken);
+
+        if (!result.Succeeded)
         {
-            return RedirectToPage("Index");
+            TempData[FlashMessageKeys.AdminHolidaysError] = !string.IsNullOrWhiteSpace(result.TraceId)
+                ? $"{result.UserMessage} Trace reference: {result.TraceId}."
+                : result.UserMessage;
+            return RedirectToPage("Index", new { year });
         }
 
-        _db.Holidays.Remove(holiday);
-        await _db.SaveChangesAsync(cancellationToken);
-        return RedirectToPage("Index");
+        TempData[FlashMessageKeys.AdminHolidaysSuccess] = result.UserMessage;
+        return RedirectToPage("Index", new { year });
     }
 }

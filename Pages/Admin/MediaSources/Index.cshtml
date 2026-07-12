@@ -1,6 +1,7 @@
 @page "/Admin/MediaSources"
 @model ProjectManagement.Pages.Admin.MediaSources.IndexModel
 @using ProjectManagement.Features.MediaLibrary.Domain
+@inject ProjectManagement.Services.Admin.IAdminTimeService AdminTime
 @{
     ViewData["Title"] = "Media Sources";
     ViewData["PageShell"] = "wide";
@@ -187,11 +188,11 @@
                     <span><strong>Backfill:</strong> @Model.OutboxRuntime.BackfillStatus</span>
                     @if (Model.OutboxRuntime.LastHeartbeatUtc.HasValue)
                     {
-                        <span><strong>Heartbeat:</strong> @Model.OutboxRuntime.LastHeartbeatUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</span>
+                        <span><strong>Heartbeat:</strong> @AdminTime.FormatIst(Model.OutboxRuntime.LastHeartbeatUtc)</span>
                     }
                     @if (Model.OldestPendingIngestionAtUtc.HasValue)
                     {
-                        <span><strong>Oldest pending:</strong> @Model.OldestPendingIngestionAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</span>
+                        <span><strong>Oldest pending:</strong> @AdminTime.FormatIst(Model.OldestPendingIngestionAtUtc)</span>
                     }
                 </div>
 
@@ -344,7 +345,7 @@
                             }
                             @if (Model.LastAvailabilityCheckUtc.HasValue)
                             {
-                                <text> Last checked @Model.LastAvailabilityCheckUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm").</text>
+                                <text> Last checked @AdminTime.FormatIst(Model.LastAvailabilityCheckUtc).</text>
                             }
                         </p>
                     </div>
@@ -379,7 +380,7 @@
                         <div class="fw-semibold">@(Model.ProcessingRuntime.WorkerConfigured ? (Model.ProcessingRuntime.WorkerStarted ? "Running" : "Configured, not started") : "Disabled")</div>
                         @if (Model.ProcessingRuntime.LastHeartbeatUtc.HasValue)
                         {
-                            <div class="small text-muted">Heartbeat @Model.ProcessingRuntime.LastHeartbeatUtc.Value.ToLocalTime().ToString("dd MMM HH:mm:ss")</div>
+                            <div class="small text-muted">Heartbeat @AdminTime.FormatIst(Model.ProcessingRuntime.LastHeartbeatUtc)</div>
                         }
                     </div>
                     <div class="col-sm-6 col-xl-3">
@@ -438,7 +439,7 @@
                                             <div class="fw-semibold">@(job.FailureCode ?? "Unknown")</div>
                                             <div class="text-muted text-break">@(job.FailureMessage ?? "No failure detail was recorded.")</div>
                                         </td>
-                                        <td class="small">@job.AvailableAfterUtc.ToLocalTime().ToString("dd MMM HH:mm:ss")</td>
+                                        <td class="small">@AdminTime.FormatIst(job.AvailableAfterUtc)</td>
                                         <td class="text-end">
                                             <form method="post" asp-page-handler="RetryJob">
                                                 <input type="hidden" name="id" value="@job.Id" />
@@ -698,7 +699,7 @@
                                         </td>
                                         <td class="text-end">@source.AssetCount.ToString("N0")</td>
                                         <td class="small">
-                                            @(source.LastSuccessfulScanAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "Never")
+                                            @AdminTime.FormatIst(source.LastSuccessfulScanAtUtc, "Never")
                                         </td>
                                         <td class="text-end">
                                             @if (source.Type == MediaLibrarySourceType.FileSystem)
@@ -711,6 +712,7 @@
                                                         <li>
                                                             <form method="post" asp-page-handler="Test">
                                                                 <input type="hidden" name="id" value="@source.Id" />
+                                                                <input type="hidden" name="version" value="@source.ConcurrencyToken" />
                                                                 <button type="submit" class="dropdown-item">
                                                                     <i class="bi bi-plug me-2" aria-hidden="true"></i>Test connection
                                                                 </button>
@@ -719,6 +721,7 @@
                                                         <li>
                                                             <form method="post" asp-page-handler="Scan">
                                                                 <input type="hidden" name="id" value="@source.Id" />
+                                                                <input type="hidden" name="version" value="@source.ConcurrencyToken" />
                                                                 <button type="submit" class="dropdown-item" disabled="@(!source.IsEnabled)">
                                                                     <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>Scan now
                                                                 </button>
@@ -731,6 +734,7 @@
                                                             <li>
                                                                 <form method="post" asp-page-handler="SetState">
                                                                     <input type="hidden" name="id" value="@source.Id" />
+                                                                    <input type="hidden" name="version" value="@source.ConcurrencyToken" />
                                                                     <input type="hidden" name="enabled" value="@(!source.IsEnabled)" />
                                                                     <input type="hidden" name="visible" value="@source.IsVisibleInLibrary" />
                                                                     <button type="submit" class="dropdown-item">
@@ -742,6 +746,7 @@
                                                             <li>
                                                                 <form method="post" asp-page-handler="SetState">
                                                                     <input type="hidden" name="id" value="@source.Id" />
+                                                                    <input type="hidden" name="version" value="@source.ConcurrencyToken" />
                                                                     <input type="hidden" name="enabled" value="@source.IsEnabled" />
                                                                     <input type="hidden" name="visible" value="@(!source.IsVisibleInLibrary)" />
                                                                     <button type="submit" class="dropdown-item">
@@ -754,6 +759,7 @@
                                                             <li>
                                                                 <form method="post" asp-page-handler="Disconnect" onsubmit="return confirm('Disconnect this folder? Indexed records will be hidden, but no original file will be changed or deleted.');">
                                                                     <input type="hidden" name="id" value="@source.Id" />
+                                                                    <input type="hidden" name="version" value="@source.ConcurrencyToken" />
                                                                     <button type="submit" class="dropdown-item text-danger">
                                                                         <i class="bi bi-x-circle me-2" aria-hidden="true"></i>Disconnect
                                                                     </button>
@@ -791,6 +797,7 @@
                         {
                             <form method="post" class="vstack gap-3">
                                 <input asp-for="Input.Id" type="hidden" />
+                                <input asp-for="Input.ConcurrencyToken" type="hidden" />
                                 <div>
                                     <label asp-for="Input.Name" class="form-label">Display name</label>
                                     <input asp-for="Input.Name" class="form-control" placeholder="Official photo archive" />

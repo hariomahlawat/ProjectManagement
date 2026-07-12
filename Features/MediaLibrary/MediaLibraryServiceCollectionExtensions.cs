@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using ProjectManagement.Features.MediaLibrary.Admin;
 using ProjectManagement.Features.MediaLibrary.Data;
 using ProjectManagement.Features.MediaLibrary.Hosted;
 using ProjectManagement.Features.MediaLibrary.Options;
@@ -58,6 +59,12 @@ public static class MediaLibraryServiceCollectionExtensions
         services.AddScoped<IMediaLibraryHealthService, MediaLibraryHealthService>();
         services.AddScoped<IMediaCatalogueConsistencyService, MediaCatalogueConsistencyService>();
         services.AddScoped<IMediaAvailabilityRecoveryService, MediaAvailabilityRecoveryService>();
+        // SECTION: Media administration application services
+        services.AddScoped<IMediaAdminAccessService, MediaAdminAccessService>();
+        services.AddScoped<IMediaSourcesAdminQueryService, MediaSourcesAdminQueryService>();
+        services.AddScoped<IMediaSourceAdminService, MediaSourceAdminService>();
+        services.AddScoped<IMediaQueueAdminService, MediaQueueAdminService>();
+        services.AddScoped<IMediaRecoveryAdminService, MediaRecoveryAdminService>();
         services.AddScoped<IMediaLibraryQueryService, MediaLibraryQueryService>();
         services.AddScoped<IMediaPeopleQueryService, MediaPeopleQueryService>();
         services.AddScoped<IMediaContentProvider, FileSystemMediaContentProvider>();

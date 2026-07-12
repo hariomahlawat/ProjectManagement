@@ -12,6 +12,14 @@ public static class FlashMessageKeys
     public const string AdminMasterDataSuccess = "Admin.MasterData.Success";
     public const string AdminMasterDataError = "Admin.MasterData.Error";
 
+    public const string AdminCalendarRecoverySuccess = "Admin.CalendarRecovery.Success";
+    public const string AdminCalendarRecoveryError = "Admin.CalendarRecovery.Error";
+
+    public const string AdminHolidaysSuccess = "Admin.Holidays.Success";
+    public const string AdminHolidaysError = "Admin.Holidays.Error";
+
+    public const string AdminPdfIngestionError = "Admin.PdfIngestion.Error";
+
     public const string CelebrationsSuccess = "Celebrations.Success";
     public const string CelebrationsError = "Celebrations.Error";
 

@@ -48,7 +48,7 @@ public static class AdminNavigationCatalog
         Entry(AdminNavigationKeys.DocumentRecycle, "Recovery", 70, Item("Recycle bin", "Admin", "/Documents/Recycle", "bi-recycle", AdminPolicies.RecoveryManage), true),
         Entry(AdminNavigationKeys.PdfIngestion, "Maintenance", 80, Item("Ingest PDFs", "Admin", "/Documents/IngestExternalPdfs", "bi-upload", AdminPolicies.IngestionManage), false, true),
         Entry(AdminNavigationKeys.DeletedEvents, "Recovery", 90, Item("Deleted events", "Admin", "/Calendar/Deleted", "bi-calendar-x", AdminPolicies.RecoveryManage), true),
-        Entry(AdminNavigationKeys.Holidays, "Master Data", 100, Item("Holidays", string.Empty, "/Settings/Holidays/Index", "bi-calendar-week", AdminPolicies.MasterDataManage), false, true),
+        Entry(AdminNavigationKeys.Holidays, "Master Data", 100, Item("Holidays", string.Empty, "/Settings/Holidays/Index", "bi-calendar-week", AdminPolicies.HolidaysManage), false, true),
         Entry(AdminNavigationKeys.Celebrations, "Master Data", 110, Item("Celebrations", string.Empty, "/Celebrations/Index", "bi-stars", AdminPolicies.MasterDataManage), false, true),
         Entry(AdminNavigationKeys.ProjectCategories, "Master Data", 120, Item("Project categories", "Admin", "/Categories/Index", "bi-diagram-3", AdminPolicies.MasterDataManage), false, true),
         Entry(AdminNavigationKeys.TechnicalCategories, "Master Data", 130, Item("Technical categories", "Admin", "/TechnicalCategories/Index", "bi-cpu", AdminPolicies.MasterDataManage), false, true),

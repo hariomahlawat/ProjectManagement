@@ -2368,6 +2368,7 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => x.Date).IsUnique();
                 e.Property(x => x.Date).HasColumnType("date");
                 e.Property(x => x.Name).HasMaxLength(160);
+                ConfigureRowVersion(e);
             });
 
             builder.Entity<PlanApprovalLog>(e =>

@@ -1,7 +1,7 @@
-@page
-@model ProjectManagement.Pages.Settings.Holidays.CreateModel
+@page "{id:int}"
+@model ProjectManagement.Pages.Settings.Holidays.EditModel
 @{
-    ViewData["Title"] = "Add holiday";
+    ViewData["Title"] = "Edit holiday";
 }
 
 <div class="mb-3">
@@ -12,10 +12,12 @@
 
 <div class="card">
     <div class="card-body">
-        <h1 class="h4 mb-1">Add holiday</h1>
-        <p class="text-muted">Add a non-working date used by project schedules and calendar views.</p>
+        <h1 class="h4 mb-1">Edit holiday</h1>
+        <p class="text-muted">Update the date or official description.</p>
 
         <form method="post" class="mt-4" novalidate>
+            <input asp-for="Input.Id" type="hidden" />
+            <input asp-for="Input.RowVersion" type="hidden" />
             <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
             <div class="row g-3">
@@ -32,7 +34,7 @@
             </div>
 
             <div class="d-flex gap-2 mt-4">
-                <button type="submit" class="btn btn-primary">Add holiday</button>
+                <button type="submit" class="btn btn-primary">Save changes</button>
                 <a asp-page="Index" asp-route-year="@Model.Input.Date.Year" class="btn btn-outline-secondary">Cancel</a>
             </div>
         </form>

@@ -1,38 +1,89 @@
 @page
-@attribute [Authorize(Roles="Admin,HoD")]
 @model ProjectManagement.Pages.Settings.Holidays.IndexModel
+@using ProjectManagement.Services.Admin
 @{
     ViewData["Title"] = "Holidays";
 }
 
-<h5>Holidays</h5>
-<a class="btn btn-sm btn-primary mb-3" asp-page="Create">Add</a>
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+    <div>
+        <h1 class="h4 mb-1">Holidays</h1>
+        <p class="text-muted mb-0">Maintain the non-working dates used by project schedules and calendar views.</p>
+    </div>
+    <a class="btn btn-primary" asp-page="Create" asp-route-year="@Model.Year">
+        <i class="bi bi-plus-lg" aria-hidden="true"></i> Add holiday
+    </a>
+</div>
+
+@if (TempData[FlashMessageKeys.AdminHolidaysSuccess] is string successMessage)
+{
+    <div class="alert alert-success" role="status">@successMessage</div>
+}
+@if (TempData[FlashMessageKeys.AdminHolidaysError] is string errorMessage)
+{
+    <div class="alert alert-danger" role="alert">@errorMessage</div>
+}
+
+<form method="get" class="card card-body mb-3">
+    <div class="row g-3 align-items-end">
+        <div class="col-sm-4 col-lg-3">
+            <label asp-for="Year" class="form-label">Year</label>
+            <select asp-for="Year" class="form-select">
+                @foreach (var year in Model.AvailableYears)
+                {
+                    <option value="@year">@year</option>
+                }
+            </select>
+        </div>
+        <div class="col-sm-auto">
+            <button type="submit" class="btn btn-primary">View year</button>
+        </div>
+    </div>
+</form>
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <span class="text-muted">@Model.Items.Count holiday(s) in @Model.Year</span>
+</div>
 
 @if (Model.Items.Count == 0)
 {
-    <div class="alert alert-info" role="status">No holidays have been recorded yet.</div>
+    <div class="card card-body text-center py-5">
+        <i class="bi bi-calendar-week fs-2 text-muted" aria-hidden="true"></i>
+        <h2 class="h6 mt-3">No holidays recorded for @Model.Year</h2>
+        <p class="text-muted mb-3">Add the first holiday for this year.</p>
+        <div><a class="btn btn-sm btn-primary" asp-page="Create" asp-route-year="@Model.Year">Add holiday</a></div>
+    </div>
 }
 else
 {
-    <table class="table table-sm align-middle">
-        <thead>
-            <tr>
-                <th scope="col">Date</th>
-                <th scope="col">Name</th>
-                <th scope="col" class="text-end">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-        @foreach (var holiday in Model.Items)
-        {
-            <tr>
-                <td>@holiday.Date.ToString("dd MMM yyyy")</td>
-                <td>@holiday.Name</td>
-                <td class="text-end">
-                    <a class="btn btn-sm btn-outline-danger" asp-page="Delete" asp-route-id="@holiday.Id">Delete</a>
-                </td>
-            </tr>
-        }
-        </tbody>
-    </table>
+    <div class="card overflow-hidden">
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Day</th>
+                        <th scope="col">Holiday</th>
+                        <th scope="col" class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var holiday in Model.Items)
+                {
+                    <tr>
+                        <td class="fw-semibold">@holiday.Date.ToString("dd MMM yyyy")</td>
+                        <td class="text-muted">@holiday.Date.DayOfWeek</td>
+                        <td>@holiday.Name</td>
+                        <td class="text-end">
+                            <div class="btn-group btn-group-sm" role="group" aria-label="Actions for @holiday.Name">
+                                <a class="btn btn-outline-primary" asp-page="Edit" asp-route-id="@holiday.Id">Edit</a>
+                                <a class="btn btn-outline-danger" asp-page="Delete" asp-route-id="@holiday.Id">Delete</a>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
 }

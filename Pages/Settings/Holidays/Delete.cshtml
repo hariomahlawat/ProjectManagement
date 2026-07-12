@@ -1,11 +1,8 @@
 @page "{id:int}"
-@attribute [Authorize(Roles="Admin,HoD")]
 @model ProjectManagement.Pages.Settings.Holidays.DeleteModel
 @{
     ViewData["Title"] = "Delete holiday";
 }
-
-<h5>Delete holiday</h5>
 
 @if (Model.Item is null)
 {
@@ -13,14 +10,23 @@
 }
 else
 {
-    <div class="alert alert-danger" role="alert">
-        <p class="mb-1">Are you sure you want to delete this holiday?</p>
-        <p class="mb-0 fw-semibold">@Model.Item.Date.ToString("dd MMM yyyy") — @Model.Item.Name</p>
-    </div>
+    <div class="card border-danger">
+        <div class="card-body">
+            <h1 class="h4">Delete holiday</h1>
+            <p>This removes the date from project schedule calculations and calendar views.</p>
 
-    <form method="post">
-        @Html.AntiForgeryToken()
-        <button type="submit" class="btn btn-danger">Delete</button>
-        <a asp-page="Index" class="btn btn-outline-secondary ms-2">Cancel</a>
-    </form>
+            <dl class="row mb-4">
+                <dt class="col-sm-3">Date</dt>
+                <dd class="col-sm-9">@Model.Item.Date.ToString("dd MMM yyyy") (@Model.Item.Date.DayOfWeek)</dd>
+                <dt class="col-sm-3">Holiday</dt>
+                <dd class="col-sm-9">@Model.Item.Name</dd>
+            </dl>
+
+            <form method="post">
+                <input asp-for="RowVersion" type="hidden" />
+                <button type="submit" class="btn btn-danger">Delete holiday</button>
+                <a asp-page="Index" asp-route-year="@Model.Item.Date.Year" class="btn btn-outline-secondary ms-2">Cancel</a>
+            </form>
+        </div>
+    </div>
 }

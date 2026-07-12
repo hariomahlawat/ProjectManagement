@@ -1,26 +1,144 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Documents.IngestExternalPdfsModel
+@using ProjectManagement.Services.Admin
 @{
     ViewData["Title"] = "Ingest external PDFs";
 }
 
-<h1 class="mb-4">Ingest external PDFs</h1>
-
-<p class="text-muted">Run this tool to copy PDF attachments from other modules into the document repository for OCR and global search.</p>
-
-<form method="post" class="mb-4">
-    <button type="submit" class="btn btn-primary">Start ingestion</button>
-</form>
-
-@if (Model.Processed > 0 || Model.SkippedMissing > 0)
-{
-    <div class="alert alert-secondary">
-        <p class="mb-1">Processed: <strong>@Model.Processed</strong></p>
-        <p class="mb-0">Skipped (missing files): <strong>@Model.SkippedMissing</strong></p>
+<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-2">
+                <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Ingest PDFs</li>
+            </ol>
+        </nav>
+        <h1 class="h4 mb-1">Ingest external PDFs</h1>
+        <p class="text-muted mb-0">Link PDF attachments from FFC, IPR and Activities into the document repository for OCR and global search.</p>
     </div>
+</div>
+
+@if (TempData[FlashMessageKeys.AdminPdfIngestionError] is string errorMessage)
+{
+    <div class="alert alert-danger" role="alert">@errorMessage</div>
+}
+@if (ViewData["StatusMessage"] is string statusMessage)
+{
+    <div class="alert @(Model.Result?.Status == "Completed" ? "alert-success" : "alert-warning")" role="status">@statusMessage</div>
 }
 
-@if (TempData["StatusMessage"] is string status && !string.IsNullOrWhiteSpace(status))
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-4 align-items-center">
+            <div class="col-lg-8">
+                <h2 class="h6">Controlled ingestion run</h2>
+                <p class="mb-2">The coordinator skips attachments already linked to the repository and prevents two administrators from starting overlapping runs.</p>
+                <ul class="text-muted small mb-0">
+                    <li>Source records remain unchanged.</li>
+                    <li>Missing and failed files are reported separately.</li>
+                    <li>The initiating administrator and final outcome are written to the audit log.</li>
+                </ul>
+            </div>
+            <div class="col-lg-4 text-lg-end">
+                <form method="post" id="pdfIngestionForm">
+                    <button type="submit" class="btn btn-primary" id="startIngestionButton" disabled="@Model.IsRunning">
+                        <i class="bi bi-play-fill" aria-hidden="true"></i>
+                        @(Model.IsRunning ? "Run in progress" : "Start ingestion")
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model.Result is not null)
 {
-    <div class="alert alert-info mt-3">@status</div>
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-2"><div class="card card-body h-100"><div class="text-muted small">Discovered</div><div class="h4 mb-0">@Model.Result.Discovered</div></div></div>
+        <div class="col-6 col-lg-2"><div class="card card-body h-100"><div class="text-muted small">Ingested / linked</div><div class="h4 mb-0">@Model.Result.IngestedOrLinked</div></div></div>
+        <div class="col-6 col-lg-2"><div class="card card-body h-100"><div class="text-muted small">Already linked</div><div class="h4 mb-0">@Model.Result.AlreadyLinked</div></div></div>
+        <div class="col-6 col-lg-2"><div class="card card-body h-100"><div class="text-muted small">Missing</div><div class="h4 mb-0">@Model.Result.Missing</div></div></div>
+        <div class="col-6 col-lg-2"><div class="card card-body h-100"><div class="text-muted small">Failed</div><div class="h4 mb-0">@Model.Result.Failed</div></div></div>
+        <div class="col-6 col-lg-2"><div class="card card-body h-100"><div class="text-muted small">Status</div><div class="fw-semibold">@Model.Result.Status</div></div></div>
+    </div>
+
+    <div class="card mb-4 overflow-hidden">
+        <div class="card-header bg-transparent">
+            <h2 class="h6 mb-0">Source summary</h2>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Source</th>
+                        <th class="text-end">Discovered</th>
+                        <th class="text-end">Ingested / linked</th>
+                        <th class="text-end">Already linked</th>
+                        <th class="text-end">Missing</th>
+                        <th class="text-end">Failed</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var source in Model.Result.Sources)
+                {
+                    <tr>
+                        <td class="fw-semibold">@source.Source</td>
+                        <td class="text-end">@source.Discovered</td>
+                        <td class="text-end">@source.IngestedOrLinked</td>
+                        <td class="text-end">@source.AlreadyLinked</td>
+                        <td class="text-end">@source.Missing</td>
+                        <td class="text-end">@source.Failed</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <div class="card-footer bg-transparent text-muted small">
+            Started @Model.FormatTime(Model.Result.StartedAtUtc) · Completed @Model.FormatTime(Model.Result.CompletedAtUtc)
+        </div>
+    </div>
+
+    @if (Model.Result.Failures.Count > 0)
+    {
+        <div class="card border-warning overflow-hidden">
+            <div class="card-header bg-transparent">
+                <h2 class="h6 mb-0">Missing or failed source items</h2>
+            </div>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead><tr><th>Source</th><th>Item</th><th>File</th><th>Result</th></tr></thead>
+                    <tbody>
+                    @foreach (var failure in Model.Result.Failures)
+                    {
+                        <tr>
+                            <td>@failure.Source</td>
+                            <td><code>@failure.SourceItemId</code></td>
+                            <td>@failure.FileName</td>
+                            <td>@failure.Message</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            @if (Model.Result.Missing + Model.Result.Failed > Model.Result.Failures.Count)
+            {
+                <div class="card-footer bg-transparent text-muted small">Only the first @Model.Result.Failures.Count details are shown. Review application logs for the complete list.</div>
+            }
+        </div>
+    }
+}
+
+@section Scripts {
+<script>
+(() => {
+    const form = document.getElementById('pdfIngestionForm');
+    const button = document.getElementById('startIngestionButton');
+    if (!form || !button) return;
+
+    form.addEventListener('submit', () => {
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Running ingestion…';
+    });
+})();
+</script>
 }

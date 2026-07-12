@@ -54,6 +54,8 @@ using ProjectManagement.Services.Activities;
 using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.Calendar;
+using ProjectManagement.Services.Admin.Ingestion;
 using ProjectManagement.Services.Admin.MasterData;
 using ProjectManagement.Services.Dashboard;
 using ProjectManagement.Services.DocRepo;
@@ -191,8 +193,14 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(AdminPolicies.RecoveryManage, policy => policy.RequireRole(RoleNames.Admin));
     options.AddPolicy(AdminPolicies.MasterDataManage, policy => policy.RequireRole(RoleNames.Admin));
     options.AddPolicy(AdminPolicies.ActivityTypesManage, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
+    options.AddPolicy(AdminPolicies.HolidaysManage, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
     options.AddPolicy(AdminPolicies.IngestionManage, policy => policy.RequireRole(RoleNames.Admin));
     options.AddPolicy(AdminPolicies.MediaManage, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
+    options.AddPolicy(AdminPolicies.MediaView, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
+    options.AddPolicy(AdminPolicies.MediaConfigure, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
+    options.AddPolicy(AdminPolicies.MediaOperateQueue, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
+    options.AddPolicy(AdminPolicies.MediaRecover, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
+    options.AddPolicy(AdminPolicies.MediaClassificationManage, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
     options.AddPolicy("Project.Create", policy =>
         policy.RequireRole("Admin", "HoD"));
 
@@ -484,6 +492,10 @@ builder.Services.AddScoped<ISafeCsvWriter, SafeCsvWriter>();
 builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
 builder.Services.AddScoped<IAdminHierarchyValidationService, AdminHierarchyValidationService>();
 builder.Services.AddScoped<IAdminMasterDataCommandService, AdminMasterDataCommandService>();
+builder.Services.AddScoped<ICalendarRecoveryService, CalendarRecoveryService>();
+builder.Services.AddScoped<IHolidayAdminService, HolidayAdminService>();
+builder.Services.AddSingleton<IPdfIngestionRunGate, PdfIngestionRunGate>();
+builder.Services.AddScoped<IPdfIngestionCoordinator, PdfIngestionCoordinator>();
 builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 builder.Services.AddScoped<IAdminLoginOverviewService, AdminLoginOverviewService>();
 builder.Services.AddScoped<IAdminUserQueryService, AdminUserQueryService>();

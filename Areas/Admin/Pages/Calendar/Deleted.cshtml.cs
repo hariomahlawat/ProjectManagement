@@ -1,59 +1,95 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
-using ProjectManagement.Data;
-using ProjectManagement.Infrastructure;
+using ProjectManagement.Configuration;
+using ProjectManagement.Models;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.Calendar;
 
-namespace ProjectManagement.Areas.Admin.Pages.Calendar
+namespace ProjectManagement.Areas.Admin.Pages.Calendar;
+
+[Authorize(Policy = AdminPolicies.RecoveryManage)]
+public sealed class DeletedModel : PageModel
 {
-    [Authorize(Roles = "Admin")]
-    public class DeletedModel : PageModel
+    private readonly ICalendarRecoveryService _recovery;
+    private readonly IAdminTimeService _time;
+
+    public DeletedModel(ICalendarRecoveryService recovery, IAdminTimeService time)
     {
-        private readonly ApplicationDbContext _db;
-        private static readonly TimeZoneInfo IST = IstClock.TimeZone;
-
-        public DeletedModel(ApplicationDbContext db) => _db = db;
-
-        public List<EventVM> Events { get; set; } = new();
-
-        public class EventVM
-        {
-            public Guid Id { get; set; }
-            public string Title { get; set; } = string.Empty;
-            public string Start { get; set; } = string.Empty;
-        }
-
-        public async Task OnGetAsync()
-        {
-            var deletedEvents = await _db.Events.AsNoTracking()
-                .Where(e => e.IsDeleted)
-                .OrderByDescending(e => e.UpdatedAt)
-                .Select(e => new { e.Id, e.Title, e.StartUtc })
-                .ToListAsync();
-
-            Events = deletedEvents
-                .Select(e => new EventVM
-                {
-                    Id = e.Id,
-                    Title = e.Title,
-                    Start = TimeZoneInfo.ConvertTime(e.StartUtc, IST).ToString("dd MMM yyyy")
-                })
-                .ToList();
-        }
-
-        public async Task<IActionResult> OnPostRestoreAsync(Guid id)
-        {
-            var ev = await _db.Events.FirstOrDefaultAsync(e => e.Id == id && e.IsDeleted);
-            if (ev == null) return NotFound();
-            ev.IsDeleted = false;
-            await _db.SaveChangesAsync();
-            return RedirectToPage();
-        }
+        _recovery = recovery ?? throw new ArgumentNullException(nameof(recovery));
+        _time = time ?? throw new ArgumentNullException(nameof(time));
     }
-}
 
+    [BindProperty(SupportsGet = true)]
+    public string? Search { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public EventCategory? Category { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public int PageNumber { get; set; } = 1;
+
+    public DeletedCalendarEventPage Result { get; private set; } =
+        new(Array.Empty<DeletedCalendarEventItem>(), 0, 1, 20);
+
+    public IReadOnlyList<EventCategory> Categories { get; } = Enum.GetValues<EventCategory>();
+
+    public async Task OnGetAsync(CancellationToken cancellationToken)
+    {
+        var search = Search?.Trim();
+        Search = string.IsNullOrWhiteSpace(search)
+            ? null
+            : search[..Math.Min(search.Length, 160)];
+
+        Result = await _recovery.QueryAsync(
+            new DeletedCalendarEventQuery(Search, Category, PageNumber, 20),
+            cancellationToken);
+        PageNumber = Result.Page;
+    }
+
+    public async Task<IActionResult> OnPostRestoreAsync(
+        Guid id,
+        string? search,
+        EventCategory? category,
+        int pageNumber,
+        CancellationToken cancellationToken)
+    {
+        var result = await _recovery.RestoreAsync(id, cancellationToken);
+        TempData[result.Succeeded
+            ? FlashMessageKeys.AdminCalendarRecoverySuccess
+            : FlashMessageKeys.AdminCalendarRecoveryError] = FormatMessage(result);
+
+        return RedirectToPage(new
+        {
+            Search = search,
+            Category = category,
+            PageNumber = Math.Max(1, pageNumber)
+        });
+    }
+
+    public string FormatSchedule(DeletedCalendarEventItem item)
+    {
+        var start = _time.ToIst(item.StartUtc);
+        var end = _time.ToIst(item.EndUtc);
+
+        if (item.IsAllDay)
+        {
+            var startDate = DateOnly.FromDateTime(start.DateTime);
+            var endDate = DateOnly.FromDateTime(end.DateTime.AddTicks(-1));
+            return startDate == endDate
+                ? startDate.ToString("dd MMM yyyy")
+                : $"{startDate:dd MMM yyyy} – {endDate:dd MMM yyyy}";
+        }
+
+        return start.Date == end.Date
+            ? $"{start:dd MMM yyyy, HH:mm}–{end:HH:mm} IST"
+            : $"{start:dd MMM yyyy, HH:mm} – {end:dd MMM yyyy, HH:mm} IST";
+    }
+
+    public string FormatDeletedAt(DateTimeOffset utc) => _time.FormatIst(utc);
+
+    private static string FormatMessage(AdminOperationResult result) =>
+        !string.IsNullOrWhiteSpace(result.TraceId)
+            ? $"{result.UserMessage} Trace reference: {result.TraceId}."
+            : result.UserMessage ?? (result.Succeeded ? "Operation completed." : "Operation failed.");
+}
