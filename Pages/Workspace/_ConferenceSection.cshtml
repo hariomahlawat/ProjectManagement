@@ -1,8 +1,8 @@
 @using ProjectManagement.ViewModels.Workspace
 @model OfficerConferenceSectionRenderVm
 @{
-    var section = Model.Section;
-    var sectionClass = section.Kind switch
+    var sectionModel = Model.Section;
+    var sectionClass = sectionModel.Kind switch
     {
         ConferenceItemKind.Project => "projects",
         ConferenceItemKind.ProjectIdea => "ideas",
@@ -11,23 +11,23 @@
     };
 }
 
-<section class="oc-section oc-section--@sectionClass" aria-labelledby="oc-section-@section.Kind">
+<section class="oc-section oc-section--@sectionClass" aria-labelledby="oc-section-@sectionModel.Kind">
     <header class="oc-section__header">
-        <h2 id="oc-section-@section.Kind">
-            <i class="bi @section.IconClass" aria-hidden="true"></i>
-            <span>@section.Title</span>
+        <h2 id="oc-section-@sectionModel.Kind">
+            <i class="bi @sectionModel.IconClass" aria-hidden="true"></i>
+            <span>@sectionModel.Title</span>
         </h2>
-        <b>@section.Items.Count</b>
+        <b>@sectionModel.Items.Count</b>
     </header>
 
-    @if (section.Items.Count == 0)
+    @if (sectionModel.Items.Count == 0)
     {
-        <div class="oc-section__empty">No current @(section.Title.ToLowerInvariant()) assigned.</div>
+        <div class="oc-section__empty">No current @(sectionModel.Title.ToLowerInvariant()) assigned.</div>
     }
     else
     {
         <div class="oc-item-list">
-            @foreach (var item in section.Items)
+            @foreach (var item in sectionModel.Items)
             {
                 @await Html.PartialAsync(
                     "_ConferenceItemRow",
