@@ -3,8 +3,8 @@ const root = document.querySelector('[data-officer-conference]');
 if (root) {
     const antiforgeryToken = root.querySelector('.oc-antiforgery input[name="__RequestVerificationToken"]')?.value ?? '';
     const selector = root.querySelector('[data-officer-selector]');
-    const structuredProgressKinds = new Set([1, 2]);
     let openEditor = null;
+    let openTaskEditor = null;
 
     const formatIstDateTime = (value) => {
         if (!value) return '';
@@ -73,6 +73,9 @@ if (root) {
         if (openEditor && openEditor !== editor) {
             closeEditor(openEditor);
         }
+        if (openTaskEditor) {
+            closeTaskEditor(openTaskEditor);
+        }
 
         setRowStatus(item, '');
         editor.hidden = false;
@@ -82,6 +85,218 @@ if (root) {
 
         const input = editor.querySelector('[data-oc-input]');
         requestAnimationFrame(() => input?.focus());
+    };
+
+    const getTaskAddButton = (editor) => editor?.closest('[data-oc-section="tasks"]')?.querySelector('[data-oc-task-add]') ?? null;
+
+    const clearTaskErrors = (editor) => {
+        editor?.querySelectorAll('[data-oc-task-error]').forEach((element) => {
+            element.textContent = '';
+        });
+        editor?.querySelectorAll('[data-oc-task-input]').forEach((input) => {
+            input.removeAttribute('aria-invalid');
+        });
+    };
+
+    const taskFormIsComplete = (editor) => {
+        const title = editor?.querySelector('[data-oc-task-input="Title"]')?.value.trim() ?? '';
+        const description = editor?.querySelector('[data-oc-task-input="Description"]')?.value.trim() ?? '';
+        const dueDate = editor?.querySelector('[data-oc-task-input="DueDate"]')?.value ?? '';
+        return title.length > 0
+            && description.length > 0
+            && dueDate.length > 0
+            && (typeof editor.checkValidity !== 'function' || editor.checkValidity());
+    };
+
+    const syncTaskSaveState = (editor) => {
+        const save = editor?.querySelector('[data-oc-task-save]');
+        if (save) save.disabled = !taskFormIsComplete(editor) || editor.classList.contains('is-saving');
+    };
+
+    const closeTaskEditor = (editor, { clear = true, restoreFocus = false } = {}) => {
+        if (!editor) return;
+
+        editor.hidden = true;
+        editor.classList.remove('is-saving');
+        editor.setAttribute('aria-busy', 'false');
+        clearTaskErrors(editor);
+
+        const feedback = editor.querySelector('[data-oc-task-feedback]');
+        if (feedback) {
+            feedback.textContent = '';
+            feedback.classList.remove('is-error');
+        }
+
+        if (clear) editor.reset();
+        syncTaskSaveState(editor);
+
+        const addButton = getTaskAddButton(editor);
+        addButton?.setAttribute('aria-expanded', 'false');
+        if (restoreFocus) addButton?.focus();
+        if (openTaskEditor === editor) openTaskEditor = null;
+    };
+
+    const openTaskCreation = (section) => {
+        const editor = section?.querySelector('[data-oc-task-editor]');
+        if (!editor) return;
+
+        if (openEditor) closeEditor(openEditor);
+        if (openTaskEditor && openTaskEditor !== editor) closeTaskEditor(openTaskEditor);
+
+        editor.hidden = false;
+        editor.setAttribute('aria-busy', 'false');
+        clearTaskErrors(editor);
+        getTaskAddButton(editor)?.setAttribute('aria-expanded', 'true');
+        openTaskEditor = editor;
+        syncTaskSaveState(editor);
+
+        requestAnimationFrame(() => editor.querySelector('[data-oc-task-input="Title"]')?.focus());
+    };
+
+    const applyTaskErrors = (editor, errors) => {
+        if (!errors || typeof errors !== 'object') return;
+
+        Object.entries(errors).forEach(([field, messages]) => {
+            const input = editor.querySelector(`[data-oc-task-input="${field}"]`);
+            const error = editor.querySelector(`[data-oc-task-error="${field}"]`);
+            const message = Array.isArray(messages) ? messages[0] : String(messages ?? '');
+            if (input) input.setAttribute('aria-invalid', 'true');
+            if (error) error.textContent = message;
+        });
+    };
+
+    const appendCreatedTask = (task) => {
+        const section = root.querySelector('[data-oc-section="tasks"]');
+        const template = section?.querySelector('[data-oc-task-item-template]');
+        if (!section || !template || !task) return null;
+
+        const item = template.content.firstElementChild.cloneNode(true);
+        const currentOfficerId = section.querySelector('[data-oc-task-editor]')?.dataset.officerId ?? '';
+        const itemKind = String(task.kind ?? 3);
+        const itemId = String(task.itemId ?? '');
+        const editorId = `oc-editor-${itemKind}-${itemId}`;
+        const feedbackId = `${editorId}-feedback`;
+
+        item.dataset.officerId = currentOfficerId;
+        item.dataset.itemKind = itemKind;
+        item.dataset.itemId = itemId;
+        item.classList.toggle('oc-item--attention', Boolean(task.requiresAttention));
+
+        const title = item.querySelector('[data-oc-new-task-title]');
+        if (title) {
+            title.textContent = task.title ?? 'New task';
+            title.href = task.openUrl ?? '#';
+        }
+
+        const state = item.querySelector('[data-oc-new-task-state]');
+        if (state) state.textContent = task.currentStateName ?? task.currentStateCode ?? 'Assigned';
+
+        const context = item.querySelector('[data-oc-new-task-context]');
+        if (context) context.textContent = task.currentContext ?? '';
+
+        const attention = item.querySelector('[data-oc-new-task-attention]');
+        if (attention) {
+            attention.hidden = !task.attentionText;
+            attention.querySelector('span').textContent = task.attentionText ?? '';
+        }
+
+        const openLink = item.querySelector('[data-oc-new-task-open]');
+        if (openLink) openLink.href = task.openUrl ?? '#';
+
+        const addDirection = item.querySelector('[data-oc-add]');
+        addDirection?.setAttribute('aria-controls', editorId);
+
+        const directionEditor = item.querySelector('[data-oc-editor]');
+        if (directionEditor) {
+            directionEditor.id = editorId;
+            directionEditor.querySelector('input[name="officerUserId"]').value = currentOfficerId;
+            directionEditor.querySelector('input[name="kind"]').value = itemKind;
+            directionEditor.querySelector('input[name="itemId"]').value = itemId;
+            const textarea = directionEditor.querySelector('[data-oc-input]');
+            const feedback = directionEditor.querySelector('[data-oc-feedback]');
+            if (textarea) textarea.setAttribute('aria-describedby', feedbackId);
+            if (feedback) feedback.id = feedbackId;
+        }
+
+        let list = section.querySelector('[data-oc-item-list]');
+        if (!list) {
+            list = document.createElement('div');
+            list.className = 'oc-item-list';
+            list.dataset.ocItemList = '';
+            section.querySelector('[data-oc-section-empty]')?.remove();
+            template.before(list);
+        }
+        list.append(item);
+
+        const count = section.querySelector('[data-oc-section-count]');
+        const nextCount = Number.parseInt(count?.textContent ?? '0', 10) + 1;
+        if (count) count.textContent = String(nextCount);
+
+        const headerCount = root.querySelector('[data-oc-header-task-count]');
+        const headerLabel = root.querySelector('[data-oc-header-task-label]');
+        if (headerCount) headerCount.textContent = String(nextCount);
+        if (headerLabel) headerLabel.textContent = nextCount === 1 ? 'other task' : 'other tasks';
+
+        item.classList.add('is-saved');
+        window.setTimeout(() => item.classList.remove('is-saved'), 1200);
+        return item;
+    };
+
+    const saveTask = async (editor) => {
+        if (!editor || editor.classList.contains('is-saving')) return;
+        if (!taskFormIsComplete(editor)) {
+            editor.reportValidity?.();
+            return;
+        }
+
+        const save = editor.querySelector('[data-oc-task-save]');
+        const feedback = editor.querySelector('[data-oc-task-feedback]');
+        editor.classList.add('is-saving');
+        editor.setAttribute('aria-busy', 'true');
+        clearTaskErrors(editor);
+        if (save) save.disabled = true;
+        if (feedback) {
+            feedback.textContent = 'Creating task…';
+            feedback.classList.remove('is-error');
+        }
+
+        const data = new FormData(editor);
+        if (antiforgeryToken && !data.has('__RequestVerificationToken')) {
+            data.append('__RequestVerificationToken', antiforgeryToken);
+        }
+
+        try {
+            const response = await fetch(editor.action, {
+                method: 'POST',
+                body: data,
+                headers: antiforgeryToken ? { 'X-CSRF-TOKEN': antiforgeryToken } : {},
+                credentials: 'same-origin'
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                applyTaskErrors(editor, payload.errors);
+                const reference = payload.traceId ? ` Reference: ${payload.traceId}.` : '';
+                throw new Error(`${payload.message || 'The task could not be assigned.'}${reference}`);
+            }
+
+            const item = appendCreatedTask(payload.task);
+            closeTaskEditor(editor, { restoreFocus: true });
+            if (item) {
+                setRowStatus(item, 'Task assigned.');
+                item.querySelector('[data-oc-new-task-title]')?.focus({ preventScroll: true });
+            }
+        } catch (error) {
+            editor.classList.remove('is-saving');
+            editor.setAttribute('aria-busy', 'false');
+            syncTaskSaveState(editor);
+            const message = error instanceof Error ? error.message : 'The task could not be assigned.';
+            if (feedback) {
+                feedback.textContent = message;
+                feedback.classList.add('is-error');
+            }
+            const firstInvalid = editor.querySelector('[aria-invalid="true"]');
+            (firstInvalid ?? editor.querySelector('[data-oc-task-input="Title"]'))?.focus();
+        }
     };
 
     const setDirectionExpanded = (direction, expanded) => {
@@ -151,7 +366,7 @@ if (root) {
         const icon = document.createElement('i');
         icon.className = 'bi bi-file-earmark-check';
         icon.setAttribute('aria-hidden', 'true');
-        labelText.append(icon, document.createTextNode('Directions from last conference'));
+        labelText.append(icon, document.createTextNode('Latest conference direction'));
         label.append(labelText);
 
         const instruction = document.createElement('div');
@@ -254,40 +469,21 @@ if (root) {
         label.textContent = 'Progress after direction';
         host.append(label);
 
-        const kind = Number(item.dataset.itemKind);
-        if (structuredProgressKinds.has(kind)) {
-            const entries = Array.isArray(payload.progressEntries) ? payload.progressEntries : [];
-            if (entries.length > 0) {
-                const list = document.createElement('div');
-                list.className = 'oc-progress-list';
-                entries.forEach((entry, index) => {
-                    const element = buildProgressEntry(entry, item, index);
-                    list.append(element);
-                    configureProgressToggle(element);
-                });
-                host.append(list);
-            } else if (payload.emptyProgressText) {
-                const empty = document.createElement('p');
-                empty.className = 'oc-progress-empty';
-                empty.textContent = payload.emptyProgressText;
-                host.append(empty);
-            }
-            return;
-        }
-
-        const summary = document.createElement('p');
-        summary.className = 'oc-task-progress-summary';
-        summary.dataset.ocProgressSummary = '';
-        summary.textContent = payload.progressSummary ?? '';
-        host.append(summary);
-
-        if (payload.latestProgressText) {
-            const latest = document.createElement('span');
-            latest.className = 'oc-latest-update';
-            latest.dataset.ocLatestProgress = '';
-            latest.textContent = `Latest: ${payload.latestProgressText}`;
-            latest.title = payload.latestProgressText;
-            host.append(latest);
+        const entries = Array.isArray(payload.progressEntries) ? payload.progressEntries : [];
+        if (entries.length > 0) {
+            const list = document.createElement('div');
+            list.className = 'oc-progress-list';
+            entries.forEach((entry, index) => {
+                const element = buildProgressEntry(entry, item, index);
+                list.append(element);
+                configureProgressToggle(element);
+            });
+            host.append(list);
+        } else if (payload.emptyProgressText) {
+            const empty = document.createElement('p');
+            empty.className = 'oc-progress-empty';
+            empty.textContent = payload.emptyProgressText;
+            host.append(empty);
         }
     };
 
@@ -296,6 +492,7 @@ if (root) {
         if (directionHost) {
             const direction = buildDirection(payload.direction, item);
             directionHost.replaceChildren(direction);
+            directionHost.classList.remove('oc-item__direction--empty');
             configureDirectionToggle(direction);
         }
 
@@ -371,6 +568,18 @@ if (root) {
     });
 
     root.addEventListener('click', (event) => {
+        const addTaskButton = event.target.closest('[data-oc-task-add]');
+        if (addTaskButton) {
+            openTaskCreation(addTaskButton.closest('[data-oc-section="tasks"]'));
+            return;
+        }
+
+        const cancelTaskButton = event.target.closest('[data-oc-task-cancel]');
+        if (cancelTaskButton) {
+            closeTaskEditor(cancelTaskButton.closest('[data-oc-task-editor]'), { restoreFocus: true });
+            return;
+        }
+
         const directionToggle = event.target.closest('[data-oc-direction-toggle]');
         if (directionToggle) {
             const direction = directionToggle.closest('[data-oc-direction-content]');
@@ -400,6 +609,22 @@ if (root) {
     });
 
     root.addEventListener('input', (event) => {
+        const taskInput = event.target.closest('[data-oc-task-input]');
+        if (taskInput) {
+            const editor = taskInput.closest('[data-oc-task-editor]');
+            taskInput.removeAttribute('aria-invalid');
+            const field = taskInput.dataset.ocTaskInput;
+            const error = editor?.querySelector(`[data-oc-task-error="${field}"]`);
+            if (error) error.textContent = '';
+            const feedback = editor?.querySelector('[data-oc-task-feedback]');
+            if (feedback?.classList.contains('is-error')) {
+                feedback.textContent = '';
+                feedback.classList.remove('is-error');
+            }
+            syncTaskSaveState(editor);
+            return;
+        }
+
         const input = event.target.closest('[data-oc-input]');
         if (!input) return;
 
@@ -414,7 +639,28 @@ if (root) {
         }
     });
 
+    root.addEventListener('change', (event) => {
+        const taskInput = event.target.closest('[data-oc-task-input]');
+        if (!taskInput) return;
+        syncTaskSaveState(taskInput.closest('[data-oc-task-editor]'));
+    });
+
     root.addEventListener('keydown', (event) => {
+        const taskEditor = event.target.closest('[data-oc-task-editor]');
+        if (taskEditor) {
+            if (event.key === 'Escape') {
+                if (taskEditor.classList.contains('is-saving')) return;
+                event.preventDefault();
+                closeTaskEditor(taskEditor, { restoreFocus: true });
+                return;
+            }
+            if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                void saveTask(taskEditor);
+                return;
+            }
+        }
+
         const input = event.target.closest('[data-oc-input]');
         if (!input) return;
         const editor = input.closest('[data-oc-editor]');
@@ -434,6 +680,13 @@ if (root) {
     });
 
     root.addEventListener('submit', (event) => {
+        const taskEditor = event.target.closest('[data-oc-task-editor]');
+        if (taskEditor) {
+            event.preventDefault();
+            void saveTask(taskEditor);
+            return;
+        }
+
         const editor = event.target.closest('[data-oc-editor]');
         if (!editor) return;
         event.preventDefault();

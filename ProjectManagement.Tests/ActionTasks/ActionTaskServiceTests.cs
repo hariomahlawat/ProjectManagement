@@ -542,6 +542,31 @@ public class ActionTaskServiceTests
     }
 
     [Fact]
+    public async Task CreateTaskAsync_WithAuditRemarks_PersistsConferenceOrigin()
+    {
+        // SECTION: Arrange
+        await using var db = CreateDb();
+        var service = CreateService(db);
+
+        // SECTION: Act
+        var task = await service.CreateTaskAsync(new ActionTaskItem
+        {
+            Title = "Conference task",
+            Description = "Created during officer review.",
+            AssignedToUserId = "assignee",
+            CreatedByUserId = "creator",
+            CreatedByRole = RoleNames.HoD,
+            AssignedToRole = RoleNames.ProjectOfficer,
+            DueDate = TestActionTrackerClock.FixedToday.AddDays(2),
+            Priority = "Normal"
+        }, "  Created from Officer Conference Review.  ");
+
+        // SECTION: Assert
+        var audit = await db.ActionTaskAuditLogs.SingleAsync(x => x.TaskId == task.Id);
+        Assert.Equal("Created from Officer Conference Review.", audit.Remarks);
+    }
+
+    [Fact]
     public async Task UpdateTaskDateAsync_RejectsDatesBeforeIstTodayRatherThanUtcToday()
     {
         // SECTION: Arrange

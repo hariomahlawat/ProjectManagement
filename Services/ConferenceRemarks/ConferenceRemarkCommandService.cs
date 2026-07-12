@@ -262,9 +262,16 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
                 SnapshotLabel = "When issued",
                 SnapshotValue = BuildTaskSnapshot(update.StatusSnapshot, update.DueDateSnapshot)
             },
-            Array.Empty<ConferenceProgressEntryVm>(),
+            new[]
+            {
+                new ConferenceProgressEntryVm
+                {
+                    Label = "Task Assignee",
+                    EmptyText = "No update by the task assignee after the direction."
+                }
+            },
             null,
-            "No status movement · due date unchanged · no subsequent update",
+            string.Empty,
             null);
     }
 

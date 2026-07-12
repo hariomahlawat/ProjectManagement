@@ -115,7 +115,7 @@ public sealed class ConferenceRemarkCommandServiceTests
         var tasks = new CapturingTaskCollaborationService();
         var service = scope.CreateService(tasks: tasks);
 
-        await service.AddAsync(
+        var result = await service.AddAsync(
             actor.Id,
             new AddConferenceRemarkRequest(officer.Id, ConferenceItemKind.ActionTask, task.Id, "Task direction"));
 
@@ -123,6 +123,11 @@ public sealed class ConferenceRemarkCommandServiceTests
         Assert.Equal(ActionTaskUpdateTypes.Conference, tasks.UpdateType);
         Assert.Equal("Task direction", tasks.Body);
         Assert.Empty(tasks.Files!);
+        Assert.Empty(result.ProgressSummary);
+        Assert.Null(result.LatestProgressText);
+        var assigneeProgress = Assert.Single(result.ProgressEntries);
+        Assert.Equal("Task Assignee", assigneeProgress.Label);
+        Assert.Equal("No update by the task assignee after the direction.", assigneeProgress.EmptyText);
     }
 
     [Fact]

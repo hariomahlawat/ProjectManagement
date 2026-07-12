@@ -121,9 +121,44 @@ public sealed record AddConferenceRemarkResult(
     string ProgressSummary,
     string? LatestProgressText);
 
+
+public sealed class CreateConferenceTaskInput
+{
+    [Display(Name = "Task title")]
+    [Required]
+    [StringLength(200)]
+    public string Title { get; set; } = string.Empty;
+
+    [Display(Name = "Task brief / expected outcome")]
+    [Required]
+    [StringLength(4000)]
+    public string Description { get; set; } = string.Empty;
+
+    [Display(Name = "Due date")]
+    [Required]
+    [DataType(DataType.Date)]
+    public DateTime? DueDate { get; set; }
+
+    [Required]
+    [RegularExpression("^(Low|Normal|High|Critical)$", ErrorMessage = "Select a valid priority.")]
+    public string Priority { get; set; } = "Normal";
+}
+
+public sealed record CreateConferenceTaskRequest(
+    string OfficerUserId,
+    string Title,
+    string Description,
+    DateTime DueDate,
+    string Priority);
+
+public sealed record CreateConferenceTaskResult(OfficerConferenceItemVm Task);
+
 public sealed class OfficerConferenceSectionRenderVm
 {
     public string OfficerUserId { get; init; } = string.Empty;
+    public string OfficerDisplayName { get; init; } = string.Empty;
+    public DateTime MinimumTaskDueDate { get; init; }
+    public DateTime DefaultTaskDueDate { get; init; }
     public OfficerConferenceSectionVm Section { get; init; } = new();
 }
 

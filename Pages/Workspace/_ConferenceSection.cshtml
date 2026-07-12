@@ -9,16 +9,122 @@
         ConferenceItemKind.ActionTask => "tasks",
         _ => "general"
     };
+    var isTaskSection = sectionModel.Kind == ConferenceItemKind.ActionTask;
+    var taskEditorId = $"oc-task-create-{Model.OfficerUserId}";
+    var minimumTaskDate = Model.MinimumTaskDueDate.ToString("yyyy-MM-dd");
+    var defaultTaskDate = Model.DefaultTaskDueDate.ToString("yyyy-MM-dd");
+    var taskTitleErrorId = $"{taskEditorId}-title-error";
+    var taskDescriptionErrorId = $"{taskEditorId}-description-error";
+    var taskDueDateErrorId = $"{taskEditorId}-due-date-error";
+    var taskPriorityErrorId = $"{taskEditorId}-priority-error";
 }
 
-<section class="oc-section oc-section--@sectionClass" aria-labelledby="oc-section-@sectionModel.Kind">
+<section class="oc-section oc-section--@sectionClass"
+         aria-labelledby="oc-section-@sectionModel.Kind"
+         data-oc-section="@sectionClass">
     <header class="oc-section__header">
         <h2 id="oc-section-@sectionModel.Kind">
             <i class="bi @sectionModel.IconClass" aria-hidden="true"></i>
             <span>@sectionModel.Title</span>
         </h2>
-        <b>@sectionModel.Items.Count</b>
+        <div class="oc-section__header-actions">
+            <b data-oc-section-count>@sectionModel.Items.Count</b>
+            @if (isTaskSection)
+            {
+                <button type="button"
+                        class="oc-add-task"
+                        data-oc-task-add
+                        aria-controls="@taskEditorId"
+                        aria-expanded="false">
+                    <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                    <span>Add task</span>
+                </button>
+            }
+        </div>
     </header>
+
+    @if (isTaskSection)
+    {
+        <form method="post"
+              asp-page-handler="CreateTask"
+              asp-route-officerUserId="@Model.OfficerUserId"
+              id="@taskEditorId"
+              class="oc-task-editor"
+              data-oc-task-editor
+              data-officer-id="@Model.OfficerUserId"
+              aria-busy="false"
+              hidden>
+            @Html.AntiForgeryToken()
+            <div class="oc-task-editor__heading">
+                <div>
+                    <span>New task</span>
+                    <strong>Assign to @Model.OfficerDisplayName</strong>
+                </div>
+                <small>The task will be created in Action Tracker with Assigned status.</small>
+            </div>
+
+            <div class="oc-task-editor__grid">
+                <label class="oc-task-field oc-task-field--title">
+                    <span>Task title <em aria-hidden="true">*</em></span>
+                    <input name="Title"
+                           type="text"
+                           maxlength="200"
+                           autocomplete="off"
+                           placeholder="State the task clearly"
+                           aria-describedby="@taskTitleErrorId"
+                           required
+                           data-oc-task-input="Title" />
+                    <small id="@taskTitleErrorId" data-oc-task-error="Title"></small>
+                </label>
+
+                <label class="oc-task-field oc-task-field--brief">
+                    <span>Task brief / expected outcome <em aria-hidden="true">*</em></span>
+                    <textarea name="Description"
+                              rows="2"
+                              maxlength="4000"
+                              placeholder="What is to be done and what outcome is expected?"
+                              aria-describedby="@taskDescriptionErrorId"
+                              required
+                              data-oc-task-input="Description"></textarea>
+                    <small id="@taskDescriptionErrorId" data-oc-task-error="Description"></small>
+                </label>
+
+                <label class="oc-task-field">
+                    <span>Due date <em aria-hidden="true">*</em></span>
+                    <input name="DueDate"
+                           type="date"
+                           min="@minimumTaskDate"
+                           value="@defaultTaskDate"
+                           aria-describedby="@taskDueDateErrorId"
+                           required
+                           data-oc-task-input="DueDate" />
+                    <small id="@taskDueDateErrorId" data-oc-task-error="DueDate"></small>
+                </label>
+
+                <label class="oc-task-field">
+                    <span>Priority</span>
+                    <select name="Priority" aria-describedby="@taskPriorityErrorId" required data-oc-task-input="Priority">
+                        <option value="Low">Low</option>
+                        <option value="Normal" selected>Normal</option>
+                        <option value="High">High</option>
+                        <option value="Critical">Critical</option>
+                    </select>
+                    <small id="@taskPriorityErrorId" data-oc-task-error="Priority"></small>
+                </label>
+            </div>
+
+            <div class="oc-task-editor__footer">
+                <span class="oc-task-feedback" data-oc-task-feedback aria-live="polite"></span>
+                <div>
+                    <button type="button" class="oc-task-cancel" data-oc-task-cancel>Cancel</button>
+                    <button type="submit" class="oc-task-save" data-oc-task-save disabled>
+                        <span>Create task</span>
+                        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </div>
+        </form>
+    }
 
     @if (sectionModel.Items.Count == 0)
     {
@@ -29,11 +135,11 @@
             ConferenceItemKind.ActionTask => "No other tasks assigned.",
             _ => "No items assigned."
         };
-        <div class="oc-section__empty">@emptyMessage</div>
+        <div class="oc-section__empty" data-oc-section-empty>@emptyMessage</div>
     }
     else
     {
-        <div class="oc-item-list">
+        <div class="oc-item-list" data-oc-item-list>
             @foreach (var item in sectionModel.Items)
             {
                 @await Html.PartialAsync(
@@ -45,5 +151,68 @@
                     })
             }
         </div>
+    }
+
+    @if (isTaskSection)
+    {
+        <template data-oc-task-item-template>
+            <article class="oc-item" data-oc-item data-officer-id="" data-item-kind="@((int)ConferenceItemKind.ActionTask)" data-item-id="">
+                <div class="oc-item__main">
+                    <div class="oc-item__title-row">
+                        <a href="" target="_blank" rel="noopener" title="Open task" data-oc-new-task-title></a>
+                    </div>
+                    <div class="oc-state"><strong data-oc-new-task-state></strong></div>
+                    <p class="oc-current-context" data-oc-new-task-context></p>
+                    <span class="oc-attention" data-oc-new-task-attention hidden>
+                        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span></span>
+                    </span>
+                </div>
+
+                <div class="oc-item__direction oc-item__direction--empty" data-oc-direction>
+                    <div class="oc-no-direction" data-oc-empty-direction>
+                        <i class="bi bi-file-earmark" aria-hidden="true"></i>
+                        <span>No conference direction recorded</span>
+                    </div>
+                </div>
+
+                <div class="oc-item__progress">
+                    <div data-oc-progress-content></div>
+                    <div class="oc-item__actions oc-item__actions--empty">
+                        <button type="button" class="oc-add-direction" data-oc-add aria-controls="" aria-expanded="false">
+                            <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                            <span>Add direction</span>
+                        </button>
+                        <a href="" target="_blank" rel="noopener" class="oc-open-item" data-oc-new-task-open>
+                            Open <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                        </a>
+                        <span class="oc-row-status" data-oc-row-status aria-live="polite"></span>
+                    </div>
+                </div>
+
+                <form method="post" class="oc-inline-editor" data-oc-editor aria-busy="false" hidden>
+                    <input type="hidden" name="officerUserId" value="" />
+                    <input type="hidden" name="kind" value="@((int)ConferenceItemKind.ActionTask)" />
+                    <input type="hidden" name="itemId" value="" />
+                    <label class="oc-inline-editor__field">
+                        <span>Conference direction</span>
+                        <textarea name="body"
+                                  rows="2"
+                                  maxlength="4000"
+                                  placeholder="Record the direction or observation..."
+                                  data-oc-input></textarea>
+                    </label>
+                    <div class="oc-inline-editor__footer">
+                        <span class="oc-editor-feedback" data-oc-feedback aria-live="polite"></span>
+                        <div>
+                            <button type="button" class="oc-editor-cancel" data-oc-cancel>Cancel</button>
+                            <button type="submit" class="oc-editor-save" data-oc-save disabled>
+                                <span>Add direction</span>
+                                <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </article>
+        </template>
     }
 </section>

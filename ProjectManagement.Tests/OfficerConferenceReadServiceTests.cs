@@ -239,9 +239,13 @@ public sealed class OfficerConferenceReadServiceTests
 
         var taskItem = Assert.Single(result.Sections.Single(section => section.Kind == ConferenceItemKind.ActionTask).Items);
         Assert.Equal("Task direction", taskItem.LatestDirection!.Body);
-        Assert.Contains("Assigned → In Progress", taskItem.ProgressSummary);
-        Assert.Contains("1 subsequent update", taskItem.ProgressSummary);
-        Assert.Equal("Task progress", taskItem.LatestProgressText);
+        Assert.Empty(taskItem.ProgressSummary);
+        Assert.Null(taskItem.LatestProgressText);
+        var taskAssigneeEntry = Assert.Single(taskItem.ProgressEntries);
+        Assert.Equal("Task Assignee", taskAssigneeEntry.Label);
+        Assert.Equal("Task progress", taskAssigneeEntry.Body);
+        Assert.Equal(officer.FullName, taskAssigneeEntry.AuthorName);
+        Assert.Equal(Utc(5), taskAssigneeEntry.ActivityAtUtc);
     }
 
     [Fact]
@@ -388,6 +392,179 @@ public sealed class OfficerConferenceReadServiceTests
         var placeholder = Assert.Single(projectItem.ProgressEntries);
         Assert.Equal("Project Officer", placeholder.Label);
         Assert.Equal("No remark by the Project Officer after the direction.", placeholder.EmptyText);
+        Assert.Null(placeholder.Body);
+    }
+
+    [Fact]
+    public async Task GetAsync_TaskProgress_UsesOnlyCurrentAssigneeUpdateAfterDirection()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+
+        var command = CreateUser("command-1", "Command User", "Colonel");
+        var assignee = CreateUser("officer-1", "Task Assignee", "Lt Col");
+        var otherUser = CreateUser("other-user", "Other User", "Major");
+        db.Users.AddRange(command, assignee, otherUser);
+
+        var task = new ActionTaskItem
+        {
+            Title = "Conference task",
+            Description = "Task description",
+            CreatedByUserId = command.Id,
+            AssignedToUserId = assignee.Id,
+            CreatedByRole = RoleNames.HoD,
+            AssignedToRole = RoleNames.ProjectOfficer,
+            AssignedOn = Utc(1),
+            DueDate = new DateTime(2026, 12, 31),
+            Priority = "Normal",
+            Status = ActionTaskStatuses.InProgress
+        };
+        db.ActionTasks.Add(task);
+        await db.SaveChangesAsync();
+
+        db.ActionTaskUpdates.AddRange(
+            new ActionTaskUpdate
+            {
+                TaskId = task.Id,
+                Body = "Direction",
+                UpdateType = ActionTaskUpdateTypes.Conference,
+                CreatedByUserId = command.Id,
+                CreatedByRole = RoleNames.HoD,
+                CreatedAtUtc = Utc(2)
+            },
+            new ActionTaskUpdate
+            {
+                TaskId = task.Id,
+                Body = "Other user's update",
+                UpdateType = ActionTaskUpdateTypes.Progress,
+                CreatedByUserId = otherUser.Id,
+                CreatedAtUtc = Utc(4)
+            },
+            new ActionTaskUpdate
+            {
+                TaskId = task.Id,
+                Body = "Assignee response",
+                UpdateType = ActionTaskUpdateTypes.Comment,
+                CreatedByUserId = assignee.Id,
+                CreatedAtUtc = Utc(5)
+            });
+        await db.SaveChangesAsync();
+
+        var workload = new StubOfficerWorkloadReadService(new[]
+        {
+            new CommandOfficerWorkloadVm
+            {
+                UserId = assignee.Id,
+                OfficerName = assignee.FullName!,
+                Rank = assignee.Rank!,
+                OtherTasks = new[]
+                {
+                    new CommandOfficerTaskVm(
+                        task.Id,
+                        task.Title,
+                        task.Status,
+                        task.DueDate,
+                        $"/ActionTasks?taskId={task.Id}")
+                }
+            }
+        });
+        var service = new OfficerConferenceReadService(
+            db,
+            workload,
+            new WorkflowStageMetadataProvider(),
+            new FixedClock(Utc(10)));
+
+        var result = await service.GetAsync(command.Id, assignee.Id);
+
+        var taskItem = Assert.Single(
+            result!.Sections.Single(section => section.Kind == ConferenceItemKind.ActionTask).Items);
+        var progress = Assert.Single(taskItem.ProgressEntries);
+        Assert.Equal("Task Assignee", progress.Label);
+        Assert.Equal("Assignee response", progress.Body);
+        Assert.Equal(assignee.FullName, progress.AuthorName);
+        Assert.Null(progress.EmptyText);
+    }
+
+    [Fact]
+    public async Task GetAsync_TaskWithoutAssigneeUpdate_ShowsAssigneePlaceholder()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+
+        var command = CreateUser("command-1", "Command User", "Colonel");
+        var assignee = CreateUser("officer-1", "Task Assignee", "Lt Col");
+        db.Users.AddRange(command, assignee);
+
+        var task = new ActionTaskItem
+        {
+            Title = "Conference task",
+            Description = "Task description",
+            CreatedByUserId = command.Id,
+            AssignedToUserId = assignee.Id,
+            CreatedByRole = RoleNames.HoD,
+            AssignedToRole = RoleNames.ProjectOfficer,
+            AssignedOn = Utc(1),
+            DueDate = new DateTime(2026, 12, 31),
+            Priority = "Normal",
+            Status = ActionTaskStatuses.Assigned
+        };
+        db.ActionTasks.Add(task);
+        await db.SaveChangesAsync();
+
+        db.ActionTaskUpdates.Add(new ActionTaskUpdate
+        {
+            TaskId = task.Id,
+            Body = "Direction",
+            UpdateType = ActionTaskUpdateTypes.Conference,
+            CreatedByUserId = command.Id,
+            CreatedByRole = RoleNames.HoD,
+            CreatedAtUtc = Utc(2)
+        });
+        await db.SaveChangesAsync();
+
+        var workload = new StubOfficerWorkloadReadService(new[]
+        {
+            new CommandOfficerWorkloadVm
+            {
+                UserId = assignee.Id,
+                OfficerName = assignee.FullName!,
+                Rank = assignee.Rank!,
+                OtherTasks = new[]
+                {
+                    new CommandOfficerTaskVm(
+                        task.Id,
+                        task.Title,
+                        task.Status,
+                        task.DueDate,
+                        $"/ActionTasks?taskId={task.Id}")
+                }
+            }
+        });
+        var service = new OfficerConferenceReadService(
+            db,
+            workload,
+            new WorkflowStageMetadataProvider(),
+            new FixedClock(Utc(10)));
+
+        var result = await service.GetAsync(command.Id, assignee.Id);
+
+        var taskItem = Assert.Single(
+            result!.Sections.Single(section => section.Kind == ConferenceItemKind.ActionTask).Items);
+        var placeholder = Assert.Single(taskItem.ProgressEntries);
+        Assert.Equal("Task Assignee", placeholder.Label);
+        Assert.Equal("No update by the task assignee after the direction.", placeholder.EmptyText);
         Assert.Null(placeholder.Body);
     }
 

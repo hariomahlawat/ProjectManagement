@@ -34,7 +34,7 @@
                 <p>
                     <span><strong>@Model.Conference.ProjectCount</strong> @(Model.Conference.ProjectCount == 1 ? "project" : "projects")</span>
                     <span><strong>@Model.Conference.IdeaCount</strong> @(Model.Conference.IdeaCount == 1 ? "idea" : "ideas")</span>
-                    <span><strong>@Model.Conference.OtherTaskCount</strong> @(Model.Conference.OtherTaskCount == 1 ? "other task" : "other tasks")</span>
+                    <span><strong data-oc-header-task-count>@Model.Conference.OtherTaskCount</strong> <span data-oc-header-task-label>@(Model.Conference.OtherTaskCount == 1 ? "other task" : "other tasks")</span></span>
                 </p>
             </div>
         </div>
@@ -101,6 +101,9 @@
                 new OfficerConferenceSectionRenderVm
                 {
                     OfficerUserId = Model.Conference.OfficerUserId,
+                    OfficerDisplayName = Model.Conference.OfficerDisplayName,
+                    MinimumTaskDueDate = Model.MinimumTaskDueDate,
+                    DefaultTaskDueDate = Model.DefaultTaskDueDate,
                     Section = section
                 })
         }

@@ -103,7 +103,16 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             cancellationToken);
         var ideaComments = await LoadIdeaProgressCommentsAsync(latestIdeaDirections, cancellationToken);
         var ideaNotes = await LoadIdeaProgressNotesAsync(latestIdeaDirections, cancellationToken);
-        var taskUpdates = await LoadTaskProgressUpdatesAsync(latestTaskDirections, cancellationToken);
+        var assignedTaskUserIds = taskRows
+            .Select(task => string.IsNullOrWhiteSpace(task.AssignedToUserId)
+                ? selected.UserId
+                : task.AssignedToUserId)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var taskUpdates = await LoadTaskProgressUpdatesAsync(
+            latestTaskDirections,
+            assignedTaskUserIds,
+            cancellationToken);
 
         var authorIds = latestProjectDirections.Values.Select(item => item.AuthorUserId)
             .Concat(latestIdeaDirections.Values.Select(item => item.CreatedByUserId))
@@ -282,7 +291,8 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                 task.Title,
                 task.Status,
                 task.DueDate,
-                task.Priority))
+                task.Priority,
+                task.AssignedToUserId))
             .ToListAsync(cancellationToken);
     }
 
@@ -453,9 +463,10 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
 
     private Task<List<ActionTaskUpdate>> LoadTaskProgressUpdatesAsync(
         IReadOnlyDictionary<int, ActionTaskUpdate> latestDirections,
+        string[] assignedTaskUserIds,
         CancellationToken cancellationToken)
     {
-        if (latestDirections.Count == 0)
+        if (latestDirections.Count == 0 || assignedTaskUserIds.Length == 0)
         {
             return Task.FromResult(new List<ActionTaskUpdate>());
         }
@@ -467,6 +478,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             .Where(update => taskIds.Contains(update.TaskId)
                 && !update.IsDeleted
                 && update.UpdateType != ActionTaskUpdateTypes.Conference
+                && assignedTaskUserIds.Contains(update.CreatedByUserId)
                 && update.CreatedAtUtc >= earliestDirection)
             .OrderBy(update => update.CreatedAtUtc)
             .ThenBy(update => update.Id)
@@ -788,19 +800,38 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             var itemUpdates = updatesByTask.TryGetValue(row.Id, out var foundUpdates)
                 ? foundUpdates
                 : new List<ActionTaskUpdate>();
-            var subsequent = direction is null
-                ? new List<ActionTaskUpdate>()
+            var assignedTaskUserId = string.IsNullOrWhiteSpace(row.AssignedToUserId)
+                ? officer.UserId
+                : row.AssignedToUserId;
+            var latestAssigneeUpdate = direction is null
+                ? null
                 : itemUpdates
-                    .Where(update => !string.Equals(
-                            update.UpdateType,
-                            ActionTaskUpdateTypes.Conference,
-                            StringComparison.OrdinalIgnoreCase)
+                    .Where(update => string.Equals(
+                            update.CreatedByUserId,
+                            assignedTaskUserId,
+                            StringComparison.Ordinal)
                         && IsAfter(update.CreatedAtUtc, update.Id, direction.CreatedAtUtc, direction.Id))
-                    .ToList();
-            var latestProgress = subsequent
-                .OrderByDescending(update => update.CreatedAtUtc)
-                .ThenByDescending(update => update.Id)
-                .FirstOrDefault();
+                    .OrderByDescending(update => update.CreatedAtUtc)
+                    .ThenByDescending(update => update.Id)
+                    .FirstOrDefault();
+
+            var progressEntries = new List<ConferenceProgressEntryVm>();
+            if (direction is not null)
+            {
+                progressEntries.Add(latestAssigneeUpdate is null
+                    ? new ConferenceProgressEntryVm
+                    {
+                        Label = "Task Assignee",
+                        EmptyText = "No update by the task assignee after the direction."
+                    }
+                    : new ConferenceProgressEntryVm
+                    {
+                        Label = "Task Assignee",
+                        Body = ConferenceDirectionTextFormatter.ToDisplayText(latestAssigneeUpdate.Body),
+                        AuthorName = ResolveAuthor(authorNames, latestAssigneeUpdate.CreatedByUserId),
+                        ActivityAtUtc = AsUtc(latestAssigneeUpdate.CreatedAtUtc)
+                    });
+            }
 
             result.Add(new OfficerConferenceItemVm
             {
@@ -825,14 +856,10 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                         SnapshotLabel = "When issued",
                         SnapshotValue = BuildTaskSnapshot(direction.StatusSnapshot, direction.DueDateSnapshot)
                     },
-                ProgressSummary = BuildTaskProgressSummary(
-                    direction,
-                    row.Status,
-                    dueDate,
-                    subsequent.Count),
-                LatestProgressText = latestProgress is null
-                    ? null
-                    : ConferenceDirectionTextFormatter.ToDisplayText(latestProgress.Body)
+                ProgressEntries = progressEntries,
+                EmptyProgressText = null,
+                ProgressSummary = string.Empty,
+                LatestProgressText = null
             });
         }
 
@@ -857,45 +884,6 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
 
     private static DateTime NoteActivityAt(IdeaNoteRow note)
         => note.UpdatedAt > note.CreatedAt ? note.UpdatedAt : note.CreatedAt;
-
-    private static string BuildTaskProgressSummary(
-        ActionTaskUpdate? direction,
-        string currentStatus,
-        DateOnly currentDueDate,
-        int subsequentCount)
-    {
-        if (direction is null)
-        {
-            return "No previous conference direction";
-        }
-
-        var parts = new List<string>
-        {
-            string.Equals(direction.StatusSnapshot, currentStatus, StringComparison.OrdinalIgnoreCase)
-                ? "No status movement"
-                : $"{direction.StatusSnapshot ?? "Not recorded"} → {currentStatus}"
-        };
-
-        if (direction.DueDateSnapshot.HasValue)
-        {
-            parts.Add(direction.DueDateSnapshot.Value == currentDueDate
-                ? "due date unchanged"
-                : $"due {direction.DueDateSnapshot.Value:dd MMM} → {currentDueDate:dd MMM}");
-        }
-
-        var summary = string.Join(" · ", parts);
-        return AppendUpdateCount(summary, subsequentCount, "update");
-    }
-
-    private static string AppendUpdateCount(string movement, int count, string noun)
-    {
-        if (count <= 0)
-        {
-            return movement + " · no subsequent update";
-        }
-
-        return $"{movement} · {count} subsequent {noun}{(count == 1 ? string.Empty : "s")}";
-    }
 
     private static int TaskAttentionOrder(TaskRow row, DateOnly today)
     {
@@ -1014,5 +1002,6 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         string Title,
         string Status,
         DateTime DueDate,
-        string Priority);
+        string Priority,
+        string AssignedToUserId);
 }

@@ -39,7 +39,7 @@ test('conference save surfaces server trace references and row-local feedback', 
 
 test('conference direction uses formal instruction icon and simplified metadata', () => {
     assert.match(source, /bi bi-file-earmark-check/);
-    assert.match(source, /Directions from last conference/);
+    assert.match(source, /Latest conference direction/);
     assert.doesNotMatch(source, /direction\.authorRole/);
     assert.doesNotMatch(source, /direction\.snapshotLabel/);
     assert.doesNotMatch(source, /direction\.snapshotValue/);
@@ -57,12 +57,23 @@ test('conference directions expose accessible more and less controls', () => {
     assert.match(source, /toggle\.textContent = expanded \? 'Less' : 'More'/);
 });
 
-test('structured progress renders native project and idea activity safely', () => {
+test('structured progress renders project, idea and task activity safely', () => {
     assert.match(source, /payload\.progressEntries/);
     assert.match(source, /entry\.body/);
     assert.match(source, /body\.textContent = entry\.body/);
     assert.match(source, /payload\.emptyProgressText/);
     assert.doesNotMatch(source, /entry\.body.*innerHTML/);
+});
+
+
+test('task progress no longer renders generic status or due-date movement summaries', () => {
+    assert.doesNotMatch(source, /structuredProgressKinds/);
+    assert.doesNotMatch(source, /oc-task-progress-summary/);
+    assert.doesNotMatch(source, /latestProgressText/);
+});
+
+test('saving a direction clears the neutral empty-direction state', () => {
+    assert.match(source, /classList\.remove\('oc-item__direction--empty'\)/);
 });
 
 test('structured progress supports accessible more and less controls', () => {
@@ -74,4 +85,32 @@ test('structured progress supports accessible more and less controls', () => {
 test('conference save uses only row-local success feedback', () => {
     assert.doesNotMatch(source, /setPageFeedback/);
     assert.match(source, /setRowStatus\(item, 'Direction saved\.'/);
+});
+
+test('conference page creates Action Tracker tasks without navigation', () => {
+    assert.match(source, /data-oc-task-add/);
+    assert.match(source, /const saveTask = async/);
+    assert.match(source, /fetch\(editor\.action/);
+    assert.match(source, /appendCreatedTask\(payload\.task\)/);
+    assert.doesNotMatch(source, /window\.location.*ActionTasks/);
+});
+
+test('conference task creation uses antiforgery, same-origin credentials and double-submit protection', () => {
+    assert.match(source, /data\.append\('__RequestVerificationToken'/);
+    assert.match(source, /credentials: 'same-origin'/);
+    assert.match(source, /editor\.classList\.contains\('is-saving'\)/);
+    assert.match(source, /aria-busy/);
+});
+
+test('conference task form supports keyboard create, cancel and field-level validation', () => {
+    assert.match(source, /const applyTaskErrors/);
+    assert.match(source, /data-oc-task-error/);
+    assert.match(source, /event\.key === 'Escape'/);
+    assert.match(source, /void saveTask\(taskEditor\)/);
+});
+
+test('new task rendering uses textContent for server-returned values', () => {
+    assert.match(source, /title\.textContent = task\.title/);
+    assert.match(source, /context\.textContent = task\.currentContext/);
+    assert.doesNotMatch(source, /task\.title.*innerHTML/);
 });

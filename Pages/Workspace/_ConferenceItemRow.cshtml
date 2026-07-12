@@ -11,7 +11,6 @@
         ConferenceItemKind.ActionTask => "task",
         _ => "item"
     };
-    var usesStructuredProgress = item.Kind is ConferenceItemKind.Project or ConferenceItemKind.ProjectIdea;
     var directionDate = direction is null
         ? null
         : IstClock.ToIst(direction.CreatedAtUtc).ToString("dd MMM yyyy, hh:mm tt");
@@ -19,6 +18,9 @@
     var editorId = $"oc-editor-{(int)item.Kind}-{item.ItemId}";
     var feedbackId = $"{editorId}-feedback";
     var directionBodyId = $"oc-direction-body-{(int)item.Kind}-{item.ItemId}";
+    var directionCellClass = direction is null
+        ? "oc-item__direction oc-item__direction--empty"
+        : "oc-item__direction";
 }
 
 <article class="oc-item @(item.RequiresAttention ? "oc-item--attention" : string.Empty)"
@@ -54,19 +56,19 @@
         }
     </div>
 
-    <div class="oc-item__direction" data-oc-direction>
+    <div class="@directionCellClass" data-oc-direction>
         @if (direction is null)
         {
             <div class="oc-no-direction" data-oc-empty-direction>
                 <i class="bi bi-file-earmark" aria-hidden="true"></i>
-                <span>No direction from last conference</span>
+                <span>No conference direction recorded</span>
             </div>
         }
         else
         {
             <div class="oc-direction" data-oc-direction-content>
                 <div class="oc-direction__label">
-                    <span><i class="bi bi-file-earmark-check" aria-hidden="true"></i>Directions from last conference</span>
+                    <span><i class="bi bi-file-earmark-check" aria-hidden="true"></i>Latest conference direction</span>
                 </div>
                 <div class="oc-direction__instruction">
                     <p id="@directionBodyId" class="oc-direction__body" data-oc-direction-body>@direction.Body</p>
@@ -88,78 +90,61 @@
             {
                 <span class="oc-progress-label">Progress after direction</span>
 
-                @if (usesStructuredProgress)
+                @if (item.ProgressEntries.Count > 0)
                 {
-                    @if (item.ProgressEntries.Count > 0)
-                    {
-                        <div class="oc-progress-list">
-                            @for (var index = 0; index < item.ProgressEntries.Count; index++)
-                            {
-                                var entry = item.ProgressEntries[index];
-                                var progressBodyId = $"oc-progress-body-{(int)item.Kind}-{item.ItemId}-{index}";
-                                var activityDate = entry.ActivityAtUtc.HasValue
-                                    ? IstClock.ToIst(entry.ActivityAtUtc.Value).ToString("dd MMM yyyy, hh:mm tt")
-                                    : null;
-                                var activityDateIso = entry.ActivityAtUtc?.ToString("O");
+                    <div class="oc-progress-list">
+                        @for (var index = 0; index < item.ProgressEntries.Count; index++)
+                        {
+                            var entry = item.ProgressEntries[index];
+                            var progressBodyId = $"oc-progress-body-{(int)item.Kind}-{item.ItemId}-{index}";
+                            var activityDate = entry.ActivityAtUtc.HasValue
+                                ? IstClock.ToIst(entry.ActivityAtUtc.Value).ToString("dd MMM yyyy, hh:mm tt")
+                                : null;
+                            var activityDateIso = entry.ActivityAtUtc?.ToString("O");
 
-                                <section class="oc-progress-entry @(string.IsNullOrWhiteSpace(entry.Body) ? "oc-progress-entry--empty" : string.Empty)"
-                                         data-oc-progress-entry>
-                                    <span class="oc-progress-entry__label">@entry.Label</span>
-                                    @if (!string.IsNullOrWhiteSpace(entry.Title))
-                                    {
-                                        <strong class="oc-progress-entry__title">@entry.Title</strong>
-                                    }
-                                    @if (!string.IsNullOrWhiteSpace(entry.Body))
-                                    {
-                                        <p id="@progressBodyId"
-                                           class="oc-progress-entry__body"
-                                           data-oc-progress-body>@entry.Body</p>
-                                        <button type="button"
-                                                class="oc-progress-toggle"
-                                                data-oc-progress-toggle
-                                                aria-controls="@progressBodyId"
-                                                aria-expanded="false"
-                                                hidden>More</button>
-                                    }
-                                    else if (!string.IsNullOrWhiteSpace(entry.EmptyText))
-                                    {
-                                        <p class="oc-progress-entry__empty">@entry.EmptyText</p>
-                                    }
-                                    @if (!string.IsNullOrWhiteSpace(entry.AuthorName) || activityDate is not null)
-                                    {
-                                        <small class="oc-progress-entry__meta">
-                                            @if (!string.IsNullOrWhiteSpace(entry.AuthorName))
-                                            {
-                                                <span>@entry.AuthorName</span>
-                                            }
-                                            @if (activityDate is not null)
-                                            {
-                                                <time datetime="@activityDateIso">@activityDate</time>
-                                            }
-                                        </small>
-                                    }
-                                </section>
-                            }
-                        </div>
-                    }
-                    else if (!string.IsNullOrWhiteSpace(item.EmptyProgressText))
-                    {
-                        <p class="oc-progress-empty">@item.EmptyProgressText</p>
-                    }
+                            <section class="oc-progress-entry @(string.IsNullOrWhiteSpace(entry.Body) ? "oc-progress-entry--empty" : string.Empty)"
+                                     data-oc-progress-entry>
+                                <span class="oc-progress-entry__label">@entry.Label</span>
+                                @if (!string.IsNullOrWhiteSpace(entry.Title))
+                                {
+                                    <strong class="oc-progress-entry__title">@entry.Title</strong>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(entry.Body))
+                                {
+                                    <p id="@progressBodyId"
+                                       class="oc-progress-entry__body"
+                                       data-oc-progress-body>@entry.Body</p>
+                                    <button type="button"
+                                            class="oc-progress-toggle"
+                                            data-oc-progress-toggle
+                                            aria-controls="@progressBodyId"
+                                            aria-expanded="false"
+                                            hidden>More</button>
+                                }
+                                else if (!string.IsNullOrWhiteSpace(entry.EmptyText))
+                                {
+                                    <p class="oc-progress-entry__empty">@entry.EmptyText</p>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(entry.AuthorName) || activityDate is not null)
+                                {
+                                    <small class="oc-progress-entry__meta">
+                                        @if (!string.IsNullOrWhiteSpace(entry.AuthorName))
+                                        {
+                                            <span>@entry.AuthorName</span>
+                                        }
+                                        @if (activityDate is not null)
+                                        {
+                                            <time datetime="@activityDateIso">@activityDate</time>
+                                        }
+                                    </small>
+                                }
+                            </section>
+                        }
+                    </div>
                 }
-                else
+                else if (!string.IsNullOrWhiteSpace(item.EmptyProgressText))
                 {
-                    <p class="oc-task-progress-summary" data-oc-progress-summary>@item.ProgressSummary</p>
-                    @if (!string.IsNullOrWhiteSpace(item.LatestProgressText))
-                    {
-                        <span class="oc-latest-update" data-oc-latest-progress title="@item.LatestProgressText">
-                            Latest: @item.LatestProgressText
-                        </span>
-                    }
-                    else
-                    {
-                        <span class="oc-latest-update" data-oc-latest-progress hidden></span>
-                    }
+                    <p class="oc-progress-empty">@item.EmptyProgressText</p>
                 }
             }
         </div>
