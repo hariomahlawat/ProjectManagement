@@ -1,3 +1,6 @@
+using System.ComponentModel.DataAnnotations;
+using System.Globalization;
+using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -5,50 +8,71 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
-using System.ComponentModel.DataAnnotations;
-using System.Globalization;
-using System.Text;
-using System.Text.Json;
 
 namespace ProjectManagement.Areas.Admin.Pages.Logs
 {
     [Authorize(Roles = "Admin")]
     public class IndexModel : PageModel
     {
+        private const int MaximumExportRows = 100_000;
+
         private readonly ApplicationDbContext _db;
-        public IndexModel(ApplicationDbContext db) => _db = db;
 
-        // ---------- Filters (GET-bound) ----------
-        [BindProperty(SupportsGet = true)] public string? Level { get; set; }
-        [BindProperty(SupportsGet = true)] public string? Action { get; set; }
-        [BindProperty(SupportsGet = true, Name = "User")] public string? UserName { get; set; }
-        [BindProperty(SupportsGet = true)] public string? Ip { get; set; }
-        [BindProperty(SupportsGet = true)] public string? Contains { get; set; }
-        [BindProperty(SupportsGet = true)] [DataType(DataType.Date)] public DateTime? From { get; set; }
-        [BindProperty(SupportsGet = true)] [DataType(DataType.Date)] public DateTime? To { get; set; }
+        public IndexModel(ApplicationDbContext db)
+        {
+            _db = db;
+        }
 
-        // ---------- Paging & sorting ----------
-        [BindProperty(SupportsGet = true)] public int PageNo { get; set; } = 1;
-        [BindProperty(SupportsGet = true)] public int PageSize { get; set; } = 25; // cap in OnGet
-        [BindProperty(SupportsGet = true)] public string Sort { get; set; } = "Time";
-        [BindProperty(SupportsGet = true)] public string Dir { get; set; } = "desc"; // asc|desc
+        [BindProperty(SupportsGet = true)]
+        public string? Level { get; set; }
 
-        // ---------- Results ----------
+        [BindProperty(SupportsGet = true)]
+        public string? Action { get; set; }
+
+        [BindProperty(SupportsGet = true, Name = "User")]
+        public string? UserName { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public string? Ip { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public string? Contains { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        [DataType(DataType.Date)]
+        public DateTime? From { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        [DataType(DataType.Date)]
+        public DateTime? To { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public int PageNo { get; set; } = 1;
+
+        [BindProperty(SupportsGet = true)]
+        public int PageSize { get; set; } = 25;
+
+        [BindProperty(SupportsGet = true)]
+        public string Sort { get; set; } = "Time";
+
+        [BindProperty(SupportsGet = true)]
+        public string Dir { get; set; } = "desc";
+
         public int Total { get; private set; }
+
         public IReadOnlyList<LogRow> Rows { get; private set; } = Array.Empty<LogRow>();
 
-        // For UI helpers
         public IReadOnlyList<string> ActionOptions { get; private set; } = Array.Empty<string>();
 
-        // Daily counts for the filtered range
         public IReadOnlyList<string> SeriesLabels { get; private set; } = Array.Empty<string>();
+
         public IReadOnlyList<int> SeriesCounts { get; private set; } = Array.Empty<int>();
 
         public class LogRow
         {
             public DateTime TimeUtc { get; set; }
-            public string Level { get; set; } = "";
-            public string Action { get; set; } = "";
+            public string Level { get; set; } = string.Empty;
+            public string Action { get; set; } = string.Empty;
             public string? UserName { get; set; }
             public string? Ip { get; set; }
             public string? Message { get; set; }
@@ -57,136 +81,161 @@ namespace ProjectManagement.Areas.Admin.Pages.Logs
 
         public async Task<IActionResult> OnGetAsync()
         {
-            if (PageNo < 1) PageNo = 1;
-            if (PageSize <= 0 || PageSize > 200) PageSize = 25; // sensible cap
+            PageNo = Math.Max(PageNo, 1);
+            PageSize = PageSize is > 0 and <= 200 ? PageSize : 25;
 
-            var q = ComposeQuery(_db.AuditLogs.AsNoTracking());
+            var filteredQuery = ComposeQuery(_db.AuditLogs.AsNoTracking());
+            Total = await filteredQuery.CountAsync();
 
-            Total = await q.CountAsync();
-
-            q = ApplySort(q, Sort, Dir);
-
-            Rows = await q
+            Rows = await ApplySort(filteredQuery, Sort, Dir)
                 .Skip((PageNo - 1) * PageSize)
                 .Take(PageSize)
-                .Select(x => new LogRow
+                .Select(log => new LogRow
                 {
-                    TimeUtc = x.TimeUtc,
-                    Level = x.Level,
-                    Action = x.Action,
-                    UserName = x.UserName,
-                    Ip = x.Ip,
-                    Message = x.Message,
-                    DataJson = x.DataJson
+                    TimeUtc = log.TimeUtc,
+                    Level = log.Level,
+                    Action = log.Action,
+                    UserName = log.UserName,
+                    Ip = log.Ip,
+                    Message = log.Message,
+                    DataJson = log.DataJson
                 })
                 .ToListAsync();
 
-            // Populate Action datalist with a small distinct set
-            ActionOptions = await _db.AuditLogs.AsNoTracking()
-                .Select(a => a.Action).Distinct().OrderBy(a => a).Take(50).ToListAsync();
-
-            // Daily count series for the filtered range
-            var perDay = await ComposeQuery(_db.AuditLogs.AsNoTracking())
-                .GroupBy(x => x.TimeUtc.Date)
-                .Select(g => new { Day = g.Key, Count = g.Count() })
-                .OrderBy(x => x.Day)
+            ActionOptions = await _db.AuditLogs
+                .AsNoTracking()
+                .Select(log => log.Action)
+                .Distinct()
+                .OrderBy(action => action)
+                .Take(100)
                 .ToListAsync();
 
-            SeriesLabels = perDay.Select(d => d.Day.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)).ToList();
-            SeriesCounts = perDay.Select(d => d.Count).ToList();
+            var seriesTimes = await filteredQuery
+                .Select(log => log.TimeUtc)
+                .ToListAsync();
+
+            var perIstDay = seriesTimes
+                .GroupBy(timeUtc => DateOnly.FromDateTime(IstClock.ToIst(timeUtc)))
+                .OrderBy(group => group.Key)
+                .Select(group => new { Day = group.Key, Count = group.Count() })
+                .ToList();
+
+            SeriesLabels = perIstDay
+                .Select(item => item.Day.ToString("dd MMM yyyy", CultureInfo.InvariantCulture))
+                .ToList();
+            SeriesCounts = perIstDay.Select(item => item.Count).ToList();
 
             return Page();
         }
 
-        // CSV export for current filter
         public async Task<FileResult> OnGetExportCsvAsync()
         {
-            var q = ApplySort(ComposeQuery(_db.AuditLogs.AsNoTracking()), "Time", "desc");
+            var rows = await ApplySort(ComposeQuery(_db.AuditLogs.AsNoTracking()), "Time", "desc")
+                .Take(MaximumExportRows)
+                .ToListAsync();
 
-            // Hard cap to avoid accidental huge dumps
-            var rows = await q.Take(100_000).ToListAsync();
+            var builder = new StringBuilder();
+            SafeCsv.AppendRow(builder, "TimeIST", "Level", "Action", "User", "IP", "Message", "DataJson");
 
-            var sb = new StringBuilder();
-            sb.AppendLine("TimeIST,Level,Action,User,IP,Message,DataJson");
-
-            foreach (var x in rows)
+            foreach (var row in rows)
             {
-                var tIst = IstClock.ToIst(x.TimeUtc).ToString("dd MMM yyyy HH:mm:ss", CultureInfo.InvariantCulture);
-                sb.AppendLine(string.Join(",", new[]
-                {
-                    Csv(tIst), Csv(x.Level), Csv(x.Action), Csv(x.UserName), Csv(x.Ip),
-                    Csv(x.Message), Csv(x.DataJson)
-                }));
+                var timeIst = IstClock.ToIst(row.TimeUtc)
+                    .ToString("dd MMM yyyy HH:mm:ss", CultureInfo.InvariantCulture);
+
+                SafeCsv.AppendRow(
+                    builder,
+                    timeIst,
+                    row.Level,
+                    row.Action,
+                    row.UserName,
+                    row.Ip,
+                    row.Message,
+                    row.DataJson);
             }
 
-            var bytes = Encoding.UTF8.GetBytes(sb.ToString());
             var fileName = $"logs_{DateTime.UtcNow:yyyyMMdd_HHmmss}.csv";
-            return File(bytes, "text/csv; charset=utf-8", fileName);
+            return File(
+                SafeCsv.ToUtf8WithBom(builder.ToString()),
+                "text/csv; charset=utf-8",
+                fileName);
         }
 
-        // ---------- Helpers ----------
-
-        private IQueryable<AuditLog> ComposeQuery(IQueryable<AuditLog> q)
+        private IQueryable<AuditLog> ComposeQuery(IQueryable<AuditLog> query)
         {
-            if (!string.IsNullOrWhiteSpace(Level)) q = q.Where(x => x.Level == Level);
-            if (!string.IsNullOrWhiteSpace(Action)) q = q.Where(x => x.Action == Action);
-            if (!string.IsNullOrWhiteSpace(UserName)) q = q.Where(x => x.UserName != null && x.UserName.Contains(UserName));
-            if (!string.IsNullOrWhiteSpace(Ip)) q = q.Where(x => x.Ip != null && x.Ip.Contains(Ip));
+            if (!string.IsNullOrWhiteSpace(Level))
+            {
+                query = query.Where(log => log.Level == Level);
+            }
+
+            if (!string.IsNullOrWhiteSpace(Action))
+            {
+                query = query.Where(log => log.Action == Action);
+            }
+
+            if (!string.IsNullOrWhiteSpace(UserName))
+            {
+                var userTerm = UserName.Trim().ToLowerInvariant();
+                query = query.Where(log =>
+                    log.UserName != null && log.UserName.ToLower().Contains(userTerm));
+            }
+
+            if (!string.IsNullOrWhiteSpace(Ip))
+            {
+                var ipTerm = Ip.Trim().ToLowerInvariant();
+                query = query.Where(log => log.Ip != null && log.Ip.ToLower().Contains(ipTerm));
+            }
 
             if (!string.IsNullOrWhiteSpace(Contains))
             {
-                // Postgres: ILIKE for case-insensitive contains
-                // Falls back to Contains if provider does not support ILike
-                if (EF.Functions.GetType().GetMethod("ILike") != null)
-                {
-                    q = q.Where(x =>
-                        (x.Message != null && EF.Functions.ILike(x.Message, $"%{Contains}%")) ||
-                        (x.DataJson != null && EF.Functions.ILike(x.DataJson, $"%{Contains}%")));
-                }
-                else
-                {
-                    var needle = Contains.ToLowerInvariant();
-                    q = q.Where(x =>
-                        (x.Message != null && x.Message.ToLower().Contains(needle)) ||
-                        (x.DataJson != null && x.DataJson.ToLower().Contains(needle)));
-                }
+                var contentTerm = Contains.Trim().ToLowerInvariant();
+                query = query.Where(log =>
+                    (log.Message != null && log.Message.ToLower().Contains(contentTerm))
+                    || (log.DataJson != null && log.DataJson.ToLower().Contains(contentTerm)));
             }
 
-            if (From.HasValue) q = q.Where(x => x.TimeUtc >= From.Value);
-            if (To.HasValue) q = q.Where(x => x.TimeUtc <= To.Value.AddDays(1).AddTicks(-1)); // inclusive day
+            if (From.HasValue)
+            {
+                var fromDate = DateOnly.FromDateTime(From.Value);
+                var fromUtc = IstClock.StartOfDayIstToUtc(fromDate).UtcDateTime;
+                query = query.Where(log => log.TimeUtc >= fromUtc);
+            }
 
-            return q;
+            if (To.HasValue)
+            {
+                var toDate = DateOnly.FromDateTime(To.Value);
+                var toUtcExclusive = IstClock.ExclusiveEndOfDayIstToUtc(toDate).UtcDateTime;
+                query = query.Where(log => log.TimeUtc < toUtcExclusive);
+            }
+
+            return query;
         }
 
-        private static IQueryable<AuditLog> ApplySort(IQueryable<AuditLog> q, string sort, string dir)
+        private static IQueryable<AuditLog> ApplySort(IQueryable<AuditLog> query, string sort, string direction)
         {
-            bool asc = string.Equals(dir, "asc", StringComparison.OrdinalIgnoreCase);
+            var ascending = string.Equals(direction, "asc", StringComparison.OrdinalIgnoreCase);
 
             return sort switch
             {
-                "Level" => asc ? q.OrderBy(x => x.Level).ThenBy(x => x.TimeUtc)
-                               : q.OrderByDescending(x => x.Level).ThenByDescending(x => x.TimeUtc),
+                "Level" => ascending
+                    ? query.OrderBy(log => log.Level).ThenBy(log => log.TimeUtc)
+                    : query.OrderByDescending(log => log.Level).ThenByDescending(log => log.TimeUtc),
 
-                "Action" => asc ? q.OrderBy(x => x.Action).ThenBy(x => x.TimeUtc)
-                                : q.OrderByDescending(x => x.Action).ThenByDescending(x => x.TimeUtc),
+                "Action" => ascending
+                    ? query.OrderBy(log => log.Action).ThenBy(log => log.TimeUtc)
+                    : query.OrderByDescending(log => log.Action).ThenByDescending(log => log.TimeUtc),
 
-                "User" => asc ? q.OrderBy(x => x.UserName).ThenBy(x => x.TimeUtc)
-                              : q.OrderByDescending(x => x.UserName).ThenByDescending(x => x.TimeUtc),
+                "User" => ascending
+                    ? query.OrderBy(log => log.UserName).ThenBy(log => log.TimeUtc)
+                    : query.OrderByDescending(log => log.UserName).ThenByDescending(log => log.TimeUtc),
 
-                "Ip" => asc ? q.OrderBy(x => x.Ip).ThenBy(x => x.TimeUtc)
-                            : q.OrderByDescending(x => x.Ip).ThenByDescending(x => x.TimeUtc),
+                "Ip" => ascending
+                    ? query.OrderBy(log => log.Ip).ThenBy(log => log.TimeUtc)
+                    : query.OrderByDescending(log => log.Ip).ThenByDescending(log => log.TimeUtc),
 
-                _ => asc ? q.OrderBy(x => x.TimeUtc) : q.OrderByDescending(x => x.TimeUtc)
+                _ => ascending
+                    ? query.OrderBy(log => log.TimeUtc)
+                    : query.OrderByDescending(log => log.TimeUtc)
             };
-        }
-
-        private static string Csv(string? s)
-        {
-            if (string.IsNullOrEmpty(s)) return "";
-            // Escape double quotes and wrap
-            var t = s.Replace("\"", "\"\"");
-            return $"\"{t}\"";
         }
     }
 }
-

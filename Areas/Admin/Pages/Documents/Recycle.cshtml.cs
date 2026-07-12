@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
@@ -25,12 +26,18 @@ public class RecycleModel : PageModel
     private readonly ApplicationDbContext _db;
     private readonly IDocumentService _documents;
     private readonly IAuditService _audit;
+    private readonly ILogger<RecycleModel> _logger;
 
-    public RecycleModel(ApplicationDbContext db, IDocumentService documents, IAuditService audit)
+    public RecycleModel(
+        ApplicationDbContext db,
+        IDocumentService documents,
+        IAuditService audit,
+        ILogger<RecycleModel> logger)
     {
         _db = db;
         _documents = documents;
         _audit = audit;
+        _logger = logger;
     }
 
     [BindProperty(SupportsGet = true)]
@@ -90,9 +97,13 @@ public class RecycleModel : PageModel
             var document = await _documents.RestoreAsync(id, actorId, HttpContext.RequestAborted);
             StatusMessage = $"Restored '{document.Title}' (#{document.Id}).";
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
             ErrorMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = LogUnexpectedFailure(ex, "restore", id);
         }
 
         return RedirectToPage(GetRouteValues());
@@ -119,9 +130,13 @@ public class RecycleModel : PageModel
             success.Add(id);
             StatusMessage = "Permanently deleted 1 document.";
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
             ErrorMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = LogUnexpectedFailure(ex, "hard-delete", id);
         }
 
         if (success.Count > 0)
@@ -165,9 +180,13 @@ public class RecycleModel : PageModel
                 await _documents.HardDeleteAsync(docId, actorId, HttpContext.RequestAborted);
                 successes.Add(docId);
             }
+            catch (InvalidOperationException ex)
+            {
+                failures.Add($"#{docId}: {ex.Message}");
+            }
             catch (Exception ex)
             {
-                failures.Add($"#{docId} {ex.Message}");
+                failures.Add($"#{docId}: {LogUnexpectedFailure(ex, "hard-delete", docId)}");
             }
         }
 
@@ -221,9 +240,13 @@ public class RecycleModel : PageModel
                 await _documents.RestoreAsync(doc.Id, actorId, HttpContext.RequestAborted);
                 successes.Add(doc.Id);
             }
+            catch (InvalidOperationException ex)
+            {
+                failures.Add($"#{doc.Id}: {ex.Message}");
+            }
             catch (Exception ex)
             {
-                failures.Add($"#{doc.Id} {ex.Message}");
+                failures.Add($"#{doc.Id}: {LogUnexpectedFailure(ex, "restore", doc.Id)}");
             }
         }
 
@@ -286,21 +309,11 @@ public class RecycleModel : PageModel
         if (!string.IsNullOrWhiteSpace(DeletedBy))
         {
             var term = DeletedBy.Trim();
-            if (SupportsILike())
-            {
-                query = query.Where(d =>
-                    (d.ArchivedByUser != null && EF.Functions.ILike(d.ArchivedByUser.FullName ?? string.Empty, $"%{term}%")) ||
-                    (d.ArchivedByUser != null && EF.Functions.ILike(d.ArchivedByUser.UserName ?? string.Empty, $"%{term}%")) ||
-                    (d.ArchivedByUserId != null && EF.Functions.ILike(d.ArchivedByUserId, $"%{term}%")));
-            }
-            else
-            {
-                var lowered = term.ToLowerInvariant();
-                query = query.Where(d =>
-                    (d.ArchivedByUser != null && d.ArchivedByUser.FullName != null && d.ArchivedByUser.FullName.ToLower().Contains(lowered)) ||
-                    (d.ArchivedByUser != null && d.ArchivedByUser.UserName != null && d.ArchivedByUser.UserName.ToLower().Contains(lowered)) ||
-                    (d.ArchivedByUserId != null && d.ArchivedByUserId.ToLower().Contains(lowered)));
-            }
+            var lowered = term.ToLowerInvariant();
+            query = query.Where(d =>
+                (d.ArchivedByUser != null && d.ArchivedByUser.FullName != null && d.ArchivedByUser.FullName.ToLower().Contains(lowered)) ||
+                (d.ArchivedByUser != null && d.ArchivedByUser.UserName != null && d.ArchivedByUser.UserName.ToLower().Contains(lowered)) ||
+                (d.ArchivedByUserId != null && d.ArchivedByUserId.ToLower().Contains(lowered)));
         }
 
         if (SizeMinMb.HasValue)
@@ -336,8 +349,17 @@ public class RecycleModel : PageModel
             .ToListAsync(HttpContext.RequestAborted);
     }
 
-    private static bool SupportsILike()
-        => EF.Functions.GetType().GetMethod("ILike") != null;
+    private string LogUnexpectedFailure(Exception exception, string operation, int documentId)
+    {
+        var traceId = HttpContext.TraceIdentifier;
+        _logger.LogError(
+            exception,
+            "Document recycle operation {Operation} failed for document {DocumentId}. TraceId={TraceId}",
+            operation,
+            documentId,
+            traceId);
+        return $"The operation could not be completed. Reference: {traceId}.";
+    }
 
     private static DateTimeOffset ConvertToUtc(DateTime date)
     {

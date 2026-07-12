@@ -1,14 +1,12 @@
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
-using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Areas.Admin.Pages.Analytics
@@ -16,63 +14,84 @@ namespace ProjectManagement.Areas.Admin.Pages.Analytics
     [Authorize(Roles = "Admin")]
     public class LoginsModel : PageModel
     {
-        private readonly ILoginAnalyticsService _svc;
+        private const int MaximumLookbackDays = 365;
+
+        private readonly ILoginAnalyticsService _service;
         private readonly UserManager<ApplicationUser> _users;
 
-        public LoginsModel(ILoginAnalyticsService svc, UserManager<ApplicationUser> users)
+        public LoginsModel(ILoginAnalyticsService service, UserManager<ApplicationUser> users)
         {
-            _svc = svc;
+            _service = service;
             _users = users;
         }
 
-        public IList<ApplicationUser> Users { get; set; } = new List<ApplicationUser>();
+        public IList<ApplicationUser> Users { get; private set; } = new List<ApplicationUser>();
 
         public async Task OnGetAsync()
         {
-            Users = await _users.Users.OrderBy(u => u.UserName).ToListAsync();
+            Users = await _users.Users
+                .AsNoTracking()
+                .Where(user => !user.IsDisabled && !user.PendingDeletion)
+                .OrderBy(user => user.UserName)
+                .ToListAsync();
         }
 
         public async Task<IActionResult> OnGetDataAsync(int days = 30, bool weekendOdd = false, string? user = null)
         {
-            var tz = TimeZoneHelper.GetIst();
+            var safeDays = Math.Clamp(days, 1, MaximumLookbackDays);
+            var timeZone = TimeZoneHelper.GetIst();
             var workStart = new TimeSpan(8, 0, 0);
             var workEnd = new TimeSpan(18, 0, 0);
-            var dto = await _svc.GetAsync(days, weekendOdd, tz, workStart, workEnd, user);
-            var payload = new
+            var dto = await _service.GetAsync(safeDays, weekendOdd, timeZone, workStart, workEnd, user);
+
+            return new JsonResult(new
             {
                 tz = dto.TimeZone,
                 workStartMin = dto.WorkStartMin,
                 workEndMin = dto.WorkEndMin,
                 p50Min = dto.P50Min,
                 p90Min = dto.P90Min,
-                points = dto.Points.Select(p => new
+                points = dto.Points.Select(point => new
                 {
-                    t = p.Local,
-                    m = p.MinutesOfDay,
-                    odd = p.IsOdd,
-                    reason = p.Reason,
-                    user = p.UserId,
-                    userName = p.UserName
+                    t = point.Local,
+                    m = point.MinutesOfDay,
+                    odd = point.IsOdd,
+                    reason = point.Reason,
+                    user = point.UserId,
+                    userName = point.DisplayName,
+                    loginName = point.LoginName
                 })
-            };
-            return new JsonResult(payload);
+            });
         }
 
         public async Task<IActionResult> OnGetExportCsvAsync(int days = 30, bool weekendOdd = false, string? user = null)
         {
-            var tz = TimeZoneHelper.GetIst();
+            var safeDays = Math.Clamp(days, 1, MaximumLookbackDays);
+            var timeZone = TimeZoneHelper.GetIst();
             var workStart = new TimeSpan(8, 0, 0);
             var workEnd = new TimeSpan(18, 0, 0);
-            var dto = await _svc.GetAsync(days, weekendOdd, tz, workStart, workEnd, user);
-            var sb = new StringBuilder();
-            sb.AppendLine("When,UserId,UserName,MinutesOfDay,IsOdd,Reason");
-            static string CsvEscape(string s) => $"\"{s.Replace("\"", "\"\"")}\"";
-            foreach (var p in dto.Points)
+            var dto = await _service.GetAsync(safeDays, weekendOdd, timeZone, workStart, workEnd, user);
+
+            var builder = new StringBuilder();
+            SafeCsv.AppendRow(builder, "WhenIST", "UserId", "LoginName", "DisplayName", "MinutesOfDay", "IsOdd", "Reason");
+
+            foreach (var point in dto.Points)
             {
-                sb.AppendLine($"{p.Local:u},{p.UserId},{CsvEscape(p.UserName)},{p.MinutesOfDay},{p.IsOdd},{CsvEscape(p.Reason)}");
+                SafeCsv.AppendRow(
+                    builder,
+                    point.Local.ToString("yyyy-MM-dd HH:mm:ss zzz"),
+                    point.UserId,
+                    point.LoginName,
+                    point.DisplayName,
+                    point.MinutesOfDay,
+                    point.IsOdd,
+                    point.Reason);
             }
-            var bytes = Encoding.UTF8.GetBytes(sb.ToString());
-            return File(bytes, "text/csv", "logins.csv");
+
+            return File(
+                SafeCsv.ToUtf8WithBom(builder.ToString()),
+                "text/csv; charset=utf-8",
+                "logins.csv");
         }
     }
 }

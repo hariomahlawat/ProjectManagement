@@ -70,6 +70,16 @@ namespace ProjectManagement.Areas.Admin.Pages.TechnicalCategories
                 return Page();
             }
 
+            if (Input.ParentId.HasValue)
+            {
+                var descendantIds = await GetDescendantIdsAsync(Input.Id);
+                if (descendantIds.Contains(Input.ParentId.Value))
+                {
+                    ModelState.AddModelError("Input.ParentId", "A technical category cannot move under one of its descendants.");
+                    return Page();
+                }
+            }
+
             var trimmedName = Input.Name.Trim();
             var duplicateExists = await _db.TechnicalCategories
                 .AnyAsync(c => c.ParentId == Input.ParentId && c.Name == trimmedName && c.Id != Input.Id);
@@ -80,15 +90,56 @@ namespace ProjectManagement.Areas.Admin.Pages.TechnicalCategories
                 return Page();
             }
 
+            var parentChanged = category.ParentId != Input.ParentId;
+
             category.Name = trimmedName;
             category.ParentId = Input.ParentId;
             category.IsActive = Input.IsActive;
+
+            if (parentChanged)
+            {
+                var nextSortOrder = await _db.TechnicalCategories
+                    .Where(c => c.ParentId == Input.ParentId && c.Id != category.Id)
+                    .Select(c => c.SortOrder)
+                    .DefaultIfEmpty(-1)
+                    .MaxAsync();
+
+                category.SortOrder = nextSortOrder + 1;
+            }
 
             await _db.SaveChangesAsync();
 
             TempData["StatusMessage"] = $"Updated '{category.Name}'.";
 
             return RedirectToPage("Index");
+        }
+
+
+        private async Task<HashSet<int>> GetDescendantIdsAsync(int categoryId)
+        {
+            var relationships = await _db.TechnicalCategories
+                .AsNoTracking()
+                .Select(category => new { category.Id, category.ParentId })
+                .ToListAsync();
+
+            var childrenByParent = relationships.ToLookup(category => category.ParentId);
+            var descendantIds = new HashSet<int>();
+            var pending = new Stack<int>();
+            pending.Push(categoryId);
+
+            while (pending.Count > 0)
+            {
+                var parentId = pending.Pop();
+                foreach (var child in childrenByParent[parentId])
+                {
+                    if (descendantIds.Add(child.Id))
+                    {
+                        pending.Push(child.Id);
+                    }
+                }
+            }
+
+            return descendantIds;
         }
 
         private Task<List<SelectListItem>> LoadParentOptionsAsync(int? selectedId, int? excludeId)

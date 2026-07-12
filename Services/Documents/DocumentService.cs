@@ -493,34 +493,120 @@ public sealed class DocumentService : IDocumentService
         string performedByUserId,
         CancellationToken cancellationToken)
     {
-        var document = await _db.ProjectDocuments.FirstOrDefaultAsync(x => x.Id == documentId, cancellationToken);
-        if (document == null)
+        if (string.IsNullOrWhiteSpace(performedByUserId))
+        {
+            throw new ArgumentException("Performed by user id is required.", nameof(performedByUserId));
+        }
+
+        var document = await _db.ProjectDocuments
+            .Include(candidate => candidate.Project)
+            .FirstOrDefaultAsync(candidate => candidate.Id == documentId, cancellationToken);
+        if (document is null)
         {
             return;
         }
 
-        await _db.Entry(document).Reference(d => d.Project).LoadAsync(cancellationToken);
-        var project = document.Project
-            ?? await _db.Projects.SingleOrDefaultAsync(p => p.Id == document.ProjectId, cancellationToken);
-
-        var storageKey = document.StorageKey;
+        var project = document.Project;
         var projectId = document.ProjectId;
+        var storagePath = ResolveAbsolutePath(document.StorageKey);
+        FileQuarantineHandle? quarantinedFile = null;
 
-        _db.ProjectDocuments.Remove(document);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        var path = ResolveAbsolutePath(storageKey);
-        SafeDelete(path);
-
-        var directory = Path.GetDirectoryName(path);
-        TryDeleteDirectoryIfEmpty(directory);
-        if (!string.IsNullOrWhiteSpace(directory))
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+        try
         {
-            TryDeleteDirectoryIfEmpty(Path.GetDirectoryName(directory));
+            quarantinedFile = FileSystemQuarantine.StageFile(
+                storagePath,
+                _uploadRootProvider.RootPath,
+                "documents",
+                documentId.ToString(CultureInfo.InvariantCulture));
+
+            _db.ProjectDocuments.Remove(document);
+            await _db.SaveChangesAsync(cancellationToken);
+
+            await Audit.Events.ProjectDocumentHardDeleted(projectId, documentId, performedByUserId)
+                .WriteAsync(_audit);
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            _db.ChangeTracker.Clear();
+
+            if (quarantinedFile is not null)
+            {
+                try
+                {
+                    FileSystemQuarantine.Restore(quarantinedFile);
+                }
+                catch (Exception restoreError)
+                {
+                    var reference = FileSystemQuarantine.GetSafeReference(quarantinedFile);
+                    _logger?.LogCritical(
+                        restoreError,
+                        "Document {DocumentId} hard delete failed and its quarantined file could not be restored. Quarantine reference: {Reference}",
+                        documentId,
+                        reference);
+                    throw new InvalidOperationException(
+                        "The document deletion failed and its file could not be restored automatically.",
+                        restoreError);
+                }
+            }
+
+            throw;
         }
 
-        await Audit.Events.ProjectDocumentHardDeleted(projectId, documentId, performedByUserId)
-            .WriteAsync(_audit);
+        if (quarantinedFile is not null)
+        {
+            try
+            {
+                FileSystemQuarantine.FinalizeDeletion(quarantinedFile);
+                var originalDirectory = Path.GetDirectoryName(storagePath);
+                TryDeleteDirectoryIfEmpty(originalDirectory);
+                if (!string.IsNullOrWhiteSpace(originalDirectory))
+                {
+                    TryDeleteDirectoryIfEmpty(Path.GetDirectoryName(originalDirectory));
+                }
+            }
+            catch (Exception cleanupError)
+            {
+                var reference = FileSystemQuarantine.GetSafeReference(quarantinedFile);
+                _logger?.LogError(
+                    cleanupError,
+                    "Document {DocumentId} database record was deleted, but final deletion of the quarantined file failed. Quarantine reference: {Reference}",
+                    documentId,
+                    reference);
+
+                try
+                {
+                    await _audit.LogAsync(
+                        "Project.DocumentHardDeleteCleanupPending",
+                        message: $"Document {documentId} was deleted, but its quarantined file requires cleanup.",
+                        level: "Warning",
+                        userId: performedByUserId,
+                        data: new System.Collections.Generic.Dictionary<string, string?>
+                        {
+                            ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
+                            ["DocumentId"] = documentId.ToString(CultureInfo.InvariantCulture),
+                            ["QuarantineReference"] = reference
+                        });
+                }
+                catch (Exception auditError)
+                {
+                    _logger?.LogCritical(
+                        auditError,
+                        "Document {DocumentId} file cleanup is pending and the warning audit could not be recorded. Quarantine reference: {Reference}",
+                        documentId,
+                        reference);
+                }
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(document.StorageKey))
+        {
+            _logger?.LogWarning(
+                "Document {DocumentId} was hard-deleted, but its storage file was not present at deletion time.",
+                documentId);
+        }
 
         if (project is not null)
         {

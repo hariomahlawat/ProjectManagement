@@ -1,10 +1,11 @@
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.Admin.Pages.Users
@@ -14,15 +15,30 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
     {
         private readonly IUserManagementService _users;
         private readonly ILogger<CreateModel> _logger;
+        private readonly PasswordOptions _passwordOptions;
 
-        public CreateModel(IUserManagementService users, ILogger<CreateModel> logger)
+        public CreateModel(
+            IUserManagementService users,
+            ILogger<CreateModel> logger,
+            IOptions<IdentityOptions> identityOptions)
         {
             _users = users;
             _logger = logger;
+            _passwordOptions = identityOptions.Value.Password;
         }
 
-        [BindProperty] public InputModel Input { get; set; } = new();
+        [BindProperty]
+        public InputModel Input { get; set; } = new();
+
         public IList<string> Roles { get; private set; } = new List<string>();
+
+        public string PasswordPolicyDescription => IdentityPasswordPolicy.Describe(_passwordOptions);
+
+        public int GeneratedPasswordLength => IdentityPasswordPolicy.SuggestedGeneratedLength(_passwordOptions);
+
+        public int MinimumPasswordLength => _passwordOptions.RequiredLength;
+
+        public int RequiredUniqueCharacters => _passwordOptions.RequiredUniqueChars;
 
         public class InputModel
         {
@@ -40,8 +56,8 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             public string Rank { get; set; } = string.Empty;
 
             [Required, DataType(DataType.Password)]
-            [StringLength(100, MinimumLength = 8)]
-            public string Password { get; set; } = "ChangeMe!123";
+            [StringLength(100)]
+            public string Password { get; set; } = string.Empty;
 
             [Required, Display(Name = "Roles")]
             public List<string> Roles { get; set; } = new();
@@ -52,17 +68,36 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
         public async Task<IActionResult> OnPostAsync()
         {
             Roles = await _users.GetRolesAsync();
-            if (!ModelState.IsValid) return Page();
-
-            var res = await _users.CreateUserAsync(Input.UserName, Input.Password, Input.FullName, Input.Rank, Input.Roles);
-            if (res.Succeeded)
+            if (!ModelState.IsValid)
             {
-                _logger.LogInformation("Admin {Admin} created user {User} ({Rank}) with roles {Roles}", User.Identity?.Name, Input.UserName, Input.Rank, string.Join(',', Input.Roles));
+                return Page();
+            }
+
+            var result = await _users.CreateUserAsync(
+                Input.UserName,
+                Input.Password,
+                Input.FullName,
+                Input.Rank,
+                Input.Roles);
+
+            if (result.Succeeded)
+            {
+                _logger.LogInformation(
+                    "Admin {Admin} created user {User} ({Rank}) with roles {Roles}",
+                    User.Identity?.Name,
+                    Input.UserName,
+                    Input.Rank,
+                    string.Join(',', Input.Roles));
+
                 TempData["ok"] = "User created.";
                 return RedirectToPage("Index");
             }
 
-            foreach (var e in res.Errors) ModelState.AddModelError(string.Empty, e.Description);
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(string.Empty, error.Description);
+            }
+
             return Page();
         }
     }

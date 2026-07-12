@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -22,13 +19,17 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             _logger = logger;
         }
 
-        [BindProperty] public InputModel Input { get; set; } = new();
+        [BindProperty]
+        public InputModel Input { get; set; } = new();
+
         public IList<string> Roles { get; private set; } = new List<string>();
+
         public string? UserName { get; private set; }
 
         public class InputModel
         {
-            [Required] public string Id { get; set; } = string.Empty;
+            [Required]
+            public string Id { get; set; } = string.Empty;
 
             [Required, Display(Name = "Full name")]
             [StringLength(100)]
@@ -47,7 +48,10 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
         public async Task<IActionResult> OnGetAsync(string id)
         {
             var user = await _users.GetUserByIdAsync(id);
-            if (user == null) return NotFound();
+            if (user is null)
+            {
+                return NotFound();
+            }
 
             Roles = await _users.GetRolesAsync();
             var userRoles = await _users.GetUserRolesAsync(id);
@@ -60,6 +64,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
                 Roles = userRoles.ToList(),
                 IsDisabled = user.IsDisabled
             };
+
             UserName = user.UserName;
             return Page();
         }
@@ -67,24 +72,38 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
         public async Task<IActionResult> OnPostAsync()
         {
             Roles = await _users.GetRolesAsync();
-            if (!ModelState.IsValid) return Page();
-
-            var detailsRes = await _users.UpdateUserDetailsAsync(Input.Id, Input.FullName, Input.Rank);
-            if (!detailsRes.Succeeded)
+            var user = await _users.GetUserByIdAsync(Input.Id);
+            if (user is null)
             {
-                foreach (var e in detailsRes.Errors) ModelState.AddModelError(string.Empty, e.Description);
+                return NotFound();
+            }
+
+            UserName = user.UserName;
+            Input.IsDisabled = user.IsDisabled;
+
+            if (!ModelState.IsValid)
+            {
                 return Page();
             }
 
-            var rolesRes = await _users.UpdateUserRolesAsync(Input.Id, Input.Roles);
-            if (!rolesRes.Succeeded)
+            var result = await _users.UpdateUserAsync(Input.Id, Input.FullName, Input.Rank, Input.Roles);
+            if (!result.Succeeded)
             {
-                foreach (var e in rolesRes.Errors) ModelState.AddModelError(string.Empty, e.Description);
+                foreach (var error in result.Errors)
+                {
+                    ModelState.AddModelError(string.Empty, error.Description);
+                }
+
                 return Page();
             }
 
-            _logger.LogInformation("Admin {Admin} updated user {UserId}: name {FullName}; rank {Rank}; roles {Roles}",
-                User.Identity?.Name, Input.Id, Input.FullName, Input.Rank, string.Join(',', Input.Roles));
+            _logger.LogInformation(
+                "Admin {Admin} updated user {UserId}: name {FullName}; rank {Rank}; roles {Roles}",
+                User.Identity?.Name,
+                Input.Id,
+                Input.FullName,
+                Input.Rank,
+                string.Join(',', Input.Roles));
 
             TempData["ok"] = "User updated.";
             return RedirectToPage("Index");

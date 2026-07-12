@@ -110,7 +110,7 @@ function init() {
     const odd = [];
     for (const p of data.points) {
       const d = new Date(p.t);
-      const point = { x: d.getTime(), y: p.m, reason: p.reason, userId: p.user, userName: p.userName, iso: p.t };
+      const point = { x: d.getTime(), y: p.m, reason: p.reason, userId: p.user, userName: p.userName, loginName: p.loginName, iso: p.t };
       (p.odd ? odd : normal).push(point);
     }
 
@@ -183,8 +183,9 @@ function init() {
       const points = chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
       if (points.length) {
         const p = chart.data.datasets[points[0].datasetIndex].data[points[0].index];
-        const from = new Date(p.iso).toISOString();
-        window.location.href = `/Admin/Logs?User=${encodeURIComponent(p.userId)}&From=${from}&To=${from}`;
+        const localDate = String(p.iso).slice(0, 10);
+        const loginName = p.loginName || '';
+        window.location.href = `/Admin/Logs?User=${encodeURIComponent(loginName)}&From=${localDate}&To=${localDate}`;
       }
     };
 

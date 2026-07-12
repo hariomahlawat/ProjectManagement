@@ -3,14 +3,21 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
+using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.Admin.Pages.Analytics
 {
-    [Authorize(Roles="Admin")]
+    [Authorize(Roles = "Admin")]
     public class IndexModel : PageModel
     {
         private readonly ApplicationDbContext _db;
-        public IndexModel(ApplicationDbContext db) => _db = db;
+        private readonly IClock _clock;
+
+        public IndexModel(ApplicationDbContext db, IClock clock)
+        {
+            _db = db;
+            _clock = clock;
+        }
 
         public int TotalUsers { get; private set; }
         public int ActiveUsers { get; private set; }
@@ -23,37 +30,77 @@ namespace ProjectManagement.Areas.Admin.Pages.Analytics
         {
             var users = _db.Users.AsNoTracking();
             TotalUsers = await users.CountAsync();
-            var now = DateTimeOffset.UtcNow;
-            ActiveUsers = await users.CountAsync(u => !u.LockoutEnd.HasValue || u.LockoutEnd <= now);
-            DisabledUsers = TotalUsers - ActiveUsers;
+            DisabledUsers = await users.CountAsync(user => user.IsDisabled || user.PendingDeletion);
+            ActiveUsers = TotalUsers - DisabledUsers;
 
-            // Include today in the 30 day window by starting 29 days ago
-            var sinceUtc = DateTime.UtcNow.Date.AddDays(-29);
-            var raw = await _db.AuditLogs.AsNoTracking()
-                .Where(a => a.Action == "LoginSuccess" && a.TimeUtc >= sinceUtc)
-                .GroupBy(a => a.TimeUtc.Date)
-                .Select(g => new { Date = g.Key, Count = g.Count() })
-                .ToListAsync();
-            var dict = raw.ToDictionary(x => x.Date, x => x.Count);
-            var list = new List<(DateTime Date, int Count)>();
-            var arr = new int[30];
-            for (int i = 0; i < 30; i++)
-            {
-                var d = sinceUtc.AddDays(i);
-                dict.TryGetValue(d, out var c);
-                list.Add((IstClock.ToIst(d), c));
-                arr[i] = c;
-            }
-            LoginsPerDay = list;
-            LoginsLast30Days = arr;
+            var currentIstDate = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow).DateTime);
+            var firstIstDate = currentIstDate.AddDays(-29);
+            var fromUtc = IstClock.StartOfDayIstToUtc(firstIstDate);
+            var toUtcExclusive = IstClock.ExclusiveEndOfDayIstToUtc(currentIstDate);
 
-            TopUsers = await users
-                .OrderByDescending(u => u.LoginCount)
-                .Take(10)
-                .Select(u => new { u.UserName, u.LastLoginUtc, u.LoginCount })
+            var loginTimes = await _db.AuthEvents
                 .AsNoTracking()
-                .ToListAsync()
-                .ContinueWith(t => t.Result.Select(x => (x.UserName!, IstClock.ToIst(x.LastLoginUtc), x.LoginCount)).ToList());
+                .Where(authEvent =>
+                    authEvent.Event == AuthenticationEventNames.LoginSucceeded
+                    && authEvent.WhenUtc >= fromUtc
+                    && authEvent.WhenUtc < toUtcExclusive)
+                .Select(authEvent => authEvent.WhenUtc)
+                .ToListAsync();
+
+            var countsByIstDate = loginTimes
+                .GroupBy(timestamp => DateOnly.FromDateTime(IstClock.ToIst(timestamp).DateTime))
+                .ToDictionary(group => group.Key, group => group.Count());
+
+            var daily = new List<(DateTime Date, int Count)>(30);
+            var values = new int[30];
+            for (var index = 0; index < 30; index++)
+            {
+                var date = firstIstDate.AddDays(index);
+                countsByIstDate.TryGetValue(date, out var count);
+                daily.Add((date.ToDateTime(TimeOnly.MinValue), count));
+                values[index] = count;
+            }
+
+            LoginsPerDay = daily;
+            LoginsLast30Days = values;
+
+            var topLoginStats = await _db.AuthEvents
+                .AsNoTracking()
+                .Where(authEvent => authEvent.Event == AuthenticationEventNames.LoginSucceeded)
+                .GroupBy(authEvent => authEvent.UserId)
+                .Select(group => new
+                {
+                    UserId = group.Key,
+                    Count = group.Count(),
+                    LastLoginUtc = group.Max(authEvent => authEvent.WhenUtc)
+                })
+                .OrderByDescending(row => row.Count)
+                .ThenByDescending(row => row.LastLoginUtc)
+                .Take(10)
+                .ToListAsync();
+
+            var topUserIds = topLoginStats.Select(row => row.UserId).ToArray();
+            var userNames = topUserIds.Length == 0
+                ? new Dictionary<string, string>(StringComparer.Ordinal)
+                : await _db.Users
+                    .AsNoTracking()
+                    .Where(user => topUserIds.Contains(user.Id))
+                    .Select(user => new
+                    {
+                        user.Id,
+                        Display = string.IsNullOrWhiteSpace(user.FullName)
+                            ? (user.UserName ?? user.Email ?? "(deleted)")
+                            : user.FullName
+                    })
+                    .ToDictionaryAsync(user => user.Id, user => user.Display, StringComparer.Ordinal);
+
+            TopUsers = topLoginStats
+                .Select(row =>
+                {
+                    var display = userNames.TryGetValue(row.UserId, out var value) ? value : "(deleted)";
+                    return (display, (DateTime?)row.LastLoginUtc.UtcDateTime, row.Count);
+                })
+                .ToList();
         }
     }
 }

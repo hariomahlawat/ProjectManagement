@@ -55,7 +55,7 @@ namespace ProjectManagement.Tests
             var accessor = new HttpContextAccessor { HttpContext = httpContext };
             var audit = new AuditService(context, accessor);
 
-            return new UserManagementService(userManager, roleManager, accessor, audit, new NullRoleNotificationService());
+            return new UserManagementService(context, userManager, roleManager, accessor, audit, new NullRoleNotificationService());
         }
 
         [Fact]
@@ -84,6 +84,44 @@ namespace ProjectManagement.Tests
             var result = await service.DeleteUserAsync(admin.Id);
 
             Assert.False(result.Succeeded);
+        }
+
+        [Fact]
+        public async Task UnknownRoleDoesNotLeavePartialAccount()
+        {
+            var service = CreateService("admin", out var context, out var userManager, out var roleManager);
+            await roleManager.CreateAsync(new IdentityRole("Admin"));
+
+            var result = await service.CreateUserAsync(
+                "newuser",
+                "Passw0rd!",
+                "New User",
+                "Lt",
+                new[] { "MissingRole" });
+
+            Assert.False(result.Succeeded);
+            Assert.Null(await userManager.FindByNameAsync("newuser"));
+        }
+
+        [Fact]
+        public async Task UpdateUserChangesProfileAndRolesTogether()
+        {
+            var service = CreateService("admin", out var context, out var userManager, out var roleManager);
+            await roleManager.CreateAsync(new IdentityRole("Admin"));
+            await roleManager.CreateAsync(new IdentityRole("HoD"));
+            var user = new ApplicationUser { UserName = "officer", FullName = "Old Name", Rank = "Maj" };
+            await userManager.CreateAsync(user, "Passw0rd!");
+            await userManager.AddToRoleAsync(user, "HoD");
+
+            var result = await service.UpdateUserAsync(user.Id, "New Name", "Lt Col", new[] { "Admin", "HoD" });
+
+            Assert.True(result.Succeeded);
+            var updated = await userManager.FindByIdAsync(user.Id);
+            Assert.Equal("New Name", updated!.FullName);
+            Assert.Equal("Lt Col", updated.Rank);
+            var roles = await userManager.GetRolesAsync(updated);
+            Assert.Contains("Admin", roles);
+            Assert.Contains("HoD", roles);
         }
         private sealed class NullRoleNotificationService : IRoleNotificationService
         {

@@ -61,7 +61,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
                     Roles = roles.OrderBy(r => r).ToList(),
                     IsDisabled = u.IsDisabled,
                     CreatedUtc = u.CreatedUtc,
-                    LastLogin = u.LastLoginUtc.HasValue ? IstClock.ToIst(u.LastLoginUtc.Value) : null,
+                    LastLogin = u.LastLoginUtc,
                     LoginCount = u.LoginCount
                 });
             }
@@ -89,16 +89,25 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
         public async Task<IActionResult> OnGetExport()
         {
             await LoadAsync();
-            var sb = new StringBuilder();
-            sb.AppendLine("UserName,FullName,Roles,LastLogin,LoginCount,Status");
-            foreach (var u in Users)
+            var builder = new StringBuilder();
+            SafeCsv.AppendRow(builder, "UserName", "FullName", "Roles", "LastLoginIST", "LoginCount", "Status");
+
+            foreach (var user in Users)
             {
-                var roles = string.Join(';', u.Roles);
-                var last = TimeFmt.ToIst(u.LastLogin);
-                var status = u.IsDisabled ? "Disabled" : "Active";
-                sb.AppendLine($"{u.UserName},{u.FullName},{roles},{last},{u.LoginCount},{status}");
+                SafeCsv.AppendRow(
+                    builder,
+                    user.UserName,
+                    user.FullName,
+                    string.Join(';', user.Roles),
+                    TimeFmt.ToIst(user.LastLogin),
+                    user.LoginCount,
+                    user.IsDisabled ? "Disabled" : "Active");
             }
-            return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", "users.csv");
+
+            return File(
+                SafeCsv.ToUtf8WithBom(builder.ToString()),
+                "text/csv; charset=utf-8",
+                "users.csv");
         }
     }
 }

@@ -28,6 +28,10 @@ namespace ProjectManagement.Models
         public DateTime? DeletionRequestedUtc { get; set; }
         public string? DeletionRequestedByUserId { get; set; }
 
+        // Snapshot of the account state immediately before a hard-delete request.
+        // Used to restore the exact enabled/disabled and lockout state during the undo window.
+        public string? DeletionPreviousStateJson { get; set; }
+
         // SECTION: Role preferences
         public string? DefaultUserRoleId { get; set; }
 

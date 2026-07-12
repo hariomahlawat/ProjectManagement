@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
+using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.Admin.Pages
 {
@@ -16,8 +17,13 @@ namespace ProjectManagement.Areas.Admin.Pages
     public class AdminIndexModel : PageModel
     {
         private readonly ApplicationDbContext _db;
+        private readonly IClock _clock;
 
-        public AdminIndexModel(ApplicationDbContext db) => _db = db;
+        public AdminIndexModel(ApplicationDbContext db, IClock clock)
+        {
+            _db = db;
+            _clock = clock;
+        }
 
         public MetricsVM Metrics { get; set; } = new();
         public List<ActionVM> RecentAdminActions { get; set; } = new();
@@ -42,7 +48,10 @@ namespace ProjectManagement.Areas.Admin.Pages
             public int DisabledPct => TotalUsers == 0 ? 0 : (int)Math.Round(100.0 * DisabledUsers / TotalUsers);
             public int MustChangePwdPct => TotalUsers == 0 ? 0 : (int)Math.Round(100.0 * MustChangePwd / TotalUsers);
             public int UniqueLoginPct => LoginsLast7d == 0 ? 0 : (int)Math.Round(100.0 * UniqueLoginsLast7d / LoginsLast7d);
-            public int FailedLoginPct => LoginsLast7d == 0 ? 0 : (int)Math.Round(100.0 * FailedLoginsLast7d / LoginsLast7d);
+            public int LoginAttemptsLast7d => LoginsLast7d + FailedLoginsLast7d;
+            public int FailedLoginPct => LoginAttemptsLast7d == 0
+                ? 0
+                : (int)Math.Round(100.0 * FailedLoginsLast7d / LoginAttemptsLast7d);
             public int WarningPct => AuditEvents24h == 0 ? 0 : (int)Math.Round(100.0 * WarningEvents24h / AuditEvents24h);
             public int ErrorPct => AuditEvents24h == 0 ? 0 : (int)Math.Round(100.0 * ErrorEvents24h / AuditEvents24h);
         }
@@ -68,13 +77,17 @@ namespace ProjectManagement.Areas.Admin.Pages
 
         public async Task OnGet()
         {
-            var nowUtc = DateTime.UtcNow;
+            var nowUtc = _clock.UtcNow;
 
             var since7d = nowUtc.AddDays(-7);
-            var since24h = nowUtc.AddDays(-1);
+            var since24h = nowUtc.AddDays(-1).UtcDateTime;
             var usersQuery = _db.Users.AsNoTracking();
-            var loginQuery = _db.AuditLogs.AsNoTracking()
-                .Where(a => a.TimeUtc >= since7d);
+            var successfulLoginQuery = _db.AuthEvents.AsNoTracking()
+                .Where(authEvent =>
+                    authEvent.Event == AuthenticationEventNames.LoginSucceeded
+                    && authEvent.WhenUtc >= since7d);
+            var loginAuditQuery = _db.AuditLogs.AsNoTracking()
+                .Where(audit => audit.TimeUtc >= since7d.UtcDateTime);
             var recentEventsQuery = _db.AuditLogs.AsNoTracking()
                 .Where(a => a.TimeUtc >= since24h);
             var projectsQuery = _db.Projects.AsNoTracking();
@@ -84,15 +97,17 @@ namespace ProjectManagement.Areas.Admin.Pages
                 .Where(e => e.IsDeleted);
 
             Metrics.TotalUsers = await usersQuery.CountAsync();
-            Metrics.DisabledUsers = await usersQuery.Where(u => u.IsDisabled).CountAsync();
+            Metrics.DisabledUsers = await usersQuery.Where(u => u.IsDisabled || u.PendingDeletion).CountAsync();
             Metrics.MustChangePwd = await usersQuery.Where(u => u.MustChangePassword).CountAsync();
 
-            Metrics.LoginsLast7d = await loginQuery.Where(a => a.Action == "LoginSuccess").CountAsync();
-            Metrics.UniqueLoginsLast7d = await loginQuery.Where(a => a.Action == "LoginSuccess" && a.UserId != null)
-                .Select(a => a.UserId!)
+            Metrics.LoginsLast7d = await successfulLoginQuery.CountAsync();
+            Metrics.UniqueLoginsLast7d = await successfulLoginQuery
+                .Select(authEvent => authEvent.UserId)
                 .Distinct()
                 .CountAsync();
-            Metrics.FailedLoginsLast7d = await loginQuery.Where(a => a.Action == "LoginFailed").CountAsync();
+            Metrics.FailedLoginsLast7d = await loginAuditQuery
+                .Where(audit => audit.Action == AuthenticationEventNames.AuditLoginFailed)
+                .CountAsync();
 
             Metrics.AuditEvents24h = await recentEventsQuery.CountAsync();
             Metrics.WarningEvents24h = await recentEventsQuery.Where(a => a.Level == "Warning").CountAsync();
@@ -108,42 +123,42 @@ namespace ProjectManagement.Areas.Admin.Pages
                 {
                     Text = $"{Metrics.MustChangePwd} users must change password",
                     LinkText = "View",
-                    Href = Url.Page("/Admin/Users/Index", new { status = "" })
+                    Href = Url.Page("/Users/Index", values: new { area = "Admin", status = "" })
                 });
             if (Metrics.DisabledUsers > 0)
                 Attention.Items.Add(new AttentionItem
                 {
                     Text = $"{Metrics.DisabledUsers} users are disabled",
                     LinkText = "Manage",
-                    Href = Url.Page("/Admin/Users/Index", new { status = "disabled" })
+                    Href = Url.Page("/Users/Index", values: new { area = "Admin", status = "disabled" })
                 });
             if (Metrics.ErrorEvents24h > 0)
                 Attention.Items.Add(new AttentionItem
                 {
                     Text = $"{Metrics.ErrorEvents24h} error logs in last 24 hours",
                     LinkText = "Investigate",
-                    Href = Url.Page("/Admin/Logs/Index")
+                    Href = Url.Page("/Logs/Index", values: new { area = "Admin" })
                 });
             if (Metrics.TrashedProjects > 0)
                 Attention.Items.Add(new AttentionItem
                 {
                     Text = $"{Metrics.TrashedProjects} project(s) in trash",
                     LinkText = "Review",
-                    Href = Url.Page("/Admin/Projects/Trash")
+                    Href = Url.Page("/Projects/Trash", values: new { area = "Admin" })
                 });
             if (Metrics.DeletedDocuments > 0)
                 Attention.Items.Add(new AttentionItem
                 {
                     Text = $"{Metrics.DeletedDocuments} document(s) in recycle bin",
                     LinkText = "Restore",
-                    Href = Url.Page("/Admin/Documents/Recycle")
+                    Href = Url.Page("/Documents/Recycle", values: new { area = "Admin" })
                 });
             if (Metrics.DeletedEvents > 0)
                 Attention.Items.Add(new AttentionItem
                 {
                     Text = $"{Metrics.DeletedEvents} calendar event(s) deleted",
                     LinkText = "Recover",
-                    Href = Url.Page("/Admin/Calendar/Deleted")
+                    Href = Url.Page("/Calendar/Deleted", values: new { area = "Admin" })
                 });
 
             RecentAdminActions = await _db.AuditLogs.AsNoTracking()

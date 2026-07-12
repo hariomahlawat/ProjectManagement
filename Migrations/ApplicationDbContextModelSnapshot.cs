@@ -3174,6 +3174,10 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTime?>("DeletionRequestedUtc")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<string>("DeletionPreviousStateJson")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
                     b.Property<string>("DisabledByUserId")
                         .HasColumnType("text");
 

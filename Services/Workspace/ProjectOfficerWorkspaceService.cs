@@ -10,6 +10,7 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Services;
 using ProjectManagement.ViewModels.Workspace;
 
 namespace ProjectManagement.Services.Workspace;
@@ -589,7 +590,7 @@ public sealed class ProjectOfficerWorkspaceService
     {
         // SECTION: ERP engagement dates are materialized before DateTimeOffset-to-DateTime conversion to avoid provider coercion failures.
         var monthStartOffset = new DateTimeOffset(monthStart, TimeSpan.Zero);
-        var authEvents = await _db.AuthEvents.AsNoTracking().Where(a => a.UserId == userId && a.Event == "LoginSucceeded" && a.WhenUtc >= monthStartOffset).Select(a => a.WhenUtc).ToListAsync(ct);
+        var authEvents = await _db.AuthEvents.AsNoTracking().Where(a => a.UserId == userId && a.Event == AuthenticationEventNames.LoginSucceeded && a.WhenUtc >= monthStartOffset).Select(a => a.WhenUtc).ToListAsync(ct);
         var auditDates = await _db.AuditLogs.AsNoTracking().Where(a => a.UserId == userId && a.TimeUtc >= monthStart).Select(a => a.TimeUtc.Date).ToListAsync(ct);
         var remarkRows = await _db.Remarks.AsNoTracking().Where(r => r.AuthorUserId == userId && !r.IsDeleted && r.CreatedAtUtc >= monthStart).Select(r => r.CreatedAtUtc).ToListAsync(ct);
         var taskAuditRows = await _db.ActionTaskAuditLogs.AsNoTracking().Where(a => a.PerformedByUserId == userId && a.PerformedAt >= monthStart).Select(a => a.PerformedAt).ToListAsync(ct);

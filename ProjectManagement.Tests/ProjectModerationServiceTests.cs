@@ -170,7 +170,80 @@ public sealed class ProjectModerationServiceTests
         Assert.Equal("system", audit.UserId);
     }
 
-    private static ProjectModerationService CreateService(ApplicationDbContext db, FakeClock clock, TempDirectory temp)
+
+    [Fact]
+    public async Task PurgeAsync_QuarantinesAndDeletesProjectAssetsAfterDatabaseCommit()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = await CreateContextAsync(connection);
+        db.Projects.Add(new Project
+        {
+            Id = 12,
+            Name = "With assets",
+            CreatedAt = new DateTime(2024, 1, 12),
+            CreatedByUserId = "creator",
+            IsDeleted = true,
+            DeletedAt = new DateTimeOffset(2024, 9, 1, 0, 0, 0, TimeSpan.Zero),
+            DeleteReason = "Cleanup"
+        });
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 15, 0, 0, 0, TimeSpan.Zero));
+        using var temp = new TempDirectory();
+        var projectRoot = Path.Combine(temp.Path, "projects", "12");
+        Directory.CreateDirectory(projectRoot);
+        await File.WriteAllTextAsync(Path.Combine(projectRoot, "asset.txt"), "asset");
+        var service = CreateService(db, clock, temp);
+
+        var result = await service.PurgeAsync(12, "admin", includeAssets: true);
+
+        Assert.Equal(ProjectModerationStatus.Success, result.Status);
+        Assert.Null(await db.Projects.FindAsync(12));
+        Assert.False(Directory.Exists(projectRoot));
+        var quarantineRoot = Path.Combine(temp.Path, ".purge-quarantine");
+        Assert.False(Directory.Exists(quarantineRoot) && Directory.EnumerateFileSystemEntries(quarantineRoot, "*", SearchOption.AllDirectories).Any());
+    }
+
+
+    [Fact]
+    public async Task PurgeAsync_RestoresAssetsWhenDatabaseTransactionFails()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+        await using var db = await CreateContextAsync(connection);
+        db.Projects.Add(new Project
+        {
+            Id = 13,
+            Name = "Rollback assets",
+            CreatedAt = new DateTime(2024, 1, 13),
+            CreatedByUserId = "creator",
+            IsDeleted = true,
+            DeletedAt = new DateTimeOffset(2024, 9, 1, 0, 0, 0, TimeSpan.Zero),
+            DeleteReason = "Cleanup"
+        });
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 15, 0, 0, 0, TimeSpan.Zero));
+        using var temp = new TempDirectory();
+        var projectRoot = Path.Combine(temp.Path, "projects", "13");
+        Directory.CreateDirectory(projectRoot);
+        var assetPath = Path.Combine(projectRoot, "asset.txt");
+        await File.WriteAllTextAsync(assetPath, "asset");
+        var service = CreateService(db, clock, temp, new ThrowingAuditService());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.PurgeAsync(13, "admin", includeAssets: true));
+
+        Assert.NotNull(await db.Projects.AsNoTracking().SingleOrDefaultAsync(project => project.Id == 13));
+        Assert.True(File.Exists(assetPath));
+    }
+
+    private static ProjectModerationService CreateService(
+        ApplicationDbContext db,
+        FakeClock clock,
+        TempDirectory temp,
+        IAuditService? audit = null)
     {
         return new ProjectModerationService(
             db,
@@ -178,7 +251,20 @@ public sealed class ProjectModerationServiceTests
             NullLogger<ProjectModerationService>.Instance,
             new TestUploadRootProvider(temp.Path),
             Options.Create(new ProjectDocumentOptions()),
-            new AuditService(db, new HttpContextAccessor()));
+            audit ?? new AuditService(db, new HttpContextAccessor()));
+    }
+
+    private sealed class ThrowingAuditService : IAuditService
+    {
+        public Task LogAsync(
+            string action,
+            string? message = null,
+            string level = "Info",
+            string? userId = null,
+            string? userName = null,
+            IDictionary<string, string?>? data = null,
+            HttpContext? http = null) =>
+            throw new InvalidOperationException("Simulated audit failure.");
     }
 
     private static async Task<ApplicationDbContext> CreateContextAsync(SqliteConnection connection)

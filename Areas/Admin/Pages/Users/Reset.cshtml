@@ -14,7 +14,9 @@
     <div class="mb-3">
       <label class="form-label">New password</label>
       <div class="password-container">
-        <input asp-for="NewPassword" class="form-control" autocomplete="new-password" />
+        <input asp-for="NewPassword" class="form-control" autocomplete="new-password" data-generated-length="@Model.GeneratedPasswordLength"
+               data-required-unique="@Model.RequiredUniqueCharacters"
+               minlength="@Model.MinimumPasswordLength" />
         <button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false">
           <i class="eye-open bi bi-eye"></i>
           <i class="eye-closed bi bi-eye-slash" hidden></i>
@@ -24,7 +26,7 @@
         <button type="button" id="genPwd" class="btn btn-sm btn-outline-secondary">Generate</button>
         <button type="button" id="cpyPwd" class="btn btn-sm btn-outline-secondary">Copy</button>
       </div>
-      <span class="form-text pm-field-hint">Minimum 8 characters. No special rules enforced.</span>
+      <span class="form-text pm-field-hint">@Model.PasswordPolicyDescription The user will be required to change it at next login.</span>
       <span asp-validation-for="NewPassword" class="text-danger"></span>
     </div>
     <button class="btn btn-danger" type="submit">Reset</button>

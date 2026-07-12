@@ -182,6 +182,10 @@ namespace ProjectManagement.Data
                 .Property(x => x.ComdtOfficerWorkloadOrderJson)
                 .HasMaxLength(8000);
 
+            builder.Entity<ApplicationUser>()
+                .Property(x => x.DeletionPreviousStateJson)
+                .HasMaxLength(2000);
+
             builder.Entity<ApplicationUser>().HasData(
                 new ApplicationUser
                 {
@@ -203,6 +207,7 @@ namespace ProjectManagement.Data
                     PendingDeletion = false,
                     DeletionRequestedUtc = null,
                     DeletionRequestedByUserId = null,
+                    DeletionPreviousStateJson = null,
                     ShowCelebrationsInCalendar = true,
                     SecurityStamp = "c3f1e44d-21c7-4cd1-8d3a-2212333e2ef2",
                     ConcurrencyStamp = "bb6d6cb5-52dd-432c-95d4-6b6a92d6a0d3",

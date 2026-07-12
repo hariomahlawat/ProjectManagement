@@ -1,6 +1,4 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -16,36 +14,42 @@ public sealed class RelationalTransactionScope : IAsyncDisposable
         _transaction = transaction;
     }
 
-    public static async Task<RelationalTransactionScope> CreateAsync(
+    public static Task<RelationalTransactionScope> CreateAsync(
         DatabaseFacade database,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        CreateCoreAsync(database, isolationLevel: null, cancellationToken);
+
+    public static Task<RelationalTransactionScope> CreateAsync(
+        DatabaseFacade database,
+        IsolationLevel isolationLevel,
+        CancellationToken cancellationToken = default) =>
+        CreateCoreAsync(database, isolationLevel, cancellationToken);
+
+    private static async Task<RelationalTransactionScope> CreateCoreAsync(
+        DatabaseFacade database,
+        IsolationLevel? isolationLevel,
+        CancellationToken cancellationToken)
     {
-        if (database == null)
-        {
-            throw new ArgumentNullException(nameof(database));
-        }
+        ArgumentNullException.ThrowIfNull(database);
 
         if (!database.IsRelational())
         {
             return new RelationalTransactionScope(null);
         }
 
-        var transaction = await database.BeginTransactionAsync(cancellationToken);
+        var transaction = isolationLevel.HasValue
+            ? await database.BeginTransactionAsync(isolationLevel.Value, cancellationToken)
+            : await database.BeginTransactionAsync(cancellationToken);
+
         return new RelationalTransactionScope(transaction);
     }
 
-    public Task CommitAsync(CancellationToken cancellationToken = default)
-    {
-        return _transaction?.CommitAsync(cancellationToken) ?? Task.CompletedTask;
-    }
+    public Task CommitAsync(CancellationToken cancellationToken = default) =>
+        _transaction?.CommitAsync(cancellationToken) ?? Task.CompletedTask;
 
-    public Task RollbackAsync(CancellationToken cancellationToken = default)
-    {
-        return _transaction?.RollbackAsync(cancellationToken) ?? Task.CompletedTask;
-    }
+    public Task RollbackAsync(CancellationToken cancellationToken = default) =>
+        _transaction?.RollbackAsync(cancellationToken) ?? Task.CompletedTask;
 
-    public ValueTask DisposeAsync()
-    {
-        return _transaction?.DisposeAsync() ?? ValueTask.CompletedTask;
-    }
+    public ValueTask DisposeAsync() =>
+        _transaction?.DisposeAsync() ?? ValueTask.CompletedTask;
 }

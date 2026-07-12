@@ -71,7 +71,7 @@ namespace ProjectManagement.Services
             var to = from.AddDays(1);
 
             var count = await db.AuthEvents
-                .Where(e => e.Event == "LoginSucceeded" && e.WhenUtc >= from && e.WhenUtc < to)
+                .Where(e => e.Event == AuthenticationEventNames.LoginSucceeded && e.WhenUtc >= from && e.WhenUtc < to)
                 .CountAsync(stoppingToken);
 
             db.DailyLoginStats.Add(new DailyLoginStat { Date = date, Count = count });
