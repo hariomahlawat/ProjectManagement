@@ -1,0 +1,42 @@
+@using ProjectManagement.ViewModels.Workspace
+@model OfficerConferenceSectionRenderVm
+@{
+    var section = Model.Section;
+    var sectionClass = section.Kind switch
+    {
+        ConferenceItemKind.Project => "projects",
+        ConferenceItemKind.ProjectIdea => "ideas",
+        ConferenceItemKind.ActionTask => "tasks",
+        _ => "general"
+    };
+}
+
+<section class="oc-section oc-section--@sectionClass" aria-labelledby="oc-section-@section.Kind">
+    <header class="oc-section__header">
+        <h2 id="oc-section-@section.Kind">
+            <i class="bi @section.IconClass" aria-hidden="true"></i>
+            <span>@section.Title</span>
+        </h2>
+        <b>@section.Items.Count</b>
+    </header>
+
+    @if (section.Items.Count == 0)
+    {
+        <div class="oc-section__empty">No current @(section.Title.ToLowerInvariant()) assigned.</div>
+    }
+    else
+    {
+        <div class="oc-item-list">
+            @foreach (var item in section.Items)
+            {
+                @await Html.PartialAsync(
+                    "_ConferenceItemRow",
+                    new OfficerConferenceItemRenderVm
+                    {
+                        OfficerUserId = Model.OfficerUserId,
+                        Item = item
+                    })
+            }
+        </div>
+    }
+</section>

@@ -1,0 +1,124 @@
+@using ProjectManagement.Infrastructure
+@using ProjectManagement.ViewModels.Workspace
+@model OfficerConferenceItemRenderVm
+@{
+    var item = Model.Item;
+    var direction = item.LatestDirection;
+    var kindLabel = item.Kind switch
+    {
+        ConferenceItemKind.Project => "Project",
+        ConferenceItemKind.ProjectIdea => "Idea",
+        ConferenceItemKind.ActionTask => "Task",
+        _ => "Item"
+    };
+    var directionDate = direction is null
+        ? null
+        : IstClock.ToIst(direction.CreatedAtUtc).ToString("dd MMM yyyy");
+}
+
+<article class="oc-item @(item.RequiresAttention ? "oc-item--attention" : string.Empty)"
+         data-oc-item
+         data-officer-id="@Model.OfficerUserId"
+         data-item-kind="@((int)item.Kind)"
+         data-item-id="@item.ItemId">
+    <div class="oc-item__main">
+        <div class="oc-item__title-row">
+            <a href="@item.OpenUrl" target="_blank" rel="noopener" title="Open @(kindLabel.ToLowerInvariant())">
+                @item.Title
+            </a>
+            <span class="oc-kind">@kindLabel</span>
+        </div>
+        <div class="oc-state">
+            @if (!string.IsNullOrWhiteSpace(item.CurrentStateCode)
+                 && !string.Equals(item.CurrentStateCode, item.CurrentStateName, StringComparison.OrdinalIgnoreCase))
+            {
+                <strong>@item.CurrentStateCode</strong>
+                <span>@item.CurrentStateName</span>
+            }
+            else
+            {
+                <strong>@item.CurrentStateName</strong>
+            }
+        </div>
+        @if (!string.IsNullOrWhiteSpace(item.CurrentContext))
+        {
+            <p class="oc-current-context">@item.CurrentContext</p>
+        }
+        @if (!string.IsNullOrWhiteSpace(item.AttentionText))
+        {
+            <span class="oc-attention"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i>@item.AttentionText</span>
+        }
+    </div>
+
+    <div class="oc-item__direction" data-oc-direction>
+        @if (direction is null)
+        {
+            <div class="oc-no-direction" data-oc-empty-direction>
+                <i class="bi bi-chat-square-text" aria-hidden="true"></i>
+                <span>No previous conference direction</span>
+            </div>
+        }
+        else
+        {
+            <div class="oc-direction" data-oc-direction-content>
+                <div class="oc-direction__label">
+                    <span><i class="bi bi-journal-check" aria-hidden="true"></i>Conference</span>
+                    <small>@direction.AuthorRole · @directionDate</small>
+                </div>
+                <p data-oc-direction-body title="@direction.Body">@direction.Body</p>
+                <div class="oc-direction__meta">
+                    <span data-oc-direction-author>@direction.AuthorName</span>
+                    <span data-oc-direction-snapshot>@direction.SnapshotLabel: @direction.SnapshotValue</span>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="oc-item__progress">
+        <span class="oc-progress-label">Progress since direction</span>
+        <p data-oc-progress-summary>@item.ProgressSummary</p>
+        @if (!string.IsNullOrWhiteSpace(item.LatestProgressText))
+        {
+            <span class="oc-latest-update" data-oc-latest-progress title="@item.LatestProgressText">
+                Latest: @item.LatestProgressText
+            </span>
+        }
+        else
+        {
+            <span class="oc-latest-update" data-oc-latest-progress hidden></span>
+        }
+        <div class="oc-item__actions">
+            <button type="button" class="oc-add-direction" data-oc-add>
+                <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                <span>Add direction</span>
+            </button>
+            <a href="@item.OpenUrl" target="_blank" rel="noopener" class="oc-open-item">
+                Open <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+            </a>
+        </div>
+    </div>
+
+    <form method="post" class="oc-inline-editor" data-oc-editor hidden>
+        <input type="hidden" name="officerUserId" value="@Model.OfficerUserId" />
+        <input type="hidden" name="kind" value="@((int)item.Kind)" />
+        <input type="hidden" name="itemId" value="@item.ItemId" />
+        <label>
+            <span>Conference direction</span>
+            <textarea name="body"
+                      rows="3"
+                      maxlength="4000"
+                      placeholder="Record the direction or observation..."
+                      data-oc-input></textarea>
+        </label>
+        <div class="oc-inline-editor__footer">
+            <span class="oc-editor-feedback" data-oc-feedback aria-live="polite"></span>
+            <div>
+                <button type="button" class="oc-editor-cancel" data-oc-cancel>Cancel</button>
+                <button type="submit" class="oc-editor-save" data-oc-save disabled>
+                    <span>Add direction</span>
+                    <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+    </form>
+</article>

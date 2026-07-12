@@ -1,0 +1,803 @@
+using System.Net;
+using System.Text.RegularExpressions;
+using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
+using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
+using ProjectManagement.Models;
+using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.ProjectIdeas;
+using ProjectManagement.Models.Remarks;
+using ProjectManagement.Models.Stages;
+using ProjectManagement.Services;
+using ProjectManagement.Services.Projects;
+using ProjectManagement.ViewModels.Workspace;
+
+namespace ProjectManagement.Services.Workspace;
+
+/// <summary>
+/// Builds the compact command conference view from the same project, idea and action-task
+/// records used by the operational modules. All source data is loaded in bounded batch
+/// queries; conference remarks remain native records in their respective modules.
+/// </summary>
+public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
+{
+    private static readonly Regex HtmlTagRegex = new("<[^>]+>", RegexOptions.Compiled);
+    private static readonly Regex WhitespaceRegex = new("\\s+", RegexOptions.Compiled);
+
+    private readonly ApplicationDbContext _db;
+    private readonly IOfficerWorkloadReadService _workload;
+    private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
+    private readonly IClock _clock;
+
+    public OfficerConferenceReadService(
+        ApplicationDbContext db,
+        IOfficerWorkloadReadService workload,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+        IClock clock)
+    {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _workload = workload ?? throw new ArgumentNullException(nameof(workload));
+        _workflowStageMetadataProvider = workflowStageMetadataProvider
+            ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+    }
+
+    public async Task<OfficerConferenceVm?> GetAsync(
+        string requestingUserId,
+        string officerUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(requestingUserId)
+            || string.IsNullOrWhiteSpace(officerUserId))
+        {
+            return null;
+        }
+
+        var orderedOfficers = await _workload.GetAllAsync(requestingUserId, cancellationToken);
+        var selectedIndex = orderedOfficers
+            .Select((officer, index) => new { officer, index })
+            .FirstOrDefault(entry => string.Equals(
+                entry.officer.UserId,
+                officerUserId,
+                StringComparison.Ordinal));
+
+        if (selectedIndex is null)
+        {
+            return null;
+        }
+
+        var selected = selectedIndex.officer;
+        var projectIds = selected.Projects.Select(item => item.ProjectId).Distinct().ToArray();
+        var ideaIds = selected.Ideas.Select(item => item.IdeaId).Distinct().ToArray();
+        var taskIds = selected.OtherTasks.Select(item => item.TaskId).Distinct().ToArray();
+
+        // A scoped DbContext does not support concurrent operations. Keep the query set
+        // bounded and batched, but execute it sequentially to preserve EF Core safety.
+        var projectRows = await LoadProjectsAsync(projectIds, cancellationToken);
+        var ideaRows = await LoadIdeasAsync(ideaIds, cancellationToken);
+        var taskRows = await LoadTasksAsync(taskIds, cancellationToken);
+        var projectRemarks = await LoadProjectRemarksAsync(projectIds, cancellationToken);
+        var ideaComments = await LoadIdeaCommentsAsync(ideaIds, cancellationToken);
+        var taskUpdates = await LoadTaskUpdatesAsync(taskIds, cancellationToken);
+
+        var latestProjectDirections = projectRemarks
+            .Where(remark => remark.Type == RemarkType.Conference)
+            .GroupBy(remark => remark.ProjectId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderByDescending(remark => remark.CreatedAtUtc)
+                    .ThenByDescending(remark => remark.Id)
+                    .First());
+
+        var latestIdeaDirections = ideaComments
+            .Where(comment => string.Equals(
+                comment.CommentType,
+                ProjectIdeaCommentTypes.Conference,
+                StringComparison.OrdinalIgnoreCase))
+            .GroupBy(comment => comment.ProjectIdeaId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderByDescending(comment => comment.CreatedAt)
+                    .ThenByDescending(comment => comment.Id)
+                    .First());
+
+        var latestTaskDirections = taskUpdates
+            .Where(update => string.Equals(
+                update.UpdateType,
+                ActionTaskUpdateTypes.Conference,
+                StringComparison.OrdinalIgnoreCase))
+            .GroupBy(update => update.TaskId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderByDescending(update => update.CreatedAtUtc)
+                    .ThenByDescending(update => update.Id)
+                    .First());
+
+        var authorIds = latestProjectDirections.Values.Select(item => item.AuthorUserId)
+            .Concat(latestIdeaDirections.Values.Select(item => item.CreatedByUserId))
+            .Concat(latestTaskDirections.Values.Select(item => item.CreatedByUserId))
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        Dictionary<string, string> authorNames;
+        if (authorIds.Length == 0)
+        {
+            authorNames = new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+        else
+        {
+            var authorRows = await _db.Users
+                .AsNoTracking()
+                .Where(user => authorIds.Contains(user.Id))
+                .Select(user => new
+                {
+                    user.Id,
+                    Name = string.IsNullOrWhiteSpace(user.FullName)
+                        ? user.UserName ?? user.Id
+                        : user.FullName
+                })
+                .ToListAsync(cancellationToken);
+
+            authorNames = authorRows.ToDictionary(
+                item => item.Id,
+                item => item.Name,
+                StringComparer.Ordinal);
+        }
+
+        var today = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow.UtcDateTime));
+
+        var projectItems = BuildProjectItems(
+            selected,
+            projectRows,
+            projectRemarks,
+            latestProjectDirections,
+            authorNames,
+            today);
+        var ideaItems = BuildIdeaItems(
+            selected,
+            ideaRows,
+            ideaComments,
+            latestIdeaDirections,
+            authorNames);
+        var taskItems = BuildTaskItems(
+            selected,
+            taskRows,
+            taskUpdates,
+            latestTaskDirections,
+            authorNames,
+            today);
+
+        var officerOptions = orderedOfficers
+            .Select(officer => new OfficerConferenceOfficerOptionVm(
+                officer.UserId,
+                DisplayOfficerName(officer),
+                string.Equals(officer.UserId, selected.UserId, StringComparison.Ordinal)))
+            .ToList();
+
+        return new OfficerConferenceVm
+        {
+            OfficerUserId = selected.UserId,
+            OfficerName = selected.OfficerName,
+            OfficerRank = selected.Rank,
+            OfficerInitial = InitialOf(selected.OfficerName),
+            ProjectCount = projectItems.Count,
+            IdeaCount = ideaItems.Count,
+            OtherTaskCount = taskItems.Count,
+            PreviousOfficerUserId = selectedIndex.index > 0
+                ? orderedOfficers[selectedIndex.index - 1].UserId
+                : null,
+            NextOfficerUserId = selectedIndex.index + 1 < orderedOfficers.Count
+                ? orderedOfficers[selectedIndex.index + 1].UserId
+                : null,
+            OfficerOptions = officerOptions,
+            Sections = new[]
+            {
+                new OfficerConferenceSectionVm
+                {
+                    Kind = ConferenceItemKind.Project,
+                    Title = "Projects",
+                    IconClass = "bi-kanban",
+                    Items = projectItems
+                },
+                new OfficerConferenceSectionVm
+                {
+                    Kind = ConferenceItemKind.ProjectIdea,
+                    Title = "Ideas",
+                    IconClass = "bi-lightbulb",
+                    Items = ideaItems
+                },
+                new OfficerConferenceSectionVm
+                {
+                    Kind = ConferenceItemKind.ActionTask,
+                    Title = "Other tasks",
+                    IconClass = "bi-list-check",
+                    Items = taskItems
+                }
+            }
+        };
+    }
+
+    private async Task<List<ProjectRow>> LoadProjectsAsync(
+        int[] projectIds,
+        CancellationToken cancellationToken)
+    {
+        if (projectIds.Length == 0)
+        {
+            return new List<ProjectRow>();
+        }
+
+        return await _db.Projects
+            .AsNoTracking()
+            .Where(project => projectIds.Contains(project.Id))
+            .Select(project => new ProjectRow(
+                project.Id,
+                project.Name,
+                project.WorkflowVersion,
+                project.ProjectStages
+                    .Select(stage => new ProjectStageRow(
+                        stage.StageCode,
+                        stage.Status,
+                        stage.SortOrder,
+                        stage.ActualStart,
+                        stage.CompletedOn,
+                        stage.PlannedDue))
+                    .ToList()))
+            .ToListAsync(cancellationToken);
+    }
+
+    private async Task<List<IdeaRow>> LoadIdeasAsync(
+        int[] ideaIds,
+        CancellationToken cancellationToken)
+    {
+        if (ideaIds.Length == 0)
+        {
+            return new List<IdeaRow>();
+        }
+
+        return await _db.ProjectIdeas
+            .AsNoTracking()
+            .Where(idea => ideaIds.Contains(idea.Id))
+            .Select(idea => new IdeaRow(
+                idea.Id,
+                idea.Title,
+                idea.Status,
+                idea.UpdatedAt))
+            .ToListAsync(cancellationToken);
+    }
+
+    private async Task<List<TaskRow>> LoadTasksAsync(
+        int[] taskIds,
+        CancellationToken cancellationToken)
+    {
+        if (taskIds.Length == 0)
+        {
+            return new List<TaskRow>();
+        }
+
+        return await _db.ActionTasks
+            .AsNoTracking()
+            .Where(task => taskIds.Contains(task.Id))
+            .Select(task => new TaskRow(
+                task.Id,
+                task.Title,
+                task.Status,
+                task.DueDate,
+                task.Priority))
+            .ToListAsync(cancellationToken);
+    }
+
+    private Task<List<Remark>> LoadProjectRemarksAsync(
+        int[] projectIds,
+        CancellationToken cancellationToken)
+        => projectIds.Length == 0
+            ? Task.FromResult(new List<Remark>())
+            : _db.Remarks
+                .AsNoTracking()
+                .Where(remark => projectIds.Contains(remark.ProjectId) && !remark.IsDeleted)
+                .OrderBy(remark => remark.CreatedAtUtc)
+                .ThenBy(remark => remark.Id)
+                .ToListAsync(cancellationToken);
+
+    private Task<List<ProjectIdeaComment>> LoadIdeaCommentsAsync(
+        int[] ideaIds,
+        CancellationToken cancellationToken)
+        => ideaIds.Length == 0
+            ? Task.FromResult(new List<ProjectIdeaComment>())
+            : _db.ProjectIdeaComments
+                .AsNoTracking()
+                .Where(comment => ideaIds.Contains(comment.ProjectIdeaId) && !comment.IsDeleted)
+                .OrderBy(comment => comment.CreatedAt)
+                .ThenBy(comment => comment.Id)
+                .ToListAsync(cancellationToken);
+
+    private Task<List<ActionTaskUpdate>> LoadTaskUpdatesAsync(
+        int[] taskIds,
+        CancellationToken cancellationToken)
+        => taskIds.Length == 0
+            ? Task.FromResult(new List<ActionTaskUpdate>())
+            : _db.ActionTaskUpdates
+                .AsNoTracking()
+                .Where(update => taskIds.Contains(update.TaskId) && !update.IsDeleted)
+                .OrderBy(update => update.CreatedAtUtc)
+                .ThenBy(update => update.Id)
+                .ToListAsync(cancellationToken);
+
+    private IReadOnlyList<OfficerConferenceItemVm> BuildProjectItems(
+        CommandOfficerWorkloadVm officer,
+        IReadOnlyList<ProjectRow> rows,
+        IReadOnlyList<Remark> remarks,
+        IReadOnlyDictionary<int, Remark> latestDirections,
+        IReadOnlyDictionary<string, string> authorNames,
+        DateOnly today)
+    {
+        var rowsById = rows.ToDictionary(row => row.Id);
+        var remarksByProject = remarks
+            .GroupBy(remark => remark.ProjectId)
+            .ToDictionary(group => group.Key, group => group.ToList());
+        var result = new List<OfficerConferenceItemVm>();
+
+        foreach (var workloadItem in officer.Projects)
+        {
+            if (!rowsById.TryGetValue(workloadItem.ProjectId, out var row))
+            {
+                continue;
+            }
+
+            var snapshots = row.Stages
+                .Select(stage => new ProjectStageStatusSnapshot(
+                    stage.StageCode,
+                    stage.Status,
+                    stage.SortOrder,
+                    stage.ActualStart,
+                    stage.CompletedOn))
+                .ToList();
+            var presentStage = PresentStageHelper.ComputePresentStageAndAge(
+                snapshots,
+                _workflowStageMetadataProvider,
+                row.WorkflowVersion,
+                today);
+            var currentCode = presentStage.CurrentStageCode ?? workloadItem.StageCode;
+            var currentName = presentStage.CurrentStageName ?? workloadItem.StageName;
+            var currentPdc = row.Stages
+                .FirstOrDefault(stage => string.Equals(
+                    stage.StageCode,
+                    currentCode,
+                    StringComparison.OrdinalIgnoreCase))
+                ?.PlannedDue;
+
+            var contextParts = new List<string>();
+            if (presentStage.DaysSinceStartOrLastCompletion.HasValue)
+            {
+                contextParts.Add($"{presentStage.DaysSinceStartOrLastCompletion.Value} days in stage");
+            }
+
+            string? attentionText = null;
+            var requiresAttention = false;
+            if (currentPdc.HasValue)
+            {
+                var delta = currentPdc.Value.DayNumber - today.DayNumber;
+                if (delta < 0)
+                {
+                    attentionText = $"PDC overdue by {Math.Abs(delta)} day{(Math.Abs(delta) == 1 ? string.Empty : "s")}";
+                    requiresAttention = true;
+                }
+                else
+                {
+                    contextParts.Add($"PDC {currentPdc.Value:dd MMM yyyy}");
+                }
+            }
+            else
+            {
+                contextParts.Add("PDC not set");
+            }
+
+            latestDirections.TryGetValue(row.Id, out var direction);
+            var itemRemarks = remarksByProject.TryGetValue(row.Id, out var foundRemarks)
+                ? foundRemarks
+                : new List<Remark>();
+            var subsequent = direction is null
+                ? new List<Remark>()
+                : itemRemarks
+                    .Where(remark => remark.Type != RemarkType.Conference
+                        && IsAfter(remark.CreatedAtUtc, remark.Id, direction.CreatedAtUtc, direction.Id))
+                    .ToList();
+            var latestProgress = subsequent
+                .OrderByDescending(remark => remark.CreatedAtUtc)
+                .ThenByDescending(remark => remark.Id)
+                .FirstOrDefault();
+
+            result.Add(new OfficerConferenceItemVm
+            {
+                Kind = ConferenceItemKind.Project,
+                ItemId = row.Id,
+                Title = row.Name,
+                OpenUrl = workloadItem.OpenUrl,
+                CurrentStateCode = currentCode,
+                CurrentStateName = currentName,
+                CurrentContext = contextParts.Count == 0 ? null : string.Join(" · ", contextParts),
+                AttentionText = attentionText,
+                RequiresAttention = requiresAttention,
+                LatestDirection = direction is null
+                    ? null
+                    : new ConferenceDirectionVm
+                    {
+                        Id = direction.Id,
+                        Body = ToPlainText(direction.Body),
+                        AuthorName = ResolveAuthor(authorNames, direction.AuthorUserId),
+                        AuthorRole = DisplayRole(direction.AuthorRole),
+                        CreatedAtUtc = AsUtc(direction.CreatedAtUtc),
+                        SnapshotLabel = "Stage when issued",
+                        SnapshotValue = BuildStageSnapshot(direction.StageRef, direction.StageNameSnapshot)
+                    },
+                ProgressSummary = BuildProjectProgressSummary(
+                    direction,
+                    currentCode,
+                    subsequent.Count),
+                LatestProgressText = latestProgress is null
+                    ? null
+                    : ToPlainText(latestProgress.Body)
+            });
+        }
+
+        return result;
+    }
+
+    private static IReadOnlyList<OfficerConferenceItemVm> BuildIdeaItems(
+        CommandOfficerWorkloadVm officer,
+        IReadOnlyList<IdeaRow> rows,
+        IReadOnlyList<ProjectIdeaComment> comments,
+        IReadOnlyDictionary<int, ProjectIdeaComment> latestDirections,
+        IReadOnlyDictionary<string, string> authorNames)
+    {
+        var rowsById = rows.ToDictionary(row => row.Id);
+        var commentsByIdea = comments
+            .GroupBy(comment => comment.ProjectIdeaId)
+            .ToDictionary(group => group.Key, group => group.ToList());
+        var result = new List<OfficerConferenceItemVm>();
+
+        foreach (var workloadItem in officer.Ideas)
+        {
+            if (!rowsById.TryGetValue(workloadItem.IdeaId, out var row))
+            {
+                continue;
+            }
+
+            latestDirections.TryGetValue(row.Id, out var direction);
+            var itemComments = commentsByIdea.TryGetValue(row.Id, out var foundComments)
+                ? foundComments
+                : new List<ProjectIdeaComment>();
+            var subsequent = direction is null
+                ? new List<ProjectIdeaComment>()
+                : itemComments
+                    .Where(comment => !string.Equals(
+                            comment.CommentType,
+                            ProjectIdeaCommentTypes.Conference,
+                            StringComparison.OrdinalIgnoreCase)
+                        && IsAfter(comment.CreatedAt, comment.Id, direction.CreatedAt, direction.Id))
+                    .ToList();
+            var latestProgress = subsequent
+                .OrderByDescending(comment => comment.CreatedAt)
+                .ThenByDescending(comment => comment.Id)
+                .FirstOrDefault();
+
+            result.Add(new OfficerConferenceItemVm
+            {
+                Kind = ConferenceItemKind.ProjectIdea,
+                ItemId = row.Id,
+                Title = row.Title,
+                OpenUrl = workloadItem.OpenUrl,
+                CurrentStateCode = row.Status,
+                CurrentStateName = ProjectIdeaStatuses.ToDisplay(row.Status),
+                CurrentContext = $"Updated {IstClock.ToIst(AsUtc(row.UpdatedAt)):dd MMM yyyy}",
+                LatestDirection = direction is null
+                    ? null
+                    : new ConferenceDirectionVm
+                    {
+                        Id = direction.Id,
+                        Body = direction.CommentText,
+                        AuthorName = ResolveAuthor(authorNames, direction.CreatedByUserId),
+                        AuthorRole = DisplayRole(direction.CreatedByRole),
+                        CreatedAtUtc = AsUtc(direction.CreatedAt),
+                        SnapshotLabel = "Status when issued",
+                        SnapshotValue = ProjectIdeaStatuses.ToDisplay(direction.StatusSnapshot ?? row.Status)
+                    },
+                ProgressSummary = BuildStateProgressSummary(
+                    direction?.StatusSnapshot,
+                    row.Status,
+                    subsequent.Count,
+                    "comment"),
+                LatestProgressText = latestProgress?.CommentText
+            });
+        }
+
+        return result
+            .OrderByDescending(item => rowsById[item.ItemId].UpdatedAt)
+            .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static IReadOnlyList<OfficerConferenceItemVm> BuildTaskItems(
+        CommandOfficerWorkloadVm officer,
+        IReadOnlyList<TaskRow> rows,
+        IReadOnlyList<ActionTaskUpdate> updates,
+        IReadOnlyDictionary<int, ActionTaskUpdate> latestDirections,
+        IReadOnlyDictionary<string, string> authorNames,
+        DateOnly today)
+    {
+        var rowsById = rows.ToDictionary(row => row.Id);
+        var updatesByTask = updates
+            .GroupBy(update => update.TaskId)
+            .ToDictionary(group => group.Key, group => group.ToList());
+        var result = new List<OfficerConferenceItemVm>();
+
+        foreach (var workloadItem in officer.OtherTasks)
+        {
+            if (!rowsById.TryGetValue(workloadItem.TaskId, out var row))
+            {
+                continue;
+            }
+
+            var dueDate = DateOnly.FromDateTime(row.DueDate);
+            var overdueDays = today.DayNumber - dueDate.DayNumber;
+            var requiresAttention = overdueDays > 0
+                || string.Equals(row.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase);
+            var attentionText = string.Equals(row.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)
+                ? "Blocked"
+                : overdueDays > 0
+                    ? $"Overdue by {overdueDays} day{(overdueDays == 1 ? string.Empty : "s")}"
+                    : null;
+
+            latestDirections.TryGetValue(row.Id, out var direction);
+            var itemUpdates = updatesByTask.TryGetValue(row.Id, out var foundUpdates)
+                ? foundUpdates
+                : new List<ActionTaskUpdate>();
+            var subsequent = direction is null
+                ? new List<ActionTaskUpdate>()
+                : itemUpdates
+                    .Where(update => !string.Equals(
+                            update.UpdateType,
+                            ActionTaskUpdateTypes.Conference,
+                            StringComparison.OrdinalIgnoreCase)
+                        && IsAfter(update.CreatedAtUtc, update.Id, direction.CreatedAtUtc, direction.Id))
+                    .ToList();
+            var latestProgress = subsequent
+                .OrderByDescending(update => update.CreatedAtUtc)
+                .ThenByDescending(update => update.Id)
+                .FirstOrDefault();
+
+            result.Add(new OfficerConferenceItemVm
+            {
+                Kind = ConferenceItemKind.ActionTask,
+                ItemId = row.Id,
+                Title = row.Title,
+                OpenUrl = workloadItem.OpenUrl,
+                CurrentStateCode = row.Status,
+                CurrentStateName = row.Status,
+                CurrentContext = $"Due {dueDate:dd MMM yyyy} · {row.Priority} priority",
+                AttentionText = attentionText,
+                RequiresAttention = requiresAttention,
+                LatestDirection = direction is null
+                    ? null
+                    : new ConferenceDirectionVm
+                    {
+                        Id = direction.Id,
+                        Body = direction.Body,
+                        AuthorName = ResolveAuthor(authorNames, direction.CreatedByUserId),
+                        AuthorRole = DisplayRole(direction.CreatedByRole),
+                        CreatedAtUtc = AsUtc(direction.CreatedAtUtc),
+                        SnapshotLabel = "When issued",
+                        SnapshotValue = BuildTaskSnapshot(direction.StatusSnapshot, direction.DueDateSnapshot)
+                    },
+                ProgressSummary = BuildTaskProgressSummary(
+                    direction,
+                    row.Status,
+                    dueDate,
+                    subsequent.Count),
+                LatestProgressText = latestProgress?.Body
+            });
+        }
+
+        return result
+            .OrderBy(item => TaskAttentionOrder(rowsById[item.ItemId], today))
+            .ThenBy(item => rowsById[item.ItemId].DueDate)
+            .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string BuildProjectProgressSummary(
+        Remark? direction,
+        string currentStageCode,
+        int subsequentCount)
+    {
+        if (direction is null)
+        {
+            return "No previous conference direction";
+        }
+
+        var movement = string.IsNullOrWhiteSpace(direction.StageRef)
+            ? "Current stage " + currentStageCode
+            : string.Equals(direction.StageRef, currentStageCode, StringComparison.OrdinalIgnoreCase)
+                ? "No stage movement"
+                : $"{direction.StageRef} → {currentStageCode}";
+
+        return AppendUpdateCount(movement, subsequentCount, "remark");
+    }
+
+    private static string BuildStateProgressSummary(
+        string? previousState,
+        string currentState,
+        int subsequentCount,
+        string updateNoun)
+    {
+        if (previousState is null)
+        {
+            return "No previous conference direction";
+        }
+
+        var movement = string.Equals(previousState, currentState, StringComparison.OrdinalIgnoreCase)
+            ? "No status movement"
+            : $"{ProjectIdeaStatuses.ToDisplay(previousState)} → {ProjectIdeaStatuses.ToDisplay(currentState)}";
+        return AppendUpdateCount(movement, subsequentCount, updateNoun);
+    }
+
+    private static string BuildTaskProgressSummary(
+        ActionTaskUpdate? direction,
+        string currentStatus,
+        DateOnly currentDueDate,
+        int subsequentCount)
+    {
+        if (direction is null)
+        {
+            return "No previous conference direction";
+        }
+
+        var parts = new List<string>
+        {
+            string.Equals(direction.StatusSnapshot, currentStatus, StringComparison.OrdinalIgnoreCase)
+                ? "No status movement"
+                : $"{direction.StatusSnapshot ?? "Not recorded"} → {currentStatus}"
+        };
+
+        if (direction.DueDateSnapshot.HasValue)
+        {
+            parts.Add(direction.DueDateSnapshot.Value == currentDueDate
+                ? "due date unchanged"
+                : $"due {direction.DueDateSnapshot.Value:dd MMM} → {currentDueDate:dd MMM}");
+        }
+
+        var summary = string.Join(" · ", parts);
+        return AppendUpdateCount(summary, subsequentCount, "update");
+    }
+
+    private static string AppendUpdateCount(string movement, int count, string noun)
+    {
+        if (count <= 0)
+        {
+            return movement + " · no subsequent update";
+        }
+
+        return $"{movement} · {count} subsequent {noun}{(count == 1 ? string.Empty : "s")}";
+    }
+
+    private static int TaskAttentionOrder(TaskRow row, DateOnly today)
+    {
+        var due = DateOnly.FromDateTime(row.DueDate);
+        if (string.Equals(row.Status, ActionTaskStatuses.Blocked, StringComparison.OrdinalIgnoreCase)) return 0;
+        if (due < today) return 1;
+        if (string.Equals(row.Status, ActionTaskStatuses.Submitted, StringComparison.OrdinalIgnoreCase)) return 2;
+        if (due.DayNumber - today.DayNumber <= 7) return 3;
+        return 4;
+    }
+
+    private static bool IsAfter(
+        DateTime candidateAt,
+        int candidateId,
+        DateTime baselineAt,
+        int baselineId)
+        => candidateAt > baselineAt
+           || (candidateAt == baselineAt && candidateId > baselineId);
+
+    private static string BuildStageSnapshot(string? stageRef, string? stageName)
+    {
+        if (string.IsNullOrWhiteSpace(stageRef) && string.IsNullOrWhiteSpace(stageName))
+        {
+            return "Not recorded";
+        }
+
+        if (string.IsNullOrWhiteSpace(stageName)
+            || string.Equals(stageRef, stageName, StringComparison.OrdinalIgnoreCase))
+        {
+            return stageRef ?? stageName ?? "Not recorded";
+        }
+
+        return $"{stageRef} · {stageName}";
+    }
+
+    private static string BuildTaskSnapshot(string? status, DateOnly? dueDate)
+    {
+        var state = string.IsNullOrWhiteSpace(status) ? "Status not recorded" : status;
+        return dueDate.HasValue
+            ? $"{state} · due {dueDate.Value:dd MMM yyyy}"
+            : state;
+    }
+
+    private static string DisplayRole(RemarkActorRole role) => role switch
+    {
+        RemarkActorRole.Commandant => "Comdt",
+        RemarkActorRole.HeadOfDepartment => "HoD",
+        RemarkActorRole.ProjectOfficer => "Project Officer",
+        RemarkActorRole.Administrator => "Admin",
+        RemarkActorRole.Ta => "TA",
+        RemarkActorRole.Mco => "MCO",
+        RemarkActorRole.ProjectOffice => "Project Office",
+        RemarkActorRole.MainOffice => "Main Office",
+        _ => "User"
+    };
+
+    private static string DisplayRole(string? role)
+    {
+        if (string.Equals(role, RoleNames.Comdt, StringComparison.OrdinalIgnoreCase)) return "Comdt";
+        if (string.Equals(role, RoleNames.HoD, StringComparison.OrdinalIgnoreCase)) return "HoD";
+        return string.IsNullOrWhiteSpace(role) ? "User" : role.Trim();
+    }
+
+    private static string ResolveAuthor(
+        IReadOnlyDictionary<string, string> authors,
+        string userId)
+        => authors.TryGetValue(userId, out var name) ? name : userId;
+
+    private static string ToPlainText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var withoutTags = HtmlTagRegex.Replace(value, " ");
+        return WhitespaceRegex.Replace(WebUtility.HtmlDecode(withoutTags), " ").Trim();
+    }
+
+    private static DateTime AsUtc(DateTime value)
+        => value.Kind == DateTimeKind.Utc
+            ? value
+            : DateTime.SpecifyKind(value, DateTimeKind.Utc);
+
+    private static string DisplayOfficerName(CommandOfficerWorkloadVm officer)
+        => string.IsNullOrWhiteSpace(officer.Rank)
+            ? officer.OfficerName
+            : $"{officer.Rank} {officer.OfficerName}";
+
+    private static string InitialOf(string? name)
+        => string.IsNullOrWhiteSpace(name)
+            ? "P"
+            : name.Trim()[0].ToString().ToUpperInvariant();
+
+    private sealed record ProjectRow(
+        int Id,
+        string Name,
+        string WorkflowVersion,
+        IReadOnlyList<ProjectStageRow> Stages);
+
+    private sealed record ProjectStageRow(
+        string StageCode,
+        StageStatus Status,
+        int SortOrder,
+        DateOnly? ActualStart,
+        DateOnly? CompletedOn,
+        DateOnly? PlannedDue);
+
+    private sealed record IdeaRow(
+        int Id,
+        string Title,
+        string Status,
+        DateTime UpdatedAt);
+
+    private sealed record TaskRow(
+        int Id,
+        string Title,
+        string Status,
+        DateTime DueDate,
+        string Priority);
+}

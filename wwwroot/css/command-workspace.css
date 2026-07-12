@@ -547,3 +547,32 @@
     outline: none;
     touch-action: auto;
 }
+
+/* SECTION: Command-only entry to the compact officer conference review. */
+.cw-officer-identity { flex:1 1 auto; }
+.cw-conference-action {
+    flex:0 0 30px;
+    width:30px;
+    height:30px;
+    display:grid;
+    place-items:center;
+    margin-left:auto;
+    border:1px solid rgba(98,83,181,.24);
+    border-radius:7px;
+    background:rgba(247,245,255,.84);
+    color:#6253b5;
+    text-decoration:none;
+}
+.cw-conference-action:hover,
+.cw-conference-action:focus-visible {
+    border-color:#9f93dc;
+    background:#f2efff;
+    color:#4f43a0;
+    outline:2px solid rgba(98,83,181,.14);
+    outline-offset:1px;
+}
+[data-bs-theme="dark"] .cw-conference-action {
+    border-color:#594f83;
+    background:#27233b;
+    color:#b8adff;
+}

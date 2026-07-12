@@ -484,6 +484,8 @@ builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaDo
 builder.Services.AddScoped<ProjectManagement.Services.Navigation.DefaultLandingPageResolver>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectOfficerWorkspaceService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerWorkloadReadService, ProjectManagement.Services.Workspace.OfficerWorkloadReadService>();
+builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerConferenceReadService, ProjectManagement.Services.Workspace.OfficerConferenceReadService>();
+builder.Services.AddScoped<ProjectManagement.Services.ConferenceRemarks.IConferenceRemarkCommandService, ProjectManagement.Services.ConferenceRemarks.ConferenceRemarkCommandService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.CommandWorkspaceService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectRecordHealthService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.WorkspaceNudgeService>();

@@ -40,6 +40,16 @@
                 <span><strong>@officer.OtherTaskCount</strong> other tasks</span>
             </p>
         </div>
+        @if (Model.ShowConferenceAction)
+        {
+            <a asp-page="/Workspace/Conference"
+               asp-route-officerUserId="@officer.UserId"
+               class="cw-conference-action"
+               aria-label="Review @displayName workload in conference"
+               title="Review officer workload">
+                <i class="bi bi-journal-check" aria-hidden="true"></i>
+            </a>
+        }
     </header>
     <div class="cw-work-sections">
         <section class="cw-work-section cw-work-section--projects">

@@ -67,4 +67,6 @@ public sealed class OfficerWorkloadCardRenderVm
     public CommandOfficerWorkloadVm Officer { get; init; } = new();
 
     public bool CanReorder { get; init; }
+
+    public bool ShowConferenceAction { get; init; }
 }

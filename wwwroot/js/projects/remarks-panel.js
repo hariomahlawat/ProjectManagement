@@ -1471,13 +1471,19 @@
                 const stageLabel = this.getStageLabel(remark.stageRef) || remark.stageName;
                 if (stageLabel) {
                     const stageBadge = document.createElement('span');
-                    stageBadge.className = 'badge rounded-pill bg-light border';
+                    stageBadge.className = 'badge rounded-pill bg-light text-dark border';
                     stageBadge.textContent = stageLabel;
                     metaRow.appendChild(stageBadge);
                 }
+            } else if (remark.type === 'Conference' && (remark.stageRef || remark.stageName)) {
+                const stageLabel = this.getStageLabel(remark.stageRef) || remark.stageName || remark.stageRef;
+                const stageContext = document.createElement('span');
+                stageContext.className = 'remarks-stage-context';
+                stageContext.textContent = `Stage when issued: ${stageLabel}`;
+                metaRow.appendChild(stageContext);
             } else if (remark.stageName) {
                 const stageBadge = document.createElement('span');
-                stageBadge.className = 'badge rounded-pill bg-light border';
+                stageBadge.className = 'badge rounded-pill bg-light text-dark border';
                 stageBadge.textContent = remark.stageName;
                 metaRow.appendChild(stageBadge);
             }

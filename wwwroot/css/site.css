@@ -11239,3 +11239,13 @@ main[role="main"].analytics-main > .pm-page-shell {
     background-color: rgba(99, 102, 241, .2);
     color: #c7d2fe;
 }
+
+.remarks-stage-context {
+    color: #64748b;
+    font-size: var(--pm-font-size-xs);
+    font-weight: 600;
+}
+
+[data-bs-theme="dark"] .remarks-stage-context {
+    color: #cbd5e1;
+}

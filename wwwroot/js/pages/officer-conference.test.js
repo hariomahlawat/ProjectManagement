@@ -1,0 +1,26 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+
+const source = fs.readFileSync(path.resolve(__dirname, 'officer-conference.js'), 'utf8');
+
+test('conference editor supports keyboard save and cancel', () => {
+    assert.match(source, /event\.key === 'Escape'/);
+    assert.match(source, /event\.ctrlKey \|\| event\.metaKey/);
+});
+
+test('conference save uses antiforgery and same-origin credentials', () => {
+    assert.match(source, /X-CSRF-TOKEN/);
+    assert.match(source, /credentials: 'same-origin'/);
+});
+
+test('conference direction rendering uses textContent rather than user HTML', () => {
+    assert.match(source, /body\.textContent = direction\.body/);
+    assert.doesNotMatch(source, /direction\.body.*innerHTML/);
+});
+
+test('officer navigation uses server-generated route values', () => {
+    assert.match(source, /window\.location\.assign\(destination\)/);
+    assert.doesNotMatch(source, /`\/Workspace\/Conference\//);
+});
