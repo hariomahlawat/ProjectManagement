@@ -84,7 +84,23 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         // Only operational activity after the oldest latest direction can contribute to the
         // progress summaries. This prevents the conference view from loading complete remark
         // histories for long-running projects, ideas and tasks.
-        var projectRemarks = await LoadProjectProgressRemarksAsync(latestProjectDirections, cancellationToken);
+        // A multi-role user can submit a remark under HoD/Comdt even while being the
+        // assigned Project Officer. Assignment therefore determines the PO response;
+        // the persisted author-role snapshot is retained only for audit/display purposes.
+        var assignedProjectOfficerUserIds = projectRows
+            .Select(project => string.IsNullOrWhiteSpace(project.LeadPoUserId)
+                ? selected.UserId
+                : project.LeadPoUserId!)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        IReadOnlySet<string> mcoUserIds = latestProjectDirections.Count == 0
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : await LoadUserIdsInRoleAsync(RoleNames.Mco, cancellationToken);
+        var projectRemarks = await LoadProjectProgressRemarksAsync(
+            latestProjectDirections,
+            assignedProjectOfficerUserIds,
+            mcoUserIds,
+            cancellationToken);
         var ideaComments = await LoadIdeaProgressCommentsAsync(latestIdeaDirections, cancellationToken);
         var ideaNotes = await LoadIdeaProgressNotesAsync(latestIdeaDirections, cancellationToken);
         var taskUpdates = await LoadTaskProgressUpdatesAsync(latestTaskDirections, cancellationToken);
@@ -133,6 +149,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             projectRemarks,
             latestProjectDirections,
             authorNames,
+            mcoUserIds,
             today);
         var ideaItems = BuildIdeaItems(
             selected,
@@ -328,6 +345,8 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
 
     private Task<List<Remark>> LoadProjectProgressRemarksAsync(
         IReadOnlyDictionary<int, Remark> latestDirections,
+        string[] assignedProjectOfficerUserIds,
+        IReadOnlySet<string> mcoUserIds,
         CancellationToken cancellationToken)
     {
         if (latestDirections.Count == 0)
@@ -336,18 +355,51 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         }
 
         var projectIds = latestDirections.Keys.ToArray();
+        var mcoUserIdArray = mcoUserIds.ToArray();
         var earliestDirection = latestDirections.Values.Min(direction => direction.CreatedAtUtc);
         return _db.Remarks
             .AsNoTracking()
             .Where(remark => projectIds.Contains(remark.ProjectId)
                 && !remark.IsDeleted
                 && remark.Type != RemarkType.Conference
-                && (remark.AuthorRole == RemarkActorRole.ProjectOfficer
-                    || remark.AuthorRole == RemarkActorRole.Mco)
+                && (assignedProjectOfficerUserIds.Contains(remark.AuthorUserId)
+                    || remark.AuthorRole == RemarkActorRole.Mco
+                    || mcoUserIdArray.Contains(remark.AuthorUserId))
                 && remark.CreatedAtUtc >= earliestDirection)
             .OrderBy(remark => remark.CreatedAtUtc)
             .ThenBy(remark => remark.Id)
             .ToListAsync(cancellationToken);
+    }
+
+    private async Task<IReadOnlySet<string>> LoadUserIdsInRoleAsync(
+        string roleName,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(roleName))
+        {
+            return new HashSet<string>(StringComparer.Ordinal);
+        }
+
+        var normalizedRoleName = roleName.ToUpperInvariant();
+        var roleIds = await _db.Roles
+            .AsNoTracking()
+            .Where(role => role.Name == roleName || role.NormalizedName == normalizedRoleName)
+            .Select(role => role.Id)
+            .ToArrayAsync(cancellationToken);
+
+        if (roleIds.Length == 0)
+        {
+            return new HashSet<string>(StringComparer.Ordinal);
+        }
+
+        var userIds = await _db.UserRoles
+            .AsNoTracking()
+            .Where(userRole => roleIds.Contains(userRole.RoleId))
+            .Select(userRole => userRole.UserId)
+            .Distinct()
+            .ToArrayAsync(cancellationToken);
+
+        return userIds.ToHashSet(StringComparer.Ordinal);
     }
 
     private Task<List<ProjectIdeaComment>> LoadIdeaProgressCommentsAsync(
@@ -427,6 +479,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         IReadOnlyList<Remark> remarks,
         IReadOnlyDictionary<int, Remark> latestDirections,
         IReadOnlyDictionary<string, string> authorNames,
+        IReadOnlySet<string> mcoUserIds,
         DateOnly today)
     {
         var rowsById = rows.ToDictionary(row => row.Id);
@@ -502,9 +555,11 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             Remark? latestMcoRemark = null;
             if (direction is not null)
             {
+                // The current project assignment is authoritative. Do not require the
+                // remark's role snapshot to be ProjectOfficer because Identity role
+                // precedence may have stored HoD or Comdt for the same user.
                 latestProjectOfficerRemark = itemRemarks
-                    .Where(remark => remark.AuthorRole == RemarkActorRole.ProjectOfficer
-                        && string.Equals(
+                    .Where(remark => string.Equals(
                             remark.AuthorUserId,
                             assignedProjectOfficerId,
                             StringComparison.Ordinal)
@@ -513,8 +568,16 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                     .ThenByDescending(remark => remark.Id)
                     .FirstOrDefault();
 
+                // Recognise MCO work from either the historical role snapshot or the
+                // user's current MCO membership. Exclude the assigned PO so one remark
+                // is never rendered twice when a user holds both appointments.
                 latestMcoRemark = itemRemarks
-                    .Where(remark => remark.AuthorRole == RemarkActorRole.Mco
+                    .Where(remark => (remark.AuthorRole == RemarkActorRole.Mco
+                            || mcoUserIds.Contains(remark.AuthorUserId))
+                        && !string.Equals(
+                            remark.AuthorUserId,
+                            assignedProjectOfficerId,
+                            StringComparison.Ordinal)
                         && IsAfter(remark.CreatedAtUtc, remark.Id, direction.CreatedAtUtc, direction.Id))
                     .OrderByDescending(remark => remark.CreatedAtUtc)
                     .ThenByDescending(remark => remark.Id)

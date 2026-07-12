@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
@@ -17,7 +18,7 @@ namespace ProjectManagement.Tests;
 public sealed class OfficerConferenceReadServiceTests
 {
     [Fact]
-    public async Task GetAsync_UsesLatestNativeDirection_AndShowsResponsibleFunctionaryResponses()
+    public async Task GetAsync_UsesAssignmentAndRoleMembership_ForResponsibleFunctionaryResponses()
     {
         await using var connection = new SqliteConnection("DataSource=:memory:");
         await connection.OpenAsync();
@@ -32,7 +33,21 @@ public sealed class OfficerConferenceReadServiceTests
         var officer = CreateUser("officer-1", "Test Officer", "Lt Col");
         var otherOfficer = CreateUser("officer-other", "Other Officer", "Lt Col");
         var mco = CreateUser("mco-1", "MCO User", "Major");
-        db.Users.AddRange(command, officer, otherOfficer, mco);
+        var snapshotMco = CreateUser("mco-snapshot", "Snapshot MCO", "Major");
+        db.Users.AddRange(command, officer, otherOfficer, mco, snapshotMco);
+
+        var mcoRole = new IdentityRole
+        {
+            Id = "role-mco",
+            Name = RoleNames.Mco,
+            NormalizedName = RoleNames.Mco.ToUpperInvariant()
+        };
+        db.Roles.Add(mcoRole);
+        db.UserRoles.Add(new IdentityUserRole<string>
+        {
+            UserId = mco.Id,
+            RoleId = mcoRole.Id
+        });
 
         var project = new Project
         {
@@ -86,9 +101,10 @@ public sealed class OfficerConferenceReadServiceTests
             ProjectRemark(project.Id, command.Id, RemarkActorRole.HeadOfDepartment, RemarkType.Conference, "Older direction", Utc(1), StageCodes.BID),
             ProjectRemark(project.Id, command.Id, RemarkActorRole.HeadOfDepartment, RemarkType.Conference, "Latest project direction", Utc(3), StageCodes.BID),
             ProjectRemark(project.Id, otherOfficer.Id, RemarkActorRole.ProjectOfficer, RemarkType.Internal, "Other officer update", Utc(4), StageCodes.TEC),
-            ProjectRemark(project.Id, officer.Id, RemarkActorRole.ProjectOfficer, RemarkType.Internal, "Project update one", Utc(5), StageCodes.TEC),
-            ProjectRemark(project.Id, officer.Id, RemarkActorRole.ProjectOfficer, RemarkType.External, "Project update two", Utc(6), StageCodes.TEC),
-            ProjectRemark(project.Id, mco.Id, RemarkActorRole.Mco, RemarkType.Internal, "MCO commercial update", Utc(7), StageCodes.TEC));
+            ProjectRemark(project.Id, officer.Id, RemarkActorRole.HeadOfDepartment, RemarkType.Internal, "Project update one", Utc(5), StageCodes.TEC),
+            ProjectRemark(project.Id, snapshotMco.Id, RemarkActorRole.Mco, RemarkType.Internal, "Earlier MCO update", Utc(6), StageCodes.TEC),
+            ProjectRemark(project.Id, officer.Id, RemarkActorRole.HeadOfDepartment, RemarkType.External, "Project update two", Utc(7), StageCodes.TEC),
+            ProjectRemark(project.Id, mco.Id, RemarkActorRole.HeadOfDepartment, RemarkType.Internal, "MCO commercial update", Utc(8), StageCodes.TEC));
 
         db.ProjectIdeaComments.AddRange(
             new ProjectIdeaComment
@@ -194,12 +210,14 @@ public sealed class OfficerConferenceReadServiceTests
                 Assert.Equal("Project Officer", projectOfficerEntry.Label);
                 Assert.Equal("Project update two", projectOfficerEntry.Body);
                 Assert.Equal(officer.FullName, projectOfficerEntry.AuthorName);
+                Assert.Equal(Utc(7), projectOfficerEntry.ActivityAtUtc);
             },
             mcoEntry =>
             {
                 Assert.Equal("MCO", mcoEntry.Label);
                 Assert.Equal("MCO commercial update", mcoEntry.Body);
                 Assert.Equal(mco.FullName, mcoEntry.AuthorName);
+                Assert.Equal(Utc(8), mcoEntry.ActivityAtUtc);
             });
 
         var ideaItem = Assert.Single(result.Sections.Single(section => section.Kind == ConferenceItemKind.ProjectIdea).Items);
@@ -224,6 +242,87 @@ public sealed class OfficerConferenceReadServiceTests
         Assert.Contains("Assigned → In Progress", taskItem.ProgressSummary);
         Assert.Contains("1 subsequent update", taskItem.ProgressSummary);
         Assert.Equal("Task progress", taskItem.LatestProgressText);
+    }
+
+    [Fact]
+    public async Task GetAsync_AssignedProjectOfficerRemark_IsRecognisedWhenStoredUnderHigherPrecedenceRole()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+
+        var command = CreateUser("command-1", "Command User", "Colonel");
+        var officer = CreateUser("officer-1", "Dual Role Officer", "Lt Col");
+        db.Users.AddRange(command, officer);
+
+        var project = new Project
+        {
+            Name = "Conference project",
+            CreatedByUserId = command.Id,
+            LeadPoUserId = officer.Id,
+            WorkflowVersion = ProcurementWorkflow.VersionV2,
+            LifecycleStatus = ProjectLifecycleStatus.Active
+        };
+        db.Projects.Add(project);
+        await db.SaveChangesAsync();
+
+        db.Remarks.AddRange(
+            ProjectRemark(
+                project.Id,
+                command.Id,
+                RemarkActorRole.HeadOfDepartment,
+                RemarkType.Conference,
+                "Direction",
+                Utc(2),
+                StageCodes.BID),
+            ProjectRemark(
+                project.Id,
+                officer.Id,
+                RemarkActorRole.HeadOfDepartment,
+                RemarkType.Internal,
+                "Response entered while acting as HoD",
+                Utc(3),
+                StageCodes.BID));
+        await db.SaveChangesAsync();
+
+        var workload = new StubOfficerWorkloadReadService(new[]
+        {
+            new CommandOfficerWorkloadVm
+            {
+                UserId = officer.Id,
+                OfficerName = officer.FullName!,
+                Rank = officer.Rank!,
+                Projects = new[]
+                {
+                    new CommandOfficerProjectVm(
+                        project.Id,
+                        project.Name,
+                        StageCodes.BID,
+                        "Bidding / Tendering",
+                        $"/Projects/Overview/{project.Id}")
+                }
+            }
+        });
+        var service = new OfficerConferenceReadService(
+            db,
+            workload,
+            new WorkflowStageMetadataProvider(),
+            new FixedClock(Utc(10)));
+
+        var result = await service.GetAsync(command.Id, officer.Id);
+
+        var projectItem = Assert.Single(
+            result!.Sections.Single(section => section.Kind == ConferenceItemKind.Project).Items);
+        var response = Assert.Single(projectItem.ProgressEntries);
+        Assert.Equal("Project Officer", response.Label);
+        Assert.Equal("Response entered while acting as HoD", response.Body);
+        Assert.Equal(officer.FullName, response.AuthorName);
+        Assert.Null(response.EmptyText);
     }
 
     [Fact]
