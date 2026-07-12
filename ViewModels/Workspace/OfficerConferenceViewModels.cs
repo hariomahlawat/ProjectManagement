@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace ProjectManagement.ViewModels.Workspace;
 
 public enum ConferenceItemKind
@@ -71,6 +73,24 @@ public sealed class ConferenceDirectionVm
     public DateTime CreatedAtUtc { get; init; }
     public string SnapshotLabel { get; init; } = string.Empty;
     public string SnapshotValue { get; init; } = string.Empty;
+}
+
+
+public sealed class AddConferenceDirectionInput
+{
+    [Required]
+    [StringLength(450)]
+    public string OfficerUserId { get; set; } = string.Empty;
+
+    [EnumDataType(typeof(ConferenceItemKind))]
+    public ConferenceItemKind Kind { get; set; }
+
+    [Range(1, int.MaxValue)]
+    public int ItemId { get; set; }
+
+    [Required]
+    [StringLength(4000)]
+    public string Body { get; set; } = string.Empty;
 }
 
 public sealed record AddConferenceRemarkRequest(

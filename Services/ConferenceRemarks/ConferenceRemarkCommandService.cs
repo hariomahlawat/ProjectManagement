@@ -30,7 +30,7 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _users;
     private readonly IRemarkService _projectRemarks;
-    private readonly ProjectIdeaCommandService _ideaCommands;
+    private readonly IProjectIdeaCommandService _ideaCommands;
     private readonly IActionTaskCollaborationService _taskCollaboration;
     private readonly IClock _clock;
 
@@ -38,7 +38,7 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
         ApplicationDbContext db,
         UserManager<ApplicationUser> users,
         IRemarkService projectRemarks,
-        ProjectIdeaCommandService ideaCommands,
+        IProjectIdeaCommandService ideaCommands,
         IActionTaskCollaborationService taskCollaboration,
         IClock clock)
     {
@@ -156,7 +156,7 @@ public sealed class ConferenceRemarkCommandService : IConferenceRemarkCommandSer
                 DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow.UtcDateTime)),
                 StageRef: null,
                 StageNameSnapshot: null,
-                Meta: "Officer conference review"),
+                Meta: RemarkAuditMetadata.ForOfficerConferenceReview(request.OfficerUserId)),
             cancellationToken);
 
         return new AddConferenceRemarkResult(

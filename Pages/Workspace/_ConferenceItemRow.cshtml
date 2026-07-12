@@ -6,14 +6,16 @@
     var direction = item.LatestDirection;
     var kindLabel = item.Kind switch
     {
-        ConferenceItemKind.Project => "Project",
-        ConferenceItemKind.ProjectIdea => "Idea",
-        ConferenceItemKind.ActionTask => "Task",
-        _ => "Item"
+        ConferenceItemKind.Project => "project",
+        ConferenceItemKind.ProjectIdea => "idea",
+        ConferenceItemKind.ActionTask => "task",
+        _ => "item"
     };
     var directionDate = direction is null
         ? null
         : IstClock.ToIst(direction.CreatedAtUtc).ToString("dd MMM yyyy");
+    var editorId = $"oc-editor-{(int)item.Kind}-{item.ItemId}";
+    var feedbackId = $"{editorId}-feedback";
 }
 
 <article class="oc-item @(item.RequiresAttention ? "oc-item--attention" : string.Empty)"
@@ -23,10 +25,9 @@
          data-item-id="@item.ItemId">
     <div class="oc-item__main">
         <div class="oc-item__title-row">
-            <a href="@item.OpenUrl" target="_blank" rel="noopener" title="Open @(kindLabel.ToLowerInvariant())">
+            <a href="@item.OpenUrl" target="_blank" rel="noopener" title="Open @kindLabel">
                 @item.Title
             </a>
-            <span class="oc-kind">@kindLabel</span>
         </div>
         <div class="oc-state">
             @if (!string.IsNullOrWhiteSpace(item.CurrentStateCode)
@@ -55,7 +56,7 @@
         {
             <div class="oc-no-direction" data-oc-empty-direction>
                 <i class="bi bi-chat-square-text" aria-hidden="true"></i>
-                <span>No previous conference direction</span>
+                <span>No conference direction recorded</span>
             </div>
         }
         else
@@ -75,43 +76,60 @@
     </div>
 
     <div class="oc-item__progress">
-        <span class="oc-progress-label">Progress since direction</span>
-        <p data-oc-progress-summary>@item.ProgressSummary</p>
-        @if (!string.IsNullOrWhiteSpace(item.LatestProgressText))
+        @if (direction is not null)
         {
-            <span class="oc-latest-update" data-oc-latest-progress title="@item.LatestProgressText">
-                Latest: @item.LatestProgressText
-            </span>
+            <span class="oc-progress-label">Progress since direction</span>
+            <p data-oc-progress-summary>@item.ProgressSummary</p>
+            @if (!string.IsNullOrWhiteSpace(item.LatestProgressText))
+            {
+                <span class="oc-latest-update" data-oc-latest-progress title="@item.LatestProgressText">
+                    Latest: @item.LatestProgressText
+                </span>
+            }
+            else
+            {
+                <span class="oc-latest-update" data-oc-latest-progress hidden></span>
+            }
         }
         else
         {
+            <span class="oc-progress-label" data-oc-progress-label hidden>Progress since direction</span>
+            <p data-oc-progress-summary hidden></p>
             <span class="oc-latest-update" data-oc-latest-progress hidden></span>
         }
-        <div class="oc-item__actions">
-            <button type="button" class="oc-add-direction" data-oc-add>
+
+        <div class="oc-item__actions @(direction is null ? "oc-item__actions--empty" : string.Empty)">
+            <button type="button" class="oc-add-direction" data-oc-add aria-controls="@editorId" aria-expanded="false">
                 <i class="bi bi-plus-circle" aria-hidden="true"></i>
                 <span>Add direction</span>
             </button>
             <a href="@item.OpenUrl" target="_blank" rel="noopener" class="oc-open-item">
                 Open <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
             </a>
+            <span class="oc-row-status" data-oc-row-status aria-live="polite"></span>
         </div>
     </div>
 
-    <form method="post" class="oc-inline-editor" data-oc-editor hidden>
+    <form method="post"
+          id="@editorId"
+          class="oc-inline-editor"
+          data-oc-editor
+          aria-busy="false"
+          hidden>
         <input type="hidden" name="officerUserId" value="@Model.OfficerUserId" />
         <input type="hidden" name="kind" value="@((int)item.Kind)" />
         <input type="hidden" name="itemId" value="@item.ItemId" />
-        <label>
+        <label class="oc-inline-editor__field">
             <span>Conference direction</span>
             <textarea name="body"
-                      rows="3"
+                      rows="2"
                       maxlength="4000"
                       placeholder="Record the direction or observation..."
+                      aria-describedby="@feedbackId"
                       data-oc-input></textarea>
         </label>
         <div class="oc-inline-editor__footer">
-            <span class="oc-editor-feedback" data-oc-feedback aria-live="polite"></span>
+            <span id="@feedbackId" class="oc-editor-feedback" data-oc-feedback aria-live="polite"></span>
             <div>
                 <button type="button" class="oc-editor-cancel" data-oc-cancel>Cancel</button>
                 <button type="submit" class="oc-editor-save" data-oc-save disabled>

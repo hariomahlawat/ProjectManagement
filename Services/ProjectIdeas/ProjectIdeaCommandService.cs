@@ -5,7 +5,7 @@ using ProjectManagement.Models.ProjectIdeas;
 
 namespace ProjectManagement.Services.ProjectIdeas;
 
-public class ProjectIdeaCommandService
+public class ProjectIdeaCommandService : IProjectIdeaCommandService
 {
     private readonly ApplicationDbContext _db;
 

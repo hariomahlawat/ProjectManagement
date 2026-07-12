@@ -24,3 +24,15 @@ test('officer navigation uses server-generated route values', () => {
     assert.match(source, /window\.location\.assign\(destination\)/);
     assert.doesNotMatch(source, /`\/Workspace\/Conference\//);
 });
+
+test('conference editor restores focus and exposes busy and invalid states', () => {
+    assert.match(source, /restoreFocus: true/);
+    assert.match(source, /aria-busy/);
+    assert.match(source, /aria-invalid/);
+});
+
+test('conference save surfaces server trace references and row-local feedback', () => {
+    assert.match(source, /payload\.traceId/);
+    assert.match(source, /setRowStatus\(item, 'Direction saved\.'/);
+    assert.match(source, /setRowStatus\(item, 'Save failed\.', true\)/);
+});

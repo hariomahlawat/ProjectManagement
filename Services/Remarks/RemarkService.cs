@@ -61,6 +61,7 @@ public sealed class RemarkService : IRemarkService
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureActorContext(request.Actor);
+        RemarkAuditMetadata.Validate(request.Meta);
 
         var project = await _db.Projects
             .AsNoTracking()
@@ -217,6 +218,7 @@ public sealed class RemarkService : IRemarkService
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureActorContext(request.Actor);
+        RemarkAuditMetadata.Validate(request.Meta);
 
         var remark = await _db.Remarks
             .Include(r => r.Mentions)
@@ -316,6 +318,7 @@ public sealed class RemarkService : IRemarkService
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureActorContext(request.Actor);
+        RemarkAuditMetadata.Validate(request.Meta);
 
         var remark = await _db.Remarks.FirstOrDefaultAsync(r => r.Id == remarkId, cancellationToken);
         if (remark is null || remark.IsDeleted)

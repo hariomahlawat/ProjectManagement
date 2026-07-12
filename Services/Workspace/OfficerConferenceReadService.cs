@@ -77,42 +77,20 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         var projectRows = await LoadProjectsAsync(projectIds, cancellationToken);
         var ideaRows = await LoadIdeasAsync(ideaIds, cancellationToken);
         var taskRows = await LoadTasksAsync(taskIds, cancellationToken);
-        var projectRemarks = await LoadProjectRemarksAsync(projectIds, cancellationToken);
-        var ideaComments = await LoadIdeaCommentsAsync(ideaIds, cancellationToken);
-        var taskUpdates = await LoadTaskUpdatesAsync(taskIds, cancellationToken);
 
-        var latestProjectDirections = projectRemarks
-            .Where(remark => remark.Type == RemarkType.Conference)
-            .GroupBy(remark => remark.ProjectId)
-            .ToDictionary(
-                group => group.Key,
-                group => group.OrderByDescending(remark => remark.CreatedAtUtc)
-                    .ThenByDescending(remark => remark.Id)
-                    .First());
+        var latestProjectDirections = (await LoadLatestProjectDirectionsAsync(projectIds, cancellationToken))
+            .ToDictionary(direction => direction.ProjectId);
+        var latestIdeaDirections = (await LoadLatestIdeaDirectionsAsync(ideaIds, cancellationToken))
+            .ToDictionary(direction => direction.ProjectIdeaId);
+        var latestTaskDirections = (await LoadLatestTaskDirectionsAsync(taskIds, cancellationToken))
+            .ToDictionary(direction => direction.TaskId);
 
-        var latestIdeaDirections = ideaComments
-            .Where(comment => string.Equals(
-                comment.CommentType,
-                ProjectIdeaCommentTypes.Conference,
-                StringComparison.OrdinalIgnoreCase))
-            .GroupBy(comment => comment.ProjectIdeaId)
-            .ToDictionary(
-                group => group.Key,
-                group => group.OrderByDescending(comment => comment.CreatedAt)
-                    .ThenByDescending(comment => comment.Id)
-                    .First());
-
-        var latestTaskDirections = taskUpdates
-            .Where(update => string.Equals(
-                update.UpdateType,
-                ActionTaskUpdateTypes.Conference,
-                StringComparison.OrdinalIgnoreCase))
-            .GroupBy(update => update.TaskId)
-            .ToDictionary(
-                group => group.Key,
-                group => group.OrderByDescending(update => update.CreatedAtUtc)
-                    .ThenByDescending(update => update.Id)
-                    .First());
+        // Only operational activity after the oldest latest direction can contribute to the
+        // progress summaries. This prevents the conference view from loading complete remark
+        // histories for long-running projects, ideas and tasks.
+        var projectRemarks = await LoadProjectProgressRemarksAsync(latestProjectDirections, cancellationToken);
+        var ideaComments = await LoadIdeaProgressCommentsAsync(latestIdeaDirections, cancellationToken);
+        var taskUpdates = await LoadTaskProgressUpdatesAsync(latestTaskDirections, cancellationToken);
 
         var authorIds = latestProjectDirections.Values.Select(item => item.AuthorUserId)
             .Concat(latestIdeaDirections.Values.Select(item => item.CreatedByUserId))
@@ -288,41 +266,128 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             .ToListAsync(cancellationToken);
     }
 
-    private Task<List<Remark>> LoadProjectRemarksAsync(
+    private Task<List<Remark>> LoadLatestProjectDirectionsAsync(
         int[] projectIds,
         CancellationToken cancellationToken)
         => projectIds.Length == 0
             ? Task.FromResult(new List<Remark>())
             : _db.Remarks
                 .AsNoTracking()
-                .Where(remark => projectIds.Contains(remark.ProjectId) && !remark.IsDeleted)
-                .OrderBy(remark => remark.CreatedAtUtc)
-                .ThenBy(remark => remark.Id)
+                .Where(direction => projectIds.Contains(direction.ProjectId)
+                    && !direction.IsDeleted
+                    && direction.Type == RemarkType.Conference)
+                .Where(direction => !_db.Remarks.Any(candidate =>
+                    candidate.ProjectId == direction.ProjectId
+                    && !candidate.IsDeleted
+                    && candidate.Type == RemarkType.Conference
+                    && (candidate.CreatedAtUtc > direction.CreatedAtUtc
+                        || (candidate.CreatedAtUtc == direction.CreatedAtUtc
+                            && candidate.Id > direction.Id))))
                 .ToListAsync(cancellationToken);
 
-    private Task<List<ProjectIdeaComment>> LoadIdeaCommentsAsync(
+    private Task<List<ProjectIdeaComment>> LoadLatestIdeaDirectionsAsync(
         int[] ideaIds,
         CancellationToken cancellationToken)
         => ideaIds.Length == 0
             ? Task.FromResult(new List<ProjectIdeaComment>())
             : _db.ProjectIdeaComments
                 .AsNoTracking()
-                .Where(comment => ideaIds.Contains(comment.ProjectIdeaId) && !comment.IsDeleted)
-                .OrderBy(comment => comment.CreatedAt)
-                .ThenBy(comment => comment.Id)
+                .Where(direction => ideaIds.Contains(direction.ProjectIdeaId)
+                    && !direction.IsDeleted
+                    && direction.CommentType == ProjectIdeaCommentTypes.Conference)
+                .Where(direction => !_db.ProjectIdeaComments.Any(candidate =>
+                    candidate.ProjectIdeaId == direction.ProjectIdeaId
+                    && !candidate.IsDeleted
+                    && candidate.CommentType == ProjectIdeaCommentTypes.Conference
+                    && (candidate.CreatedAt > direction.CreatedAt
+                        || (candidate.CreatedAt == direction.CreatedAt
+                            && candidate.Id > direction.Id))))
                 .ToListAsync(cancellationToken);
 
-    private Task<List<ActionTaskUpdate>> LoadTaskUpdatesAsync(
+    private Task<List<ActionTaskUpdate>> LoadLatestTaskDirectionsAsync(
         int[] taskIds,
         CancellationToken cancellationToken)
         => taskIds.Length == 0
             ? Task.FromResult(new List<ActionTaskUpdate>())
             : _db.ActionTaskUpdates
                 .AsNoTracking()
-                .Where(update => taskIds.Contains(update.TaskId) && !update.IsDeleted)
-                .OrderBy(update => update.CreatedAtUtc)
-                .ThenBy(update => update.Id)
+                .Where(direction => taskIds.Contains(direction.TaskId)
+                    && !direction.IsDeleted
+                    && direction.UpdateType == ActionTaskUpdateTypes.Conference)
+                .Where(direction => !_db.ActionTaskUpdates.Any(candidate =>
+                    candidate.TaskId == direction.TaskId
+                    && !candidate.IsDeleted
+                    && candidate.UpdateType == ActionTaskUpdateTypes.Conference
+                    && (candidate.CreatedAtUtc > direction.CreatedAtUtc
+                        || (candidate.CreatedAtUtc == direction.CreatedAtUtc
+                            && candidate.Id > direction.Id))))
                 .ToListAsync(cancellationToken);
+
+    private Task<List<Remark>> LoadProjectProgressRemarksAsync(
+        IReadOnlyDictionary<int, Remark> latestDirections,
+        CancellationToken cancellationToken)
+    {
+        if (latestDirections.Count == 0)
+        {
+            return Task.FromResult(new List<Remark>());
+        }
+
+        var projectIds = latestDirections.Keys.ToArray();
+        var earliestDirection = latestDirections.Values.Min(direction => direction.CreatedAtUtc);
+        return _db.Remarks
+            .AsNoTracking()
+            .Where(remark => projectIds.Contains(remark.ProjectId)
+                && !remark.IsDeleted
+                && remark.Type != RemarkType.Conference
+                && remark.CreatedAtUtc >= earliestDirection)
+            .OrderBy(remark => remark.CreatedAtUtc)
+            .ThenBy(remark => remark.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    private Task<List<ProjectIdeaComment>> LoadIdeaProgressCommentsAsync(
+        IReadOnlyDictionary<int, ProjectIdeaComment> latestDirections,
+        CancellationToken cancellationToken)
+    {
+        if (latestDirections.Count == 0)
+        {
+            return Task.FromResult(new List<ProjectIdeaComment>());
+        }
+
+        var ideaIds = latestDirections.Keys.ToArray();
+        var earliestDirection = latestDirections.Values.Min(direction => direction.CreatedAt);
+        return _db.ProjectIdeaComments
+            .AsNoTracking()
+            .Where(comment => ideaIds.Contains(comment.ProjectIdeaId)
+                && !comment.IsDeleted
+                && comment.CommentType != ProjectIdeaCommentTypes.Conference
+                && comment.CreatedAt >= earliestDirection)
+            .OrderBy(comment => comment.CreatedAt)
+            .ThenBy(comment => comment.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    private Task<List<ActionTaskUpdate>> LoadTaskProgressUpdatesAsync(
+        IReadOnlyDictionary<int, ActionTaskUpdate> latestDirections,
+        CancellationToken cancellationToken)
+    {
+        if (latestDirections.Count == 0)
+        {
+            return Task.FromResult(new List<ActionTaskUpdate>());
+        }
+
+        var taskIds = latestDirections.Keys.ToArray();
+        var earliestDirection = latestDirections.Values.Min(direction => direction.CreatedAtUtc);
+        return _db.ActionTaskUpdates
+            .AsNoTracking()
+            .Where(update => taskIds.Contains(update.TaskId)
+                && !update.IsDeleted
+                && update.UpdateType != ActionTaskUpdateTypes.Conference
+                && update.CreatedAtUtc >= earliestDirection)
+            .OrderBy(update => update.CreatedAtUtc)
+            .ThenBy(update => update.Id)
+            .ToListAsync(cancellationToken);
+    }
 
     private IReadOnlyList<OfficerConferenceItemVm> BuildProjectItems(
         CommandOfficerWorkloadVm officer,

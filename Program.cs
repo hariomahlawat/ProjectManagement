@@ -478,6 +478,8 @@ builder.Services.AddScoped<INotebookTodoImportService, NotebookTodoImportService
 // SECTION: Project Ideas services
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaReadService>();
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaCommandService>();
+builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.IProjectIdeaCommandService>(sp =>
+    sp.GetRequiredService<ProjectManagement.Services.ProjectIdeas.ProjectIdeaCommandService>());
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaPermissionService>();
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaDocumentService>();
 // SECTION: Project Officer workspace services

@@ -17,6 +17,21 @@ if (root) {
         }).format(date);
     };
 
+    const setRowStatus = (item, message, isError = false) => {
+        const status = item?.querySelector('[data-oc-row-status]');
+        if (!status) return;
+
+        status.textContent = message;
+        status.classList.toggle('is-error', isError);
+        window.clearTimeout(status._clearTimer);
+        if (message && !isError) {
+            status._clearTimer = window.setTimeout(() => {
+                status.textContent = '';
+                status.classList.remove('is-error');
+            }, 3500);
+        }
+    };
+
     const setPageFeedback = (message) => {
         const feedback = root.querySelector('[data-oc-page-feedback]');
         if (!feedback) return;
@@ -27,28 +42,49 @@ if (root) {
         }, 3000);
     };
 
-    const closeEditor = (editor, clear = true) => {
+    const getAddButton = (editor) => editor?.closest('[data-oc-item]')?.querySelector('[data-oc-add]') ?? null;
+
+    const closeEditor = (editor, { clear = true, restoreFocus = false } = {}) => {
         if (!editor) return;
+
         editor.hidden = true;
         editor.classList.remove('is-saving');
+        editor.setAttribute('aria-busy', 'false');
+
         const input = editor.querySelector('[data-oc-input]');
         const feedback = editor.querySelector('[data-oc-feedback]');
         if (clear && input) input.value = '';
+        input?.removeAttribute('aria-invalid');
+
         if (feedback) {
             feedback.textContent = '';
             feedback.classList.remove('is-error');
         }
+
         const save = editor.querySelector('[data-oc-save]');
         if (save) save.disabled = true;
+
+        const addButton = getAddButton(editor);
+        addButton?.setAttribute('aria-expanded', 'false');
+        if (restoreFocus) addButton?.focus();
+
         if (openEditor === editor) openEditor = null;
     };
 
     const openInlineEditor = (item) => {
-        const editor = item.querySelector('[data-oc-editor]');
+        const editor = item?.querySelector('[data-oc-editor]');
         if (!editor) return;
-        if (openEditor && openEditor !== editor) closeEditor(openEditor);
+
+        if (openEditor && openEditor !== editor) {
+            closeEditor(openEditor);
+        }
+
+        setRowStatus(item, '');
         editor.hidden = false;
+        editor.setAttribute('aria-busy', 'false');
+        getAddButton(editor)?.setAttribute('aria-expanded', 'true');
         openEditor = editor;
+
         const input = editor.querySelector('[data-oc-input]');
         requestAnimationFrame(() => input?.focus());
     };
@@ -96,8 +132,14 @@ if (root) {
             directionHost.replaceChildren(buildDirection(payload.direction));
         }
 
+        const progressLabel = item.querySelector('[data-oc-progress-label]');
+        if (progressLabel) progressLabel.hidden = false;
+
         const progress = item.querySelector('[data-oc-progress-summary]');
-        if (progress) progress.textContent = payload.progressSummary ?? '';
+        if (progress) {
+            progress.textContent = payload.progressSummary ?? '';
+            progress.hidden = false;
+        }
 
         const latest = item.querySelector('[data-oc-latest-progress]');
         if (latest) {
@@ -107,6 +149,7 @@ if (root) {
             latest.title = text;
         }
 
+        item.querySelector('.oc-item__actions')?.classList.remove('oc-item__actions--empty');
         item.classList.remove('is-saved');
         void item.offsetWidth;
         item.classList.add('is-saved');
@@ -124,7 +167,10 @@ if (root) {
         if (!item || !input || !save || !body) return;
 
         editor.classList.add('is-saving');
+        editor.setAttribute('aria-busy', 'true');
+        input.removeAttribute('aria-invalid');
         save.disabled = true;
+        setRowStatus(item, '');
         if (feedback) {
             feedback.textContent = 'Saving…';
             feedback.classList.remove('is-error');
@@ -145,19 +191,25 @@ if (root) {
 
             const payload = await response.json().catch(() => ({}));
             if (!response.ok) {
-                throw new Error(payload.message || 'The direction could not be saved.');
+                const reference = payload.traceId ? ` Reference: ${payload.traceId}.` : '';
+                throw new Error(`${payload.message || 'The direction could not be saved.'}${reference}`);
             }
 
             applySavedDirection(item, payload);
-            closeEditor(editor);
+            closeEditor(editor, { restoreFocus: true });
+            setRowStatus(item, 'Direction saved.');
             setPageFeedback('Conference direction saved.');
         } catch (error) {
             editor.classList.remove('is-saving');
+            editor.setAttribute('aria-busy', 'false');
             save.disabled = false;
+            input.setAttribute('aria-invalid', 'true');
+            const message = error instanceof Error ? error.message : 'The direction could not be saved.';
             if (feedback) {
-                feedback.textContent = error instanceof Error ? error.message : 'The direction could not be saved.';
+                feedback.textContent = message;
                 feedback.classList.add('is-error');
             }
+            setRowStatus(item, 'Save failed.', true);
             input.focus();
         }
     };
@@ -177,16 +229,23 @@ if (root) {
 
         const cancelButton = event.target.closest('[data-oc-cancel]');
         if (cancelButton) {
-            closeEditor(cancelButton.closest('[data-oc-editor]'));
+            closeEditor(cancelButton.closest('[data-oc-editor]'), { restoreFocus: true });
         }
     });
 
     root.addEventListener('input', (event) => {
         const input = event.target.closest('[data-oc-input]');
         if (!input) return;
+
+        input.removeAttribute('aria-invalid');
         const editor = input.closest('[data-oc-editor]');
         const save = editor?.querySelector('[data-oc-save]');
+        const feedback = editor?.querySelector('[data-oc-feedback]');
         if (save) save.disabled = input.value.trim().length === 0;
+        if (feedback?.classList.contains('is-error')) {
+            feedback.textContent = '';
+            feedback.classList.remove('is-error');
+        }
     });
 
     root.addEventListener('keydown', (event) => {
@@ -198,7 +257,7 @@ if (root) {
         if (event.key === 'Escape') {
             if (editor.classList.contains('is-saving')) return;
             event.preventDefault();
-            closeEditor(editor);
+            closeEditor(editor, { restoreFocus: true });
             return;
         }
 
