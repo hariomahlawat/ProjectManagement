@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Admin;
 
 namespace ProjectManagement.Hosted;
 
@@ -13,23 +14,28 @@ namespace ProjectManagement.Hosted;
 /// </summary>
 public sealed class AuditRetentionWorker : BackgroundService
 {
+    private const string WorkerKey = "audit-retention";
     private static readonly TimeSpan InitialDelay = TimeSpan.FromMinutes(5);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptionsMonitor<AuditRetentionOptions> _options;
     private readonly IClock _clock;
     private readonly ILogger<AuditRetentionWorker> _logger;
+    private readonly IAdminWorkerStatusRegistry? _status;
 
     public AuditRetentionWorker(
         IServiceScopeFactory scopeFactory,
         IOptionsMonitor<AuditRetentionOptions> options,
         IClock clock,
-        ILogger<AuditRetentionWorker> logger)
+        ILogger<AuditRetentionWorker> logger,
+        IAdminWorkerStatusRegistry? status = null)
     {
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _status = status;
+        _status?.Register(WorkerKey, "Audit retention");
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -52,7 +58,9 @@ public sealed class AuditRetentionWorker : BackgroundService
             {
                 if (options.Enabled)
                 {
+                    _status?.MarkStarted(WorkerKey);
                     var removed = await RunOnceAsync(options, stoppingToken);
+                    _status?.MarkSucceeded(WorkerKey, $"Removed {removed} audit record(s).");
                     if (removed > 0)
                     {
                         _logger.LogWarning(
@@ -61,6 +69,10 @@ public sealed class AuditRetentionWorker : BackgroundService
                             options.RetentionDays);
                     }
                 }
+                else
+                {
+                    _status?.MarkSucceeded(WorkerKey, "Retention is disabled by configuration.");
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -68,6 +80,7 @@ public sealed class AuditRetentionWorker : BackgroundService
             }
             catch (Exception exception)
             {
+                _status?.MarkFailed(WorkerKey, exception);
                 _logger.LogError(exception, "Audit retention enforcement failed; no startup operation is affected.");
                 delay = TimeSpan.FromMinutes(30);
             }

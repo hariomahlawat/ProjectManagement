@@ -16,17 +16,20 @@ public sealed class DetailsModel : PageModel
     private readonly IAdminUserQueryService _queries;
     private readonly IAdminRoleDescriptorCatalog _roles;
     private readonly IAuditActionPresentationCatalog _auditActions;
+    private readonly IAdminClientDescriptorService _clients;
     private readonly IAdminTimeService _time;
 
     public DetailsModel(
         IAdminUserQueryService queries,
         IAdminRoleDescriptorCatalog roles,
         IAuditActionPresentationCatalog auditActions,
+        IAdminClientDescriptorService clients,
         IAdminTimeService time)
     {
         _queries = queries ?? throw new ArgumentNullException(nameof(queries));
         _roles = roles ?? throw new ArgumentNullException(nameof(roles));
         _auditActions = auditActions ?? throw new ArgumentNullException(nameof(auditActions));
+        _clients = clients ?? throw new ArgumentNullException(nameof(clients));
         _time = time ?? throw new ArgumentNullException(nameof(time));
     }
 
@@ -61,11 +64,11 @@ public sealed class DetailsModel : PageModel
         RoleDescriptors = _roles.DescribeMany(Account.Roles);
         RecentAuthentication = await _queries.GetRecentLoginActivityAsync(
             Account.Id,
-            limit: 10,
+            limit: 5,
             cancellationToken);
         RecentAdministrativeActivity = await _queries.GetRecentAdministrativeActivityAsync(
             Account.Id,
-            limit: 8,
+            limit: 5,
             cancellationToken);
 
         Header = new AdminPageHeaderModel
@@ -135,14 +138,5 @@ public sealed class DetailsModel : PageModel
     public string AuthenticationIcon(AdminUserAuthenticationActivity activity) =>
         activity.Succeeded ? "bi-box-arrow-in-right" : "bi-shield-exclamation";
 
-    public string UserAgentSummary(string? userAgent)
-    {
-        if (string.IsNullOrWhiteSpace(userAgent))
-        {
-            return "Client information unavailable";
-        }
-
-        var trimmed = userAgent.Trim();
-        return trimmed.Length <= 92 ? trimmed : $"{trimmed[..89]}…";
-    }
+    public AdminClientDescriptor ClientDescriptor(string? userAgent) => _clients.Describe(userAgent);
 }

@@ -469,6 +469,10 @@ builder.Services.AddScoped<IActivityTypeService, ActivityTypeService>();
 builder.Services.AddScoped<IActivityExportService, ActivityExportService>();
 builder.Services.Configure<UserLifecycleOptions>(
     builder.Configuration.GetSection("UserLifecycle"));
+builder.Services.AddOptions<AdminLoginMonitoringOptions>()
+    .Bind(builder.Configuration.GetSection(AdminLoginMonitoringOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<AdminLoginMonitoringOptions>, AdminLoginMonitoringOptionsValidator>();
 builder.Services.Configure<IprAttachmentOptions>(
     builder.Configuration.GetSection("IprAttachments"));
 builder.Services.Configure<FfcAttachmentOptions>(
@@ -489,6 +493,10 @@ builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddScoped<IAdminTimeService, AdminTimeService>();
 builder.Services.AddSingleton<IAdminRoleDescriptorCatalog, AdminRoleDescriptorCatalog>();
 builder.Services.AddSingleton<IAuditActionPresentationCatalog, AuditActionPresentationCatalog>();
+builder.Services.AddSingleton<IAdminClientDescriptorService, AdminClientDescriptorService>();
+builder.Services.AddSingleton<IAdminAuditPayloadParser, AdminAuditPayloadParser>();
+builder.Services.AddSingleton<IAdminAuditEntityLinkResolver, AdminAuditEntityLinkResolver>();
+builder.Services.AddSingleton<IAdminWorkerStatusRegistry, AdminWorkerStatusRegistry>();
 builder.Services.AddSingleton<IAdminNavigationUrlBuilder, AdminNavigationUrlBuilder>();
 builder.Services.AddScoped<IUserAccountStateResolver, UserAccountStateResolver>();
 builder.Services.AddScoped<ISafeCsvWriter, SafeCsvWriter>();
@@ -501,9 +509,11 @@ builder.Services.AddSingleton<IPdfIngestionRunGate, PdfIngestionRunGate>();
 builder.Services.AddScoped<IPdfIngestionCoordinator, PdfIngestionCoordinator>();
 builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 builder.Services.AddScoped<IAdminLoginOverviewService, AdminLoginOverviewService>();
+builder.Services.AddScoped<IAdminLoginMonitoringService, AdminLoginMonitoringService>();
 builder.Services.AddScoped<IAdminUserQueryService, AdminUserQueryService>();
 builder.Services.AddScoped<IAdminLogQueryService, AdminLogQueryService>();
 builder.Services.AddScoped<IDatabaseHealthService, DatabaseHealthService>();
+builder.Services.AddScoped<IAdminSystemHealthService, AdminSystemHealthService>();
 builder.Services.AddSingleton<IActionTrackerClock, SystemActionTrackerClock>();
 builder.Services.AddScoped<ITodoService, TodoService>();
 // SECTION: My Notebook services

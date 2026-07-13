@@ -11,28 +11,34 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Notifications;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Admin;
 
 namespace ProjectManagement.Services.Notifications;
 
 public sealed class NotificationRetentionService : BackgroundService
 {
+    private const string WorkerKey = "notification-retention";
     private static readonly TimeSpan DefaultIdleDelay = TimeSpan.FromMinutes(5);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptions<NotificationRetentionOptions> _options;
     private readonly IClock _clock;
     private readonly ILogger<NotificationRetentionService> _logger;
+    private readonly IAdminWorkerStatusRegistry? _status;
 
     public NotificationRetentionService(
         IServiceScopeFactory scopeFactory,
         IOptions<NotificationRetentionOptions> options,
         IClock clock,
-        ILogger<NotificationRetentionService> logger)
+        ILogger<NotificationRetentionService> logger,
+        IAdminWorkerStatusRegistry? status = null)
     {
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _status = status;
+        _status?.Register(WorkerKey, "Notification retention");
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -46,11 +52,17 @@ public sealed class NotificationRetentionService : BackgroundService
             {
                 if (options.IsRetentionEnabled())
                 {
+                    _status?.MarkStarted(WorkerKey);
                     var removed = await RunOnceAsync(stoppingToken);
+                    _status?.MarkSucceeded(WorkerKey, $"Removed {removed} notification record(s).");
                     if (removed > 0)
                     {
                         _logger.LogInformation("Notification retention removed {RemovedCount} notification records.", removed);
                     }
+                }
+                else
+                {
+                    _status?.MarkSucceeded(WorkerKey, "Retention is disabled by configuration.");
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -63,6 +75,7 @@ public sealed class NotificationRetentionService : BackgroundService
             }
             catch (Exception ex)
             {
+                _status?.MarkFailed(WorkerKey, ex);
                 _logger.LogError(ex, "Notification retention service failed to enforce retention policies.");
                 delay = DefaultIdleDelay;
             }

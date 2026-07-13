@@ -1,0 +1,44 @@
+@model ProjectManagement.Services.Admin.AdminSystemHealthCheck
+@using ProjectManagement.Services.Admin
+@{
+    var tone = Model.Status switch
+    {
+        AdminHealthStatus.Healthy => "success",
+        AdminHealthStatus.Warning => "warning",
+        AdminHealthStatus.Critical => "danger",
+        _ => "neutral"
+    };
+    var icon = Model.Status switch
+    {
+        AdminHealthStatus.Healthy => "bi-check-circle",
+        AdminHealthStatus.Warning => "bi-exclamation-triangle",
+        AdminHealthStatus.Critical => "bi-x-octagon",
+        _ => "bi-dash-circle"
+    };
+}
+
+<article class="admin-health-check admin-health-check--@tone">
+    <span class="admin-health-check__icon" aria-hidden="true"><i class="bi @icon"></i></span>
+    <div class="admin-health-check__body">
+        <div class="admin-health-check__heading">
+            <strong>@Model.Label</strong>
+            <span class="admin-status-pill admin-status-pill--@tone">@Model.Status</span>
+        </div>
+        <p>@Model.Summary</p>
+        @if (!string.IsNullOrWhiteSpace(Model.Detail))
+        {
+            <div class="admin-health-check__detail">@Model.Detail</div>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.RecommendedAction))
+        {
+            <div class="admin-health-check__action">
+                <i class="bi bi-arrow-right-circle" aria-hidden="true"></i>
+                <span>@Model.RecommendedAction</span>
+            </div>
+        }
+    </div>
+    <div class="admin-health-check__meta">
+        <span>@Model.DurationMilliseconds ms</span>
+        <time datetime="@Model.CheckedUtc.ToString("O")">@Model.CheckedUtc.ToString("HH:mm:ss") UTC</time>
+    </div>
+</article>

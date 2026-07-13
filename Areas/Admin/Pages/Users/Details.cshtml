@@ -217,6 +217,9 @@
                     <div class="admin-panel__eyebrow">Authentication</div>
                     <h2 id="admin-authentication-activity-title">Recent sign-in activity</h2>
                 </div>
+                <a class="admin-panel__action" asp-area="Admin" asp-page="/Analytics/Logins" asp-route-UserId="@Model.Account.Id">
+                    View all login activity <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                </a>
             </header>
             @if (Model.RecentAuthentication.Count == 0)
             {
@@ -233,6 +236,7 @@
                 <div class="admin-activity-timeline">
                     @foreach (var activity in Model.RecentAuthentication)
                     {
+                        var client = Model.ClientDescriptor(activity.UserAgent);
                         <article class="admin-activity-timeline__item admin-activity-timeline__item--@Model.AuthenticationTone(activity)">
                             <span class="admin-activity-timeline__icon" aria-hidden="true"><i class="bi @Model.AuthenticationIcon(activity)"></i></span>
                             <div class="admin-activity-timeline__content">
@@ -242,8 +246,15 @@
                                 </div>
                                 <div class="admin-activity-timeline__meta">
                                     <span><i class="bi bi-geo-alt" aria-hidden="true"></i> @(string.IsNullOrWhiteSpace(activity.Ip) ? "IP unavailable" : activity.Ip)</span>
-                                    <span title="@activity.UserAgent"><i class="bi bi-window" aria-hidden="true"></i> @Model.UserAgentSummary(activity.UserAgent)</span>
+                                    <span><i class="bi bi-window" aria-hidden="true"></i> @client.Summary</span>
                                 </div>
+                                @if (!string.IsNullOrWhiteSpace(client.RawUserAgent))
+                                {
+                                    <details class="admin-client-technical-details">
+                                        <summary>Technical client details</summary>
+                                        <code>@client.RawUserAgent</code>
+                                    </details>
+                                }
                             </div>
                         </article>
                     }
@@ -289,7 +300,7 @@
                                     <p>@activity.Message</p>
                                 }
                                 <div class="admin-activity-timeline__meta">
-                                    <span><i class="bi bi-person" aria-hidden="true"></i> @activity.Actor</span>
+                                    <span><i class="bi bi-person" aria-hidden="true"></i> Performed by @activity.Actor</span>
                                 </div>
                             </div>
                         </article>

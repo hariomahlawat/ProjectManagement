@@ -1,57 +1,358 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Analytics.LoginsModel
-@using Microsoft.AspNetCore.Authorization
-@attribute [Authorize(Roles="Admin")]
+@using System.Text.Json
+@using ProjectManagement.Services.Admin
 @{
-    ViewData["Title"] = "Login patterns";
+    ViewData["Title"] = "Login activity";
+
+    var trendData = Model.Snapshot.Trend.Select(point => new
+    {
+        date = point.Date.ToString("yyyy-MM-dd"),
+        successful = point.Successful,
+        failed = point.Failed,
+        lockedOut = point.LockedOut
+    });
+
+    var patternData = Model.Snapshot.PatternPoints.Select(point => new
+    {
+        date = point.LocalTime.ToString("yyyy-MM-dd"),
+        when = Model.FormatIst(point.WhenUtc),
+        minutes = point.MinutesOfDay,
+        user = point.DisplayName,
+        login = point.LoginName,
+        outcome = Model.OutcomeLabel(point.Outcome),
+        tone = Model.OutcomeTone(point.Outcome),
+        review = point.RequiresReview,
+        reason = point.ReviewReason
+    });
 }
 
-<nav aria-label="breadcrumb" class="mb-2">
-  <ol class="breadcrumb small mb-0">
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Analytics/Index">Analytics</a></li>
-    <li class="breadcrumb-item active" aria-current="page">Logins</li>
-  </ol>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+
+<section class="admin-monitoring-metric-grid" aria-label="Login activity summary">
+    @foreach (var metric in Model.Metrics)
+    {
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminMonitoringMetric.cshtml" model="metric" />
+    }
+</section>
+
+<section class="admin-panel admin-monitoring-filter-panel" aria-labelledby="login-filter-title">
+    <header class="admin-panel__header admin-panel__header--compact">
+        <div>
+            <div class="admin-panel__eyebrow">Monitoring scope</div>
+            <h2 id="login-filter-title">Filters and review rules</h2>
+        </div>
+        <span class="admin-panel__meta">@Model.Snapshot.FromDate.ToString("dd MMM yyyy") – @Model.Snapshot.ToDate.ToString("dd MMM yyyy")</span>
+    </header>
+
+    <form method="get" class="admin-filter-toolbar admin-filter-toolbar--monitoring">
+        <input type="hidden" name="PageNo" value="1" />
+
+        <div class="admin-filter-toolbar__field">
+            <label asp-for="Days">Period</label>
+            <select asp-for="Days" class="form-select" data-admin-monitoring-submit>
+                <option value="7">7 days</option>
+                <option value="30">30 days</option>
+                <option value="90">90 days</option>
+                <option value="180">180 days</option>
+                <option value="365">365 days</option>
+            </select>
+        </div>
+
+        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--wide">
+            <label asp-for="UserId">User</label>
+            <select asp-for="UserId" class="form-select" data-admin-monitoring-submit>
+                <option value="">All users</option>
+                @foreach (var user in Model.Snapshot.Users)
+                {
+                    <option value="@user.Id">@user.DisplayName (@($"@{user.UserName}"))</option>
+                }
+            </select>
+        </div>
+
+        <div class="admin-filter-toolbar__field">
+            <label asp-for="Outcome">Outcome</label>
+            <select asp-for="Outcome" class="form-select" data-admin-monitoring-submit>
+                <option value="">All outcomes</option>
+                <option value="successful">Successful</option>
+                <option value="failed">Failed</option>
+                <option value="locked-out">Locked out</option>
+            </select>
+        </div>
+
+        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--page-size">
+            <label asp-for="PageSize">Rows</label>
+            <select asp-for="PageSize" class="form-select" data-admin-monitoring-submit>
+                @foreach (var size in new[] { 10, 25, 50, 100 })
+                {
+                    <option value="@size">@size</option>
+                }
+            </select>
+        </div>
+
+        <div class="admin-filter-toolbar__checks">
+            <label class="form-check">
+                <input asp-for="ReviewOnly" class="form-check-input" data-admin-monitoring-submit />
+                <span class="form-check-label">Review signals only</span>
+            </label>
+            <label class="form-check">
+                <input asp-for="MarkWeekends" class="form-check-input" data-admin-monitoring-submit />
+                <span class="form-check-label">Mark weekends for review</span>
+            </label>
+        </div>
+
+        <div class="admin-filter-toolbar__actions">
+            <button class="btn btn-primary" type="submit">
+                <i class="bi bi-funnel" aria-hidden="true"></i>
+                Apply
+            </button>
+            @if (Model.HasFilters)
+            {
+                <a class="btn btn-outline-secondary" asp-page="./Logins">Clear</a>
+            }
+        </div>
+    </form>
+
+    <div class="admin-rule-summary">
+        <span><i class="bi bi-clock" aria-hidden="true"></i> Expected hours: @Model.Snapshot.WorkdayStart.ToString(@"hh\:mm")–@Model.Snapshot.WorkdayEnd.ToString(@"hh\:mm") IST</span>
+        <span><i class="bi bi-calendar-week" aria-hidden="true"></i> Weekends @(Model.Snapshot.MarkWeekendsForReview ? "are" : "are not") review signals</span>
+        <span><i class="bi bi-shield-check" aria-hidden="true"></i> Failed and locked-out attempts always require review</span>
+    </div>
+</section>
+
+<nav class="admin-section-nav" aria-label="Login activity sections">
+    <a href="#login-overview"><i class="bi bi-bar-chart-line" aria-hidden="true"></i> Overview</a>
+    <a href="#login-patterns"><i class="bi bi-bounding-box-circles" aria-hidden="true"></i> Time patterns</a>
+    <a href="#login-review"><i class="bi bi-eye" aria-hidden="true"></i> Review queue <span>@Model.Snapshot.ReviewTotal</span></a>
 </nav>
-<h3 class="mb-3">Login patterns</h3>
-<div class="card shadow-sm">
-  <div class="card-header d-flex justify-content-between align-items-center">
-    <span class="fw-semibold">Scatter</span>
-    <div class="d-flex align-items-center gap-2">
-      <select id="user" class="form-select form-select-sm">
-        <option value="">All users</option>
-        @foreach (var u in Model.Users) { <option value="@u.Id">@u.UserName</option> }
-      </select>
-      <select id="lookback" class="form-select form-select-sm">
-        <option value="7">7 days</option>
-        <option value="30" selected>30 days</option>
-        <option value="90">90 days</option>
-      </select>
-      <div class="form-check form-check-sm">
-        <input class="form-check-input" type="checkbox" id="weekendOdd">
-        <label class="form-check-label" for="weekendOdd">Mark weekends odd</label>
-      </div>
-      <button id="refresh" class="btn btn-sm btn-outline-primary">Refresh</button>
-      <a id="export" class="btn btn-sm btn-outline-secondary" href="#">Export CSV</a>
-    </div>
-  </div>
-  <div class="card-body">
-    <div class="chart-container-320">
-      <canvas id="loginsScatter"></canvas>
-    </div>
-    <div class="mt-3">
-      <h6>Odd logins</h6>
-      <div class="table-responsive">
-        <table class="table table-sm">
-          <thead><tr><th>When</th><th>User</th><th>Reason</th></tr></thead>
-          <tbody id="oddRows"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>
+
+<section id="login-overview" class="admin-monitoring-grid admin-monitoring-grid--overview">
+    <article class="admin-panel" aria-labelledby="login-trend-title">
+        <header class="admin-panel__header">
+            <div>
+                <div class="admin-panel__eyebrow">Authentication volume</div>
+                <h2 id="login-trend-title">Sign-ins over time</h2>
+            </div>
+            <span class="admin-panel__meta">IST calendar days</span>
+        </header>
+        @if (Model.Snapshot.Trend.Any(point => point.Successful + point.Failed + point.LockedOut > 0))
+        {
+            <div class="admin-chart-frame admin-chart-frame--trend">
+                <canvas id="adminLoginTrend"
+                        data-series="@JsonSerializer.Serialize(trendData)"
+                        aria-label="Daily successful, failed and locked-out sign-in totals"
+                        role="img"></canvas>
+            </div>
+        }
+        else
+        {
+            <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml"
+                     model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel
+                     {
+                         Icon = "bi-graph-up",
+                         Title = "No authentication activity",
+                         Description = "No sign-in events were recorded for the selected scope."
+                     })" />
+        }
+    </article>
+
+    <aside class="admin-panel" aria-labelledby="login-profile-title">
+        <header class="admin-panel__header">
+            <div>
+                <div class="admin-panel__eyebrow">Observed pattern</div>
+                <h2 id="login-profile-title">Time profile</h2>
+            </div>
+        </header>
+        <dl class="admin-monitoring-definition-list">
+            <div>
+                <dt>Median successful sign-in</dt>
+                <dd>@Model.FormatMinutes(Model.Snapshot.MedianMinutesOfDay) IST</dd>
+            </div>
+            <div>
+                <dt>90th percentile</dt>
+                <dd>@Model.FormatMinutes(Model.Snapshot.P90MinutesOfDay) IST</dd>
+            </div>
+            <div>
+                <dt>Source IPs</dt>
+                <dd>@Model.Snapshot.UniqueSourceIps.ToString("N0")</dd>
+            </div>
+            <div>
+                <dt>Analysed events</dt>
+                <dd>@Model.Snapshot.AnalysedEvents.Count.ToString("N0")</dd>
+            </div>
+        </dl>
+        @if (Model.Snapshot.IsTruncated)
+        {
+            <div class="admin-inline-notice admin-inline-notice--warning">
+                <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                <span>The point set reached the configured safety limit. Summary totals remain complete; charts show the most recent bounded sample.</span>
+            </div>
+        }
+    </aside>
+</section>
+
+<section id="login-patterns" class="admin-panel" aria-labelledby="login-patterns-title">
+    <header class="admin-panel__header">
+        <div>
+            <div class="admin-panel__eyebrow">Time analysis</div>
+            <h2 id="login-patterns-title">Sign-in time patterns</h2>
+        </div>
+        <div class="admin-chart-legend" aria-label="Chart legend">
+            <span><i class="admin-chart-dot admin-chart-dot--primary"></i> Expected pattern</span>
+            <span><i class="admin-chart-dot admin-chart-dot--warning"></i> Requires review</span>
+            <span><i class="admin-chart-dot admin-chart-dot--danger"></i> Failed or locked</span>
+        </div>
+    </header>
+
+    @if (Model.Snapshot.PatternPoints.Count > 0)
+    {
+        <div class="admin-chart-frame admin-chart-frame--pattern">
+            <canvas id="adminLoginPattern"
+                    data-points="@JsonSerializer.Serialize(patternData)"
+                    data-work-start="@((int)Model.Snapshot.WorkdayStart.TotalMinutes)"
+                    data-work-end="@((int)Model.Snapshot.WorkdayEnd.TotalMinutes)"
+                    data-median="@Model.Snapshot.MedianMinutesOfDay"
+                    data-p90="@Model.Snapshot.P90MinutesOfDay"
+                    aria-label="Sign-in events by date and time of day"
+                    role="img"></canvas>
+        </div>
+    }
+    else
+    {
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml"
+                 model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel
+                 {
+                     Icon = "bi-bounding-box-circles",
+                     Title = "No pattern points",
+                     Description = "No sign-in events match the current outcome and review filters."
+                 })" />
+    }
+</section>
+
+<section id="login-review" class="admin-panel admin-review-queue" aria-labelledby="login-review-title">
+    <header class="admin-panel__header">
+        <div>
+            <div class="admin-panel__eyebrow">Administrator review</div>
+            <h2 id="login-review-title">Review queue</h2>
+        </div>
+        <span class="admin-panel__meta">@Model.Snapshot.ReviewTotal.ToString("N0") event@(Model.Snapshot.ReviewTotal == 1 ? string.Empty : "s")</span>
+    </header>
+
+    @if (Model.Snapshot.ReviewRows.Count == 0)
+    {
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml"
+                 model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel
+                 {
+                     Icon = "bi-shield-check",
+                     Title = "No events require review",
+                     Description = "No authentication events match the configured review rules and current filters."
+                 })" />
+    }
+    else
+    {
+        <div class="admin-data-table-wrap">
+            <table class="admin-data-table admin-monitoring-table">
+                <thead>
+                    <tr>
+                        <th scope="col">When</th>
+                        <th scope="col">User</th>
+                        <th scope="col">Outcome</th>
+                        <th scope="col">Review reason</th>
+                        <th scope="col">Source</th>
+                        <th scope="col" class="admin-data-table__actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Snapshot.ReviewRows)
+                    {
+                        var client = Model.ClientDescriptor(row.UserAgent);
+                        var eventDate = DateOnly.FromDateTime(row.LocalTime.DateTime).ToString("yyyy-MM-dd");
+                        <tr>
+                            <td>
+                                <div class="admin-activity-value">
+                                    <strong>@Model.FormatIst(row.WhenUtc)</strong>
+                                    <span>@row.LocalTime.DayOfWeek</span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="admin-user-cell admin-user-cell--static">
+                                    <span class="admin-user-avatar admin-user-avatar--sm" aria-hidden="true">@(string.IsNullOrWhiteSpace(row.DisplayName) ? "U" : row.DisplayName[..1].ToUpperInvariant())</span>
+                                    <span class="admin-user-cell__copy">
+                                        <strong>@row.DisplayName</strong>
+                                        <span>@($"@{row.LoginName}")</span>
+                                    </span>
+                                </div>
+                            </td>
+                            <td><span class="admin-status-pill admin-status-pill--@Model.OutcomeTone(row.Outcome)"><i class="bi @Model.OutcomeIcon(row.Outcome)" aria-hidden="true"></i> @Model.OutcomeLabel(row.Outcome)</span></td>
+                            <td><span class="admin-review-reason">@row.ReviewReason</span></td>
+                            <td>
+                                <div class="admin-source-summary">
+                                    <strong>@(string.IsNullOrWhiteSpace(row.Ip) ? "IP unavailable" : row.Ip)</strong>
+                                    <span title="@client.RawUserAgent">@client.Summary</span>
+                                </div>
+                            </td>
+                            <td class="admin-data-table__actions">
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @row.DisplayName">
+                                        <i class="bi bi-three-dots" aria-hidden="true"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        @if (!string.IsNullOrWhiteSpace(row.UserId))
+                                        {
+                                            <li><a class="dropdown-item" asp-area="Admin" asp-page="/Users/Details" asp-route-id="@row.UserId"><i class="bi bi-person-vcard" aria-hidden="true"></i> View user account</a></li>
+                                        }
+                                        <li><a class="dropdown-item" asp-area="Admin" asp-page="/Logs/Index" asp-route-Category="authentication" asp-route-UserId="@row.UserId" asp-route-From="@eventDate" asp-route-To="@eventDate"><i class="bi bi-journal-text" aria-hidden="true"></i> View audit events</a></li>
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (Model.Snapshot.ReviewTotalPages > 1)
+        {
+            var firstPage = Math.Max(1, Model.Snapshot.ReviewPage - 2);
+            var lastPage = Math.Min(Model.Snapshot.ReviewTotalPages, Model.Snapshot.ReviewPage + 2);
+            <nav class="admin-pagination" aria-label="Login review queue pages">
+                <span>Page @Model.Snapshot.ReviewPage of @Model.Snapshot.ReviewTotalPages</span>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(Model.Snapshot.ReviewPage <= 1 ? "disabled" : string.Empty)">
+                        <a class="page-link" href="@ReviewPageUrl(Model.Snapshot.ReviewPage - 1)">Previous</a>
+                    </li>
+                    @for (var pageNumber = firstPage; pageNumber <= lastPage; pageNumber++)
+                    {
+                        <li class="page-item @(pageNumber == Model.Snapshot.ReviewPage ? "active" : string.Empty)">
+                            <a class="page-link" href="@ReviewPageUrl(pageNumber)">@pageNumber</a>
+                        </li>
+                    }
+                    <li class="page-item @(Model.Snapshot.ReviewPage >= Model.Snapshot.ReviewTotalPages ? "disabled" : string.Empty)">
+                        <a class="page-link" href="@ReviewPageUrl(Model.Snapshot.ReviewPage + 1)">Next</a>
+                    </li>
+                </ul>
+            </nav>
+        }
+    }
+</section>
+
+@functions {
+    string ReviewPageUrl(int pageNumber)
+    {
+        return Url.Page("./Logins", new
+        {
+            Days = Model.Days,
+            UserId = Model.UserId,
+            Outcome = Model.Outcome,
+            ReviewOnly = Model.ReviewOnly,
+            MarkWeekends = Model.MarkWeekends,
+            PageNo = pageNumber,
+            PageSize = Model.PageSize
+        }) ?? "#";
+    }
+}
 
 @section Scripts {
-  <script src="~/lib/chart.js/chart.umd.js" asp-append-version="true"></script>
-  <script type="module" src="~/js/analytics-logins.js" asp-append-version="true"></script>
+    <script src="~/lib/chart.js/chart.umd.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/admin/admin-login-activity.js" asp-append-version="true"></script>
 }
