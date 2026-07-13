@@ -2,194 +2,372 @@
 @model ProjectManagement.Areas.Admin.Pages.Users.IndexModel
 @{
     ViewData["Title"] = "Users";
+    var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 }
 
-<nav aria-label="breadcrumb" class="mb-2">
-  <ol class="breadcrumb small mb-0">
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
-    <li class="breadcrumb-item active" aria-current="page">Users</li>
-  </ol>
-</nav>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
 
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-  <div>
-    <h1 class="h3 mb-1">Users
-      <a class="ms-1 text-decoration-none" asp-area="Admin" asp-page="/Help/Index" asp-fragment="user-lifecycle" title="User administration help">
-        <i class="bi bi-question-circle"></i>
-      </a>
-    </h1>
-    <p class="text-muted mb-0">Manage accounts, roles and access state.</p>
-  </div>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-secondary btn-sm"
-       asp-page-handler="Export"
-       asp-route-q="@Model.Q"
-       asp-route-role="@Model.Role"
-       asp-route-status="@Model.Status">Export CSV</a>
-    <a class="btn btn-primary btn-sm" asp-page="Create"><i class="bi bi-person-plus me-1"></i>Create user</a>
-  </div>
-</div>
-@if (TempData[FlashMessageKeys.AdminUsersSuccess] is string successMessage)
-{
-  <div class="alert alert-success" role="status">@successMessage</div>
-}
-@if (TempData[FlashMessageKeys.AdminUsersError] is string errorMessage)
-{
-  <div class="alert alert-danger" role="alert">@errorMessage</div>
-}
+<section class="admin-user-status-strip" aria-label="User account summary">
+    @foreach (var filter in Model.StatusFilters)
+    {
+        <a class="admin-user-status-card admin-user-status-card--@filter.Tone@(Model.IsStatusActive(filter.Key) ? " is-active" : string.Empty)"
+           asp-page="./Index"
+           asp-route-q="@Model.Q"
+           asp-route-role="@Model.Role"
+           asp-route-status="@filter.Key"
+           asp-route-pageNo="1"
+           asp-route-pageSize="@Model.PageSize"
+           aria-current="@(Model.IsStatusActive(filter.Key) ? "true" : null)">
+            <span class="admin-user-status-card__icon" aria-hidden="true">
+                <i class="bi @filter.Icon"></i>
+            </span>
+            <span class="admin-user-status-card__copy">
+                <strong>@filter.Count.ToString("N0")</strong>
+                <span>@filter.Label</span>
+            </span>
+        </a>
+    }
+</section>
 
-<form method="get" class="card card-body shadow-sm mb-3">
-  <div class="row g-2 align-items-end">
-    <div class="col-lg-4">
-      <label class="form-label small" asp-for="Q">Search</label>
-      <input asp-for="Q" class="form-control form-control-sm" placeholder="Name, username, rank or role">
-    </div>
-    <div class="col-lg-3">
-      <label class="form-label small" asp-for="Role">Role</label>
-      <select asp-for="Role" class="form-select form-select-sm">
-        <option value="">All roles</option>
-        @foreach (var role in Model.AllRoles)
-        {
-          <option value="@role">@role</option>
-        }
-      </select>
-    </div>
-    <div class="col-lg-3">
-      <label class="form-label small" asp-for="Status">Account state</label>
-      <select asp-for="Status" class="form-select form-select-sm">
-        <option value="">All states</option>
-        <option value="active">Active</option>
-        <option value="must-change-password">Password change required</option>
-        <option value="locked">Temporarily locked</option>
-        <option value="disabled">Disabled</option>
-        <option value="pending-deletion">Pending deletion</option>
-      </select>
-    </div>
-    <div class="col-lg-2">
-      <div class="d-grid gap-2">
-        <button class="btn btn-sm btn-primary" type="submit">Apply filters</button>
-        <a class="btn btn-sm btn-outline-secondary" asp-page="Index">Reset</a>
-      </div>
-    </div>
-    <input type="hidden" asp-for="PageSize" />
-  </div>
-</form>
-
-<div class="d-flex justify-content-between align-items-center mb-2 small text-muted">
-  <span>@Model.Total user@(Model.Total == 1 ? string.Empty : "s")</span>
-  <span>Page @Model.PageNo of @Model.TotalPages</span>
-</div>
-
-<div class="table-responsive card shadow-sm">
-<table class="table table-sm align-middle mb-0">
-  <thead>
-    <tr>
-      <th scope="col">Username</th>
-      <th scope="col">Rank / name</th>
-      <th scope="col">Roles</th>
-      <th scope="col">Last login</th>
-      <th scope="col">Logins</th>
-      <th scope="col">Account state</th>
-      <th scope="col" class="text-end">Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-  @foreach (var row in Model.Users)
-  {
-    <tr>
-      <td class="fw-semibold">@row.UserName</td>
-      <td>
-        <div>@row.FullName</div>
-        <div class="small text-muted">@row.Rank</div>
-      </td>
-      <td>
-        @foreach (var role in row.Roles)
-        {
-          <span class="badge bg-light text-dark border me-1">@role</span>
-        }
-        @if (row.Roles.Count == 0)
-        {
-          <span class="text-muted small">No roles</span>
-        }
-      </td>
-      <td class="text-nowrap">@Model.FormatIst(row.LastLoginUtc)</td>
-      <td>@row.LoginCount</td>
-      <td>
-        <span class="badge @row.AccountState.BadgeCssClass">@row.AccountState.DisplayName</span>
-        @if (row.AccountState.LockoutEndUtc.HasValue)
-        {
-          <div class="small text-muted mt-1">Until @Model.FormatIst(row.AccountState.LockoutEndUtc)</div>
-        }
-      </td>
-      <td class="text-end">
-        <div class="dropdown">
-          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Actions</button>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li><a class="dropdown-item" asp-page="Edit" asp-route-id="@row.Id">Edit profile and roles</a></li>
-            <li><a class="dropdown-item" asp-page="Reset" asp-route-id="@row.Id">Reset password</a></li>
-            @if (row.AccountState.State == ProjectManagement.Services.Admin.AdminUserAccountState.Disabled)
-            {
-              <li><a class="dropdown-item" asp-page="Enable" asp-route-id="@row.Id">Enable account</a></li>
-            }
-            else if (row.AccountState.State != ProjectManagement.Services.Admin.AdminUserAccountState.PendingDeletion)
-            {
-              <li><a class="dropdown-item" asp-page="Disable" asp-route-id="@row.Id">Disable account</a></li>
-            }
-            @if (row.AccountState.State == ProjectManagement.Services.Admin.AdminUserAccountState.PendingDeletion)
-            {
-              <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item text-danger" asp-page="Delete" asp-route-id="@row.Id">Review deletion request</a></li>
-            }
-            else if (row.CanRequestHardDelete)
-            {
-              <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item text-danger" asp-page="Delete" asp-route-id="@row.Id">Request deletion</a></li>
-            }
-          </ul>
+<section class="admin-panel admin-user-directory" aria-labelledby="admin-user-directory-title">
+    <header class="admin-panel__header admin-panel__header--directory">
+        <div>
+            <div class="admin-panel__eyebrow">Account directory</div>
+            <h2 id="admin-user-directory-title">User accounts</h2>
         </div>
-      </td>
-    </tr>
-  }
-  @if (Model.Users.Count == 0)
-  {
-    <tr>
-      <td colspan="7" class="text-center text-muted py-4">
-        No users match the current filters.
-      </td>
-    </tr>
-  }
-  </tbody>
-</table>
-</div>
+        <div class="admin-directory-meta">
+            @if (Model.Total == 0)
+            {
+                <span>No matching accounts</span>
+            }
+            else
+            {
+                <span>Showing @Model.FirstRowNumber–@Model.LastRowNumber of @Model.Total.ToString("N0")</span>
+            }
+        </div>
+    </header>
+
+    <form method="get" class="admin-filter-toolbar" data-admin-users-filter>
+        <input type="hidden" name="PageNo" value="1" />
+
+        <div class="admin-filter-toolbar__search">
+            <label class="visually-hidden" asp-for="Q">Search users</label>
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <input asp-for="Q"
+                   class="form-control"
+                   maxlength="100"
+                   autocomplete="off"
+                   placeholder="Search name, username, rank or role" />
+        </div>
+
+        <div class="admin-filter-toolbar__field">
+            <label asp-for="Role">Role</label>
+            <select asp-for="Role" class="form-select" data-admin-auto-submit>
+                <option value="">All roles</option>
+                @foreach (var role in Model.AllRoles)
+                {
+                    <option value="@role">@role</option>
+                }
+            </select>
+        </div>
+
+        <div class="admin-filter-toolbar__field">
+            <label asp-for="Status">Account state</label>
+            <select asp-for="Status" class="form-select" data-admin-auto-submit>
+                <option value="">All states</option>
+                <option value="active">Active</option>
+                <option value="must-change-password">Password change required</option>
+                <option value="locked">Temporarily locked</option>
+                <option value="disabled">Disabled</option>
+                <option value="pending-deletion">Pending deletion</option>
+            </select>
+        </div>
+
+        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--page-size">
+            <label asp-for="PageSize">Rows</label>
+            <select asp-for="PageSize" class="form-select" data-admin-auto-submit>
+                @foreach (var pageSize in Model.PageSizeOptions)
+                {
+                    <option value="@pageSize">@pageSize</option>
+                }
+            </select>
+        </div>
+
+        <div class="admin-filter-toolbar__actions">
+            <button class="btn btn-primary" type="submit">
+                <i class="bi bi-funnel" aria-hidden="true"></i>
+                Apply
+            </button>
+            <a class="btn btn-outline-secondary"
+               asp-page-handler="Export"
+               asp-route-q="@Model.Q"
+               asp-route-role="@Model.Role"
+               asp-route-status="@Model.Status">
+                <i class="bi bi-download" aria-hidden="true"></i>
+                Export
+            </a>
+        </div>
+    </form>
+
+    @if (Model.HasFilters)
+    {
+        <div class="admin-active-filters" aria-label="Active filters">
+            <span class="admin-active-filters__label">
+                <i class="bi bi-funnel-fill" aria-hidden="true"></i>
+                @Model.ActiveFilterCount active filter@(Model.ActiveFilterCount == 1 ? string.Empty : "s")
+            </span>
+
+            @if (!string.IsNullOrWhiteSpace(Model.Q))
+            {
+                <a class="admin-filter-chip"
+                   asp-page="./Index"
+                   asp-route-role="@Model.Role"
+                   asp-route-status="@Model.Status"
+                   asp-route-pageSize="@Model.PageSize">
+                    Search: “@Model.Q” <i class="bi bi-x" aria-hidden="true"></i>
+                </a>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.Role))
+            {
+                <a class="admin-filter-chip"
+                   asp-page="./Index"
+                   asp-route-q="@Model.Q"
+                   asp-route-status="@Model.Status"
+                   asp-route-pageSize="@Model.PageSize">
+                    Role: @Model.Role <i class="bi bi-x" aria-hidden="true"></i>
+                </a>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.Status))
+            {
+                <a class="admin-filter-chip"
+                   asp-page="./Index"
+                   asp-route-q="@Model.Q"
+                   asp-route-role="@Model.Role"
+                   asp-route-pageSize="@Model.PageSize">
+                    State: @Model.StatusFilters.First(item => item.Key == Model.Status).Label
+                    <i class="bi bi-x" aria-hidden="true"></i>
+                </a>
+            }
+
+            <a class="admin-active-filters__clear" asp-page="./Index" asp-route-pageSize="@Model.PageSize">
+                Clear all
+            </a>
+        </div>
+    }
+
+    @if (Model.Users.Count > 0)
+    {
+        <div class="admin-data-table-wrap">
+            <table class="admin-data-table admin-user-table">
+                <thead>
+                    <tr>
+                        <th scope="col">User</th>
+                        <th scope="col">Roles</th>
+                        <th scope="col">Last activity</th>
+                        <th scope="col">Account state</th>
+                        <th scope="col" class="admin-data-table__actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.Users)
+                    {
+                        var displayName = string.IsNullOrWhiteSpace(row.FullName) ? row.UserName : row.FullName;
+                        var initial = string.IsNullOrWhiteSpace(displayName) ? "U" : displayName[..1].ToUpperInvariant();
+                        <tr>
+                            <td>
+                                <a class="admin-user-cell" asp-page="./Details" asp-route-id="@row.Id">
+                                    <span class="admin-user-avatar admin-user-avatar--sm" aria-hidden="true">@initial</span>
+                                    <span class="admin-user-cell__copy">
+                                        <strong>@displayName</strong>
+                                        <span>@(string.IsNullOrWhiteSpace(row.Rank) ? row.UserName : $"{row.Rank} · {row.UserName}")</span>
+                                    </span>
+                                </a>
+                            </td>
+                            <td>
+                                @if (row.Roles.Count == 0)
+                                {
+                                    <span class="admin-muted-value">No roles assigned</span>
+                                }
+                                else
+                                {
+                                    <div class="admin-role-badges">
+                                        @foreach (var role in row.Roles.Take(3))
+                                        {
+                                            <span class="admin-role-badge">@role</span>
+                                        }
+                                        @if (row.Roles.Count > 3)
+                                        {
+                                            <span class="admin-role-badge admin-role-badge--more">+@(row.Roles.Count - 3)</span>
+                                        }
+                                    </div>
+                                }
+                            </td>
+                            <td>
+                                <div class="admin-activity-value">
+                                    <strong>@Model.FormatIst(row.LastLoginUtc)</strong>
+                                    <span>@row.LoginCount.ToString("N0") successful login@(row.LoginCount == 1 ? string.Empty : "s")</span>
+                                </div>
+                            </td>
+                            <td>
+                                <partial name="~/Areas/Admin/Pages/Shared/_AdminUserStateBadge.cshtml" model="row.AccountState" />
+                                @if (row.AccountState.LockoutEndUtc.HasValue)
+                                {
+                                    <div class="admin-state-detail">Until @Model.FormatIst(row.AccountState.LockoutEndUtc)</div>
+                                }
+                            </td>
+                            <td class="admin-data-table__actions">
+                                <div class="dropdown">
+                                    <button class="admin-row-action"
+                                            type="button"
+                                            data-bs-toggle="dropdown"
+                                            aria-expanded="false"
+                                            aria-label="Actions for @displayName">
+                                        <i class="bi bi-three-dots" aria-hidden="true"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end admin-action-menu">
+                                        <li>
+                                            <a class="dropdown-item" asp-page="./Details" asp-route-id="@row.Id">
+                                                <i class="bi bi-person-vcard" aria-hidden="true"></i>
+                                                View account
+                                            </a>
+                                        </li>
+                                        @if (row.AccountState.State != AdminUserAccountState.PendingDeletion)
+                                        {
+                                            <li>
+                                                <a class="dropdown-item" asp-page="./Edit" asp-route-id="@row.Id">
+                                                    <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                                                    Edit profile and roles
+                                                </a>
+                                            </li>
+                                            <li>
+                                                <a class="dropdown-item" asp-page="./Reset" asp-route-id="@row.Id">
+                                                    <i class="bi bi-key" aria-hidden="true"></i>
+                                                    Reset password
+                                                </a>
+                                            </li>
+                                        }
+                                        @if (!string.Equals(row.Id, currentUserId, StringComparison.Ordinal))
+                                        {
+                                            @if (row.AccountState.State == AdminUserAccountState.Disabled)
+                                            {
+                                                <li>
+                                                    <a class="dropdown-item" asp-page="./Enable" asp-route-id="@row.Id">
+                                                        <i class="bi bi-person-check" aria-hidden="true"></i>
+                                                        Enable account
+                                                    </a>
+                                                </li>
+                                            }
+                                            else if (row.AccountState.State != AdminUserAccountState.PendingDeletion)
+                                            {
+                                                <li>
+                                                    <a class="dropdown-item" asp-page="./Disable" asp-route-id="@row.Id">
+                                                        <i class="bi bi-person-slash" aria-hidden="true"></i>
+                                                        Disable account
+                                                    </a>
+                                                </li>
+                                            }
+                                            @if (row.AccountState.State == AdminUserAccountState.PendingDeletion || row.CanRequestHardDelete)
+                                            {
+                                                <li><hr class="dropdown-divider" /></li>
+                                                <li>
+                                                    <a class="dropdown-item text-danger" asp-page="./Delete" asp-route-id="@row.Id">
+                                                        <i class="bi bi-person-x" aria-hidden="true"></i>
+                                                        @(row.AccountState.State == AdminUserAccountState.PendingDeletion ? "Review deletion" : "Request deletion")
+                                                    </a>
+                                                </li>
+                                            }
+                                        }
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml"
+                 model="@(new AdminEmptyStateModel
+                 {
+                     Title = Model.HasFilters ? "No users match these filters" : "No user accounts found",
+                     Description = Model.HasFilters
+                         ? "Change or clear the current filters to broaden the directory results."
+                         : "Create the first account to begin managing PRISM access.",
+                     Icon = Model.HasFilters ? "bi-search" : "bi-people",
+                     ActionText = Model.HasFilters ? "Clear filters" : "Create user",
+                     ActionHref = Model.HasFilters ? Url.Page("./Index") : Url.Page("./Create")
+                 })" />
+    }
+</section>
 
 @if (Model.TotalPages > 1)
 {
-  var first = Math.Max(1, Model.PageNo - 2);
-  var last = Math.Min(Model.TotalPages, Model.PageNo + 2);
-  <nav aria-label="User list pages" class="mt-3">
-    <ul class="pagination pagination-sm justify-content-end">
-      <li class="page-item @(Model.PageNo <= 1 ? "disabled" : null)">
-        <a class="page-link" asp-route-pageNo="@(Model.PageNo - 1)" asp-route-q="@Model.Q" asp-route-role="@Model.Role" asp-route-status="@Model.Status" asp-route-pageSize="@Model.PageSize">Previous</a>
-      </li>
-      @if (first > 1)
-      {
-        <li class="page-item"><a class="page-link" asp-route-pageNo="1" asp-route-q="@Model.Q" asp-route-role="@Model.Role" asp-route-status="@Model.Status" asp-route-pageSize="@Model.PageSize">1</a></li>
-        @if (first > 2) { <li class="page-item disabled"><span class="page-link">…</span></li> }
-      }
-      @for (var pageNumber = first; pageNumber <= last; pageNumber++)
-      {
-        <li class="page-item @(pageNumber == Model.PageNo ? "active" : null)">
-          <a class="page-link" asp-route-pageNo="@pageNumber" asp-route-q="@Model.Q" asp-route-role="@Model.Role" asp-route-status="@Model.Status" asp-route-pageSize="@Model.PageSize">@pageNumber</a>
-        </li>
-      }
-      @if (last < Model.TotalPages)
-      {
-        @if (last < Model.TotalPages - 1) { <li class="page-item disabled"><span class="page-link">…</span></li> }
-        <li class="page-item"><a class="page-link" asp-route-pageNo="@Model.TotalPages" asp-route-q="@Model.Q" asp-route-role="@Model.Role" asp-route-status="@Model.Status" asp-route-pageSize="@Model.PageSize">@Model.TotalPages</a></li>
-      }
-      <li class="page-item @(Model.PageNo >= Model.TotalPages ? "disabled" : null)">
-        <a class="page-link" asp-route-pageNo="@(Model.PageNo + 1)" asp-route-q="@Model.Q" asp-route-role="@Model.Role" asp-route-status="@Model.Status" asp-route-pageSize="@Model.PageSize">Next</a>
-      </li>
-    </ul>
-  </nav>
+    var firstPage = Math.Max(1, Model.PageNo - 2);
+    var lastPage = Math.Min(Model.TotalPages, Model.PageNo + 2);
+    <nav class="admin-pagination" aria-label="User directory pages">
+        <div class="admin-pagination__summary">Page @Model.PageNo of @Model.TotalPages</div>
+        <ul class="pagination pagination-sm mb-0">
+            <li class="page-item @(Model.PageNo <= 1 ? "disabled" : null)">
+                <a class="page-link"
+                   asp-route-pageNo="@(Model.PageNo - 1)"
+                   asp-route-q="@Model.Q"
+                   asp-route-role="@Model.Role"
+                   asp-route-status="@Model.Status"
+                   asp-route-pageSize="@Model.PageSize"
+                   aria-label="Previous page">
+                    <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                </a>
+            </li>
+            @if (firstPage > 1)
+            {
+                <li class="page-item">
+                    <a class="page-link" asp-route-pageNo="1" asp-route-q="@Model.Q" asp-route-role="@Model.Role" asp-route-status="@Model.Status" asp-route-pageSize="@Model.PageSize">1</a>
+                </li>
+                @if (firstPage > 2)
+                {
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                }
+            }
+            @for (var pageNumber = firstPage; pageNumber <= lastPage; pageNumber++)
+            {
+                <li class="page-item @(pageNumber == Model.PageNo ? "active" : null)">
+                    <a class="page-link"
+                       asp-route-pageNo="@pageNumber"
+                       asp-route-q="@Model.Q"
+                       asp-route-role="@Model.Role"
+                       asp-route-status="@Model.Status"
+                       asp-route-pageSize="@Model.PageSize"
+                       aria-current="@(pageNumber == Model.PageNo ? "page" : null)">@pageNumber</a>
+                </li>
+            }
+            @if (lastPage < Model.TotalPages)
+            {
+                @if (lastPage < Model.TotalPages - 1)
+                {
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                }
+                <li class="page-item">
+                    <a class="page-link" asp-route-pageNo="@Model.TotalPages" asp-route-q="@Model.Q" asp-route-role="@Model.Role" asp-route-status="@Model.Status" asp-route-pageSize="@Model.PageSize">@Model.TotalPages</a>
+                </li>
+            }
+            <li class="page-item @(Model.PageNo >= Model.TotalPages ? "disabled" : null)">
+                <a class="page-link"
+                   asp-route-pageNo="@(Model.PageNo + 1)"
+                   asp-route-q="@Model.Q"
+                   asp-route-role="@Model.Role"
+                   asp-route-status="@Model.Status"
+                   asp-route-pageSize="@Model.PageSize"
+                   aria-label="Next page">
+                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                </a>
+            </li>
+        </ul>
+    </nav>
+}
+
+@section Scripts {
+    <script type="module" src="~/js/admin/admin-users.js" asp-append-version="true"></script>
 }

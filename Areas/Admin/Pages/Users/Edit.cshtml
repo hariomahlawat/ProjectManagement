@@ -2,63 +2,101 @@
 @model ProjectManagement.Areas.Admin.Pages.Users.EditModel
 @{
     ViewData["Title"] = "Edit user";
+    var roleGrid = new AdminRoleSelectionGridModel
+    {
+        Roles = Model.RoleOptions,
+        SelectedRoles = Model.Input.Roles,
+        InputName = "Input.Roles",
+        IdPrefix = "edit-role"
+    };
 }
-<nav aria-label="breadcrumb" class="mb-2">
-  <ol class="breadcrumb small mb-0">
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Users/Index">Users</a></li>
-    <li class="breadcrumb-item active" aria-current="page">Edit</li>
-  </ol>
-</nav>
-<h4 class="mb-2">Edit user @Model.UserName</h4>
-<div class="pm-card pm-shadow p-4 p-md-5">
-  <form method="post">
-    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
+
+@if (Model.Account is not null)
+{
+    <section class="admin-panel admin-user-form-context" aria-label="Account being edited">
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminUserIdentity.cshtml" model="Model.Account" />
+    </section>
+}
+
+<form method="post" class="admin-user-form" novalidate>
     <input type="hidden" asp-for="Input.Id" />
+    <div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
 
-    <div class="mb-3">
-      <label asp-for="Input.Rank" class="form-label"></label>
-      <input asp-for="Input.Rank" class="form-control" maxlength="32" />
-      <span asp-validation-for="Input.Rank" class="text-danger"></span>
-    </div>
-
-    <div class="mb-3">
-      <label asp-for="Input.FullName" class="form-label"></label>
-      <input asp-for="Input.FullName" class="form-control" maxlength="100" />
-      <span asp-validation-for="Input.FullName" class="text-danger"></span>
-    </div>
-
-    <fieldset class="mb-3">
-      <legend class="form-label">Roles</legend>
-      @foreach (var role in Model.Roles)
-      {
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" name="Input.Roles" value="@role" id="edit-role-@role" @(Model.Input.Roles.Contains(role) ? "checked" : null) />
-          <label class="form-check-label" for="edit-role-@role">@role</label>
+    <section class="admin-form-section" aria-labelledby="edit-user-identity-title">
+        <header class="admin-form-section__header">
+            <span class="admin-form-section__step">01</span>
+            <div>
+                <h2 id="edit-user-identity-title">Identity</h2>
+                <p>Update the official name and rank displayed in PRISM. The username remains permanent.</p>
+            </div>
+        </header>
+        <div class="admin-form-section__body">
+            <div class="admin-form-grid admin-form-grid--three">
+                <div class="admin-field">
+                    <label>Username</label>
+                    <input class="form-control" value="@Model.Account?.UserName" disabled aria-describedby="username-immutable-note" />
+                    <span id="username-immutable-note" class="admin-field__hint">The sign-in name cannot be changed from this workflow.</span>
+                </div>
+                <div class="admin-field">
+                    <label asp-for="Input.Rank"></label>
+                    <input asp-for="Input.Rank" class="form-control" maxlength="32" autocomplete="organization-title" />
+                    <span asp-validation-for="Input.Rank" class="text-danger"></span>
+                </div>
+                <div class="admin-field">
+                    <label asp-for="Input.FullName"></label>
+                    <input asp-for="Input.FullName" class="form-control" maxlength="100" autocomplete="name" />
+                    <span asp-validation-for="Input.FullName" class="text-danger"></span>
+                </div>
+            </div>
         </div>
-      }
-      <span asp-validation-for="Input.Roles" class="text-danger"></span>
-    </fieldset>
+    </section>
 
-    <div class="mb-3">
-      <label class="form-label">Status</label>
-      <div>
-        @if (Model.Input.IsDisabled)
-        {
-          <span class="badge bg-danger">Disabled</span>
-          <a class="btn btn-sm btn-outline-success ms-2" asp-page="Enable" asp-route-id="@Model.Input.Id">Change…</a>
-        }
-        else
-        {
-          <span class="badge bg-success">Active</span>
-          <a class="btn btn-sm btn-outline-warning ms-2" asp-page="Disable" asp-route-id="@Model.Input.Id">Change…</a>
-        }
-      </div>
-    </div>
+    <section class="admin-form-section" aria-labelledby="edit-user-roles-title">
+        <header class="admin-form-section__header">
+            <span class="admin-form-section__step">02</span>
+            <div>
+                <h2 id="edit-user-roles-title">Roles and access</h2>
+                <p>Review the complete role set. Removing or adding roles refreshes the account security state.</p>
+            </div>
+        </header>
+        <div class="admin-form-section__body">
+            <partial name="~/Areas/Admin/Pages/Shared/_AdminRoleSelectionGrid.cshtml" model="roleGrid" />
+            <span asp-validation-for="Input.Roles" class="text-danger"></span>
+        </div>
+    </section>
 
-    <div class="d-flex gap-2">
-      <button class="btn btn-primary" type="submit">Save</button>
-      <a asp-page="Index" class="btn btn-secondary">Cancel</a>
-    </div>
-  </form>
-</div>
+    <section class="admin-form-section admin-form-section--compact" aria-labelledby="edit-user-state-title">
+        <header class="admin-form-section__header">
+            <span class="admin-form-section__step">03</span>
+            <div>
+                <h2 id="edit-user-state-title">Account state</h2>
+                <p>Lifecycle controls are separated from profile editing to prevent accidental access changes.</p>
+            </div>
+        </header>
+        <div class="admin-form-section__body admin-form-section__body--state">
+            @if (Model.Account is not null)
+            {
+                <partial name="~/Areas/Admin/Pages/Shared/_AdminUserStateBadge.cshtml" model="Model.Account.AccountState" />
+                <a asp-page="./Details" asp-route-id="@Model.Account.Id" class="btn btn-sm btn-outline-secondary">
+                    Review lifecycle actions
+                </a>
+            }
+        </div>
+    </section>
+
+    <footer class="admin-form-actions">
+        <a asp-page="./Details" asp-route-id="@Model.Input.Id" class="btn btn-outline-secondary">Cancel</a>
+        <button class="btn btn-primary" type="submit">
+            <i class="bi bi-check2" aria-hidden="true"></i>
+            Save changes
+        </button>
+    </footer>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script type="module" src="~/js/admin/admin-users.js" asp-append-version="true"></script>
+}

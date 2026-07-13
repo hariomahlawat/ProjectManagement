@@ -487,6 +487,8 @@ builder.Services.AddHostedService<UserPurgeWorker>();
 builder.Services.AddSingleton<IClock, SystemClock>();
 // SECTION: Shared Admin module foundations
 builder.Services.AddScoped<IAdminTimeService, AdminTimeService>();
+builder.Services.AddSingleton<IAdminRoleDescriptorCatalog, AdminRoleDescriptorCatalog>();
+builder.Services.AddSingleton<IAuditActionPresentationCatalog, AuditActionPresentationCatalog>();
 builder.Services.AddSingleton<IAdminNavigationUrlBuilder, AdminNavigationUrlBuilder>();
 builder.Services.AddScoped<IUserAccountStateResolver, UserAccountStateResolver>();
 builder.Services.AddScoped<ISafeCsvWriter, SafeCsvWriter>();

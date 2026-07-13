@@ -1,0 +1,52 @@
+@model AdminRoleSelectionGridModel
+@{
+    var selected = new HashSet<string>(Model.SelectedRoles, StringComparer.OrdinalIgnoreCase);
+    var privilegedSelected = Model.Roles.Any(role => role.IsPrivileged && selected.Contains(role.Name));
+}
+<div class="admin-role-grid" data-admin-role-grid>
+    @for (var index = 0; index < Model.Roles.Count; index++)
+    {
+        var role = Model.Roles[index];
+        var inputId = $"{Model.IdPrefix}-{index}";
+        var isChecked = selected.Contains(role.Name);
+
+        <label class="admin-role-option@(isChecked ? " is-selected" : string.Empty)@(role.IsPrivileged ? " is-privileged" : string.Empty)"
+               for="@inputId"
+               data-admin-role-option>
+            <input class="admin-role-option__input"
+                   type="checkbox"
+                   name="@Model.InputName"
+                   value="@role.Name"
+                   id="@inputId"
+                   checked="@isChecked"
+                   data-admin-role-checkbox
+                   data-privileged="@(role.IsPrivileged ? "true" : "false")" />
+            <span class="admin-role-option__icon" aria-hidden="true">
+                <i class="bi @role.Icon"></i>
+            </span>
+            <span class="admin-role-option__copy">
+                <span class="admin-role-option__title-row">
+                    <strong>@role.DisplayName</strong>
+                    @if (role.IsPrivileged)
+                    {
+                        <span class="admin-role-option__privileged">Privileged</span>
+                    }
+                </span>
+                <span class="admin-role-option__category">@role.Category</span>
+                <span class="admin-role-option__description">@role.Description</span>
+            </span>
+            <span class="admin-role-option__check" aria-hidden="true">
+                <i class="bi bi-check-lg"></i>
+            </span>
+        </label>
+    }
+</div>
+<div class="admin-role-selection-summary" aria-live="polite">
+    <span data-admin-role-count>@selected.Count role@(selected.Count == 1 ? string.Empty : "s") selected</span>
+    <span class="admin-role-selection-summary__warning"
+          data-admin-privileged-warning
+          hidden="@(!privilegedSelected)">
+        <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
+        Privileged access selected. Verify operational need before saving.
+    </span>
+</div>

@@ -163,7 +163,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
                 || audit.Action.StartsWith("Documents.")
                 || audit.Action.StartsWith("Calendar."))
             .OrderByDescending(audit => audit.TimeUtc)
-            .Take(10)
+            .Take(6)
             .Select(audit => new
             {
                 audit.Level,

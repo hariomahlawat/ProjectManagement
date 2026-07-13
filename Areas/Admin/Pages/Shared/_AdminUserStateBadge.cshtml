@@ -1,0 +1,25 @@
+@model AdminUserAccountStateInfo
+@{
+    var tone = Model.State switch
+    {
+        AdminUserAccountState.Active => "success",
+        AdminUserAccountState.MustChangePassword => "info",
+        AdminUserAccountState.TemporarilyLocked => "warning",
+        AdminUserAccountState.Disabled => "neutral",
+        AdminUserAccountState.PendingDeletion => "danger",
+        _ => "neutral"
+    };
+    var icon = Model.State switch
+    {
+        AdminUserAccountState.Active => "bi-check-circle",
+        AdminUserAccountState.MustChangePassword => "bi-key",
+        AdminUserAccountState.TemporarilyLocked => "bi-lock",
+        AdminUserAccountState.Disabled => "bi-person-slash",
+        AdminUserAccountState.PendingDeletion => "bi-person-x",
+        _ => "bi-circle"
+    };
+}
+<span class="admin-state-badge admin-state-badge--@tone">
+    <i class="bi @icon" aria-hidden="true"></i>
+    <span>@Model.DisplayName</span>
+</span>

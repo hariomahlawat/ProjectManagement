@@ -1,40 +1,94 @@
 @page "{id}"
 @model ProjectManagement.Areas.Admin.Pages.Users.ResetModel
-<nav aria-label="breadcrumb" class="mb-2">
-  <ol class="breadcrumb small mb-0">
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Users/Index">Users</a></li>
-    <li class="breadcrumb-item active" aria-current="page">Reset password</li>
-  </ol>
-</nav>
-<h4 class="mb-2">Reset password</h4>
-<div class="pm-card pm-shadow p-4 p-md-5">
-  <form method="post">
-    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-    <div class="mb-3">
-      <label class="form-label">New password</label>
-      <div class="password-container">
-        <input asp-for="NewPassword" class="form-control" autocomplete="new-password" data-generated-length="@Model.GeneratedPasswordLength"
-               data-required-unique="@Model.RequiredUniqueCharacters"
-               minlength="@Model.MinimumPasswordLength" />
-        <button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false">
-          <i class="eye-open bi bi-eye"></i>
-          <i class="eye-closed bi bi-eye-slash" hidden></i>
-        </button>
-      </div>
-      <div class="mt-2 d-flex gap-2">
-        <button type="button" id="genPwd" class="btn btn-sm btn-outline-secondary">Generate</button>
-        <button type="button" id="cpyPwd" class="btn btn-sm btn-outline-secondary">Copy</button>
-      </div>
-      <span class="form-text pm-field-hint">@Model.PasswordPolicyDescription The user will be required to change it at next login.</span>
-      <span asp-validation-for="NewPassword" class="text-danger"></span>
+@{
+    ViewData["Title"] = "Reset password";
+}
+
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+
+@if (Model.Account is not null)
+{
+    <div class="admin-operation-layout">
+        <section class="admin-operation-card" aria-labelledby="reset-password-title">
+            <partial name="~/Areas/Admin/Pages/Shared/_AdminUserIdentity.cshtml" model="Model.Account" />
+
+            <div class="admin-operation-card__content">
+                <div class="admin-operation-heading">
+                    <span class="admin-operation-heading__icon admin-operation-heading__icon--warning"><i class="bi bi-key" aria-hidden="true"></i></span>
+                    <div>
+                        <h2 id="reset-password-title">Issue a temporary password</h2>
+                        <p>This operation invalidates the user’s current sessions and requires a password change at the next sign-in.</p>
+                    </div>
+                </div>
+
+                <form method="post" class="admin-operation-form" novalidate>
+                    <input type="hidden" asp-for="Input.Id" />
+                    <div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
+
+                    <div class="admin-field">
+                        <label asp-for="Input.Password"></label>
+                        <div class="password-container">
+                            <input asp-for="Input.Password"
+                                   class="form-control"
+                                   autocomplete="new-password"
+                                   data-generated-length="@Model.GeneratedPasswordLength"
+                                   data-required-unique="@Model.RequiredUniqueCharacters"
+                                   minlength="@Model.MinimumPasswordLength" />
+                            <button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false">
+                                <i class="eye-open bi bi-eye" aria-hidden="true"></i>
+                                <i class="eye-closed bi bi-eye-slash" aria-hidden="true" hidden></i>
+                            </button>
+                        </div>
+                        <span asp-validation-for="Input.Password" class="text-danger"></span>
+                        <div class="admin-password-actions">
+                            <button type="button" id="generatePwd" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-stars" aria-hidden="true"></i> Generate secure password
+                            </button>
+                            <button type="button" id="copyPwd" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-clipboard" aria-hidden="true"></i> Copy
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="admin-inline-notice admin-inline-notice--warning">
+                        <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
+                        <div>
+                            <strong>Password policy</strong>
+                            <span>@Model.PasswordPolicyDescription</span>
+                        </div>
+                    </div>
+
+                    <label class="admin-confirm-check">
+                        <input asp-for="Input.Acknowledge" class="form-check-input" />
+                        <span>I understand that existing sessions will be invalidated and the user must change this temporary password at next sign-in.</span>
+                    </label>
+                    <span asp-validation-for="Input.Acknowledge" class="text-danger"></span>
+
+                    <div class="admin-operation-actions">
+                        <a asp-page="./Details" asp-route-id="@Model.Account.Id" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-warning">
+                            <i class="bi bi-key" aria-hidden="true"></i>
+                            Reset password
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <aside class="admin-operation-guidance">
+            <h2>Security handling</h2>
+            <ul>
+                <li>Use the generator unless an approved temporary credential has already been issued.</li>
+                <li>Share the password through an approved secure channel.</li>
+                <li>Do not retain the password in PRISM remarks, tickets or audit notes.</li>
+            </ul>
+        </aside>
     </div>
-    <button class="btn btn-danger" type="submit">Reset</button>
-    <a asp-page="Index" class="btn btn-secondary">Cancel</a>
-  </form>
-</div>
+}
 
 @section Scripts {
+    <partial name="_ValidationScriptsPartial" />
     <script type="module" src="~/js/utils/password-toggle.js"></script>
     <script type="module" src="~/js/users/reset.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/admin/admin-users.js" asp-append-version="true"></script>
 }

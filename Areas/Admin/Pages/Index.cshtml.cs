@@ -15,13 +15,16 @@ public sealed class AdminIndexModel : PageModel
 {
     private readonly IAdminDashboardService _dashboard;
     private readonly IAdminNavigationUrlBuilder _navigation;
+    private readonly IAuditActionPresentationCatalog _auditActions;
 
     public AdminIndexModel(
         IAdminDashboardService dashboard,
-        IAdminNavigationUrlBuilder navigation)
+        IAdminNavigationUrlBuilder navigation,
+        IAuditActionPresentationCatalog auditActions)
     {
         _dashboard = dashboard ?? throw new ArgumentNullException(nameof(dashboard));
         _navigation = navigation ?? throw new ArgumentNullException(nameof(navigation));
+        _auditActions = auditActions ?? throw new ArgumentNullException(nameof(auditActions));
     }
 
     public AdminPageHeaderModel Header { get; private set; } = new();
@@ -46,6 +49,10 @@ public sealed class AdminIndexModel : PageModel
 
     public string OperationalSummary { get; private set; } =
         "No immediate administrative action is indicated by the current dashboard metrics.";
+
+    public string OperationalActionText { get; private set; } = "View system health";
+
+    public string? OperationalActionHref { get; private set; }
 
     public string OperationalIcon => OperationalTone switch
     {
@@ -112,6 +119,7 @@ public sealed class AdminIndexModel : PageModel
 
         LinkGroups = BuildLinkGroups();
         ResolveOperationalStatus(Metrics);
+        ResolveOperationalAction();
     }
 
     public string? NavigationHref(
@@ -126,17 +134,8 @@ public sealed class AdminIndexModel : PageModel
         _ => "neutral"
     };
 
-    public string HumaniseAction(string? action)
-    {
-        if (string.IsNullOrWhiteSpace(action))
-        {
-            return "Administrative action";
-        }
-
-        return action
-            .Replace('.', ' ')
-            .Replace('_', ' ');
-    }
+    public AuditActionPresentation ActionPresentation(AdminDashboardAction action) =>
+        _auditActions.Describe(action.Action, action.Level);
 
     private IReadOnlyList<AdminMetricCardModel> BuildMetricCards(AdminDashboardMetrics metrics) =>
         new[]
@@ -261,6 +260,21 @@ public sealed class AdminIndexModel : PageModel
             })
             .Where(link => !string.IsNullOrWhiteSpace(link.Href))
             .ToArray();
+
+
+    private void ResolveOperationalAction()
+    {
+        var priority = AttentionItems.FirstOrDefault();
+        if (priority is not null && !string.IsNullOrWhiteSpace(priority.Href))
+        {
+            OperationalActionText = priority.LinkText;
+            OperationalActionHref = priority.Href;
+            return;
+        }
+
+        OperationalActionText = "View system health";
+        OperationalActionHref = NavigationHref(AdminNavigationKeys.DatabaseHealth);
+    }
 
     private void ResolveOperationalStatus(AdminDashboardMetrics metrics)
     {

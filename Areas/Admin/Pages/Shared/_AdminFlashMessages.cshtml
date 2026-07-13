@@ -1,0 +1,28 @@
+@if (TempData[FlashMessageKeys.AdminUsersSuccess] is string successMessage
+    && !string.IsNullOrWhiteSpace(successMessage))
+{
+    <div class="admin-flash admin-flash--success" role="status" data-admin-flash>
+        <span class="admin-flash__icon" aria-hidden="true"><i class="bi bi-check-circle"></i></span>
+        <div class="admin-flash__copy">
+            <strong>Completed</strong>
+            <span>@successMessage</span>
+        </div>
+        <button type="button" class="admin-flash__dismiss" data-admin-flash-dismiss aria-label="Dismiss notification">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+    </div>
+}
+@if (TempData[FlashMessageKeys.AdminUsersError] is string errorMessage
+    && !string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="admin-flash admin-flash--danger" role="alert" data-admin-flash>
+        <span class="admin-flash__icon" aria-hidden="true"><i class="bi bi-exclamation-octagon"></i></span>
+        <div class="admin-flash__copy">
+            <strong>Action not completed</strong>
+            <span>@errorMessage</span>
+        </div>
+        <button type="button" class="admin-flash__dismiss" data-admin-flash-dismiss aria-label="Dismiss notification">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+    </div>
+}

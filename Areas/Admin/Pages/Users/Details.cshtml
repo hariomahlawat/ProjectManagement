@@ -1,0 +1,305 @@
+@page "{id}"
+@model ProjectManagement.Areas.Admin.Pages.Users.DetailsModel
+@{
+    ViewData["Title"] = Model.Account is null
+        ? "User account"
+        : (string.IsNullOrWhiteSpace(Model.Account.FullName) ? Model.Account.UserName : Model.Account.FullName);
+}
+
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
+
+@if (Model.Account is not null)
+{
+    <section class="admin-panel admin-user-profile-hero" aria-labelledby="admin-user-profile-title">
+        <h2 id="admin-user-profile-title" class="visually-hidden">User identity and account state</h2>
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminUserIdentity.cshtml" model="Model.Account" />
+        <div class="admin-user-profile-hero__facts" aria-label="Account summary">
+            <div>
+                <span>Last successful sign-in</span>
+                <strong>@(Model.Account.LastLoginUtc.HasValue ? Model.FormatIst(Model.Account.LastLoginUtc) : "No recorded sign-in")</strong>
+            </div>
+            <div>
+                <span>Successful sign-ins</span>
+                <strong>@Model.Account.LoginCount.ToString("N0")</strong>
+            </div>
+            <div>
+                <span>Account created</span>
+                <strong>@Model.FormatIst(Model.Account.CreatedUtc)</strong>
+            </div>
+        </div>
+    </section>
+
+    <div class="admin-user-profile-grid">
+        <section class="admin-panel" aria-labelledby="admin-account-state-title">
+            <header class="admin-panel__header">
+                <div>
+                    <div class="admin-panel__eyebrow">Security state</div>
+                    <h2 id="admin-account-state-title">Account status</h2>
+                </div>
+            </header>
+            <div class="admin-panel__body">
+                <dl class="admin-definition-list">
+                    <div>
+                        <dt>Current state</dt>
+                        <dd><partial name="~/Areas/Admin/Pages/Shared/_AdminUserStateBadge.cshtml" model="Model.Account.AccountState" /></dd>
+                    </div>
+                    <div>
+                        <dt>Password change</dt>
+                        <dd>@(Model.Account.MustChangePassword ? "Required at next sign-in" : "Not required")</dd>
+                    </div>
+                    <div>
+                        <dt>Failed access count</dt>
+                        <dd>@Model.Account.AccessFailedCount.ToString("N0")</dd>
+                    </div>
+                    @if (Model.Account.AccountState.State == AdminUserAccountState.TemporarilyLocked && Model.Account.LockoutEndUtc.HasValue)
+                    {
+                        <div>
+                            <dt>Lockout ends</dt>
+                            <dd>@Model.FormatIst(Model.Account.LockoutEndUtc)</dd>
+                        </div>
+                    }
+                    @if (Model.Account.DisabledUtc.HasValue)
+                    {
+                        <div>
+                            <dt>Disabled</dt>
+                            <dd>
+                                @Model.FormatIst(Model.Account.DisabledUtc)
+                                @if (!string.IsNullOrWhiteSpace(Model.Account.DisabledBy))
+                                {
+                                    <span class="admin-definition-list__secondary">by @Model.Account.DisabledBy</span>
+                                }
+                            </dd>
+                        </div>
+                    }
+                    @if (Model.Account.DeletionRequestedUtc.HasValue)
+                    {
+                        <div>
+                            <dt>Deletion requested</dt>
+                            <dd>
+                                @Model.FormatIst(Model.Account.DeletionRequestedUtc)
+                                @if (!string.IsNullOrWhiteSpace(Model.Account.DeletionRequestedBy))
+                                {
+                                    <span class="admin-definition-list__secondary">by @Model.Account.DeletionRequestedBy</span>
+                                }
+                            </dd>
+                        </div>
+                    }
+                    @if (Model.Account.ScheduledPurgeUtc.HasValue)
+                    {
+                        <div>
+                            <dt>Scheduled removal</dt>
+                            <dd class="text-danger-emphasis">@Model.FormatIst(Model.Account.ScheduledPurgeUtc)</dd>
+                        </div>
+                    }
+                </dl>
+            </div>
+        </section>
+
+        <section class="admin-panel" aria-labelledby="admin-account-roles-title">
+            <header class="admin-panel__header">
+                <div>
+                    <div class="admin-panel__eyebrow">Authorisation</div>
+                    <h2 id="admin-account-roles-title">Assigned roles</h2>
+                </div>
+                @if (Model.Account.AccountState.State != AdminUserAccountState.PendingDeletion)
+                {
+                    <a class="admin-panel__action" asp-page="./Edit" asp-route-id="@Model.Account.Id">
+                        Edit roles <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    </a>
+                }
+            </header>
+            @if (Model.RoleDescriptors.Count == 0)
+            {
+                <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml"
+                         model="@(new AdminEmptyStateModel
+                         {
+                             Icon = "bi-person-exclamation",
+                             Title = "No roles assigned",
+                             Description = "This legacy account has no effective role. Assign an authorised role before it is used.",
+                             ActionText = Model.Account.AccountState.State == AdminUserAccountState.PendingDeletion ? null : "Assign roles",
+                             ActionHref = Model.Account.AccountState.State == AdminUserAccountState.PendingDeletion
+                                 ? null
+                                 : Url.Page("./Edit", new { id = Model.Account.Id })
+                         })" />
+            }
+            else
+            {
+                <div class="admin-role-access-list">
+                    @foreach (var role in Model.RoleDescriptors)
+                    {
+                        <article class="admin-role-access-item@(role.IsPrivileged ? " is-privileged" : string.Empty)">
+                            <span class="admin-role-access-item__icon" aria-hidden="true"><i class="bi @role.Icon"></i></span>
+                            <div>
+                                <div class="admin-role-access-item__title">
+                                    <strong>@role.DisplayName</strong>
+                                    @if (role.IsPrivileged)
+                                    {
+                                        <span>Privileged</span>
+                                    }
+                                </div>
+                                <p>@role.Description</p>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="admin-panel admin-account-actions" aria-labelledby="admin-account-actions-title">
+            <header class="admin-panel__header">
+                <div>
+                    <div class="admin-panel__eyebrow">Controlled operations</div>
+                    <h2 id="admin-account-actions-title">Account actions</h2>
+                </div>
+            </header>
+            <div class="admin-account-action-list">
+                @if (Model.Account.AccountState.State != AdminUserAccountState.PendingDeletion)
+                {
+                    <a asp-page="./Edit" asp-route-id="@Model.Account.Id" class="admin-account-action">
+                        <span class="admin-account-action__icon"><i class="bi bi-pencil-square" aria-hidden="true"></i></span>
+                        <span><strong>Edit account</strong><small>Update identity details and assigned roles.</small></span>
+                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                    </a>
+
+                    <a asp-page="./Reset" asp-route-id="@Model.Account.Id" class="admin-account-action">
+                        <span class="admin-account-action__icon"><i class="bi bi-key" aria-hidden="true"></i></span>
+                        <span><strong>Reset password</strong><small>Issue a temporary password and end current sessions.</small></span>
+                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                    </a>
+                }
+
+                @if (!Model.IsCurrentUser && Model.Account.AccountState.State == AdminUserAccountState.Disabled)
+                {
+                    <a asp-page="./Enable" asp-route-id="@Model.Account.Id" class="admin-account-action admin-account-action--success">
+                        <span class="admin-account-action__icon"><i class="bi bi-person-check" aria-hidden="true"></i></span>
+                        <span><strong>Enable account</strong><small>Restore sign-in access and clear account lockout.</small></span>
+                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                    </a>
+                }
+                else if (!Model.IsCurrentUser
+                    && Model.Account.AccountState.State != AdminUserAccountState.PendingDeletion)
+                {
+                    <a asp-page="./Disable" asp-route-id="@Model.Account.Id" class="admin-account-action admin-account-action--warning">
+                        <span class="admin-account-action__icon"><i class="bi bi-person-slash" aria-hidden="true"></i></span>
+                        <span><strong>Disable account</strong><small>Block access while preserving records and ownership history.</small></span>
+                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                    </a>
+                }
+
+                @if (!Model.IsCurrentUser
+                    && (Model.Account.CanRequestHardDelete || Model.Account.AccountState.State == AdminUserAccountState.PendingDeletion))
+                {
+                    <a asp-page="./Delete" asp-route-id="@Model.Account.Id" class="admin-account-action admin-account-action--danger">
+                        <span class="admin-account-action__icon"><i class="bi bi-person-x" aria-hidden="true"></i></span>
+                        <span>
+                            <strong>@(Model.Account.AccountState.State == AdminUserAccountState.PendingDeletion ? "Review deletion request" : "Delete mistaken account")</strong>
+                            <small>Available only for newly created accounts and subject to an undo window.</small>
+                        </span>
+                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                    </a>
+                }
+            </div>
+            @if (Model.IsCurrentUser)
+            {
+                <div class="admin-inline-notice admin-inline-notice--info">
+                    <i class="bi bi-info-circle" aria-hidden="true"></i>
+                    <span>Self-disable and self-deletion controls are intentionally unavailable for the signed-in administrator.</span>
+                </div>
+            }
+        </section>
+    </div>
+
+    <div class="admin-user-activity-grid">
+        <section class="admin-panel" aria-labelledby="admin-authentication-activity-title">
+            <header class="admin-panel__header">
+                <div>
+                    <div class="admin-panel__eyebrow">Authentication</div>
+                    <h2 id="admin-authentication-activity-title">Recent sign-in activity</h2>
+                </div>
+            </header>
+            @if (Model.RecentAuthentication.Count == 0)
+            {
+                <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml"
+                         model="@(new AdminEmptyStateModel
+                         {
+                             Icon = "bi-box-arrow-in-right",
+                             Title = "No sign-in activity",
+                             Description = "No recent authentication events are available for this account."
+                         })" />
+            }
+            else
+            {
+                <div class="admin-activity-timeline">
+                    @foreach (var activity in Model.RecentAuthentication)
+                    {
+                        <article class="admin-activity-timeline__item admin-activity-timeline__item--@Model.AuthenticationTone(activity)">
+                            <span class="admin-activity-timeline__icon" aria-hidden="true"><i class="bi @Model.AuthenticationIcon(activity)"></i></span>
+                            <div class="admin-activity-timeline__content">
+                                <div class="admin-activity-timeline__heading">
+                                    <strong>@Model.AuthenticationLabel(activity)</strong>
+                                    <time datetime="@activity.WhenUtc.ToString("O")">@Model.FormatIst(activity.WhenUtc)</time>
+                                </div>
+                                <div class="admin-activity-timeline__meta">
+                                    <span><i class="bi bi-geo-alt" aria-hidden="true"></i> @(string.IsNullOrWhiteSpace(activity.Ip) ? "IP unavailable" : activity.Ip)</span>
+                                    <span title="@activity.UserAgent"><i class="bi bi-window" aria-hidden="true"></i> @Model.UserAgentSummary(activity.UserAgent)</span>
+                                </div>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="admin-panel" aria-labelledby="admin-administrative-activity-title">
+            <header class="admin-panel__header">
+                <div>
+                    <div class="admin-panel__eyebrow">Audit history</div>
+                    <h2 id="admin-administrative-activity-title">Recent account changes</h2>
+                </div>
+                <a class="admin-panel__action" asp-area="Admin" asp-page="/Logs/Index" asp-route-Contains="@Model.Account.Id">
+                    View audit logs <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                </a>
+            </header>
+            @if (Model.RecentAdministrativeActivity.Count == 0)
+            {
+                <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml"
+                         model="@(new AdminEmptyStateModel
+                         {
+                             Icon = "bi-journal-check",
+                             Title = "No recent account changes",
+                             Description = "No recent administrative actions affecting this account were found."
+                         })" />
+            }
+            else
+            {
+                <div class="admin-activity-timeline">
+                    @foreach (var activity in Model.RecentAdministrativeActivity)
+                    {
+                        var presentation = Model.AuditPresentation(activity);
+                        <article class="admin-activity-timeline__item admin-activity-timeline__item--@presentation.Tone">
+                            <span class="admin-activity-timeline__icon" aria-hidden="true"><i class="bi @presentation.Icon"></i></span>
+                            <div class="admin-activity-timeline__content">
+                                <div class="admin-activity-timeline__heading">
+                                    <strong>@presentation.Label</strong>
+                                    <time datetime="@activity.WhenUtc.ToString("O")">@Model.FormatIst(activity.WhenUtc)</time>
+                                </div>
+                                @if (!string.Equals(activity.Message, activity.Action, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <p>@activity.Message</p>
+                                }
+                                <div class="admin-activity-timeline__meta">
+                                    <span><i class="bi bi-person" aria-hidden="true"></i> @activity.Actor</span>
+                                </div>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+}
+
+@section Scripts {
+    <script type="module" src="~/js/admin/admin-users.js" asp-append-version="true"></script>
+}

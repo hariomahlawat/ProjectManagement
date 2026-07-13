@@ -2,112 +2,190 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.Extensions.Logging;
+using ProjectManagement.Areas.Admin.Models;
+using ProjectManagement.Configuration;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Admin;
 
-namespace ProjectManagement.Areas.Admin.Pages.Users
+namespace ProjectManagement.Areas.Admin.Pages.Users;
+
+[Authorize(Policy = AdminPolicies.UsersManage)]
+[ResponseCache(NoStore = true)]
+public sealed class EditModel : PageModel
 {
-    [Authorize(Policy = ProjectManagement.Configuration.AdminPolicies.UsersManage)]
-    public class EditModel : PageModel
+    private readonly IUserManagementService _users;
+    private readonly IAdminUserQueryService _queries;
+    private readonly IAdminRoleDescriptorCatalog _roleCatalog;
+    private readonly ILogger<EditModel> _logger;
+
+    public EditModel(
+        IUserManagementService users,
+        IAdminUserQueryService queries,
+        IAdminRoleDescriptorCatalog roleCatalog,
+        ILogger<EditModel> logger)
     {
-        private readonly IUserManagementService _users;
-        private readonly ILogger<EditModel> _logger;
+        _users = users ?? throw new ArgumentNullException(nameof(users));
+        _queries = queries ?? throw new ArgumentNullException(nameof(queries));
+        _roleCatalog = roleCatalog ?? throw new ArgumentNullException(nameof(roleCatalog));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
 
-        public EditModel(IUserManagementService users, ILogger<EditModel> logger)
+    [BindProperty]
+    public InputModel Input { get; set; } = new();
+
+    public AdminUserDetails? Account { get; private set; }
+
+    public AdminPageHeaderModel Header { get; private set; } = new();
+
+    public IReadOnlyList<AdminRoleDescriptor> RoleOptions { get; private set; } =
+        Array.Empty<AdminRoleDescriptor>();
+
+    public sealed class InputModel
+    {
+        [Required]
+        public string Id { get; set; } = string.Empty;
+
+        [Required, Display(Name = "Full name")]
+        [StringLength(100)]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required, Display(Name = "Rank")]
+        [StringLength(32)]
+        public string Rank { get; set; } = string.Empty;
+
+        [MinLength(1, ErrorMessage = "Assign at least one role to the user.")]
+        public List<string> Roles { get; set; } = new();
+    }
+
+    public async Task<IActionResult> OnGetAsync(string id, CancellationToken cancellationToken)
+    {
+        Account = await _queries.GetDetailsAsync(id, cancellationToken);
+        if (Account is null)
         {
-            _users = users;
-            _logger = logger;
+            return NotFound();
         }
 
-        [BindProperty]
-        public InputModel Input { get; set; } = new();
-
-        public IList<string> Roles { get; private set; } = new List<string>();
-
-        public string? UserName { get; private set; }
-
-        public class InputModel
+        if (Account.AccountState.State == AdminUserAccountState.PendingDeletion)
         {
-            [Required]
-            public string Id { get; set; } = string.Empty;
-
-            [Required, Display(Name = "Full name")]
-            [StringLength(100)]
-            public string FullName { get; set; } = string.Empty;
-
-            [Required, Display(Name = "Rank")]
-            [StringLength(32)]
-            public string Rank { get; set; } = string.Empty;
-
-            [Required, Display(Name = "Roles")]
-            public List<string> Roles { get; set; } = new();
-
-            public bool IsDisabled { get; set; }
+            TempData[FlashMessageKeys.AdminUsersError] = "Undo the deletion request before editing this account.";
+            return RedirectToPage("./Details", new { id });
         }
 
-        public async Task<IActionResult> OnGetAsync(string id)
+        Input = new InputModel
         {
-            var user = await _users.GetUserByIdAsync(id);
-            if (user is null)
-            {
-                return NotFound();
-            }
+            Id = Account.Id,
+            FullName = Account.FullName,
+            Rank = Account.Rank,
+            Roles = Account.Roles.ToList()
+        };
 
-            Roles = await _users.GetRolesAsync();
-            var userRoles = await _users.GetUserRolesAsync(id);
+        await LoadPresentationAsync(cancellationToken);
+        return Page();
+    }
 
-            Input = new InputModel
-            {
-                Id = id,
-                FullName = user.FullName,
-                Rank = user.Rank,
-                Roles = userRoles.ToList(),
-                IsDisabled = user.IsDisabled
-            };
+    public async Task<IActionResult> OnPostAsync(string id, CancellationToken cancellationToken)
+    {
+        Input.Id = string.IsNullOrWhiteSpace(Input.Id) ? id : Input.Id;
+        NormaliseInput();
+        ModelState.Clear();
+        TryValidateModel(Input, nameof(Input));
 
-            UserName = user.UserName;
+        if (!string.Equals(Input.Id, id, StringComparison.Ordinal))
+        {
+            return BadRequest();
+        }
+
+        Account = await _queries.GetDetailsAsync(id, cancellationToken);
+        if (Account is null)
+        {
+            return NotFound();
+        }
+
+        await LoadPresentationAsync(cancellationToken);
+
+        if (Account.AccountState.State == AdminUserAccountState.PendingDeletion)
+        {
+            ModelState.AddModelError(string.Empty, "Undo the deletion request before editing this account.");
+        }
+
+        var availableRoleNames = RoleOptions
+            .Select(role => role.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (Input.Roles.Any(role => !availableRoleNames.Contains(role)))
+        {
+            ModelState.AddModelError("Input.Roles", "One or more selected roles are not available.");
+        }
+
+        if (!ModelState.IsValid)
+        {
             return Page();
         }
 
-        public async Task<IActionResult> OnPostAsync()
+        var result = await _users.UpdateUserAsync(
+            Input.Id,
+            Input.FullName,
+            Input.Rank,
+            Input.Roles);
+
+        if (!result.Succeeded)
         {
-            Roles = await _users.GetRolesAsync();
-            var user = await _users.GetUserByIdAsync(Input.Id);
-            if (user is null)
+            foreach (var error in result.Errors)
             {
-                return NotFound();
+                ModelState.AddModelError(string.Empty, error.Description);
             }
 
-            UserName = user.UserName;
-            Input.IsDisabled = user.IsDisabled;
-
-            if (!ModelState.IsValid)
-            {
-                return Page();
-            }
-
-            var result = await _users.UpdateUserAsync(Input.Id, Input.FullName, Input.Rank, Input.Roles);
-            if (!result.Succeeded)
-            {
-                foreach (var error in result.Errors)
-                {
-                    ModelState.AddModelError(string.Empty, error.Description);
-                }
-
-                return Page();
-            }
-
-            _logger.LogInformation(
-                "Admin {Admin} updated user {UserId}: name {FullName}; rank {Rank}; roles {Roles}",
-                User.Identity?.Name,
-                Input.Id,
-                Input.FullName,
-                Input.Rank,
-                string.Join(',', Input.Roles));
-
-            TempData[FlashMessageKeys.AdminUsersSuccess] = "User updated.";
-            return RedirectToPage("Index");
+            return Page();
         }
+
+        _logger.LogInformation(
+            "Administrator {Administrator} updated user {UserId} with roles {Roles}.",
+            User.Identity?.Name,
+            Input.Id,
+            string.Join(',', Input.Roles));
+
+        TempData[FlashMessageKeys.AdminUsersSuccess] = $"Account @{Account.UserName} was updated.";
+        return RedirectToPage("./Details", new { id = Input.Id });
+    }
+
+    private async Task LoadPresentationAsync(CancellationToken cancellationToken)
+    {
+        var roles = await _users.GetRolesAsync();
+        RoleOptions = _roleCatalog.DescribeMany(roles);
+
+        var title = Account is null
+            ? "Edit user"
+            : $"Edit {(string.IsNullOrWhiteSpace(Account.FullName) ? Account.UserName : Account.FullName)}";
+        Header = new AdminPageHeaderModel
+        {
+            Eyebrow = "People and access",
+            Title = title,
+            Description = Account is null
+                ? "Update identity details and assigned roles."
+                : $"Update identity details and access for @{Account.UserName}.",
+            Icon = "bi-person-gear",
+            Actions = Account is null
+                ? Array.Empty<AdminPageActionModel>()
+                : new[]
+                {
+                    new AdminPageActionModel
+                    {
+                        Text = "Back to account",
+                        Href = Url.Page("./Details", new { id = Account.Id }),
+                        Icon = "bi-arrow-left"
+                    }
+                }
+        };
+    }
+
+    private void NormaliseInput()
+    {
+        Input.Id = Input.Id?.Trim() ?? string.Empty;
+        Input.FullName = Input.FullName?.Trim() ?? string.Empty;
+        Input.Rank = Input.Rank?.Trim() ?? string.Empty;
+        Input.Roles = (Input.Roles ?? new List<string>())
+            .Where(role => !string.IsNullOrWhiteSpace(role))
+            .Select(role => role.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 }

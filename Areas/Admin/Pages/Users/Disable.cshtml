@@ -1,31 +1,75 @@
 @page "{id}"
 @model ProjectManagement.Areas.Admin.Pages.Users.DisableModel
-<nav aria-label="breadcrumb" class="mb-2">
-  <ol class="breadcrumb small mb-0">
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Users/Index">Users</a></li>
-    <li class="breadcrumb-item active" aria-current="page">Disable</li>
-  </ol>
-</nav>
-<h4 class="mb-2">Disable user</h4>
-<div class="pm-card pm-shadow p-4 p-md-5">
-  <p>Disabling an account prevents the user from signing in. All associated data such as projects, remarks and tasks is preserved. Use this when a member leaves or is temporarily away. Use Delete only when policy requires permanent removal.</p>
-  <form method="post" id="disableForm">
-    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-    <div class="mb-3">
-      <label asp-for="Reason" class="form-label">Reason (optional)</label>
-      <textarea asp-for="Reason" class="form-control"></textarea>
+@{
+    ViewData["Title"] = "Disable account";
+}
+
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+
+@if (Model.Account is not null)
+{
+    <div class="admin-operation-layout">
+        <section class="admin-operation-card admin-operation-card--warning" aria-labelledby="disable-account-title">
+            <partial name="~/Areas/Admin/Pages/Shared/_AdminUserIdentity.cshtml" model="Model.Account" />
+            <div class="admin-operation-card__content">
+                <div class="admin-operation-heading">
+                    <span class="admin-operation-heading__icon admin-operation-heading__icon--warning"><i class="bi bi-person-slash" aria-hidden="true"></i></span>
+                    <div>
+                        <h2 id="disable-account-title">Block account access</h2>
+                        <p>The user will be signed out and unable to authenticate. Existing project records, remarks and ownership history remain intact.</p>
+                    </div>
+                </div>
+
+                <form method="post" class="admin-operation-form" data-admin-confirmation novalidate>
+                    <div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
+
+                    <div class="admin-field">
+                        <label asp-for="Reason"></label>
+                        <textarea asp-for="Reason" class="form-control" rows="4" maxlength="500" placeholder="Record the operational or administrative reason"></textarea>
+                        <span class="admin-field__hint">The reason is retained in the audit trail.</span>
+                        <span asp-validation-for="Reason" class="text-danger"></span>
+                    </div>
+
+                    <div class="admin-confirmation-box">
+                        <label asp-for="ConfirmUser">Type <strong>@Model.Account.UserName</strong> to confirm</label>
+                        <input asp-for="ConfirmUser"
+                               class="form-control"
+                               autocomplete="off"
+                               spellcheck="false"
+                               data-admin-confirm-username
+                               data-expected="@Model.Account.UserName" />
+                        <span asp-validation-for="ConfirmUser" class="text-danger"></span>
+
+                        <label class="admin-confirm-check">
+                            <input asp-for="Acknowledge" class="form-check-input" data-admin-confirm-ack />
+                            <span>I understand that this immediately blocks the user’s access and invalidates current sessions.</span>
+                        </label>
+                        <span asp-validation-for="Acknowledge" class="text-danger"></span>
+                    </div>
+
+                    <div class="admin-operation-actions">
+                        <a asp-page="./Details" asp-route-id="@Model.Account.Id" class="btn btn-outline-secondary">Cancel</a>
+                        <button type="submit" class="btn btn-warning" data-admin-confirm-submit>
+                            <i class="bi bi-person-slash" aria-hidden="true"></i>
+                            Disable account
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <aside class="admin-operation-guidance">
+            <h2>Use disable when</h2>
+            <ul>
+                <li>The user has moved appointments or no longer requires access.</li>
+                <li>The account must be suspended while records and attribution are preserved.</li>
+                <li>There is a security concern requiring immediate access revocation.</li>
+            </ul>
+        </aside>
     </div>
-    <input id="confirmUser" asp-for="ConfirmUser" class="form-control" placeholder="Type username to confirm" data-expected="@Model.UserEntity?.UserName" data-button="btnDisable" />
-    <div class="form-check mt-2">
-      <input class="form-check-input" asp-for="Ack" id="ack" />
-      <label class="form-check-label" for="ack">I understand this will prevent the user from signing in.</label>
-    </div>
-    <button id="btnDisable" type="button" class="btn btn-warning mt-3" data-bs-toggle="modal" data-bs-target="#confirmDisable" disabled>Disable</button>
-    <a asp-page="Index" class="btn btn-secondary mt-3">Cancel</a>
-  </form>
-  <partial name="../Shared/_ConfirmModal" model="@(new ConfirmModal("confirmDisable", "Disable user", "The user will no longer be able to sign in.", "disableForm", "Disable"))" />
-</div>
+}
+
 @section Scripts {
-  <script type="module" src="~/js/users/confirm-user.js" asp-append-version="true"></script>
+    <partial name="_ValidationScriptsPartial" />
+    <script type="module" src="~/js/admin/admin-users.js" asp-append-version="true"></script>
 }

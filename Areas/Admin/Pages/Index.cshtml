@@ -22,8 +22,8 @@
         <p>@Model.OperationalSummary</p>
     </div>
     <a class="admin-operational-status__action"
-       href="@Model.NavigationHref(AdminNavigationKeys.DatabaseHealth)">
-        View system health
+       href="@Model.OperationalActionHref">
+        @Model.OperationalActionText
         <i class="bi bi-arrow-right" aria-hidden="true"></i>
     </a>
 </section>
@@ -104,15 +104,18 @@
             <div class="admin-activity-list">
                 @foreach (var action in Model.RecentAdminActions)
                 {
+                    var presentation = Model.ActionPresentation(action);
                     <article class="admin-activity-item">
-                        <span class="admin-activity-item__level admin-activity-item__level--@Model.LevelCss(action.Level)"
+                        <span class="admin-activity-item__level admin-activity-item__level--@presentation.Tone"
                               aria-label="@action.Level">
-                            <i class="bi @(Model.LevelCss(action.Level) == "danger" ? "bi-x-octagon" : Model.LevelCss(action.Level) == "warning" ? "bi-exclamation-triangle" : "bi-check2")"
-                               aria-hidden="true"></i>
+                            <i class="bi @presentation.Icon" aria-hidden="true"></i>
                         </span>
                         <div class="admin-activity-item__copy">
-                            <h3>@Model.HumaniseAction(action.Action)</h3>
-                            <p>@action.Message</p>
+                            <h3>@presentation.Label</h3>
+                            @if (!string.Equals(action.Message, action.Action, StringComparison.OrdinalIgnoreCase))
+                            {
+                                <p>@action.Message</p>
+                            }
                             <div class="admin-activity-item__meta">
                                 <span><i class="bi bi-person" aria-hidden="true"></i>@action.Actor</span>
                                 <time>@action.WhenLocal</time>

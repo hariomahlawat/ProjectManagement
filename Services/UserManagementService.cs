@@ -151,6 +151,11 @@ namespace ProjectManagement.Services
                 return Failure("User not found.");
             }
 
+            if (user.PendingDeletion)
+            {
+                return Failure("Undo the deletion request before editing this account.");
+            }
+
             var roleResolution = await ResolveRolesAsync(roles);
             if (!roleResolution.Result.Succeeded)
             {
@@ -280,6 +285,11 @@ namespace ProjectManagement.Services
                 return Failure("User not found.");
             }
 
+            if (user.PendingDeletion)
+            {
+                return Failure("Undo the deletion request before resetting this account's password.");
+            }
+
             await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database);
 
             try
@@ -400,6 +410,11 @@ namespace ProjectManagement.Services
                 .Where(role => !string.IsNullOrWhiteSpace(role))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
+
+            if (requested.Length == 0)
+            {
+                return (Failure("Assign at least one role to the user."), Array.Empty<string>());
+            }
 
             var available = await _roleManager.Roles
                 .Where(role => role.Name != null)

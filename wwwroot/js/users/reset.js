@@ -1,10 +1,15 @@
 import { generatePassword } from '../utils/password.js';
 
 function boot() {
-  const pwdInput = document.getElementById('NewPassword');
-  const genBtn = document.getElementById('genPwd');
-  const copyBtn = document.getElementById('cpyPwd');
+  const pwdInput = document.getElementById('Input_Password')
+    ?? document.getElementById('NewPassword');
+  const genBtn = document.getElementById('generatePwd')
+    ?? document.getElementById('genPwd');
+  const copyBtn = document.getElementById('copyPwd')
+    ?? document.getElementById('cpyPwd');
   if (!pwdInput || !genBtn || !copyBtn) return;
+
+  const originalCopyMarkup = copyBtn.innerHTML;
 
   genBtn.addEventListener('click', () => {
     const generatedLength = Number.parseInt(pwdInput.dataset.generatedLength || '16', 10);
@@ -13,7 +18,7 @@ function boot() {
       Number.isFinite(generatedLength) ? generatedLength : 16,
       Number.isFinite(requiredUnique) ? requiredUnique : 1,
     );
-    pwdInput.dispatchEvent(new Event('input', { bubbles: true })); // keep client validation synced
+    pwdInput.dispatchEvent(new Event('input', { bubbles: true }));
   });
 
   copyBtn.addEventListener('click', async () => {
@@ -22,15 +27,20 @@ function boot() {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(text);
       } else {
-        const ta = document.createElement('textarea');
-        ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
-        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        textarea.remove();
       }
       copyBtn.textContent = 'Copied';
     } catch {
       copyBtn.textContent = 'Copy failed';
     }
-    setTimeout(() => (copyBtn.textContent = 'Copy'), 1000);
+    setTimeout(() => { copyBtn.innerHTML = originalCopyMarkup; }, 1000);
   });
 }
 
