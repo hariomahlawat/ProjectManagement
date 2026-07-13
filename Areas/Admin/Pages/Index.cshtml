@@ -1,232 +1,170 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.AdminIndexModel
+@using ProjectManagement.Areas.Admin.Models
 @using ProjectManagement.Services.Navigation.ModuleNav
 @{
-    ViewData["Title"] = "Admin dashboard";
-    var metrics = Model.Metrics;
+    ViewData["Title"] = "Administration";
 }
 
-<nav aria-label="breadcrumb" class="mb-2">
-  <ol class="breadcrumb small mb-0">
-    <li class="breadcrumb-item active" aria-current="page">Admin</li>
-  </ol>
-</nav>
-<h3 class="mb-3">Admin dashboard</h3>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 
-@* Top metrics row: always visible without scrolling *@
-<div class="row g-3 mb-3">
-  <div class="col-md-4">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-1">
-          <div class="small text-muted">Manage Users</div>
-          <a href="@Model.NavigationHref(AdminNavigationKeys.Users)" class="small text-decoration-none">Open</a>
-        </div>
-        <div class="fs-4 fw-semibold">@metrics.TotalUsers</div>
-        <div class="small text-muted">Total users</div>
-
-        <div class="mt-3 small">
-          <div class="d-flex justify-content-between"><span>Disabled</span><span>@metrics.DisabledUsers</span></div>
-          <progress class="pm-progress pm-progress-slim" value="@metrics.DisabledPct" max="100" aria-label="Disabled users percentage"></progress>
-          <div class="d-flex justify-content-between mt-2"><span>Must change password</span><span>@metrics.MustChangePwd</span></div>
-          <progress class="pm-progress pm-progress-slim" value="@metrics.MustChangePwdPct" max="100" aria-label="Password change pending percentage"></progress>
-        </div>
-      </div>
+<section class="admin-operational-status admin-operational-status--@Model.OperationalTone"
+         aria-labelledby="admin-operational-status-title">
+    <div class="admin-operational-status__indicator" aria-hidden="true">
+        <i class="bi @Model.OperationalIcon"></i>
     </div>
-  </div>
-
-  <div class="col-md-4">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-1">
-          <div class="small text-muted">Analytics</div>
-          <a href="@Model.NavigationHref(AdminNavigationKeys.Logins)" class="small text-decoration-none">Open</a>
+    <div class="admin-operational-status__copy">
+        <div class="admin-operational-status__eyebrow">Operational oversight</div>
+        <div class="admin-operational-status__title-row">
+            <h2 id="admin-operational-status-title">@Model.OperationalLabel</h2>
+            <span class="admin-status-pill admin-status-pill--@Model.OperationalTone">Current</span>
         </div>
-        <div class="fs-4 fw-semibold">@metrics.LoginsLast7d</div>
-        <div class="small text-muted">Logins last 7 days</div>
+        <p>@Model.OperationalSummary</p>
+    </div>
+    <a class="admin-operational-status__action"
+       href="@Model.NavigationHref(AdminNavigationKeys.DatabaseHealth)">
+        View system health
+        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+    </a>
+</section>
 
-        <div class="mt-3 small">
-          <div class="d-flex justify-content-between"><span>Unique users</span><span>@metrics.UniqueLoginsLast7d</span></div>
-          <progress class="pm-progress pm-progress-slim" value="@metrics.UniqueLoginPct" max="100" aria-label="Unique logins share"></progress>
-          <div class="d-flex justify-content-between mt-2"><span>Failed attempts</span><span>@metrics.FailedLoginsLast7d</span></div>
-          <progress class="pm-progress pm-progress-slim" value="@metrics.FailedLoginPct" max="100" aria-label="Failed login share"></progress>
+<section aria-labelledby="admin-overview-title" class="admin-dashboard-section">
+    <div class="admin-section-heading">
+        <div>
+            <h2 id="admin-overview-title">Overview</h2>
+            <p>Current access, authentication, audit and recovery indicators.</p>
         </div>
-      </div>
     </div>
-  </div>
 
-  <div class="col-md-4">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-1">
-          <div class="small text-muted">Logs</div>
-          <a href="@Model.NavigationHref(AdminNavigationKeys.Logs)" class="small text-decoration-none">Open</a>
-        </div>
-        <div class="fs-4 fw-semibold">@metrics.AuditEvents24h</div>
-        <div class="small text-muted">Audit events in last 24 hours</div>
-
-        <div class="mt-3 small">
-          <div class="d-flex justify-content-between"><span>Warnings</span><span>@metrics.WarningEvents24h</span></div>
-          <progress class="pm-progress pm-progress-slim" value="@metrics.WarningPct" max="100" aria-label="Warnings share"></progress>
-          <div class="d-flex justify-content-between mt-2"><span>Errors</span><span>@metrics.ErrorEvents24h</span></div>
-          <progress class="pm-progress pm-progress-slim" value="@metrics.ErrorPct" max="100" aria-label="Errors share"></progress>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="row g-3 mb-3">
-  <div class="col-md-4">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-1">
-          <div class="small text-muted">Project lifecycle</div>
-          <a href="@Model.NavigationHref(AdminNavigationKeys.ProjectTrash)" class="small text-decoration-none">Review trash</a>
-        </div>
-        <div class="fs-4 fw-semibold">@metrics.TrashedProjects</div>
-        <div class="small text-muted">Project(s) in trash</div>
-
-        <div class="mt-3 small">
-          <div class="d-flex justify-content-between"><span>Archived</span><span>@metrics.ArchivedProjects</span></div>
-          <a href="@Model.NavigationHref(AdminNavigationKeys.ArchivedProjects)" class="btn btn-sm btn-outline-primary mt-2">Browse archived projects</a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-md-4">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-1">
-          <div class="small text-muted">Documents</div>
-          <a href="@Model.NavigationHref(AdminNavigationKeys.DocumentRecycle)" class="small text-decoration-none">Open recycle bin</a>
-        </div>
-        <div class="fs-4 fw-semibold">@metrics.DeletedDocuments</div>
-        <div class="small text-muted">Soft-deleted document(s)</div>
-
-        <p class="small text-muted mt-3 mb-0">Use the recycle bin to restore or permanently delete uploaded files.</p>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-md-4">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-1">
-          <div class="small text-muted">Calendar</div>
-          <a href="@Model.NavigationHref(AdminNavigationKeys.DeletedEvents)" class="small text-decoration-none">Restore events</a>
-        </div>
-        <div class="fs-4 fw-semibold">@metrics.DeletedEvents</div>
-        <div class="small text-muted">Deleted event(s) awaiting review</div>
-
-        <p class="small text-muted mt-3 mb-0">Clearing deleted events keeps shared schedules current for all teams.</p>
-      </div>
-    </div>
-  </div>
-</div>
-
-@* Attention band (only if something needs admin action) *@
-@if (Model.Attention.Items.Any())
-{
-  <div class="alert alert-warning d-flex align-items-center" role="alert">
-    <div class="me-2">Attention needed:</div>
-    <ul class="mb-0">
-      @foreach (var i in Model.Attention.Items)
-      {
-        <li class="mb-0">@i.Text @if (!string.IsNullOrEmpty(i.LinkText)) { <a class="ms-1" href="@i.Href">@i.LinkText</a> }</li>
-      }
-    </ul>
-  </div>
-}
-
-@* Two-column lower row: compact recent actions on the right *@
-<div class="row g-3">
-  <div class="col-lg-8">
-    <div class="card shadow-sm mb-3">
-      <div class="card-body">
-        <h5 class="card-title h6 mb-2">Project categories</h5>
-        <p class="card-text small text-muted">Maintain the hierarchy used to group projects and reports.</p>
-        <a href="@Model.NavigationHref(AdminNavigationKeys.ProjectCategories)" class="btn btn-sm btn-outline-primary">Open category manager</a>
-      </div>
-    </div>
-    <div class="card shadow-sm mb-3">
-      <div class="card-body">
-        <h5 class="card-title h6 mb-2">Activity types</h5>
-        <p class="card-text small text-muted">Control the activity type list available when recording activities.</p>
-        <a href="@Model.NavigationHref(AdminNavigationKeys.ActivityTypes)" class="btn btn-sm btn-outline-primary">Manage activity types</a>
-      </div>
-    </div>
-    <div class="card shadow-sm mb-3">
-      <div class="card-body">
-        <h5 class="card-title h6 mb-2">Technical categories</h5>
-        <p class="card-text small text-muted">Manage the technical taxonomy applied to project capabilities.</p>
-        <a href="@Model.NavigationHref(AdminNavigationKeys.TechnicalCategories)" class="btn btn-sm btn-outline-primary">Open technical categories</a>
-      </div>
-    </div>
-    @* SECTION: Project type lookups *@
-    <div class="card shadow-sm mb-3">
-      <div class="card-body">
-        <h5 class="card-title h6 mb-2">Project types</h5>
-        <p class="card-text small text-muted">Manage the project type list used for classifying projects.</p>
-        <a href="@Model.NavigationHref(AdminNavigationKeys.ProjectTypes)" class="btn btn-sm btn-outline-primary">Manage project types</a>
-      </div>
-    </div>
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h5 class="card-title h6 mb-2">Sponsoring lookups</h5>
-        <p class="card-text small text-muted">Manage sponsoring units and line directorates available to project teams.</p>
-        <div class="d-flex flex-wrap gap-2">
-          <a href="@Model.NavigationHref(AdminNavigationKeys.SponsoringUnits)" class="btn btn-sm btn-outline-primary">Manage sponsoring units</a>
-          <a href="@Model.NavigationHref(AdminNavigationKeys.LineDirectorates)" class="btn btn-sm btn-outline-primary">Manage line directorates</a>
-        </div>
-      </div>
-    </div>
-    @* SECTION: Quick links *@
-    <div class="card shadow-sm mt-3">
-      <div class="card-body">
-        <h5 class="card-title h6 mb-2">Quick links</h5>
-        <p class="card-text small text-muted">Shortcuts to additional admin utilities and maintenance tools.</p>
-        <div class="d-flex flex-wrap gap-2">
-          @foreach (var link in Model.QuickLinks)
-          {
-            <a href="@link.Href" class="btn btn-sm btn-outline-primary">
-              @if (!string.IsNullOrWhiteSpace(link.Icon))
-              {
-                <i class="bi @link.Icon me-1" aria-hidden="true"></i>
-              }
-              @link.Text
-            </a>
-          }
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="col-lg-4">
-    <div class="card shadow-sm">
-      <div class="card-header py-2"><strong>Recent admin actions</strong></div>
-      <div class="list-group list-group-flush pm-scrollable-320">
-        @foreach (var a in Model.RecentAdminActions)
+    <div class="admin-metrics-grid">
+        @foreach (var metric in Model.MetricCards)
         {
-          <div class="list-group-item d-flex justify-content-between align-items-center">
-            <div class="small">
-              <span class="badge bg-secondary me-2">@a.Level</span>@a.Message
+            <partial name="~/Areas/Admin/Pages/Shared/_AdminMetricCard.cshtml" model="metric" />
+        }
+    </div>
+</section>
+
+<div class="admin-dashboard-primary-grid">
+    <section class="admin-panel" aria-labelledby="admin-attention-title">
+        <header class="admin-panel__header">
+            <div>
+                <div class="admin-panel__eyebrow">Prioritised queue</div>
+                <h2 id="admin-attention-title">Needs attention</h2>
             </div>
-            <span class="text-muted small">@a.WhenLocal</span>
-          </div>
-        }
-        @if (Model.RecentAdminActions.Count == 0)
+            @if (Model.AttentionItems.Count > 0)
+            {
+                <span class="admin-panel__count">@Model.AttentionItems.Count</span>
+            }
+        </header>
+
+        @if (Model.AttentionItems.Count > 0)
         {
-          <div class="list-group-item text-muted small py-3">No recent administrative changes.</div>
+            <div class="admin-attention-list">
+                @foreach (var item in Model.AttentionItems)
+                {
+                    <article class="admin-attention-item admin-attention-item--@item.Tone">
+                        <span class="admin-attention-item__icon" aria-hidden="true">
+                            <i class="bi @item.Icon"></i>
+                        </span>
+                        <div class="admin-attention-item__copy">
+                            <h3>@item.Title</h3>
+                            <p>@item.Detail</p>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(item.Href))
+                        {
+                            <a class="admin-attention-item__action" href="@item.Href">
+                                @item.LinkText
+                                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                            </a>
+                        }
+                    </article>
+                }
+            </div>
         }
-      </div>
-      <div class="card-footer text-end py-2">
-        <a href="@Model.NavigationHref(AdminNavigationKeys.Logs)" class="small text-decoration-none">View all logs</a>
-      </div>
-    </div>
-  </div>
+        else
+        {
+            <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml"
+                     model="Model.NoAttentionEmptyState" />
+        }
+    </section>
+
+    <section class="admin-panel" aria-labelledby="admin-recent-actions-title">
+        <header class="admin-panel__header">
+            <div>
+                <div class="admin-panel__eyebrow">Audit trail</div>
+                <h2 id="admin-recent-actions-title">Recent activity</h2>
+            </div>
+            <a class="admin-panel__header-link" href="@Model.NavigationHref(AdminNavigationKeys.Logs)">
+                View all
+            </a>
+        </header>
+
+        @if (Model.RecentAdminActions.Count > 0)
+        {
+            <div class="admin-activity-list">
+                @foreach (var action in Model.RecentAdminActions)
+                {
+                    <article class="admin-activity-item">
+                        <span class="admin-activity-item__level admin-activity-item__level--@Model.LevelCss(action.Level)"
+                              aria-label="@action.Level">
+                            <i class="bi @(Model.LevelCss(action.Level) == "danger" ? "bi-x-octagon" : Model.LevelCss(action.Level) == "warning" ? "bi-exclamation-triangle" : "bi-check2")"
+                               aria-hidden="true"></i>
+                        </span>
+                        <div class="admin-activity-item__copy">
+                            <h3>@Model.HumaniseAction(action.Action)</h3>
+                            <p>@action.Message</p>
+                            <div class="admin-activity-item__meta">
+                                <span><i class="bi bi-person" aria-hidden="true"></i>@action.Actor</span>
+                                <time>@action.WhenLocal</time>
+                            </div>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+        else
+        {
+            <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml"
+                     model="Model.NoRecentActivityEmptyState" />
+        }
+    </section>
 </div>
 
-@section Styles {
-    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
-}
+<section class="admin-dashboard-section" aria-labelledby="admin-areas-title">
+    <div class="admin-section-heading">
+        <div>
+            <h2 id="admin-areas-title">Administrative areas</h2>
+            <p>Direct access to monitoring, recovery, maintenance and controlled master data.</p>
+        </div>
+    </div>
+
+    <div class="admin-link-group-grid">
+        @foreach (var group in Model.LinkGroups)
+        {
+            <article class="admin-link-group">
+                <header class="admin-link-group__header">
+                    <span class="admin-link-group__icon" aria-hidden="true">
+                        <i class="bi @group.Icon"></i>
+                    </span>
+                    <div>
+                        <h3>@group.Title</h3>
+                        <p>@group.Description</p>
+                    </div>
+                </header>
+
+                <div class="admin-link-group__links">
+                    @foreach (var link in group.Links)
+                    {
+                        <a href="@link.Href" class="admin-link-tile">
+                            <span class="admin-link-tile__icon" aria-hidden="true">
+                                <i class="bi @(link.Icon ?? "bi-arrow-right-circle")"></i>
+                            </span>
+                            <span>@link.Text</span>
+                            <i class="bi bi-chevron-right admin-link-tile__arrow" aria-hidden="true"></i>
+                        </a>
+                    }
+                </div>
+            </article>
+        }
+    </div>
+</section>

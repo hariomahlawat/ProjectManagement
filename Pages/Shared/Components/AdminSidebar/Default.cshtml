@@ -1,0 +1,58 @@
+@model ProjectManagement.ViewComponents.AdminSidebarViewModel
+
+<div class="admin-mobile-nav d-lg-none">
+    <button class="admin-mobile-nav__button"
+            type="button"
+            data-bs-toggle="offcanvas"
+            data-bs-target="#adminSidebarOffcanvas"
+            aria-controls="adminSidebarOffcanvas"
+            aria-label="Open administration navigation">
+        <i class="bi bi-list" aria-hidden="true"></i>
+    </button>
+    <div class="admin-mobile-nav__context">
+        <span>Administration</span>
+        <strong>@Model.CurrentSection</strong>
+    </div>
+</div>
+
+<aside class="admin-sidebar d-none d-lg-flex" aria-label="Administration navigation">
+    <div class="admin-sidebar__identity">
+        <span class="admin-sidebar__mark" aria-hidden="true">
+            <i class="bi bi-shield-lock"></i>
+        </span>
+        <div>
+            <span class="admin-sidebar__eyebrow">PRISM ERP</span>
+            <strong>Administration</strong>
+        </div>
+    </div>
+
+    @await Html.PartialAsync(
+        "~/Pages/Shared/Components/AdminSidebar/_Navigation.cshtml",
+        Model)
+</aside>
+
+<div class="offcanvas offcanvas-start admin-sidebar-offcanvas"
+     tabindex="-1"
+     id="adminSidebarOffcanvas"
+     aria-labelledby="adminSidebarOffcanvasLabel">
+    <div class="offcanvas-header admin-sidebar-offcanvas__header">
+        <div class="admin-sidebar__identity mb-0">
+            <span class="admin-sidebar__mark" aria-hidden="true">
+                <i class="bi bi-shield-lock"></i>
+            </span>
+            <div>
+                <span class="admin-sidebar__eyebrow">PRISM ERP</span>
+                <strong id="adminSidebarOffcanvasLabel">Administration</strong>
+            </div>
+        </div>
+        <button type="button"
+                class="btn-close"
+                data-bs-dismiss="offcanvas"
+                aria-label="Close administration navigation"></button>
+    </div>
+    <div class="offcanvas-body admin-sidebar-offcanvas__body">
+        @await Html.PartialAsync(
+            "~/Pages/Shared/Components/AdminSidebar/_Navigation.cshtml",
+            Model)
+    </div>
+</div>

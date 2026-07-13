@@ -1,6 +1,7 @@
 @using Microsoft.AspNetCore.Antiforgery
 @using Microsoft.AspNetCore.Identity
 @using ProjectManagement.Models
+@using ProjectManagement.Services.Navigation.ModuleNav
 @inject IAntiforgery Antiforgery
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
@@ -31,6 +32,7 @@
     <link rel="stylesheet" href="~/css/fonts/mulish.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/navigation-shell.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
     @await RenderSectionAsync("Styles", required: false)
     <link rel="stylesheet" href="~/css/social-media.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/print.css" asp-append-version="true" media="print" />
@@ -49,6 +51,8 @@
         var signedIn = SignInManager.IsSignedIn(User);
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
         var currentArea = ViewContext.RouteData.Values["area"]?.ToString();
+        var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
+        var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
         var hasCurrentPage = !string.IsNullOrWhiteSpace(currentPage);
 
         var isDashboardPage = string.Equals(currentPage, "/Dashboard/Index", StringComparison.OrdinalIgnoreCase);
@@ -63,10 +67,19 @@
             && hasCurrentPage
             && currentPage!.StartsWith("/FFC", StringComparison.OrdinalIgnoreCase);
 
+        var isAdminModulePage = signedIn && AdminNavigationCatalog.IsInScope(
+            currentArea,
+            currentPage,
+            currentController,
+            currentAction,
+            Context.Request.Query);
+        var isCalendarPrimaryPage = isCalendarPage && !isAdminModulePage;
+
         // Keep the Projects primary tab active throughout the complete module,
         // not only on the Ongoing page. Admin-area routes with similar page names
         // are deliberately excluded.
-        var isProjectsModulePage = string.IsNullOrWhiteSpace(currentArea)
+        var isProjectsModulePage = !isAdminModulePage
+            && string.IsNullOrWhiteSpace(currentArea)
             && hasCurrentPage
             && (currentPage!.StartsWith("/Projects/", StringComparison.OrdinalIgnoreCase)
                 || currentPage.StartsWith("/Process/", StringComparison.OrdinalIgnoreCase)
@@ -127,8 +140,8 @@
                             My Workspace
                         </a>
                         <a asp-page="/Calendar/Index"
-                           class="pm-top-tabs__item @(isCalendarPage ? "is-active" : string.Empty)"
-                           aria-current="@(isCalendarPage ? "page" : null)">
+                           class="pm-top-tabs__item @(isCalendarPrimaryPage ? "is-active" : string.Empty)"
+                           aria-current="@(isCalendarPrimaryPage ? "page" : null)">
                             Calendar
                         </a>
                         <a asp-page="/Notebook/Index"
@@ -240,7 +253,7 @@
     <!-- ===========================
          MODULE SUB-NAV
          =========================== -->
-    @if (signedIn)
+    @if (signedIn && !isAdminModulePage)
     {
         <div class="pm-module-subnav-wrap">
             <div class="pm-chrome-shell">
@@ -252,16 +265,38 @@
     <!-- ===========================
          MAIN CONTENT
          =========================== -->
-    <main role="main" class="pb-2@(useFullWidth ? " analytics-main" : string.Empty)">
-        <div class="@mainContainerClass">
-            @await Html.PartialAsync("_Toasts")
-            @if (breadcrumbModel is not null)
-            {
-                @await Html.PartialAsync("~/Views/Shared/_Breadcrumbs.cshtml", breadcrumbModel)
-            }
-            @RenderBody()
-        </div>
-    </main>
+    @if (isAdminModulePage)
+    {
+        <main role="main" class="pm-admin-main">
+            <div class="admin-shell">
+                @await Component.InvokeAsync("AdminSidebar")
+
+                <section class="admin-shell__workspace" aria-label="Administration workspace">
+                    <div class="admin-shell__content">
+                        @await Html.PartialAsync("_Toasts")
+                        @if (breadcrumbModel is not null)
+                        {
+                            @await Html.PartialAsync("~/Views/Shared/_Breadcrumbs.cshtml", breadcrumbModel)
+                        }
+                        @RenderBody()
+                    </div>
+                </section>
+            </div>
+        </main>
+    }
+    else
+    {
+        <main role="main" class="pb-2@(useFullWidth ? " analytics-main" : string.Empty)">
+            <div class="@mainContainerClass">
+                @await Html.PartialAsync("_Toasts")
+                @if (breadcrumbModel is not null)
+                {
+                    @await Html.PartialAsync("~/Views/Shared/_Breadcrumbs.cshtml", breadcrumbModel)
+                }
+                @RenderBody()
+            </div>
+        </main>
+    }
 
     <!-- ===========================
          FOOTER
@@ -318,6 +353,7 @@
     <script src="~/lib/microsoft/signalr/signalr.min.js" asp-append-version="true"></script>
     <script src="~/js/theme-colors.js" asp-append-version="true"></script>
     <script type="module" src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/admin/admin-shell.js" asp-append-version="true" defer></script>
     <script src="~/js/comments.js" asp-append-version="true" defer></script>
     <script src="~/js/notifications.js" asp-append-version="true" defer></script>
     <script src="~/js/project-media-tabs.js" asp-append-version="true" defer></script>

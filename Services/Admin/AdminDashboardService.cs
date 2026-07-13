@@ -24,27 +24,30 @@ public sealed class AdminDashboardMetrics
     public int DeletedDocuments { get; init; }
     public int DeletedEvents { get; init; }
 
-    // Compatibility aliases used by the existing dashboard presentation.
-    public int MustChangePwd => MustChangePasswordUsers;
-    public int LoginsLast7d => LoginsLast7Days;
-    public int UniqueLoginsLast7d => UniqueUsersLast7Days;
-    public int FailedLoginsLast7d => FailedLoginsLast7Days;
-    public int AuditEvents24h => AuditEventsLast24Hours;
-    public int WarningEvents24h => WarningEventsLast24Hours;
-    public int ErrorEvents24h => ErrorEventsLast24Hours;
-    public int DisabledPct => TotalUsers == 0 ? 0 : (int)Math.Round(100.0 * DisabledUsers / TotalUsers);
-    public int MustChangePwdPct => TotalUsers == 0 ? 0 : (int)Math.Round(100.0 * MustChangePasswordUsers / TotalUsers);
-    public int UniqueLoginPct => LoginsLast7Days == 0 ? 0 : (int)Math.Round(100.0 * UniqueUsersLast7Days / LoginsLast7Days);
-    public int LoginAttemptsLast7d => LoginsLast7Days + FailedLoginsLast7Days;
-    public int FailedLoginPct => LoginAttemptsLast7d == 0 ? 0 : (int)Math.Round(100.0 * FailedLoginsLast7Days / LoginAttemptsLast7d);
-    public int WarningPct => AuditEventsLast24Hours == 0 ? 0 : (int)Math.Round(100.0 * WarningEventsLast24Hours / AuditEventsLast24Hours);
-    public int ErrorPct => AuditEventsLast24Hours == 0 ? 0 : (int)Math.Round(100.0 * ErrorEventsLast24Hours / AuditEventsLast24Hours);
+    public int RestrictedUsers =>
+        DisabledUsers + LockedUsers + PendingDeletionUsers + MustChangePasswordUsers;
+
+    public int RecoveryQueue => TrashedProjects + DeletedDocuments + DeletedEvents;
 }
 
-public sealed record AdminDashboardAction(string Level, string Message, string WhenLocal);
+public enum AdminAttentionSeverity
+{
+    Information = 0,
+    Warning = 1,
+    Critical = 2
+}
+
+public sealed record AdminDashboardAction(
+    string Level,
+    string Action,
+    string Message,
+    string Actor,
+    string WhenLocal);
 
 public sealed record AdminDashboardAttention(
-    string Text,
+    AdminAttentionSeverity Severity,
+    string Title,
+    string Detail,
     string LinkText,
     string NavigationKey,
     IReadOnlyDictionary<string, object?>? RouteValues = null);
@@ -63,16 +66,13 @@ public sealed class AdminDashboardService : IAdminDashboardService
 {
     private readonly ApplicationDbContext _db;
     private readonly IAdminTimeService _time;
-    private readonly IUserAccountStateResolver _states;
 
     public AdminDashboardService(
         ApplicationDbContext db,
-        IAdminTimeService time,
-        IUserAccountStateResolver states)
+        IAdminTimeService time)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _time = time ?? throw new ArgumentNullException(nameof(time));
-        _states = states ?? throw new ArgumentNullException(nameof(states));
     }
 
     public async Task<AdminDashboardSnapshot> GetAsync(CancellationToken cancellationToken = default)
@@ -81,11 +81,28 @@ public sealed class AdminDashboardService : IAdminDashboardService
         var since7Days = nowUtc.AddDays(-7);
         var since24Hours = nowUtc.AddDays(-1).UtcDateTime;
 
-        var users = await _db.Users.AsNoTracking().ToListAsync(cancellationToken);
-        var stateCounts = users
-            .Select(user => _states.Resolve(user, nowUtc).State)
-            .GroupBy(state => state)
-            .ToDictionary(group => group.Key, group => group.Count());
+        var totalUsers = await _db.Users.AsNoTracking().CountAsync(cancellationToken);
+        var pendingDeletionUsers = await _db.Users.AsNoTracking()
+            .CountAsync(user => user.PendingDeletion, cancellationToken);
+        var disabledUsers = await _db.Users.AsNoTracking()
+            .CountAsync(user => !user.PendingDeletion && user.IsDisabled, cancellationToken);
+        var lockedUsers = await _db.Users.AsNoTracking()
+            .CountAsync(user =>
+                !user.PendingDeletion
+                && !user.IsDisabled
+                && user.LockoutEnd.HasValue
+                && user.LockoutEnd > nowUtc,
+                cancellationToken);
+        var mustChangePasswordUsers = await _db.Users.AsNoTracking()
+            .CountAsync(user =>
+                !user.PendingDeletion
+                && !user.IsDisabled
+                && (!user.LockoutEnd.HasValue || user.LockoutEnd <= nowUtc)
+                && user.MustChangePassword,
+                cancellationToken);
+        var activeUsers = Math.Max(
+            0,
+            totalUsers - pendingDeletionUsers - disabledUsers - lockedUsers - mustChangePasswordUsers);
 
         var successfulLoginQuery = _db.AuthEvents.AsNoTracking()
             .Where(authEvent =>
@@ -108,17 +125,19 @@ public sealed class AdminDashboardService : IAdminDashboardService
             .Where(audit => audit.TimeUtc >= since24Hours);
 
         var auditEvents = await recentAuditQuery.CountAsync(cancellationToken);
-        var warningEvents = await recentAuditQuery.CountAsync(audit => audit.Level == "Warning", cancellationToken);
-        var errorEvents = await recentAuditQuery.CountAsync(audit => audit.Level == "Error", cancellationToken);
+        var warningEvents = await recentAuditQuery
+            .CountAsync(audit => audit.Level == "Warning", cancellationToken);
+        var errorEvents = await recentAuditQuery
+            .CountAsync(audit => audit.Level == "Error", cancellationToken);
 
         var metrics = new AdminDashboardMetrics
         {
-            TotalUsers = users.Count,
-            ActiveUsers = Count(stateCounts, AdminUserAccountState.Active),
-            DisabledUsers = Count(stateCounts, AdminUserAccountState.Disabled),
-            LockedUsers = Count(stateCounts, AdminUserAccountState.TemporarilyLocked),
-            PendingDeletionUsers = Count(stateCounts, AdminUserAccountState.PendingDeletion),
-            MustChangePasswordUsers = Count(stateCounts, AdminUserAccountState.MustChangePassword),
+            TotalUsers = totalUsers,
+            ActiveUsers = activeUsers,
+            DisabledUsers = disabledUsers,
+            LockedUsers = lockedUsers,
+            PendingDeletionUsers = pendingDeletionUsers,
+            MustChangePasswordUsers = mustChangePasswordUsers,
             LoginsLast7Days = loginCount,
             UniqueUsersLast7Days = uniqueLoginCount,
             FailedLoginsLast7Days = failedLoginCount,
@@ -138,6 +157,7 @@ public sealed class AdminDashboardService : IAdminDashboardService
         var recentActions = await _db.AuditLogs.AsNoTracking()
             .Where(audit =>
                 audit.Action.StartsWith("Admin")
+                || audit.Action.StartsWith("MasterData.")
                 || audit.Action.StartsWith("Projects.")
                 || audit.Action.StartsWith("Project.")
                 || audit.Action.StartsWith("Documents.")
@@ -147,92 +167,118 @@ public sealed class AdminDashboardService : IAdminDashboardService
             .Select(audit => new
             {
                 audit.Level,
+                audit.Action,
                 Message = audit.Message ?? audit.Action,
+                Actor = audit.UserName ?? "System",
                 audit.TimeUtc
             })
             .ToListAsync(cancellationToken);
 
-        var attention = BuildAttention(metrics);
         return new AdminDashboardSnapshot(
             metrics,
             recentActions
                 .Select(action => new AdminDashboardAction(
                     action.Level,
+                    action.Action,
                     action.Message,
+                    action.Actor,
                     _time.FormatIst(action.TimeUtc)))
                 .ToArray(),
-            attention);
+            BuildAttention(metrics));
     }
-
-    private static int Count(
-        IReadOnlyDictionary<AdminUserAccountState, int> counts,
-        AdminUserAccountState state) =>
-        counts.TryGetValue(state, out var value) ? value : 0;
 
     private static IReadOnlyList<AdminDashboardAttention> BuildAttention(AdminDashboardMetrics metrics)
     {
         var items = new List<AdminDashboardAttention>();
 
-        if (metrics.MustChangePasswordUsers > 0)
-        {
-            items.Add(new(
-                $"{metrics.MustChangePasswordUsers} user(s) must change password",
-                "View",
-                AdminNavigationKeys.Users,
-                new Dictionary<string, object?> { ["status"] = "must-change-password" }));
-        }
-
-        if (metrics.DisabledUsers > 0)
-        {
-            items.Add(new(
-                $"{metrics.DisabledUsers} user(s) are disabled",
-                "Manage",
-                AdminNavigationKeys.Users,
-                new Dictionary<string, object?> { ["status"] = "disabled" }));
-        }
-
-        if (metrics.PendingDeletionUsers > 0)
-        {
-            items.Add(new(
-                $"{metrics.PendingDeletionUsers} account(s) are pending deletion",
-                "Review",
-                AdminNavigationKeys.Users,
-                new Dictionary<string, object?> { ["status"] = "pending-deletion" }));
-        }
-
         if (metrics.ErrorEventsLast24Hours > 0)
         {
             items.Add(new(
-                $"{metrics.ErrorEventsLast24Hours} error log(s) in the last 24 hours",
+                AdminAttentionSeverity.Critical,
+                "Audit errors require review",
+                $"{metrics.ErrorEventsLast24Hours:N0} error event(s) were recorded during the last 24 hours.",
                 "Investigate",
                 AdminNavigationKeys.Logs,
                 new Dictionary<string, object?> { ["Level"] = "Error" }));
         }
 
+        if (metrics.PendingDeletionUsers > 0)
+        {
+            items.Add(new(
+                AdminAttentionSeverity.Warning,
+                "Accounts pending deletion",
+                $"{metrics.PendingDeletionUsers:N0} account(s) are awaiting lifecycle review.",
+                "Review accounts",
+                AdminNavigationKeys.Users,
+                new Dictionary<string, object?> { ["Status"] = "pending-deletion" }));
+        }
+
+        if (metrics.MustChangePasswordUsers > 0)
+        {
+            items.Add(new(
+                AdminAttentionSeverity.Warning,
+                "Password change required",
+                $"{metrics.MustChangePasswordUsers:N0} user(s) must change their password at next sign-in.",
+                "View users",
+                AdminNavigationKeys.Users,
+                new Dictionary<string, object?> { ["Status"] = "must-change-password" }));
+        }
+
+        if (metrics.LockedUsers > 0)
+        {
+            items.Add(new(
+                AdminAttentionSeverity.Warning,
+                "Temporarily locked accounts",
+                $"{metrics.LockedUsers:N0} account(s) are currently locked.",
+                "Review users",
+                AdminNavigationKeys.Users,
+                new Dictionary<string, object?> { ["Status"] = "locked" }));
+        }
+
+        if (metrics.DisabledUsers > 0)
+        {
+            items.Add(new(
+                AdminAttentionSeverity.Information,
+                "Disabled accounts",
+                $"{metrics.DisabledUsers:N0} user account(s) are disabled.",
+                "Manage users",
+                AdminNavigationKeys.Users,
+                new Dictionary<string, object?> { ["Status"] = "disabled" }));
+        }
+
         if (metrics.TrashedProjects > 0)
         {
             items.Add(new(
-                $"{metrics.TrashedProjects} project(s) in trash",
-                "Review",
+                AdminAttentionSeverity.Information,
+                "Projects in trash",
+                $"{metrics.TrashedProjects:N0} project(s) are available for restore or permanent deletion.",
+                "Review trash",
                 AdminNavigationKeys.ProjectTrash));
         }
 
         if (metrics.DeletedDocuments > 0)
         {
             items.Add(new(
-                $"{metrics.DeletedDocuments} document(s) in recycle bin",
-                "Restore",
+                AdminAttentionSeverity.Information,
+                "Documents in recycle bin",
+                $"{metrics.DeletedDocuments:N0} document(s) are awaiting recovery review.",
+                "Open recycle bin",
                 AdminNavigationKeys.DocumentRecycle));
         }
 
         if (metrics.DeletedEvents > 0)
         {
             items.Add(new(
-                $"{metrics.DeletedEvents} deleted calendar event(s)",
-                "Recover",
+                AdminAttentionSeverity.Information,
+                "Deleted calendar events",
+                $"{metrics.DeletedEvents:N0} event(s) can be restored.",
+                "Recover events",
                 AdminNavigationKeys.DeletedEvents));
         }
 
-        return items;
+        return items
+            .OrderByDescending(item => item.Severity)
+            .ThenBy(item => item.Title, StringComparer.Ordinal)
+            .ToArray();
     }
 }

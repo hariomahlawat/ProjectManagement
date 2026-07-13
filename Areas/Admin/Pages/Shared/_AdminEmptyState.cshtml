@@ -1,0 +1,17 @@
+@model ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel
+
+<div class="admin-empty-state">
+    <span class="admin-empty-state__icon" aria-hidden="true">
+        <i class="bi @Model.Icon"></i>
+    </span>
+    <h3>@Model.Title</h3>
+    @if (!string.IsNullOrWhiteSpace(Model.Description))
+    {
+        <p>@Model.Description</p>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.ActionHref)
+        && !string.IsNullOrWhiteSpace(Model.ActionText))
+    {
+        <a class="btn btn-sm btn-outline-primary" href="@Model.ActionHref">@Model.ActionText</a>
+    }
+</div>

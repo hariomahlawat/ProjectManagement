@@ -1,0 +1,42 @@
+@model ProjectManagement.ViewComponents.AdminSidebarViewModel
+
+<nav class="admin-sidebar__nav" aria-label="Administration sections">
+    @foreach (var group in Model.Groups)
+    {
+        <section class="admin-sidebar__group@(group.IsActive ? " is-active" : string.Empty)"
+                 aria-label="@group.Name">
+            <h2 class="admin-sidebar__group-label">
+                @group.Name
+            </h2>
+
+            <div class="admin-sidebar__items">
+                @foreach (var item in group.Items)
+                {
+                    var itemClasses = "admin-sidebar__item" + (item.IsActive ? " is-active" : string.Empty);
+
+                    @if (!string.IsNullOrWhiteSpace(item.Url))
+                    {
+                        <a class="@itemClasses"
+                           href="@item.Url"
+                           aria-current="@(item.IsActive ? "page" : null)"
+                           data-admin-sidebar-link>
+                            <span class="admin-sidebar__item-icon" aria-hidden="true">
+                                <i class="bi @(item.Icon ?? "bi-circle")"></i>
+                            </span>
+                            <span class="admin-sidebar__item-text">@item.Text</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="@itemClasses" aria-disabled="true">
+                            <span class="admin-sidebar__item-icon" aria-hidden="true">
+                                <i class="bi @(item.Icon ?? "bi-circle")"></i>
+                            </span>
+                            <span class="admin-sidebar__item-text">@item.Text</span>
+                        </span>
+                    }
+                }
+            </div>
+        </section>
+    }
+</nav>

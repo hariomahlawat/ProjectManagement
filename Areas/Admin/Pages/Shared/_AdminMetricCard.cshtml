@@ -1,0 +1,35 @@
+@model ProjectManagement.Areas.Admin.Models.AdminMetricCardModel
+
+<article class="admin-metric-card admin-metric-card--@Model.Tone">
+    <div class="admin-metric-card__topline">
+        <span class="admin-metric-card__icon" aria-hidden="true">
+            <i class="bi @(Model.Icon ?? "bi-bar-chart")"></i>
+        </span>
+        @if (!string.IsNullOrWhiteSpace(Model.Href))
+        {
+            <a class="admin-metric-card__link" href="@Model.Href">
+                @Model.LinkText
+                <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+            </a>
+        }
+    </div>
+
+    <div class="admin-metric-card__eyebrow">@Model.Eyebrow</div>
+    <div class="admin-metric-card__value">@Model.Value</div>
+    <div class="admin-metric-card__label">@Model.Label</div>
+
+    @if (Model.Details.Count > 0)
+    {
+        <dl class="admin-metric-card__details">
+            @foreach (var detail in Model.Details)
+            {
+                <div>
+                    <dt>@detail.Label</dt>
+                    <dd class="@(string.IsNullOrWhiteSpace(detail.Tone) ? string.Empty : $"is-{detail.Tone}")">
+                        @detail.Value
+                    </dd>
+                </div>
+            }
+        </dl>
+    }
+</article>
