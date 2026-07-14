@@ -17,6 +17,7 @@ public sealed class CommandWorkspaceService
     private readonly IOfficerWorkloadReadService _officerWorkloadReadService;
     private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
     private readonly IErpUsageQueryService? _usageQueryService;
+    private readonly IErpCommandAdoptionQueryService? _adoptionQueryService;
     private readonly ILogger<CommandWorkspaceService>? _logger;
 
     public CommandWorkspaceService(
@@ -24,7 +25,8 @@ public sealed class CommandWorkspaceService
         IOfficerWorkloadReadService officerWorkloadReadService,
         IWorkflowStageMetadataProvider workflowStageMetadataProvider,
         IErpUsageQueryService? usageQueryService = null,
-        ILogger<CommandWorkspaceService>? logger = null)
+        ILogger<CommandWorkspaceService>? logger = null,
+        IErpCommandAdoptionQueryService? adoptionQueryService = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _officerWorkloadReadService = officerWorkloadReadService
@@ -32,6 +34,7 @@ public sealed class CommandWorkspaceService
         _workflowStageMetadataProvider = workflowStageMetadataProvider
             ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
         _usageQueryService = usageQueryService;
+        _adoptionQueryService = adoptionQueryService;
         _logger = logger;
     }
 
@@ -41,9 +44,17 @@ public sealed class CommandWorkspaceService
     {
         ArgumentNullException.ThrowIfNull(query);
 
-        return string.Equals(query.View, "portfolio", StringComparison.OrdinalIgnoreCase)
-            ? await BuildPortfolioAsync(query, cancellationToken)
-            : await BuildOfficerWorkloadAsync(query, cancellationToken);
+        if (string.Equals(query.View, "portfolio", StringComparison.OrdinalIgnoreCase))
+        {
+            return await BuildPortfolioAsync(query, cancellationToken);
+        }
+
+        if (string.Equals(query.View, "adoption", StringComparison.OrdinalIgnoreCase))
+        {
+            return await BuildAdoptionAsync(cancellationToken);
+        }
+
+        return await BuildOfficerWorkloadAsync(query, cancellationToken);
     }
 
     /// <summary>
@@ -179,6 +190,38 @@ public sealed class CommandWorkspaceService
         };
     }
 
+
+    private async Task<CommandWorkspaceVm> BuildAdoptionAsync(
+        CancellationToken cancellationToken)
+    {
+        var totalOngoingProjects = await _db.Projects
+            .AsNoTracking()
+            .CountAsync(project =>
+                !project.IsDeleted
+                && !project.IsArchived
+                && project.LifecycleStatus == ProjectLifecycleStatus.Active,
+                cancellationToken);
+        var officerCount = await _officerWorkloadReadService.CountActiveOfficersAsync(
+            cancellationToken);
+
+        return new CommandWorkspaceVm
+        {
+            GeneratedAtUtc = DateTime.UtcNow,
+            ActiveView = "adoption",
+            TotalOngoingProjects = totalOngoingProjects,
+            ParentCategoryOptions = Array.Empty<CommandFilterOptionVm>(),
+            SelectedParentCategoryIds = Array.Empty<int>(),
+            ProjectSearch = null,
+            PopulatedStagesOnly = false,
+            StageSeries = Array.Empty<CommandStageSeriesPointVm>(),
+            StageColumns = Array.Empty<CommandStageColumnVm>(),
+            Officers = Array.Empty<CommandOfficerWorkloadVm>(),
+            StageOptions = Array.Empty<CommandFilterOptionVm>(),
+            ProjectOfficerCount = officerCount,
+            UsageSummary = await BuildUsageSummaryAsync(cancellationToken)
+        };
+    }
+
     private async Task<CommandWorkspaceVm> BuildOfficerWorkloadAsync(
         CommandWorkspaceQuery query,
         CancellationToken cancellationToken)
@@ -212,24 +255,73 @@ public sealed class CommandWorkspaceService
         };
     }
 
-    private async Task<CommandUsageSummaryVm> BuildUsageSummaryAsync(CancellationToken cancellationToken)
+    private async Task<CommandUsageSummaryVm> BuildUsageSummaryAsync(
+        CancellationToken cancellationToken)
     {
-        if (_usageQueryService is null)
-        {
-            return new CommandUsageSummaryVm();
-        }
-
         try
         {
+            if (_adoptionQueryService is not null)
+            {
+                var snapshot = await _adoptionQueryService.GetAsync(
+                    monitoredWorkingDays: 7,
+                    cancellationToken: cancellationToken);
+
+                return new CommandUsageSummaryVm
+                {
+                    PeriodStart = snapshot.PeriodStart,
+                    PeriodEnd = snapshot.PeriodEnd,
+                    TrackingInceptionUtc = snapshot.TrackingInceptionUtc,
+                    TrackingWorkingDays = snapshot.TrackingWorkingDays,
+                    RequiredWorkingDays = snapshot.RequiredWorkingDays,
+                    ReviewAvailable = snapshot.ReviewAvailable,
+                    TotalUsers = snapshot.TotalUsers,
+                    ActiveToday = snapshot.ActiveToday,
+                    SignedInUsers = snapshot.SignedInUsers,
+                    UsedErpUsers = snapshot.UsedErpUsers,
+                    OperationalContributors = snapshot.OperationalContributors,
+                    AdoptionGap = snapshot.AdoptionGap,
+                    ReviewCaseCount = snapshot.ReviewCaseCount,
+                    RegularClassificationAvailable = snapshot.ReviewAvailable,
+                    SevenDayReviewAvailable = snapshot.ReviewAvailable,
+                    NoUsageSevenWorkingDays = snapshot.ReviewCaseCount,
+                    Trend = snapshot.Trend
+                        .Select(point => new CommandAdoptionTrendPointVm(
+                            point.Date,
+                            point.SignedInUsers,
+                            point.UsedErpUsers,
+                            point.OperationalContributors,
+                            point.IsWorkingDay))
+                        .ToArray(),
+                    Attention = snapshot.Attention
+                        .Select(row => new CommandAdoptionAttentionVm(
+                            row.UserId,
+                            row.DisplayName,
+                            row.Rank,
+                            row.UserName,
+                            row.Observation,
+                            row.LastRecordedUseUtc,
+                            row.SignedInDuringPeriod))
+                        .ToArray()
+                };
+            }
+
+            if (_usageQueryService is null)
+            {
+                return new CommandUsageSummaryVm();
+            }
+
             var summary = await _usageQueryService.GetCommandSummaryAsync(cancellationToken);
             return new CommandUsageSummaryVm
             {
                 TotalUsers = summary.TotalUsers,
                 ActiveToday = summary.ActiveToday,
+                UsedErpUsers = summary.ActiveToday,
                 RegularUsers = summary.RegularUsers,
                 NoUsageSevenWorkingDays = summary.NoUsageSevenWorkingDays,
+                ReviewCaseCount = summary.NoUsageSevenWorkingDays,
                 RegularClassificationAvailable = summary.RegularClassificationAvailable,
-                SevenDayReviewAvailable = summary.SevenDayReviewAvailable
+                SevenDayReviewAvailable = summary.SevenDayReviewAvailable,
+                ReviewAvailable = summary.SevenDayReviewAvailable
             };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -238,11 +330,11 @@ public sealed class CommandWorkspaceService
         }
         catch (Exception exception)
         {
-            // Usage intelligence is an advisory command signal. A telemetry/query failure must
-            // never make the operational Command Workspace unavailable.
+            // Adoption intelligence is advisory. A telemetry/query failure must never
+            // make the operational Command Workspace unavailable.
             _logger?.LogWarning(
                 exception,
-                "ERP usage summary could not be loaded for the Command Workspace.");
+                "ERP adoption summary could not be loaded for the Command Workspace.");
             return new CommandUsageSummaryVm();
         }
     }

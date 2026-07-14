@@ -1,15 +1,21 @@
 @page "/Workspace"
 @model ProjectManagement.Pages.Workspace.IndexModel
 @{
-    ViewData["Title"] = Model.IsCommandMode ? "Comdt / HoD Workspace" : "My Workspace";
+    ViewData["Title"] = Model.IsCommandMode
+        ? Model.CommandWorkspace.ActiveView switch
+        {
+            "portfolio" => "Project Portfolio | Comdt / HoD Workspace",
+            "adoption" => "ERP Adoption | Comdt / HoD Workspace",
+            _ => "Officer Workload | Comdt / HoD Workspace"
+        }
+        : "My Workspace";
     ViewData["UseFullWidth"] = true;
-    ViewData["PageShell"] = "wide";
+    ViewData["PageShell"] = "workspace";
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/command-workspace.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/workspace.css" asp-append-version="true" />
 }
-
 
 @if (Model.IsCommandMode)
 {

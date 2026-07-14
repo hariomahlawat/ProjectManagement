@@ -1,20 +1,50 @@
 (() => {
+    const commandWorkspace = document.querySelector('[data-command-workspace]');
     const workspaceRail = document.querySelector('[data-workspace-rail]');
     const workspaceRailToggle = workspaceRail?.querySelector('[data-workspace-rail-toggle]');
+    const desktopNavigation = window.matchMedia('(min-width: 992px)');
+    const navigationPreferenceKey = 'prism.commandWorkspace.navigationExpanded';
 
-    const setWorkspaceRailExpanded = (expanded, returnFocus = false) => {
-        if (!workspaceRail || !workspaceRailToggle) return;
+    const readNavigationPreference = () => {
+        if (!desktopNavigation.matches) return false;
+        try {
+            const stored = window.localStorage.getItem(navigationPreferenceKey);
+            return stored === null ? true : stored === 'true';
+        } catch {
+            return true;
+        }
+    };
+
+    const saveNavigationPreference = (expanded) => {
+        try { window.localStorage.setItem(navigationPreferenceKey, String(expanded)); } catch { /* storage is optional */ }
+    };
+
+    const setWorkspaceRailExpanded = (expanded, options = {}) => {
+        if (!workspaceRail || !workspaceRailToggle || !commandWorkspace) return;
+        const { returnFocus = false, persist = false } = options;
         workspaceRail.classList.toggle('is-expanded', expanded);
+        commandWorkspace.classList.toggle('is-nav-expanded', expanded);
         workspaceRailToggle.setAttribute('aria-expanded', String(expanded));
-        workspaceRailToggle.title = expanded ? 'Collapse workspace navigation' : 'Expand workspace navigation';
+        workspaceRailToggle.setAttribute(
+            'aria-label',
+            expanded ? 'Collapse workspace navigation' : 'Expand workspace navigation');
+        workspaceRailToggle.title = expanded
+            ? 'Collapse workspace navigation'
+            : 'Expand workspace navigation';
+        if (persist) saveNavigationPreference(expanded);
         if (returnFocus) workspaceRailToggle.focus();
     };
 
+    setWorkspaceRailExpanded(readNavigationPreference());
+
     workspaceRailToggle?.addEventListener('click', () => {
-        setWorkspaceRailExpanded(!workspaceRail.classList.contains('is-expanded'));
+        setWorkspaceRailExpanded(
+            !workspaceRail.classList.contains('is-expanded'),
+            { persist: desktopNavigation.matches });
     });
 
     document.addEventListener('pointerdown', (event) => {
+        if (desktopNavigation.matches) return;
         if (!workspaceRail?.classList.contains('is-expanded')) return;
         if (workspaceRail.contains(event.target)) return;
         setWorkspaceRailExpanded(false);
@@ -22,12 +52,20 @@
 
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape' || !workspaceRail?.classList.contains('is-expanded')) return;
+        if (desktopNavigation.matches) return;
         event.preventDefault();
-        setWorkspaceRailExpanded(false, true);
+        setWorkspaceRailExpanded(false, { returnFocus: true });
     });
 
     workspaceRail?.querySelectorAll('a').forEach((link) => {
-        link.addEventListener('click', () => setWorkspaceRailExpanded(false));
+        link.addEventListener('click', () => {
+            if (!desktopNavigation.matches) setWorkspaceRailExpanded(false);
+        });
+    });
+
+    desktopNavigation.addEventListener?.('change', (event) => {
+        if (!event.matches) setWorkspaceRailExpanded(false);
+        else setWorkspaceRailExpanded(readNavigationPreference());
     });
 
     const submitForm = (form) => {
@@ -258,60 +296,142 @@
     }
 
 
-    const canvas = document.getElementById('command-stage-chart');
-    if (!canvas || !window.Chart) return;
+    const initialiseStageChart = () => {
+        const canvas = document.getElementById('command-stage-chart');
+        if (!canvas || !window.Chart) return;
 
-    let rows = [];
-    try { rows = JSON.parse(canvas.dataset.series || '[]'); } catch { rows = []; }
-    const stageNames = [...new Map(rows.map(row => [row.stageCode, row.stageName])).entries()];
-    const categories = [...new Set(rows.map(row => row.categoryName))];
-    const rootStyles = getComputedStyle(document.documentElement);
-    const categoryColors = {
-        'DCD Projects': rootStyles.getPropertyValue('--category-dcd').trim() || '#3c68e8',
-        'CoE': rootStyles.getPropertyValue('--category-coe').trim() || '#52c653',
-        'Other R&D Projects': rootStyles.getPropertyValue('--category-rnd').trim() || '#ef7a00'
-    };
-    const fallbackPalette = ['#8f4cf0', '#15a6a6', '#d94b68'];
-    const datasets = categories.map((category, index) => ({
-        label: category,
-        data: stageNames.map(([code]) => rows.find(row => row.stageCode === code && row.categoryName === category)?.count || 0),
-        backgroundColor: categoryColors[category] || fallbackPalette[index % fallbackPalette.length],
-        borderWidth: 0,
-        borderRadius: 3,
-        maxBarThickness: 44
-    }));
+        let rows = [];
+        try { rows = JSON.parse(canvas.dataset.series || '[]'); } catch { rows = []; }
+        const stageNames = [...new Map(rows.map(row => [row.stageCode, row.stageName])).entries()];
+        const categories = [...new Set(rows.map(row => row.categoryName))];
+        const rootStyles = getComputedStyle(document.documentElement);
+        const categoryColors = {
+            'DCD Projects': rootStyles.getPropertyValue('--category-dcd').trim() || '#3c68e8',
+            'CoE': rootStyles.getPropertyValue('--category-coe').trim() || '#52c653',
+            'Other R&D Projects': rootStyles.getPropertyValue('--category-rnd').trim() || '#ef7a00'
+        };
+        const fallbackPalette = ['#8f4cf0', '#15a6a6', '#d94b68'];
+        const datasets = categories.map((category, index) => ({
+            label: category,
+            data: stageNames.map(([code]) => rows.find(row => row.stageCode === code && row.categoryName === category)?.count || 0),
+            backgroundColor: categoryColors[category] || fallbackPalette[index % fallbackPalette.length],
+            borderWidth: 0,
+            borderRadius: 3,
+            maxBarThickness: 44
+        }));
 
-    const chart = new Chart(canvas, {
-        type: 'bar',
-        data: { labels: stageNames.map(([code]) => code === 'UNASSIGNED' ? 'Unassigned' : code), datasets },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: { mode: 'index', intersect: false },
-            onClick: (_event, elements) => {
-                if (!elements.length) return;
-                const stageCode = stageNames[elements[0].index]?.[0];
-                const column = document.querySelector(`.cw-stage-column[data-stage-code="${CSS.escape(stageCode)}"]`);
-                if (!column) return;
-                column.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-                column.classList.add('is-highlighted');
-                window.setTimeout(() => column.classList.remove('is-highlighted'), 1400);
-            },
-            plugins: {
-                legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 9, boxHeight: 9, padding: 13, font: { size: 11 } } },
-                tooltip: { callbacks: { title: items => stageNames[items[0].dataIndex]?.[1] || items[0].label } }
-            },
-            scales: {
-                x: { stacked: true, grid: { display: false }, ticks: { color: '#5f6e83', font: { size: 11 } } },
-                y: { stacked: true, beginAtZero: true, ticks: { precision: 0, color: '#5f6e83', font: { size: 11 } }, grid: { color: 'rgba(103,119,143,.15)' } }
+        const chart = new Chart(canvas, {
+            type: 'bar',
+            data: { labels: stageNames.map(([code]) => code === 'UNASSIGNED' ? 'Unassigned' : code), datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                onClick: (_event, elements) => {
+                    if (!elements.length) return;
+                    const stageCode = stageNames[elements[0].index]?.[0];
+                    const column = document.querySelector(`.cw-stage-column[data-stage-code="${CSS.escape(stageCode)}"]`);
+                    if (!column) return;
+                    column.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                    column.classList.add('is-highlighted');
+                    window.setTimeout(() => column.classList.remove('is-highlighted'), 1400);
+                },
+                plugins: {
+                    legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 9, boxHeight: 9, padding: 13, font: { size: 11 } } },
+                    tooltip: { callbacks: { title: items => stageNames[items[0].dataIndex]?.[1] || items[0].label } }
+                },
+                scales: {
+                    x: { stacked: true, grid: { display: false }, ticks: { color: '#5f6e83', font: { size: 11 } } },
+                    y: { stacked: true, beginAtZero: true, ticks: { precision: 0, color: '#5f6e83', font: { size: 11 } }, grid: { color: 'rgba(103,119,143,.15)' } }
+                }
             }
-        }
-    });
+        });
 
-    document.querySelector('[data-chart-download]')?.addEventListener('click', () => {
-        const link = document.createElement('a');
-        link.download = 'ongoing-projects-stage-distribution.png';
-        link.href = chart.toBase64Image('image/png', 1);
-        link.click();
-    });
+        document.querySelector('[data-chart-download]')?.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = 'ongoing-projects-stage-distribution.png';
+            link.href = chart.toBase64Image('image/png', 1);
+            link.click();
+        });
+    };
+
+    const initialiseAdoptionChart = () => {
+        const canvas = document.getElementById('command-adoption-chart');
+        if (!canvas || !window.Chart) return;
+
+        let rows = [];
+        try { rows = JSON.parse(canvas.dataset.series || '[]'); } catch { rows = []; }
+        if (!Array.isArray(rows) || rows.length === 0) return;
+
+        const labels = rows.map(row => {
+            const date = new Date(`${row.date}T00:00:00`);
+            return Number.isNaN(date.getTime())
+                ? row.date
+                : date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+        });
+
+        new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Signed in',
+                        data: rows.map(row => row.signedInUsers || 0),
+                        backgroundColor: 'rgba(103, 116, 154, .72)',
+                        borderWidth: 0,
+                        borderRadius: 4,
+                        maxBarThickness: 34
+                    },
+                    {
+                        label: 'Used ERP',
+                        data: rows.map(row => row.usedErpUsers || 0),
+                        backgroundColor: 'rgba(49, 95, 214, .82)',
+                        borderWidth: 0,
+                        borderRadius: 4,
+                        maxBarThickness: 34
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        align: 'end',
+                        labels: { usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 9, boxHeight: 9, padding: 14, font: { size: 11 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            afterBody: (items) => {
+                                const index = items[0]?.dataIndex;
+                                if (index === undefined) return '';
+                                return `Operational contributors: ${rows[index]?.operationalContributors || 0}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            color: context => rows[context.index]?.isWorkingDay === false ? '#a0aabc' : '#5f6e83',
+                            font: { size: 10 }
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        suggestedMax: 5,
+                        ticks: { precision: 0, color: '#5f6e83', font: { size: 10 } },
+                        grid: { color: 'rgba(103,119,143,.14)' }
+                    }
+                }
+            }
+        });
+    };
+
+    initialiseStageChart();
+    initialiseAdoptionChart();
 })();

@@ -49,9 +49,12 @@ public class IndexModel : PageModel
 
         if (IsCommandMode)
         {
-            View = string.Equals(View, "portfolio", StringComparison.OrdinalIgnoreCase)
-                ? "portfolio"
-                : "officers";
+            View = View?.Trim().ToLowerInvariant() switch
+            {
+                "portfolio" => "portfolio",
+                "adoption" => "adoption",
+                _ => "officers"
+            };
             if (View == "portfolio" && !Request.Query.ContainsKey(nameof(PopulatedStagesOnly)))
             {
                 PopulatedStagesOnly = true;

@@ -30,6 +30,7 @@ public sealed class ErpUsageQuery
 public sealed record ErpUsageSummary(
     int UserCount,
     int ActiveToday,
+    int UsersWithMonitoredUse,
     int RegularUsers,
     int OccasionalUsers,
     int NoUsageSevenWorkingDays,
@@ -489,18 +490,26 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
         }
 
         rows = ApplyQuickFilter(rows, query.QuickFilter, inactivityByUser, trackedActivityByUser);
-        rows = rows
-            .OrderBy(row => PostureSortOrder(row.Posture))
-            .ThenBy(row => row.LastActiveUtc ?? DateTime.MinValue)
-            .ThenBy(row => row.FullName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        rows = regularClassificationAvailable
+            ? rows
+                .OrderBy(row => PostureSortOrder(row.Posture))
+                .ThenBy(row => row.LastActiveUtc ?? DateTime.MinValue)
+                .ThenBy(row => row.FullName, StringComparer.OrdinalIgnoreCase)
+                .ToList()
+            : rows
+                .OrderBy(row => row.Posture == "Use recorded" ? 0 : 1)
+                .ThenByDescending(row => row.OperationalActionCount)
+                .ThenByDescending(row => row.LastActiveUtc ?? DateTime.MinValue)
+                .ThenBy(row => row.FullName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
         var effectiveUserIds = rows.Select(row => row.UserId).ToHashSet(StringComparer.Ordinal);
         var summary = new ErpUsageSummary(
             rows.Count,
             rows.Count(row => row.UsedToday),
+            rows.Count(row => trackedActivityByUser.GetValueOrDefault(row.UserId)),
             regularClassificationAvailable ? rows.Count(row => row.Posture == "Regular user") : 0,
-            rows.Count(row => row.Posture == "Occasional user"),
+            regularClassificationAvailable ? rows.Count(row => row.Posture == "Occasional user") : 0,
             sevenDayReviewAvailable
                 ? rows.Count(row => inactivityByUser.GetValueOrDefault(row.UserId)?.NoUsageSevenWorkingDays == true)
                 : 0,
@@ -699,6 +708,13 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
         int regularThreshold,
         bool regularClassificationAvailable)
     {
+        if (!regularClassificationAvailable)
+        {
+            return hasTrackedActivity
+                ? ("Use recorded", "info")
+                : ("Not yet recorded", "neutral");
+        }
+
         if (!hasTrackedActivity)
         {
             return ("No recorded use", "danger");
@@ -742,8 +758,10 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
     {
         "No recent use" => 0,
         "No recorded use" => 1,
-        "Occasional user" => 2,
-        "Regular user" => 3,
+        "Not yet recorded" => 2,
+        "Use recorded" => 3,
+        "Occasional user" => 4,
+        "Regular user" => 5,
         _ => 4
     };
 

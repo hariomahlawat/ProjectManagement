@@ -39,7 +39,7 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)] public bool IncludeDisabledAccounts { get; set; }
     [BindProperty(SupportsGet = true)] public bool IncludeNonHumanAccounts { get; set; }
     [BindProperty(SupportsGet = true)] public int PageNumber { get; set; } = 1;
-    [BindProperty(SupportsGet = true)] public int PageSize { get; set; } = 25;
+    [BindProperty(SupportsGet = true)] public int PageSize { get; set; } = 15;
 
     public ErpUsageResult Result { get; private set; } = EmptyResult();
     public IReadOnlyList<ErpUsageModuleDescriptor> ModuleOptions { get; private set; } =
@@ -137,6 +137,16 @@ public sealed class IndexModel : PageModel
             pageSize = PageSize
         }) ?? string.Empty;
 
+
+    public DateOnly TrackingInceptionDateIst =>
+        DateOnly.FromDateTime(_time.ToIst(Result.TrackingInceptionUtc).DateTime);
+
+    public bool ShouldShowEffectiveTrackingStart(ErpUsageUserRow user) =>
+        user.EffectiveTrackingStart > TrackingInceptionDateIst;
+
+    public bool IsTrackingInceptionDate(DateOnly date) =>
+        date == TrackingInceptionDateIst;
+
     public string FormatLastActive(DateTime? utc) => _time.FormatIst(utc, "Never recorded");
 
     public string FormatTrackingInception() => _time.FormatIst(Result.TrackingInceptionUtc);
@@ -173,13 +183,13 @@ public sealed class IndexModel : PageModel
         false,
         false,
         false,
-        new ErpUsageSummary(0, 0, 0, 0, 0, 0, 0),
+        new ErpUsageSummary(0, 0, 0, 0, 0, 0, 0, 0),
         Array.Empty<ErpUsageModuleSummary>(),
         Array.Empty<string>(),
         Array.Empty<ErpUsageUserRow>(),
         0,
         1,
-        25,
+        15,
         1,
         Array.Empty<DateOnly>());
 }

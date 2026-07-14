@@ -28,9 +28,9 @@
 
 /* Workspace shell */
 .po-workspace {
-    width: min(1500px, 100%);
+    width: 100%;
     margin: 0 auto;
-    padding: 22px 30px 36px;
+    padding: 22px clamp(12px, 1.5vw, 28px) 36px;
     color: var(--po-text);
     font-size: 14px;
 }

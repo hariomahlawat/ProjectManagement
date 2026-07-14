@@ -516,6 +516,7 @@ builder.Services.AddScoped<IOfficeCalendarService, OfficeCalendarService>();
 builder.Services.AddSingleton<IErpUsageModuleCatalog, ErpUsageModuleCatalog>();
 builder.Services.AddScoped<IUserActivityRecorder, UserActivityRecorder>();
 builder.Services.AddScoped<IErpUsageQueryService, ErpUsageQueryService>();
+builder.Services.AddScoped<IErpCommandAdoptionQueryService, ErpCommandAdoptionQueryService>();
 builder.Services.AddHostedService<UserActivityRetentionWorker>();
 builder.Services.AddSingleton<IPdfIngestionRunGate, PdfIngestionRunGate>();
 builder.Services.AddSingleton<IPdfIngestionRunHistory, PdfIngestionRunHistory>();
