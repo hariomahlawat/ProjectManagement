@@ -34,6 +34,7 @@ public sealed record PdfIngestionRunResult(
     IReadOnlyList<PdfIngestionFailure> Failures,
     string Status)
 {
+    public Guid RunId { get; init; } = Guid.NewGuid();
     public int Discovered => Sources.Sum(source => source.Discovered);
     public int IngestedOrLinked => Sources.Sum(source => source.IngestedOrLinked);
     public int AlreadyLinked => Sources.Sum(source => source.AlreadyLinked);
@@ -101,6 +102,7 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
     private readonly DocRepoOptions _options;
     private readonly IPdfIngestionRunGate _runGate;
     private readonly IAdminAuditService _audit;
+    private readonly IPdfIngestionRunHistory _history;
     private readonly IAdminTimeService _time;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<PdfIngestionCoordinator> _logger;
@@ -113,6 +115,7 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
         IOptions<DocRepoOptions> options,
         IPdfIngestionRunGate runGate,
         IAdminAuditService audit,
+        IPdfIngestionRunHistory history,
         IAdminTimeService time,
         IHttpContextAccessor httpContextAccessor,
         ILogger<PdfIngestionCoordinator> logger)
@@ -124,6 +127,7 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _runGate = runGate ?? throw new ArgumentNullException(nameof(runGate));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+        _history = history ?? throw new ArgumentNullException(nameof(history));
         _time = time ?? throw new ArgumentNullException(nameof(time));
         _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -150,8 +154,10 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
 
         using (lease)
         {
+            var runId = Guid.NewGuid();
             var startedAt = _time.UtcNow;
             var traceId = _httpContextAccessor.HttpContext?.TraceIdentifier;
+            var actor = _httpContextAccessor.HttpContext?.User?.Identity?.Name;
             var failures = new List<PdfIngestionFailure>();
             var summaries = new List<PdfIngestionSourceSummary>();
 
@@ -160,7 +166,8 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
                     Action: "PdfIngestionStarted",
                     EntityType: "DocumentRepository",
                     Origin: "Admin.Documents.IngestExternalPdfs",
-                    After: new { StartedAtUtc = startedAt },
+                    EntityId: runId.ToString("N"),
+                    After: new { RunId = runId, StartedAtUtc = startedAt },
                     Message: "External PDF ingestion started."),
                 cancellationToken,
                 "start",
@@ -184,15 +191,20 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
                 var status = summaries.Sum(source => source.Failed) > 0 || summaries.Sum(source => source.Missing) > 0
                     ? "Partially completed"
                     : "Completed";
-                var result = new PdfIngestionRunResult(startedAt, completedAt, summaries, failures, status);
+                var result = new PdfIngestionRunResult(startedAt, completedAt, summaries, failures, status)
+                {
+                    RunId = runId
+                };
 
                 var completionAuditWritten = await TryRecordAuditAsync(
                     new AdminAuditEntry(
                         Action: "PdfIngestionCompleted",
                         EntityType: "DocumentRepository",
                         Origin: "Admin.Documents.IngestExternalPdfs",
+                        EntityId: runId.ToString("N"),
                         After: new
                         {
+                            result.RunId,
                             result.Status,
                             result.Discovered,
                             result.IngestedOrLinked,
@@ -217,6 +229,21 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
                     result = result with { Status = status };
                 }
 
+                _history.Record(new PdfIngestionRunRecord(
+                    result.RunId,
+                    result.StartedAtUtc,
+                    result.CompletedAtUtc,
+                    actor,
+                    result.Status,
+                    result.Discovered,
+                    result.IngestedOrLinked,
+                    result.AlreadyLinked,
+                    result.Missing,
+                    result.Failed,
+                    result.Sources,
+                    result.Failures,
+                    traceId));
+
                 return AdminOperationResult<PdfIngestionRunResult>.Success(
                     result,
                     status switch
@@ -233,8 +260,9 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
                     new AdminAuditEntry(
                         Action: "PdfIngestionCancelled",
                         EntityType: "DocumentRepository",
+                        EntityId: runId.ToString("N"),
                         Origin: "Admin.Documents.IngestExternalPdfs",
-                        Before: new { StartedAtUtc = startedAt },
+                        Before: new { RunId = runId, StartedAtUtc = startedAt },
                         After: new { CompletedAtUtc = completedAt },
                         Outcome: "Cancelled",
                         Level: "Warning",
@@ -256,8 +284,9 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
                     new AdminAuditEntry(
                         Action: "PdfIngestionFailed",
                         EntityType: "DocumentRepository",
+                        EntityId: runId.ToString("N"),
                         Origin: "Admin.Documents.IngestExternalPdfs",
-                        Before: new { StartedAtUtc = startedAt },
+                        Before: new { RunId = runId, StartedAtUtc = startedAt },
                         After: new { CompletedAtUtc = _time.UtcNow, TraceId = traceId },
                         Outcome: "Failed",
                         Level: "Error",
@@ -265,6 +294,22 @@ public sealed class PdfIngestionCoordinator : IPdfIngestionCoordinator
                     CancellationToken.None,
                     "failure",
                     traceId);
+
+                var failedAt = _time.UtcNow;
+                _history.Record(new PdfIngestionRunRecord(
+                    runId,
+                    startedAt,
+                    failedAt,
+                    actor,
+                    "Failed",
+                    0,
+                    0,
+                    0,
+                    0,
+                    1,
+                    Array.Empty<PdfIngestionSourceSummary>(),
+                    Array.Empty<PdfIngestionFailure>(),
+                    traceId));
 
                 return AdminOperationResult<PdfIngestionRunResult>.Failure(
                     "PDF ingestion could not be completed. Quote the trace reference to the administrator.",

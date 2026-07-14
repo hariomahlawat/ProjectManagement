@@ -23,4 +23,6 @@ public sealed class AdminLoginMonitoringOptions
     public int DefaultReviewPageSize { get; set; } = 25;
 
     public int MaximumReviewPageSize { get; set; } = 100;
+
+    public int DuplicateWindowMinutes { get; set; } = 2;
 }

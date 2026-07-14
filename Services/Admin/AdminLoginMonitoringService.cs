@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
@@ -11,6 +12,13 @@ public enum AdminLoginOutcome
     Successful = 0,
     Failed = 1,
     LockedOut = 2
+}
+
+public enum AdminLoginReviewLevel
+{
+    Informational = 0,
+    Review = 1,
+    Critical = 2
 }
 
 public sealed record AdminLoginMonitoringRequest(
@@ -39,7 +47,9 @@ public sealed record AdminLoginEventRow(
     string? UserAgent,
     int MinutesOfDay,
     bool RequiresReview,
-    string ReviewReason);
+    string ReviewReason,
+    AdminLoginReviewLevel ReviewLevel,
+    int OccurrenceCount);
 
 public sealed record AdminLoginTrendPoint(
     DateOnly Date,
@@ -59,6 +69,7 @@ public sealed record AdminLoginMonitoringSnapshot(
     int LockedOut,
     int UniqueUsers,
     int UniqueSourceIps,
+    int AffectedAccounts,
     int ReviewSignals,
     int MedianMinutesOfDay,
     int P90MinutesOfDay,
@@ -188,8 +199,11 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
             .ToListAsync(cancellationToken);
         var uniqueSourceIps = successfulIps
             .Concat(auditIps)
+            .Select(NormalizeSourceAddress)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
+        var affectedAccounts = auditUserKeys.Count;
 
         var successfulTrendRows = await successfulQuery
             .GroupBy(authEvent => authEvent.WhenUtc.AddMinutes(IstOffsetMinutes).Date)
@@ -298,8 +312,9 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
         var patternPoints = filteredEvents
             .OrderBy(row => row.LocalTime)
             .ToArray();
-        var reviewEvents = filteredEvents
-            .Where(row => row.RequiresReview)
+        var reviewEvents = ConsolidateReviewEvents(
+                filteredEvents.Where(row => row.RequiresReview),
+                _options.DuplicateWindowMinutes)
             .OrderByDescending(row => row.WhenUtc)
             .ToArray();
         var reviewTotal = reviewEvents.Length;
@@ -329,7 +344,8 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
             lockedOutCount,
             uniqueUsers,
             uniqueSourceIps,
-            analysedEvents.Count(row => row.RequiresReview),
+            affectedAccounts,
+            reviewTotal,
             Percentile(successfulMinutes, 50),
             Percentile(successfulMinutes, 90),
             isTruncated,
@@ -411,25 +427,31 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
         var local = _time.ToIst(whenUtc);
         var minutes = local.Hour * 60 + local.Minute;
         var reasons = new List<string>();
+        var reviewLevel = AdminLoginReviewLevel.Informational;
 
         if (outcome == AdminLoginOutcome.Failed)
         {
-            reasons.Add("Failed sign-in");
+            reasons.Add("Failed authentication event");
+            reviewLevel = AdminLoginReviewLevel.Review;
         }
         else if (outcome == AdminLoginOutcome.LockedOut)
         {
-            reasons.Add("Account locked out");
+            reasons.Add("Account lockout event");
+            reviewLevel = AdminLoginReviewLevel.Critical;
         }
         else
         {
-            if (local.TimeOfDay < _options.WorkdayStart || local.TimeOfDay > _options.WorkdayEnd)
-            {
-                reasons.Add("Outside configured working hours");
-            }
+            var outsideHours = local.TimeOfDay < _options.WorkdayStart || local.TimeOfDay > _options.WorkdayEnd;
+            var weekend = markWeekends && local.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+            if (outsideHours) reasons.Add("Outside configured working hours");
+            if (weekend) reasons.Add("Weekend sign-in");
 
-            if (markWeekends && local.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+            // Routine outside-hours activity remains informational. Only materially
+            // abnormal successful sign-ins enter the administrator review queue.
+            if (local.TimeOfDay < TimeSpan.FromHours(5) || local.TimeOfDay >= TimeSpan.FromHours(22))
             {
-                reasons.Add("Weekend sign-in");
+                reasons.Add("Materially abnormal sign-in time");
+                reviewLevel = AdminLoginReviewLevel.Review;
             }
         }
 
@@ -440,11 +462,43 @@ public sealed class AdminLoginMonitoringService : IAdminLoginMonitoringService
             string.IsNullOrWhiteSpace(loginName) ? "Unknown user" : loginName,
             string.IsNullOrWhiteSpace(displayName) ? "Unknown user" : displayName,
             outcome,
-            ip,
+            NormalizeSourceAddress(ip),
             userAgent,
             minutes,
-            reasons.Count > 0,
-            string.Join("; ", reasons));
+            reviewLevel != AdminLoginReviewLevel.Informational,
+            reasons.Count == 0 ? "Expected pattern" : string.Join("; ", reasons),
+            reviewLevel,
+            1);
+    }
+
+
+    private static IEnumerable<AdminLoginEventRow> ConsolidateReviewEvents(
+        IEnumerable<AdminLoginEventRow> source,
+        int windowMinutes)
+    {
+        var seconds = Math.Max(1, windowMinutes) * 60L;
+        return source
+            .GroupBy(row => new
+            {
+                Identity = string.IsNullOrWhiteSpace(row.UserId) ? row.LoginName : row.UserId,
+                row.Outcome,
+                Source = row.Ip ?? string.Empty,
+                row.ReviewReason,
+                Window = row.WhenUtc.ToUnixTimeSeconds() / seconds
+            })
+            .Select(group => (group
+                .OrderByDescending(row => row.WhenUtc)
+                .First()) with { OccurrenceCount = group.Count() });
+    }
+
+    private static string? NormalizeSourceAddress(string? value)
+    {
+        var source = value?.Trim();
+        if (string.IsNullOrWhiteSpace(source)) return null;
+        if (!IPAddress.TryParse(source, out var address)) return source;
+        if (IPAddress.IsLoopback(address)) return "Local server";
+        if (address.IsIPv4MappedToIPv6) return address.MapToIPv4().ToString();
+        return address.ToString();
     }
 
     private static IEnumerable<AdminLoginEventRow> ApplyOutcomeFilter(

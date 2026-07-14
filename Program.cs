@@ -57,6 +57,8 @@ using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Admin.Calendar;
 using ProjectManagement.Services.Admin.Ingestion;
 using ProjectManagement.Services.Admin.MasterData;
+using ProjectManagement.Services.Admin.Maintenance;
+using ProjectManagement.Services.Admin.Recovery;
 using ProjectManagement.Services.Dashboard;
 using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Documents;
@@ -473,6 +475,10 @@ builder.Services.AddOptions<AdminLoginMonitoringOptions>()
     .Bind(builder.Configuration.GetSection(AdminLoginMonitoringOptions.SectionName))
     .ValidateOnStart();
 builder.Services.AddSingleton<IValidateOptions<AdminLoginMonitoringOptions>, AdminLoginMonitoringOptionsValidator>();
+builder.Services.AddOptions<AdminRecoveryOptions>()
+    .Bind(builder.Configuration.GetSection(AdminRecoveryOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<AdminRecoveryOptions>, AdminRecoveryOptionsValidator>();
 builder.Services.Configure<IprAttachmentOptions>(
     builder.Configuration.GetSection("IprAttachments"));
 builder.Services.Configure<FfcAttachmentOptions>(
@@ -506,7 +512,13 @@ builder.Services.AddScoped<IAdminMasterDataCommandService, AdminMasterDataComman
 builder.Services.AddScoped<ICalendarRecoveryService, CalendarRecoveryService>();
 builder.Services.AddScoped<IHolidayAdminService, HolidayAdminService>();
 builder.Services.AddSingleton<IPdfIngestionRunGate, PdfIngestionRunGate>();
+builder.Services.AddSingleton<IPdfIngestionRunHistory, PdfIngestionRunHistory>();
 builder.Services.AddScoped<IPdfIngestionCoordinator, PdfIngestionCoordinator>();
+builder.Services.AddScoped<IAdminRecoverySummaryService, AdminRecoverySummaryService>();
+builder.Services.AddScoped<IProjectRecoveryQueryService, ProjectRecoveryQueryService>();
+builder.Services.AddScoped<IDocumentRecoveryQueryService, DocumentRecoveryQueryService>();
+builder.Services.AddScoped<IAdminMaintenanceSummaryService, AdminMaintenanceSummaryService>();
+builder.Services.AddScoped<ILegacyImportPreflightService, LegacyImportPreflightService>();
 builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 builder.Services.AddScoped<IAdminLoginOverviewService, AdminLoginOverviewService>();
 builder.Services.AddScoped<IAdminLoginMonitoringService, AdminLoginMonitoringService>();

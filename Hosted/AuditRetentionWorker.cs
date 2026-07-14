@@ -35,7 +35,7 @@ public sealed class AuditRetentionWorker : BackgroundService
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _status = status;
-        _status?.Register(WorkerKey, "Audit retention");
+        _status?.Register(WorkerKey, "Audit retention", _options.CurrentValue.GetSafeSweepInterval());
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

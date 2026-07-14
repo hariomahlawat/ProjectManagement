@@ -29,4 +29,16 @@ public sealed class AdminLoginMonitoringOptionsValidatorTests
         Assert.True(result.Failed);
         Assert.Contains(result.Failures, failure => failure.Contains("later than WorkdayStart", StringComparison.Ordinal));
     }
+    [Fact]
+    public void Validate_InvalidDuplicateWindow_Fails()
+    {
+        var options = new AdminLoginMonitoringOptions { DuplicateWindowMinutes = 0 };
+
+        var result = _validator.Validate(null, options);
+
+        Assert.True(result.Failed);
+        Assert.Contains(result.Failures, failure =>
+            failure.Contains(nameof(AdminLoginMonitoringOptions.DuplicateWindowMinutes), StringComparison.Ordinal));
+    }
+
 }

@@ -2,7 +2,6 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 
@@ -11,8 +10,10 @@ namespace ProjectManagement.Services.Admin.Calendar;
 public sealed record DeletedCalendarEventQuery(
     string? Search = null,
     EventCategory? Category = null,
+    DateOnly? DeletedFrom = null,
+    DateOnly? DeletedTo = null,
     int Page = 1,
-    int PageSize = 20);
+    int PageSize = 25);
 
 public sealed record DeletedCalendarEventItem(
     Guid Id,
@@ -24,11 +25,14 @@ public sealed record DeletedCalendarEventItem(
     bool IsAllDay,
     bool IsRecurring,
     DateTimeOffset DeletedAtUtc,
-    string? DeletedByName);
+    string? DeletedByName,
+    string? CreatedByName);
 
 public sealed record DeletedCalendarEventPage(
     IReadOnlyList<DeletedCalendarEventItem> Items,
     int TotalCount,
+    int RecurringCount,
+    int AllDayCount,
     int Page,
     int PageSize)
 {
@@ -49,7 +53,6 @@ public interface ICalendarRecoveryService
 public sealed class CalendarRecoveryService : ICalendarRecoveryService
 {
     private const int MaximumPageSize = 100;
-
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IAdminAuditService _audit;
@@ -74,40 +77,50 @@ public sealed class CalendarRecoveryService : ICalendarRecoveryService
     }
 
     public async Task<DeletedCalendarEventPage> QueryAsync(
-        DeletedCalendarEventQuery query,
+        DeletedCalendarEventQuery request,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(request);
+        var page = Math.Max(1, request.Page);
+        var pageSize = Math.Clamp(request.PageSize <= 0 ? 25 : request.PageSize, 10, MaximumPageSize);
+        var search = request.Search?.Trim();
+        if (string.IsNullOrWhiteSpace(search)) search = null;
+        else if (search.Length > 160) search = search[..160];
 
-        var page = Math.Max(1, query.Page);
-        var pageSize = Math.Clamp(query.PageSize, 1, MaximumPageSize);
-        var search = string.IsNullOrWhiteSpace(query.Search) ? null : query.Search.Trim();
-        if (search is { Length: > 160 })
-        {
-            search = search[..160];
-        }
-
-        var events = _db.Events
-            .AsNoTracking()
-            .Where(calendarEvent => calendarEvent.IsDeleted);
-
-        if (!string.IsNullOrWhiteSpace(search))
+        var events = _db.Events.AsNoTracking().Where(calendarEvent => calendarEvent.IsDeleted);
+        if (search is not null)
         {
             var pattern = $"%{search}%";
             events = events.Where(calendarEvent =>
-                EF.Functions.ILike(calendarEvent.Title, pattern) ||
-                (calendarEvent.Location != null && EF.Functions.ILike(calendarEvent.Location, pattern)));
+                EF.Functions.ILike(calendarEvent.Title, pattern)
+                || (calendarEvent.Location != null && EF.Functions.ILike(calendarEvent.Location, pattern))
+                || (calendarEvent.Description != null && EF.Functions.ILike(calendarEvent.Description, pattern))
+                || (calendarEvent.CreatedById != null && EF.Functions.ILike(calendarEvent.CreatedById, pattern))
+                || (calendarEvent.UpdatedById != null && EF.Functions.ILike(calendarEvent.UpdatedById, pattern)));
         }
-
-        if (query.Category.HasValue)
+        if (request.Category.HasValue)
+            events = events.Where(calendarEvent => calendarEvent.Category == request.Category.Value);
+        if (request.DeletedFrom.HasValue)
         {
-            events = events.Where(calendarEvent => calendarEvent.Category == query.Category.Value);
+            var from = _time.StartOfIstDayUtc(request.DeletedFrom.Value);
+            events = events.Where(calendarEvent => calendarEvent.UpdatedAt >= from);
+        }
+        if (request.DeletedTo.HasValue)
+        {
+            var to = _time.EndExclusiveOfIstDayUtc(request.DeletedTo.Value);
+            events = events.Where(calendarEvent => calendarEvent.UpdatedAt < to);
         }
 
+        // The query set uses one request-scoped DbContext; execute aggregates
+        // sequentially because EF Core disallows concurrent operations per context.
         var totalCount = await events.CountAsync(cancellationToken);
+        var recurringCount = await events.CountAsync(
+            item => item.RecurrenceRule != null && item.RecurrenceRule != string.Empty,
+            cancellationToken);
+        var allDayCount = await events.CountAsync(item => item.IsAllDay, cancellationToken);
+
         var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
         page = Math.Min(page, totalPages);
-
         var rows = await events
             .OrderByDescending(calendarEvent => calendarEvent.UpdatedAt)
             .ThenBy(calendarEvent => calendarEvent.Title)
@@ -124,16 +137,16 @@ public sealed class CalendarRecoveryService : ICalendarRecoveryService
                 calendarEvent.IsAllDay,
                 calendarEvent.RecurrenceRule,
                 calendarEvent.UpdatedAt,
-                calendarEvent.UpdatedById
+                calendarEvent.UpdatedById,
+                calendarEvent.CreatedById
             })
             .ToListAsync(cancellationToken);
 
-        var userIds = rows
-            .Select(row => row.UpdatedById)
-            .Where(userId => !string.IsNullOrWhiteSpace(userId))
+        var userIds = rows.SelectMany(row => new[] { row.UpdatedById, row.CreatedById })
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id!)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
-
         Dictionary<string, string> userNames;
         if (userIds.Length == 0)
         {
@@ -141,84 +154,44 @@ public sealed class CalendarRecoveryService : ICalendarRecoveryService
         }
         else
         {
-            var users = await _userManager.Users
-                .AsNoTracking()
+            var users = await _userManager.Users.AsNoTracking()
                 .Where(user => userIds.Contains(user.Id))
-                .Select(user => new
-                {
-                    user.Id,
-                    DisplayName = string.IsNullOrWhiteSpace(user.FullName)
-                        ? user.UserName ?? user.Id
-                        : user.FullName
-                })
+                .Select(user => new { user.Id, DisplayName = user.FullName ?? user.UserName ?? user.Id })
                 .ToListAsync(cancellationToken);
-
             userNames = users.ToDictionary(user => user.Id, user => user.DisplayName, StringComparer.Ordinal);
         }
 
-        var items = rows
-            .Select(row => new DeletedCalendarEventItem(
-                row.Id,
-                row.Title,
-                row.Category,
-                row.Location,
-                row.StartUtc,
-                row.EndUtc,
-                row.IsAllDay,
-                !string.IsNullOrWhiteSpace(row.RecurrenceRule),
-                row.UpdatedAt,
-                !string.IsNullOrWhiteSpace(row.UpdatedById) && userNames.TryGetValue(row.UpdatedById, out var name)
-                    ? name
-                    : null))
-            .ToList();
+        string? Resolve(string? id) => !string.IsNullOrWhiteSpace(id) && userNames.TryGetValue(id, out var display) ? display : id;
+        var items = rows.Select(row => new DeletedCalendarEventItem(
+            row.Id,
+            row.Title,
+            row.Category,
+            row.Location,
+            row.StartUtc,
+            row.EndUtc,
+            row.IsAllDay,
+            !string.IsNullOrWhiteSpace(row.RecurrenceRule),
+            row.UpdatedAt,
+            Resolve(row.UpdatedById),
+            Resolve(row.CreatedById))).ToArray();
 
-        return new DeletedCalendarEventPage(items, totalCount, page, pageSize);
+        return new DeletedCalendarEventPage(items, totalCount, recurringCount, allDayCount, page, pageSize);
     }
 
-    public async Task<AdminOperationResult> RestoreAsync(
-        Guid eventId,
-        CancellationToken cancellationToken = default)
+    public async Task<AdminOperationResult> RestoreAsync(Guid eventId, CancellationToken cancellationToken = default)
     {
         if (eventId == Guid.Empty)
-        {
-            return AdminOperationResult.Failure(
-                "The selected calendar event is invalid.",
-                "InvalidCalendarEventId");
-        }
+            return AdminOperationResult.Failure("The selected calendar event is invalid.", "InvalidCalendarEventId");
 
         var traceId = _httpContextAccessor.HttpContext?.TraceIdentifier;
-
         try
         {
-            var calendarEvent = await _db.Events
-                .AsNoTracking()
+            var calendarEvent = await _db.Events.AsNoTracking()
                 .SingleOrDefaultAsync(item => item.Id == eventId, cancellationToken);
-
             if (calendarEvent is null)
-            {
-                return AdminOperationResult.Failure(
-                    "The calendar event could not be found.",
-                    "CalendarEventNotFound");
-            }
-
+                return AdminOperationResult.Failure("The calendar event could not be found.", "CalendarEventNotFound");
             if (!calendarEvent.IsDeleted)
-            {
-                return AdminOperationResult.Failure(
-                    "The calendar event has already been restored.",
-                    "CalendarEventAlreadyRestored");
-            }
-
-            var before = new
-            {
-                calendarEvent.Id,
-                calendarEvent.Title,
-                calendarEvent.Category,
-                calendarEvent.StartUtc,
-                calendarEvent.EndUtc,
-                calendarEvent.IsDeleted,
-                DeletedAtUtc = calendarEvent.UpdatedAt,
-                DeletedByUserId = calendarEvent.UpdatedById
-            };
+                return AdminOperationResult.Failure("The calendar event has already been restored.", "CalendarEventAlreadyRestored");
 
             var actorUserId = _httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
             var restoredAt = _time.UtcNow;
@@ -226,61 +199,42 @@ public sealed class CalendarRecoveryService : ICalendarRecoveryService
                 ? await _db.Database.BeginTransactionAsync(cancellationToken)
                 : null;
 
-            var affected = await _db.Events
-                .Where(item => item.Id == eventId && item.IsDeleted)
-                .ExecuteUpdateAsync(
-                    setters => setters
-                        .SetProperty(item => item.IsDeleted, false)
-                        .SetProperty(item => item.UpdatedAt, restoredAt)
-                        .SetProperty(item => item.UpdatedById, actorUserId),
-                    cancellationToken);
-
+            var affected = await _db.Events.Where(item => item.Id == eventId && item.IsDeleted)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.IsDeleted, false)
+                    .SetProperty(item => item.UpdatedAt, restoredAt)
+                    .SetProperty(item => item.UpdatedById, actorUserId), cancellationToken);
             if (affected == 0)
-            {
-                return AdminOperationResult.Failure(
-                    "The calendar event has already been restored by another administrator.",
-                    "CalendarEventAlreadyRestored");
-            }
+                return AdminOperationResult.Failure("The calendar event has already been restored by another administrator.", "CalendarEventAlreadyRestored");
 
-            await _audit.RecordAsync(
-                new AdminAuditEntry(
-                    Action: "CalendarEventRestored",
-                    EntityType: nameof(Event),
-                    EntityId: calendarEvent.Id.ToString(),
-                    Before: before,
-                    After: new
-                    {
-                        calendarEvent.Id,
-                        calendarEvent.Title,
-                        IsDeleted = false,
-                        RestoredAtUtc = restoredAt,
-                        RestoredByUserId = actorUserId
-                    },
-                    Origin: "Admin.Calendar.Deleted",
-                    Message: $"Restored calendar event '{calendarEvent.Title}'."),
-                cancellationToken);
+            await _audit.RecordAsync(new AdminAuditEntry(
+                Action: "CalendarEventRestored",
+                EntityType: nameof(Event),
+                EntityId: calendarEvent.Id.ToString(),
+                Before: new
+                {
+                    calendarEvent.Id,
+                    calendarEvent.Title,
+                    calendarEvent.Category,
+                    calendarEvent.StartUtc,
+                    calendarEvent.EndUtc,
+                    calendarEvent.IsDeleted,
+                    DeletedAtUtc = calendarEvent.UpdatedAt,
+                    DeletedByUserId = calendarEvent.UpdatedById
+                },
+                After: new { calendarEvent.Id, calendarEvent.Title, IsDeleted = false, RestoredAtUtc = restoredAt, RestoredByUserId = actorUserId },
+                Origin: "Admin.Calendar.Deleted",
+                Message: $"Restored calendar event '{calendarEvent.Title}'."), cancellationToken);
 
-            if (transaction is not null)
-            {
-                await transaction.CommitAsync(cancellationToken);
-            }
-
+            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
             return AdminOperationResult.Success("Calendar event restored.");
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception exception)
         {
-            _logger.LogError(
-                exception,
-                "Calendar event restoration failed. EventId={EventId}, TraceId={TraceId}",
-                eventId,
-                traceId);
-
+            _logger.LogError(exception, "Failed to restore deleted calendar event {EventId}. Trace {TraceId}", eventId, traceId);
             return AdminOperationResult.Failure(
-                "The calendar event could not be restored. Quote the trace reference to the administrator.",
+                "The calendar event could not be restored. Review the audit log and try again.",
                 "CalendarRestoreFailed",
                 traceId);
         }

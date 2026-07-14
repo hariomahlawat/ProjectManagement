@@ -1,45 +1,68 @@
 @page
-@using Microsoft.AspNetCore.Authorization
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Projects.LegacyImportModel
-@attribute [Authorize(Roles="Admin")]
-
-<h1 class="h3 mb-4">Legacy project import</h1>
-
-@if (!string.IsNullOrEmpty(Model.StatusMessage))
-{
-    <div class="alert alert-success" role="status">
-        @Model.StatusMessage
-    </div>
+@using ProjectManagement.Services.Admin
+@using ProjectManagement.Services.Admin.Maintenance
+@{
+    ViewData["Title"] = "Legacy project import";
 }
 
-<form method="post" enctype="multipart/form-data" class="vstack gap-3">
-    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 
-    <div class="row g-3">
-        <div class="col-md-4">
-            <label asp-for="ProjectCategoryId" class="form-label">Project category</label>
-            <select asp-for="ProjectCategoryId" asp-items="Model.ProjectCategories" class="form-select">
-                <option value="">-- Select --</option>
-            </select>
-            <span asp-validation-for="ProjectCategoryId" class="text-danger"></span>
-        </div>
-        <div class="col-md-4">
-            <label asp-for="TechnicalCategoryId" class="form-label">Technical category</label>
-            <select asp-for="TechnicalCategoryId" asp-items="Model.TechnicalCategories" class="form-select">
-                <option value="">-- Select --</option>
-            </select>
-            <span asp-validation-for="TechnicalCategoryId" class="text-danger"></span>
-        </div>
-        <div class="col-md-4">
-            <label asp-for="Upload" class="form-label">Excel file (.xlsx)</label>
-            <input asp-for="Upload" type="file" class="form-control" accept=".xlsx" />
-            <span asp-validation-for="Upload" class="text-danger"></span>
-            <div class="form-text">Use the sample template for correct headers.</div>
-        </div>
-    </div>
+@if (ViewData["StatusMessage"] is string statusMessage && !string.IsNullOrWhiteSpace(statusMessage))
+{
+    <div class="admin-flash admin-flash--@(Model.Preview?.CanCommit == true ? "success" : "warning")" role="status"><span class="admin-flash__icon"><i class="bi bi-clipboard-check"></i></span><div class="admin-flash__copy"><strong>Validation completed</strong><span>@statusMessage</span></div></div>
+}
 
-    <div class="d-flex gap-2">
-        <button formaction="?handler=Import" class="btn btn-primary">Import</button>
-        <a asp-page-handler="Template" class="btn btn-outline-secondary">Download sample template</a>
-    </div>
-</form>
+@if (!ViewData.ModelState.IsValid)
+{
+    <div class="admin-flash admin-flash--danger" role="alert"><span class="admin-flash__icon"><i class="bi bi-exclamation-octagon"></i></span><div class="admin-flash__copy"><strong>Validation not completed</strong><div asp-validation-summary="All"></div></div></div>
+}
+
+<section class="admin-panel admin-import-stage" aria-labelledby="import-validation-title">
+    <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Stage 1 of 2</div><h2 id="import-validation-title">Validate and preview</h2></div><span class="admin-status-pill admin-status-pill--neutral">No database change</span></header>
+    <form method="post" enctype="multipart/form-data" asp-page-handler="Preview" class="admin-import-form">
+        <div class="admin-form-section__grid admin-form-section__grid--three">
+            <div class="admin-form-field"><label asp-for="ProjectCategoryId">Project category</label><select asp-for="ProjectCategoryId" asp-items="Model.ProjectCategories" class="form-select"><option value="">Select category</option></select><span asp-validation-for="ProjectCategoryId"></span></div>
+            <div class="admin-form-field"><label asp-for="TechnicalCategoryId">Technical category</label><select asp-for="TechnicalCategoryId" asp-items="Model.TechnicalCategories" class="form-select"><option value="">Select category</option></select><span asp-validation-for="TechnicalCategoryId"></span></div>
+            <div class="admin-form-field"><label asp-for="Upload">Approved Excel workbook</label><input asp-for="Upload" type="file" class="form-control" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" /><span asp-validation-for="Upload"></span><small>Maximum 10 MB. Use the current template and retain the Nomenclature header.</small></div>
+        </div>
+        <div class="admin-import-form__footer"><div class="admin-inline-notice"><i class="bi bi-shield-check"></i><span>The workbook is staged temporarily only after structural validation. Preview does not create or change projects.</span></div><button type="submit" class="btn btn-primary"><i class="bi bi-clipboard-check"></i> Validate workbook</button></div>
+    </form>
+</section>
+
+@if (Model.Preview is not null)
+{
+    <section class="admin-monitoring-metrics admin-monitoring-metrics--four" aria-label="Legacy import validation summary">
+        <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__copy"><strong>@Model.Preview.RowsReceived</strong><span>Rows received</span><small>@Model.Preview.FileName</small></span></article>
+        <article class="admin-monitoring-metric admin-monitoring-metric--success"><span class="admin-monitoring-metric__copy"><strong>@Model.Preview.ValidRows</strong><span>Ready</span><small>No validation issue</small></span></article>
+        <article class="admin-monitoring-metric admin-monitoring-metric--warning"><span class="admin-monitoring-metric__copy"><strong>@Model.Preview.WarningRows</strong><span>Warnings</span><small>Review before commit</small></span></article>
+        <article class="admin-monitoring-metric admin-monitoring-metric--danger"><span class="admin-monitoring-metric__copy"><strong>@Model.Preview.RejectedRows</strong><span>Blocking issues</span><small>Commit disabled when present</small></span></article>
+    </section>
+
+    <section class="admin-panel admin-import-stage" aria-labelledby="import-preview-title">
+        <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Stage 2 of 2</div><h2 id="import-preview-title">Review proposed import</h2></div><div class="admin-panel__meta">Preview expires @Model.Preview.ExpiresUtc.ToString("dd MMM yyyy, HH:mm 'UTC'")</div></header>
+        @if (Model.Preview.DuplicateCategoryImport)
+        {
+            <div class="admin-destructive-warning admin-destructive-warning--compact"><i class="bi bi-ban"></i><div><strong>Import already completed for this category combination</strong><p>The idempotency control prevents a second import. Select a different category combination or review the existing projects.</p></div></div>
+        }
+        <div class="admin-import-file-facts"><span><small>File</small><strong>@Model.Preview.FileName</strong></span><span><small>SHA-256</small><code>@Model.Preview.FileHashSha256[..16]…</code></span><span><small>Preview token</small><code>@Model.Preview.Token.ToString("N")[..12]</code></span></div>
+        <div class="admin-table-wrap"><table class="admin-data-table admin-import-preview-table"><thead><tr><th>Row</th><th>Nomenclature</th><th>Arm / service</th><th>Year</th><th>Cost (lakhs)</th><th>Validation result</th></tr></thead><tbody>
+        @foreach (var row in Model.Preview.Rows)
+        {
+            <tr><td>@row.RowNumber</td><td><div class="admin-table-primary">@(row.Nomenclature ?? "—")</div></td><td>@(row.ArmService ?? "—")</td><td>@(row.YearOfDevelopment ?? "—")</td><td>@(row.CostLakhs ?? "—")</td><td><span class="admin-status-pill admin-status-pill--@Model.StatusTone(row.Status)">@row.Status</span><div class="admin-table-secondary mt-1">@row.Message</div></td></tr>
+        }
+        </tbody></table></div>
+        @if (Model.Preview.Rows.Count < Model.Preview.RowsReceived)
+        {
+            <footer class="admin-panel__footer">The preview is limited to the first @Model.Preview.Rows.Count populated rows. All @Model.Preview.RowsReceived rows are validated during commit.</footer>
+        }
+
+        <div class="admin-import-commit-bar">
+            <form method="post" asp-page-handler="Cancel"><input type="hidden" asp-for="ProjectCategoryId" /><input type="hidden" asp-for="TechnicalCategoryId" /><input type="hidden" name="PreviewToken" value="@Model.Preview.Token" /><button type="submit" class="btn btn-outline-secondary"><i class="bi bi-x-circle"></i> Cancel preview</button></form>
+            <form method="post" asp-page-handler="Commit" class="admin-import-commit-form"><input type="hidden" asp-for="ProjectCategoryId" /><input type="hidden" asp-for="TechnicalCategoryId" /><input type="hidden" name="PreviewToken" value="@Model.Preview.Token" /><label class="form-check"><input asp-for="ConfirmCommit" class="form-check-input" /><span class="form-check-label">I have reviewed the category selections and validation counts.</span></label><button type="submit" class="btn btn-primary" disabled="@(!Model.Preview.CanCommit)"><i class="bi bi-database-check"></i> Commit @Model.Preview.RowsReceived project(s)</button></form>
+        </div>
+    </section>
+}
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

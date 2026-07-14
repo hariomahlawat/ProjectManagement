@@ -113,7 +113,7 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
             "data-protection-keys",
             "Application security",
             "Data Protection key storage",
-            token => CheckWritableDirectoryAsync(dataProtectionRoot, token),
+            token => CheckDataProtectionDirectoryAsync(dataProtectionRoot, token),
             "Configure DP_KEYS_DIR to a persistent writable directory shared by the deployed application instance.",
             cancellationToken));
 
@@ -158,7 +158,7 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
                     check.Status is AdminHealthStatus.Critical or AdminHealthStatus.Warning
                         ? "Review the migration and database deployment guidance before the next release."
                         : null,
-                    stopwatch.ElapsedMilliseconds,
+                    -1,
                     DateTimeOffset.UtcNow));
             }
 
@@ -260,14 +260,14 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
     {
         if (!Directory.Exists(path))
         {
-            return (AdminHealthStatus.Warning, "The configured directory does not exist.", path);
+            return (AdminHealthStatus.Warning, "The configured directory does not exist.", null);
         }
 
         var probe = Path.Combine(path, $".prism-health-{Guid.NewGuid():N}.tmp");
         try
         {
             await File.WriteAllTextAsync(probe, "ok", cancellationToken);
-            return (AdminHealthStatus.Healthy, "The directory is available and writable.", path);
+            return (AdminHealthStatus.Healthy, "The directory is available and writable.", null);
         }
         finally
         {
@@ -280,6 +280,31 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
                 // Probe cleanup failure must not mask the primary result.
             }
         }
+    }
+
+    private async Task<(AdminHealthStatus Status, string Summary, string? Detail)> CheckDataProtectionDirectoryAsync(
+        string path,
+        CancellationToken cancellationToken)
+    {
+        var writable = await CheckWritableDirectoryAsync(path, cancellationToken);
+        if (writable.Status != AdminHealthStatus.Healthy)
+        {
+            return writable;
+        }
+
+        var explicitlyConfigured = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DP_KEYS_DIR"));
+        if (_environment.IsProduction() && !explicitlyConfigured)
+        {
+            return (
+                AdminHealthStatus.Warning,
+                "Key storage is writable but is using the production fallback location.",
+                "Set DP_KEYS_DIR to an explicitly managed persistent location before deployment.");
+        }
+
+        return (
+            AdminHealthStatus.Healthy,
+            "The key directory is available and writable.",
+            explicitlyConfigured ? "Persistent key storage is explicitly configured." : "Development key storage is active.");
     }
 
     private AdminSystemHealthCheck BuildDiskSpaceCheck(string path)
@@ -330,19 +355,21 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
     private AdminSystemHealthCheck BuildApplicationCheck()
     {
         var migrationsOnStartup = _configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup");
-        var summary = _environment.IsProduction()
+        var production = _environment.IsProduction();
+        var status = production ? AdminHealthStatus.Healthy : AdminHealthStatus.Warning;
+        var summary = production
             ? "Production environment configuration is active."
-            : $"{_environment.EnvironmentName} environment configuration is active.";
+            : $"{_environment.EnvironmentName} environment configuration is active; this is not a production-readiness result.";
         var detail = $"Version {ResolveApplicationVersion()} · Startup migrations {(migrationsOnStartup ? "enabled" : "disabled")}.";
         return new(
             "application-runtime",
             "Application security",
             "Application runtime",
-            AdminHealthStatus.Healthy,
+            status,
             summary,
             detail,
-            null,
-            0,
+            production ? null : "Use the Production environment and production configuration when validating deployment readiness.",
+            -1,
             DateTimeOffset.UtcNow);
     }
 
@@ -351,25 +378,60 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
         var now = DateTimeOffset.UtcNow;
         foreach (var worker in _workers.GetSnapshot())
         {
+            var expected = worker.ExpectedInterval;
+            var staleAfter = expected.HasValue
+                ? expected.Value + TimeSpan.FromTicks(Math.Max(expected.Value.Ticks, TimeSpan.FromMinutes(15).Ticks))
+                : TimeSpan.FromHours(48);
+            var runningTooLong = worker.State == AdminWorkerState.Running
+                && worker.LastStartedUtc.HasValue
+                && now - worker.LastStartedUtc.Value > staleAfter;
+            var stale = worker.State == AdminWorkerState.Healthy
+                && worker.LastSucceededUtc.HasValue
+                && now - worker.LastSucceededUtc.Value > staleAfter;
+
             var status = worker.State switch
             {
                 AdminWorkerState.Failed => AdminHealthStatus.Critical,
-                AdminWorkerState.Registered when now - worker.RegisteredUtc > TimeSpan.FromMinutes(5) => AdminHealthStatus.Warning,
+                AdminWorkerState.Registered => AdminHealthStatus.Unavailable,
+                AdminWorkerState.Running when runningTooLong => AdminHealthStatus.Warning,
+                AdminWorkerState.Healthy when stale => AdminHealthStatus.Warning,
                 _ => AdminHealthStatus.Healthy
             };
+
             var summary = worker.State switch
             {
-                AdminWorkerState.Registered => "Registered; no processing cycle has completed since application start.",
+                AdminWorkerState.Registered => "Starting; no processing cycle has completed since application start.",
+                AdminWorkerState.Running when runningTooLong => "The current processing cycle has exceeded its expected completion window.",
                 AdminWorkerState.Running => "A processing cycle is currently running.",
+                AdminWorkerState.Healthy when stale => "The latest successful cycle is older than the expected schedule.",
                 AdminWorkerState.Healthy => "The latest processing cycle completed successfully.",
                 AdminWorkerState.Failed => "The latest processing cycle failed.",
                 _ => "Worker state is unavailable."
             };
-            var detail = worker.State == AdminWorkerState.Failed
-                ? $"Last failure: {worker.LastFailedUtc:dd MMM yyyy, HH:mm} UTC{(string.IsNullOrWhiteSpace(worker.Detail) ? string.Empty : $" · {worker.Detail}")}."
-                : worker.LastSucceededUtc.HasValue
-                    ? $"Last successful cycle: {worker.LastSucceededUtc:dd MMM yyyy, HH:mm} UTC{(string.IsNullOrWhiteSpace(worker.Detail) ? string.Empty : $" · {worker.Detail}")}."
-                    : worker.Detail;
+
+            var details = new List<string>();
+            if (expected.HasValue)
+            {
+                details.Add($"Expected cadence: {FormatDuration(expected.Value)}");
+            }
+            if (worker.LastSucceededUtc.HasValue)
+            {
+                details.Add($"Last successful cycle: {worker.LastSucceededUtc:dd MMM yyyy, HH:mm} UTC");
+            }
+            else if (worker.LastStartedUtc.HasValue)
+            {
+                details.Add($"Last started: {worker.LastStartedUtc:dd MMM yyyy, HH:mm} UTC");
+            }
+            else
+            {
+                details.Add($"Registered: {worker.RegisteredUtc:dd MMM yyyy, HH:mm} UTC");
+            }
+            if (!string.IsNullOrWhiteSpace(worker.Detail))
+            {
+                details.Add(worker.State == AdminWorkerState.Failed
+                    ? $"Failure type: {worker.Detail}"
+                    : worker.Detail);
+            }
 
             yield return new(
                 $"worker-{worker.Key}",
@@ -377,9 +439,11 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
                 worker.Label,
                 status,
                 summary,
-                detail,
-                status == AdminHealthStatus.Healthy ? null : "Review application logs and the worker configuration.",
-                0,
+                string.Join(" · ", details) + ".",
+                status is AdminHealthStatus.Warning or AdminHealthStatus.Critical
+                    ? "Review application logs and the worker schedule or configuration."
+                    : null,
+                -1,
                 now);
         }
     }
@@ -414,6 +478,13 @@ public sealed class AdminSystemHealthService : IAdminSystemHealthService
 
     private static string ResolveApplicationVersion() =>
         Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "Unknown";
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalDays >= 1) return $"{duration.TotalDays:0.#} day(s)";
+        if (duration.TotalHours >= 1) return $"{duration.TotalHours:0.#} hour(s)";
+        return $"{Math.Max(1, duration.TotalMinutes):0} minute(s)";
+    }
 
     private static string FormatBytes(long bytes)
     {

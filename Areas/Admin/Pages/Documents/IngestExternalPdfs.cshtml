@@ -1,144 +1,66 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Documents.IngestExternalPdfsModel
-@using ProjectManagement.Services.Admin
 @{
-    ViewData["Title"] = "Ingest external PDFs";
+    ViewData["Title"] = "PDF ingestion";
+    var current = Model.Result;
 }
 
-<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
-    <div>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-2">
-                <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Ingest PDFs</li>
-            </ol>
-        </nav>
-        <h1 class="h4 mb-1">Ingest external PDFs</h1>
-        <p class="text-muted mb-0">Link PDF attachments from FFC, IPR and Activities into the document repository for OCR and global search.</p>
-    </div>
-</div>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 
-@if (TempData[FlashMessageKeys.AdminPdfIngestionError] is string errorMessage)
+<section class="admin-panel admin-ingestion-control" aria-labelledby="ingestion-control-title">
+    <div class="admin-ingestion-control__body">
+        <span class="admin-ingestion-control__icon"><i class="bi bi-file-earmark-arrow-up"></i></span>
+        <div><div class="admin-panel__eyebrow">Preflight and execution</div><h2 id="ingestion-control-title">Controlled ingestion run</h2><p>The coordinator skips existing repository links, processes each source independently and prevents overlapping runs. Source records remain unchanged.</p><div class="admin-ingestion-principles"><span><i class="bi bi-shield-check"></i> Audit required before start</span><span><i class="bi bi-lock"></i> Single active run</span><span><i class="bi bi-arrow-repeat"></i> Existing links retained</span></div></div>
+    </div>
+    <form method="post" asp-page-handler="Run" data-pdf-ingestion-form>
+        <button type="submit" class="btn btn-primary btn-lg" disabled="@Model.IsRunning" data-pdf-ingestion-submit><i class="bi @(Model.IsRunning ? "bi-hourglass-split" : "bi-play-circle")"></i> @(Model.IsRunning ? "Run in progress" : "Start ingestion")</button>
+    </form>
+</section>
+
+@if (current is not null)
 {
-    <div class="alert alert-danger" role="alert">@errorMessage</div>
-}
-@if (ViewData["StatusMessage"] is string statusMessage)
-{
-    <div class="alert @(Model.Result?.Status == "Completed" ? "alert-success" : "alert-warning")" role="status">@statusMessage</div>
-}
+    <section class="admin-monitoring-metrics admin-monitoring-metrics--six" aria-label="Ingestion run results">
+        <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__copy"><strong>@current.Discovered</strong><span>Discovered</span><small>Eligible source records</small></span></article>
+        <article class="admin-monitoring-metric admin-monitoring-metric--success"><span class="admin-monitoring-metric__copy"><strong>@current.IngestedOrLinked</strong><span>Linked</span><small>New repository links</small></span></article>
+        <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__copy"><strong>@current.AlreadyLinked</strong><span>Already linked</span><small>Idempotently skipped</small></span></article>
+        <article class="admin-monitoring-metric admin-monitoring-metric--warning"><span class="admin-monitoring-metric__copy"><strong>@current.Missing</strong><span>Missing</span><small>Source file unavailable</small></span></article>
+        <article class="admin-monitoring-metric admin-monitoring-metric--danger"><span class="admin-monitoring-metric__copy"><strong>@current.Failed</strong><span>Failed</span><small>Requires investigation</small></span></article>
+        <article class="admin-monitoring-metric admin-monitoring-metric--@(current.Status == "Completed" ? "success" : current.Status == "Failed" ? "danger" : "warning")"><span class="admin-monitoring-metric__copy"><strong>@current.Status</strong><span>Run status</span><small>@Model.FormatDuration(current.Duration)</small></span></article>
+    </section>
 
-<div class="card mb-4">
-    <div class="card-body">
-        <div class="row g-4 align-items-center">
-            <div class="col-lg-8">
-                <h2 class="h6">Controlled ingestion run</h2>
-                <p class="mb-2">The coordinator skips attachments already linked to the repository and prevents two administrators from starting overlapping runs.</p>
-                <ul class="text-muted small mb-0">
-                    <li>Source records remain unchanged.</li>
-                    <li>Missing and failed files are reported separately.</li>
-                    <li>The initiating administrator and final outcome are written to the audit log.</li>
-                </ul>
-            </div>
-            <div class="col-lg-4 text-lg-end">
-                <form method="post" id="pdfIngestionForm">
-                    <button type="submit" class="btn btn-primary" id="startIngestionButton" disabled="@Model.IsRunning">
-                        <i class="bi bi-play-fill" aria-hidden="true"></i>
-                        @(Model.IsRunning ? "Run in progress" : "Start ingestion")
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
+    <div class="admin-maintenance-run-grid">
+        <section class="admin-panel" aria-labelledby="source-summary-title">
+            <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Run @current.RunId.ToString()[..8]</div><h2 id="source-summary-title">Source summary</h2></div><span class="admin-panel__meta">@Model.FormatTime(current.CompletedAtUtc)</span></header>
+            <div class="admin-table-wrap"><table class="admin-data-table"><thead><tr><th>Source</th><th class="text-end">Discovered</th><th class="text-end">Linked</th><th class="text-end">Existing</th><th class="text-end">Missing</th><th class="text-end">Failed</th></tr></thead><tbody>@foreach (var source in current.Sources){<tr><td><div class="admin-table-primary">@source.Source</div></td><td class="text-end">@source.Discovered</td><td class="text-end">@source.IngestedOrLinked</td><td class="text-end">@source.AlreadyLinked</td><td class="text-end">@source.Missing</td><td class="text-end">@source.Failed</td></tr>}</tbody></table></div>
+            <footer class="admin-panel__footer">Started @Model.FormatTime(current.StartedAtUtc) · Initiated by @(current.InitiatedBy ?? "System")@if (!string.IsNullOrWhiteSpace(current.TraceId)){<span> · Trace @current.TraceId</span>}</footer>
+        </section>
 
-@if (Model.Result is not null)
-{
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-lg-2"><div class="card card-body h-100"><div class="text-muted small">Discovered</div><div class="h4 mb-0">@Model.Result.Discovered</div></div></div>
-        <div class="col-6 col-lg-2"><div class="card card-body h-100"><div class="text-muted small">Ingested / linked</div><div class="h4 mb-0">@Model.Result.IngestedOrLinked</div></div></div>
-        <div class="col-6 col-lg-2"><div class="card card-body h-100"><div class="text-muted small">Already linked</div><div class="h4 mb-0">@Model.Result.AlreadyLinked</div></div></div>
-        <div class="col-6 col-lg-2"><div class="card card-body h-100"><div class="text-muted small">Missing</div><div class="h4 mb-0">@Model.Result.Missing</div></div></div>
-        <div class="col-6 col-lg-2"><div class="card card-body h-100"><div class="text-muted small">Failed</div><div class="h4 mb-0">@Model.Result.Failed</div></div></div>
-        <div class="col-6 col-lg-2"><div class="card card-body h-100"><div class="text-muted small">Status</div><div class="fw-semibold">@Model.Result.Status</div></div></div>
-    </div>
-
-    <div class="card mb-4 overflow-hidden">
-        <div class="card-header bg-transparent">
-            <h2 class="h6 mb-0">Source summary</h2>
-        </div>
-        <div class="table-responsive">
-            <table class="table align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th>Source</th>
-                        <th class="text-end">Discovered</th>
-                        <th class="text-end">Ingested / linked</th>
-                        <th class="text-end">Already linked</th>
-                        <th class="text-end">Missing</th>
-                        <th class="text-end">Failed</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var source in Model.Result.Sources)
-                {
-                    <tr>
-                        <td class="fw-semibold">@source.Source</td>
-                        <td class="text-end">@source.Discovered</td>
-                        <td class="text-end">@source.IngestedOrLinked</td>
-                        <td class="text-end">@source.AlreadyLinked</td>
-                        <td class="text-end">@source.Missing</td>
-                        <td class="text-end">@source.Failed</td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-        <div class="card-footer bg-transparent text-muted small">
-            Started @Model.FormatTime(Model.Result.StartedAtUtc) · Completed @Model.FormatTime(Model.Result.CompletedAtUtc)
-        </div>
-    </div>
-
-    @if (Model.Result.Failures.Count > 0)
-    {
-        <div class="card border-warning overflow-hidden">
-            <div class="card-header bg-transparent">
-                <h2 class="h6 mb-0">Missing or failed source items</h2>
-            </div>
-            <div class="table-responsive">
-                <table class="table align-middle mb-0">
-                    <thead><tr><th>Source</th><th>Item</th><th>File</th><th>Result</th></tr></thead>
-                    <tbody>
-                    @foreach (var failure in Model.Result.Failures)
-                    {
-                        <tr>
-                            <td>@failure.Source</td>
-                            <td><code>@failure.SourceItemId</code></td>
-                            <td>@failure.FileName</td>
-                            <td>@failure.Message</td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
-            @if (Model.Result.Missing + Model.Result.Failed > Model.Result.Failures.Count)
+        <section class="admin-panel" aria-labelledby="recent-ingestion-title">
+            <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Instance history</div><h2 id="recent-ingestion-title">Recent runs</h2></div></header>
+            @if (Model.RecentRuns.Count == 0)
             {
-                <div class="card-footer bg-transparent text-muted small">Only the first @Model.Result.Failures.Count details are shown. Review application logs for the complete list.</div>
+                <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-clock-history", Title = "No completed runs", Description = "Run history is retained for this application instance." })" />
             }
-        </div>
+            else
+            {
+                <div class="admin-maintenance-run-list">@foreach (var run in Model.RecentRuns){<a asp-page="./IngestExternalPdfs" asp-route-RunId="@run.RunId" class="@(run.RunId == current.RunId ? "active" : null)"><span class="admin-status-dot admin-status-dot--@(run.Status == "Completed" ? "success" : run.Status == "Failed" ? "danger" : "warning")"></span><div><strong>@run.Status</strong><small>@Model.FormatTime(run.CompletedAtUtc) · @run.Discovered discovered</small></div><i class="bi bi-chevron-right"></i></a>}</div>
+            }
+        </section>
+    </div>
+
+    @if (current.Failures.Count > 0)
+    {
+        <section class="admin-panel" aria-labelledby="ingestion-failures-title">
+            <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Exception report</div><h2 id="ingestion-failures-title">Missing or failed source items</h2></div><a class="btn btn-sm btn-outline-secondary" asp-page-handler="FailureReport" asp-route-runId="@current.RunId"><i class="bi bi-download"></i> Download CSV</a></header>
+            <div class="admin-table-wrap"><table class="admin-data-table"><thead><tr><th>Source</th><th>Source item</th><th>File</th><th>Result</th></tr></thead><tbody>@foreach (var failure in current.Failures){<tr><td><span class="admin-status-pill admin-status-pill--neutral">@failure.Source</span></td><td><code>@failure.SourceItemId</code></td><td class="admin-break-word">@failure.FileName</td><td>@failure.Message</td></tr>}</tbody></table></div>
+            @if (current.Missing + current.Failed > current.Failures.Count){<footer class="admin-panel__footer">Only the first @current.Failures.Count details are retained in the instance report. Review application logs for the complete source list.</footer>}
+        </section>
     }
 }
-
-@section Scripts {
-<script>
-(() => {
-    const form = document.getElementById('pdfIngestionForm');
-    const button = document.getElementById('startIngestionButton');
-    if (!form || !button) return;
-
-    form.addEventListener('submit', () => {
-        button.disabled = true;
-        button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Running ingestion…';
-    });
-})();
-</script>
+else
+{
+    <section class="admin-panel"><partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-file-earmark-arrow-up", Title = "No ingestion result available", Description = "Start a controlled run to link eligible external PDF attachments into the document repository." })" /></section>
 }
+
+@section Scripts { <script src="~/js/admin/admin-maintenance.js" asp-append-version="true" defer></script> }

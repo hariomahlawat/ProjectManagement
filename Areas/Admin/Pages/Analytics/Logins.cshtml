@@ -23,6 +23,8 @@
         outcome = Model.OutcomeLabel(point.Outcome),
         tone = Model.OutcomeTone(point.Outcome),
         review = point.RequiresReview,
+        level = point.ReviewLevel.ToString(),
+        occurrences = point.OccurrenceCount,
         reason = point.ReviewReason
     });
 }
@@ -97,7 +99,7 @@
             </label>
             <label class="form-check">
                 <input asp-for="MarkWeekends" class="form-check-input" data-admin-monitoring-submit />
-                <span class="form-check-label">Mark weekends for review</span>
+                <span class="form-check-label">Include weekend context</span>
             </label>
         </div>
 
@@ -115,8 +117,9 @@
 
     <div class="admin-rule-summary">
         <span><i class="bi bi-clock" aria-hidden="true"></i> Expected hours: @Model.Snapshot.WorkdayStart.ToString(@"hh\:mm")–@Model.Snapshot.WorkdayEnd.ToString(@"hh\:mm") IST</span>
-        <span><i class="bi bi-calendar-week" aria-hidden="true"></i> Weekends @(Model.Snapshot.MarkWeekendsForReview ? "are" : "are not") review signals</span>
-        <span><i class="bi bi-shield-check" aria-hidden="true"></i> Failed and locked-out attempts always require review</span>
+        <span><i class="bi bi-calendar-week" aria-hidden="true"></i> Weekend and routine outside-hours activity is informational context</span>
+        <span><i class="bi bi-shield-check" aria-hidden="true"></i> Failed attempts require review; lockouts are critical</span>
+        <span><i class="bi bi-collection" aria-hidden="true"></i> Equivalent incidents are consolidated within the configured window</span>
     </div>
 </section>
 
@@ -199,7 +202,7 @@
         </div>
         <div class="admin-chart-legend" aria-label="Chart legend">
             <span><i class="admin-chart-dot admin-chart-dot--primary"></i> Expected pattern</span>
-            <span><i class="admin-chart-dot admin-chart-dot--warning"></i> Requires review</span>
+            <span><i class="admin-chart-dot admin-chart-dot--warning"></i> Informational / review context</span>
             <span><i class="admin-chart-dot admin-chart-dot--danger"></i> Failed or locked</span>
         </div>
     </header>
@@ -283,8 +286,20 @@
                                     </span>
                                 </div>
                             </td>
-                            <td><span class="admin-status-pill admin-status-pill--@Model.OutcomeTone(row.Outcome)"><i class="bi @Model.OutcomeIcon(row.Outcome)" aria-hidden="true"></i> @Model.OutcomeLabel(row.Outcome)</span></td>
-                            <td><span class="admin-review-reason">@row.ReviewReason</span></td>
+                            <td>
+                                <span class="admin-status-pill admin-status-pill--@Model.OutcomeTone(row.Outcome)">
+                                    <i class="bi @Model.OutcomeIcon(row.Outcome)" aria-hidden="true"></i>
+                                    @Model.OutcomeLabel(row.Outcome)
+                                </span>
+                                @if (row.OccurrenceCount > 1)
+                                {
+                                    <span class="admin-occurrence-badge" title="@row.OccurrenceCount equivalent events were consolidated">×@row.OccurrenceCount</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="admin-status-pill admin-status-pill--@Model.ReviewTone(row.ReviewLevel)">@Model.ReviewLabel(row.ReviewLevel)</span>
+                                <span class="admin-review-reason">@row.ReviewReason</span>
+                            </td>
                             <td>
                                 <div class="admin-source-summary">
                                     <strong>@(string.IsNullOrWhiteSpace(row.Ip) ? "IP unavailable" : row.Ip)</strong>

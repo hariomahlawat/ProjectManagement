@@ -23,7 +23,9 @@ public sealed class NotebookTrashRetentionWorker : BackgroundService
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _status = status;
-        _status?.Register(WorkerKey, "Notebook trash retention");
+        _status?.Register(WorkerKey, "Notebook trash retention", _options.CurrentValue.SweepInterval > TimeSpan.Zero
+            ? _options.CurrentValue.SweepInterval
+            : TimeSpan.FromHours(6));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

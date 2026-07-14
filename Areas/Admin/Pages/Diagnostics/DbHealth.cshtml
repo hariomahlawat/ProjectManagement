@@ -68,6 +68,7 @@
     {
         var critical = group.Count(check => check.Status == AdminHealthStatus.Critical);
         var warnings = group.Count(check => check.Status == AdminHealthStatus.Warning);
+        var unavailable = group.Count(check => check.Status == AdminHealthStatus.Unavailable);
         var groupId = $"health-group-{group.Key.Replace(" ", "-").ToLowerInvariant()}";
         <section class="admin-panel admin-health-domain" aria-labelledby="@groupId">
             <header class="admin-panel__header">
@@ -84,7 +85,11 @@
                     {
                         <span class="admin-status-pill admin-status-pill--warning">@warnings warning@(warnings == 1 ? string.Empty : "s")</span>
                     }
-                    @if (critical == 0 && warnings == 0)
+                    @if (unavailable > 0)
+                    {
+                        <span class="admin-status-pill admin-status-pill--neutral">@unavailable starting / unavailable</span>
+                    }
+                    @if (critical == 0 && warnings == 0 && unavailable == 0)
                     {
                         <span class="admin-status-pill admin-status-pill--success">Healthy</span>
                     }

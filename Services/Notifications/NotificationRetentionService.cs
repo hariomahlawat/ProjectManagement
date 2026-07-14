@@ -38,7 +38,7 @@ public sealed class NotificationRetentionService : BackgroundService
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _status = status;
-        _status?.Register(WorkerKey, "Notification retention");
+        _status?.Register(WorkerKey, "Notification retention", _options.Value.GetSweepIntervalOrDefault());
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

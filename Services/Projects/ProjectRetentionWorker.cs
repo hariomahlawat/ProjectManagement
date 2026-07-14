@@ -26,7 +26,7 @@ public sealed class ProjectRetentionWorker : BackgroundService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _status = status;
-        _status?.Register(WorkerKey, "Project trash retention");
+        _status?.Register(WorkerKey, "Project trash retention", TimeSpan.FromHours(24));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

@@ -99,7 +99,7 @@ public sealed class LoginsModel : PageModel
             new[]
             {
                 "WhenIST", "Outcome", "DisplayName", "LoginName", "UserId", "SourceIP",
-                "Client", "RequiresReview", "ReviewReason"
+                "Client", "ReviewLevel", "OccurrenceCount", "RequiresReview", "ReviewReason"
             },
             rows.Select(row => (IReadOnlyList<object?>)new object?[]
             {
@@ -110,6 +110,8 @@ public sealed class LoginsModel : PageModel
                 row.UserId,
                 row.Ip,
                 ClientDescriptor(row.UserAgent).Summary,
+                row.ReviewLevel.ToString(),
+                row.OccurrenceCount,
                 row.RequiresReview,
                 row.ReviewReason
             }));
@@ -143,6 +145,20 @@ public sealed class LoginsModel : PageModel
         AdminLoginOutcome.Failed => "warning",
         AdminLoginOutcome.LockedOut => "danger",
         _ => "neutral"
+    };
+
+    public string ReviewTone(AdminLoginReviewLevel level) => level switch
+    {
+        AdminLoginReviewLevel.Critical => "danger",
+        AdminLoginReviewLevel.Review => "warning",
+        _ => "neutral"
+    };
+
+    public string ReviewLabel(AdminLoginReviewLevel level) => level switch
+    {
+        AdminLoginReviewLevel.Critical => "Critical",
+        AdminLoginReviewLevel.Review => "Review",
+        _ => "Information"
     };
 
     public string OutcomeIcon(AdminLoginOutcome outcome) => outcome switch
@@ -222,9 +238,9 @@ public sealed class LoginsModel : PageModel
             },
             new AdminMonitoringMetricModel
             {
-                Label = "Failed sign-ins",
+                Label = "Failed authentication events",
                 Value = Snapshot.Failed.ToString("N0"),
-                Detail = "Authentication rejected",
+                Detail = "Rejected attempts",
                 Icon = "bi-shield-exclamation",
                 Tone = "warning",
                 Href = FilterUrl("failed", false),
@@ -232,9 +248,9 @@ public sealed class LoginsModel : PageModel
             },
             new AdminMonitoringMetricModel
             {
-                Label = "Locked out",
+                Label = "Lockout events",
                 Value = Snapshot.LockedOut.ToString("N0"),
-                Detail = "Account lockout events",
+                Detail = "Authentication lockouts",
                 Icon = "bi-lock",
                 Tone = "danger",
                 Href = FilterUrl("locked-out", false),
@@ -242,17 +258,17 @@ public sealed class LoginsModel : PageModel
             },
             new AdminMonitoringMetricModel
             {
-                Label = "Unique users",
-                Value = Snapshot.UniqueUsers.ToString("N0"),
-                Detail = $"{Snapshot.UniqueSourceIps:N0} source IPs",
-                Icon = "bi-people",
-                Tone = "neutral"
+                Label = "Affected accounts",
+                Value = Snapshot.AffectedAccounts.ToString("N0"),
+                Detail = $"{Snapshot.UniqueUsers:N0} active users · {Snapshot.UniqueSourceIps:N0} sources",
+                Icon = "bi-person-exclamation",
+                Tone = Snapshot.AffectedAccounts > 0 ? "warning" : "neutral"
             },
             new AdminMonitoringMetricModel
             {
-                Label = "Requires review",
+                Label = "Review incidents",
                 Value = Snapshot.ReviewSignals.ToString("N0"),
-                Detail = "Based on configured rules",
+                Detail = "Deduplicated review queue",
                 Icon = "bi-eye",
                 Tone = Snapshot.ReviewSignals > 0 ? "warning" : "success",
                 Href = FilterUrl(Outcome, true),
@@ -279,6 +295,7 @@ public sealed class LoginsModel : PageModel
         TimeSpan.FromHours(8),
         TimeSpan.FromHours(18),
         true,
+        0,
         0,
         0,
         0,

@@ -1,129 +1,224 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using ProjectManagement.Areas.Admin.Models;
 using ProjectManagement.Configuration;
-using ProjectManagement.Data;
-using ProjectManagement.Services;
 using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.Recovery;
+using ProjectManagement.Services.Navigation;
+using ProjectManagement.Services.Navigation.ModuleNav;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Areas.Admin.Pages.Projects;
 
-[Authorize(Policy = ProjectManagement.Configuration.AdminPolicies.RecoveryManage)]
-public class TrashModel : PageModel
+[Authorize(Policy = AdminPolicies.RecoveryManage)]
+public sealed class TrashModel : PageModel
 {
-    private readonly ApplicationDbContext _db;
+    private readonly IProjectRecoveryQueryService _query;
+    private readonly ProjectModerationService _moderation;
+    private readonly IAdminAuditService _audit;
+    private readonly IAdminNavigationUrlBuilder _navigation;
     private readonly IAdminTimeService _time;
-    private readonly ProjectRetentionOptions _retentionOptions;
+    private readonly ProjectRetentionOptions _retention;
 
-    public TrashModel(ApplicationDbContext db, IAdminTimeService time, IOptions<ProjectRetentionOptions> retentionOptions)
+    public TrashModel(
+        IProjectRecoveryQueryService query,
+        ProjectModerationService moderation,
+        IAdminAuditService audit,
+        IAdminNavigationUrlBuilder navigation,
+        IAdminTimeService time,
+        IOptions<ProjectRetentionOptions> retention)
     {
-        _db = db;
-        _time = time;
-        _retentionOptions = retentionOptions.Value;
+        _query = query ?? throw new ArgumentNullException(nameof(query));
+        _moderation = moderation ?? throw new ArgumentNullException(nameof(moderation));
+        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+        _navigation = navigation ?? throw new ArgumentNullException(nameof(navigation));
+        _time = time ?? throw new ArgumentNullException(nameof(time));
+        _retention = retention?.Value ?? throw new ArgumentNullException(nameof(retention));
     }
 
-    public IReadOnlyList<ProjectTrashRow> Projects { get; private set; } = Array.Empty<ProjectTrashRow>();
+    [BindProperty(SupportsGet = true)] public string? Search { get; set; }
+    [BindProperty(SupportsGet = true)] public string? Retention { get; set; }
+    [BindProperty(SupportsGet = true)] public int PageNumber { get; set; } = 1;
+    [BindProperty(SupportsGet = true)] public int PageSize { get; set; } = 25;
+    [BindProperty] public ProjectRecoveryCommand Command { get; set; } = new();
 
-    public bool RemoveAssetsByDefault => _retentionOptions.RemoveAssetsOnPurge;
+    public AdminPageHeaderModel Header { get; private set; } = new();
+    public ProjectRecoveryPage<ProjectRecoveryRow> Result { get; private set; } =
+        new(Array.Empty<ProjectRecoveryRow>(), 0, 1, 25);
+    public int RetentionDays => Math.Max(0, _retention.TrashRetentionDays);
+    public bool RemoveAssetsByDefault => _retention.RemoveAssetsOnPurge;
+    public int DueCount => Result.Items.Count(row => row.IsPurgeDue);
+    public long VisibleStoredBytes => Result.Items.Sum(row => row.StoredBytes);
 
-    public int RetentionDays => Math.Max(0, _retentionOptions.TrashRetentionDays);
-
-    public async Task OnGetAsync()
+    public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        var now = _time.UtcNow;
+        NormalizeFilters();
+        await LoadAsync(cancellationToken);
+    }
 
-        var rows = await _db.Projects
-            .IgnoreQueryFilters()
-            .Where(p => p.IsDeleted)
-            .OrderByDescending(p => p.DeletedAt)
-            .Select(p => new ProjectTrashRow
-            {
-                ProjectId = p.Id,
-                Name = p.Name,
-                CaseFileNumber = p.CaseFileNumber,
-                HodDisplay = p.HodUser != null ? (p.HodUser.FullName ?? p.HodUser.UserName) : null,
-                ProjectOfficerDisplay = p.LeadPoUser != null ? (p.LeadPoUser.FullName ?? p.LeadPoUser.UserName) : null,
-                DeletedAtUtc = p.DeletedAt,
-                DeletedByUserId = p.DeletedByUserId,
-                DeleteReason = p.DeleteReason,
-                DeleteMethod = p.DeleteMethod,
-                IsArchived = p.IsArchived
-            })
-            .ToListAsync();
-
-        var deletedByIds = rows
-            .Where(r => !string.IsNullOrWhiteSpace(r.DeletedByUserId))
-            .Select(r => r.DeletedByUserId!)
-            .Distinct()
-            .ToList();
-
-        var userMap = deletedByIds.Count == 0
-            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            : await _db.Users
-                .Where(u => deletedByIds.Contains(u.Id))
-                .Select(u => new { u.Id, Display = u.FullName ?? u.UserName ?? u.Id })
-                .ToDictionaryAsync(x => x.Id, x => x.Display, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var row in rows)
+    public async Task<IActionResult> OnPostExecuteAsync(CancellationToken cancellationToken)
+    {
+        NormalizeFilters();
+        if (Command.ProjectId <= 0 || string.IsNullOrWhiteSpace(Command.Action))
         {
-            if (!string.IsNullOrWhiteSpace(row.DeletedByUserId) && userMap.TryGetValue(row.DeletedByUserId!, out var display))
-            {
-                row.DeletedByDisplay = display;
-            }
-
-            if (row.DeletedAtUtc.HasValue)
-            {
-                var due = row.DeletedAtUtc.Value.AddDays(RetentionDays);
-                row.PurgeScheduledUtc = due;
-                var remaining = due - now;
-                row.DaysUntilPurge = remaining.TotalDays <= 0 ? 0 : (int)Math.Ceiling(remaining.TotalDays);
-            }
+            TempData[FlashMessageKeys.AdminRecoveryError] = "The selected project recovery operation is invalid.";
+            return RedirectToPage(RouteValues());
         }
 
-        Projects = rows;
+        var preview = await _query.GetPreviewAsync(Command.ProjectId, cancellationToken);
+        if (preview is null)
+        {
+            TempData[FlashMessageKeys.AdminRecoveryError] = "The project is no longer available in Trash.";
+            return RedirectToPage(RouteValues());
+        }
+
+        var actor = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(actor)) return Challenge();
+
+        ProjectModerationResult result;
+        if (string.Equals(Command.Action, "restore", StringComparison.OrdinalIgnoreCase))
+        {
+            result = await _moderation.RestoreFromTrashAsync(preview.ProjectId, actor, cancellationToken);
+            SetResultMessage(result, $"Restored '{preview.Name}' to the project portfolio.");
+            return RedirectToPage(RouteValues());
+        }
+
+        if (!string.Equals(Command.Action, "purge", StringComparison.OrdinalIgnoreCase))
+        {
+            TempData[FlashMessageKeys.AdminRecoveryError] = "The requested project operation is not supported.";
+            return RedirectToPage(RouteValues());
+        }
+
+        if (preview.PurgeScheduledUtc.HasValue && preview.PurgeScheduledUtc.Value > _time.UtcNow)
+        {
+            TempData[FlashMessageKeys.AdminRecoveryError] =
+                $"Permanent deletion is not available until {_time.FormatIst(preview.PurgeScheduledUtc)}. Restore the project instead or wait for the approved retention period to expire.";
+            return RedirectToPage(RouteValues());
+        }
+
+        if (!string.Equals(Command.Confirmation?.Trim(), preview.Name, StringComparison.Ordinal))
+        {
+            TempData[FlashMessageKeys.AdminRecoveryError] = "Type the project name exactly to confirm permanent deletion.";
+            return RedirectToPage(RouteValues());
+        }
+        if (!Command.Acknowledge)
+        {
+            TempData[FlashMessageKeys.AdminRecoveryError] = "Acknowledge that permanent deletion cannot be undone.";
+            return RedirectToPage(RouteValues());
+        }
+        var reason = Command.Reason?.Trim();
+        if (string.IsNullOrWhiteSpace(reason) || reason.Length < 5)
+        {
+            TempData[FlashMessageKeys.AdminRecoveryError] = "Record a clear administrative reason for permanent deletion.";
+            return RedirectToPage(RouteValues());
+        }
+        if (reason.Length > 512)
+        {
+            TempData[FlashMessageKeys.AdminRecoveryError] = "The permanent-deletion reason must be 512 characters or fewer.";
+            return RedirectToPage(RouteValues());
+        }
+
+        await _audit.RecordAsync(
+            new AdminAuditEntry(
+                Action: "ProjectPurgeAuthorised",
+                EntityType: "Project",
+                EntityId: preview.ProjectId.ToString(),
+                Before: preview,
+                After: new { Command.RemoveAssets, Reason = reason },
+                Origin: "Admin.Recovery.ProjectTrash",
+                Level: "Warning",
+                Message: $"Permanent deletion authorised for project '{preview.Name}'. Reason: {reason}"),
+            cancellationToken);
+
+        result = await _moderation.PurgeAsync(preview.ProjectId, actor, Command.RemoveAssets, cancellationToken);
+        SetResultMessage(result, $"Permanently deleted '{preview.Name}'.");
+        return RedirectToPage(RouteValues());
     }
 
-    public string FormatTimestamp(DateTimeOffset? value) => _time.FormatIst(value);
-
-    public string FormatDate(DateTimeOffset? value) => value.HasValue
-        ? _time.ToIst(value.Value).ToString("dd MMM yyyy")
-        : "—";
-
-    public sealed class ProjectTrashRow
+    public string FormatTime(DateTimeOffset? value) => _time.FormatIst(value);
+    public string FormatBytes(long bytes)
     {
-        public int ProjectId { get; init; }
+        var size = (double)Math.Max(0, bytes);
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        var index = 0;
+        while (size >= 1024 && index < units.Length - 1) { size /= 1024; index++; }
+        return $"{size:0.##} {units[index]}";
+    }
+    public string PageUrl(int page) => Url.Page(null, new
+    {
+        Search,
+        Retention,
+        PageNumber = page,
+        PageSize
+    }) ?? "#";
 
-        public string Name { get; init; } = string.Empty;
+    private async Task LoadAsync(CancellationToken cancellationToken)
+    {
+        Result = await _query.QueryTrashAsync(
+            new ProjectTrashQuery(Search, Retention, PageNumber, PageSize),
+            cancellationToken);
+        PageNumber = Result.Page;
+        PageSize = Result.PageSize;
+        Header = new AdminPageHeaderModel
+        {
+            Eyebrow = "Recovery and retention",
+            Title = "Project trash",
+            Description = $"Restore complete project records or conduct a controlled purge after the {RetentionDays}-day retention period.",
+            Icon = "bi-trash3",
+            Actions = new[]
+            {
+                new AdminPageActionModel
+                {
+                    Text = "Recovery centre",
+                    Href = _navigation.GetPath(HttpContext, AdminNavigationKeys.RecoveryCentre),
+                    Icon = "bi-arrow-left"
+                }
+            }
+        };
+    }
 
-        public string? CaseFileNumber { get; init; }
+    private void SetResultMessage(ProjectModerationResult result, string success)
+    {
+        if (result.Status == ProjectModerationStatus.Success)
+        {
+            TempData[FlashMessageKeys.AdminRecoverySuccess] = success;
+            return;
+        }
+        TempData[FlashMessageKeys.AdminRecoveryError] = result.Error ?? result.Status switch
+        {
+            ProjectModerationStatus.NotFound => "The project could not be found.",
+            ProjectModerationStatus.InvalidState => "The project is no longer in a valid state for this operation.",
+            _ => "The project recovery operation could not be completed."
+        };
+    }
 
-        public string? HodDisplay { get; init; }
+    private void NormalizeFilters()
+    {
+        Search = Normalize(Search, 160);
+        Retention = Normalize(Retention, 32)?.ToLowerInvariant();
+        PageNumber = Math.Max(1, PageNumber);
+        PageSize = PageSize is 10 or 25 or 50 or 100 ? PageSize : 25;
+    }
 
-        public string? ProjectOfficerDisplay { get; init; }
+    private object RouteValues() => new { Search, Retention, PageNumber, PageSize };
+    private static string? Normalize(string? value, int maxLength)
+    {
+        var normalized = value?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized)) return null;
+        return normalized.Length <= maxLength ? normalized : normalized[..maxLength];
+    }
 
-        public DateTimeOffset? DeletedAtUtc { get; init; }
-
-        public string? DeletedByUserId { get; init; }
-
-        public string? DeletedByDisplay { get; set; }
-
-        public string? DeleteReason { get; init; }
-
-        public string? DeleteMethod { get; init; }
-
-        public bool IsArchived { get; init; }
-
-        public DateTimeOffset? PurgeScheduledUtc { get; set; }
-
-        public int? DaysUntilPurge { get; set; }
-
-        public string DeletedByFallback => !string.IsNullOrWhiteSpace(DeletedByDisplay)
-            ? DeletedByDisplay!
-            : (DeletedByUserId ?? "—");
+    public sealed class ProjectRecoveryCommand
+    {
+        public string? Action { get; set; }
+        public int ProjectId { get; set; }
+        public string? Confirmation { get; set; }
+        [MaxLength(512)] public string? Reason { get; set; }
+        public bool RemoveAssets { get; set; }
+        public bool Acknowledge { get; set; }
     }
 }

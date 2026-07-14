@@ -26,7 +26,7 @@ public sealed class TodoPurgeWorker : BackgroundService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _retentionDays = options?.Value.RetentionDays ?? throw new ArgumentNullException(nameof(options));
         _status = status;
-        _status?.Register(WorkerKey, "Task retention");
+        _status?.Register(WorkerKey, "Task retention", TimeSpan.FromHours(24));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

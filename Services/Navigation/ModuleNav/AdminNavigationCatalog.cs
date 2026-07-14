@@ -11,6 +11,7 @@ public static class AdminNavigationKeys
     public const string Logins = "logins";
     public const string Logs = "logs";
     public const string DatabaseHealth = "database-health";
+    public const string RecoveryCentre = "recovery-centre";
     public const string ProjectTrash = "project-trash";
     public const string DocumentRecycle = "document-recycle";
     public const string PdfIngestion = "pdf-ingestion";
@@ -25,6 +26,7 @@ public static class AdminNavigationKeys
     public const string LineDirectorates = "line-directorates";
     public const string LegacyImport = "legacy-import";
     public const string ArchivedProjects = "archived-projects";
+    public const string MaintenanceCentre = "maintenance-centre";
     public const string Help = "help";
 }
 
@@ -154,6 +156,14 @@ public static class AdminNavigationCatalog
             showInQuickLinks: true),
 
         Entry(
+            AdminNavigationKeys.RecoveryCentre,
+            AdminNavigationGroups.Recovery,
+            55,
+            Item("Recovery centre", "Admin", "/Recovery/Index", "bi-arrow-counterclockwise", AdminPolicies.RecoveryManage),
+            exactPage: true,
+            showOnDashboard: true),
+
+        Entry(
             AdminNavigationKeys.ProjectTrash,
             AdminNavigationGroups.Recovery,
             60,
@@ -181,21 +191,18 @@ public static class AdminNavigationCatalog
             AdminNavigationKeys.ArchivedProjects,
             AdminNavigationGroups.Recovery,
             90,
-            new NavigationItem
-            {
-                Text = "Archived projects",
-                Area = string.Empty,
-                Page = "/Projects/Index",
-                Icon = "bi-archive",
-                AuthorizationPolicy = AdminPolicies.Access,
-                RouteValues = new Dictionary<string, object?> { ["IncludeArchived"] = true }
-            },
+            Item("Archived projects", "Admin", "/Projects/Archived", "bi-archive", AdminPolicies.RecoveryManage),
             exactPage: true,
-            requiredQuery: new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["IncludeArchived"] = "true"
-            },
+            showOnDashboard: true,
             showInQuickLinks: true),
+
+        Entry(
+            AdminNavigationKeys.MaintenanceCentre,
+            AdminNavigationGroups.Maintenance,
+            95,
+            Item("Maintenance centre", "Admin", "/Maintenance/Index", "bi-tools", AdminPolicies.IngestionManage),
+            exactPage: true,
+            showOnDashboard: true),
 
         Entry(
             AdminNavigationKeys.PdfIngestion,

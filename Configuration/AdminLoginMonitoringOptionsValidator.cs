@@ -52,6 +52,11 @@ public sealed class AdminLoginMonitoringOptionsValidator : IValidateOptions<Admi
             failures.Add("AdminLoginMonitoring:MaximumReviewPageSize must be between 10 and 500.");
         }
 
+        if (options.DuplicateWindowMinutes is < 1 or > 30)
+        {
+            failures.Add("AdminLoginMonitoring:DuplicateWindowMinutes must be between 1 and 30.");
+        }
+
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);

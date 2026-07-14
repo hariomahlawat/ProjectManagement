@@ -31,4 +31,15 @@ public sealed class AdminPresentationCatalogTests
 
         Assert.Equal(expected, presentation.Label);
     }
+    [Fact]
+    public void AuditCatalog_KnownRoutineAction_IgnoresBroadWarningLevel()
+    {
+        var catalog = new AuditActionPresentationCatalog();
+
+        var presentation = catalog.Describe("Projects.MetaChangedDirect", "Warning");
+
+        Assert.Equal("neutral", presentation.Tone);
+        Assert.Equal("Project details changed", presentation.Label);
+    }
+
 }

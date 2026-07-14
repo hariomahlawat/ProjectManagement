@@ -21,7 +21,7 @@ public sealed class LoginAggregationWorker : BackgroundService
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _status = status;
-        _status?.Register(WorkerKey, "Login aggregation");
+        _status?.Register(WorkerKey, "Login aggregation", TimeSpan.FromHours(24));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

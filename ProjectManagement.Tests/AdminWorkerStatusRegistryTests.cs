@@ -33,4 +33,16 @@ public sealed class AdminWorkerStatusRegistryTests
         Assert.NotNull(status.Detail);
         Assert.False(status.Detail!.Contains("sensitive", StringComparison.OrdinalIgnoreCase));
     }
+    [Fact]
+    public void Registry_PreservesExpectedSchedule()
+    {
+        var registry = new AdminWorkerStatusRegistry();
+        registry.Register("worker", "Test worker", TimeSpan.FromHours(6));
+
+        var status = Assert.Single(registry.GetSnapshot());
+
+        Assert.Equal(TimeSpan.FromHours(6), status.ExpectedInterval);
+        Assert.Equal(AdminWorkerState.Registered, status.State);
+    }
+
 }

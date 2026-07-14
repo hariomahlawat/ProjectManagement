@@ -194,8 +194,8 @@ public sealed class AdminIndexModel : PageModel
                 Label = "Items awaiting recovery review",
                 Icon = "bi-arrow-counterclockwise",
                 Tone = metrics.RecoveryQueue > 0 ? "warning" : "success",
-                Href = NavigationHref(AdminNavigationKeys.ProjectTrash),
-                LinkText = "Open",
+                Href = NavigationHref(AdminNavigationKeys.RecoveryCentre),
+                LinkText = "Open centre",
                 Details = new[]
                 {
                     new AdminMetricDetailModel("Projects", metrics.TrashedProjects.ToString("N0")),
@@ -223,10 +223,12 @@ public sealed class AdminIndexModel : PageModel
                 Description = "Restore deleted records and manage controlled data-ingestion tasks.",
                 Icon = "bi-tools",
                 Links = BuildLinks(
+                    AdminNavigationKeys.RecoveryCentre,
                     AdminNavigationKeys.ProjectTrash,
                     AdminNavigationKeys.DocumentRecycle,
                     AdminNavigationKeys.DeletedEvents,
                     AdminNavigationKeys.ArchivedProjects,
+                    AdminNavigationKeys.MaintenanceCentre,
                     AdminNavigationKeys.PdfIngestion,
                     AdminNavigationKeys.LegacyImport)
             },

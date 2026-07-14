@@ -1,0 +1,58 @@
+@page
+@model ProjectManagement.Areas.Admin.Pages.Projects.ArchivedModel
+@{
+    ViewData["Title"] = "Archived projects";
+    var firstItem = Model.Result.TotalCount == 0 ? 0 : ((Model.Result.Page - 1) * Model.Result.PageSize) + 1;
+    var lastItem = Math.Min(Model.Result.TotalCount, Model.Result.Page * Model.Result.PageSize);
+}
+
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+
+<section class="admin-panel" aria-labelledby="archived-projects-title">
+    <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Operational archive</div><h2 id="archived-projects-title">Archived project directory</h2></div><span class="admin-panel__meta">Showing @firstItem–@lastItem of @Model.Result.TotalCount</span></header>
+    <div class="admin-definition-banner"><i class="bi bi-info-circle"></i><div><strong>Archive is not Trash</strong><p>Archived projects remain complete and are excluded from normal operational views. Restoring an archive is reversible and does not invoke deletion retention.</p></div></div>
+    <form method="get" class="admin-filter-toolbar admin-recovery-filter-toolbar">
+        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--search"><label asp-for="Search">Search</label><div class="admin-search-control"><i class="bi bi-search"></i><input asp-for="Search" class="form-control" placeholder="Project or case file" /></div></div>
+        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--page-size"><label asp-for="PageSize">Rows</label><select asp-for="PageSize" class="form-select">@foreach (var size in new[] { 10, 25, 50, 100 }) { <option value="@size">@size</option> }</select></div>
+        <input type="hidden" asp-for="PageNumber" value="1" />
+        <div class="admin-filter-toolbar__actions"><button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Apply</button><a asp-page="./Archived" class="btn btn-outline-secondary">Clear</a></div>
+    </form>
+
+    @if (Model.Result.Items.Count == 0)
+    {
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-archive", Title = "No archived projects", Description = "No archived projects match the current filters." })" />
+    }
+    else
+    {
+        <div class="admin-table-wrap"><table class="admin-data-table admin-recovery-table"><thead><tr><th>Project</th><th>Lifecycle</th><th>Responsibility</th><th>Archive record</th><th>Related records</th><th class="text-end">Action</th></tr></thead><tbody>
+        @foreach (var row in Model.Result.Items)
+        {
+            <tr>
+                <td><div class="admin-table-primary">@row.Name</div><div class="admin-table-secondary">@(string.IsNullOrWhiteSpace(row.CaseFileNumber) ? $"Project #{row.ProjectId}" : $"Case file {row.CaseFileNumber}")</div></td>
+                <td><span class="admin-status-pill admin-status-pill--neutral"><i class="bi bi-diagram-3"></i> @Model.StageName(row.StageCode)</span></td>
+                <td><div class="admin-recovery-people"><span><small>HoD</small><strong>@(row.HodDisplay ?? "Not assigned")</strong></span><span><small>Project Officer</small><strong>@(row.ProjectOfficerDisplay ?? "Not assigned")</strong></span></div></td>
+                <td><div class="admin-table-primary">@Model.FormatTime(row.ArchivedAtUtc)</div><div class="admin-table-secondary">By @(row.ArchivedByDisplay ?? "Unknown user")</div></td>
+                <td><div class="admin-asset-summary"><span><i class="bi bi-file-earmark"></i>@row.DocumentCount documents</span><span><i class="bi bi-image"></i>@row.PhotoCount photos</span><span><i class="bi bi-film"></i>@row.VideoCount videos</span></div></td>
+                <td class="text-end"><button type="button" class="btn btn-sm btn-outline-primary" data-archive-restore data-project-id="@row.ProjectId" data-project-name="@row.Name" data-bs-toggle="modal" data-bs-target="#archiveRestoreModal"><i class="bi bi-arrow-counterclockwise"></i> Restore</button></td>
+            </tr>
+        }
+        </tbody></table></div>
+    }
+
+    @if (Model.Result.TotalPages > 1)
+    {
+        <nav class="admin-pagination" aria-label="Archived project pages"><a class="btn btn-sm btn-outline-secondary @(Model.Result.Page <= 1 ? "disabled" : null)" href="@Model.PageUrl(Model.Result.Page - 1)">Previous</a><span>Page @Model.Result.Page of @Model.Result.TotalPages</span><a class="btn btn-sm btn-outline-secondary @(Model.Result.Page >= Model.Result.TotalPages ? "disabled" : null)" href="@Model.PageUrl(Model.Result.Page + 1)">Next</a></nav>
+    }
+</section>
+
+<div class="modal fade" id="archiveRestoreModal" tabindex="-1" aria-labelledby="archiveRestoreTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content admin-controlled-modal"><form method="post" asp-page-handler="Restore" data-archive-restore-form>
+        <input type="hidden" asp-for="RestoreProjectId" data-archive-project-id /><input type="hidden" asp-for="Search" /><input type="hidden" asp-for="PageNumber" /><input type="hidden" asp-for="PageSize" />
+        <div class="modal-header"><div><div class="admin-panel__eyebrow">Archive recovery</div><h2 class="modal-title fs-5" id="archiveRestoreTitle">Restore project</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-body"><div class="admin-record-summary"><span class="admin-record-summary__icon"><i class="bi bi-folder2-open"></i></span><div><strong data-archive-project-name>Selected project</strong><small>Return this project to normal operational views.</small></div></div><p class="mb-0">Lifecycle stages, assignments, documents and historical records remain unchanged. Only the archive state will be removed.</p></div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary" data-archive-submit><i class="bi bi-arrow-counterclockwise"></i> Restore project</button></div>
+    </form></div></div>
+</div>
+
+@section Scripts { <script src="~/js/admin/admin-archived-projects.js" asp-append-version="true" defer></script> }

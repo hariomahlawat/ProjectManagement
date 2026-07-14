@@ -22,7 +22,7 @@
     <div class="admin-health-check__body">
         <div class="admin-health-check__heading">
             <strong>@Model.Label</strong>
-            <span class="admin-status-pill admin-status-pill--@tone">@Model.Status</span>
+            <span class="admin-status-pill admin-status-pill--@tone">@(Model.Status == AdminHealthStatus.Unavailable ? "Starting / unavailable" : Model.Status.ToString())</span>
         </div>
         <p>@Model.Summary</p>
         @if (!string.IsNullOrWhiteSpace(Model.Detail))
@@ -38,7 +38,10 @@
         }
     </div>
     <div class="admin-health-check__meta">
-        <span>@Model.DurationMilliseconds ms</span>
+        @if (Model.DurationMilliseconds >= 0)
+        {
+            <span>@Model.DurationMilliseconds ms</span>
+        }
         <time datetime="@Model.CheckedUtc.ToString("O")">@Model.CheckedUtc.ToString("HH:mm:ss") UTC</time>
     </div>
 </article>
