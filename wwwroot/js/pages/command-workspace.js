@@ -439,23 +439,151 @@
             if (!source) return [];
             try { return JSON.parse(source.textContent || '[]'); } catch { return []; }
         };
+
         const points = readEmbeddedJson(canvas.dataset.pointsSource);
         const users = readEmbeddedJson(canvas.dataset.usersSource);
         if (!Array.isArray(points) || points.length === 0 || !Array.isArray(users) || users.length === 0) return;
 
+        const intervalMinutes = Math.max(1, Number.parseInt(canvas.dataset.intervalMinutes || '15', 10) || 15);
+        const minuteMs = 60 * 1000;
+        const hourMs = 60 * minuteMs;
+        const dayMs = 24 * hourMs;
+        const intervalMs = intervalMinutes * minuteMs;
+        const istOffsetMs = 330 * minuteMs;
         const userIndex = new Map(users.map((user, index) => [user.userId, index]));
-        const toChartPoint = point => ({
-            x: Number(point.timestampUtcMilliseconds),
-            y: userIndex.get(point.userId),
-            meta: point
-        });
-        const navigation = points.filter(point => point.signal === 'navigation').map(toChartPoint);
-        const interactive = points.filter(point => point.signal === 'interactive').map(toChartPoint);
-        const operational = points.filter(point => point.signal === 'operational').map(toChartPoint);
-        const timestamps = points.map(point => Number(point.timestampUtcMilliseconds)).filter(Number.isFinite);
-        const minTimestamp = timestamps.reduce((minimum, value) => Math.min(minimum, value), Number.POSITIVE_INFINITY);
-        const maxTimestamp = timestamps.reduce((maximum, value) => Math.max(maximum, value), Number.NEGATIVE_INFINITY);
-        const isSingleDay = maxTimestamp - minTimestamp < 24 * 60 * 60 * 1000;
+        const alignDownIst = (value, step) => Math.floor((value + istOffsetMs) / step) * step - istOffsetMs;
+        const alignUpIst = (value, step) => Math.ceil((value + istOffsetMs) / step) * step - istOffsetMs;
+        const localDayKey = value => Math.floor((value + istOffsetMs) / dayMs);
+
+        const toChartPoint = point => {
+            const intervalStart = Number(point.timestampUtcMilliseconds);
+            return {
+                x: intervalStart + (intervalMs / 2),
+                xStart: intervalStart,
+                xEnd: intervalStart + intervalMs,
+                y: userIndex.get(point.userId),
+                meta: point
+            };
+        };
+
+        const datasets = [
+            {
+                signal: 'navigation',
+                label: 'Navigation / read-only interval',
+                data: points.filter(point => point.signal === 'navigation').map(toChartPoint),
+                segmentColor: 'rgba(112, 130, 159, .70)',
+                segmentBorderColor: 'rgba(80, 101, 136, .90)',
+                segmentWidth: 6
+            },
+            {
+                signal: 'interactive',
+                label: 'Interactive interval',
+                data: points.filter(point => point.signal === 'interactive').map(toChartPoint),
+                segmentColor: 'rgba(46, 99, 196, .88)',
+                segmentBorderColor: 'rgba(35, 78, 158, 1)',
+                segmentWidth: 7
+            },
+            {
+                signal: 'operational',
+                label: 'Operational action recorded',
+                data: points.filter(point => point.signal === 'operational').map(toChartPoint),
+                segmentColor: 'rgba(48, 132, 87, .92)',
+                segmentBorderColor: 'rgba(35, 101, 65, 1)',
+                segmentWidth: 7
+            }
+        ]
+            .filter(dataset => dataset.data.length > 0)
+            .map(dataset => ({
+                ...dataset,
+                pointRadius: 0,
+                pointHoverRadius: 0,
+                pointHitRadius: 12,
+                borderWidth: 0,
+                backgroundColor: 'rgba(0,0,0,0)'
+            }));
+
+        const intervalTimelinePlugin = {
+            id: 'commandUsageIntervalTimeline',
+            afterDatasetsDraw(chart) {
+                const { ctx, chartArea, scales } = chart;
+                if (!chartArea || !scales?.x || !scales?.y) return;
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(chartArea.left, chartArea.top, chartArea.right - chartArea.left, chartArea.bottom - chartArea.top);
+                ctx.clip();
+
+                chart.data.datasets.forEach((dataset, datasetIndex) => {
+                    const meta = chart.getDatasetMeta(datasetIndex);
+                    if (meta.hidden) return;
+
+                    dataset.data.forEach(point => {
+                        const startX = scales.x.getPixelForValue(point.xStart);
+                        const endX = scales.x.getPixelForValue(point.xEnd);
+                        const rowY = scales.y.getPixelForValue(point.y);
+                        if (![startX, endX, rowY].every(Number.isFinite)) return;
+
+                        ctx.lineCap = 'round';
+                        ctx.lineWidth = dataset.segmentWidth + 2;
+                        ctx.strokeStyle = dataset.segmentBorderColor;
+                        ctx.beginPath();
+                        ctx.moveTo(startX, rowY);
+                        ctx.lineTo(Math.max(startX + 8, endX), rowY);
+                        ctx.stroke();
+
+                        ctx.lineWidth = dataset.segmentWidth;
+                        ctx.strokeStyle = dataset.segmentColor;
+                        ctx.beginPath();
+                        ctx.moveTo(startX, rowY);
+                        ctx.lineTo(Math.max(startX + 8, endX), rowY);
+                        ctx.stroke();
+
+                        if (dataset.signal === 'operational') {
+                            const markerX = startX + ((Math.max(startX + 8, endX) - startX) / 2);
+                            const markerSize = 5;
+                            ctx.fillStyle = '#f7fff9';
+                            ctx.strokeStyle = dataset.segmentBorderColor;
+                            ctx.lineWidth = 1.5;
+                            ctx.beginPath();
+                            ctx.moveTo(markerX, rowY - markerSize);
+                            ctx.lineTo(markerX + markerSize, rowY);
+                            ctx.lineTo(markerX, rowY + markerSize);
+                            ctx.lineTo(markerX - markerSize, rowY);
+                            ctx.closePath();
+                            ctx.fill();
+                            ctx.stroke();
+                        }
+                    });
+                });
+
+                ctx.restore();
+            }
+        };
+
+        const minTimestamp = datasets.reduce(
+            (minimum, dataset) => dataset.data.reduce(
+                (datasetMinimum, point) => Math.min(datasetMinimum, point.xStart),
+                minimum),
+            Number.POSITIVE_INFINITY);
+        const maxTimestamp = datasets.reduce(
+            (maximum, dataset) => dataset.data.reduce(
+                (datasetMaximum, point) => Math.max(datasetMaximum, point.xEnd),
+                maximum),
+            Number.NEGATIVE_INFINITY);
+        const isSingleLocalDay = localDayKey(minTimestamp) === localDayKey(maxTimestamp - 1);
+        const visibleSpan = Math.max(intervalMs, maxTimestamp - minTimestamp);
+        const tickStep = isSingleLocalDay
+            ? intervalMs
+            : visibleSpan <= 3 * dayMs
+                ? 3 * hourMs
+                : visibleSpan <= 7 * dayMs
+                    ? 6 * hourMs
+                    : visibleSpan <= 14 * dayMs
+                        ? 12 * hourMs
+                        : dayMs;
+        const scaleMin = alignDownIst(minTimestamp - tickStep, tickStep);
+        const scaleMax = alignUpIst(maxTimestamp + tickStep, tickStep);
+
         const dateFormatter = new Intl.DateTimeFormat('en-IN', {
             timeZone: 'Asia/Kolkata',
             day: '2-digit',
@@ -468,49 +596,18 @@
             hour12: false
         });
 
-        const datasets = [
-            {
-                label: 'Navigation / read-only',
-                data: navigation,
-                pointStyle: 'circle',
-                pointRadius: 3,
-                pointHoverRadius: 6,
-                backgroundColor: 'rgba(119, 136, 164, .55)',
-                borderColor: 'rgba(92, 111, 143, .78)',
-                borderWidth: 1
-            },
-            {
-                label: 'Interactive activity',
-                data: interactive,
-                pointStyle: 'circle',
-                pointRadius: 4,
-                pointHoverRadius: 7,
-                backgroundColor: 'rgba(46, 99, 196, .82)',
-                borderColor: 'rgba(35, 78, 158, .96)',
-                borderWidth: 1
-            },
-            {
-                label: 'Operational action',
-                data: operational,
-                pointStyle: 'rectRot',
-                pointRadius: 5,
-                pointHoverRadius: 8,
-                backgroundColor: 'rgba(48, 132, 87, .90)',
-                borderColor: 'rgba(35, 101, 65, 1)',
-                borderWidth: 1
-            }
-        ].filter(dataset => dataset.data.length > 0);
-
         new Chart(canvas, {
             type: 'scatter',
             data: { datasets },
+            plugins: [intervalTimelinePlugin],
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 parsing: false,
                 normalized: true,
-                animation: points.length > 1000 ? false : { duration: 260 },
+                animation: points.length > 1000 ? false : { duration: 220 },
                 interaction: { mode: 'nearest', intersect: true },
+                layout: { padding: { top: 4, right: 8, bottom: 0, left: 2 } },
                 plugins: {
                     legend: { display: false },
                     tooltip: {
@@ -523,8 +620,8 @@
                                 const signalLabel = point.signal === 'operational'
                                     ? 'Operational action recorded'
                                     : point.signal === 'interactive'
-                                        ? 'Interactive activity recorded'
-                                        : 'Navigation or read-only activity';
+                                        ? 'Interactive interval'
+                                        : 'Navigation or read-only interval';
                                 return [point.timestampIstLabel, signalLabel];
                             },
                             afterLabel: context => {
@@ -532,7 +629,7 @@
                                 if (!point) return '';
                                 const details = [];
                                 if (Array.isArray(point.modules) && point.modules.length > 0) {
-                                    details.push(`Modules: ${point.modules.join(', ')}`);
+                                    details.push(`Modules visited: ${point.modules.join(', ')}`);
                                 }
                                 if ((point.operationalActionCount || 0) > 0) {
                                     details.push(`Operational actions: ${point.operationalActionCount}`);
@@ -545,17 +642,21 @@
                 scales: {
                     x: {
                         type: 'linear',
-                        min: minTimestamp - (isSingleDay ? 20 * 60 * 1000 : 60 * 60 * 1000),
-                        max: maxTimestamp + (isSingleDay ? 20 * 60 * 1000 : 60 * 60 * 1000),
+                        min: scaleMin,
+                        max: scaleMax,
+                        bounds: 'ticks',
                         grid: { color: 'rgba(103,119,143,.12)' },
                         ticks: {
-                            maxTicksLimit: isSingleDay ? 10 : 12,
+                            stepSize: tickStep,
+                            autoSkip: true,
+                            autoSkipPadding: 14,
+                            maxTicksLimit: isSingleLocalDay ? 12 : 14,
                             color: '#687890',
                             font: { size: 10 },
                             callback: value => {
                                 const date = new Date(Number(value));
                                 if (Number.isNaN(date.getTime())) return '';
-                                return isSingleDay
+                                return isSingleLocalDay
                                     ? timeFormatter.format(date)
                                     : [dateFormatter.format(date), timeFormatter.format(date)];
                             }
@@ -571,6 +672,7 @@
                         ticks: {
                             stepSize: 1,
                             autoSkip: false,
+                            padding: 8,
                             color: '#42546d',
                             font: { size: 10, weight: '600' },
                             callback: value => Number.isInteger(Number(value))

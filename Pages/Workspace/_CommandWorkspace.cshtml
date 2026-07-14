@@ -25,6 +25,10 @@
             ? adoption.PeriodEnd.ToString("dd MMM yyyy")
             : $"{adoption.PeriodStart:dd MMM} – {adoption.PeriodEnd:dd MMM yyyy}";
     var trendJson = JsonSerializer.Serialize(adoption.Trend, jsonOptions);
+    var monitoredWorkingDayLabel = adoption.TrackingWorkingDays == 1
+        ? "1 monitored working day"
+        : $"{adoption.TrackingWorkingDays} monitored working days";
+    var adoptionTrendReady = adoption.TrackingWorkingDays >= 3;
     var population = Math.Max(1, adoption.TotalUsers);
     var usageReach = Math.Clamp((int)Math.Round(adoption.UsedErpUsers * 100d / population), 0, 100);
     var contributionReach = Math.Clamp((int)Math.Round(adoption.OperationalContributors * 100d / population), 0, 100);
@@ -105,7 +109,7 @@
                    class="@(isUsagePattern ? "is-active" : null)"
                    aria-current="@(isUsagePattern ? "page" : null)"
                    data-tooltip="ERP usage pattern">
-                    <i class="bi bi-bounding-box-circles" aria-hidden="true"></i><span>Usage pattern</span>
+                    <i class="bi bi-bounding-box-circles" aria-hidden="true"></i><span>ERP usage pattern</span>
                 </a>
             </div>
         </nav>
@@ -135,9 +139,9 @@
 
             <section class="cw-adoption-kpis" aria-label="ERP adoption measures">
                 <article><span><i class="bi bi-activity"></i></span><div><strong>@adoption.ActiveToday</strong><b>Active today</b><small>of @adoption.TotalUsers users in scope</small></div></article>
-                <article><span><i class="bi bi-people"></i></span><div><strong>@adoption.UsedErpUsers</strong><b>Active in period</b><small>unique users · @adoptionPeriodLabel</small></div></article>
-                <article><span><i class="bi bi-pencil-square"></i></span><div><strong>@adoption.OperationalContributors</strong><b>Operational contributors</b><small>recognised recorded actions</small></div></article>
-                <article><span><i class="bi bi-window-stack"></i></span><div><strong>@adoption.ModulesUsed</strong><b>Modules used</b><small>within the monitored period</small></div></article>
+                <article><span><i class="bi bi-people"></i></span><div><strong>@adoption.UsedErpUsers</strong><b>Active in monitored period</b><small>unique users · @monitoredWorkingDayLabel</small></div></article>
+                <article title="Users with at least one recognised operational action during the monitored period."><span><i class="bi bi-pencil-square"></i></span><div><strong>@adoption.OperationalContributors</strong><b>Operational contributors</b><small>within the monitored period</small></div></article>
+                <article><span><i class="bi bi-window-stack"></i></span><div><strong>@adoption.ModulesUsed</strong><b>Modules visited</b><small>navigation, interaction or action recorded</small></div></article>
                 <article class="@(!adoption.ReviewAvailable ? "is-pending" : adoption.ReviewCaseCount > 0 ? "is-attention" : null)"><span><i class="bi @(!adoption.ReviewAvailable ? "bi-hourglass-split" : "bi-flag")"></i></span><div><strong>@(adoption.ReviewAvailable ? adoption.ReviewCaseCount.ToString() : "—")</strong><b>Review cases</b><small>@(adoption.ReviewAvailable ? "no use in the review window" : $"available after {adoption.RequiredWorkingDays} working days")</small></div></article>
             </section>
 
@@ -150,6 +154,28 @@
                     @if (adoption.Trend.Count == 0)
                     {
                         <div class="cw-empty"><i class="bi bi-graph-up"></i><strong>No monitored trend yet</strong><span>Trend data will appear after usage monitoring begins.</span></div>
+                    }
+                    else if (!adoptionTrendReady)
+                    {
+                        <div class="cw-collection-progress" role="status" aria-label="ERP usage collection progress">
+                            <div class="cw-collection-progress__summary">
+                                <span><i class="bi bi-hourglass-split" aria-hidden="true"></i> Initial collection</span>
+                                <strong>@completedMaturityDays of @adoption.RequiredWorkingDays monitored working days completed</strong>
+                                <small>The daily trend will appear after three monitored working days.</small>
+                            </div>
+                            <ol class="cw-collection-progress__days" aria-label="Seven-day monitoring maturity">
+                                @for (var day = 1; day <= adoption.RequiredWorkingDays; day++)
+                                {
+                                    var dayState = day <= completedMaturityDays ? "is-complete" : day == completedMaturityDays + 1 ? "is-next" : null;
+                                    <li class="@dayState"><span>Day @day</span><i class="bi @(day <= completedMaturityDays ? "bi-check2" : "bi-dot")" aria-hidden="true"></i></li>
+                                }
+                            </ol>
+                            <div class="cw-collection-progress__facts">
+                                <div><span>Active today</span><strong>@adoption.ActiveToday</strong></div>
+                                <div><span>Active in monitored period</span><strong>@adoption.UsedErpUsers</strong></div>
+                                <div><span>Operational contributors</span><strong>@adoption.OperationalContributors</strong></div>
+                            </div>
+                        </div>
                     }
                     else
                     {
@@ -170,7 +196,7 @@
                     <div class="cw-adoption-baseline"><span>Effective population</span><strong>@adoption.TotalUsers</strong><small>active human accounts</small></div>
                     <div class="cw-adoption-reach__body">
                         <div class="cw-reach-row is-use">
-                            <div><span>Used ERP</span><strong>@adoption.UsedErpUsers of @adoption.TotalUsers</strong></div>
+                            <div><span>Used ERP in period</span><strong>@adoption.UsedErpUsers of @adoption.TotalUsers</strong></div>
                             <progress class="cw-reach-progress" max="100" value="@usageReach" aria-label="ERP-use reach: @usageReach percent">@usageReach%</progress>
                             <small>@usageReach%</small>
                         </div>

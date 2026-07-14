@@ -618,13 +618,29 @@
 .cw-adoption-kpis small,.cw-pattern-kpis small { margin-top:.08rem; overflow:hidden; color:#78869a; font-size:.62rem; text-overflow:ellipsis; white-space:nowrap; }
 .cw-adoption-kpis article.is-attention { border-top-color:#c47a16; }
 .cw-adoption-kpis article.is-attention > span { background:#fff7e9; color:#a76008; }
-.cw-adoption-kpis article.is-pending { border-top-color:#98a5b8; border-top-style:dashed; background:#fbfcfe; }
+.cw-adoption-kpis article.is-pending { border-color:#d8e0ea; border-style:dashed; border-top-color:#98a5b8; background:#fbfcfe; }
 .cw-adoption-kpis article.is-pending > span { background:#f0f3f7; color:#738096; }
 
 .cw-adoption-analysis-grid { display:grid; grid-template-columns:minmax(0,2fr) minmax(300px,.9fr); gap:9px; }
 .cw-adoption-trend-panel,.cw-adoption-reach { margin-top:9px; }
 .cw-adoption-chart-wrap { height:285px; padding:8px 12px 0; }
 .cw-adoption-chart-note { display:flex; align-items:flex-start; gap:6px; padding:0 12px 10px; color:#77869a; font-size:.64rem; line-height:1.45; }
+.cw-collection-progress { display:grid; gap:16px; min-height:285px; padding:20px; align-content:center; }
+.cw-collection-progress__summary { display:grid; justify-items:start; gap:4px; }
+.cw-collection-progress__summary > span { display:inline-flex; align-items:center; gap:6px; color:#655b91; font-size:.65rem; font-weight:850; letter-spacing:.04em; text-transform:uppercase; }
+.cw-collection-progress__summary strong { color:#263951; font-size:.9rem; }
+.cw-collection-progress__summary small { color:#79879a; font-size:.67rem; }
+.cw-collection-progress__days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:7px; margin:0; padding:0; list-style:none; }
+.cw-collection-progress__days li { display:grid; justify-items:center; gap:5px; padding:9px 4px; border:1px solid #e0e6ef; border-radius:8px; background:#fafbfd; color:#8a96a7; }
+.cw-collection-progress__days li span { font-size:.61rem; font-weight:750; }
+.cw-collection-progress__days li i { width:19px; height:19px; display:grid; place-items:center; border-radius:50%; background:#eef2f7; font-size:.72rem; }
+.cw-collection-progress__days li.is-complete { border-color:#c9dfd2; background:#f3faf6; color:#347253; }
+.cw-collection-progress__days li.is-complete i { background:#dcefe4; color:#28704d; }
+.cw-collection-progress__days li.is-next { border-color:#d9d4ee; background:#f8f7fc; color:#62588d; }
+.cw-collection-progress__facts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.cw-collection-progress__facts > div { display:grid; gap:3px; padding:10px 11px; border:1px solid #e1e7f0; border-radius:8px; background:#fff; }
+.cw-collection-progress__facts span { color:#738198; font-size:.62rem; }
+.cw-collection-progress__facts strong { color:#20334f; font-size:1rem; }
 .cw-adoption-baseline { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:2px 10px; margin:14px 14px 2px; padding:11px 12px; border:1px solid #dde6f1; border-radius:9px; background:#f7f9fc; }
 .cw-adoption-baseline span { color:#4a5d77; font-size:.72rem; font-weight:800; }
 .cw-adoption-baseline strong { grid-row:1/3; grid-column:2; color:#172944; font-size:1.25rem; }
@@ -666,19 +682,26 @@
 .cw-pattern-filters .cw-field { display:grid; gap:4px; }
 .cw-pattern-filters .cw-field > span { color:#687890; font-size:.61rem; font-weight:850; letter-spacing:.05em; text-transform:uppercase; }
 .cw-pattern-filters.is-submitting { opacity:.72; pointer-events:none; }
+.cw-pattern-availability { display:flex; align-items:flex-start; gap:7px; margin-top:8px; padding:8px 11px; border:1px solid #dce5f0; border-radius:9px; background:#f8fafc; color:#68788f; font-size:.65rem; line-height:1.45; }
+.cw-pattern-availability i { margin-top:1px; color:#5b75a7; }
+.cw-pattern-availability strong { color:#40536e; }
 .cw-pattern-kpis article:nth-child(4) { border-top-color:#3b8160; }
 .cw-pattern-kpis article:nth-child(4) > span { background:#edf8f2; color:#31714f; }
 .cw-pattern-panel,.cw-pattern-users { margin-top:9px; }
-.cw-pattern-chart-shell { height:var(--cw-pattern-chart-height,420px); min-height:420px; padding:12px 14px 4px; }
+.cw-pattern-chart-viewport { max-height:760px; overflow:hidden; }
+.cw-pattern-chart-viewport.is-scrollable { overflow-y:auto; scrollbar-gutter:stable; }
+.cw-pattern-chart-shell { height:var(--cw-pattern-chart-height,260px); min-height:260px; padding:12px 14px 4px; }
 .cw-pattern-legend { display:flex; align-items:center; flex-wrap:wrap; gap:14px; padding:7px 14px 9px; border-top:1px solid #edf1f6; color:#627188; font-size:.65rem; }
-.cw-pattern-legend span { display:inline-flex; align-items:center; gap:6px; }
-.cw-pattern-legend i { width:9px; height:9px; display:inline-block; border:1px solid #667892; border-radius:50%; background:rgba(119,136,164,.55); }
+.cw-pattern-legend span { display:inline-flex; align-items:center; gap:7px; }
+.cw-pattern-legend i { position:relative; width:18px; height:6px; display:inline-block; border:1px solid #667892; border-radius:999px; background:rgba(119,136,164,.58); }
 .cw-pattern-legend i.is-interactive { border-color:#234e9e; background:#2e63c4; }
-.cw-pattern-legend i.is-operational { border-color:#236541; border-radius:1px; background:#308457; transform:rotate(45deg); }
-.cw-pattern-empty { min-height:360px; }
+.cw-pattern-legend i.is-operational { border-color:#236541; background:#308457; }
+.cw-pattern-legend i.is-operational::after { position:absolute; top:50%; left:50%; width:7px; height:7px; content:""; border:1px solid #236541; background:#f4fff8; transform:translate(-50%,-50%) rotate(45deg); }
+.cw-pattern-empty { min-height:260px; }
 .cw-pattern-table { min-width:980px; }
 .cw-pattern-table td:not(:first-child) { white-space:nowrap; }
-.cw-pattern-table td small { color:#8390a2; font-size:.61rem; }
+.cw-pattern-table td small { display:block; margin-top:2px; color:#8390a2; font-size:.61rem; }
+.cw-pattern-interval-total { display:block; color:#4b5d76; font-size:.7rem; }
 .cw-pattern-modules { display:block; max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cw-muted { color:#8793a4 !important; }
 
@@ -699,5 +722,7 @@
     .cw-adoption-kpis,.cw-pattern-kpis,.cw-pattern-filters { grid-template-columns:1fr; }
     .cw-adoption-hero__actions { align-items:flex-start; flex-direction:column; }
     .cw-adoption-maturity { white-space:normal; }
+    .cw-collection-progress__days { grid-template-columns:repeat(4,minmax(0,1fr)); }
+    .cw-collection-progress__facts { grid-template-columns:1fr; }
     .cw-header-action span { display:none; }
 }

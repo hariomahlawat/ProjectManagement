@@ -17,6 +17,23 @@
     var selectedSignal = string.IsNullOrWhiteSpace(Model.SelectedSignal)
         ? "all"
         : Model.SelectedSignal;
+    var monitoredCalendarDays = hasPeriod
+        ? Math.Max(0, Model.EndDate.DayNumber - Model.StartDate.DayNumber + 1)
+        : 0;
+    var requestedPeriodLabel = Model.RequestedDays switch
+    {
+        1 => "Today",
+        14 => "Last 14 days",
+        30 => "Last 30 days",
+        _ => "Last 7 days"
+    };
+    var availabilityLabel = !hasPeriod
+        ? "Monitoring period unavailable"
+        : monitoredCalendarDays == 1
+            ? "1 monitored day available"
+            : $"{monitoredCalendarDays} monitored days available";
+    var naturalChartHeight = Math.Clamp(Model.Users.Count * 48 + 150, 260, 1800);
+    var chartNeedsScroll = naturalChartHeight > 760;
 }
 
 <section class="cw-adoption-hero cw-pattern-hero" aria-labelledby="cw-pattern-title">
@@ -28,7 +45,7 @@
     <div class="cw-adoption-hero__actions">
         <span class="cw-adoption-maturity">
             <i class="bi bi-clock-history" aria-hidden="true"></i>
-            @periodLabel · @Model.AggregationMinutes-minute intervals
+            @periodLabel · @availabilityLabel · @Model.AggregationMinutes-minute intervals
         </span>
         <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="adoption" class="cw-header-action">
             <i class="bi bi-person-check" aria-hidden="true"></i><span>ERP adoption</span>
@@ -106,19 +123,27 @@
     <span class="cw-filter-status" data-cw-filter-status aria-live="polite"></span>
 </form>
 
+@if (Model.RequestedDays > monitoredCalendarDays && monitoredCalendarDays > 0)
+{
+    <div class="cw-pattern-availability" role="note">
+        <i class="bi bi-info-circle" aria-hidden="true"></i>
+        <span><strong>@requestedPeriodLabel selected.</strong> Comprehensive monitoring is available from @Model.StartDate.ToString("dd MMM yyyy"); @availabilityLabel.</span>
+    </div>
+}
+
 <section class="cw-pattern-kpis" aria-label="ERP usage pattern measures">
     <article><span><i class="bi bi-people" aria-hidden="true"></i></span><div><strong>@Model.ActiveUsers</strong><b>Users represented</b><small>of @Model.TotalUsersInScope active human accounts</small></div></article>
     <article><span><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i></span><div><strong>@Model.ActivityIntervals</strong><b>Activity intervals</b><small>@Model.AggregationMinutes-minute consolidated intervals</small></div></article>
     <article><span><i class="bi bi-cursor" aria-hidden="true"></i></span><div><strong>@Model.InteractiveIntervals</strong><b>Interactive intervals</b><small>interaction or operational action</small></div></article>
     <article><span><i class="bi bi-pencil-square" aria-hidden="true"></i></span><div><strong>@Model.OperationalActionCount</strong><b>Operational actions</b><small>across @Model.OperationalIntervals intervals</small></div></article>
-    <article><span><i class="bi bi-window-stack" aria-hidden="true"></i></span><div><strong>@Model.ModulesRepresented</strong><b>Modules represented</b><small>within the filtered activity</small></div></article>
+    <article><span><i class="bi bi-window-stack" aria-hidden="true"></i></span><div><strong>@Model.ModulesRepresented</strong><b>Modules visited</b><small>within the filtered activity</small></div></article>
 </section>
 
 <section class="cw-panel cw-pattern-panel" aria-labelledby="cw-pattern-chart-title">
     <header class="cw-panel__header">
         <div>
-            <span class="cw-panel__eyebrow">User versus time</span>
-            <h2 id="cw-pattern-chart-title">Monitored activity intervals</h2>
+            <span class="cw-panel__eyebrow">User activity by time</span>
+            <h2 id="cw-pattern-chart-title">Monitored activity timeline</h2>
         </div>
         <span class="cw-result-count">@periodLabel</span>
     </header>
@@ -133,23 +158,26 @@
     }
     else
     {
-        <div class="cw-pattern-chart-shell" style="--cw-pattern-chart-height:@Math.Clamp(Model.Users.Count * 30 + 125, 420, 920)px">
-            <canvas id="command-usage-pattern-chart"
-                    role="img"
-                    aria-label="ERP activity intervals plotted by user and time"
-                    data-points-source="command-usage-pattern-points"
-                    data-users-source="command-usage-pattern-users"></canvas>
-            <script type="application/json" id="command-usage-pattern-points">@Html.Raw(pointsJson)</script>
-            <script type="application/json" id="command-usage-pattern-users">@Html.Raw(usersJson)</script>
+        <div class="cw-pattern-chart-viewport @(chartNeedsScroll ? "is-scrollable" : null)">
+            <div class="cw-pattern-chart-shell" style="--cw-pattern-chart-height:@(naturalChartHeight)px">
+                <canvas id="command-usage-pattern-chart"
+                        role="img"
+                        aria-label="ERP activity intervals shown as user timelines"
+                        data-points-source="command-usage-pattern-points"
+                        data-users-source="command-usage-pattern-users"
+                        data-interval-minutes="@Model.AggregationMinutes"></canvas>
+                <script type="application/json" id="command-usage-pattern-points">@Html.Raw(pointsJson)</script>
+                <script type="application/json" id="command-usage-pattern-users">@Html.Raw(usersJson)</script>
+            </div>
         </div>
         <div class="cw-pattern-legend" aria-label="Activity interval legend">
-            <span><i class="is-navigation" aria-hidden="true"></i>Navigation or read-only activity</span>
-            <span><i class="is-interactive" aria-hidden="true"></i>Interactive activity</span>
+            <span><i class="is-navigation" aria-hidden="true"></i>Navigation or read-only interval</span>
+            <span><i class="is-interactive" aria-hidden="true"></i>Interactive interval</span>
             <span><i class="is-operational" aria-hidden="true"></i>Operational action recorded</span>
         </div>
         <div class="cw-adoption-chart-note">
             <i class="bi bi-info-circle" aria-hidden="true"></i>
-            Repeated events are consolidated into @Model.AggregationMinutes-minute intervals. A continuously authenticated user appears whenever actual ERP activity is recorded.
+            Each segment represents one consolidated @Model.AggregationMinutes-minute interval. A continuously authenticated user appears whenever actual ERP activity is recorded.
         </div>
     }
 </section>
@@ -172,7 +200,7 @@
         <div class="cw-adoption-table-wrap">
             <table class="cw-adoption-table cw-pattern-table">
                 <thead>
-                    <tr><th>User</th><th>Active days</th><th>Intervals</th><th>Operational actions</th><th>Modules</th><th>Last activity</th></tr>
+                    <tr><th>User</th><th>Active days</th><th>Intervals</th><th>Operational actions</th><th>Modules visited</th><th>Last activity</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var user in Model.Users)
@@ -180,7 +208,7 @@
                         <tr>
                             <td><strong>@user.DisplayName</strong><span>@user.UserName</span></td>
                             <td>@user.ActiveDays</td>
-                            <td>@user.ActivityIntervals <small>(@user.InteractiveIntervals interactive)</small></td>
+                            <td><strong class="cw-pattern-interval-total">@user.ActivityIntervals total</strong><small>@user.InteractiveIntervals interactive</small></td>
                             <td>@user.OperationalActionCount</td>
                             <td>
                                 @if (user.Modules.Count == 0)
