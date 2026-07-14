@@ -54,4 +54,18 @@ public sealed class ErpUsageOptionsValidatorTests
         Assert.Contains(result.Failures!, failure => failure.Contains("idle window", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void TrackingInceptionWithNonUtcOffset_IsRejected()
+    {
+        var options = new ErpUsageOptions
+        {
+            TrackingInceptionUtc = new DateTimeOffset(2026, 7, 14, 13, 0, 0, TimeSpan.FromHours(5.5))
+        };
+
+        var result = new ErpUsageOptionsValidator().Validate(null, options);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Failures!, failure => failure.Contains("UTC", StringComparison.OrdinalIgnoreCase));
+    }
+
 }

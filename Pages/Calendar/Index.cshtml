@@ -64,6 +64,16 @@
         <button type="button" data-view="listMonth">List</button>
       </div>
 
+      <div class="calendar-display-options" aria-label="Calendar display options">
+        <div class="form-check form-switch m-0">
+          <input class="form-check-input"
+                 type="checkbox"
+                 id="showInformationalRhToggle"
+                 checked>
+          <label class="form-check-label" for="showInformationalRhToggle">Show informational RH</label>
+        </div>
+      </div>
+
       <form id="calendarPreferences"
             method="post"
             class="calendar-preferences"
@@ -79,6 +89,12 @@
       </form>
     </div>
   </section>
+
+  <div class="calendar-holiday-guide" aria-label="Holiday display legend">
+    <span><span class="calendar-holiday-guide__mark calendar-holiday-guide__mark--gazetted" aria-hidden="true"></span><strong>Gazetted</strong> — office closed</span>
+    <span><span class="calendar-holiday-guide__mark calendar-holiday-guide__mark--observed" aria-hidden="true"></span><strong>RH office holiday</strong> — office closed</span>
+    <span><span class="calendar-holiday-guide__mark calendar-holiday-guide__mark--info" aria-hidden="true">RH</span><strong>RH</strong> — information only</span>
+  </div>
 
   <section class="calendar-card" aria-label="Calendar">
 <div id="calendar"

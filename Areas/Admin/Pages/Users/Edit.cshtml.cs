@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Areas.Admin.Models;
 using ProjectManagement.Configuration;
+using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Admin;
 
@@ -53,6 +54,10 @@ public sealed class EditModel : PageModel
         [StringLength(32)]
         public string Rank { get; set; } = string.Empty;
 
+        [Required, Display(Name = "Account classification")]
+        [EnumDataType(typeof(UserAccountKind))]
+        public UserAccountKind AccountKind { get; set; } = UserAccountKind.Human;
+
         [MinLength(1, ErrorMessage = "Assign at least one role to the user.")]
         public List<string> Roles { get; set; } = new();
     }
@@ -76,6 +81,7 @@ public sealed class EditModel : PageModel
             Id = Account.Id,
             FullName = Account.FullName,
             Rank = Account.Rank,
+            AccountKind = Account.AccountKind,
             Roles = Account.Roles.ToList()
         };
 
@@ -125,7 +131,8 @@ public sealed class EditModel : PageModel
             Input.Id,
             Input.FullName,
             Input.Rank,
-            Input.Roles);
+            Input.Roles,
+            Input.AccountKind);
 
         if (!result.Succeeded)
         {

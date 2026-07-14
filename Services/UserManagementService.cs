@@ -76,8 +76,14 @@ namespace ProjectManagement.Services
             string password,
             string fullName,
             string rank,
-            IEnumerable<string> roles)
+            IEnumerable<string> roles,
+            UserAccountKind accountKind = UserAccountKind.Human)
         {
+            if (!Enum.IsDefined(typeof(UserAccountKind), accountKind))
+            {
+                return Failure("Select a valid account classification.");
+            }
+
             var roleResolution = await ResolveRolesAsync(roles);
             if (!roleResolution.Result.Succeeded)
             {
@@ -89,7 +95,8 @@ namespace ProjectManagement.Services
                 UserName = userName?.Trim(),
                 MustChangePassword = true,
                 FullName = fullName?.Trim() ?? string.Empty,
-                Rank = rank?.Trim() ?? string.Empty
+                Rank = rank?.Trim() ?? string.Empty,
+                AccountKind = accountKind
             };
 
             await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database);
@@ -126,7 +133,7 @@ namespace ProjectManagement.Services
                     "AdminUserCreated",
                     user,
                     before: null,
-                    after: new { user.FullName, user.Rank, Roles = roleResolution.Roles });
+                    after: new { user.FullName, user.Rank, user.AccountKind, Roles = roleResolution.Roles });
 
                 await transaction.CommitAsync();
                 return IdentityResult.Success;
@@ -143,7 +150,8 @@ namespace ProjectManagement.Services
             string userId,
             string fullName,
             string rank,
-            IEnumerable<string> roles)
+            IEnumerable<string> roles,
+            UserAccountKind? accountKind = null)
         {
             var user = await _userManager.FindByIdAsync(userId);
             if (user is null)
@@ -154,6 +162,12 @@ namespace ProjectManagement.Services
             if (user.PendingDeletion)
             {
                 return Failure("Undo the deletion request before editing this account.");
+            }
+
+            var targetAccountKind = accountKind ?? user.AccountKind;
+            if (!Enum.IsDefined(typeof(UserAccountKind), targetAccountKind))
+            {
+                return Failure("Select a valid account classification.");
             }
 
             var roleResolution = await ResolveRolesAsync(roles);
@@ -171,6 +185,7 @@ namespace ProjectManagement.Services
 
             var previousFullName = user.FullName;
             var previousRank = user.Rank;
+            var previousAccountKind = user.AccountKind;
             var previousRoles = currentRoles.ToArray();
 
             await using var transaction = await RelationalTransactionScope.CreateAsync(
@@ -189,11 +204,12 @@ namespace ProjectManagement.Services
 
                 user.FullName = fullName?.Trim() ?? string.Empty;
                 user.Rank = rank?.Trim() ?? string.Empty;
+                user.AccountKind = targetAccountKind;
 
                 var detailsResult = await _userManager.UpdateAsync(user);
                 if (!detailsResult.Succeeded)
                 {
-                    await RestoreUserStateAsync(user, previousFullName, previousRank, previousRoles, transaction);
+                    await RestoreUserStateAsync(user, previousFullName, previousRank, previousAccountKind, previousRoles, transaction);
                     return detailsResult;
                 }
 
@@ -202,7 +218,7 @@ namespace ProjectManagement.Services
                     var removeResult = await _userManager.RemoveFromRolesAsync(user, toRemove);
                     if (!removeResult.Succeeded)
                     {
-                        await RestoreUserStateAsync(user, previousFullName, previousRank, previousRoles, transaction);
+                        await RestoreUserStateAsync(user, previousFullName, previousRank, previousAccountKind, previousRoles, transaction);
                         return removeResult;
                     }
                 }
@@ -212,7 +228,7 @@ namespace ProjectManagement.Services
                     var addResult = await _userManager.AddToRolesAsync(user, toAdd);
                     if (!addResult.Succeeded)
                     {
-                        await RestoreUserStateAsync(user, previousFullName, previousRank, previousRoles, transaction);
+                        await RestoreUserStateAsync(user, previousFullName, previousRank, previousAccountKind, previousRoles, transaction);
                         return addResult;
                     }
                 }
@@ -220,22 +236,22 @@ namespace ProjectManagement.Services
                 var stampResult = await _userManager.UpdateSecurityStampAsync(user);
                 if (!stampResult.Succeeded)
                 {
-                    await RestoreUserStateAsync(user, previousFullName, previousRank, previousRoles, transaction);
+                    await RestoreUserStateAsync(user, previousFullName, previousRank, previousAccountKind, previousRoles, transaction);
                     return stampResult;
                 }
 
                 await RecordAuditAsync(
                     "AdminUserUpdated",
                     user,
-                    before: new { FullName = previousFullName, Rank = previousRank, Roles = previousRoles },
-                    after: new { user.FullName, user.Rank, Roles = targetRoles.OrderBy(role => role).ToArray() });
+                    before: new { FullName = previousFullName, Rank = previousRank, AccountKind = previousAccountKind, Roles = previousRoles },
+                    after: new { user.FullName, user.Rank, user.AccountKind, Roles = targetRoles.OrderBy(role => role).ToArray() });
 
                 await transaction.CommitAsync();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Atomic user update failed for {UserId}.", userId);
-                await RestoreUserStateAsync(user, previousFullName, previousRank, previousRoles, transaction);
+                await RestoreUserStateAsync(user, previousFullName, previousRank, previousAccountKind, previousRoles, transaction);
                 return Failure("The user could not be updated. Previous details and roles were retained.");
             }
 
@@ -471,6 +487,7 @@ namespace ProjectManagement.Services
             ApplicationUser user,
             string previousFullName,
             string previousRank,
+            UserAccountKind previousAccountKind,
             IReadOnlyCollection<string> previousRoles,
             RelationalTransactionScope transaction)
         {
@@ -492,6 +509,7 @@ namespace ProjectManagement.Services
 
                 current.FullName = previousFullName;
                 current.Rank = previousRank;
+                current.AccountKind = previousAccountKind;
                 await _userManager.UpdateAsync(current);
 
                 var currentRoles = await _userManager.GetRolesAsync(current);

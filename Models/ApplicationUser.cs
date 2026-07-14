@@ -18,6 +18,9 @@ namespace ProjectManagement.Models
         // SECTION: Audit timestamps
         public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 
+        // SECTION: Account classification
+        public UserAccountKind AccountKind { get; set; } = UserAccountKind.Human;
+
         // SECTION: Account state
         public bool IsDisabled { get; set; }
         public DateTime? DisabledUtc { get; set; }

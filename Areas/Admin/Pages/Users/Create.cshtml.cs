@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.Admin.Models;
 using ProjectManagement.Configuration;
 using ProjectManagement.Infrastructure;
+using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Admin;
 
@@ -64,6 +65,10 @@ public sealed class CreateModel : PageModel
         [StringLength(32)]
         public string Rank { get; set; } = string.Empty;
 
+        [Required, Display(Name = "Account classification")]
+        [EnumDataType(typeof(UserAccountKind))]
+        public UserAccountKind AccountKind { get; set; } = UserAccountKind.Human;
+
         [Required, DataType(DataType.Password)]
         [StringLength(100)]
         public string Password { get; set; } = string.Empty;
@@ -102,7 +107,8 @@ public sealed class CreateModel : PageModel
             Input.Password,
             Input.FullName,
             Input.Rank,
-            Input.Roles);
+            Input.Roles,
+            Input.AccountKind);
 
         if (!result.Succeeded)
         {

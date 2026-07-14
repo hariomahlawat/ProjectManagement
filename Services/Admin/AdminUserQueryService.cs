@@ -61,6 +61,7 @@ public sealed record AdminUserDetails(
     string UserName,
     string FullName,
     string Rank,
+    UserAccountKind AccountKind,
     IReadOnlyList<string> Roles,
     AdminUserAccountStateInfo AccountState,
     DateTime CreatedUtc,
@@ -173,6 +174,7 @@ public sealed class AdminUserQueryService : IAdminUserQueryService
                 UserName = user.UserName,
                 FullName = user.FullName,
                 Rank = user.Rank,
+                AccountKind = user.AccountKind,
                 MustChangePassword = user.MustChangePassword,
                 LastLoginUtc = user.LastLoginUtc,
                 LoginCount = user.LoginCount,
@@ -214,6 +216,7 @@ public sealed class AdminUserQueryService : IAdminUserQueryService
                 UserName = user.UserName,
                 FullName = user.FullName,
                 Rank = user.Rank,
+                AccountKind = user.AccountKind,
                 MustChangePassword = user.MustChangePassword,
                 LastLoginUtc = user.LastLoginUtc,
                 LoginCount = user.LoginCount,
@@ -244,6 +247,7 @@ public sealed class AdminUserQueryService : IAdminUserQueryService
                 UserName = user.UserName,
                 FullName = user.FullName,
                 Rank = user.Rank,
+                AccountKind = user.AccountKind,
                 MustChangePassword = user.MustChangePassword,
                 LastLoginUtc = user.LastLoginUtc,
                 LoginCount = user.LoginCount,
@@ -306,6 +310,7 @@ public sealed class AdminUserQueryService : IAdminUserQueryService
             projection.UserName ?? string.Empty,
             projection.FullName,
             projection.Rank,
+            projection.AccountKind,
             roles,
             ResolveState(projection),
             createdUtc,
@@ -668,6 +673,7 @@ public sealed class AdminUserQueryService : IAdminUserQueryService
         public string? UserName { get; init; }
         public string FullName { get; init; } = string.Empty;
         public string Rank { get; init; } = string.Empty;
+        public UserAccountKind AccountKind { get; init; } = UserAccountKind.Human;
         public bool MustChangePassword { get; init; }
         public DateTime? LastLoginUtc { get; init; }
         public int LoginCount { get; init; }

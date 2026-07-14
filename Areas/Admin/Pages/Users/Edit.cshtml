@@ -54,9 +54,31 @@
         </div>
     </section>
 
-    <section class="admin-form-section" aria-labelledby="edit-user-roles-title">
+    <section class="admin-form-section admin-form-section--compact" aria-labelledby="edit-user-classification-title">
         <header class="admin-form-section__header">
             <span class="admin-form-section__step">02</span>
+            <div>
+                <h2 id="edit-user-classification-title">Analytics classification</h2>
+                <p>Control whether this identity belongs to the default human-account population used for command adoption reporting.</p>
+            </div>
+        </header>
+        <div class="admin-form-section__body">
+            <div class="admin-field admin-field--bounded">
+                <label asp-for="Input.AccountKind"></label>
+                <select asp-for="Input.AccountKind" class="form-select">
+                    <option value="Human">Human account</option>
+                    <option value="Service">Service account</option>
+                    <option value="Test">Test account</option>
+                </select>
+                <span class="admin-field__hint">Service and test accounts remain available to administrators but are excluded from adoption analytics by default.</span>
+                <span asp-validation-for="Input.AccountKind" class="text-danger"></span>
+            </div>
+        </div>
+    </section>
+
+    <section class="admin-form-section" aria-labelledby="edit-user-roles-title">
+        <header class="admin-form-section__header">
+            <span class="admin-form-section__step">03</span>
             <div>
                 <h2 id="edit-user-roles-title">Roles and access</h2>
                 <p>Review the complete role set. Removing or adding roles refreshes the account security state.</p>
@@ -70,7 +92,7 @@
 
     <section class="admin-form-section admin-form-section--compact" aria-labelledby="edit-user-state-title">
         <header class="admin-form-section__header">
-            <span class="admin-form-section__step">03</span>
+            <span class="admin-form-section__step">04</span>
             <div>
                 <h2 id="edit-user-state-title">Account state</h2>
                 <p>Lifecycle controls are separated from profile editing to prevent accidental access changes.</p>

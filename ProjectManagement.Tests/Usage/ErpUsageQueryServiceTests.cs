@@ -15,7 +15,63 @@ namespace ProjectManagement.Tests.Usage;
 public sealed class ErpUsageQueryServiceTests
 {
     [Fact]
-    public async Task Usage_IsMeasuredAcrossDaysWithoutAdditionalLogins_AndUsesOfficeCalendar()
+    public async Task ColdStart_UsesTrackingInceptionAndDoesNotInferEarlierNonUse()
+    {
+        await using var db = CreateContext();
+        db.Users.Add(new ApplicationUser
+        {
+            Id = "u1",
+            UserName = "daily.user",
+            FullName = "Daily User",
+            Rank = "Lt Col",
+            CreatedUtc = UtcFromIst(2026, 7, 1, 9)
+        });
+        db.UserActivityBuckets.Add(Bucket(
+            "u1",
+            new DateOnly(2026, 7, 14),
+            14,
+            "documents",
+            heartbeat: true));
+        db.AuditLogs.Add(new AuditLog
+        {
+            UserId = "u1",
+            UserName = "daily.user",
+            Action = "Projects.MetaChangedDirect",
+            TimeUtc = UtcFromIst(2026, 7, 13, 11),
+            Level = "Info"
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(
+            db,
+            new DateTime(2026, 7, 14, 18, 0, 0),
+            new ErpUsageOptions());
+        var result = await service.GetAsync(new ErpUsageQuery { Days = 7 });
+
+        var row = Assert.Single(result.Users);
+        Assert.Equal(new DateOnly(2026, 7, 14), row.EffectiveTrackingStart);
+        Assert.True(row.UsedToday);
+        Assert.Equal(1, row.AvailableWorkingDays);
+        Assert.Equal(1, row.ActiveWorkingDays);
+        Assert.Equal(100, row.ActivePercentage);
+        Assert.Equal(5, row.ApproximateActiveMinutes);
+        Assert.Equal(1, row.OperationalActionCount);
+        Assert.Equal(0, row.AdministrativeActionCount);
+        Assert.Equal("Occasional user", row.Posture);
+        Assert.False(result.RegularClassificationAvailable);
+        Assert.False(result.SevenDayReviewAvailable);
+        Assert.False(result.ThirtyDayReviewAvailable);
+        Assert.Equal(0, result.Summary.NoUsageSevenWorkingDays);
+        Assert.Equal(
+            ErpUsageHeatmapState.BusinessAction,
+            row.Heatmap.Single(cell => cell.Date == new DateOnly(2026, 7, 13)).State);
+        Assert.Contains(
+            "Historical audited operational action",
+            row.Heatmap.Single(cell => cell.Date == new DateOnly(2026, 7, 13)).Label);
+    }
+
+    [Fact]
+    public async Task MatureTracking_UsesOfficeCalendarAndSeparatesActionTypes()
     {
         await using var db = CreateContext();
         db.Users.Add(new ApplicationUser
@@ -42,8 +98,8 @@ public sealed class ErpUsageQueryServiceTests
                 IsObservedAsOfficeHoliday = true
             });
         db.UserActivityBuckets.AddRange(
-            Bucket("u1", new DateOnly(2026, 7, 9), 4, "projects", navigation: true),
-            Bucket("u1", new DateOnly(2026, 7, 14), 5, "documents", heartbeat: true));
+            Bucket("u1", new DateOnly(2026, 7, 9), 10, "projects", navigation: true),
+            Bucket("u1", new DateOnly(2026, 7, 14), 10, "documents", heartbeat: true));
         db.AuditLogs.AddRange(
             new AuditLog
             {
@@ -57,29 +113,71 @@ public sealed class ErpUsageQueryServiceTests
             {
                 UserId = "u1",
                 UserName = "daily.user",
+                Action = "AdminUserUpdated",
+                TimeUtc = UtcFromIst(2026, 7, 14, 12),
+                Level = "Info"
+            },
+            new AuditLog
+            {
+                UserId = "u1",
+                UserName = "daily.user",
                 Action = "LoginSuccess",
                 TimeUtc = UtcFromIst(2026, 7, 11, 9),
                 Level = "Info"
             });
         await db.SaveChangesAsync();
 
-        var service = CreateService(db, new DateTime(2026, 7, 14, 12, 0, 0));
+        var options = new ErpUsageOptions
+        {
+            TrackingInceptionUtc = UtcOffsetFromIst(2026, 7, 1, 0)
+        };
+        var service = CreateService(db, new DateTime(2026, 7, 14, 18, 0, 0), options);
         var result = await service.GetAsync(new ErpUsageQuery { Days = 7 });
 
         var row = Assert.Single(result.Users);
-        Assert.True(row.UsedToday);
-        Assert.Equal(5, row.AvailableWorkingDays); // Sunday and the office-observed RH are excluded.
-        Assert.Equal(3, row.ActiveWorkingDays);    // 9 Jul navigation, 13 Jul action, 14 Jul heartbeat.
+        Assert.Equal(5, row.AvailableWorkingDays); // Sunday and office-observed RH are excluded.
+        Assert.Equal(3, row.ActiveWorkingDays);    // Informational RH remains a working day.
         Assert.Equal(60, row.ActivePercentage);
         Assert.Equal(10, row.ApproximateActiveMinutes);
-        Assert.Equal(1, row.RecordedActionCount); // Authentication activity is not a business action.
-        Assert.Equal("Occasional user", row.Posture);
-        Assert.Equal(
-            ErpUsageHeatmapState.BusinessAction,
-            row.Heatmap.Single(cell => cell.Date == new DateOnly(2026, 7, 13)).State);
+        Assert.Equal(1, row.OperationalActionCount);
+        Assert.Equal(1, row.AdministrativeActionCount);
+        Assert.True(result.RegularClassificationAvailable);
+        Assert.True(result.SevenDayReviewAvailable);
+        Assert.Equal(1, result.Summary.BusinessContributors);
         Assert.Equal(
             ErpUsageHeatmapState.NonWorkingDay,
             row.Heatmap.Single(cell => cell.Date == new DateOnly(2026, 7, 10)).State);
+    }
+
+    [Fact]
+    public async Task DefaultScope_ExcludesDisabledNonHumanAndPendingDeletionAccounts()
+    {
+        await using var db = CreateContext();
+        db.Users.AddRange(
+            User("human", UserAccountKind.Human),
+            User("disabled", UserAccountKind.Human, disabled: true),
+            User("service", UserAccountKind.Service),
+            User("test", UserAccountKind.Test),
+            User("pending", UserAccountKind.Human, pendingDeletion: true));
+        await db.SaveChangesAsync();
+
+        var options = new ErpUsageOptions
+        {
+            TrackingInceptionUtc = UtcOffsetFromIst(2026, 7, 1, 0)
+        };
+        var service = CreateService(db, new DateTime(2026, 7, 14, 18, 0, 0), options);
+
+        var defaultResult = await service.GetAsync(new ErpUsageQuery { Days = 7 });
+        Assert.Equal("human", Assert.Single(defaultResult.Users).UserId);
+
+        var expandedResult = await service.GetAsync(new ErpUsageQuery
+        {
+            Days = 7,
+            IncludeDisabledAccounts = true,
+            IncludeNonHumanAccounts = true
+        });
+        Assert.Equal(4, expandedResult.TotalUsers);
+        Assert.DoesNotContain(expandedResult.Users, row => row.UserId == "pending");
     }
 
     [Fact]
@@ -105,14 +203,23 @@ public sealed class ErpUsageQueryServiceTests
             });
         await db.SaveChangesAsync();
 
-        var service = CreateService(db, new DateTime(2026, 7, 14, 12, 0, 0));
+        var options = new ErpUsageOptions
+        {
+            TrackingInceptionUtc = UtcOffsetFromIst(2026, 6, 1, 0)
+        };
+        var service = CreateService(db, new DateTime(2026, 7, 14, 18, 0, 0), options);
         var summary = await service.GetCommandSummaryAsync();
 
         Assert.Equal(2, summary.TotalUsers);
+        Assert.True(summary.RegularClassificationAvailable);
+        Assert.True(summary.SevenDayReviewAvailable);
         Assert.Equal(1, summary.NoUsageSevenWorkingDays);
     }
 
-    private static ErpUsageQueryService CreateService(ApplicationDbContext db, DateTime nowIst)
+    private static ErpUsageQueryService CreateService(
+        ApplicationDbContext db,
+        DateTime nowIst,
+        ErpUsageOptions options)
     {
         var clock = FakeClock.ForIst(nowIst);
         return new ErpUsageQueryService(
@@ -120,18 +227,34 @@ public sealed class ErpUsageQueryServiceTests
             new OfficeCalendarService(db),
             new ErpUsageModuleCatalog(),
             new AdminTimeService(clock),
-            Options.Create(new ErpUsageOptions()));
+            Options.Create(options));
     }
+
+    private static ApplicationUser User(
+        string id,
+        UserAccountKind kind,
+        bool disabled = false,
+        bool pendingDeletion = false) => new()
+    {
+        Id = id,
+        UserName = $"{id}.user",
+        FullName = id,
+        Rank = "Maj",
+        CreatedUtc = UtcFromIst(2026, 7, 1, 9),
+        AccountKind = kind,
+        IsDisabled = disabled,
+        PendingDeletion = pendingDeletion
+    };
 
     private static UserActivityBucket Bucket(
         string userId,
         DateOnly date,
-        int utcHour,
+        int istHour,
         string module,
         bool navigation = false,
         bool heartbeat = false)
     {
-        var start = new DateTime(date.Year, date.Month, date.Day, utcHour, 0, 0, DateTimeKind.Utc);
+        var start = UtcFromIst(date.Year, date.Month, date.Day, istHour);
         return new UserActivityBucket
         {
             UserId = userId,
@@ -149,6 +272,9 @@ public sealed class ErpUsageQueryServiceTests
 
     private static DateTime UtcFromIst(int year, int month, int day, int hour)
         => FakeClock.ForIst(new DateTime(year, month, day, hour, 0, 0)).UtcNow.UtcDateTime;
+
+    private static DateTimeOffset UtcOffsetFromIst(int year, int month, int day, int hour)
+        => FakeClock.ForIst(new DateTime(year, month, day, hour, 0, 0)).UtcNow;
 
     private static ApplicationDbContext CreateContext()
     {

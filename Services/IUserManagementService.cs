@@ -15,13 +15,15 @@ namespace ProjectManagement.Services
             string password,
             string fullName,
             string rank,
-            IEnumerable<string> roles);
+            IEnumerable<string> roles,
+            UserAccountKind accountKind = UserAccountKind.Human);
 
         Task<IdentityResult> UpdateUserAsync(
             string userId,
             string fullName,
             string rank,
-            IEnumerable<string> roles);
+            IEnumerable<string> roles,
+            UserAccountKind? accountKind = null);
 
         // Retained for compatibility with existing callers. New UI flows should use UpdateUserAsync.
         Task<IdentityResult> UpdateUserRolesAsync(string userId, IEnumerable<string> roles);

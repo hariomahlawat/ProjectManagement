@@ -35,12 +35,15 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)] public string? Role { get; set; }
     [BindProperty(SupportsGet = true)] public string? Module { get; set; }
     [BindProperty(SupportsGet = true)] public string? Posture { get; set; }
-    [BindProperty(SupportsGet = true)] public string? AccountState { get; set; }
+    [BindProperty(SupportsGet = true)] public string? QuickFilter { get; set; }
+    [BindProperty(SupportsGet = true)] public bool IncludeDisabledAccounts { get; set; }
+    [BindProperty(SupportsGet = true)] public bool IncludeNonHumanAccounts { get; set; }
     [BindProperty(SupportsGet = true)] public int PageNumber { get; set; } = 1;
     [BindProperty(SupportsGet = true)] public int PageSize { get; set; } = 25;
 
     public ErpUsageResult Result { get; private set; } = EmptyResult();
-    public IReadOnlyList<ErpUsageModuleDescriptor> ModuleOptions { get; private set; } = Array.Empty<ErpUsageModuleDescriptor>();
+    public IReadOnlyList<ErpUsageModuleDescriptor> ModuleOptions { get; private set; } =
+        Array.Empty<ErpUsageModuleDescriptor>();
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
@@ -62,9 +65,7 @@ public sealed class IndexModel : PageModel
 
         do
         {
-            result = await _usage.GetAsync(
-                BuildQuery(page, 100),
-                cancellationToken);
+            result = await _usage.GetAsync(BuildQuery(page, 100), cancellationToken);
             rows.AddRange(result.Users.Take(Math.Max(0, maximumRows - rows.Count)));
             page++;
         }
@@ -78,15 +79,18 @@ public sealed class IndexModel : PageModel
             "Rank",
             "Roles",
             "Account state",
+            "Account classification",
+            "Effective monitored start",
             "Used today",
-            "Last active IST",
+            "Last recorded activity IST",
             "Active working days",
-            "Available working days",
+            "Available monitored working days",
             "Active percentage",
             "Approximate active minutes",
             "Modules used",
-            "Recorded actions",
-            "Usage posture");
+            "Operational actions",
+            "Administrative actions",
+            "Adoption posture");
 
         foreach (var row in rows)
         {
@@ -97,6 +101,8 @@ public sealed class IndexModel : PageModel
                 row.Rank,
                 string.Join("; ", row.Roles),
                 row.AccountState,
+                row.AccountKind,
+                row.EffectiveTrackingStart.ToString("yyyy-MM-dd"),
                 row.UsedToday ? "Yes" : "No",
                 row.LastActiveUtc.HasValue ? _time.FormatIst(row.LastActiveUtc) : string.Empty,
                 row.ActiveWorkingDays,
@@ -104,7 +110,8 @@ public sealed class IndexModel : PageModel
                 row.ActivePercentage,
                 row.ApproximateActiveMinutes,
                 string.Join("; ", row.Modules),
-                row.RecordedActionCount,
+                row.OperationalActionCount,
+                row.AdministrativeActionCount,
                 row.Posture);
         }
 
@@ -123,12 +130,16 @@ public sealed class IndexModel : PageModel
             role = Role,
             module = Module,
             posture = Posture,
-            accountState = AccountState,
+            quickFilter = QuickFilter,
+            includeDisabledAccounts = IncludeDisabledAccounts,
+            includeNonHumanAccounts = IncludeNonHumanAccounts,
             pageNumber,
             pageSize = PageSize
         }) ?? string.Empty;
 
     public string FormatLastActive(DateTime? utc) => _time.FormatIst(utc, "Never recorded");
+
+    public string FormatTrackingInception() => _time.FormatIst(Result.TrackingInceptionUtc);
 
     public static string FormatApproximateMinutes(int minutes)
     {
@@ -145,7 +156,9 @@ public sealed class IndexModel : PageModel
         Role = Role,
         Module = Module,
         Posture = Posture,
-        AccountState = AccountState,
+        QuickFilter = QuickFilter,
+        IncludeDisabledAccounts = IncludeDisabledAccounts,
+        IncludeNonHumanAccounts = IncludeNonHumanAccounts,
         Page = page ?? PageNumber,
         PageSize = pageSize ?? PageSize
     };
@@ -155,6 +168,11 @@ public sealed class IndexModel : PageModel
         DateOnly.MinValue,
         30,
         80,
+        DateTimeOffset.MinValue,
+        0,
+        false,
+        false,
+        false,
         new ErpUsageSummary(0, 0, 0, 0, 0, 0, 0),
         Array.Empty<ErpUsageModuleSummary>(),
         Array.Empty<string>(),

@@ -3158,6 +3158,11 @@ namespace ProjectManagement.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer");
 
+                    b.Property<int>("AccountKind")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("text");
@@ -3256,6 +3261,8 @@ namespace ProjectManagement.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AccountKind");
+
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
 
@@ -3263,13 +3270,17 @@ namespace ProjectManagement.Migrations
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex");
 
-                    b.ToTable("AspNetUsers", (string)null);
+                    b.ToTable("AspNetUsers", (string)null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AspNetUsers_AccountKind", "\"AccountKind\" IN (1, 2, 3)");
+                        });
 
                     b.HasData(
                         new
                         {
                             Id = "system",
                             AccessFailedCount = 0,
+                            AccountKind = 2,
                             ConcurrencyStamp = "bb6d6cb5-52dd-432c-95d4-6b6a92d6a0d3",
                             CreatedUtc = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Email = "system@example.local",

@@ -145,7 +145,8 @@
   box-shadow: 0 1px 5px rgba(15, 23, 42, .12);
 }
 
-.calendar-preferences {
+.calendar-preferences,
+.calendar-display-options {
   min-height: 36px;
   display: flex;
   align-items: center;
@@ -153,10 +154,57 @@
   border-left: 1px solid var(--pm-border, #dbe3ef);
 }
 
-.calendar-preferences .form-check-label {
+.calendar-preferences .form-check-label,
+.calendar-display-options .form-check-label {
   color: #46546a;
   font-size: .86rem;
   font-weight: 600;
+}
+
+.calendar-holiday-guide {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px 18px;
+  margin: 0 2px 10px;
+  color: #56657a;
+  font-size: .76rem;
+}
+
+.calendar-holiday-guide > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.calendar-holiday-guide__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  font-size: .48rem;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.calendar-holiday-guide__mark--gazetted {
+  border-left: 3px solid #dc2626;
+  background: #fee2e2;
+}
+
+.calendar-holiday-guide__mark--observed {
+  border: 1px dashed #d97706;
+  background: #fef3c7;
+}
+
+.calendar-holiday-guide__mark--info {
+  width: 20px;
+  border: 1px solid #7c3aed;
+  border-radius: 999px;
+  background: #fff;
+  color: #6d28d9;
 }
 
 .calendar-card {
@@ -497,8 +545,8 @@
 }
 
 .fc .pm-holiday--rh-info {
-  background-image: repeating-linear-gradient(135deg, rgba(124, 58, 237, .045) 0, rgba(124, 58, 237, .045) 5px, transparent 5px, transparent 10px);
-  box-shadow: inset 2px 0 0 rgba(124, 58, 237, .3);
+  background-image: none;
+  box-shadow: inset 2px 0 0 rgba(124, 58, 237, .34);
 }
 
 .fc .fc-timegrid-col.pm-holiday--gazetted .fc-timegrid-col-frame,
@@ -506,29 +554,43 @@
 .fc .fc-timegrid-col.pm-holiday--rh-observed .fc-timegrid-col-frame,
 .fc .fc-timegrid-col-frame.pm-holiday--rh-observed { background-image: linear-gradient(180deg, rgba(245, 158, 11, .1), rgba(254, 243, 199, .06)); }
 .fc .fc-timegrid-col.pm-holiday--rh-info .fc-timegrid-col-frame,
-.fc .fc-timegrid-col-frame.pm-holiday--rh-info { background-image: repeating-linear-gradient(135deg, rgba(124, 58, 237, .035) 0, rgba(124, 58, 237, .035) 5px, transparent 5px, transparent 10px); }
+.fc .fc-timegrid-col-frame.pm-holiday--rh-info { background-image: none; box-shadow: inset 2px 0 0 rgba(124, 58, 237, .28); }
 
 .fc .pm-holiday--gazetted .fc-daygrid-day-number { color: #b42318; background: rgba(254, 226, 226, .9); box-shadow: inset 0 0 0 1px rgba(248, 113, 113, .55); }
 .fc .pm-holiday--rh-observed .fc-daygrid-day-number { color: #92400e; background: rgba(254, 243, 199, .94); box-shadow: inset 0 0 0 1px rgba(245, 158, 11, .5); }
-.fc .pm-holiday--rh-info .fc-daygrid-day-number { color: #6d28d9; background: rgba(245, 243, 255, .9); box-shadow: inset 0 0 0 1px rgba(139, 92, 246, .38); }
+.fc .pm-holiday--rh-info .fc-daygrid-day-number { color: #6d28d9; background: transparent; box-shadow: none; }
 
 .pm-holiday-badge {
   display: inline-flex;
-  align-items: center;
-  max-width: 175px;
+  align-items: flex-start;
+  flex-direction: column;
+  max-width: 190px;
   overflow: hidden;
   padding: 2px 7px;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: 8px;
   font-size: .64rem;
   font-weight: 800;
-  line-height: 1.25;
+  line-height: 1.2;
+}
+
+.pm-holiday-badge__primary,
+.pm-holiday-badge__secondary {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.pm-holiday-badge__secondary {
+  opacity: .84;
+  font-size: .58rem;
+  font-weight: 700;
+}
 .pm-holiday-badge--gazetted { border-color: rgba(248, 113, 113, .55); background: rgba(254, 226, 226, .9); color: #b42318; }
 .pm-holiday-badge--rh-observed { border-color: rgba(245, 158, 11, .55); border-style: dashed; background: rgba(254, 243, 199, .92); color: #92400e; }
-.pm-holiday-badge--rh-info { border-color: rgba(139, 92, 246, .45); background: rgba(245, 243, 255, .9); color: #6d28d9; }
+.pm-holiday-badge--rh-info { border-color: rgba(124, 58, 237, .55); background: #fff; color: #6d28d9; }
 
 .fc .fc-daygrid-day-top {
   display: flex;
@@ -1165,7 +1227,8 @@
     flex-wrap: wrap;
   }
 
-  .calendar-preferences {
+  .calendar-preferences,
+  .calendar-display-options {
     border-left: 0;
   }
 }

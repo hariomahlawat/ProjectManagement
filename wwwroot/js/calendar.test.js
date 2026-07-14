@@ -162,21 +162,84 @@ test('calendar highlights admin holidays during initial load', async () => {
     assert.ok(holidayCell.classList.contains('pm-holiday--gazetted'));
     const holidayBadge = holidayCell.querySelector('.pm-holiday-badge');
     assert.ok(holidayBadge, 'holiday cell should receive badge');
-    assert.equal(holidayBadge.textContent, 'Gazetted: Founders Day');
+    assert.equal(holidayBadge.querySelector('.pm-holiday-badge__primary')?.textContent, 'Gazetted holiday');
+    assert.equal(holidayBadge.querySelector('.pm-holiday-badge__secondary')?.textContent, 'Founders Day');
 
     const nonHolidayCell = calendarEl.querySelector('.fc-daygrid-day[data-date="2024-12-26"]');
     assert.ok(!nonHolidayCell.classList.contains('pm-holiday'));
     assert.equal(nonHolidayCell.querySelector('.pm-holiday-badge'), null);
 
     const numberEl = holidayCell.querySelector('.fc-daygrid-day-number');
-    assert.ok((numberEl.getAttribute('title') || '').includes('Gazetted: Founders Day'));
-    assert.ok((numberEl.getAttribute('aria-label') || '').includes('Gazetted: Founders Day'));
+    assert.ok((numberEl.getAttribute('title') || '').includes('Gazetted Holiday: Founders Day'));
+    assert.ok((numberEl.getAttribute('aria-label') || '').includes('Office closed'));
+    assert.ok((numberEl.getAttribute('aria-label') || '').includes('Affects project schedules'));
 
     const headerCell = calendarEl.querySelector('.fc-col-header-cell');
     assert.ok(headerCell.classList.contains('pm-holiday'));
 
     const timeGridFrame = calendarEl.querySelector('.fc-timegrid-col-frame');
     assert.ok(timeGridFrame.classList.contains('pm-holiday'));
+});
+
+
+test('informational RH remains subtle and can be hidden without affecting closure holidays', async () => {
+    const dom = new JSDOM(`<!DOCTYPE html><html><body>
+        <input id="showInformationalRhToggle" type="checkbox" checked />
+        <div id="calendar" data-show-celebrations="false">
+            <div class="fc-daygrid-day" data-date="2024-12-26">
+                <div class="fc-daygrid-day-top"><div class="fc-daygrid-day-number" title="26"></div></div>
+            </div>
+        </div>
+    </body></html>`, { url: 'https://example.test/', runScripts: 'dangerously' });
+
+    const { window } = dom;
+    window.alert = () => {};
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    window.FullCalendar = {
+        Calendar: FakeCalendar,
+        dayGrid: () => ({}),
+        timeGrid: () => ({}),
+        list: () => ({}),
+        interaction: () => ({})
+    };
+    window.fetch = async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ([{
+            date: '2024-12-26',
+            isOfficeClosed: false,
+            closureType: null,
+            entries: [{
+                id: 2,
+                name: 'Optional Day',
+                type: 'Restricted',
+                isObservedAsOfficeHoliday: false,
+                affectsSchedule: false
+            }]
+        }])
+    });
+
+    const scriptEl = window.document.createElement('script');
+    scriptEl.textContent = scriptContent;
+    window.document.body.appendChild(scriptEl);
+    await new Promise(resolve => setTimeout(resolve, 25));
+
+    const cell = window.document.querySelector('.fc-daygrid-day[data-date="2024-12-26"]');
+    assert.ok(cell.classList.contains('pm-holiday--rh-info'));
+    assert.equal(
+        cell.querySelector('.pm-holiday-badge__primary')?.textContent,
+        'RH · Optional Day');
+    const number = cell.querySelector('.fc-daygrid-day-number');
+    assert.ok((number.getAttribute('title') || '').includes('Office open'));
+    assert.ok((number.getAttribute('title') || '').includes('No effect on project schedules'));
+
+    const toggle = window.document.getElementById('showInformationalRhToggle');
+    toggle.checked = false;
+    toggle.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    assert.ok(!cell.classList.contains('pm-holiday'));
+    assert.equal(cell.querySelector('.pm-holiday-badge'), null);
+    assert.equal(window.localStorage.getItem('prism-calendar-show-informational-rh'), 'false');
 });
 
 

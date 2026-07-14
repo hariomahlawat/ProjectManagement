@@ -27,6 +27,10 @@
                 <span>Account created</span>
                 <strong>@Model.FormatIst(Model.Account.CreatedUtc)</strong>
             </div>
+            <div>
+                <span>Analytics classification</span>
+                <strong>@Model.Account.AccountKind</strong>
+            </div>
         </div>
     </section>
 
@@ -47,6 +51,13 @@
                     <div>
                         <dt>Password change</dt>
                         <dd>@(Model.Account.MustChangePassword ? "Required at next sign-in" : "Not required")</dd>
+                    </div>
+                    <div>
+                        <dt>Usage analytics</dt>
+                        <dd>
+                            @Model.Account.AccountKind account
+                            <span class="admin-definition-list__secondary">Only active human accounts are included in command adoption by default.</span>
+                        </dd>
                     </div>
                     <div>
                         <dt>Failed access count</dt>

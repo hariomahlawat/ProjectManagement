@@ -49,9 +49,31 @@
         </div>
     </section>
 
-    <section class="admin-form-section" aria-labelledby="create-user-password-title">
+    <section class="admin-form-section admin-form-section--compact" aria-labelledby="create-user-classification-title">
         <header class="admin-form-section__header">
             <span class="admin-form-section__step">02</span>
+            <div>
+                <h2 id="create-user-classification-title">Analytics classification</h2>
+                <p>Classify the identity explicitly so service and test accounts do not distort command adoption reporting.</p>
+            </div>
+        </header>
+        <div class="admin-form-section__body">
+            <div class="admin-field admin-field--bounded">
+                <label asp-for="Input.AccountKind"></label>
+                <select asp-for="Input.AccountKind" class="form-select">
+                    <option value="Human">Human account</option>
+                    <option value="Service">Service account</option>
+                    <option value="Test">Test account</option>
+                </select>
+                <span class="admin-field__hint">Human accounts are included in command adoption analytics by default. Changes are recorded in the administrative audit trail.</span>
+                <span asp-validation-for="Input.AccountKind" class="text-danger"></span>
+            </div>
+        </div>
+    </section>
+
+    <section class="admin-form-section" aria-labelledby="create-user-password-title">
+        <header class="admin-form-section__header">
+            <span class="admin-form-section__step">03</span>
             <div>
                 <h2 id="create-user-password-title">Temporary password</h2>
                 <p>Issue a secure temporary password. The user will be required to replace it at first sign-in.</p>
@@ -97,7 +119,7 @@
 
     <section class="admin-form-section" aria-labelledby="create-user-roles-title">
         <header class="admin-form-section__header">
-            <span class="admin-form-section__step">03</span>
+            <span class="admin-form-section__step">04</span>
             <div>
                 <h2 id="create-user-roles-title">Roles and access</h2>
                 <p>Assign only the roles required for the user’s current duties. Privileged roles require additional scrutiny.</p>

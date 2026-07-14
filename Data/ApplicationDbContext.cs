@@ -188,6 +188,18 @@ namespace ProjectManagement.Data
                 .Property(x => x.DeletionPreviousStateJson)
                 .HasMaxLength(2000);
 
+            builder.Entity<ApplicationUser>()
+                .Property(x => x.AccountKind)
+                .HasDefaultValue(UserAccountKind.Human);
+
+            builder.Entity<ApplicationUser>()
+                .HasIndex(x => x.AccountKind);
+
+            builder.Entity<ApplicationUser>()
+                .ToTable(table => table.HasCheckConstraint(
+                    "CK_AspNetUsers_AccountKind",
+                    "\"AccountKind\" IN (1, 2, 3)"));
+
             builder.Entity<ApplicationUser>().HasData(
                 new ApplicationUser
                 {
@@ -203,6 +215,7 @@ namespace ProjectManagement.Data
                     LastLoginUtc = null,
                     LoginCount = 0,
                     CreatedUtc = systemUserCreatedUtc,
+                    AccountKind = UserAccountKind.Service,
                     IsDisabled = false,
                     DisabledUtc = null,
                     DisabledByUserId = null,

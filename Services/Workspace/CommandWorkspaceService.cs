@@ -227,7 +227,9 @@ public sealed class CommandWorkspaceService
                 TotalUsers = summary.TotalUsers,
                 ActiveToday = summary.ActiveToday,
                 RegularUsers = summary.RegularUsers,
-                NoUsageSevenWorkingDays = summary.NoUsageSevenWorkingDays
+                NoUsageSevenWorkingDays = summary.NoUsageSevenWorkingDays,
+                RegularClassificationAvailable = summary.RegularClassificationAvailable,
+                SevenDayReviewAvailable = summary.SevenDayReviewAvailable
             };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

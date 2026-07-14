@@ -80,8 +80,8 @@
             <div class="cw-usage-summary__heading"><span><i class="bi bi-person-check"></i></span><div><small>ERP adoption</small><strong>Daily usage posture</strong></div></div>
             <div class="cw-usage-summary__metrics">
                 <div><strong>@vm.UsageSummary.ActiveToday</strong><span>Active today</span><small>of @vm.UsageSummary.TotalUsers users</small></div>
-                <div><strong>@vm.UsageSummary.RegularUsers</strong><span>Regular users</span><small>30-day working-day posture</small></div>
-                <div class="@(vm.UsageSummary.NoUsageSevenWorkingDays > 0 ? "is-warning" : null)"><strong>@vm.UsageSummary.NoUsageSevenWorkingDays</strong><span>No usage in 7 working days</span><small>Requires command review</small></div>
+                <div><strong>@(vm.UsageSummary.RegularClassificationAvailable ? vm.UsageSummary.RegularUsers.ToString() : "—")</strong><span>Regular users</span><small>@(vm.UsageSummary.RegularClassificationAvailable ? "30-day monitored posture" : "Initial collection period")</small></div>
+                <div class="@(vm.UsageSummary.SevenDayReviewAvailable && vm.UsageSummary.NoUsageSevenWorkingDays > 0 ? "is-warning" : null)"><strong>@(vm.UsageSummary.SevenDayReviewAvailable ? vm.UsageSummary.NoUsageSevenWorkingDays.ToString() : "—")</strong><span>No use in 7 working days</span><small>@(vm.UsageSummary.SevenDayReviewAvailable ? "Requires command review" : "Available after 7 monitored working days")</small></div>
             </div>
             <a asp-page="/Usage/Index" class="cw-usage-summary__action">Review ERP usage <i class="bi bi-arrow-right"></i></a>
         </section>

@@ -9,6 +9,11 @@ public sealed class ErpUsageOptionsValidator : IValidateOptions<ErpUsageOptions>
         ArgumentNullException.ThrowIfNull(options);
         var failures = new List<string>();
 
+        if (options.TrackingInceptionUtc == default)
+            failures.Add("ErpUsage:TrackingInceptionUtc must be configured.");
+        else if (options.TrackingInceptionUtc.Offset != TimeSpan.Zero)
+            failures.Add("ErpUsage:TrackingInceptionUtc must be expressed in UTC (offset +00:00 or Z).");
+
         if (options.BucketMinutes is < 1 or > 30)
             failures.Add("ErpUsage:BucketMinutes must be between 1 and 30.");
         if (options.HeartbeatIntervalSeconds is < 60 or > 900)

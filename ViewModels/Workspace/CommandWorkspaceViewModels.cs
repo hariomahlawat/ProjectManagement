@@ -23,6 +23,8 @@ public sealed class CommandUsageSummaryVm
     public int ActiveToday { get; init; }
     public int RegularUsers { get; init; }
     public int NoUsageSevenWorkingDays { get; init; }
+    public bool RegularClassificationAvailable { get; init; }
+    public bool SevenDayReviewAvailable { get; init; }
 }
 
 public sealed record CommandFilterOptionVm(int Id, string Name);

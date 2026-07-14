@@ -24,6 +24,15 @@
 
   const preferencesForm = document.getElementById('calendarPreferences');
   const showCelebrationsToggle = document.getElementById('showCelebrationsToggle');
+  const showInformationalRhToggle = document.getElementById('showInformationalRhToggle');
+  const informationalRhStorageKey = 'prism-calendar-show-informational-rh';
+  let showInformationalRh = true;
+  try {
+    showInformationalRh = window.localStorage.getItem(informationalRhStorageKey) !== 'false';
+  } catch {
+    showInformationalRh = true;
+  }
+  if (showInformationalRhToggle) showInformationalRhToggle.checked = showInformationalRh;
   const antiforgeryInput = preferencesForm?.querySelector('input[name="__RequestVerificationToken"]');
   const preferenceEndpoint = preferencesForm?.dataset.preferenceEndpoint || '/calendar/events/preferences/show-celebrations';
 
@@ -254,35 +263,58 @@
     return 'rh-info';
   };
 
-  const holidayStateLabel = (meta) => {
-    const state = holidayVisualState(meta);
-    if (state === 'gazetted') return 'Gazetted holiday · Office closed';
-    if (state === 'rh-observed') return 'RH · Office holiday · Office closed';
-    return 'Restricted Holiday · Information only · Office open';
+  const shouldDisplayHoliday = (meta) => {
+    if (!meta) return false;
+    return holidayVisualState(meta) !== 'rh-info' || showInformationalRh;
+  };
+
+  const getVisibleHolidayMeta = (iso) => {
+    const meta = iso ? holidayMap.get(iso) : null;
+    return shouldDisplayHoliday(meta) ? meta : null;
   };
 
   const buildHolidayTooltip = (meta) => {
     if (!meta) return '';
     const entries = Array.isArray(meta.entries) ? meta.entries : [];
-    const details = entries.map(entry => {
-      if (entry.type === 'Gazetted') return `Gazetted: ${entry.name} — office closed`;
-      if (entry.isObservedAsOfficeHoliday) return `RH office holiday: ${entry.name} — office closed`;
-      return `RH: ${entry.name} — information only; office open`;
-    });
-    return [holidayStateLabel(meta), ...details].join('\n');
+    return entries.map(entry => {
+      if (entry.type === 'Gazetted') {
+        return `Gazetted Holiday: ${entry.name}\nOffice closed\nAffects project schedules`;
+      }
+      if (entry.isObservedAsOfficeHoliday) {
+        return `Restricted Holiday: ${entry.name}\nOffice closed\nAffects project schedules`;
+      }
+      return `Restricted Holiday: ${entry.name}\nOffice open\nNo effect on project schedules`;
+    }).join('\n\n');
   };
 
-  const holidayBadgeText = (meta) => {
+  const holidayBadgePresentation = (meta) => {
     const entries = Array.isArray(meta?.entries) ? meta.entries : [];
-    const primary = entries.find(entry => entry.type === 'Gazetted')
-      || entries.find(entry => entry.isObservedAsOfficeHoliday)
-      || entries[0];
-    if (!primary) return '';
-    const prefix = primary.type === 'Gazetted'
-      ? 'Gazetted'
-      : primary.isObservedAsOfficeHoliday ? 'RH · Office holiday' : 'RH';
-    const suffix = entries.length > 1 ? ` +${entries.length - 1}` : '';
-    return `${prefix}: ${primary.name}${suffix}`;
+    if (entries.length === 0) return { primary: '', secondary: '' };
+
+    const gazetted = entries.find(entry => entry.type === 'Gazetted');
+    const observed = entries.find(entry => entry.isObservedAsOfficeHoliday);
+    const primary = gazetted || observed || entries[0];
+
+    if (!gazetted && entries.every(entry => entry.type !== 'Gazetted') && entries.length > 1) {
+      return { primary: `RH · ${entries.length}`, secondary: '' };
+    }
+
+    if (entries.length > 1) {
+      return {
+        primary: gazetted ? `Gazetted holiday · ${entries.length}` : `RH · ${entries.length}`,
+        secondary: ''
+      };
+    }
+
+    if (primary.type === 'Gazetted') {
+      return { primary: 'Gazetted holiday', secondary: primary.name };
+    }
+
+    if (primary.isObservedAsOfficeHoliday) {
+      return { primary: 'RH · Office holiday', secondary: primary.name };
+    }
+
+    return { primary: `RH · ${primary.name}`, secondary: '' };
   };
 
   const buildHolidayAria = (iso, meta) => {
@@ -296,7 +328,7 @@
   const decorateHolidayCell = (el, iso) => {
     if (!el) return;
     holidayClasses.forEach(className => el.classList.remove(className));
-    const meta = iso ? holidayMap.get(iso) : null;
+    const meta = getVisibleHolidayMeta(iso);
     const state = holidayVisualState(meta);
     if (meta && state) {
       el.classList.add('pm-holiday', `pm-holiday--${state}`);
@@ -310,7 +342,7 @@
 
   const decorateHolidayLabelElement = (el, iso) => {
     if (!el) return;
-    const meta = iso ? holidayMap.get(iso) : null;
+    const meta = getVisibleHolidayMeta(iso);
     if (meta) {
       if (!el.hasAttribute('data-pm-holiday-orig-title') && el.hasAttribute('title')) {
         el.setAttribute('data-pm-holiday-orig-title', el.getAttribute('title'));
@@ -337,7 +369,7 @@
 
   const syncHolidayBadge = (targetEl, iso, options = {}) => {
     if (!targetEl) return;
-    const meta = iso ? holidayMap.get(iso) : null;
+    const meta = getVisibleHolidayMeta(iso);
     const predicate = typeof options.shouldDisplay === 'function' ? options.shouldDisplay : null;
     const shouldShow = !!(meta && (!predicate || predicate(meta, iso)));
     const badge = targetEl.querySelector('.pm-holiday-badge');
@@ -351,7 +383,18 @@
       node.classList.remove('pm-holiday-badge--gazetted', 'pm-holiday-badge--rh-observed', 'pm-holiday-badge--rh-info');
       const state = holidayVisualState(meta);
       if (state) node.classList.add(`pm-holiday-badge--${state}`);
-      node.textContent = holidayBadgeText(meta);
+      const presentation = holidayBadgePresentation(meta);
+      node.replaceChildren();
+      const primary = document.createElement('span');
+      primary.className = 'pm-holiday-badge__primary';
+      primary.textContent = presentation.primary;
+      node.appendChild(primary);
+      if (presentation.secondary) {
+        const secondary = document.createElement('span');
+        secondary.className = 'pm-holiday-badge__secondary';
+        secondary.textContent = presentation.secondary;
+        node.appendChild(secondary);
+      }
       decorateHolidayLabelElement(node, iso);
     } else if (badge) {
       decorateHolidayLabelElement(badge, null);
@@ -384,7 +427,7 @@
     const isListView = (calendar?.view?.type || '').startsWith('list');
     calendarEl.querySelectorAll('.fc-list-day').forEach(row => {
       const iso = getIsoDate(row.getAttribute('data-date'));
-      const meta = iso ? holidayMap.get(iso) : null;
+      const meta = getVisibleHolidayMeta(iso);
       decorateHolidayCell(row, iso);
       const cushion = row.querySelector('.fc-list-day-cushion');
       if (cushion) {
@@ -1258,6 +1301,19 @@
 
   setCelebrationsStateLocal(showCelebrations);
 
+  if (showInformationalRhToggle) {
+    showInformationalRhToggle.addEventListener('change', () => {
+      showInformationalRh = !!showInformationalRhToggle.checked;
+      try {
+        window.localStorage.setItem(informationalRhStorageKey, showInformationalRh ? 'true' : 'false');
+      } catch {
+        // Display preference remains valid for the current page even when storage is unavailable.
+      }
+      refreshHolidayHighlights();
+      updateCounts();
+    });
+  }
+
   // title handling
   const lblTitle = document.getElementById('calTitle');
   function updateTitle() {
@@ -1369,7 +1425,9 @@
       const holidayDays = [...holidayMap.values()];
       const gazettedCount = holidayDays.filter(day => holidayVisualState(day) === 'gazetted').length;
       const observedRhCount = holidayDays.filter(day => holidayVisualState(day) === 'rh-observed').length;
-      const informationalRhCount = holidayDays.filter(day => holidayVisualState(day) === 'rh-info').length;
+      const informationalRhCount = showInformationalRh
+        ? holidayDays.filter(day => holidayVisualState(day) === 'rh-info').length
+        : 0;
       if (gazettedCount > 0) html += `<span><span class="legend-dot pm-holiday--gazetted"></span>Gazetted · office closed (${gazettedCount})</span>`;
       if (observedRhCount > 0) html += `<span><span class="legend-dot pm-holiday--rh-observed"></span>RH office holiday (${observedRhCount})</span>`;
       if (informationalRhCount > 0) html += `<span><span class="legend-dot pm-holiday--rh-info"></span>RH · office open (${informationalRhCount})</span>`;
