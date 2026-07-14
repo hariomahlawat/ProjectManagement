@@ -1,49 +1,41 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Areas.Admin.Models;
 using ProjectManagement.Configuration;
-using ProjectManagement.Data;
-using ProjectManagement.Helpers;
-using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData;
 
 namespace ProjectManagement.Pages.Celebrations;
 
-[Authorize]
-public class IndexModel : PageModel
+[Authorize(Policy = Policies.Calendar.ManageCelebrations)]
+public sealed class IndexModel : PageModel
 {
-    private readonly ApplicationDbContext _db;
+    private readonly ICelebrationAdministrationService _celebrations;
     private readonly IAuthorizationService _authorization;
-    private static readonly TimeZoneInfo Ist = IstClock.TimeZone;
+    private readonly UserManager<ApplicationUser> _users;
 
     public IndexModel(
-        ApplicationDbContext db,
-        IAuthorizationService authorization)
+        ICelebrationAdministrationService celebrations,
+        IAuthorizationService authorization,
+        UserManager<ApplicationUser> users)
     {
-        _db = db;
-        _authorization = authorization;
+        _celebrations = celebrations ?? throw new ArgumentNullException(nameof(celebrations));
+        _authorization = authorization ?? throw new ArgumentNullException(nameof(authorization));
+        _users = users ?? throw new ArgumentNullException(nameof(users));
     }
 
-    public record Row(
-        Guid Id,
-        CelebrationType EventType,
-        string Name,
-        DateOnly NextOccurrence,
-        int DaysAway);
+    [BindProperty(SupportsGet = true)] public string Type { get; set; } = "all";
+    [BindProperty(SupportsGet = true)] public string Window { get; set; } = "all";
+    [BindProperty(SupportsGet = true, Name = "q")] public string? Search { get; set; }
+    [BindProperty(SupportsGet = true, Name = "pageNumber")] public int PageNumber { get; set; } = 1;
+    [BindProperty(SupportsGet = true)] public int PageSize { get; set; } = 25;
 
-    public Row[] Items { get; private set; } = Array.Empty<Row>();
-
-    [BindProperty(SupportsGet = true)]
-    public string Type { get; set; } = "all"; // all|birthday|anniversary
-
-    [BindProperty(SupportsGet = true)]
-    public string Window { get; set; } = "all"; // today|7|15|30|all
-
-    [BindProperty(SupportsGet = true)]
-    public string? Q { get; set; }
-
+    public CelebrationDirectoryResult Result { get; private set; } = new(
+        Array.Empty<CelebrationAdminRow>(), 0, 0, 0, 0, 0, 1, 25, 1, string.Empty, "all", "all");
+    public AdminPageHeaderModel Header { get; private set; } = new();
     public bool CanManageBirthdays { get; private set; }
     public bool CanManageAnniversaries { get; private set; }
     public bool CanEdit => CanManageBirthdays || CanManageAnniversaries;
@@ -62,100 +54,51 @@ public class IndexModel : PageModel
         _ => false
     };
 
-    public async Task OnGetAsync()
+    public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         await LoadPermissionsAsync();
-
-        var query = _db.Celebrations
-            .AsNoTracking()
-            .Where(x => x.DeletedUtc == null);
-
-        if (string.Equals(Type, "birthday", StringComparison.OrdinalIgnoreCase))
+        Result = await _celebrations.ListAsync(
+            new CelebrationDirectoryRequest(Search, Type, Window, PageNumber, PageSize),
+            cancellationToken);
+        Search = Result.Search;
+        Type = Result.Type;
+        Window = Result.Window;
+        PageNumber = Result.Page;
+        PageSize = Result.PageSize;
+        Header = new AdminPageHeaderModel
         {
-            query = query.Where(x => x.EventType == CelebrationType.Birthday);
-        }
-        else if (string.Equals(Type, "anniversary", StringComparison.OrdinalIgnoreCase))
-        {
-            query = query.Where(x => x.EventType == CelebrationType.Anniversary);
-        }
-
-        if (!string.IsNullOrWhiteSpace(Q))
-        {
-            var search = Q.Trim();
-            query = query.Where(x =>
-                EF.Functions.ILike(x.Name, $"%{search}%") ||
-                (x.SpouseName != null && EF.Functions.ILike(x.SpouseName, $"%{search}%")));
-        }
-
-        var nowLocal = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Ist);
-        var today = DateOnly.FromDateTime(nowLocal.DateTime);
-        var celebrations = await query.ToListAsync();
-
-        var rows = celebrations
-            .Select(c =>
-            {
-                var next = CelebrationHelpers.NextOccurrenceLocal(c, today);
-                return new Row(
-                    c.Id,
-                    c.EventType,
-                    CelebrationHelpers.DisplayName(c),
-                    next,
-                    CelebrationHelpers.DaysAway(today, next));
-            });
-
-        rows = Window.ToLowerInvariant() switch
-        {
-            "today" => rows.Where(r => r.DaysAway == 0),
-            "7" => rows.Where(r => r.DaysAway < 7),
-            "15" => rows.Where(r => r.DaysAway < 15),
-            "30" => rows.Where(r => r.DaysAway < 30),
-            _ => rows
+            Eyebrow = "Master data · Calendar configuration",
+            Title = "Celebrations",
+            Description = "Maintain birthdays and anniversaries shown in the shared calendar without changing user-account profiles.",
+            Icon = "bi-stars",
+            Actions = CanEdit
+                ? new[]
+                {
+                    new AdminPageActionModel { Text = AddButtonLabel, Href = Url.Page("./Edit"), Icon = "bi-plus-lg", IsPrimary = true }
+                }
+                : Array.Empty<AdminPageActionModel>()
         };
-
-        Items = rows
-            .OrderBy(r => r.NextOccurrence)
-            .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
     }
 
-    public async Task<IActionResult> OnPostDeleteAsync(Guid id)
+    public async Task<IActionResult> OnPostDeleteAsync(Guid id, CancellationToken cancellationToken)
     {
-        var celebration = await _db.Celebrations
-            .FirstOrDefaultAsync(x => x.Id == id && x.DeletedUtc == null);
+        var item = await _celebrations.GetAsync(id, cancellationToken);
+        if (item is null) return RedirectToPage(new { Type, Window, q = Search, pageNumber = PageNumber, pageSize = PageSize });
 
-        if (celebration is null)
-        {
-            return RedirectToPage(new { Type, Window, Q });
-        }
+        var authorization = await _authorization.AuthorizeAsync(User, Policies.Calendar.PolicyFor(item.EventType));
+        if (!authorization.Succeeded) return Forbid();
 
-        var authorization = await _authorization.AuthorizeAsync(
-            User,
-            Policies.Calendar.PolicyFor(celebration.EventType));
+        var actorUserId = _users.GetUserId(User);
+        if (string.IsNullOrWhiteSpace(actorUserId)) return Forbid();
 
-        if (!authorization.Succeeded)
-        {
-            return Forbid();
-        }
-
-        celebration.DeletedUtc = DateTimeOffset.UtcNow;
-        celebration.UpdatedUtc = DateTimeOffset.UtcNow;
-        await _db.SaveChangesAsync();
-
-        TempData[FlashMessageKeys.CelebrationsSuccess] = celebration.EventType == CelebrationType.Birthday
-            ? "Birthday deleted."
-            : "Anniversary deleted.";
-
-        return RedirectToPage(new { Type, Window, Q });
+        var result = await _celebrations.DeleteAsync(id, actorUserId, cancellationToken);
+        TempData[result.Succeeded ? FlashMessageKeys.CelebrationsSuccess : FlashMessageKeys.CelebrationsError] = result.UserMessage;
+        return RedirectToPage(new { Type, Window, q = Search, pageNumber = PageNumber, pageSize = PageSize });
     }
 
     private async Task LoadPermissionsAsync()
     {
-        CanManageBirthdays = (await _authorization.AuthorizeAsync(
-            User,
-            Policies.Calendar.ManageBirthdays)).Succeeded;
-
-        CanManageAnniversaries = (await _authorization.AuthorizeAsync(
-            User,
-            Policies.Calendar.ManageAnniversaries)).Succeeded;
+        CanManageBirthdays = (await _authorization.AuthorizeAsync(User, Policies.Calendar.ManageBirthdays)).Succeeded;
+        CanManageAnniversaries = (await _authorization.AuthorizeAsync(User, Policies.Calendar.ManageAnniversaries)).Succeeded;
     }
 }

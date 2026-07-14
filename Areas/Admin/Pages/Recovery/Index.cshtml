@@ -8,17 +8,17 @@
 <partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 
 <section class="admin-recovery-metric-grid" aria-label="Recovery summary">
-    <a class="admin-monitoring-metric admin-monitoring-metric--@(Model.Summary.TrashedProjects > 0 ? "warning" : "success")"
+    <a class="admin-monitoring-metric admin-monitoring-metric--@(Model.Summary.TrashedProjects > 0 ? "warning" : "neutral")"
        href="@Model.Path(AdminNavigationKeys.ProjectTrash)">
         <span class="admin-monitoring-metric__icon"><i class="bi bi-trash3" aria-hidden="true"></i></span>
         <span class="admin-monitoring-metric__copy"><strong>@Model.Summary.TrashedProjects</strong><span>Projects in trash</span><small>@Model.Summary.ProjectRetentionDays-day retention</small></span>
     </a>
-    <a class="admin-monitoring-metric admin-monitoring-metric--@(Model.Summary.RecycledDocuments > 0 ? "warning" : "success")"
+    <a class="admin-monitoring-metric admin-monitoring-metric--@(Model.Summary.RecycledDocuments > 0 ? "warning" : "neutral")"
        href="@Model.Path(AdminNavigationKeys.DocumentRecycle)">
         <span class="admin-monitoring-metric__icon"><i class="bi bi-recycle" aria-hidden="true"></i></span>
         <span class="admin-monitoring-metric__copy"><strong>@Model.Summary.RecycledDocuments</strong><span>Documents in recycle bin</span><small>@Model.FormatBytes(Model.Summary.RecycledDocumentBytes)</small></span>
     </a>
-    <a class="admin-monitoring-metric admin-monitoring-metric--@(Model.Summary.DeletedEvents > 0 ? "warning" : "success")"
+    <a class="admin-monitoring-metric admin-monitoring-metric--@(Model.Summary.DeletedEvents > 0 ? "warning" : "neutral")"
        href="@Model.Path(AdminNavigationKeys.DeletedEvents)">
         <span class="admin-monitoring-metric__icon"><i class="bi bi-calendar-x" aria-hidden="true"></i></span>
         <span class="admin-monitoring-metric__copy"><strong>@Model.Summary.DeletedEvents</strong><span>Deleted events</span><small>Available for restoration</small></span>
@@ -28,7 +28,7 @@
         <span class="admin-monitoring-metric__icon"><i class="bi bi-archive" aria-hidden="true"></i></span>
         <span class="admin-monitoring-metric__copy"><strong>@Model.Summary.ArchivedProjects</strong><span>Archived projects</span><small>Operational archive</small></span>
     </a>
-    <a class="admin-monitoring-metric admin-monitoring-metric--@(Model.Summary.DueForPurge > 0 ? "danger" : Model.Summary.DueSoon > 0 ? "warning" : "success")"
+    <a class="admin-monitoring-metric admin-monitoring-metric--@(Model.Summary.DueForPurge > 0 ? "danger" : Model.Summary.DueSoon > 0 ? "warning" : "neutral")"
        href="@Model.Path(AdminNavigationKeys.ProjectTrash)">
         <span class="admin-monitoring-metric__icon"><i class="bi bi-hourglass-split" aria-hidden="true"></i></span>
         <span class="admin-monitoring-metric__copy"><strong>@Model.Summary.DueForPurge</strong><span>Due for purge</span><small>@Model.Summary.DueSoon due within @Model.Summary.DueSoonWindowDays day(s)</small></span>
@@ -41,10 +41,10 @@
             <div><div class="admin-panel__eyebrow">Recoverable records</div><h2 id="recovery-queues-title">Recovery queues</h2></div>
         </header>
         <div class="admin-recovery-link-list">
-            <a href="@Model.Path(AdminNavigationKeys.ProjectTrash)"><span class="admin-recovery-link-list__icon"><i class="bi bi-trash3"></i></span><span><strong>Project trash</strong><small>Restore complete project records or conduct a controlled purge.</small></span><b>@Model.Summary.TrashedProjects</b><i class="bi bi-chevron-right"></i></a>
-            <a href="@Model.Path(AdminNavigationKeys.DocumentRecycle)"><span class="admin-recovery-link-list__icon"><i class="bi bi-recycle"></i></span><span><strong>Document recycle bin</strong><small>Restore or permanently remove project documents and stored files.</small></span><b>@Model.Summary.RecycledDocuments</b><i class="bi bi-chevron-right"></i></a>
-            <a href="@Model.Path(AdminNavigationKeys.DeletedEvents)"><span class="admin-recovery-link-list__icon"><i class="bi bi-calendar-x"></i></span><span><strong>Deleted calendar events</strong><small>Review event context before restoring shared calendar entries.</small></span><b>@Model.Summary.DeletedEvents</b><i class="bi bi-chevron-right"></i></a>
-            <a href="@Model.Path(AdminNavigationKeys.ArchivedProjects)"><span class="admin-recovery-link-list__icon"><i class="bi bi-archive"></i></span><span><strong>Archived projects</strong><small>Return operationally archived projects to the active portfolio.</small></span><b>@Model.Summary.ArchivedProjects</b><i class="bi bi-chevron-right"></i></a>
+            <a href="@Model.Path(AdminNavigationKeys.ProjectTrash)"><span class="admin-recovery-link-list__icon"><i class="bi bi-trash3"></i></span><span class="admin-recovery-link-list__copy"><strong>Project trash</strong><small>Restore complete project records or conduct a controlled purge.</small></span><b>@Model.Summary.TrashedProjects</b><i class="bi bi-chevron-right"></i></a>
+            <a href="@Model.Path(AdminNavigationKeys.DocumentRecycle)"><span class="admin-recovery-link-list__icon"><i class="bi bi-recycle"></i></span><span class="admin-recovery-link-list__copy"><strong>Document recycle bin</strong><small>Restore or permanently remove project documents and stored files.</small></span><b>@Model.Summary.RecycledDocuments</b><i class="bi bi-chevron-right"></i></a>
+            <a href="@Model.Path(AdminNavigationKeys.DeletedEvents)"><span class="admin-recovery-link-list__icon"><i class="bi bi-calendar-x"></i></span><span class="admin-recovery-link-list__copy"><strong>Deleted calendar events</strong><small>Review event context before restoring shared calendar entries.</small></span><b>@Model.Summary.DeletedEvents</b><i class="bi bi-chevron-right"></i></a>
+            <a href="@Model.Path(AdminNavigationKeys.ArchivedProjects)"><span class="admin-recovery-link-list__icon"><i class="bi bi-archive"></i></span><span class="admin-recovery-link-list__copy"><strong>Archived projects</strong><small>Return operationally archived projects to the active portfolio.</small></span><b>@Model.Summary.ArchivedProjects</b><i class="bi bi-chevron-right"></i></a>
         </div>
     </section>
 

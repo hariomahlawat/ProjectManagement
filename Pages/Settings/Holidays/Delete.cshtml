@@ -1,32 +1,12 @@
 @page "{id:int}"
 @model ProjectManagement.Pages.Settings.Holidays.DeleteModel
+@using ProjectManagement.Areas.Admin.Models
 @{
     ViewData["Title"] = "Delete holiday";
+    var header = new AdminPageHeaderModel { Eyebrow = "Master data · Controlled operation", Title = "Delete holiday", Description = "Remove an official non-working date from schedule calculations and calendar views.", Icon = "bi-trash3", Actions = new[] { new AdminPageActionModel { Text = "Back to holidays", Href = Model.Item is null ? Url.Page("./Index") : Url.Page("./Index", new { year = Model.Item.Date.Year }), Icon = "bi-arrow-left" } } };
 }
-
-@if (Model.Item is null)
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
+@if (Model.Item is not null)
 {
-    <div class="alert alert-warning" role="status">The requested holiday could not be found.</div>
-}
-else
-{
-    <div class="card border-danger">
-        <div class="card-body">
-            <h1 class="h4">Delete holiday</h1>
-            <p>This removes the date from project schedule calculations and calendar views.</p>
-
-            <dl class="row mb-4">
-                <dt class="col-sm-3">Date</dt>
-                <dd class="col-sm-9">@Model.Item.Date.ToString("dd MMM yyyy") (@Model.Item.Date.DayOfWeek)</dd>
-                <dt class="col-sm-3">Holiday</dt>
-                <dd class="col-sm-9">@Model.Item.Name</dd>
-            </dl>
-
-            <form method="post">
-                <input asp-for="RowVersion" type="hidden" />
-                <button type="submit" class="btn btn-danger">Delete holiday</button>
-                <a asp-page="Index" asp-route-year="@Model.Item.Date.Year" class="btn btn-outline-secondary ms-2">Cancel</a>
-            </form>
-        </div>
-    </div>
+<div class="admin-operation-layout"><form method="post" class="admin-panel admin-controlled-operation admin-controlled-operation--danger"><input asp-for="RowVersion" type="hidden" /><header><span class="admin-controlled-operation__icon"><i class="bi bi-calendar-x"></i></span><div><div class="admin-panel__eyebrow">Official holiday</div><h2>@Model.Item.Name</h2><p>This action removes the date from future working-day calculations.</p></div></header><dl class="admin-operation-facts"><div><dt>Date</dt><dd>@Model.Item.Date.ToString("dd MMM yyyy")</dd></div><div><dt>Day</dt><dd>@Model.Item.Date.DayOfWeek</dd></div><div><dt>Schedule effect</dt><dd>Removed immediately</dd></div></dl><div class="admin-operation-notice"><i class="bi bi-exclamation-triangle"></i><div><strong>Review downstream schedules</strong><span>Deleting a holiday does not automatically reapprove project deadlines that may have been based on the previous calendar.</span></div></div><footer><a asp-page="./Index" asp-route-year="@Model.Item.Date.Year" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-danger" type="submit"><i class="bi bi-trash3"></i>Delete holiday</button></footer></form></div>
 }

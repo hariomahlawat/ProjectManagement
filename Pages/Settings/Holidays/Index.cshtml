@@ -1,89 +1,26 @@
 @page
 @model ProjectManagement.Pages.Settings.Holidays.IndexModel
-@using ProjectManagement.Services.Admin
 @{
     ViewData["Title"] = "Holidays";
 }
-
-<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
-    <div>
-        <h1 class="h4 mb-1">Holidays</h1>
-        <p class="text-muted mb-0">Maintain the non-working dates used by project schedules and calendar views.</p>
-    </div>
-    <a class="btn btn-primary" asp-page="Create" asp-route-year="@Model.Year">
-        <i class="bi bi-plus-lg" aria-hidden="true"></i> Add holiday
-    </a>
-</div>
-
-@if (TempData[FlashMessageKeys.AdminHolidaysSuccess] is string successMessage)
-{
-    <div class="alert alert-success" role="status">@successMessage</div>
-}
-@if (TempData[FlashMessageKeys.AdminHolidaysError] is string errorMessage)
-{
-    <div class="alert alert-danger" role="alert">@errorMessage</div>
-}
-
-<form method="get" class="card card-body mb-3">
-    <div class="row g-3 align-items-end">
-        <div class="col-sm-4 col-lg-3">
-            <label asp-for="Year" class="form-label">Year</label>
-            <select asp-for="Year" class="form-select">
-                @foreach (var year in Model.AvailableYears)
-                {
-                    <option value="@year">@year</option>
-                }
-            </select>
-        </div>
-        <div class="col-sm-auto">
-            <button type="submit" class="btn btn-primary">View year</button>
-        </div>
-    </div>
-</form>
-
-<div class="d-flex justify-content-between align-items-center mb-2">
-    <span class="text-muted">@Model.Items.Count holiday(s) in @Model.Year</span>
-</div>
-
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
+<section class="admin-master-summary-grid" aria-label="Holiday summary">
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-calendar-week"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Items.Count</strong><span>Holidays</span><small>@Model.Year calendar year</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-calendar-event"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.UpcomingCount</strong><span>Upcoming</span><small>On or after today</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-clock-history"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.ElapsedCount</strong><span>Elapsed</span><small>Already observed</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--warning"><span class="admin-monitoring-metric__icon"><i class="bi bi-calendar2-week"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.WeekendCount</strong><span>Weekend dates</span><small>Review scheduling impact</small></span></article>
+</section>
+<section class="admin-panel" aria-labelledby="holiday-directory-title">
+<header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Calendar year</div><h2 id="holiday-directory-title">Holiday directory</h2></div><span class="admin-panel__meta">@Model.Items.Count record@(Model.Items.Count == 1 ? string.Empty : "s")</span></header>
+<form method="get" class="admin-year-toolbar"><a class="btn btn-sm btn-outline-secondary" asp-route-year="@(Model.Year - 1)" aria-label="Previous year"><i class="bi bi-chevron-left"></i></a><div class="admin-filter-toolbar__field"><label asp-for="Year">Year</label><select asp-for="Year" class="form-select">@foreach (var year in Model.AvailableYears){<option value="@year">@year</option>}</select></div><button class="btn btn-primary" type="submit">View year</button><a class="btn btn-sm btn-outline-secondary" asp-route-year="@(Model.Year + 1)" aria-label="Next year"><i class="bi bi-chevron-right"></i></a></form>
 @if (Model.Items.Count == 0)
 {
-    <div class="card card-body text-center py-5">
-        <i class="bi bi-calendar-week fs-2 text-muted" aria-hidden="true"></i>
-        <h2 class="h6 mt-3">No holidays recorded for @Model.Year</h2>
-        <p class="text-muted mb-3">Add the first holiday for this year.</p>
-        <div><a class="btn btn-sm btn-primary" asp-page="Create" asp-route-year="@Model.Year">Add holiday</a></div>
-    </div>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-calendar-week", Title = $"No holidays recorded for {Model.Year}", Description = "Add the first official non-working date for this year.", ActionText = "Add holiday", ActionHref = Url.Page("./Create", new { year = Model.Year }) })" />
 }
 else
 {
-    <div class="card overflow-hidden">
-        <div class="table-responsive">
-            <table class="table align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th scope="col">Date</th>
-                        <th scope="col">Day</th>
-                        <th scope="col">Holiday</th>
-                        <th scope="col" class="text-end">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var holiday in Model.Items)
-                {
-                    <tr>
-                        <td class="fw-semibold">@holiday.Date.ToString("dd MMM yyyy")</td>
-                        <td class="text-muted">@holiday.Date.DayOfWeek</td>
-                        <td>@holiday.Name</td>
-                        <td class="text-end">
-                            <div class="btn-group btn-group-sm" role="group" aria-label="Actions for @holiday.Name">
-                                <a class="btn btn-outline-primary" asp-page="Edit" asp-route-id="@holiday.Id">Edit</a>
-                                <a class="btn btn-outline-danger" asp-page="Delete" asp-route-id="@holiday.Id">Delete</a>
-                            </div>
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-    </div>
+<div class="admin-data-table-wrap"><table class="admin-data-table"><thead><tr><th>Date</th><th>Day</th><th>Holiday</th><th>Schedule effect</th><th class="admin-data-table__actions">Actions</th></tr></thead><tbody>@foreach (var holiday in Model.Items){var weekend = holiday.Date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;<tr><td><div class="admin-activity-value"><strong>@holiday.Date.ToString("dd MMM yyyy")</strong><span>@holiday.Date.ToString("yyyy-MM-dd")</span></div></td><td>@holiday.Date.DayOfWeek</td><td><div class="admin-lookup-name"><span><i class="bi bi-calendar-event"></i></span><strong>@holiday.Name</strong></div></td><td><span class="admin-status-pill admin-status-pill--@(weekend ? "warning" : "info")">@(weekend ? "Weekend holiday" : "Non-working day")</span></td><td class="admin-data-table__actions"><div class="dropdown"><button class="btn btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-label="Actions for @holiday.Name"><i class="bi bi-three-dots"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><a class="dropdown-item" asp-page="./Edit" asp-route-id="@holiday.Id"><i class="bi bi-pencil-square"></i>Edit</a></li><li><a class="dropdown-item text-danger" asp-page="./Delete" asp-route-id="@holiday.Id"><i class="bi bi-trash3"></i>Delete</a></li></ul></div></td></tr>}</tbody></table></div>
 }
+</section>
+<section class="admin-guidance-strip"><span><i class="bi bi-info-circle"></i></span><div><strong>Schedule impact</strong><p>Holiday dates are treated as non-working days by project schedule calculations. Changes apply immediately to future calculations.</p></div></section>

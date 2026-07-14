@@ -1,42 +1,10 @@
 @page "{id:int}"
 @model ProjectManagement.Pages.Settings.Holidays.EditModel
+@using ProjectManagement.Areas.Admin.Models
 @{
     ViewData["Title"] = "Edit holiday";
+    var header = new AdminPageHeaderModel { Eyebrow = "Master data · Holidays", Title = $"Edit {Model.Input.Name}", Description = "Update the official date or description used by schedule calculations.", Icon = "bi-pencil-square", Actions = new[] { new AdminPageActionModel { Text = "Back to holidays", Href = Url.Page("./Index", new { year = Model.Input.Date.Year }), Icon = "bi-arrow-left" } } };
 }
-
-<div class="mb-3">
-    <a asp-page="Index" asp-route-year="@Model.Input.Date.Year" class="text-decoration-none">
-        <i class="bi bi-arrow-left" aria-hidden="true"></i> Back to holidays
-    </a>
-</div>
-
-<div class="card">
-    <div class="card-body">
-        <h1 class="h4 mb-1">Edit holiday</h1>
-        <p class="text-muted">Update the date or official description.</p>
-
-        <form method="post" class="mt-4" novalidate>
-            <input asp-for="Input.Id" type="hidden" />
-            <input asp-for="Input.RowVersion" type="hidden" />
-            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
-
-            <div class="row g-3">
-                <div class="col-md-4">
-                    <label asp-for="Input.Date" class="form-label"></label>
-                    <input asp-for="Input.Date" class="form-control" type="date" />
-                    <span asp-validation-for="Input.Date" class="text-danger"></span>
-                </div>
-                <div class="col-md-8">
-                    <label asp-for="Input.Name" class="form-label"></label>
-                    <input asp-for="Input.Name" class="form-control" maxlength="160" autocomplete="off" />
-                    <span asp-validation-for="Input.Name" class="text-danger"></span>
-                </div>
-            </div>
-
-            <div class="d-flex gap-2 mt-4">
-                <button type="submit" class="btn btn-primary">Save changes</button>
-                <a asp-page="Index" asp-route-year="@Model.Input.Date.Year" class="btn btn-outline-secondary">Cancel</a>
-            </div>
-        </form>
-    </div>
-</div>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
+<div class="admin-form-layout"><form method="post" class="admin-panel admin-form-panel" novalidate><input asp-for="Input.Id" type="hidden" /><input asp-for="Input.RowVersion" type="hidden" /><header class="admin-form-section__header"><span>01</span><div><h2>Holiday details</h2><p>Changing the date changes future schedule calculations immediately.</p></div></header><div class="admin-form-section__body"><div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div><div class="admin-form-grid admin-form-grid--two"><div class="admin-field"><label asp-for="Input.Date"></label><input asp-for="Input.Date" class="form-control" type="date" /><span asp-validation-for="Input.Date" class="text-danger"></span></div><div class="admin-field admin-field--wide"><label asp-for="Input.Name"></label><input asp-for="Input.Name" class="form-control" maxlength="160" autocomplete="off" /><span asp-validation-for="Input.Name" class="text-danger"></span></div></div></div><footer class="admin-form-actions"><a asp-page="./Index" asp-route-year="@Model.Input.Date.Year" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i>Save changes</button></footer></form><aside class="admin-guidance-card"><span class="admin-guidance-card__icon"><i class="bi bi-shield-check"></i></span><h2>Change control</h2><p>Duplicate dates and concurrent edits are blocked. The audit trail records the previous and updated values.</p></aside></div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

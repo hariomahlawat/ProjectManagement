@@ -9,7 +9,7 @@ using ProjectManagement.Services.Admin;
 
 namespace ProjectManagement.Areas.Admin.Pages.ActivityTypes;
 
-[Authorize(Roles = "Admin,HoD")]
+[Authorize(Policy = ProjectManagement.Configuration.AdminPolicies.ActivityTypesManage)]
 public sealed class CreateModel : PageModel
 {
     private readonly IActivityTypeService _activityTypeService;

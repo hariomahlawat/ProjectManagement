@@ -16,6 +16,7 @@ public static class AdminNavigationKeys
     public const string DocumentRecycle = "document-recycle";
     public const string PdfIngestion = "pdf-ingestion";
     public const string DeletedEvents = "deleted-events";
+    public const string MasterDataCentre = "master-data-centre";
     public const string Holidays = "holidays";
     public const string Celebrations = "celebrations";
     public const string ProjectCategories = "project-categories";
@@ -221,6 +222,14 @@ public static class AdminNavigationCatalog
             showInQuickLinks: true),
 
         Entry(
+            AdminNavigationKeys.MasterDataCentre,
+            AdminNavigationGroups.MasterData,
+            115,
+            Item("Master data centre", "Admin", "/MasterData/Index", "bi-sliders2", AdminPolicies.MasterDataManage),
+            exactPage: true,
+            showOnDashboard: true),
+
+        Entry(
             AdminNavigationKeys.Holidays,
             AdminNavigationGroups.MasterData,
             120,
@@ -232,7 +241,7 @@ public static class AdminNavigationCatalog
             AdminNavigationKeys.Celebrations,
             AdminNavigationGroups.MasterData,
             130,
-            Item("Celebrations", string.Empty, "/Celebrations/Index", "bi-stars", AdminPolicies.MasterDataManage),
+            Item("Celebrations", string.Empty, "/Celebrations/Index", "bi-stars", Policies.Calendar.ManageCelebrations),
             matchPagePattern: "/Celebrations/",
             showInQuickLinks: true),
 

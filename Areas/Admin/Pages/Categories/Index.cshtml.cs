@@ -1,10 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Areas.Admin.Models;
 using ProjectManagement.Configuration;
-using ProjectManagement.Data;
-using ProjectManagement.Helpers;
-using ProjectManagement.Models;
 using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Admin.MasterData;
 
@@ -13,32 +11,42 @@ namespace ProjectManagement.Areas.Admin.Pages.Categories;
 [Authorize(Policy = AdminPolicies.MasterDataManage)]
 public sealed class IndexModel : PageModel
 {
-    private readonly ApplicationDbContext _db;
+    private readonly IMasterDataAdministrationQueryService _query;
     private readonly IAdminMasterDataCommandService _commands;
 
-    public IndexModel(ApplicationDbContext db, IAdminMasterDataCommandService commands)
+    public IndexModel(
+        IMasterDataAdministrationQueryService query,
+        IAdminMasterDataCommandService commands)
     {
-        _db = db;
-        _commands = commands;
+        _query = query ?? throw new ArgumentNullException(nameof(query));
+        _commands = commands ?? throw new ArgumentNullException(nameof(commands));
     }
 
-    [TempData(Key = FlashMessageKeys.AdminMasterDataSuccess)]
-    public string? StatusMessage { get; set; }
+    [BindProperty(SupportsGet = true, Name = "q")]
+    public string? Search { get; set; }
 
-    [TempData(Key = FlashMessageKeys.AdminMasterDataError)]
-    public string? ErrorMessage { get; set; }
+    [BindProperty(SupportsGet = true)]
+    public string Status { get; set; } = "active";
 
-    public IReadOnlyList<CategoryHierarchyBuilder.CategoryNode<ProjectCategory>> Nodes { get; private set; }
-        = Array.Empty<CategoryHierarchyBuilder.CategoryNode<ProjectCategory>>();
+    public CategoryDirectoryResult Result { get; private set; } = new(
+        MasterDataCategoryKind.Project,
+        Array.Empty<CategoryAdminRow>(),
+        0, 0, 0, 0, 0,
+        string.Empty,
+        "active");
+
+    public AdminPageHeaderModel Header { get; private set; } = new();
+    public AdminCategoryDirectoryModel DirectoryModel { get; private set; } = new();
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        Nodes = await CategoryHierarchyBuilder.LoadHierarchyAsync(
-            _db.ProjectCategories,
-            item => item.Id,
-            item => item.ParentId,
-            item => item.SortOrder,
-            item => item.Name);
+        Result = await _query.GetCategoriesAsync(
+            MasterDataCategoryKind.Project,
+            new CategoryDirectoryRequest(Search, Status),
+            cancellationToken);
+        Search = Result.Search;
+        Status = Result.Status;
+        BuildPresentation();
     }
 
     public async Task<IActionResult> OnPostToggleAsync(int id, CancellationToken cancellationToken)
@@ -56,6 +64,43 @@ public sealed class IndexModel : PageModel
     private IActionResult RedirectWithResult(AdminOperationResult result)
     {
         TempData[result.Succeeded ? FlashMessageKeys.AdminMasterDataSuccess : FlashMessageKeys.AdminMasterDataError] = result.UserMessage;
-        return RedirectToPage();
+        return RedirectToPage(new { q = Search, status = Status });
+    }
+
+    private void BuildPresentation()
+    {
+        Header = new AdminPageHeaderModel
+        {
+            Eyebrow = "Master data · Taxonomy",
+            Title = "Project categories",
+            Description = "Maintain the hierarchy used to group projects, dashboards and management reports.",
+            Icon = "bi-diagram-3",
+            Actions = new[]
+            {
+                new AdminPageActionModel
+                {
+                    Text = "Master data centre",
+                    Href = Url.Page("/MasterData/Index", new { area = "Admin" }),
+                    Icon = "bi-arrow-left"
+                },
+                new AdminPageActionModel
+                {
+                    Text = "Add root category",
+                    Href = Url.Page("./Create", new { area = "Admin" }),
+                    Icon = "bi-plus-lg",
+                    IsPrimary = true
+                }
+            }
+        };
+
+        DirectoryModel = new AdminCategoryDirectoryModel
+        {
+            Result = Result,
+            Area = "Admin",
+            IndexPage = "/Categories/Index",
+            CreatePage = "/Categories/Create",
+            EditPage = "/Categories/Edit",
+            DeletePage = "/Categories/Delete"
+        };
     }
 }

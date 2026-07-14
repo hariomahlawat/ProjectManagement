@@ -62,7 +62,7 @@ public sealed class DbHealthModel : PageModel
         AdminHealthStatus.Healthy => "Healthy",
         AdminHealthStatus.Warning => "Attention required",
         AdminHealthStatus.Critical => "Critical",
-        _ => "Unavailable"
+        _ => "Starting / unknown"
     };
 
     public string FormatBytes(long? bytes)
@@ -132,6 +132,14 @@ public sealed class DbHealthModel : PageModel
                 Detail = "Immediate action required",
                 Icon = "bi-x-octagon",
                 Tone = Snapshot.CriticalCount > 0 ? "danger" : "neutral"
+            },
+            new AdminMonitoringMetricModel
+            {
+                Label = "Starting / unknown",
+                Value = Snapshot.UnavailableCount.ToString("N0"),
+                Detail = "Checks not yet conclusive",
+                Icon = "bi-hourglass-split",
+                Tone = "neutral"
             },
             new AdminMonitoringMetricModel
             {

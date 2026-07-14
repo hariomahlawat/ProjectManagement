@@ -1,0 +1,3 @@
+﻿Admin Phase 5 compile-fix backup created: 20260714-070106
+Project root: E:\Dot Net Web Development\ProjectManagement
+The removed legacy Razor partials are retained under this backup folder.

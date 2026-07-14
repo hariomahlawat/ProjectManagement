@@ -1,41 +1,32 @@
 @page "{id:int}"
 @model ProjectManagement.Areas.Admin.Pages.TechnicalCategories.EditModel
-@using Microsoft.AspNetCore.Mvc.Rendering
+@using ProjectManagement.Areas.Admin.Models
 @{
     ViewData["Title"] = "Edit technical category";
+    var header = new AdminPageHeaderModel
+    {
+        Eyebrow = "Master data · Technical categories",
+        Title = $"Edit {Model.Input.Name}",
+        Description = "Update the classification, hierarchy position or availability.",
+        Icon = "bi-pencil-square",
+        Actions = new[] { new AdminPageActionModel { Text = "Back to categories", Href = Url.Page("./Index"), Icon = "bi-arrow-left" } }
+    };
 }
-
-<h1 class="h3 mb-3">Edit technical category</h1>
-
-<form method="post" class="card card-body shadow-sm">
-    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-
-    <input type="hidden" asp-for="Input.Id" />
-    <input type="hidden" asp-for="Input.RowVersion" />
-
-    <div class="mb-3">
-        <label asp-for="Input.Name" class="form-label"></label>
-        <input asp-for="Input.Name" class="form-control" />
-        <span asp-validation-for="Input.Name" class="text-danger"></span>
-    </div>
-
-    <div class="mb-3">
-        <label asp-for="Input.ParentId" class="form-label">Parent</label>
-        <select asp-for="Input.ParentId" asp-items="Model.ParentOptions" class="form-select"></select>
-        <span asp-validation-for="Input.ParentId" class="text-danger"></span>
-    </div>
-
-    <div class="form-check mb-3">
-        <input asp-for="Input.IsActive" class="form-check-input" />
-        <label asp-for="Input.IsActive" class="form-check-label"></label>
-    </div>
-
-    <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary">Save changes</button>
-        <a asp-page="Index" class="btn btn-secondary">Cancel</a>
-    </div>
-</form>
-
-@section Scripts {
-    <partial name="_ValidationScriptsPartial" />
-}
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
+<div class="admin-form-layout">
+    <form method="post" class="admin-panel admin-form-panel" novalidate>
+        <input asp-for="Input.Id" type="hidden" /><input asp-for="Input.RowVersion" type="hidden" />
+        <header class="admin-form-section__header"><span>01</span><div><h2>Technical classification</h2><p>Existing project references remain intact when a category is renamed or moved.</p></div></header>
+        <div class="admin-form-section__body">
+            <div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
+            <div class="admin-form-grid admin-form-grid--two">
+                <div class="admin-field admin-field--wide"><label asp-for="Input.Name"></label><input asp-for="Input.Name" class="form-control" maxlength="120" autocomplete="off" /><span asp-validation-for="Input.Name" class="text-danger"></span></div>
+                <div class="admin-field"><label asp-for="Input.ParentId">Parent category</label><select asp-for="Input.ParentId" asp-items="Model.ParentOptions" class="form-select"></select><span asp-validation-for="Input.ParentId" class="text-danger"></span><small>Hierarchy cycles are prevented automatically.</small></div>
+            </div>
+            <label class="admin-switch-row"><input asp-for="Input.IsActive" type="checkbox" /><span><strong>Active</strong><small>Inactive values remain visible on historical projects.</small></span></label>
+        </div>
+        <footer class="admin-form-actions"><a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a><button type="submit" class="btn btn-primary"><i class="bi bi-check-lg"></i>Save changes</button></footer>
+    </form>
+    <aside class="admin-guidance-card"><span class="admin-guidance-card__icon"><i class="bi bi-shield-check"></i></span><h2>Change control</h2><p>Duplicate sibling names, hierarchy cycles and stale edits are rejected without changing the record.</p></aside>
+</div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

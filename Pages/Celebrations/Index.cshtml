@@ -1,135 +1,26 @@
 @page
 @model ProjectManagement.Pages.Celebrations.IndexModel
+@using ProjectManagement.Models
 @{
-    ViewData["Title"] = "Birthdays & anniversaries";
+    ViewData["Title"] = "Celebrations";
+    var result = Model.Result;
+    var first = result.FilteredCount == 0 ? 0 : ((result.Page - 1) * result.PageSize) + 1;
+    var last = Math.Min(result.Page * result.PageSize, result.FilteredCount);
 }
-
-<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
-    <div>
-        <h1 class="h4 fw-semibold mb-1">Birthdays &amp; anniversaries</h1>
-        <p class="text-muted mb-0">Maintain the recurring celebrations shown on the institutional calendar.</p>
-    </div>
-    <div class="d-flex gap-2">
-        <a asp-page="/Calendar/Index" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Calendar
-        </a>
-        @if (Model.CanEdit)
-        {
-            <a asp-page="Edit" class="btn btn-primary btn-sm">
-                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>@Model.AddButtonLabel
-            </a>
-        }
-    </div>
-</div>
-
-@if (TempData[FlashMessageKeys.CelebrationsSuccess] is string successMessage)
-{
-    <div class="alert alert-success" role="status">@successMessage</div>
-}
-@if (TempData[FlashMessageKeys.CelebrationsError] is string errorMessage)
-{
-    <div class="alert alert-danger" role="alert">@errorMessage</div>
-}
-
-<form method="get" class="card card-body border-0 shadow-sm mb-3">
-    <div class="row g-2 align-items-end">
-        <div class="col-sm-3 col-lg-2">
-            <label class="form-label small text-muted" for="celebrationTypeFilter">Type</label>
-            <select id="celebrationTypeFilter" asp-for="Type" class="form-select form-select-sm">
-                <option value="all">All</option>
-                <option value="birthday">Birthday</option>
-                <option value="anniversary">Anniversary</option>
-            </select>
-        </div>
-        <div class="col-sm-3 col-lg-2">
-            <label class="form-label small text-muted" for="celebrationWindowFilter">Window</label>
-            <select id="celebrationWindowFilter" asp-for="Window" class="form-select form-select-sm">
-                <option value="all">All</option>
-                <option value="today">Today</option>
-                <option value="7">Next 7 days</option>
-                <option value="15">Next 15 days</option>
-                <option value="30">Next 30 days</option>
-            </select>
-        </div>
-        <div class="col-sm-4 col-lg-5">
-            <label class="form-label small text-muted" for="celebrationSearch">Search</label>
-            <input id="celebrationSearch"
-                   type="search"
-                   asp-for="Q"
-                   class="form-control form-control-sm"
-                   placeholder="Search by name" />
-        </div>
-        <div class="col-sm-2 col-lg-1">
-            <button type="submit" class="btn btn-sm btn-outline-primary w-100">Filter</button>
-        </div>
-        <div class="col-lg-2 text-lg-end">
-            <a asp-page="Index" class="btn btn-sm btn-link text-decoration-none">Clear</a>
-        </div>
-    </div>
-</form>
-
-<div class="card border-0 shadow-sm overflow-hidden">
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th scope="col">Name</th>
-                    <th scope="col">Type</th>
-                    <th scope="col">Next occurrence</th>
-                    <th scope="col" class="text-end">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-            @if (Model.Items.Length == 0)
-            {
-                <tr>
-                    <td colspan="4" class="text-center text-muted py-5">No matching birthdays or anniversaries.</td>
-                </tr>
-            }
-            else
-            {
-                @foreach (var row in Model.Items)
-                {
-                    <tr>
-                        <td class="fw-medium">@row.Name</td>
-                        <td>
-                            <span class="badge rounded-pill @(row.EventType == ProjectManagement.Models.CelebrationType.Birthday ? "text-bg-primary" : "text-bg-warning")">
-                                @row.EventType
-                            </span>
-                        </td>
-                        <td>
-                            @row.NextOccurrence.ToString("dd MMM yyyy")
-                            <span class="text-muted small ms-1">
-                                @(row.DaysAway == 0 ? "Today" : $"in {row.DaysAway} days")
-                            </span>
-                        </td>
-                        <td class="text-end text-nowrap">
-                            @if (Model.CanManage(row.EventType))
-                            {
-                                <a asp-page="Edit"
-                                   asp-route-id="@row.Id"
-                                   class="btn btn-sm btn-link text-decoration-none">Edit</a>
-                                <form method="post"
-                                      asp-page-handler="Delete"
-                                      asp-route-id="@row.Id"
-                                      class="d-inline"
-                                      onsubmit="return confirm('Delete this entry?');">
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="Type" value="@Model.Type" />
-                                    <input type="hidden" name="Window" value="@Model.Window" />
-                                    <input type="hidden" name="Q" value="@Model.Q" />
-                                    <button type="submit" class="btn btn-sm btn-link text-danger text-decoration-none">Delete</button>
-                                </form>
-                            }
-                            else
-                            {
-                                <span class="text-muted small">View only</span>
-                            }
-                        </td>
-                    </tr>
-                }
-            }
-            </tbody>
-        </table>
-    </div>
-</div>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
+<section class="admin-master-summary-grid" aria-label="Celebration summary">
+<article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-stars"></i></span><span class="admin-monitoring-metric__copy"><strong>@result.Total</strong><span>Total entries</span><small>Active calendar records</small></span></article>
+<article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-cake2"></i></span><span class="admin-monitoring-metric__copy"><strong>@result.Birthdays</strong><span>Birthdays</span><small>Annual birthday entries</small></span></article>
+<article class="admin-monitoring-metric admin-monitoring-metric--warning"><span class="admin-monitoring-metric__icon"><i class="bi bi-hearts"></i></span><span class="admin-monitoring-metric__copy"><strong>@result.Anniversaries</strong><span>Anniversaries</span><small>Annual anniversary entries</small></span></article>
+<article class="admin-monitoring-metric admin-monitoring-metric--success"><span class="admin-monitoring-metric__icon"><i class="bi bi-calendar2-check"></i></span><span class="admin-monitoring-metric__copy"><strong>@result.NextThirtyDays</strong><span>Next 30 days</span><small>Upcoming occurrences</small></span></article>
+</section>
+<section class="admin-panel" aria-labelledby="celebration-directory-title"><header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Annual calendar records</div><h2 id="celebration-directory-title">Celebration directory</h2></div><span class="admin-panel__meta">Showing @first–@last of @result.FilteredCount</span></header>
+<form method="get" class="admin-master-filter-toolbar admin-master-filter-toolbar--celebrations"><div class="admin-filter-toolbar__search"><i class="bi bi-search"></i><label class="visually-hidden" for="celebration-search">Search celebrations</label><input id="celebration-search" class="form-control" type="search" name="q" value="@result.Search" placeholder="Search name or spouse name" /></div><div class="admin-filter-toolbar__field"><label for="celebration-type">Type</label><select id="celebration-type" class="form-select" name="type"><option value="all" selected="@(result.Type == "all" ? "selected" : null)">All types</option><option value="birthday" selected="@(result.Type == "birthday" ? "selected" : null)">Birthdays</option><option value="anniversary" selected="@(result.Type == "anniversary" ? "selected" : null)">Anniversaries</option></select></div><div class="admin-filter-toolbar__field"><label for="celebration-window">Occurrence</label><select id="celebration-window" class="form-select" name="window"><option value="all" selected="@(result.Window == "all" ? "selected" : null)">All upcoming</option><option value="today" selected="@(result.Window == "today" ? "selected" : null)">Today</option><option value="7" selected="@(result.Window == "7" ? "selected" : null)">Next 7 days</option><option value="15" selected="@(result.Window == "15" ? "selected" : null)">Next 15 days</option><option value="30" selected="@(result.Window == "30" ? "selected" : null)">Next 30 days</option></select></div><div class="admin-filter-toolbar__field admin-filter-toolbar__field--page-size"><label for="celebration-size">Rows</label><select id="celebration-size" class="form-select" name="pageSize">@foreach(var size in new[]{10,25,50,100}){<option value="@size" selected="@(result.PageSize == size ? "selected" : null)">@size</option>}</select></div><div class="admin-filter-toolbar__actions"><button class="btn btn-primary" type="submit"><i class="bi bi-funnel"></i>Apply</button><a class="btn btn-outline-secondary" asp-page="./Index">Clear</a></div></form>
+@if(result.Rows.Count==0){<partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon="bi-stars", Title="No celebrations match the current filters", Description=result.Total==0 ? "Add the first birthday or anniversary record." : "Clear or adjust the filters.", ActionText=result.Total==0 && Model.CanEdit ? Model.AddButtonLabel : null, ActionHref=result.Total==0 && Model.CanEdit ? Url.Page("./Edit") : null })" />}
+else{<div class="admin-data-table-wrap"><table class="admin-data-table"><thead><tr><th>Name</th><th>Type</th><th>Annual date</th><th>Next occurrence</th><th>Calendar source</th><th class="admin-data-table__actions">Actions</th></tr></thead><tbody>@foreach(var row in result.Rows){<tr><td><div class="admin-lookup-name"><span><i class="bi @(row.EventType==CelebrationType.Birthday ? "bi-cake2" : "bi-hearts")"></i></span><div><strong>@row.DisplayName</strong>@if(row.Year.HasValue){<small>Original year: @row.Year</small>}</div></div></td><td><span class="admin-status-pill admin-status-pill--@(row.EventType==CelebrationType.Birthday ? "info" : "warning")">@row.EventType</span></td><td>@row.Day.ToString("00") @System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(row.Month)</td><td><div class="admin-activity-value"><strong>@row.NextOccurrence.ToString("dd MMM yyyy")</strong><span>@(row.DaysAway==0 ? "Today" : $"In {row.DaysAway} day{(row.DaysAway==1 ? string.Empty : "s")}")</span></div></td><td><div class="admin-usage-summary"><strong>Shared calendar</strong><span>Independent of user profile</span></div></td><td class="admin-data-table__actions">@if(Model.CanManage(row.EventType)){<div class="dropdown"><button class="btn btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-label="Actions for @row.DisplayName"><i class="bi bi-three-dots"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><a class="dropdown-item" asp-page="./Edit" asp-route-id="@row.Id"><i class="bi bi-pencil-square"></i>Edit</a></li><li><button class="dropdown-item text-danger" type="button" data-admin-celebration-delete data-id="@row.Id" data-name="@row.DisplayName"><i class="bi bi-trash3"></i>Delete</button></li></ul></div>}</td></tr>}</tbody></table></div>}
+</section>
+<form method="post" asp-page-handler="Delete" id="celebration-delete-form" hidden><input type="hidden" name="id" id="celebration-delete-id" /><input type="hidden" name="Type" value="@result.Type" /><input type="hidden" name="Window" value="@result.Window" /><input type="hidden" name="q" value="@result.Search" /><input type="hidden" name="pageNumber" value="@result.Page" /><input type="hidden" name="PageSize" value="@result.PageSize" /></form>
+<div class="modal fade" id="celebrationDeleteModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content admin-confirm-modal"><div class="modal-header"><h2 class="modal-title h5">Delete celebration</h2><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p>This removes <strong data-admin-celebration-name></strong> from the shared calendar. User-account profile data is not changed.</p></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" form="celebration-delete-form" class="btn btn-danger"><i class="bi bi-trash3"></i>Delete</button></div></div></div></div>
+<section class="admin-guidance-strip"><span><i class="bi bi-info-circle"></i></span><div><strong>Calendar record, not user profile</strong><p>Celebrations are independent annual calendar entries. Creating or deleting one does not add or remove a birthday field on the user account.</p></div></section>
+@section Scripts { <script src="~/js/admin/admin-celebrations.js" asp-append-version="true" defer></script> }

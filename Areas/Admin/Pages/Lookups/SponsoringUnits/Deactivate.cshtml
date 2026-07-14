@@ -1,49 +1,15 @@
-@page "{id:int}"
+@page
 @model ProjectManagement.Areas.Admin.Pages.Lookups.SponsoringUnits.DeactivateModel
-@{ 
-    var actionVerb = Model.Restore ? "Reactivate" : "Deactivate";
-    ViewData["Title"] = $"{actionVerb} Sponsoring Unit";
+@using ProjectManagement.Areas.Admin.Models
+@{
+    var operation = Model.Restore ? "Reactivate" : "Deactivate";
+    ViewData["Title"] = $"{operation} sponsoring unit";
+    var header = new AdminPageHeaderModel { Eyebrow = "Master data · Controlled operation", Title = $"{operation} sponsoring unit", Description = Model.Restore ? "Return this reference value to operational forms." : "Remove this value from new selections while preserving historical references.", Icon = Model.Restore ? "bi-check-circle" : "bi-slash-circle", Actions = new[] { new AdminPageActionModel { Text = "Back to sponsoring units", Href = Url.Page("./Index"), Icon = "bi-arrow-left" } } };
 }
-
-<nav aria-label="breadcrumb" class="mb-2">
-  <ol class="breadcrumb small mb-0">
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Lookups/SponsoringUnits/Index">Sponsoring Units</a></li>
-    <li class="breadcrumb-item active" aria-current="page">@actionVerb</li>
-  </ol>
-</nav>
-<h1 class="mb-4">@ViewData["Title"]</h1>
-
-<div class="col-lg-6">
-    <div class="alert alert-warning">
-        <p class="mb-2"><strong>@Model.Name</strong></p>
-        @if (Model.Restore)
-        {
-            <p class="mb-0">This unit will be available for selection once reactivated.</p>
-        }
-        else if (Model.ProjectCount > 0)
-        {
-            <p class="mb-0">This unit is referenced by <strong>@Model.ProjectCount</strong> project(s). Active assignments must be cleared before deactivation.</p>
-        }
-        else
-        {
-            <p class="mb-0">Deactivated units cannot be selected when creating or editing projects.</p>
-        }
-    </div>
-
-    <form method="post" class="d-flex gap-2">
-    <input asp-for="RowVersion" type="hidden" />
-        <button type="submit" class="btn btn-@(Model.Restore ? "success" : "danger")">@actionVerb</button>
-        <a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a>
-    </form>
-</div>
-
-@if (!ModelState.IsValid)
-{
-    <div class="text-danger mt-3">
-        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
-        {
-            <div>@error.ErrorMessage</div>
-        }
-    </div>
-}
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
+<div class="admin-operation-layout"><form method="post" class="admin-panel admin-controlled-operation @(Model.Restore ? "admin-controlled-operation--success" : "admin-controlled-operation--warning")"><input asp-for="Id" type="hidden" /><input asp-for="Restore" type="hidden" /><input asp-for="RowVersion" type="hidden" />
+<header><span class="admin-controlled-operation__icon"><i class="bi @(Model.Restore ? "bi-check-circle" : "bi-slash-circle")"></i></span><div><div class="admin-panel__eyebrow">Sponsoring unit</div><h2>@Model.Name</h2><p>@(Model.Restore ? "This value will become available for new project records." : "Existing project references remain unchanged. The value will no longer be available for new selection.")</p></div></header>
+<div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div><dl class="admin-operation-facts"><div><dt>Current status</dt><dd>@(Model.IsActive ? "Active" : "Inactive")</dd></div><div><dt>Projects using value</dt><dd>@Model.ProjectCount</dd></div><div><dt>Historical references</dt><dd>Preserved</dd></div></dl>
+@if (!Model.Restore && Model.ProjectCount > 0) { <div class="admin-operation-notice"><i class="bi bi-exclamation-triangle"></i><div><strong>Value is in use</strong><span>The service will block deactivation where the current domain rules require an active referenced value.</span></div></div> }
+<footer><a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a><button type="submit" class="btn @(Model.Restore ? "btn-primary" : "btn-warning")"><i class="bi @(Model.Restore ? "bi-check-lg" : "bi-slash-circle")"></i>@operation</button></footer>
+</form></div>

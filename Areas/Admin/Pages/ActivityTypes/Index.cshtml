@@ -2,109 +2,38 @@
 @model ProjectManagement.Areas.Admin.Pages.ActivityTypes.IndexModel
 @{
     ViewData["Title"] = "Activity types";
+    var result = Model.Result;
+    var first = result.FilteredCount == 0 ? 0 : ((result.Page - 1) * result.PageSize) + 1;
+    var last = Math.Min(result.Page * result.PageSize, result.FilteredCount);
+    var startPage = Math.Max(1, result.Page - 2);
+    var endPage = Math.Min(result.TotalPages, result.Page + 2);
 }
-
-<nav aria-label="breadcrumb" class="mb-2">
-  <ol class="breadcrumb small mb-0">
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
-    <li class="breadcrumb-item active" aria-current="page">Activity types</li>
-  </ol>
-</nav>
-
-<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-  <h1 class="h3 mb-0">Activity types</h1>
-  <a asp-page="./Create" class="btn btn-primary">
-    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>
-    Add activity type
-  </a>
-</div>
-
-@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
-{
-  <div class="alert alert-success" role="status">@Model.StatusMessage</div>
-}
-@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
-{
-  <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
-}
-
-@if (Model.ActivityTypes.Count == 0)
-{
-  <div class="alert alert-info" role="status">
-    No activity types have been created yet. Add one to make it available in activity forms.
-  </div>
-}
-else
-{
-  <div class="table-responsive">
-    <table class="table align-middle">
-      <thead>
-        <tr>
-          <th scope="col">Name</th>
-          <th scope="col" class="w-50">Description</th>
-          <th scope="col">Status</th>
-          <th scope="col" class="text-end">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-      @foreach (var type in Model.ActivityTypes)
-      {
-        <tr>
-          <td>
-            <div class="fw-semibold">@type.Name</div>
-            @if (type.LastModifiedAtUtc is { } modified)
-            {
-              <div class="small text-muted">Updated @TimeFmt.ToIst(modified.UtcDateTime)</div>
-            }
-          </td>
-          <td>
-            @if (!string.IsNullOrWhiteSpace(type.Description))
-            {
-              <div>@type.Description</div>
-            }
-            else
-            {
-              <span class="text-muted">No description</span>
-            }
-          </td>
-          <td>
-            @if (type.IsActive)
-            {
-              <span class="badge rounded-pill text-bg-success">Active</span>
-            }
-            else
-            {
-              <span class="badge rounded-pill text-bg-secondary">Inactive</span>
-            }
-          </td>
-          <td class="text-end">
-            <div class="btn-group" role="group" aria-label="Actions for @type.Name">
-              <a asp-page="./Edit" asp-route-id="@type.Id" class="btn btn-sm btn-outline-primary">
-                <i class="bi bi-pencil" aria-hidden="true"></i>
-                <span class="visually-hidden">Edit</span>
-                <span class="d-none d-sm-inline">Edit</span>
-              </a>
-              <form method="post" asp-page-handler="Toggle" asp-route-id="@type.Id" class="d-inline">
-                <button type="submit" class="btn btn-sm @(type.IsActive ? "btn-outline-secondary" : "btn-outline-success")">
-                  @if (type.IsActive)
-                  {
-                    <i class="bi bi-slash-circle" aria-hidden="true"></i>
-                    <span class="visually-hidden">Deactivate</span>
-                    <span class="d-none d-sm-inline">Deactivate</span>
-                  }
-                  else
-                  {
-                    <i class="bi bi-check-circle" aria-hidden="true"></i>
-                    <span class="visually-hidden">Activate</span>
-                    <span class="d-none d-sm-inline">Activate</span>
-                  }
-                </button>
-              </form>
-            </div>
-          </td>
-        </tr>
-      }
-      </tbody>
-    </table>
-  </div>
-}
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
+<section class="admin-master-summary-grid" aria-label="Activity type summary">
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-list-task"></i></span><span class="admin-monitoring-metric__copy"><strong>@result.Total</strong><span>Total types</span><small>All activity classifications</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--success"><span class="admin-monitoring-metric__icon"><i class="bi bi-check-circle"></i></span><span class="admin-monitoring-metric__copy"><strong>@result.Active</strong><span>Active</span><small>Available for new activities</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-slash-circle"></i></span><span class="admin-monitoring-metric__copy"><strong>@result.Inactive</strong><span>Inactive</span><small>Retained for historical records</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-link-45deg"></i></span><span class="admin-monitoring-metric__copy"><strong>@result.InUse</strong><span>In use</span><small>Referenced by activities</small></span></article>
+</section>
+<section class="admin-panel" aria-labelledby="activity-directory-title">
+    <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Reference directory</div><h2 id="activity-directory-title">Activity types</h2></div><span class="admin-panel__meta">Showing @first–@last of @result.FilteredCount</span></header>
+    <form method="get" class="admin-master-filter-toolbar"><div class="admin-filter-toolbar__search"><i class="bi bi-search"></i><label class="visually-hidden" for="activity-search">Search activity types</label><input id="activity-search" class="form-control" type="search" name="q" value="@result.Search" placeholder="Search name or description" /></div><div class="admin-filter-toolbar__field"><label for="activity-status">Status</label><select id="activity-status" class="form-select" name="status"><option value="active" selected="@(result.Status == "active" ? "selected" : null)">Active</option><option value="inactive" selected="@(result.Status == "inactive" ? "selected" : null)">Inactive</option><option value="all" selected="@(result.Status == "all" ? "selected" : null)">All states</option></select></div><div class="admin-filter-toolbar__field admin-filter-toolbar__field--page-size"><label for="activity-size">Rows</label><select id="activity-size" class="form-select" name="pageSize">@foreach (var size in new[] { 10, 25, 50, 100 }) { <option value="@size" selected="@(result.PageSize == size ? "selected" : null)">@size</option> }</select></div><div class="admin-filter-toolbar__actions"><button class="btn btn-primary" type="submit"><i class="bi bi-funnel"></i>Apply</button><a class="btn btn-outline-secondary" asp-page="./Index">Clear</a></div></form>
+    @if (result.Rows.Count == 0)
+    {
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-list-task", Title = "No activity types match the current filters", Description = result.Total == 0 ? "Add the first activity type to make it available in activity forms." : "Clear or adjust the filters.", ActionText = result.Total == 0 ? "Add activity type" : null, ActionHref = result.Total == 0 ? Url.Page("./Create") : null })" />
+    }
+    else
+    {
+        <div class="admin-data-table-wrap"><table class="admin-data-table"><thead><tr><th>Name and purpose</th><th>Usage</th><th>Status</th><th>Last changed</th><th class="admin-data-table__actions">Actions</th></tr></thead><tbody>
+        @foreach (var row in result.Rows)
+        {
+            <tr><td><div class="admin-lookup-name"><span><i class="bi bi-list-task"></i></span><div><strong>@row.Name</strong><small>@(string.IsNullOrWhiteSpace(row.Description) ? "No description recorded" : row.Description)</small></div></div></td><td><div class="admin-usage-summary"><strong>@row.UsageCount activit@(row.UsageCount == 1 ? "y" : "ies")</strong><span>@(row.UsageCount > 0 ? "Operationally referenced" : "Not currently referenced")</span></div></td><td><span class="admin-status-pill admin-status-pill--@(row.IsActive ? "success" : "neutral")"><i class="bi @(row.IsActive ? "bi-check-circle" : "bi-slash-circle")"></i>@(row.IsActive ? "Active" : "Inactive")</span></td><td><div class="admin-activity-value"><strong>@Model.FormatIst(row.UpdatedAtUtc ?? row.CreatedAtUtc)</strong><span>@(string.IsNullOrWhiteSpace(row.ChangedBy) ? "Creator not recorded" : row.ChangedBy)</span></div></td><td class="admin-data-table__actions"><div class="dropdown"><button class="btn btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @row.Name"><i class="bi bi-three-dots"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><a class="dropdown-item" asp-page="./Edit" asp-route-id="@row.Id"><i class="bi bi-pencil-square"></i>Edit</a></li><li><form method="post" asp-page-handler="Toggle"><input type="hidden" name="id" value="@row.Id" /><input type="hidden" name="q" value="@result.Search" /><input type="hidden" name="status" value="@result.Status" /><input type="hidden" name="pageNumber" value="@result.Page" /><input type="hidden" name="pageSize" value="@result.PageSize" /><button class="dropdown-item" type="submit"><i class="bi @(row.IsActive ? "bi-slash-circle" : "bi-check-circle")"></i>@(row.IsActive ? "Deactivate" : "Activate")</button></form></li></ul></div></td></tr>
+        }
+        </tbody></table></div>
+    }
+    @if (result.TotalPages > 1)
+    {
+        <nav class="admin-pagination" aria-label="Activity type pages"><span>Page @result.Page of @result.TotalPages</span><ul class="pagination pagination-sm mb-0"><li class="page-item @(result.Page <= 1 ? "disabled" : string.Empty)"><a class="page-link" asp-route-q="@result.Search" asp-route-status="@result.Status" asp-route-pageSize="@result.PageSize" asp-route-pageNumber="@(result.Page - 1)">Previous</a></li>@for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++){<li class="page-item @(pageNumber == result.Page ? "active" : string.Empty)"><a class="page-link" asp-route-q="@result.Search" asp-route-status="@result.Status" asp-route-pageSize="@result.PageSize" asp-route-pageNumber="@pageNumber">@pageNumber</a></li>}<li class="page-item @(result.Page >= result.TotalPages ? "disabled" : string.Empty)"><a class="page-link" asp-route-q="@result.Search" asp-route-status="@result.Status" asp-route-pageSize="@result.PageSize" asp-route-pageNumber="@(result.Page + 1)">Next</a></li></ul></nav>
+    }
+</section>

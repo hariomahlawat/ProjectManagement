@@ -1,0 +1,58 @@
+@model ProjectManagement.Areas.Admin.Models.AdminFlatLookupDirectoryModel
+@{
+    var result = Model.Result;
+    var first = result.FilteredCount == 0 ? 0 : ((result.Page - 1) * result.PageSize) + 1;
+    var last = Math.Min(result.Page * result.PageSize, result.FilteredCount);
+    var startPage = Math.Max(1, result.Page - 2);
+    var endPage = Math.Min(result.TotalPages, result.Page + 2);
+}
+<section class="admin-master-summary-grid" aria-label="@Model.PluralLabel summary">
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi @Model.Icon"></i></span><span class="admin-monitoring-metric__copy"><strong>@result.Total</strong><span>Total</span><small>All @Model.PluralLabel</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--success"><span class="admin-monitoring-metric__icon"><i class="bi bi-check-circle"></i></span><span class="admin-monitoring-metric__copy"><strong>@result.Active</strong><span>Active</span><small>Available for new records</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-slash-circle"></i></span><span class="admin-monitoring-metric__copy"><strong>@result.Inactive</strong><span>Inactive</span><small>Retained for history</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-link-45deg"></i></span><span class="admin-monitoring-metric__copy"><strong>@result.InUse</strong><span>In use</span><small>Referenced by projects</small></span></article>
+</section>
+
+<section class="admin-panel" aria-labelledby="flat-directory-title">
+    <header class="admin-panel__header">
+        <div><div class="admin-panel__eyebrow">Reference directory</div><h2 id="flat-directory-title">@Model.PluralLabel</h2></div>
+        <span class="admin-panel__meta">Showing @first–@last of @result.FilteredCount</span>
+    </header>
+    <form method="get" class="admin-master-filter-toolbar">
+        <div class="admin-filter-toolbar__search"><i class="bi bi-search"></i><label class="visually-hidden" for="lookup-search">Search @Model.PluralLabel</label><input id="lookup-search" class="form-control" type="search" name="q" value="@result.Search" placeholder="Search @Model.PluralLabel" autocomplete="off" /></div>
+        <div class="admin-filter-toolbar__field"><label for="lookup-status">Status</label><select id="lookup-status" class="form-select" name="status"><option value="active" selected="@(result.Status == "active" ? "selected" : null)">Active</option><option value="inactive" selected="@(result.Status == "inactive" ? "selected" : null)">Inactive</option><option value="all" selected="@(result.Status == "all" ? "selected" : null)">All states</option></select></div>
+        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--page-size"><label for="lookup-page-size">Rows</label><select id="lookup-page-size" class="form-select" name="pageSize">@foreach (var size in new[] { 10, 25, 50, 100 }) { <option value="@size" selected="@(result.PageSize == size ? "selected" : null)">@size</option> }</select></div>
+        <div class="admin-filter-toolbar__actions"><button class="btn btn-primary" type="submit"><i class="bi bi-funnel"></i>Apply</button><a class="btn btn-outline-secondary" asp-area="Admin" asp-page="@Model.IndexPage">Clear</a></div>
+    </form>
+
+    @if (result.Rows.Count == 0)
+    {
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = Model.Icon, Title = $"No {Model.PluralLabel} match the current filters", Description = result.Total == 0 ? $"Add the first {Model.SingularLabel} to establish this controlled list." : "Clear or adjust the search and status filters.", ActionText = result.Total == 0 ? $"Add {Model.SingularLabel}" : null, ActionHref = result.Total == 0 ? Url.Page(Model.CreatePage, new { area = "Admin" }) : null })" />
+    }
+    else
+    {
+        <div class="admin-data-table-wrap">
+            <table class="admin-data-table admin-flat-lookup-table">
+                <thead><tr><th scope="col">Name</th><th scope="col">Usage</th><th scope="col">Status</th><th scope="col">Display order</th><th scope="col">Last changed</th><th scope="col" class="admin-data-table__actions">Actions</th></tr></thead>
+                <tbody>
+                @foreach (var row in result.Rows)
+                {
+                    <tr>
+                        <td><div class="admin-lookup-name"><span aria-hidden="true"><i class="bi @Model.Icon"></i></span><strong>@row.Name</strong></div></td>
+                        <td><div class="admin-usage-summary"><strong>@row.UsageCount project@(row.UsageCount == 1 ? string.Empty : "s")</strong><span>@(row.UsageCount > 0 ? "Referenced operationally" : "Not currently referenced")</span></div></td>
+                        <td><span class="admin-status-pill admin-status-pill--@(row.IsActive ? "success" : "neutral")"><i class="bi @(row.IsActive ? "bi-check-circle" : "bi-slash-circle")"></i>@(row.IsActive ? "Active" : "Inactive")</span></td>
+                        <td><div class="admin-order-control"><span>@(row.SortOrder + 1)</span><form method="post" asp-area="Admin" asp-page="@Model.IndexPage" asp-page-handler="@Model.MoveHandler"><input type="hidden" name="id" value="@row.Id" /><input type="hidden" name="offset" value="-1" /><input type="hidden" name="q" value="@result.Search" /><input type="hidden" name="status" value="@result.Status" /><input type="hidden" name="pageNumber" value="@result.Page" /><input type="hidden" name="pageSize" value="@result.PageSize" /><button class="btn btn-sm btn-icon" type="submit" disabled="@(!row.CanMoveUp ? "disabled" : null)" aria-label="Move @row.Name up"><i class="bi bi-chevron-up"></i></button></form><form method="post" asp-area="Admin" asp-page="@Model.IndexPage" asp-page-handler="@Model.MoveHandler"><input type="hidden" name="id" value="@row.Id" /><input type="hidden" name="offset" value="1" /><input type="hidden" name="q" value="@result.Search" /><input type="hidden" name="status" value="@result.Status" /><input type="hidden" name="pageNumber" value="@result.Page" /><input type="hidden" name="pageSize" value="@result.PageSize" /><button class="btn btn-sm btn-icon" type="submit" disabled="@(!row.CanMoveDown ? "disabled" : null)" aria-label="Move @row.Name down"><i class="bi bi-chevron-down"></i></button></form></div></td>
+                        <td><span class="admin-muted-value">@(row.UpdatedUtc.HasValue ? row.UpdatedUtc.Value.ToString("dd MMM yyyy") : "Not recorded")</span></td>
+                        <td class="admin-data-table__actions"><div class="dropdown"><button class="btn btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @row.Name"><i class="bi bi-three-dots"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><a class="dropdown-item" asp-area="Admin" asp-page="@Model.EditPage" asp-route-id="@row.Id"><i class="bi bi-pencil-square"></i>Edit</a></li><li><a class="dropdown-item @(row.IsActive && row.UsageCount > 0 ? "text-warning" : string.Empty)" asp-area="Admin" asp-page="@Model.DeactivatePage" asp-route-id="@row.Id" asp-route-restore="@(!row.IsActive)"><i class="bi @(row.IsActive ? "bi-slash-circle" : "bi-check-circle")"></i>@(row.IsActive ? "Deactivate" : "Reactivate")</a></li></ul></div></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (result.TotalPages > 1)
+    {
+        <nav class="admin-pagination" aria-label="@Model.PluralLabel pages"><span>Page @result.Page of @result.TotalPages</span><ul class="pagination pagination-sm mb-0"><li class="page-item @(result.Page <= 1 ? "disabled" : string.Empty)"><a class="page-link" asp-area="Admin" asp-page="@Model.IndexPage" asp-route-q="@result.Search" asp-route-status="@result.Status" asp-route-pageSize="@result.PageSize" asp-route-pageNumber="@(result.Page - 1)">Previous</a></li>@for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++){<li class="page-item @(pageNumber == result.Page ? "active" : string.Empty)"><a class="page-link" asp-area="Admin" asp-page="@Model.IndexPage" asp-route-q="@result.Search" asp-route-status="@result.Status" asp-route-pageSize="@result.PageSize" asp-route-pageNumber="@pageNumber">@pageNumber</a></li>}<li class="page-item @(result.Page >= result.TotalPages ? "disabled" : string.Empty)"><a class="page-link" asp-area="Admin" asp-page="@Model.IndexPage" asp-route-q="@result.Search" asp-route-status="@result.Status" asp-route-pageSize="@result.PageSize" asp-route-pageNumber="@(result.Page + 1)">Next</a></li></ul></nav>
+    }
+</section>

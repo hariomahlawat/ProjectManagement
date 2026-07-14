@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Primitives;
 using ProjectManagement.Configuration;
 using ProjectManagement.Services.Navigation.ModuleNav;
 using Xunit;
@@ -29,7 +28,15 @@ public sealed class AdminNavigationCatalogTests
     {
         Assert.Equal(string.Empty, AdminNavigationCatalog.Get(AdminNavigationKeys.Holidays).Area);
         Assert.Equal(string.Empty, AdminNavigationCatalog.Get(AdminNavigationKeys.Celebrations).Area);
-        Assert.Equal(string.Empty, AdminNavigationCatalog.Get(AdminNavigationKeys.ArchivedProjects).Area);
+    }
+
+    [Fact]
+    public void AdministrationDestinations_UseDedicatedAdminRoutes()
+    {
+        Assert.Equal("Admin", AdminNavigationCatalog.Get(AdminNavigationKeys.RecoveryCentre).Area);
+        Assert.Equal("Admin", AdminNavigationCatalog.Get(AdminNavigationKeys.ArchivedProjects).Area);
+        Assert.Equal("Admin", AdminNavigationCatalog.Get(AdminNavigationKeys.MaintenanceCentre).Area);
+        Assert.Equal("Admin", AdminNavigationCatalog.Get(AdminNavigationKeys.MasterDataCentre).Area);
     }
 
     [Fact]
@@ -37,10 +44,13 @@ public sealed class AdminNavigationCatalogTests
     {
         Assert.Equal(AdminPolicies.UsersManage, AdminNavigationCatalog.Get(AdminNavigationKeys.Users).AuthorizationPolicy);
         Assert.Equal(AdminPolicies.LogsView, AdminNavigationCatalog.Get(AdminNavigationKeys.Logs).AuthorizationPolicy);
+        Assert.Equal(AdminPolicies.RecoveryManage, AdminNavigationCatalog.Get(AdminNavigationKeys.RecoveryCentre).AuthorizationPolicy);
         Assert.Equal(AdminPolicies.RecoveryManage, AdminNavigationCatalog.Get(AdminNavigationKeys.ProjectTrash).AuthorizationPolicy);
         Assert.Equal(AdminPolicies.RecoveryManage, AdminNavigationCatalog.Get(AdminNavigationKeys.DocumentRecycle).AuthorizationPolicy);
         Assert.Equal(AdminPolicies.RecoveryManage, AdminNavigationCatalog.Get(AdminNavigationKeys.DeletedEvents).AuthorizationPolicy);
+        Assert.Equal(AdminPolicies.MasterDataManage, AdminNavigationCatalog.Get(AdminNavigationKeys.MasterDataCentre).AuthorizationPolicy);
         Assert.Equal(AdminPolicies.HolidaysManage, AdminNavigationCatalog.Get(AdminNavigationKeys.Holidays).AuthorizationPolicy);
+        Assert.Equal(Policies.Calendar.ManageCelebrations, AdminNavigationCatalog.Get(AdminNavigationKeys.Celebrations).AuthorizationPolicy);
         Assert.Equal(AdminPolicies.IngestionManage, AdminNavigationCatalog.Get(AdminNavigationKeys.PdfIngestion).AuthorizationPolicy);
     }
 
@@ -48,8 +58,12 @@ public sealed class AdminNavigationCatalogTests
     [InlineData("Admin", "/Users/Index", AdminNavigationKeys.Users)]
     [InlineData("Admin", "/Users/Edit", AdminNavigationKeys.Users)]
     [InlineData("Admin", "/Analytics/Index", AdminNavigationKeys.Logins)]
+    [InlineData("Admin", "/Recovery/Index", AdminNavigationKeys.RecoveryCentre)]
+    [InlineData("Admin", "/Projects/Archived", AdminNavigationKeys.ArchivedProjects)]
+    [InlineData("Admin", "/MasterData/Index", AdminNavigationKeys.MasterDataCentre)]
     [InlineData("Admin", "/Lookups/ProjectTypes/Edit", AdminNavigationKeys.ProjectTypes)]
     [InlineData("", "/Settings/Holidays/Edit", AdminNavigationKeys.Holidays)]
+    [InlineData("", "/Celebrations/Edit", AdminNavigationKeys.Celebrations)]
     [InlineData("ProjectOfficeReports", "/Projects/LegacyImport", AdminNavigationKeys.LegacyImport)]
     public void FindActiveEntry_UsesStableSectionMatching(
         string area,
@@ -63,24 +77,14 @@ public sealed class AdminNavigationCatalogTests
     }
 
     [Fact]
-    public void ArchivedProjects_RequiresTheArchivedQueryState()
+    public void OrdinaryProjectDirectory_IsNotClassifiedAsAdministration()
     {
         var ordinaryProjects = AdminNavigationCatalog.FindActiveEntry(
             string.Empty,
             "/Projects/Index",
             new QueryCollection());
 
-        var archivedProjects = AdminNavigationCatalog.FindActiveEntry(
-            string.Empty,
-            "/Projects/Index",
-            new QueryCollection(new Dictionary<string, StringValues>
-            {
-                ["IncludeArchived"] = "true"
-            }));
-
         Assert.Null(ordinaryProjects);
-        Assert.NotNull(archivedProjects);
-        Assert.Equal(AdminNavigationKeys.ArchivedProjects, archivedProjects!.Key);
     }
 
     [Fact]

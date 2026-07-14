@@ -509,6 +509,8 @@ builder.Services.AddScoped<ISafeCsvWriter, SafeCsvWriter>();
 builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
 builder.Services.AddScoped<IAdminHierarchyValidationService, AdminHierarchyValidationService>();
 builder.Services.AddScoped<IAdminMasterDataCommandService, AdminMasterDataCommandService>();
+builder.Services.AddScoped<IMasterDataAdministrationQueryService, MasterDataAdministrationQueryService>();
+builder.Services.AddScoped<ICelebrationAdministrationService, CelebrationAdministrationService>();
 builder.Services.AddScoped<ICalendarRecoveryService, CalendarRecoveryService>();
 builder.Services.AddScoped<IHolidayAdminService, HolidayAdminService>();
 builder.Services.AddSingleton<IPdfIngestionRunGate, PdfIngestionRunGate>();
