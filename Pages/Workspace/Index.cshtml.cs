@@ -27,6 +27,11 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)] public List<int> ParentCategoryIds { get; set; } = new();
     [BindProperty(SupportsGet = true)] public string? ProjectSearch { get; set; }
     [BindProperty(SupportsGet = true)] public bool PopulatedStagesOnly { get; set; }
+    [BindProperty(SupportsGet = true)] public int PatternDays { get; set; } = 7;
+    [BindProperty(SupportsGet = true)] public string? PatternUserId { get; set; }
+    [BindProperty(SupportsGet = true)] public string? PatternRole { get; set; }
+    [BindProperty(SupportsGet = true)] public string? PatternModule { get; set; }
+    [BindProperty(SupportsGet = true)] public string? PatternSignal { get; set; }
 
     public IndexModel(ProjectOfficerWorkspaceService projectOfficerWorkspaceService, CommandWorkspaceService commandWorkspaceService, UserManager<ApplicationUser> userManager)
     {
@@ -53,6 +58,8 @@ public class IndexModel : PageModel
             {
                 "portfolio" => "portfolio",
                 "adoption" => "adoption",
+                "usage-pattern" => "usage-pattern",
+                "pattern" => "usage-pattern",
                 _ => "officers"
             };
             if (View == "portfolio" && !Request.Query.ContainsKey(nameof(PopulatedStagesOnly)))
@@ -65,6 +72,11 @@ public class IndexModel : PageModel
                 ParentCategoryIds = ParentCategoryIds,
                 ProjectSearch = ProjectSearch,
                 PopulatedStagesOnly = PopulatedStagesOnly,
+                PatternDays = PatternDays,
+                PatternUserId = PatternUserId,
+                PatternRole = PatternRole,
+                PatternModule = PatternModule,
+                PatternSignal = PatternSignal,
                 RequestingUserId = userId
             }, ct);
         }

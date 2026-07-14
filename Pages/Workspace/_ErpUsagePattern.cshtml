@@ -1,0 +1,202 @@
+@using System.Text.Json
+@using ProjectManagement.Infrastructure
+@using ProjectManagement.ViewModels.Workspace
+@model CommandUsagePatternVm
+@{
+    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    var pointsJson = JsonSerializer.Serialize(Model.Points, jsonOptions);
+    var usersJson = JsonSerializer.Serialize(
+        Model.Users.Select(user => new { user.UserId, user.DisplayName }),
+        jsonOptions);
+    var hasPeriod = Model.StartDate != default && Model.EndDate != default;
+    var periodLabel = !hasPeriod
+        ? "Current monitored period"
+        : Model.StartDate == Model.EndDate
+            ? Model.EndDate.ToString("dd MMM yyyy")
+            : $"{Model.StartDate:dd MMM} – {Model.EndDate:dd MMM yyyy}";
+    var selectedSignal = string.IsNullOrWhiteSpace(Model.SelectedSignal)
+        ? "all"
+        : Model.SelectedSignal;
+}
+
+<section class="cw-adoption-hero cw-pattern-hero" aria-labelledby="cw-pattern-title">
+    <div>
+        <span class="cw-adoption-hero__eyebrow">Temporal analysis</span>
+        <h1 id="cw-pattern-title">ERP usage pattern</h1>
+        <p>Shows when monitored ERP activity occurred for each user. Activity intervals indicate system adoption and must not be interpreted as attendance or working hours.</p>
+    </div>
+    <div class="cw-adoption-hero__actions">
+        <span class="cw-adoption-maturity">
+            <i class="bi bi-clock-history" aria-hidden="true"></i>
+            @periodLabel · @Model.AggregationMinutes-minute intervals
+        </span>
+        <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="adoption" class="cw-header-action">
+            <i class="bi bi-person-check" aria-hidden="true"></i><span>ERP adoption</span>
+        </a>
+    </div>
+</section>
+
+<form method="get" class="cw-pattern-filters" data-cw-auto-filter aria-label="ERP usage pattern filters">
+    <input type="hidden" name="mode" value="command" />
+    <input type="hidden" name="view" value="usage-pattern" />
+
+    <label class="cw-field">
+        <span>Period</span>
+        <select name="PatternDays" aria-label="Usage pattern period">
+            <option value="1" selected="@(Model.RequestedDays == 1)">Today</option>
+            <option value="7" selected="@(Model.RequestedDays == 7)">Last 7 days</option>
+            <option value="14" selected="@(Model.RequestedDays == 14)">Last 14 days</option>
+            <option value="30" selected="@(Model.RequestedDays == 30)">Last 30 days</option>
+        </select>
+    </label>
+
+    <label class="cw-field">
+        <span>User</span>
+        <select name="PatternUserId" aria-label="Filter by user">
+            <option value="">All users</option>
+            @foreach (var option in Model.UserOptions)
+            {
+                <option value="@option.Value" selected="@(string.Equals(Model.SelectedUserId, option.Value, StringComparison.Ordinal))">@option.Label</option>
+            }
+        </select>
+    </label>
+
+    <label class="cw-field">
+        <span>Role</span>
+        <select name="PatternRole" aria-label="Filter by role">
+            <option value="">All roles</option>
+            @foreach (var option in Model.RoleOptions)
+            {
+                <option value="@option.Value" selected="@(string.Equals(Model.SelectedRole, option.Value, StringComparison.OrdinalIgnoreCase))">@option.Label</option>
+            }
+        </select>
+    </label>
+
+    <label class="cw-field">
+        <span>Module</span>
+        <select name="PatternModule" aria-label="Filter by module">
+            <option value="">All modules</option>
+            @foreach (var option in Model.ModuleOptions)
+            {
+                <option value="@option.Value" selected="@(string.Equals(Model.SelectedModule, option.Value, StringComparison.OrdinalIgnoreCase))">@option.Label</option>
+            }
+        </select>
+    </label>
+
+    <label class="cw-field">
+        <span>Activity</span>
+        <select name="PatternSignal" aria-label="Filter by activity signal">
+            <option value="all" selected="@(selectedSignal == "all")">All monitored activity</option>
+            <option value="interactive" selected="@(selectedSignal == "interactive")">Interactive and operational</option>
+            <option value="operational" selected="@(selectedSignal == "operational")">Operational actions only</option>
+        </select>
+    </label>
+
+    @if (Model.RequestedDays != 7
+        || !string.IsNullOrWhiteSpace(Model.SelectedUserId)
+        || !string.IsNullOrWhiteSpace(Model.SelectedRole)
+        || !string.IsNullOrWhiteSpace(Model.SelectedModule)
+        || selectedSignal != "all")
+    {
+        <a asp-page="/Workspace/Index"
+           asp-route-mode="command"
+           asp-route-view="usage-pattern"
+           class="cw-reset-link">Reset</a>
+    }
+    <span class="cw-filter-status" data-cw-filter-status aria-live="polite"></span>
+</form>
+
+<section class="cw-pattern-kpis" aria-label="ERP usage pattern measures">
+    <article><span><i class="bi bi-people" aria-hidden="true"></i></span><div><strong>@Model.ActiveUsers</strong><b>Users represented</b><small>of @Model.TotalUsersInScope active human accounts</small></div></article>
+    <article><span><i class="bi bi-grid-3x3-gap" aria-hidden="true"></i></span><div><strong>@Model.ActivityIntervals</strong><b>Activity intervals</b><small>@Model.AggregationMinutes-minute consolidated intervals</small></div></article>
+    <article><span><i class="bi bi-cursor" aria-hidden="true"></i></span><div><strong>@Model.InteractiveIntervals</strong><b>Interactive intervals</b><small>interaction or operational action</small></div></article>
+    <article><span><i class="bi bi-pencil-square" aria-hidden="true"></i></span><div><strong>@Model.OperationalActionCount</strong><b>Operational actions</b><small>across @Model.OperationalIntervals intervals</small></div></article>
+    <article><span><i class="bi bi-window-stack" aria-hidden="true"></i></span><div><strong>@Model.ModulesRepresented</strong><b>Modules represented</b><small>within the filtered activity</small></div></article>
+</section>
+
+<section class="cw-panel cw-pattern-panel" aria-labelledby="cw-pattern-chart-title">
+    <header class="cw-panel__header">
+        <div>
+            <span class="cw-panel__eyebrow">User versus time</span>
+            <h2 id="cw-pattern-chart-title">Monitored activity intervals</h2>
+        </div>
+        <span class="cw-result-count">@periodLabel</span>
+    </header>
+
+    @if (Model.Points.Count == 0)
+    {
+        <div class="cw-empty cw-pattern-empty">
+            <i class="bi bi-bounding-box-circles" aria-hidden="true"></i>
+            <strong>No activity matches the current filters</strong>
+            <span>Change the period or remove one or more filters.</span>
+        </div>
+    }
+    else
+    {
+        <div class="cw-pattern-chart-shell" style="--cw-pattern-chart-height:@Math.Clamp(Model.Users.Count * 30 + 125, 420, 920)px">
+            <canvas id="command-usage-pattern-chart"
+                    role="img"
+                    aria-label="ERP activity intervals plotted by user and time"
+                    data-points-source="command-usage-pattern-points"
+                    data-users-source="command-usage-pattern-users"></canvas>
+            <script type="application/json" id="command-usage-pattern-points">@Html.Raw(pointsJson)</script>
+            <script type="application/json" id="command-usage-pattern-users">@Html.Raw(usersJson)</script>
+        </div>
+        <div class="cw-pattern-legend" aria-label="Activity interval legend">
+            <span><i class="is-navigation" aria-hidden="true"></i>Navigation or read-only activity</span>
+            <span><i class="is-interactive" aria-hidden="true"></i>Interactive activity</span>
+            <span><i class="is-operational" aria-hidden="true"></i>Operational action recorded</span>
+        </div>
+        <div class="cw-adoption-chart-note">
+            <i class="bi bi-info-circle" aria-hidden="true"></i>
+            Repeated events are consolidated into @Model.AggregationMinutes-minute intervals. A continuously authenticated user appears whenever actual ERP activity is recorded.
+        </div>
+    }
+</section>
+
+<section class="cw-panel cw-pattern-users" aria-labelledby="cw-pattern-users-title">
+    <header class="cw-panel__header">
+        <div>
+            <span class="cw-panel__eyebrow">Filtered period</span>
+            <h2 id="cw-pattern-users-title">User-level summary</h2>
+        </div>
+        <span class="cw-result-count">@Model.Users.Count user@(Model.Users.Count == 1 ? "" : "s")</span>
+    </header>
+
+    @if (Model.Users.Count == 0)
+    {
+        <div class="cw-adoption-pending"><i class="bi bi-info-circle"></i><div><strong>No user activity is available for this selection.</strong><span>The summary will populate when monitored activity is recorded.</span></div></div>
+    }
+    else
+    {
+        <div class="cw-adoption-table-wrap">
+            <table class="cw-adoption-table cw-pattern-table">
+                <thead>
+                    <tr><th>User</th><th>Active days</th><th>Intervals</th><th>Operational actions</th><th>Modules</th><th>Last activity</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in Model.Users)
+                    {
+                        <tr>
+                            <td><strong>@user.DisplayName</strong><span>@user.UserName</span></td>
+                            <td>@user.ActiveDays</td>
+                            <td>@user.ActivityIntervals <small>(@user.InteractiveIntervals interactive)</small></td>
+                            <td>@user.OperationalActionCount</td>
+                            <td>
+                                @if (user.Modules.Count == 0)
+                                {
+                                    <span class="cw-muted">Recorded action</span>
+                                }
+                                else
+                                {
+                                    <span class="cw-pattern-modules" title="@string.Join(", ", user.Modules)">@string.Join(" · ", user.Modules.Take(3))@(user.Modules.Count > 3 ? $" +{user.Modules.Count - 3}" : string.Empty)</span>
+                                }
+                            </td>
+                            <td>@(user.LastActivityUtc.HasValue ? IstClock.ToIst(user.LastActivityUtc.Value).ToString("dd MMM yyyy, HH:mm") + " IST" : "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

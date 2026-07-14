@@ -371,25 +371,31 @@
         });
 
         new Chart(canvas, {
-            type: 'bar',
             data: {
                 labels,
                 datasets: [
                     {
-                        label: 'Signed in',
-                        data: rows.map(row => row.signedInUsers || 0),
-                        backgroundColor: 'rgba(103, 116, 154, .72)',
+                        type: 'bar',
+                        label: 'Active ERP users',
+                        data: rows.map(row => row.usedErpUsers || 0),
+                        backgroundColor: 'rgba(49, 95, 214, .80)',
                         borderWidth: 0,
                         borderRadius: 4,
-                        maxBarThickness: 34
+                        maxBarThickness: 38,
+                        order: 2
                     },
                     {
-                        label: 'Used ERP',
-                        data: rows.map(row => row.usedErpUsers || 0),
-                        backgroundColor: 'rgba(49, 95, 214, .82)',
-                        borderWidth: 0,
-                        borderRadius: 4,
-                        maxBarThickness: 34
+                        type: 'line',
+                        label: 'Operational contributors',
+                        data: rows.map(row => row.operationalContributors || 0),
+                        borderColor: 'rgba(47, 126, 82, .92)',
+                        backgroundColor: 'rgba(47, 126, 82, .15)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        tension: .25,
+                        fill: false,
+                        order: 1
                     }
                 ]
             },
@@ -401,16 +407,7 @@
                     legend: {
                         position: 'top',
                         align: 'end',
-                        labels: { usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 9, boxHeight: 9, padding: 14, font: { size: 11 } }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            afterBody: (items) => {
-                                const index = items[0]?.dataIndex;
-                                if (index === undefined) return '';
-                                return `Operational contributors: ${rows[index]?.operationalContributors || 0}`;
-                            }
-                        }
+                        labels: { usePointStyle: true, boxWidth: 9, boxHeight: 9, padding: 14, font: { size: 11 } }
                     }
                 },
                 scales: {
@@ -432,6 +429,161 @@
         });
     };
 
+    const initialiseUsagePatternChart = () => {
+        const canvas = document.getElementById('command-usage-pattern-chart');
+        if (!canvas || !window.Chart) return;
+
+        const readEmbeddedJson = (sourceId) => {
+            if (!sourceId) return [];
+            const source = document.getElementById(sourceId);
+            if (!source) return [];
+            try { return JSON.parse(source.textContent || '[]'); } catch { return []; }
+        };
+        const points = readEmbeddedJson(canvas.dataset.pointsSource);
+        const users = readEmbeddedJson(canvas.dataset.usersSource);
+        if (!Array.isArray(points) || points.length === 0 || !Array.isArray(users) || users.length === 0) return;
+
+        const userIndex = new Map(users.map((user, index) => [user.userId, index]));
+        const toChartPoint = point => ({
+            x: Number(point.timestampUtcMilliseconds),
+            y: userIndex.get(point.userId),
+            meta: point
+        });
+        const navigation = points.filter(point => point.signal === 'navigation').map(toChartPoint);
+        const interactive = points.filter(point => point.signal === 'interactive').map(toChartPoint);
+        const operational = points.filter(point => point.signal === 'operational').map(toChartPoint);
+        const timestamps = points.map(point => Number(point.timestampUtcMilliseconds)).filter(Number.isFinite);
+        const minTimestamp = timestamps.reduce((minimum, value) => Math.min(minimum, value), Number.POSITIVE_INFINITY);
+        const maxTimestamp = timestamps.reduce((maximum, value) => Math.max(maximum, value), Number.NEGATIVE_INFINITY);
+        const isSingleDay = maxTimestamp - minTimestamp < 24 * 60 * 60 * 1000;
+        const dateFormatter = new Intl.DateTimeFormat('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            day: '2-digit',
+            month: 'short'
+        });
+        const timeFormatter = new Intl.DateTimeFormat('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+
+        const datasets = [
+            {
+                label: 'Navigation / read-only',
+                data: navigation,
+                pointStyle: 'circle',
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                backgroundColor: 'rgba(119, 136, 164, .55)',
+                borderColor: 'rgba(92, 111, 143, .78)',
+                borderWidth: 1
+            },
+            {
+                label: 'Interactive activity',
+                data: interactive,
+                pointStyle: 'circle',
+                pointRadius: 4,
+                pointHoverRadius: 7,
+                backgroundColor: 'rgba(46, 99, 196, .82)',
+                borderColor: 'rgba(35, 78, 158, .96)',
+                borderWidth: 1
+            },
+            {
+                label: 'Operational action',
+                data: operational,
+                pointStyle: 'rectRot',
+                pointRadius: 5,
+                pointHoverRadius: 8,
+                backgroundColor: 'rgba(48, 132, 87, .90)',
+                borderColor: 'rgba(35, 101, 65, 1)',
+                borderWidth: 1
+            }
+        ].filter(dataset => dataset.data.length > 0);
+
+        new Chart(canvas, {
+            type: 'scatter',
+            data: { datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                parsing: false,
+                normalized: true,
+                animation: points.length > 1000 ? false : { duration: 260 },
+                interaction: { mode: 'nearest', intersect: true },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        displayColors: false,
+                        callbacks: {
+                            title: items => items[0]?.raw?.meta?.displayName || '',
+                            label: context => {
+                                const point = context.raw?.meta;
+                                if (!point) return '';
+                                const signalLabel = point.signal === 'operational'
+                                    ? 'Operational action recorded'
+                                    : point.signal === 'interactive'
+                                        ? 'Interactive activity recorded'
+                                        : 'Navigation or read-only activity';
+                                return [point.timestampIstLabel, signalLabel];
+                            },
+                            afterLabel: context => {
+                                const point = context.raw?.meta;
+                                if (!point) return '';
+                                const details = [];
+                                if (Array.isArray(point.modules) && point.modules.length > 0) {
+                                    details.push(`Modules: ${point.modules.join(', ')}`);
+                                }
+                                if ((point.operationalActionCount || 0) > 0) {
+                                    details.push(`Operational actions: ${point.operationalActionCount}`);
+                                }
+                                return details;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'linear',
+                        min: minTimestamp - (isSingleDay ? 20 * 60 * 1000 : 60 * 60 * 1000),
+                        max: maxTimestamp + (isSingleDay ? 20 * 60 * 1000 : 60 * 60 * 1000),
+                        grid: { color: 'rgba(103,119,143,.12)' },
+                        ticks: {
+                            maxTicksLimit: isSingleDay ? 10 : 12,
+                            color: '#687890',
+                            font: { size: 10 },
+                            callback: value => {
+                                const date = new Date(Number(value));
+                                if (Number.isNaN(date.getTime())) return '';
+                                return isSingleDay
+                                    ? timeFormatter.format(date)
+                                    : [dateFormatter.format(date), timeFormatter.format(date)];
+                            }
+                        },
+                        title: { display: true, text: 'Date and time (IST)', color: '#52647d', font: { size: 11, weight: '600' } }
+                    },
+                    y: {
+                        type: 'linear',
+                        min: -.5,
+                        max: Math.max(.5, users.length - .5),
+                        reverse: true,
+                        grid: { color: 'rgba(103,119,143,.10)' },
+                        ticks: {
+                            stepSize: 1,
+                            autoSkip: false,
+                            color: '#42546d',
+                            font: { size: 10, weight: '600' },
+                            callback: value => Number.isInteger(Number(value))
+                                ? users[Number(value)]?.displayName || ''
+                                : ''
+                        }
+                    }
+                }
+            }
+        });
+    };
+
     initialiseStageChart();
     initialiseAdoptionChart();
+    initialiseUsagePatternChart();
 })();

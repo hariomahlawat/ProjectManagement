@@ -15,6 +15,7 @@ public sealed class CommandWorkspaceVm
     public IReadOnlyList<CommandFilterOptionVm> StageOptions { get; init; } = Array.Empty<CommandFilterOptionVm>();
     public int ProjectOfficerCount { get; init; }
     public CommandUsageSummaryVm UsageSummary { get; init; } = new();
+    public CommandUsagePatternVm UsagePattern { get; init; } = new();
 }
 
 public sealed class CommandUsageSummaryVm
@@ -27,10 +28,9 @@ public sealed class CommandUsageSummaryVm
     public bool ReviewAvailable { get; init; }
     public int TotalUsers { get; init; }
     public int ActiveToday { get; init; }
-    public int SignedInUsers { get; init; }
     public int UsedErpUsers { get; init; }
     public int OperationalContributors { get; init; }
-    public int AdoptionGap { get; init; }
+    public int ModulesUsed { get; init; }
     public int ReviewCaseCount { get; init; }
     public int RegularUsers { get; init; }
     public int NoUsageSevenWorkingDays { get; init; }
@@ -44,7 +44,6 @@ public sealed class CommandUsageSummaryVm
 
 public sealed record CommandAdoptionTrendPointVm(
     DateOnly Date,
-    int SignedInUsers,
     int UsedErpUsers,
     int OperationalContributors,
     bool IsWorkingDay);
@@ -55,8 +54,60 @@ public sealed record CommandAdoptionAttentionVm(
     string Rank,
     string UserName,
     string Observation,
-    DateTime? LastRecordedUseUtc,
-    bool SignedInDuringPeriod);
+    DateTime? LastRecordedUseUtc);
+
+
+public sealed class CommandUsagePatternVm
+{
+    public DateOnly StartDate { get; init; }
+    public DateOnly EndDate { get; init; }
+    public DateTimeOffset TrackingInceptionUtc { get; init; }
+    public int RequestedDays { get; init; } = 7;
+    public int AggregationMinutes { get; init; } = 15;
+    public int TotalUsersInScope { get; init; }
+    public int ActiveUsers { get; init; }
+    public int ActivityIntervals { get; init; }
+    public int InteractiveIntervals { get; init; }
+    public int OperationalIntervals { get; init; }
+    public int OperationalActionCount { get; init; }
+    public int ModulesRepresented { get; init; }
+    public string? SelectedUserId { get; init; }
+    public string? SelectedRole { get; init; }
+    public string? SelectedModule { get; init; }
+    public string SelectedSignal { get; init; } = "all";
+    public IReadOnlyList<CommandStringOptionVm> UserOptions { get; init; } = Array.Empty<CommandStringOptionVm>();
+    public IReadOnlyList<CommandStringOptionVm> RoleOptions { get; init; } = Array.Empty<CommandStringOptionVm>();
+    public IReadOnlyList<CommandStringOptionVm> ModuleOptions { get; init; } = Array.Empty<CommandStringOptionVm>();
+    public IReadOnlyList<CommandUsagePatternPointVm> Points { get; init; } = Array.Empty<CommandUsagePatternPointVm>();
+    public IReadOnlyList<CommandUsagePatternUserVm> Users { get; init; } = Array.Empty<CommandUsagePatternUserVm>();
+}
+
+public sealed record CommandStringOptionVm(string Value, string Label);
+
+public sealed record CommandUsagePatternPointVm(
+    long TimestampUtcMilliseconds,
+    string TimestampIstLabel,
+    string UserId,
+    string DisplayName,
+    string Rank,
+    string UserName,
+    string Signal,
+    IReadOnlyList<string> Modules,
+    int NavigationCount,
+    int HeartbeatCount,
+    int OperationalActionCount);
+
+public sealed record CommandUsagePatternUserVm(
+    string UserId,
+    string DisplayName,
+    string Rank,
+    string UserName,
+    int ActiveDays,
+    int ActivityIntervals,
+    int InteractiveIntervals,
+    int OperationalActionCount,
+    IReadOnlyList<string> Modules,
+    DateTime? LastActivityUtc);
 
 public sealed record CommandFilterOptionVm(int Id, string Name);
 

@@ -18,6 +18,7 @@ public sealed class CommandWorkspaceService
     private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
     private readonly IErpUsageQueryService? _usageQueryService;
     private readonly IErpCommandAdoptionQueryService? _adoptionQueryService;
+    private readonly IErpUsagePatternQueryService? _usagePatternQueryService;
     private readonly ILogger<CommandWorkspaceService>? _logger;
 
     public CommandWorkspaceService(
@@ -26,7 +27,8 @@ public sealed class CommandWorkspaceService
         IWorkflowStageMetadataProvider workflowStageMetadataProvider,
         IErpUsageQueryService? usageQueryService = null,
         ILogger<CommandWorkspaceService>? logger = null,
-        IErpCommandAdoptionQueryService? adoptionQueryService = null)
+        IErpCommandAdoptionQueryService? adoptionQueryService = null,
+        IErpUsagePatternQueryService? usagePatternQueryService = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _officerWorkloadReadService = officerWorkloadReadService
@@ -35,6 +37,7 @@ public sealed class CommandWorkspaceService
             ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
         _usageQueryService = usageQueryService;
         _adoptionQueryService = adoptionQueryService;
+        _usagePatternQueryService = usagePatternQueryService;
         _logger = logger;
     }
 
@@ -52,6 +55,11 @@ public sealed class CommandWorkspaceService
         if (string.Equals(query.View, "adoption", StringComparison.OrdinalIgnoreCase))
         {
             return await BuildAdoptionAsync(cancellationToken);
+        }
+
+        if (string.Equals(query.View, "usage-pattern", StringComparison.OrdinalIgnoreCase))
+        {
+            return await BuildUsagePatternAsync(query, cancellationToken);
         }
 
         return await BuildOfficerWorkloadAsync(query, cancellationToken);
@@ -185,8 +193,7 @@ public sealed class CommandWorkspaceService
             StageColumns = stageColumns,
             Officers = Array.Empty<CommandOfficerWorkloadVm>(),
             StageOptions = stageOptions,
-            ProjectOfficerCount = officerCount,
-            UsageSummary = await BuildUsageSummaryAsync(cancellationToken)
+            ProjectOfficerCount = officerCount
         };
     }
 
@@ -222,6 +229,121 @@ public sealed class CommandWorkspaceService
         };
     }
 
+    private async Task<CommandWorkspaceVm> BuildUsagePatternAsync(
+        CommandWorkspaceQuery query,
+        CancellationToken cancellationToken)
+    {
+        var totalOngoingProjects = await _db.Projects
+            .AsNoTracking()
+            .CountAsync(project =>
+                !project.IsDeleted
+                && !project.IsArchived
+                && project.LifecycleStatus == ProjectLifecycleStatus.Active,
+                cancellationToken);
+        var officerCount = await _officerWorkloadReadService.CountActiveOfficersAsync(
+            cancellationToken);
+
+        ErpUsagePatternResult? pattern = null;
+        if (_usagePatternQueryService is not null)
+        {
+            try
+            {
+                pattern = await _usagePatternQueryService.GetAsync(
+                    new ErpUsagePatternQuery
+                    {
+                        Days = query.PatternDays,
+                        UserId = query.PatternUserId,
+                        Role = query.PatternRole,
+                        Module = query.PatternModule,
+                        Signal = query.PatternSignal
+                    },
+                    cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                _logger?.LogWarning(
+                    exception,
+                    "ERP usage pattern could not be loaded for the Command Workspace.");
+            }
+        }
+
+        return new CommandWorkspaceVm
+        {
+            GeneratedAtUtc = DateTime.UtcNow,
+            ActiveView = "usage-pattern",
+            TotalOngoingProjects = totalOngoingProjects,
+            ProjectOfficerCount = officerCount,
+            UsagePattern = pattern is null
+                ? new CommandUsagePatternVm
+                {
+                    RequestedDays = query.PatternDays,
+                    SelectedUserId = query.PatternUserId,
+                    SelectedRole = query.PatternRole,
+                    SelectedModule = query.PatternModule,
+                    SelectedSignal = query.PatternSignal ?? ErpUsagePatternSignalNames.All
+                }
+                : new CommandUsagePatternVm
+                {
+                    StartDate = pattern.StartDate,
+                    EndDate = pattern.EndDate,
+                    TrackingInceptionUtc = pattern.TrackingInceptionUtc,
+                    RequestedDays = pattern.RequestedDays,
+                    AggregationMinutes = pattern.AggregationMinutes,
+                    TotalUsersInScope = pattern.TotalUsersInScope,
+                    ActiveUsers = pattern.ActiveUsers,
+                    ActivityIntervals = pattern.ActivityIntervals,
+                    InteractiveIntervals = pattern.InteractiveIntervals,
+                    OperationalIntervals = pattern.OperationalIntervals,
+                    OperationalActionCount = pattern.OperationalActionCount,
+                    ModulesRepresented = pattern.ModulesRepresented,
+                    SelectedUserId = query.PatternUserId,
+                    SelectedRole = query.PatternRole,
+                    SelectedModule = query.PatternModule,
+                    SelectedSignal = query.PatternSignal ?? ErpUsagePatternSignalNames.All,
+                    UserOptions = pattern.UserOptions
+                        .Select(option => new CommandStringOptionVm(option.Value, option.Label))
+                        .ToArray(),
+                    RoleOptions = pattern.RoleOptions
+                        .Select(option => new CommandStringOptionVm(option.Value, option.Label))
+                        .ToArray(),
+                    ModuleOptions = pattern.ModuleOptions
+                        .Select(option => new CommandStringOptionVm(option.Value, option.Label))
+                        .ToArray(),
+                    Points = pattern.Points
+                        .Select(point => new CommandUsagePatternPointVm(
+                            point.TimestampUtcMilliseconds,
+                            point.TimestampIstLabel,
+                            point.UserId,
+                            point.DisplayName,
+                            point.Rank,
+                            point.UserName,
+                            point.Signal,
+                            point.Modules,
+                            point.NavigationCount,
+                            point.HeartbeatCount,
+                            point.OperationalActionCount))
+                        .ToArray(),
+                    Users = pattern.Users
+                        .Select(user => new CommandUsagePatternUserVm(
+                            user.UserId,
+                            user.DisplayName,
+                            user.Rank,
+                            user.UserName,
+                            user.ActiveDays,
+                            user.ActivityIntervals,
+                            user.InteractiveIntervals,
+                            user.OperationalActionCount,
+                            user.Modules,
+                            user.LastActivityUtc))
+                        .ToArray()
+                }
+        };
+    }
+
     private async Task<CommandWorkspaceVm> BuildOfficerWorkloadAsync(
         CommandWorkspaceQuery query,
         CancellationToken cancellationToken)
@@ -250,8 +372,7 @@ public sealed class CommandWorkspaceService
             StageColumns = Array.Empty<CommandStageColumnVm>(),
             Officers = officers,
             StageOptions = Array.Empty<CommandFilterOptionVm>(),
-            ProjectOfficerCount = officers.Count,
-            UsageSummary = await BuildUsageSummaryAsync(cancellationToken)
+            ProjectOfficerCount = officers.Count
         };
     }
 
@@ -276,10 +397,9 @@ public sealed class CommandWorkspaceService
                     ReviewAvailable = snapshot.ReviewAvailable,
                     TotalUsers = snapshot.TotalUsers,
                     ActiveToday = snapshot.ActiveToday,
-                    SignedInUsers = snapshot.SignedInUsers,
                     UsedErpUsers = snapshot.UsedErpUsers,
                     OperationalContributors = snapshot.OperationalContributors,
-                    AdoptionGap = snapshot.AdoptionGap,
+                    ModulesUsed = snapshot.ModulesUsed,
                     ReviewCaseCount = snapshot.ReviewCaseCount,
                     RegularClassificationAvailable = snapshot.ReviewAvailable,
                     SevenDayReviewAvailable = snapshot.ReviewAvailable,
@@ -287,7 +407,6 @@ public sealed class CommandWorkspaceService
                     Trend = snapshot.Trend
                         .Select(point => new CommandAdoptionTrendPointVm(
                             point.Date,
-                            point.SignedInUsers,
                             point.UsedErpUsers,
                             point.OperationalContributors,
                             point.IsWorkingDay))
@@ -299,8 +418,7 @@ public sealed class CommandWorkspaceService
                             row.Rank,
                             row.UserName,
                             row.Observation,
-                            row.LastRecordedUseUtc,
-                            row.SignedInDuringPeriod))
+                            row.LastRecordedUseUtc))
                         .ToArray()
                 };
             }
@@ -495,5 +613,10 @@ public sealed class CommandWorkspaceQuery
     public IReadOnlyList<int> ParentCategoryIds { get; init; } = Array.Empty<int>();
     public string? ProjectSearch { get; init; }
     public bool PopulatedStagesOnly { get; init; }
+    public int PatternDays { get; init; } = 7;
+    public string? PatternUserId { get; init; }
+    public string? PatternRole { get; init; }
+    public string? PatternModule { get; init; }
+    public string? PatternSignal { get; init; }
     public string RequestingUserId { get; init; } = string.Empty;
 }

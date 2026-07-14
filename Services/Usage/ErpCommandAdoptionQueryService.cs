@@ -11,7 +11,6 @@ namespace ProjectManagement.Services.Usage;
 
 public sealed record ErpAdoptionTrendPoint(
     DateOnly Date,
-    int SignedInUsers,
     int UsedErpUsers,
     int OperationalContributors,
     bool IsWorkingDay);
@@ -22,8 +21,7 @@ public sealed record ErpAdoptionAttentionRow(
     string Rank,
     string UserName,
     string Observation,
-    DateTime? LastRecordedUseUtc,
-    bool SignedInDuringPeriod);
+    DateTime? LastRecordedUseUtc);
 
 public sealed record ErpCommandAdoptionSnapshot(
     DateOnly PeriodStart,
@@ -34,10 +32,9 @@ public sealed record ErpCommandAdoptionSnapshot(
     bool ReviewAvailable,
     int TotalUsers,
     int ActiveToday,
-    int SignedInUsers,
     int UsedErpUsers,
     int OperationalContributors,
-    int AdoptionGap,
+    int ModulesUsed,
     int ReviewCaseCount,
     IReadOnlyList<ErpAdoptionTrendPoint> Trend,
     IReadOnlyList<ErpAdoptionAttentionRow> Attention);
@@ -50,8 +47,8 @@ public interface IErpCommandAdoptionQueryService
 }
 
 /// <summary>
-/// Builds the command-facing adoption picture from three distinct signals:
-/// successful authentication, monitored ERP use and recognised operational actions.
+/// Builds the command-facing adoption picture from monitored ERP use and
+/// recognised operational actions.
 /// All counts use one effective population: active human accounts that are not pending deletion.
 /// </summary>
 public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQueryService
@@ -146,17 +143,6 @@ public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQuerySer
         var periodStartUtcDateTime = periodStartUtc.UtcDateTime;
         var periodEndUtcDateTime = periodEndUtcExclusive.UtcDateTime;
 
-        var loginRows = await _db.AuthEvents
-            .AsNoTracking()
-            .Where(authEvent =>
-                userIds.Contains(authEvent.UserId)
-                && authEvent.Event == AuthenticationEventNames.LoginSucceeded
-                && authEvent.WhenUtc >= periodStartUtc
-                && authEvent.WhenUtc < periodEndUtcExclusive)
-            .Select(authEvent => new LoginProjection(
-                authEvent.UserId,
-                authEvent.WhenUtc))
-            .ToListAsync(cancellationToken);
 
         var bucketRows = await _db.UserActivityBuckets
             .AsNoTracking()
@@ -168,7 +154,8 @@ public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQuerySer
             .Select(bucket => new BucketProjection(
                 bucket.UserId,
                 bucket.ActivityDateIst,
-                bucket.LastSeenUtc))
+                bucket.LastSeenUtc,
+                bucket.ModuleKey))
             .ToListAsync(cancellationToken);
 
         var rawActionRows = await CandidateAuditQuery()
@@ -192,9 +179,6 @@ public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQuerySer
             .Where(action => action.Kind != ErpUsageActionKind.Ignored)
             .ToList();
 
-        var signedInUserIds = loginRows
-            .Select(row => row.UserId)
-            .ToHashSet(StringComparer.Ordinal);
         var usedErpUserIds = bucketRows
             .Select(row => row.UserId)
             .Concat(actionRows.Select(row => row.UserId))
@@ -210,18 +194,11 @@ public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQuerySer
                 .Where(row => ToIstDate(row.TimeUtc) == today)
                 .Select(row => row.UserId))
             .ToHashSet(StringComparer.Ordinal);
-        var adoptionGapUserIds = signedInUserIds
-            .Except(usedErpUserIds, StringComparer.Ordinal)
-            .ToHashSet(StringComparer.Ordinal);
+
 
         var trend = EnumerateDates(periodStart, today)
             .Select(date => new ErpAdoptionTrendPoint(
                 date,
-                loginRows
-                    .Where(row => ToIstDate(row.WhenUtc) == date)
-                    .Select(row => row.UserId)
-                    .Distinct(StringComparer.Ordinal)
-                    .Count(),
                 bucketRows
                     .Where(row => row.ActivityDateIst == date)
                     .Select(row => row.UserId)
@@ -251,8 +228,8 @@ public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQuerySer
         var attention = reviewAvailable
             ? await BuildAttentionAsync(
                 reviewEligibleUsers,
-                signedInUserIds,
                 usedErpUserIds,
+                requiredWorkingDays,
                 trackingInceptionUtc,
                 cancellationToken)
             : Array.Empty<ErpAdoptionAttentionRow>();
@@ -266,10 +243,13 @@ public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQuerySer
             reviewAvailable,
             users.Count,
             activeTodayUserIds.Count,
-            signedInUserIds.Count,
             usedErpUserIds.Count,
             operationalContributorIds.Count,
-            adoptionGapUserIds.Count,
+            bucketRows
+                .Select(row => row.ModuleKey)
+                .Where(module => !string.IsNullOrWhiteSpace(module))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count(),
             reviewAvailable
                 ? reviewEligibleUsers.Count(user => !usedErpUserIds.Contains(user.Id))
                 : 0,
@@ -279,8 +259,8 @@ public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQuerySer
 
     private async Task<IReadOnlyList<ErpAdoptionAttentionRow>> BuildAttentionAsync(
         IReadOnlyList<UserProjection> users,
-        IReadOnlySet<string> signedInUserIds,
         IReadOnlySet<string> usedErpUserIds,
+        int reviewWorkingDays,
         DateTimeOffset trackingInceptionUtc,
         CancellationToken cancellationToken)
     {
@@ -336,24 +316,16 @@ public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQuerySer
         }
 
         return attentionUsers
-            .Select(user =>
-            {
-                var signedIn = signedInUserIds.Contains(user.Id);
-                return new ErpAdoptionAttentionRow(
-                    user.Id,
-                    string.IsNullOrWhiteSpace(user.FullName)
-                        ? user.UserName
-                        : user.FullName,
-                    user.Rank,
-                    user.UserName,
-                    signedIn
-                        ? "Signed in but no monitored ERP use"
-                        : "No ERP use in 7 monitored working days",
-                    lastActivityByUser.GetValueOrDefault(user.Id),
-                    signedIn);
-            })
-            .OrderByDescending(row => row.SignedInDuringPeriod)
-            .ThenBy(row => row.LastRecordedUseUtc ?? DateTime.MinValue)
+            .Select(user => new ErpAdoptionAttentionRow(
+                user.Id,
+                string.IsNullOrWhiteSpace(user.FullName)
+                    ? user.UserName
+                    : user.FullName,
+                user.Rank,
+                user.UserName,
+                $"No ERP use in {reviewWorkingDays} monitored working days",
+                lastActivityByUser.GetValueOrDefault(user.Id)))
+            .OrderBy(row => row.LastRecordedUseUtc ?? DateTime.MinValue)
             .ThenBy(row => row.DisplayName, StringComparer.OrdinalIgnoreCase)
             .Take(MaximumAttentionRows)
             .ToArray();
@@ -376,8 +348,6 @@ public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQuerySer
     private DateOnly ToIstDate(DateTime utc) =>
         DateOnly.FromDateTime(_time.ToIst(utc).Date);
 
-    private DateOnly ToIstDate(DateTimeOffset utc) =>
-        DateOnly.FromDateTime(_time.ToIst(utc).DateTime);
 
     private static DateTimeOffset LaterOf(
         DateTimeOffset first,
@@ -412,7 +382,6 @@ public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQuerySer
             0,
             0,
             0,
-            0,
             Array.Empty<ErpAdoptionTrendPoint>(),
             Array.Empty<ErpAdoptionAttentionRow>());
 
@@ -423,14 +392,12 @@ public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQuerySer
         string UserName,
         DateTime CreatedUtc);
 
-    private sealed record LoginProjection(
-        string UserId,
-        DateTimeOffset WhenUtc);
 
     private sealed record BucketProjection(
         string UserId,
         DateOnly ActivityDateIst,
-        DateTime LastSeenUtc);
+        DateTime LastSeenUtc,
+        string ModuleKey);
 
     private sealed record RawActionProjection(
         string UserId,

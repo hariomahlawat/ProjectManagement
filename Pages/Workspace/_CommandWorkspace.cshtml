@@ -8,6 +8,7 @@
     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     var isPortfolio = vm.ActiveView == "portfolio";
     var isAdoption = vm.ActiveView == "adoption";
+    var isUsagePattern = vm.ActiveView == "usage-pattern";
     var selectedCategoryCount = vm.SelectedParentCategoryIds.Count;
     var categoryTriggerText = selectedCategoryCount switch
     {
@@ -25,7 +26,6 @@
             : $"{adoption.PeriodStart:dd MMM} – {adoption.PeriodEnd:dd MMM yyyy}";
     var trendJson = JsonSerializer.Serialize(adoption.Trend, jsonOptions);
     var population = Math.Max(1, adoption.TotalUsers);
-    var signInReach = Math.Clamp((int)Math.Round(adoption.SignedInUsers * 100d / population), 0, 100);
     var usageReach = Math.Clamp((int)Math.Round(adoption.UsedErpUsers * 100d / population), 0, 100);
     var contributionReach = Math.Clamp((int)Math.Round(adoption.OperationalContributors * 100d / population), 0, 100);
 }
@@ -70,12 +70,12 @@
             }
 
             <div class="cw-local-rail__group">
-                <span class="cw-local-rail__group-label">Project control</span>
+                <span class="cw-local-rail__group-label">Project monitoring</span>
                 <a asp-page="/Workspace/Index"
                    asp-route-mode="command"
                    asp-route-view="officers"
-                   class="@(!isPortfolio && !isAdoption ? "is-active" : null)"
-                   aria-current="@(!isPortfolio && !isAdoption ? "page" : null)"
+                   class="@(!isPortfolio && !isAdoption && !isUsagePattern ? "is-active" : null)"
+                   aria-current="@(!isPortfolio && !isAdoption && !isUsagePattern ? "page" : null)"
                    data-tooltip="Officer workload">
                     <i class="bi bi-people" aria-hidden="true"></i><span>Officer workload</span><b>@vm.ProjectOfficerCount</b>
                 </a>
@@ -90,48 +90,36 @@
             </div>
 
             <div class="cw-local-rail__group">
-                <span class="cw-local-rail__group-label">Monitoring</span>
+                <span class="cw-local-rail__group-label">System adoption</span>
                 <a asp-page="/Workspace/Index"
                    asp-route-mode="command"
                    asp-route-view="adoption"
                    class="@(isAdoption ? "is-active" : null)"
                    aria-current="@(isAdoption ? "page" : null)"
                    data-tooltip="ERP adoption">
-                    <i class="bi bi-person-check" aria-hidden="true"></i><span>ERP adoption</span><b>@adoption.ActiveToday</b>
+                    <i class="bi bi-person-check" aria-hidden="true"></i><span>ERP adoption</span>
+                </a>
+                <a asp-page="/Workspace/Index"
+                   asp-route-mode="command"
+                   asp-route-view="usage-pattern"
+                   class="@(isUsagePattern ? "is-active" : null)"
+                   aria-current="@(isUsagePattern ? "page" : null)"
+                   data-tooltip="ERP usage pattern">
+                    <i class="bi bi-bounding-box-circles" aria-hidden="true"></i><span>Usage pattern</span>
                 </a>
             </div>
         </nav>
     </aside>
 
     <main class="cw-workspace-content">
-        @if (!isAdoption)
-        {
-            <section class="cw-usage-summary" aria-label="ERP adoption summary">
-                <div class="cw-usage-summary__heading">
-                    <span><i class="bi bi-person-check"></i></span>
-                    <div>
-                        <small>ERP adoption</small>
-                        <strong>Login and actual use</strong>
-                        <em>@(adoption.ReviewAvailable ? $"Last {adoption.RequiredWorkingDays} monitored working days" : $"Initial collection · {completedMaturityDays} of {adoption.RequiredWorkingDays} working days")</em>
-                    </div>
-                </div>
-                <div class="cw-usage-summary__metrics">
-                    <div><strong>@adoption.SignedInUsers</strong><span>Signed in</span><small>unique users</small></div>
-                    <div><strong>@adoption.UsedErpUsers</strong><span>Used ERP</span><small>monitored use</small></div>
-                    <div><strong>@adoption.OperationalContributors</strong><span>Contributed</span><small>operational actions</small></div>
-                    <div class="@(adoption.AdoptionGap > 0 ? "is-warning" : null)"><strong>@adoption.AdoptionGap</strong><span>Adoption gap</span><small>signed in, no monitored use</small></div>
-                </div>
-                <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="adoption" class="cw-usage-summary__action">Review adoption <i class="bi bi-arrow-right"></i></a>
-            </section>
-        }
 
         @if (isAdoption)
         {
             <section class="cw-adoption-hero" aria-labelledby="cw-adoption-title">
                 <div>
-                    <span class="cw-adoption-hero__eyebrow">Command monitoring</span>
+                    <span class="cw-adoption-hero__eyebrow">System adoption</span>
                     <h1 id="cw-adoption-title">ERP adoption</h1>
-                    <p>Compare successful sign-ins with monitored use and recognised operational contribution. This is an adoption indicator, not attendance.</p>
+                    <p>Monitor actual ERP use, operational contribution and adoption reach across the command population. This is an adoption indicator, not attendance.</p>
                 </div>
                 <div class="cw-adoption-hero__actions">
                     <span class="cw-adoption-maturity @(adoption.ReviewAvailable ? "is-ready" : null)">
@@ -140,22 +128,23 @@
                             ? $"Baseline available · {adoption.RequiredWorkingDays} monitored working days"
                             : $"Initial collection · {completedMaturityDays} of {adoption.RequiredWorkingDays} monitored working days")
                     </span>
-                    <a asp-page="/Usage/Index" class="cw-header-action"><i class="bi bi-bar-chart-line"></i><span>Open detailed ERP usage</span></a>
+                    <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="usage-pattern" class="cw-header-action"><i class="bi bi-bounding-box-circles"></i><span>Open usage pattern</span></a>
+                    <a asp-page="/Usage/Index" class="cw-header-action"><i class="bi bi-bar-chart-line"></i><span>Detailed ERP usage</span></a>
                 </div>
             </section>
 
             <section class="cw-adoption-kpis" aria-label="ERP adoption measures">
                 <article><span><i class="bi bi-activity"></i></span><div><strong>@adoption.ActiveToday</strong><b>Active today</b><small>of @adoption.TotalUsers users in scope</small></div></article>
-                <article><span><i class="bi bi-box-arrow-in-right"></i></span><div><strong>@adoption.SignedInUsers</strong><b>Signed in</b><small>unique users · @adoptionPeriodLabel</small></div></article>
-                <article><span><i class="bi bi-window"></i></span><div><strong>@adoption.UsedErpUsers</strong><b>Used ERP</b><small>navigation, interaction or action</small></div></article>
+                <article><span><i class="bi bi-people"></i></span><div><strong>@adoption.UsedErpUsers</strong><b>Active in period</b><small>unique users · @adoptionPeriodLabel</small></div></article>
                 <article><span><i class="bi bi-pencil-square"></i></span><div><strong>@adoption.OperationalContributors</strong><b>Operational contributors</b><small>recognised recorded actions</small></div></article>
-                <article class="@(adoption.AdoptionGap > 0 ? "is-attention" : null)"><span><i class="bi bi-arrow-left-right"></i></span><div><strong>@adoption.AdoptionGap</strong><b>Adoption gap</b><small>signed in without monitored use</small></div></article>
+                <article><span><i class="bi bi-window-stack"></i></span><div><strong>@adoption.ModulesUsed</strong><b>Modules used</b><small>within the monitored period</small></div></article>
+                <article class="@(!adoption.ReviewAvailable ? "is-pending" : adoption.ReviewCaseCount > 0 ? "is-attention" : null)"><span><i class="bi @(!adoption.ReviewAvailable ? "bi-hourglass-split" : "bi-flag")"></i></span><div><strong>@(adoption.ReviewAvailable ? adoption.ReviewCaseCount.ToString() : "—")</strong><b>Review cases</b><small>@(adoption.ReviewAvailable ? "no use in the review window" : $"available after {adoption.RequiredWorkingDays} working days")</small></div></article>
             </section>
 
             <div class="cw-adoption-analysis-grid">
                 <section class="cw-panel cw-adoption-trend-panel" aria-labelledby="cw-adoption-trend-title">
                     <header class="cw-panel__header">
-                        <div><span class="cw-panel__eyebrow">Daily pattern</span><h2 id="cw-adoption-trend-title">Login versus ERP use</h2></div>
+                        <div><span class="cw-panel__eyebrow">Daily reach</span><h2 id="cw-adoption-trend-title">Daily ERP usage</h2></div>
                         <span class="cw-result-count">@adoptionPeriodLabel</span>
                     </header>
                     @if (adoption.Trend.Count == 0)
@@ -167,10 +156,10 @@
                         <div class="cw-adoption-chart-wrap">
                             <canvas id="command-adoption-chart"
                                     role="img"
-                                    aria-label="Unique users signed in and using ERP by day"
+                                    aria-label="Active ERP users and operational contributors by day"
                                     data-series='@Html.Raw(trendJson)'></canvas>
                         </div>
-                        <div class="cw-adoption-chart-note"><i class="bi bi-info-circle"></i>Counts are unique users per day. A user may continue an existing session without a fresh login.</div>
+                        <div class="cw-adoption-chart-note"><i class="bi bi-info-circle"></i>Counts are unique users per day. Existing authenticated sessions are counted whenever monitored ERP activity occurs.</div>
                     }
                 </section>
 
@@ -178,29 +167,20 @@
                     <header class="cw-panel__header">
                         <div><span class="cw-panel__eyebrow">Population reach</span><h2 id="cw-adoption-reach-title">Adoption reach</h2></div>
                     </header>
+                    <div class="cw-adoption-baseline"><span>Effective population</span><strong>@adoption.TotalUsers</strong><small>active human accounts</small></div>
                     <div class="cw-adoption-reach__body">
-                        <div class="cw-reach-row">
-                            <div><span>Accounts in scope</span><strong>@adoption.TotalUsers</strong></div>
-                            <progress class="cw-reach-progress" max="100" value="100" aria-label="Accounts in scope: 100 percent">100%</progress>
-                            <small>100%</small>
-                        </div>
-                        <div class="cw-reach-row">
-                            <div><span>Signed in</span><strong>@adoption.SignedInUsers</strong></div>
-                            <progress class="cw-reach-progress" max="100" value="@signInReach" aria-label="Signed-in reach: @signInReach percent">@signInReach%</progress>
-                            <small>@signInReach%</small>
-                        </div>
                         <div class="cw-reach-row is-use">
-                            <div><span>Used ERP</span><strong>@adoption.UsedErpUsers</strong></div>
+                            <div><span>Used ERP</span><strong>@adoption.UsedErpUsers of @adoption.TotalUsers</strong></div>
                             <progress class="cw-reach-progress" max="100" value="@usageReach" aria-label="ERP-use reach: @usageReach percent">@usageReach%</progress>
                             <small>@usageReach%</small>
                         </div>
                         <div class="cw-reach-row is-contribution">
-                            <div><span>Operational contributors</span><strong>@adoption.OperationalContributors</strong></div>
+                            <div><span>Operational contributors</span><strong>@adoption.OperationalContributors of @adoption.TotalUsers</strong></div>
                             <progress class="cw-reach-progress" max="100" value="@contributionReach" aria-label="Operational-contribution reach: @contributionReach percent">@contributionReach%</progress>
                             <small>@contributionReach%</small>
                         </div>
                     </div>
-                    <p class="cw-adoption-reach__note">Sign-in and monitored use are independent signals measured against the same effective population.</p>
+                    <p class="cw-adoption-reach__note">Operational contribution is a stronger signal within the wider population of users with monitored ERP activity.</p>
                 </section>
             </div>
 
@@ -216,12 +196,12 @@
                 {
                     <div class="cw-adoption-pending">
                         <i class="bi bi-hourglass-split"></i>
-                        <div><strong>Review classifications are withheld during initial collection.</strong><span>They become available after @adoption.RequiredWorkingDays monitored working days. Current login and usage counts remain available above.</span></div>
+                        <div><strong>Review classifications are withheld during initial collection.</strong><span>They become available after @adoption.RequiredWorkingDays monitored working days. Current ERP activity and contribution counts remain available above.</span></div>
                     </div>
                 }
                 else if (adoption.Attention.Count == 0)
                 {
-                    <div class="cw-adoption-pending is-clear"><i class="bi bi-check2-circle"></i><div><strong>No adoption exceptions require review.</strong><span>All users in scope have monitored use in the current review window.</span></div></div>
+                    <div class="cw-adoption-pending is-clear"><i class="bi bi-check2-circle"></i><div><strong>No adoption exceptions require review.</strong><span>All eligible users have monitored ERP use in the current review window.</span></div></div>
                 }
                 else
                 {
@@ -233,7 +213,7 @@
                                 {
                                     <tr>
                                         <td><strong>@row.DisplayName</strong><span>@string.Join(" · ", new[] { row.Rank, row.UserName }.Where(x => !string.IsNullOrWhiteSpace(x)))</span></td>
-                                        <td><span class="cw-adoption-observation @(row.SignedInDuringPeriod ? "is-gap" : null)">@row.Observation</span></td>
+                                        <td><span class="cw-adoption-observation">@row.Observation</span></td>
                                         <td>@(row.LastRecordedUseUtc.HasValue ? IstClock.ToIst(row.LastRecordedUseUtc.Value).ToString("dd MMM yyyy, HH:mm") + " IST" : "No monitored use recorded")</td>
                                     </tr>
                                 }
@@ -246,6 +226,10 @@
                     }
                 }
             </section>
+        }
+        else if (isUsagePattern)
+        {
+            @await Html.PartialAsync("_ErpUsagePattern", vm.UsagePattern)
         }
         else if (isPortfolio)
         {
