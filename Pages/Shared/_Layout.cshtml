@@ -1,10 +1,15 @@
 @using Microsoft.AspNetCore.Antiforgery
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.Extensions.Options
 @using ProjectManagement.Models
 @using ProjectManagement.Services.Navigation.ModuleNav
+@using ProjectManagement.Configuration
+@using ProjectManagement.Services.Usage
 @inject IAntiforgery Antiforgery
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
+@inject IErpUsageModuleCatalog ErpUsageModules
+@inject IOptions<ErpUsageOptions> ErpUsageConfiguration
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -73,7 +78,10 @@
             currentController,
             currentAction,
             Context.Request.Query);
-        var isCalendarPrimaryPage = isCalendarPage && !isAdminModulePage;
+        var isUsagePage = string.Equals(currentPage, "/Usage/Index", StringComparison.OrdinalIgnoreCase);
+        var useAdminModuleShell = isAdminModulePage && (!isUsagePage || User.IsInRole(RoleNames.Admin));
+        var usageModuleKey = signedIn ? ErpUsageModules.ResolvePath(Context.Request.Path) : null;
+        var isCalendarPrimaryPage = isCalendarPage && !useAdminModuleShell;
 
         // Keep the Projects primary tab active throughout the complete module,
         // not only on the Ongoing page. Admin-area routes with similar page names
@@ -100,6 +108,7 @@
             _ when string.Equals(currentPage, "/Analytics/Index", StringComparison.OrdinalIgnoreCase) => "analytics",
             _ when string.Equals(currentPage, "/ActionTasks/Index", StringComparison.OrdinalIgnoreCase) => "wide",
             _ when string.Equals(currentPage, "/Workspace/Index", StringComparison.OrdinalIgnoreCase) => "wide",
+            _ when string.Equals(currentPage, "/Usage/Index", StringComparison.OrdinalIgnoreCase) => "analytics",
             _ when string.Equals(currentPage, "/Projects/Ongoing/Index", StringComparison.OrdinalIgnoreCase) => "analytics",
             _ when isPhotosPage => "wide",
             _ when string.Equals(currentArea, "DocumentRepository", StringComparison.OrdinalIgnoreCase) => "analytics",
@@ -111,6 +120,14 @@
         var publicHeaderMode = ViewData["PublicHeaderMode"]?.ToString();
         var isPublicAuthPage = !signedIn && string.Equals(publicHeaderMode, "Auth", StringComparison.OrdinalIgnoreCase);
     }
+    @if (signedIn && !string.IsNullOrWhiteSpace(usageModuleKey))
+    {
+        <div hidden data-erp-usage-context
+             data-erp-usage-module="@usageModuleKey"
+             data-erp-usage-heartbeat-seconds="@ErpUsageConfiguration.Value.HeartbeatIntervalSeconds"
+             data-erp-usage-idle-minutes="@ErpUsageConfiguration.Value.InteractiveIdleMinutes"></div>
+    }
+
     <!-- ===========================
          HEADER / TOP BAR
          =========================== -->
@@ -253,7 +270,7 @@
     <!-- ===========================
          MODULE SUB-NAV
          =========================== -->
-    @if (signedIn && !isAdminModulePage)
+    @if (signedIn && !useAdminModuleShell && !isUsagePage)
     {
         <div class="pm-module-subnav-wrap">
             <div class="pm-chrome-shell">
@@ -265,7 +282,7 @@
     <!-- ===========================
          MAIN CONTENT
          =========================== -->
-    @if (isAdminModulePage)
+    @if (useAdminModuleShell)
     {
         <main role="main" class="pm-admin-main">
             <div class="admin-shell">
@@ -354,6 +371,10 @@
     <script src="~/js/theme-colors.js" asp-append-version="true"></script>
     <script type="module" src="~/js/site.js" asp-append-version="true"></script>
     <script src="~/js/admin/admin-shell.js" asp-append-version="true" defer></script>
+    @if (signedIn)
+    {
+        <script src="~/js/core/erp-usage-heartbeat.js" asp-append-version="true" defer></script>
+    }
     <script src="~/js/comments.js" asp-append-version="true" defer></script>
     <script src="~/js/notifications.js" asp-append-version="true" defer></script>
     <script src="~/js/project-media-tabs.js" asp-append-version="true" defer></script>

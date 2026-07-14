@@ -45,10 +45,11 @@
                 <i class="bi bi-graph-up-arrow" aria-hidden="true"></i>
             </header>
             <div class="admin-guide-section__body">
-                <p>Login review signals identify events that warrant administrator assessment; they are not automatic findings of compromise. Use the affected user, source summary and audit trail together before taking action.</p>
+                <p>Login Activity is a security view; ERP Usage is an adoption view. A user may remain signed in for several days, so login count must not be used as a proxy for daily ERP use.</p>
                 <ul>
-                    <li>Failed and lockout incidents require review even when outside-hours rules are disabled.</li>
-                    <li>Audit event details preserve the actor, affected record and technical payload separately.</li>
+                    <li>ERP Usage records bounded navigation and interactive activity intervals without capturing keystrokes, page content or query text.</li>
+                    <li>Approximate active time is an adoption indicator, not attendance or individual performance.</li>
+                    <li>Failed and lockout incidents remain in Login Activity and require security review.</li>
                     <li>System Health reports readiness; a Starting or Unknown check is not equivalent to Healthy.</li>
                 </ul>
             </div>
@@ -96,6 +97,11 @@
             </div>
         </section>
 
+                <section id="office-calendar" class="admin-panel admin-guide-section">
+            <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Office calendar</div><h2>Gazetted and Restricted Holidays</h2></div><i class="bi bi-calendar-week" aria-hidden="true"></i></header>
+            <div class="admin-guide-section__body"><p>Classification and office observance are separate decisions. Every Restricted Holiday appears on the shared calendar, but only Gazetted Holidays and RHs declared as office holidays close the office and affect future working-day calculations.</p><ul><li>Use <strong>Declare as office holiday</strong> to observe an RH office-wide.</li><li>Use <strong>Withdraw office observance</strong> to return the date to normal working status while retaining the RH for information.</li><li>Existing approved project dates are never silently recalculated.</li></ul></div>
+        </section>
+
         <section id="configuration-integrity" class="admin-panel admin-guide-section">
             <header class="admin-panel__header">
                 <div><div class="admin-panel__eyebrow">Configuration assurance</div><h2>Integrity review and controlled repair</h2></div>
@@ -121,6 +127,7 @@
         <a href="#recovery">Recovery and retention</a>
         <a href="#maintenance">Controlled maintenance</a>
         <a href="#master-data">Master data</a>
+        <a href="#office-calendar">Office calendar</a>
         <a href="#configuration-integrity">Configuration integrity</a>
     </aside>
 </div>

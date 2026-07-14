@@ -1,10 +1,28 @@
 @page "{id:int}"
 @model ProjectManagement.Pages.Settings.Holidays.EditModel
 @using ProjectManagement.Areas.Admin.Models
+@using ProjectManagement.Models.Scheduling
 @{
     ViewData["Title"] = "Edit holiday";
-    var header = new AdminPageHeaderModel { Eyebrow = "Master data · Holidays", Title = $"Edit {Model.Input.Name}", Description = "Update the official date or description used by schedule calculations.", Icon = "bi-pencil-square", Actions = new[] { new AdminPageActionModel { Text = "Back to holidays", Href = Url.Page("./Index", new { year = Model.Input.Date.Year }), Icon = "bi-arrow-left" } } };
+    var header = new AdminPageHeaderModel { Eyebrow = "Master data · Office calendar", Title = $"Edit {Model.Input.Name}", Description = "Update the classification and administrative details without silently changing an RH office-observance decision.", Icon = "bi-pencil-square", Actions = new[] { new AdminPageActionModel { Text = "Back to holidays", Href = Url.Page("./Index", new { year = Model.Input.Date.Year }), Icon = "bi-arrow-left" } } };
 }
 <partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
-<div class="admin-form-layout"><form method="post" class="admin-panel admin-form-panel" novalidate><input asp-for="Input.Id" type="hidden" /><input asp-for="Input.RowVersion" type="hidden" /><header class="admin-form-section__header"><span>01</span><div><h2>Holiday details</h2><p>Changing the date changes future schedule calculations immediately.</p></div></header><div class="admin-form-section__body"><div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div><div class="admin-form-grid admin-form-grid--two"><div class="admin-field"><label asp-for="Input.Date"></label><input asp-for="Input.Date" class="form-control" type="date" /><span asp-validation-for="Input.Date" class="text-danger"></span></div><div class="admin-field admin-field--wide"><label asp-for="Input.Name"></label><input asp-for="Input.Name" class="form-control" maxlength="160" autocomplete="off" /><span asp-validation-for="Input.Name" class="text-danger"></span></div></div></div><footer class="admin-form-actions"><a asp-page="./Index" asp-route-year="@Model.Input.Date.Year" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i>Save changes</button></footer></form><aside class="admin-guidance-card"><span class="admin-guidance-card__icon"><i class="bi bi-shield-check"></i></span><h2>Change control</h2><p>Duplicate dates and concurrent edits are blocked. The audit trail records the previous and updated values.</p></aside></div>
-@section Scripts { <partial name="_ValidationScriptsPartial" /> }
+<div class="admin-form-layout">
+<form method="post" class="admin-panel admin-form-panel" novalidate>
+<input asp-for="Input.Id" type="hidden" /><input asp-for="Input.RowVersion" type="hidden" />
+<header class="admin-form-section__header"><span>01</span><div><h2>Holiday details</h2><p>Use the separate Declare or Withdraw workflow to change whether a Restricted Holiday closes the office.</p></div></header>
+<div class="admin-form-section__body"><div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
+<div class="admin-form-grid admin-form-grid--two">
+<div class="admin-field"><label asp-for="Input.Date"></label><input asp-for="Input.Date" class="form-control" type="date" /><span asp-validation-for="Input.Date" class="text-danger"></span></div>
+<div class="admin-field"><label asp-for="Input.Type"></label><select asp-for="Input.Type" class="form-select" data-holiday-type><option value="@HolidayType.Gazetted">Gazetted Holiday</option><option value="@HolidayType.Restricted">Restricted Holiday</option></select><span asp-validation-for="Input.Type" class="text-danger"></span></div>
+<div class="admin-field admin-field--wide"><label asp-for="Input.Name"></label><input asp-for="Input.Name" class="form-control" maxlength="160" autocomplete="off" /><span asp-validation-for="Input.Name" class="text-danger"></span></div>
+<div class="admin-field admin-field--wide"><label asp-for="Input.AuthorityReference"></label><input asp-for="Input.AuthorityReference" class="form-control" maxlength="240" /><span asp-validation-for="Input.AuthorityReference" class="text-danger"></span></div>
+<div class="admin-field admin-field--wide"><label asp-for="Input.Remarks"></label><textarea asp-for="Input.Remarks" class="form-control" rows="3" maxlength="1200"></textarea><span asp-validation-for="Input.Remarks" class="text-danger"></span></div>
+</div>
+<div class="admin-holiday-current-state"><span>Current office status</span><strong>@(Model.Input.Type == HolidayType.Gazetted || Model.CurrentObservedStatus ? "Office holiday · Non-working day" : "Information only · Office open")</strong></div>
+</div>
+<footer class="admin-form-actions"><a asp-page="./Index" asp-route-year="@Model.Input.Date.Year" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i>Save changes</button></footer>
+</form>
+<aside class="admin-guidance-card"><span class="admin-guidance-card__icon"><i class="bi bi-shield-check"></i></span><h2>Change control</h2><p>Changing a Gazetted Holiday to Restricted does not silently reopen the office. Use Withdraw office observance afterwards when that is the intended decision.</p></aside>
+</div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /><script src="~/js/pages/holiday-admin.js" asp-append-version="true"></script> }

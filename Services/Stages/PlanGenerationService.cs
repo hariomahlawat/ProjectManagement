@@ -9,13 +9,20 @@ using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 
+using ProjectManagement.Services.Scheduling;
+
 namespace ProjectManagement.Services.Stages;
 
 public sealed class PlanGenerationService
 {
     private readonly ApplicationDbContext _db;
+    private readonly IOfficeCalendarService? _officeCalendar;
 
-    public PlanGenerationService(ApplicationDbContext db) => _db = db;
+    public PlanGenerationService(ApplicationDbContext db, IOfficeCalendarService? officeCalendar = null)
+    {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _officeCalendar = officeCalendar;
+    }
 
     public async Task GenerateAsync(int projectId, CancellationToken ct = default)
     {
@@ -54,10 +61,17 @@ public sealed class PlanGenerationService
             .Where(s => s.ProjectId == projectId)
             .ToListAsync(ct);
 
-        var holidays = await _db.Holidays
-            .AsNoTracking()
-            .Select(h => h.Date)
-            .ToListAsync(ct);
+        var holidays = _officeCalendar is not null
+            ? (await _officeCalendar.GetNonWorkingDatesAsync(
+                settings.AnchorStart.Value.AddYears(-1),
+                settings.AnchorStart.Value.AddYears(10),
+                ct)).ToList()
+            : await _db.Holidays
+                .AsNoTracking()
+                .Where(h => h.Type == ProjectManagement.Models.Scheduling.HolidayType.Gazetted || h.IsObservedAsOfficeHoliday)
+                .Select(h => h.Date)
+                .Distinct()
+                .ToListAsync(ct);
 
         var calendar = new WorkingCalendar(holidays, settings.IncludeWeekends, settings.SkipHolidays);
         var durationMap = durations
@@ -144,10 +158,17 @@ public sealed class PlanGenerationService
             templates.AddRange(workflowCodes);
         }
 
-        var holidays = await _db.Holidays
-            .AsNoTracking()
-            .Select(h => h.Date)
-            .ToListAsync(ct);
+        var holidays = _officeCalendar is not null
+            ? (await _officeCalendar.GetNonWorkingDatesAsync(
+                settings.AnchorStart.Value.AddYears(-1),
+                settings.AnchorStart.Value.AddYears(10),
+                ct)).ToList()
+            : await _db.Holidays
+                .AsNoTracking()
+                .Where(h => h.Type == ProjectManagement.Models.Scheduling.HolidayType.Gazetted || h.IsObservedAsOfficeHoliday)
+                .Select(h => h.Date)
+                .Distinct()
+                .ToListAsync(ct);
 
         var calendar = new WorkingCalendar(holidays, settings.IncludeWeekends, settings.SkipHolidays);
         var durationMap = durations

@@ -28,6 +28,7 @@ using ProjectManagement.Data.Projects;
 using ProjectManagement.Models.Projects;
 using ProjectManagement.Models.IndustryPartners;
 using ProjectManagement.Models.ProjectIdeas;
+using ProjectManagement.Models.Usage;
 
 namespace ProjectManagement.Data
 {
@@ -103,6 +104,7 @@ namespace ProjectManagement.Data
         public DbSet<ProjectScheduleSettings> ProjectScheduleSettings => Set<ProjectScheduleSettings>();
         public DbSet<ProjectPlanDuration> ProjectPlanDurations => Set<ProjectPlanDuration>();
         public DbSet<Holiday> Holidays => Set<Holiday>();
+        public DbSet<UserActivityBucket> UserActivityBuckets => Set<UserActivityBucket>();
         public DbSet<StageShiftLog> StageShiftLogs => Set<StageShiftLog>();
         public DbSet<Status> Statuses => Set<Status>();
         public DbSet<Workflow> Workflows => Set<Workflow>();
@@ -2365,10 +2367,45 @@ namespace ProjectManagement.Data
 
             builder.Entity<Holiday>(e =>
             {
-                e.HasIndex(x => x.Date).IsUnique();
                 e.Property(x => x.Date).HasColumnType("date");
                 e.Property(x => x.Name).HasMaxLength(160);
+                e.Property(x => x.Type)
+                    .HasConversion<int>()
+                    .HasDefaultValue(HolidayType.Gazetted);
+                e.Property(x => x.IsObservedAsOfficeHoliday).HasDefaultValue(true);
+                e.Property(x => x.AuthorityReference).HasMaxLength(240);
+                e.Property(x => x.ObservanceRemarks).HasMaxLength(1200);
+                e.Property(x => x.ObservanceChangedByUserId).HasMaxLength(450);
+                e.Property(x => x.ObservanceChangedUtc).HasColumnType("timestamp with time zone");
+                e.HasIndex(x => x.Date);
+                e.HasIndex(x => new { x.Date, x.Type });
+                e.ToTable(table =>
+                {
+                    table.HasCheckConstraint(
+                        "CK_Holidays_Type",
+                        "\"Type\" IN (1, 2)");
+                    table.HasCheckConstraint(
+                        "CK_Holidays_GazettedObserved",
+                        "\"Type\" <> 1 OR \"IsObservedAsOfficeHoliday\" = TRUE");
+                });
                 ConfigureRowVersion(e);
+            });
+
+            builder.Entity<UserActivityBucket>(e =>
+            {
+                e.Property(x => x.UserId).HasMaxLength(450);
+                e.Property(x => x.ModuleKey).HasMaxLength(64);
+                e.Property(x => x.BucketStartUtc).HasColumnType("timestamp with time zone");
+                e.Property(x => x.FirstSeenUtc).HasColumnType("timestamp with time zone");
+                e.Property(x => x.LastSeenUtc).HasColumnType("timestamp with time zone");
+                e.Property(x => x.ActivityDateIst).HasColumnType("date");
+                e.HasIndex(x => new { x.UserId, x.BucketStartUtc, x.ModuleKey }).IsUnique();
+                e.HasIndex(x => new { x.ActivityDateIst, x.UserId });
+                e.HasIndex(x => new { x.ModuleKey, x.ActivityDateIst });
+                e.HasOne(x => x.User)
+                    .WithMany()
+                    .HasForeignKey(x => x.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             builder.Entity<PlanApprovalLog>(e =>

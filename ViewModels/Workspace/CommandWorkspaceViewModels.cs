@@ -14,6 +14,15 @@ public sealed class CommandWorkspaceVm
     public IReadOnlyList<CommandOfficerWorkloadVm> Officers { get; init; } = Array.Empty<CommandOfficerWorkloadVm>();
     public IReadOnlyList<CommandFilterOptionVm> StageOptions { get; init; } = Array.Empty<CommandFilterOptionVm>();
     public int ProjectOfficerCount { get; init; }
+    public CommandUsageSummaryVm UsageSummary { get; init; } = new();
+}
+
+public sealed class CommandUsageSummaryVm
+{
+    public int TotalUsers { get; init; }
+    public int ActiveToday { get; init; }
+    public int RegularUsers { get; init; }
+    public int NoUsageSevenWorkingDays { get; init; }
 }
 
 public sealed record CommandFilterOptionVm(int Id, string Name);

@@ -10,6 +10,7 @@ public static class AdminNavigationKeys
     public const string Users = "users";
     public const string AccessGovernance = "access-governance";
     public const string Logins = "logins";
+    public const string ErpUsage = "erp-usage";
     public const string Logs = "logs";
     public const string DatabaseHealth = "database-health";
     public const string RecoveryCentre = "recovery-centre";
@@ -147,6 +148,14 @@ public static class AdminNavigationCatalog
             30,
             Item("Login activity", "Admin", "/Analytics/Logins", "bi-graph-up-arrow", AdminPolicies.SecurityView),
             matchPagePattern: "/Analytics/",
+            showOnDashboard: true),
+
+        Entry(
+            AdminNavigationKeys.ErpUsage,
+            AdminNavigationGroups.Monitoring,
+            35,
+            Item("ERP usage", string.Empty, "/Usage/Index", "bi-person-check", Policies.Usage.View),
+            exactPage: true,
             showOnDashboard: true),
 
         Entry(

@@ -1,0 +1,287 @@
+@page
+@model ProjectManagement.Pages.Usage.IndexModel
+@using ProjectManagement.Areas.Admin.Models
+@using ProjectManagement.Configuration
+@using ProjectManagement.Services.Usage
+@{
+    ViewData["Title"] = "ERP usage";
+    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "analytics";
+    var header = new AdminPageHeaderModel
+    {
+        Eyebrow = "Command monitoring · Adoption",
+        Title = "ERP usage",
+        Description = "Review day-to-day application adoption independently of login frequency.",
+        Icon = "bi-activity",
+        Actions = new[]
+        {
+            new AdminPageActionModel
+            {
+                Text = "Export CSV",
+                Href = Url.Page("./Index", "Export", new
+                {
+                    days = Model.Days,
+                    search = Model.Search,
+                    role = Model.Role,
+                    module = Model.Module,
+                    posture = Model.Posture,
+                    accountState = Model.AccountState
+                }),
+                Icon = "bi-download"
+            }
+        }
+    };
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/erp-usage.css" asp-append-version="true" />
+}
+
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
+
+<section class="erp-usage-notice" aria-label="Interpretation notice">
+    <i class="bi bi-info-circle" aria-hidden="true"></i>
+    <p><strong>Adoption indicator, not attendance.</strong> Approximate active time is derived from bounded activity intervals. It does not measure working hours or individual performance.</p>
+</section>
+
+<section class="erp-usage-summary" aria-label="ERP usage summary">
+    <article class="erp-usage-metric erp-usage-metric--primary">
+        <span><i class="bi bi-person-check"></i></span>
+        <div><strong>@Model.Result.Summary.ActiveToday</strong><b>Active today</b><small>of @Model.Result.Summary.UserCount users in scope</small></div>
+    </article>
+    <article class="erp-usage-metric erp-usage-metric--success">
+        <span><i class="bi bi-calendar2-check"></i></span>
+        <div><strong>@Model.Result.Summary.RegularUsers</strong><b>Regular users</b><small>≥ @Model.Result.RegularThresholdPercent% of available working days</small></div>
+    </article>
+    <article class="erp-usage-metric erp-usage-metric--info">
+        <span><i class="bi bi-arrow-repeat"></i></span>
+        <div><strong>@Model.Result.Summary.OccasionalUsers</strong><b>Occasional users</b><small>Some recorded use in the period</small></div>
+    </article>
+    <article class="erp-usage-metric erp-usage-metric--warning">
+        <span><i class="bi bi-calendar-x"></i></span>
+        <div><strong>@Model.Result.Summary.NoUsageSevenWorkingDays</strong><b>No use in 7 working days</b><small>Requires adoption review</small></div>
+    </article>
+    <article class="erp-usage-metric erp-usage-metric--danger">
+        <span><i class="bi bi-person-x"></i></span>
+        <div><strong>@Model.Result.Summary.NoUsageThirtyDays</strong><b>No use in 30 days</b><small>Long-term non-adoption signal</small></div>
+    </article>
+    <article class="erp-usage-metric erp-usage-metric--neutral">
+        <span><i class="bi bi-pencil-square"></i></span>
+        <div><strong>@Model.Result.Summary.BusinessContributors</strong><b>Recorded contributors</b><small>At least one audited operational action</small></div>
+    </article>
+</section>
+
+<section class="admin-panel erp-usage-filter-panel" aria-labelledby="erp-usage-filter-title">
+    <header class="admin-panel__header">
+        <div><div class="admin-panel__eyebrow">Scope</div><h2 id="erp-usage-filter-title">Usage filters</h2></div>
+        <span class="admin-panel__meta">@Model.Result.StartDate.ToString("dd MMM") – @Model.Result.EndDate.ToString("dd MMM yyyy")</span>
+    </header>
+    <form method="get" class="erp-usage-filters">
+        <label>
+            <span>Period</span>
+            <select asp-for="Days" class="form-select">
+                <option value="7">Last 7 days</option>
+                <option value="30">Last 30 days</option>
+                <option value="60">Last 60 days</option>
+                <option value="90">Last 90 days</option>
+            </select>
+        </label>
+        <label class="erp-usage-filters__search">
+            <span>User</span>
+            <input asp-for="Search" class="form-control" type="search" placeholder="Name, rank or username" autocomplete="off" />
+        </label>
+        <label>
+            <span>Role</span>
+            <select asp-for="Role" class="form-select">
+                <option value="">All roles</option>
+                @foreach (var role in Model.Result.RoleOptions)
+                {
+                    <option value="@role">@role</option>
+                }
+            </select>
+        </label>
+        <label>
+            <span>Module</span>
+            <select asp-for="Module" class="form-select">
+                <option value="">All modules</option>
+                @foreach (var module in Model.ModuleOptions)
+                {
+                    <option value="@module.Key">@module.Label</option>
+                }
+            </select>
+        </label>
+        <label>
+            <span>Usage posture</span>
+            <select asp-for="Posture" class="form-select">
+                <option value="">All postures</option>
+                <option value="Regular user">Regular user</option>
+                <option value="Occasional user">Occasional user</option>
+                <option value="Inactive">Inactive</option>
+                <option value="No usage">No usage</option>
+            </select>
+        </label>
+        <label>
+            <span>Account state</span>
+            <select asp-for="AccountState" class="form-select">
+                <option value="">All accounts</option>
+                <option value="Active">Active</option>
+                <option value="Disabled">Disabled</option>
+                <option value="Pending deletion">Pending deletion</option>
+            </select>
+        </label>
+        <label>
+            <span>Rows</span>
+            <select asp-for="PageSize" class="form-select">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
+        </label>
+        <div class="erp-usage-filters__actions">
+            <button class="btn btn-primary" type="submit"><i class="bi bi-funnel"></i>Apply</button>
+            <a class="btn btn-outline-secondary" asp-page="./Index">Clear</a>
+        </div>
+    </form>
+</section>
+
+@if (Model.Result.Modules.Count > 0)
+{
+    <section class="admin-panel" aria-labelledby="erp-module-title">
+        <header class="admin-panel__header">
+            <div><div class="admin-panel__eyebrow">Adoption by function</div><h2 id="erp-module-title">Modules used</h2></div>
+        </header>
+        <div class="erp-module-grid">
+            @foreach (var module in Model.Result.Modules.Take(8))
+            {
+                <article>
+                    <span><i class="bi @module.Icon"></i></span>
+                    <div><strong>@module.Label</strong><small>@module.UserCount user@(module.UserCount == 1 ? string.Empty : "s") · @module.ActiveBucketCount activity interval@(module.ActiveBucketCount == 1 ? string.Empty : "s")</small></div>
+                </article>
+            }
+        </div>
+    </section>
+}
+
+<section class="admin-panel" aria-labelledby="erp-user-directory-title">
+    <header class="admin-panel__header">
+        <div><div class="admin-panel__eyebrow">User adoption</div><h2 id="erp-user-directory-title">Daily-user directory</h2></div>
+        <span class="admin-panel__meta">@Model.Result.TotalUsers user@(Model.Result.TotalUsers == 1 ? string.Empty : "s")</span>
+    </header>
+
+    @if (Model.Result.Users.Count == 0)
+    {
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new AdminEmptyStateModel { Icon = "bi-activity", Title = "No usage records match the current filters", Description = "Usage appears after authenticated navigation or an interactive browser heartbeat." })" />
+    }
+    else
+    {
+        <div class="admin-data-table-wrap erp-usage-table-wrap">
+            <table class="admin-data-table erp-usage-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Today / last active</th>
+                        <th>Active working days</th>
+                        <th>Approx. active time</th>
+                        <th>Modules / actions</th>
+                        <th>Posture</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in Model.Result.Users)
+                    {
+                        <tr>
+                            <td>
+                                <div class="erp-user-identity">
+                                    @if (User.IsInRole(RoleNames.Admin))
+                                    {
+                                        <a asp-area="Admin" asp-page="/Users/Details" asp-route-id="@user.UserId">@user.FullName</a>
+                                    }
+                                    else
+                                    {
+                                        <strong>@user.FullName</strong>
+                                    }
+                                    <span>@string.Join(" · ", new[] { user.Rank, user.UserName }.Where(value => !string.IsNullOrWhiteSpace(value)))</span>
+                                    <small>@(user.Roles.Count == 0 ? "No assigned role" : string.Join(", ", user.Roles)) · @user.AccountState</small>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="erp-usage-today @(user.UsedToday ? "is-active" : null)">
+                                    <span><i class="bi @(user.UsedToday ? "bi-check-circle-fill" : "bi-dash-circle")"></i>@(user.UsedToday ? "Used today" : "No use today")</span>
+                                    <small>@Model.FormatLastActive(user.LastActiveUtc)</small>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="erp-working-days">
+                                    <strong>@user.ActiveWorkingDays of @user.AvailableWorkingDays</strong>
+                                    <div role="progressbar" aria-valuenow="@user.ActivePercentage" aria-valuemin="0" aria-valuemax="100"><span style="width:@user.ActivePercentage%"></span></div>
+                                    <small>@user.ActivePercentage% of available working days</small>
+                                </div>
+                            </td>
+                            <td><strong>@IndexModel.FormatApproximateMinutes(user.ApproximateActiveMinutes)</strong><small class="d-block text-muted">Distinct activity intervals</small></td>
+                            <td>
+                                <div class="erp-module-list">@(user.Modules.Count == 0 ? "—" : string.Join(", ", user.Modules.Take(4)))</div>
+                                <small>@user.RecordedActionCount recorded action@(user.RecordedActionCount == 1 ? string.Empty : "s")</small>
+                            </td>
+                            <td><span class="admin-status-pill admin-status-pill--@user.PostureTone">@user.Posture</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (Model.Result.TotalPages > 1)
+        {
+            <nav class="admin-pagination" aria-label="ERP usage pages">
+                <a class="btn btn-sm btn-outline-secondary @(Model.Result.Page <= 1 ? "disabled" : null)" href="@Model.PageUrl(Model.Result.Page - 1)"><i class="bi bi-chevron-left"></i>Previous</a>
+                <span>Page @Model.Result.Page of @Model.Result.TotalPages</span>
+                <a class="btn btn-sm btn-outline-secondary @(Model.Result.Page >= Model.Result.TotalPages ? "disabled" : null)" href="@Model.PageUrl(Model.Result.Page + 1)">Next<i class="bi bi-chevron-right"></i></a>
+            </nav>
+        }
+    }
+</section>
+
+@if (Model.Result.Users.Count > 0 && Model.Result.HeatmapDates.Count > 0)
+{
+    <section class="admin-panel" aria-labelledby="erp-heatmap-title">
+        <header class="admin-panel__header">
+            <div><div class="admin-panel__eyebrow">Day-by-day pattern</div><h2 id="erp-heatmap-title">Usage heatmap</h2></div>
+            <div class="erp-heatmap-legend" aria-label="Heatmap legend">
+                <span><i class="is-action"></i>Recorded action</span>
+                <span><i class="is-interactive"></i>Interactive use</span>
+                <span><i class="is-navigation"></i>Navigation</span>
+                <span><i class="is-none"></i>No use</span>
+                <span><i class="is-nonworking"></i>Non-working day</span>
+            </div>
+        </header>
+        <div class="erp-heatmap-scroll" tabindex="0" aria-label="Horizontally scrollable usage heatmap">
+            <table class="erp-heatmap-table">
+                <thead><tr><th>User</th>@foreach (var date in Model.Result.HeatmapDates){<th title="@date.ToString("dddd, dd MMM yyyy")"><span>@date.ToString("dd")</span><small>@date.ToString("MMM")</small></th>}</tr></thead>
+                <tbody>
+                    @foreach (var user in Model.Result.Users)
+                    {
+                        <tr>
+                            <th scope="row">@user.FullName</th>
+                            @foreach (var cell in user.Heatmap)
+                            {
+                                var stateClass = cell.State switch
+                                {
+                                    ErpUsageHeatmapState.BusinessAction => "is-action",
+                                    ErpUsageHeatmapState.Interactive => "is-interactive",
+                                    ErpUsageHeatmapState.Navigation => "is-navigation",
+                                    ErpUsageHeatmapState.NonWorkingDay => "is-nonworking",
+                                    _ => "is-none"
+                                };
+                                <td><span class="erp-heatmap-cell @stateClass" title="@cell.Date.ToString("dd MMM yyyy") · @cell.Label"><span class="visually-hidden">@cell.Label</span></span></td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}
+
+@section Scripts {
+    <script src="~/js/pages/erp-usage.js" asp-append-version="true" defer></script>
+}

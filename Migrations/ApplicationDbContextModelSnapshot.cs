@@ -6059,25 +6059,110 @@ namespace ProjectManagement.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AuthorityReference")
+                        .HasMaxLength(240)
+                        .HasColumnType("character varying(240)");
+
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
+
+                    b.Property<bool>("IsObservedAsOfficeHoliday")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(160)
                         .HasColumnType("character varying(160)");
 
+                    b.Property<string>("ObservanceChangedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime?>("ObservanceChangedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ObservanceRemarks")
+                        .HasMaxLength(1200)
+                        .HasColumnType("character varying(1200)");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
                         .HasColumnType("bytea");
 
+                    b.Property<int>("Type")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
                     b.HasKey("Id");
 
-                    b.HasIndex("Date")
+                    b.HasIndex("Date");
+
+                    b.HasIndex("Date", "Type");
+
+                    b.ToTable("Holidays", t =>
+                        {
+                            t.HasCheckConstraint("CK_Holidays_GazettedObserved", "\"Type\" <> 1 OR \"IsObservedAsOfficeHoliday\" = TRUE");
+
+                            t.HasCheckConstraint("CK_Holidays_Type", "\"Type\" IN (1, 2)");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Usage.UserActivityBucket", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateOnly>("ActivityDateIst")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("BucketStartUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("FirstSeenUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("HadInteractiveHeartbeat")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HadNavigation")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("HeartbeatCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("LastSeenUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ModuleKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("NavigationCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActivityDateIst", "UserId");
+
+                    b.HasIndex("ModuleKey", "ActivityDateIst");
+
+                    b.HasIndex("UserId", "BucketStartUtc", "ModuleKey")
                         .IsUnique();
 
-                    b.ToTable("Holidays");
+                    b.ToTable("UserActivityBuckets");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Scheduling.ProjectPlanDuration", b =>
@@ -8428,6 +8513,17 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("NotebookItemId");
                     b.HasIndex("UploadedById");
                     b.ToTable("NotebookAttachments");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Usage.UserActivityBucket", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.NotebookItem", b =>

@@ -22,6 +22,7 @@ using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.ProjectIdeas;
 using ProjectManagement.ViewModels.Dashboard;
@@ -165,7 +166,7 @@ namespace ProjectManagement.Pages.Dashboard
             var nowUtc = DateTime.UtcNow;
             var rangeEnd = nowUtc.AddDays(30);
 
-            var upcoming = new List<(Guid? Id, string Title, DateTime StartUtc, DateTime EndUtc, bool IsAllDay, bool IsHoliday)>();
+            var upcoming = new List<(Guid? Id, string Title, DateTime StartUtc, DateTime EndUtc, bool IsAllDay, bool IsHoliday, bool IsInformationalHoliday)>();
 
             // SECTION: Upcoming events and holidays load
             try
@@ -178,7 +179,7 @@ namespace ProjectManagement.Pages.Dashboard
                     .ToListAsync();
                 foreach (var ev in events)
                 {
-                    upcoming.Add((ev.Id, ev.Title, ev.StartUtc.UtcDateTime, ev.EndUtc.UtcDateTime, ev.IsAllDay, false));
+                    upcoming.Add((ev.Id, ev.Title, ev.StartUtc.UtcDateTime, ev.EndUtc.UtcDateTime, ev.IsAllDay, false, false));
                 }
             }
             catch (Exception ex)
@@ -212,7 +213,7 @@ namespace ProjectManagement.Pages.Dashboard
                             };
                             var title = $"{titlePrefix}: {CelebrationHelpers.DisplayName(celebration)}";
                             var endUtc = CelebrationHelpers.ToLocalDateTime(nextOccurrence.AddDays(1)).UtcDateTime;
-                            upcoming.Add((celebration.Id, title, startUtc, endUtc, true, false));
+                            upcoming.Add((celebration.Id, title, startUtc, endUtc, true, false, false));
                         }
                     }
                     catch (Exception ex)
@@ -238,7 +239,19 @@ namespace ProjectManagement.Pages.Dashboard
                     var endLocal = DateTime.SpecifyKind(holiday.Date.AddDays(1).ToDateTime(TimeOnly.MinValue), DateTimeKind.Unspecified);
                     var startUtc = TimeZoneInfo.ConvertTimeToUtc(startLocal, IST);
                     var endUtc = TimeZoneInfo.ConvertTimeToUtc(endLocal, IST);
-                    upcoming.Add((null, $"Holiday: {holiday.Name}", startUtc, endUtc, true, true));
+                    var title = holiday.Type == HolidayType.Gazetted
+                        ? $"Gazetted holiday: {holiday.Name}"
+                        : holiday.IsObservedAsOfficeHoliday
+                            ? $"RH office holiday: {holiday.Name}"
+                            : $"Restricted Holiday: {holiday.Name} · Office open";
+                    upcoming.Add((
+                        null,
+                        title,
+                        startUtc,
+                        endUtc,
+                        true,
+                        true,
+                        holiday.Type == HolidayType.Restricted && !holiday.IsObservedAsOfficeHoliday));
                 }
             }
             catch (Exception ex)
@@ -247,10 +260,30 @@ namespace ProjectManagement.Pages.Dashboard
             }
             // END SECTION
 
-            foreach (var item in upcoming
-                .OrderBy(x => x.StartUtc)
-                .ThenBy(x => x.Title, StringComparer.OrdinalIgnoreCase)
-                .Take(10))
+            // Informational RH entries remain available on the full calendar but do not
+            // displace operational events or office closures from the compact dashboard list.
+            var dashboardItems = upcoming
+                .Where(item => !item.IsInformationalHoliday)
+                .OrderBy(item => item.StartUtc)
+                .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
+                .Take(10)
+                .ToList();
+
+            if (dashboardItems.Count < 10)
+            {
+                dashboardItems.AddRange(upcoming
+                    .Where(item => item.IsInformationalHoliday)
+                    .OrderBy(item => item.StartUtc)
+                    .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
+                    .Take(10 - dashboardItems.Count));
+                dashboardItems = dashboardItems
+                    .OrderBy(item => item.StartUtc)
+                    .ThenBy(item => item.IsInformationalHoliday)
+                    .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
+            foreach (var item in dashboardItems)
             {
                 var startLocal = TimeZoneInfo.ConvertTimeFromUtc(item.StartUtc, IST);
                 var endLocal = TimeZoneInfo.ConvertTimeFromUtc(item.EndUtc, IST);

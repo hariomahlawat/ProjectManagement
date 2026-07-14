@@ -1,12 +1,19 @@
 @page "{id:int}"
 @model ProjectManagement.Pages.Settings.Holidays.DeleteModel
 @using ProjectManagement.Areas.Admin.Models
+@using ProjectManagement.Models.Scheduling
 @{
-    ViewData["Title"] = "Delete holiday";
-    var header = new AdminPageHeaderModel { Eyebrow = "Master data · Controlled operation", Title = "Delete holiday", Description = "Remove an official non-working date from schedule calculations and calendar views.", Icon = "bi-trash3", Actions = new[] { new AdminPageActionModel { Text = "Back to holidays", Href = Model.Item is null ? Url.Page("./Index") : Url.Page("./Index", new { year = Model.Item.Date.Year }), Icon = "bi-arrow-left" } } };
+    ViewData["Title"] = "Delete holiday entry";
+    var affectsSchedule = Model.Item?.AffectsSchedule == true;
+    var header = new AdminPageHeaderModel { Eyebrow = "Master data · Controlled operation", Title = "Delete holiday entry", Description = affectsSchedule ? "Remove an office holiday from the calendar and future schedule calculations." : "Remove an informational Restricted Holiday from the shared calendar.", Icon = "bi-trash3", Actions = new[] { new AdminPageActionModel { Text = "Back to holidays", Href = Model.Item is null ? Url.Page("./Index") : Url.Page("./Index", new { year = Model.Item.Date.Year }), Icon = "bi-arrow-left" } } };
 }
 <partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
 @if (Model.Item is not null)
 {
-<div class="admin-operation-layout"><form method="post" class="admin-panel admin-controlled-operation admin-controlled-operation--danger"><input asp-for="RowVersion" type="hidden" /><header><span class="admin-controlled-operation__icon"><i class="bi bi-calendar-x"></i></span><div><div class="admin-panel__eyebrow">Official holiday</div><h2>@Model.Item.Name</h2><p>This action removes the date from future working-day calculations.</p></div></header><dl class="admin-operation-facts"><div><dt>Date</dt><dd>@Model.Item.Date.ToString("dd MMM yyyy")</dd></div><div><dt>Day</dt><dd>@Model.Item.Date.DayOfWeek</dd></div><div><dt>Schedule effect</dt><dd>Removed immediately</dd></div></dl><div class="admin-operation-notice"><i class="bi bi-exclamation-triangle"></i><div><strong>Review downstream schedules</strong><span>Deleting a holiday does not automatically reapprove project deadlines that may have been based on the previous calendar.</span></div></div><footer><a asp-page="./Index" asp-route-year="@Model.Item.Date.Year" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-danger" type="submit"><i class="bi bi-trash3"></i>Delete holiday</button></footer></form></div>
+<div class="admin-operation-layout"><form method="post" class="admin-panel admin-controlled-operation admin-controlled-operation--danger"><input asp-for="RowVersion" type="hidden" />
+<header><span class="admin-controlled-operation__icon"><i class="bi bi-calendar-x"></i></span><div><div class="admin-panel__eyebrow">@(Model.Item.Type == HolidayType.Gazetted ? "Gazetted Holiday" : "Restricted Holiday")</div><h2>@Model.Item.Name</h2><p>@Model.Item.Date.ToString("dddd, dd MMMM yyyy")</p></div></header>
+<dl class="admin-operation-facts"><div><dt>Classification</dt><dd>@(Model.Item.Type == HolidayType.Gazetted ? "Gazetted Holiday" : "Restricted Holiday")</dd></div><div><dt>Office status</dt><dd>@(Model.Item.AffectsSchedule ? "Office holiday" : "Information only · Office open")</dd></div><div><dt>Schedule effect</dt><dd>@(Model.Item.AffectsSchedule ? "Removed from future non-working dates" : "No schedule change")</dd></div><div><dt>Reference</dt><dd>@(Model.Item.AuthorityReference ?? "—")</dd></div></dl>
+<div class="admin-operation-notice"><i class="bi bi-exclamation-triangle"></i><div><strong>@(Model.Item.AffectsSchedule ? "Review downstream schedules" : "Calendar information will be removed")</strong><span>@(Model.Item.AffectsSchedule ? "Deleting an office holiday does not automatically reapprove or recalculate project dates that used the previous calendar." : "The Restricted Holiday will no longer be visible to calendar users.")</span></div></div>
+<footer><a asp-page="./Index" asp-route-year="@Model.Item.Date.Year" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-danger" type="submit"><i class="bi bi-trash3"></i>Delete entry</button></footer>
+</form></div>
 }

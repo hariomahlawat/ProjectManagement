@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Configuration;
+using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Admin.Calendar;
 
@@ -28,6 +29,7 @@ public sealed class CreateModel : PageModel
         var selectedYear = year is >= 1900 and <= 9999 ? year.Value : _time.TodayIst.Year;
         var today = _time.TodayIst;
         Input.Date = today.Year == selectedYear ? today : new DateOnly(selectedYear, 1, 1);
+        Input.Type = HolidayType.Gazetted;
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
@@ -37,7 +39,13 @@ public sealed class CreateModel : PageModel
             return Page();
         }
 
-        var result = await _holidays.CreateAsync(Input.Date, Input.Name, cancellationToken);
+        var result = await _holidays.CreateAsync(
+            Input.Date,
+            Input.Name,
+            Input.Type,
+            Input.AuthorityReference,
+            Input.Remarks,
+            cancellationToken);
         if (!result.Succeeded)
         {
             AddResultError(result);
@@ -52,9 +60,9 @@ public sealed class CreateModel : PageModel
     {
         var message = !string.IsNullOrWhiteSpace(result.TraceId)
             ? $"{result.UserMessage} Trace reference: {result.TraceId}."
-            : result.UserMessage ?? "The holiday could not be added.";
+            : result.UserMessage ?? "The holiday entry could not be created.";
 
-        if (result.ErrorCode == "DuplicateHolidayDate")
+        if (result.ErrorCode is "DuplicateHoliday" or "GazettedDateAlreadyExists")
         {
             ModelState.AddModelError("Input.Date", message);
         }
@@ -66,12 +74,22 @@ public sealed class CreateModel : PageModel
 
     public sealed class InputModel
     {
-        [Required]
-        [DataType(DataType.Date)]
+        [Required, DataType(DataType.Date)]
         public DateOnly Date { get; set; }
 
-        [Required]
-        [StringLength(160)]
+        [Required, StringLength(160)]
+        [Display(Name = "Holiday name")]
         public string Name { get; set; } = string.Empty;
+
+        [Required]
+        [Display(Name = "Classification")]
+        public HolidayType Type { get; set; } = HolidayType.Gazetted;
+
+        [StringLength(240)]
+        [Display(Name = "Authority / order reference")]
+        public string? AuthorityReference { get; set; }
+
+        [StringLength(1200)]
+        public string? Remarks { get; set; }
     }
 }

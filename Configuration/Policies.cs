@@ -57,6 +57,20 @@ public static class Policies
         };
     }
 
+
+    // SECTION: ERP usage intelligence
+    public static class Usage
+    {
+        public const string View = "ERP.Usage.View";
+
+        public static readonly string[] ViewerRoles =
+        {
+            RoleNames.Admin,
+            RoleNames.Comdt,
+            RoleNames.HoD
+        };
+    }
+
     // SECTION: Industry partners policies
     public static class IndustryPartners
     {

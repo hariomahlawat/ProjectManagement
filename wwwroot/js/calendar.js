@@ -238,28 +238,73 @@
     return `${formatDisplayDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
+  const normaliseHolidayEntry = (entry) => ({
+    id: entry?.id ?? entry?.Id ?? null,
+    name: entry?.name ?? entry?.Name ?? '',
+    type: entry?.type ?? entry?.Type ?? 'Gazetted',
+    isObservedAsOfficeHoliday: entry?.isObservedAsOfficeHoliday ?? entry?.IsObservedAsOfficeHoliday ?? false,
+    affectsSchedule: entry?.affectsSchedule ?? entry?.AffectsSchedule ?? false,
+    authorityReference: entry?.authorityReference ?? entry?.AuthorityReference ?? null
+  });
+
+  const holidayVisualState = (meta) => {
+    if (!meta) return null;
+    if (meta.closureType === 'Gazetted' || meta.entries?.some(entry => entry.type === 'Gazetted')) return 'gazetted';
+    if (meta.isOfficeClosed || meta.entries?.some(entry => entry.isObservedAsOfficeHoliday)) return 'rh-observed';
+    return 'rh-info';
+  };
+
+  const holidayStateLabel = (meta) => {
+    const state = holidayVisualState(meta);
+    if (state === 'gazetted') return 'Gazetted holiday · Office closed';
+    if (state === 'rh-observed') return 'RH · Office holiday · Office closed';
+    return 'Restricted Holiday · Information only · Office open';
+  };
+
   const buildHolidayTooltip = (meta) => {
-    const name = meta?.name || meta?.Name || '';
-    return name ? `Holiday: ${name}` : 'Holiday';
+    if (!meta) return '';
+    const entries = Array.isArray(meta.entries) ? meta.entries : [];
+    const details = entries.map(entry => {
+      if (entry.type === 'Gazetted') return `Gazetted: ${entry.name} — office closed`;
+      if (entry.isObservedAsOfficeHoliday) return `RH office holiday: ${entry.name} — office closed`;
+      return `RH: ${entry.name} — information only; office open`;
+    });
+    return [holidayStateLabel(meta), ...details].join('\n');
+  };
+
+  const holidayBadgeText = (meta) => {
+    const entries = Array.isArray(meta?.entries) ? meta.entries : [];
+    const primary = entries.find(entry => entry.type === 'Gazetted')
+      || entries.find(entry => entry.isObservedAsOfficeHoliday)
+      || entries[0];
+    if (!primary) return '';
+    const prefix = primary.type === 'Gazetted'
+      ? 'Gazetted'
+      : primary.isObservedAsOfficeHoliday ? 'RH · Office holiday' : 'RH';
+    const suffix = entries.length > 1 ? ` +${entries.length - 1}` : '';
+    return `${prefix}: ${primary.name}${suffix}`;
   };
 
   const buildHolidayAria = (iso, meta) => {
     const labelDate = formatDisplayDate(`${iso}T00:00:00`);
-    const tooltip = buildHolidayTooltip(meta);
+    const tooltip = buildHolidayTooltip(meta).replace(/\n/g, '. ');
     return `${labelDate} — ${tooltip}`;
   };
 
+  const holidayClasses = ['pm-holiday', 'pm-holiday--gazetted', 'pm-holiday--rh-observed', 'pm-holiday--rh-info'];
+
   const decorateHolidayCell = (el, iso) => {
     if (!el) return;
+    holidayClasses.forEach(className => el.classList.remove(className));
     const meta = iso ? holidayMap.get(iso) : null;
-    if (meta) {
-      el.classList.add('pm-holiday');
+    const state = holidayVisualState(meta);
+    if (meta && state) {
+      el.classList.add('pm-holiday', `pm-holiday--${state}`);
       el.setAttribute('data-pm-holiday-active', '1');
-    } else if (el.getAttribute('data-pm-holiday-active')) {
-      el.classList.remove('pm-holiday');
-      el.removeAttribute('data-pm-holiday-active');
+      el.setAttribute('data-pm-holiday-state', state);
     } else {
-      el.classList.remove('pm-holiday');
+      el.removeAttribute('data-pm-holiday-active');
+      el.removeAttribute('data-pm-holiday-state');
     }
   };
 
@@ -275,7 +320,7 @@
       }
       const tooltip = buildHolidayTooltip(meta);
       const baseAria = el.getAttribute('data-pm-holiday-orig-aria');
-      const aria = baseAria ? `${baseAria}. ${tooltip}` : buildHolidayAria(iso, meta);
+      const aria = baseAria ? `${baseAria}. ${tooltip.replace(/\n/g, '. ')}` : buildHolidayAria(iso, meta);
       el.setAttribute('title', tooltip);
       el.setAttribute('aria-label', aria);
       el.setAttribute('data-pm-holiday-label', '1');
@@ -297,14 +342,16 @@
     const shouldShow = !!(meta && (!predicate || predicate(meta, iso)));
     const badge = targetEl.querySelector('.pm-holiday-badge');
     if (shouldShow) {
-      const label = buildHolidayTooltip(meta);
       let node = badge;
       if (!node) {
         node = document.createElement('span');
         node.className = 'pm-holiday-badge';
         targetEl.appendChild(node);
       }
-      node.textContent = label;
+      node.classList.remove('pm-holiday-badge--gazetted', 'pm-holiday-badge--rh-observed', 'pm-holiday-badge--rh-info');
+      const state = holidayVisualState(meta);
+      if (state) node.classList.add(`pm-holiday-badge--${state}`);
+      node.textContent = holidayBadgeText(meta);
       decorateHolidayLabelElement(node, iso);
     } else if (badge) {
       decorateHolidayLabelElement(badge, null);
@@ -1134,11 +1181,21 @@
       items.forEach(item => {
         const iso = getIsoDate(item?.date || item?.Date);
         if (!iso) return;
+        const entries = (item?.entries || item?.Entries || []).map(normaliseHolidayEntry);
+        // Compatibility with the pre-classification endpoint during rolling deployments.
+        if (entries.length === 0 && (item?.name || item?.Name)) {
+          entries.push(normaliseHolidayEntry({
+            name: item?.name || item?.Name,
+            type: 'Gazetted',
+            isObservedAsOfficeHoliday: true,
+            affectsSchedule: true
+          }));
+        }
         holidayMap.set(iso, {
-          name: item?.name || item?.Name || '',
-          skipWeekends: item?.skipWeekends ?? item?.SkipWeekends ?? null,
-          startUtc: item?.startUtc || item?.StartUtc || null,
-          endUtc: item?.endUtc || item?.EndUtc || null
+          date: iso,
+          isOfficeClosed: item?.isOfficeClosed ?? item?.IsOfficeClosed ?? entries.some(entry => entry.affectsSchedule),
+          closureType: item?.closureType ?? item?.ClosureType ?? (entries.some(entry => entry.type === 'Gazetted') ? 'Gazetted' : null),
+          entries
         });
       });
       holidayRangeKey = key;
@@ -1309,10 +1366,13 @@
         const label = cat === 'Insp' ? 'Inspection' : cat;
         return `<span><span class="legend-dot pm-cat-${cat.toLowerCase()}"></span>${label} (${n})</span>`;
       }).join('');
-      const holidayCount = holidayMap.size;
-      if (holidayCount > 0) {
-        html += `<span><span class="legend-dot pm-holiday"></span>Holiday (${holidayCount})</span>`;
-      }
+      const holidayDays = [...holidayMap.values()];
+      const gazettedCount = holidayDays.filter(day => holidayVisualState(day) === 'gazetted').length;
+      const observedRhCount = holidayDays.filter(day => holidayVisualState(day) === 'rh-observed').length;
+      const informationalRhCount = holidayDays.filter(day => holidayVisualState(day) === 'rh-info').length;
+      if (gazettedCount > 0) html += `<span><span class="legend-dot pm-holiday--gazetted"></span>Gazetted · office closed (${gazettedCount})</span>`;
+      if (observedRhCount > 0) html += `<span><span class="legend-dot pm-holiday--rh-observed"></span>RH office holiday (${observedRhCount})</span>`;
+      if (informationalRhCount > 0) html += `<span><span class="legend-dot pm-holiday--rh-info"></span>RH · office open (${informationalRhCount})</span>`;
       legend.innerHTML = html;
     }
   }

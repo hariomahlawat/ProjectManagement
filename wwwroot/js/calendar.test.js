@@ -136,9 +136,15 @@ test('calendar highlights admin holidays during initial load', async () => {
             status: 200,
             json: async () => ([{
                 date: '2024-12-25',
-                name: 'Founders Day',
-                startUtc: '2024-12-25T00:00:00Z',
-                endUtc: '2024-12-26T00:00:00Z'
+                isOfficeClosed: true,
+                closureType: 'Gazetted',
+                entries: [{
+                    id: 1,
+                    name: 'Founders Day',
+                    type: 'Gazetted',
+                    isObservedAsOfficeHoliday: true,
+                    affectsSchedule: true
+                }]
             }])
         };
     };
@@ -153,17 +159,18 @@ test('calendar highlights admin holidays during initial load', async () => {
     const calendarEl = window.document.getElementById('calendar');
     const holidayCell = calendarEl.querySelector('.fc-daygrid-day[data-date="2024-12-25"]');
     assert.ok(holidayCell.classList.contains('pm-holiday'));
+    assert.ok(holidayCell.classList.contains('pm-holiday--gazetted'));
     const holidayBadge = holidayCell.querySelector('.pm-holiday-badge');
     assert.ok(holidayBadge, 'holiday cell should receive badge');
-    assert.equal(holidayBadge.textContent, 'Holiday: Founders Day');
+    assert.equal(holidayBadge.textContent, 'Gazetted: Founders Day');
 
     const nonHolidayCell = calendarEl.querySelector('.fc-daygrid-day[data-date="2024-12-26"]');
     assert.ok(!nonHolidayCell.classList.contains('pm-holiday'));
     assert.equal(nonHolidayCell.querySelector('.pm-holiday-badge'), null);
 
     const numberEl = holidayCell.querySelector('.fc-daygrid-day-number');
-    assert.equal(numberEl.getAttribute('title'), 'Holiday: Founders Day');
-    assert.ok((numberEl.getAttribute('aria-label') || '').includes('Holiday: Founders Day'));
+    assert.ok((numberEl.getAttribute('title') || '').includes('Gazetted: Founders Day'));
+    assert.ok((numberEl.getAttribute('aria-label') || '').includes('Gazetted: Founders Day'));
 
     const headerCell = calendarEl.querySelector('.fc-col-header-cell');
     assert.ok(headerCell.classList.contains('pm-holiday'));

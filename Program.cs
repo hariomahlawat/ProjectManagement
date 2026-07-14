@@ -46,6 +46,7 @@ using ProjectManagement.Hosted;
 using ProjectManagement.Hubs;
 using ProjectManagement.Services.Approvals;
 using ProjectManagement.Infrastructure;
+using ProjectManagement.Infrastructure.Usage;
 using ProjectManagement.Infrastructure.Activities;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Stages;
@@ -82,6 +83,7 @@ using ProjectManagement.Services.Text;
 using ProjectManagement.Services.Startup;
 using ProjectManagement.Services.Security;
 using ProjectManagement.Services.Storage;
+using ProjectManagement.Services.Usage;
 using ProjectManagement.Utilities;
 using ProjectManagement.Utilities.Reporting;
 using System;
@@ -192,6 +194,8 @@ builder.Services.AddAuthorization(options =>
     // SECTION: Administrative capability policies
     // The authoritative catalogue also drives Access Governance, navigation and tests.
     AdminCapabilityCatalog.RegisterPolicies(options);
+    options.AddPolicy(Policies.Usage.View, policy =>
+        policy.RequireRole(Policies.Usage.ViewerRoles));
     options.AddPolicy("Project.Create", policy =>
         policy.RequireRole("Admin", "HoD"));
 
@@ -468,6 +472,10 @@ builder.Services.AddOptions<AdminRecoveryOptions>()
     .Bind(builder.Configuration.GetSection(AdminRecoveryOptions.SectionName))
     .ValidateOnStart();
 builder.Services.AddSingleton<IValidateOptions<AdminRecoveryOptions>, AdminRecoveryOptionsValidator>();
+builder.Services.AddOptions<ErpUsageOptions>()
+    .Bind(builder.Configuration.GetSection(ErpUsageOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<ErpUsageOptions>, ErpUsageOptionsValidator>();
 builder.Services.Configure<IprAttachmentOptions>(
     builder.Configuration.GetSection("IprAttachments"));
 builder.Services.Configure<FfcAttachmentOptions>(
@@ -504,6 +512,11 @@ builder.Services.AddScoped<IAdminMasterDataIntegrityService, AdminMasterDataInte
 builder.Services.AddScoped<ICelebrationAdministrationService, CelebrationAdministrationService>();
 builder.Services.AddScoped<ICalendarRecoveryService, CalendarRecoveryService>();
 builder.Services.AddScoped<IHolidayAdminService, HolidayAdminService>();
+builder.Services.AddScoped<IOfficeCalendarService, OfficeCalendarService>();
+builder.Services.AddSingleton<IErpUsageModuleCatalog, ErpUsageModuleCatalog>();
+builder.Services.AddScoped<IUserActivityRecorder, UserActivityRecorder>();
+builder.Services.AddScoped<IErpUsageQueryService, ErpUsageQueryService>();
+builder.Services.AddHostedService<UserActivityRetentionWorker>();
 builder.Services.AddSingleton<IPdfIngestionRunGate, PdfIngestionRunGate>();
 builder.Services.AddSingleton<IPdfIngestionRunHistory, PdfIngestionRunHistory>();
 builder.Services.AddScoped<IPdfIngestionCoordinator, PdfIngestionCoordinator>();
@@ -1192,12 +1205,50 @@ app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<ErpUsageMiddleware>();
 app.UseAntiforgery();
 
 app.MapHub<NotificationsHub>("/hubs/notifications")
     .RequireAuthorization();
 
 app.MapControllers();
+
+app.MapPost("/api/usage/heartbeat", async (
+        ErpUsageHeartbeatRequest request,
+        HttpContext httpContext,
+        IAntiforgery antiforgery,
+        IErpUsageModuleCatalog moduleCatalog,
+        IUserActivityRecorder recorder,
+        CancellationToken cancellationToken) =>
+    {
+        try
+        {
+            await antiforgery.ValidateRequestAsync(httpContext);
+        }
+        catch (AntiforgeryValidationException)
+        {
+            return Results.BadRequest(new { message = "The request could not be validated." });
+        }
+
+        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (!moduleCatalog.IsKnownModule(request.ModuleKey))
+        {
+            return Results.BadRequest(new { message = "The ERP module is not recognised." });
+        }
+
+        await recorder.RecordAsync(
+            userId,
+            request.ModuleKey,
+            UserActivitySignal.InteractiveHeartbeat,
+            cancellationToken: cancellationToken);
+        return Results.NoContent();
+    })
+    .RequireAuthorization();
 
 // Calendar API endpoints
 var eventsApi = app.MapGroup("/calendar/events");
@@ -1388,9 +1439,10 @@ eventsApi.MapGet("", async (ApplicationDbContext db,
 }).RequireAuthorization();
 
 eventsApi.MapGet("/holidays", async (
-        ApplicationDbContext db,
+        IOfficeCalendarService officeCalendar,
         [FromQuery(Name = "start")] DateTimeOffset start,
-        [FromQuery(Name = "end")] DateTimeOffset end) =>
+        [FromQuery(Name = "end")] DateTimeOffset end,
+        CancellationToken cancellationToken) =>
 {
     if (end <= start)
     {
@@ -1403,38 +1455,23 @@ eventsApi.MapGet("/holidays", async (
     }
 
     var tz = IstClock.TimeZone;
-
     var localStart = TimeZoneInfo.ConvertTime(start, tz);
     var localEnd = TimeZoneInfo.ConvertTime(end, tz);
-
     var startDate = DateOnly.FromDateTime(localStart.Date);
     var endDate = DateOnly.FromDateTime(localEnd.Date);
+    var days = await officeCalendar.GetCalendarDaysAsync(startDate, endDate, cancellationToken);
 
-    var holidays = await db.Holidays
-        .AsNoTracking()
-        .Where(h => h.Date >= startDate && h.Date < endDate)
-        .OrderBy(h => h.Date)
-        .ToListAsync();
-
-    var items = holidays
-        .Select(h =>
-        {
-            var holidayStartLocal = h.Date.ToDateTime(TimeOnly.MinValue);
-            var holidayEndLocal = h.Date.AddDays(1).ToDateTime(TimeOnly.MinValue);
-
-            var startLocalOffset = new DateTimeOffset(holidayStartLocal, tz.GetUtcOffset(holidayStartLocal));
-            var endLocalOffset = new DateTimeOffset(holidayEndLocal, tz.GetUtcOffset(holidayEndLocal));
-
-            return new CalendarHolidayVm(
-                Date: h.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                Name: h.Name,
-                SkipWeekends: null,
-                StartUtc: startLocalOffset.ToUniversalTime(),
-                EndUtc: endLocalOffset.ToUniversalTime());
-        })
-        .ToList();
-
-    return Results.Ok(items);
+    return Results.Ok(days.Select(day => new CalendarHolidayDayVm(
+        Date: day.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+        IsOfficeClosed: day.IsOfficeClosed,
+        ClosureType: day.ClosureType,
+        Entries: day.Entries.Select(entry => new CalendarHolidayEntryVm(
+            entry.Id,
+            entry.Name,
+            entry.Type.ToString(),
+            entry.IsObservedAsOfficeHoliday,
+            entry.AffectsSchedule,
+            entry.AuthorityReference)).ToArray())));
 }).RequireAuthorization();
 
 eventsApi.MapGet("/{id:guid}", async (Guid id, ApplicationDbContext db) =>

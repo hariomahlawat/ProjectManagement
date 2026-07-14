@@ -163,7 +163,7 @@ namespace ProjectManagement.Tests
             await page.OnGetAsync(CancellationToken.None);
 
             var ev = Assert.Single(page.UpcomingEvents);
-            Assert.Equal("Holiday: Republic Day", ev.Title);
+            Assert.Equal("Gazetted holiday: Republic Day", ev.Title);
             Assert.True(ev.IsHoliday);
 
             var expected = holidayDate.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);

@@ -58,6 +58,11 @@
                    data-tooltip="Project Portfolio">
                     <i class="bi bi-diagram-3" aria-hidden="true"></i><span>Project Portfolio</span><b>@vm.TotalOngoingProjects</b>
                 </a>
+                <a asp-page="/Usage/Index"
+                   data-tooltip="ERP adoption"
+                   aria-label="Open ERP usage intelligence">
+                    <i class="bi bi-person-check" aria-hidden="true"></i><span>ERP adoption</span><b>@vm.UsageSummary.ActiveToday</b>
+                </a>
                 <a asp-page="/Workspace/Index"
                    asp-route-mode="command"
                    asp-route-view="officers"
@@ -71,6 +76,15 @@
     </aside>
 
     <main class="cw-workspace-content">
+        <section class="cw-usage-summary" aria-label="ERP adoption summary">
+            <div class="cw-usage-summary__heading"><span><i class="bi bi-person-check"></i></span><div><small>ERP adoption</small><strong>Daily usage posture</strong></div></div>
+            <div class="cw-usage-summary__metrics">
+                <div><strong>@vm.UsageSummary.ActiveToday</strong><span>Active today</span><small>of @vm.UsageSummary.TotalUsers users</small></div>
+                <div><strong>@vm.UsageSummary.RegularUsers</strong><span>Regular users</span><small>30-day working-day posture</small></div>
+                <div class="@(vm.UsageSummary.NoUsageSevenWorkingDays > 0 ? "is-warning" : null)"><strong>@vm.UsageSummary.NoUsageSevenWorkingDays</strong><span>No usage in 7 working days</span><small>Requires command review</small></div>
+            </div>
+            <a asp-page="/Usage/Index" class="cw-usage-summary__action">Review ERP usage <i class="bi bi-arrow-right"></i></a>
+        </section>
     @if (isPortfolio)
     {
         <section class="cw-panel cw-panel--chart">

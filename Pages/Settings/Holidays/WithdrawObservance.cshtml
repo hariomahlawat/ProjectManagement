@@ -1,0 +1,22 @@
+@page "{id:int}"
+@model ProjectManagement.Pages.Settings.Holidays.WithdrawObservanceModel
+@using ProjectManagement.Areas.Admin.Models
+@{
+    ViewData["Title"] = "Withdraw RH office observance";
+    var header = new AdminPageHeaderModel { Eyebrow = "Office calendar · Controlled decision", Title = "Withdraw office observance", Description = "Keep the Restricted Holiday visible for information while returning the date to normal working-day status.", Icon = "bi-building-dash", Actions = new[] { new AdminPageActionModel { Text = "Back to holidays", Href = Model.Item is null ? Url.Page("./Index") : Url.Page("./Index", new { year = Model.Item.Date.Year }), Icon = "bi-arrow-left" } } };
+}
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
+@if (Model.Item is not null)
+{
+<div class="admin-operation-layout"><form method="post" class="admin-panel admin-controlled-operation" novalidate>
+<input asp-for="Input.Id" type="hidden" /><input asp-for="Input.RowVersion" type="hidden" />
+<header><span class="admin-controlled-operation__icon"><i class="bi bi-building-dash"></i></span><div><div class="admin-panel__eyebrow">RH · Office holiday</div><h2>@Model.Item.Name</h2><p>@Model.Item.Date.ToString("dddd, dd MMMM yyyy")</p></div></header>
+<div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
+<dl class="admin-operation-facts"><div><dt>Classification</dt><dd>Restricted Holiday</dd></div><div><dt>Current status</dt><dd>Office closed · Non-working day</dd></div><div><dt>After withdrawal</dt><dd>Information only · Office open</dd></div><div><dt>Calendar</dt><dd>RH remains visible</dd></div></dl>
+<div class="admin-field"><label asp-for="Input.Remarks"></label><textarea asp-for="Input.Remarks" class="form-control" rows="3" maxlength="1200"></textarea><span asp-validation-for="Input.Remarks" class="text-danger"></span></div>
+<div class="form-check admin-confirmation-check"><input asp-for="Input.Confirmed" class="form-check-input" /><label asp-for="Input.Confirmed" class="form-check-label"></label><span asp-validation-for="Input.Confirmed" class="text-danger d-block"></span></div>
+<div class="admin-operation-notice"><i class="bi bi-exclamation-triangle"></i><div><strong>Schedule impact</strong><span>Future calculations will treat this date as a working day. Existing approved or persisted project dates will not be silently changed.</span></div></div>
+<footer><a asp-page="./Index" asp-route-year="@Model.Item.Date.Year" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit"><i class="bi bi-building-dash"></i>Withdraw observance</button></footer>
+</form></div>
+}
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

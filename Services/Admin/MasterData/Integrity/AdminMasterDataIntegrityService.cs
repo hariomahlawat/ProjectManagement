@@ -4,6 +4,8 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Activities;
 using ProjectManagement.Services.Admin;
 
+using ProjectManagement.Models.Scheduling;
+
 namespace ProjectManagement.Services.Admin.MasterData.Integrity;
 
 public enum MasterDataIntegrityStatus
@@ -90,7 +92,7 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
             .Select(item => new ActivityProjection(item.Id, item.Name, item.IsActive, item.Activities.Any(activity => !activity.IsDeleted)))
             .ToListAsync(cancellationToken);
         var holidays = await _db.Holidays.AsNoTracking()
-            .Select(item => new HolidayProjection(item.Id, item.Date, item.Name))
+            .Select(item => new HolidayProjection(item.Id, item.Date, item.Name, item.Type, item.IsObservedAsOfficeHoliday))
             .ToListAsync(cancellationToken);
         var celebrations = await _db.Celebrations.AsNoTracking()
             .Where(item => item.DeletedUtc == null)
@@ -109,7 +111,7 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
             BuildCheck("active-parent-state", "Category activation consistency", "An active child should not remain below an inactive parent.", "bi-node-plus", ActiveChildFindings(projectCategories, "Project category").Concat(ActiveChildFindings(technicalCategories, "Technical category")).ToArray()),
             BuildCheck("inactive-references", "Inactive records in use", "Inactive values may remain for history, but active operational records should not depend on them without review.", "bi-link-45deg", InactiveReferenceFindings(projectCategories, technicalCategories, projectTypes, sponsoringUnits, lineDirectorates, activityTypes)),
             BuildCheck("normalised-names", "Normalised name uniqueness", "Names must remain unique after trimming and case normalisation.", "bi-type", DuplicateNameFindings(projectCategories, technicalCategories, projectTypes, sponsoringUnits, lineDirectorates, activityTypes), critical: true),
-            BuildCheck("holiday-dates", "Holiday dates", "Only one official holiday may be recorded for each calendar date.", "bi-calendar-week", HolidayFindings(holidays), critical: true),
+            BuildCheck("holiday-dates", "Holiday classification and dates", "Holiday names must be unique within a classification, Gazetted dates must be singular and Gazetted entries must remain office-observed.", "bi-calendar-week", HolidayFindings(holidays), critical: true),
             BuildCheck("celebration-dates", "Celebration annual dates", "Annual calendar records must contain a valid day and month combination.", "bi-stars", CelebrationFindings(celebrations), critical: true)
         };
 
@@ -398,14 +400,43 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
                 label));
 
     private static IReadOnlyList<MasterDataIntegrityFinding> HolidayFindings(
-        IReadOnlyList<HolidayProjection> holidays) =>
-        holidays.GroupBy(item => item.Date)
+        IReadOnlyList<HolidayProjection> holidays)
+    {
+        var findings = new List<MasterDataIntegrityFinding>();
+
+        findings.AddRange(holidays
+            .GroupBy(item => new
+            {
+                item.Date,
+                item.Type,
+                Name = item.Name.Trim().ToUpperInvariant()
+            })
             .Where(group => group.Count() > 1)
             .Select(group => new MasterDataIntegrityFinding(
-                "duplicate-holiday-date",
-                $"Multiple holidays are recorded on {group.Key:dd MMM yyyy}: {string.Join(", ", group.Select(item => item.Name))}.",
-                "Holiday"))
-            .ToArray();
+                "duplicate-holiday-entry",
+                $"Duplicate {group.Key.Type} holiday entry '{group.First().Name}' is recorded on {group.Key.Date:dd MMM yyyy}.",
+                "Holiday")));
+
+        findings.AddRange(holidays
+            .Where(item => item.Type == HolidayType.Gazetted)
+            .GroupBy(item => item.Date)
+            .Where(group => group.Count() > 1)
+            .Select(group => new MasterDataIntegrityFinding(
+                "multiple-gazetted-holidays",
+                $"More than one Gazetted Holiday is recorded on {group.Key:dd MMM yyyy}: {string.Join(", ", group.Select(item => item.Name))}.",
+                "Holiday")));
+
+        findings.AddRange(holidays
+            .Where(item => item.Type == HolidayType.Gazetted && !item.IsObservedAsOfficeHoliday)
+            .Select(item => new MasterDataIntegrityFinding(
+                "gazetted-not-observed",
+                $"Gazetted Holiday '{item.Name}' is not marked as an office holiday.",
+                "Holiday",
+                item.Id.ToString(),
+                item.Name)));
+
+        return findings;
+    }
 
     private static IReadOnlyList<MasterDataIntegrityFinding> CelebrationFindings(
         IReadOnlyList<CelebrationProjection> celebrations)
@@ -500,6 +531,6 @@ public sealed class AdminMasterDataIntegrityService : IAdminMasterDataIntegrityS
     private sealed record CategoryProjection(int Id, string Name, int? ParentId, bool IsActive, int SortOrder, bool IsReferenced) : IReferenceProjection;
     private sealed record FlatProjection(int Id, string Name, bool IsActive, int SortOrder, bool IsReferenced) : IReferenceProjection;
     private sealed record ActivityProjection(int Id, string Name, bool IsActive, bool IsReferenced) : IReferenceProjection;
-    private sealed record HolidayProjection(int Id, DateOnly Date, string Name);
+    private sealed record HolidayProjection(int Id, DateOnly Date, string Name, HolidayType Type, bool IsObservedAsOfficeHoliday);
     private sealed record CelebrationProjection(Guid Id, string Name, byte Day, byte Month, short? Year);
 }

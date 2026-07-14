@@ -4,6 +4,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Usage;
 using ProjectManagement.ViewModels.Workspace;
 
 namespace ProjectManagement.Services.Workspace;
@@ -15,17 +16,23 @@ public sealed class CommandWorkspaceService
     private readonly ApplicationDbContext _db;
     private readonly IOfficerWorkloadReadService _officerWorkloadReadService;
     private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
+    private readonly IErpUsageQueryService? _usageQueryService;
+    private readonly ILogger<CommandWorkspaceService>? _logger;
 
     public CommandWorkspaceService(
         ApplicationDbContext db,
         IOfficerWorkloadReadService officerWorkloadReadService,
-        IWorkflowStageMetadataProvider workflowStageMetadataProvider)
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+        IErpUsageQueryService? usageQueryService = null,
+        ILogger<CommandWorkspaceService>? logger = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _officerWorkloadReadService = officerWorkloadReadService
             ?? throw new ArgumentNullException(nameof(officerWorkloadReadService));
         _workflowStageMetadataProvider = workflowStageMetadataProvider
             ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
+        _usageQueryService = usageQueryService;
+        _logger = logger;
     }
 
     public async Task<CommandWorkspaceVm> GetAsync(
@@ -167,7 +174,8 @@ public sealed class CommandWorkspaceService
             StageColumns = stageColumns,
             Officers = Array.Empty<CommandOfficerWorkloadVm>(),
             StageOptions = stageOptions,
-            ProjectOfficerCount = officerCount
+            ProjectOfficerCount = officerCount,
+            UsageSummary = await BuildUsageSummaryAsync(cancellationToken)
         };
     }
 
@@ -199,8 +207,42 @@ public sealed class CommandWorkspaceService
             StageColumns = Array.Empty<CommandStageColumnVm>(),
             Officers = officers,
             StageOptions = Array.Empty<CommandFilterOptionVm>(),
-            ProjectOfficerCount = officers.Count
+            ProjectOfficerCount = officers.Count,
+            UsageSummary = await BuildUsageSummaryAsync(cancellationToken)
         };
+    }
+
+    private async Task<CommandUsageSummaryVm> BuildUsageSummaryAsync(CancellationToken cancellationToken)
+    {
+        if (_usageQueryService is null)
+        {
+            return new CommandUsageSummaryVm();
+        }
+
+        try
+        {
+            var summary = await _usageQueryService.GetCommandSummaryAsync(cancellationToken);
+            return new CommandUsageSummaryVm
+            {
+                TotalUsers = summary.TotalUsers,
+                ActiveToday = summary.ActiveToday,
+                RegularUsers = summary.RegularUsers,
+                NoUsageSevenWorkingDays = summary.NoUsageSevenWorkingDays
+            };
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            // Usage intelligence is an advisory command signal. A telemetry/query failure must
+            // never make the operational Command Workspace unavailable.
+            _logger?.LogWarning(
+                exception,
+                "ERP usage summary could not be loaded for the Command Workspace.");
+            return new CommandUsageSummaryVm();
+        }
     }
 
     private static IReadOnlyList<CommandStageColumnVm> BuildStageColumns(

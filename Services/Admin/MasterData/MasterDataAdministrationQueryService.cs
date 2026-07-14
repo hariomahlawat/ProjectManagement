@@ -252,13 +252,15 @@ public sealed class MasterDataAdministrationQueryService : IMasterDataAdministra
             Domain("sponsoring-units", "Sponsoring units", "Units and formations sponsoring projects and requirements.", "bi-building", "Admin", "/Lookups/SponsoringUnits/Index", sponsoringUnits, AdminPolicies.MasterDataManage),
             Domain("line-directorates", "Line directorates", "Line directorates associated with project sponsorship.", "bi-diagram-2", "Admin", "/Lookups/LineDirectorates/Index", lineDirectorates, AdminPolicies.MasterDataManage),
             Domain("activity-types", "Activity types", "Controlled activity classifications used across planning and reporting.", "bi-list-task", "Admin", "/ActivityTypes/Index", activityTypes, AdminPolicies.ActivityTypesManage),
-            Domain("holidays", $"Holidays · {holidayYear}", "Official non-working dates used by schedule calculations.", "bi-calendar-week", string.Empty, "/Settings/Holidays/Index", holidays, AdminPolicies.HolidaysManage),
+            Domain("holidays", $"Holidays · {holidayYear}", "Gazetted Holidays, Restricted Holidays and office-observance decisions used by the shared calendar and schedule calculations.", "bi-calendar-week", string.Empty, "/Settings/Holidays/Index", holidays, AdminPolicies.HolidaysManage),
             Domain("celebrations", "Celebrations", "Birthdays and anniversaries shown in the shared calendar.", "bi-stars", string.Empty, "/Celebrations/Index", celebrations, Policies.Calendar.ManageCelebrations)
         };
 
         var auditRows = await _db.AuditLogs.AsNoTracking()
             .Where(item => item.Action.StartsWith("MasterData.")
                 || item.Action.StartsWith("Holiday")
+                || item.Action.StartsWith("GazettedHoliday")
+                || item.Action.StartsWith("RestrictedHoliday")
                 || item.Action.StartsWith("Celebration"))
             .OrderByDescending(item => item.TimeUtc)
             .ThenByDescending(item => item.Id)
