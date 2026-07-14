@@ -54,9 +54,11 @@ using ProjectManagement.Services.Activities;
 using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.AccessGovernance;
 using ProjectManagement.Services.Admin.Calendar;
 using ProjectManagement.Services.Admin.Ingestion;
 using ProjectManagement.Services.Admin.MasterData;
+using ProjectManagement.Services.Admin.MasterData.Integrity;
 using ProjectManagement.Services.Admin.Maintenance;
 using ProjectManagement.Services.Admin.Recovery;
 using ProjectManagement.Services.Dashboard;
@@ -188,21 +190,8 @@ builder.Services
 builder.Services.AddAuthorization(options =>
 {
     // SECTION: Administrative capability policies
-    options.AddPolicy(AdminPolicies.Access, policy => policy.RequireRole(RoleNames.Admin));
-    options.AddPolicy(AdminPolicies.UsersManage, policy => policy.RequireRole(RoleNames.Admin));
-    options.AddPolicy(AdminPolicies.SecurityView, policy => policy.RequireRole(RoleNames.Admin));
-    options.AddPolicy(AdminPolicies.LogsView, policy => policy.RequireRole(RoleNames.Admin));
-    options.AddPolicy(AdminPolicies.RecoveryManage, policy => policy.RequireRole(RoleNames.Admin));
-    options.AddPolicy(AdminPolicies.MasterDataManage, policy => policy.RequireRole(RoleNames.Admin));
-    options.AddPolicy(AdminPolicies.ActivityTypesManage, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
-    options.AddPolicy(AdminPolicies.HolidaysManage, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
-    options.AddPolicy(AdminPolicies.IngestionManage, policy => policy.RequireRole(RoleNames.Admin));
-    options.AddPolicy(AdminPolicies.MediaManage, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
-    options.AddPolicy(AdminPolicies.MediaView, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
-    options.AddPolicy(AdminPolicies.MediaConfigure, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
-    options.AddPolicy(AdminPolicies.MediaOperateQueue, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
-    options.AddPolicy(AdminPolicies.MediaRecover, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
-    options.AddPolicy(AdminPolicies.MediaClassificationManage, policy => policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
+    // The authoritative catalogue also drives Access Governance, navigation and tests.
+    AdminCapabilityCatalog.RegisterPolicies(options);
     options.AddPolicy("Project.Create", policy =>
         policy.RequireRole("Admin", "HoD"));
 
@@ -500,6 +489,7 @@ builder.Services.AddScoped<IAdminTimeService, AdminTimeService>();
 builder.Services.AddSingleton<IAdminRoleDescriptorCatalog, AdminRoleDescriptorCatalog>();
 builder.Services.AddSingleton<IAuditActionPresentationCatalog, AuditActionPresentationCatalog>();
 builder.Services.AddSingleton<IAdminClientDescriptorService, AdminClientDescriptorService>();
+builder.Services.AddSingleton<IAdminCapabilityCatalog, AdminCapabilityCatalog>();
 builder.Services.AddSingleton<IAdminAuditPayloadParser, AdminAuditPayloadParser>();
 builder.Services.AddSingleton<IAdminAuditEntityLinkResolver, AdminAuditEntityLinkResolver>();
 builder.Services.AddSingleton<IAdminWorkerStatusRegistry, AdminWorkerStatusRegistry>();
@@ -510,6 +500,7 @@ builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
 builder.Services.AddScoped<IAdminHierarchyValidationService, AdminHierarchyValidationService>();
 builder.Services.AddScoped<IAdminMasterDataCommandService, AdminMasterDataCommandService>();
 builder.Services.AddScoped<IMasterDataAdministrationQueryService, MasterDataAdministrationQueryService>();
+builder.Services.AddScoped<IAdminMasterDataIntegrityService, AdminMasterDataIntegrityService>();
 builder.Services.AddScoped<ICelebrationAdministrationService, CelebrationAdministrationService>();
 builder.Services.AddScoped<ICalendarRecoveryService, CalendarRecoveryService>();
 builder.Services.AddScoped<IHolidayAdminService, HolidayAdminService>();
@@ -525,6 +516,7 @@ builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 builder.Services.AddScoped<IAdminLoginOverviewService, AdminLoginOverviewService>();
 builder.Services.AddScoped<IAdminLoginMonitoringService, AdminLoginMonitoringService>();
 builder.Services.AddScoped<IAdminUserQueryService, AdminUserQueryService>();
+builder.Services.AddScoped<IAdminAccessGovernanceService, AdminAccessGovernanceService>();
 builder.Services.AddScoped<IAdminLogQueryService, AdminLogQueryService>();
 builder.Services.AddScoped<IDatabaseHealthService, DatabaseHealthService>();
 builder.Services.AddScoped<IAdminSystemHealthService, AdminSystemHealthService>();

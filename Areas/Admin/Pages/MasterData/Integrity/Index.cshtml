@@ -1,0 +1,106 @@
+@page
+@model ProjectManagement.Areas.Admin.Pages.MasterData.Integrity.IndexModel
+@using ProjectManagement.Services.Admin.MasterData.Integrity
+@{
+    ViewData["Title"] = "Configuration integrity";
+}
+
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
+
+<section class="admin-integrity-metric-grid" aria-label="Configuration integrity summary">
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral">
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-list-check"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.Checks.Count</strong><span>Checks completed</span><small>@Model.FormatIst(Model.Snapshot.CheckedUtc)</small></span>
+    </article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--success">
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-check-circle"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.Healthy</strong><span>Healthy</span><small>No findings</small></span>
+    </article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--@(Model.Snapshot.Warnings > 0 ? "warning" : "neutral")">
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-exclamation-triangle"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.Warnings</strong><span>Review</span><small>Non-critical integrity findings</small></span>
+    </article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--@(Model.Snapshot.Critical > 0 ? "danger" : "neutral")">
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-exclamation-octagon"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.Critical</strong><span>Critical</span><small>Structural correction required</small></span>
+    </article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--@(Model.Snapshot.Findings > 0 ? "warning" : "success")">
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi bi-clipboard-data"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Snapshot.Findings</strong><span>Total findings</span><small>Across all controlled domains</small></span>
+    </article>
+</section>
+
+<section class="admin-panel" aria-labelledby="integrity-checks-title">
+    <header class="admin-panel__header">
+        <div><div class="admin-panel__eyebrow">Assurance checks</div><h2 id="integrity-checks-title">Integrity posture</h2></div>
+        <span class="admin-panel__meta">Repairs are limited to deterministic display-order normalisation</span>
+    </header>
+
+    <div class="admin-integrity-check-list">
+        @foreach (var check in Model.Snapshot.Checks)
+        {
+            var tone = Model.Tone(check.Status);
+            <article id="integrity-@check.Key" class="admin-integrity-check admin-integrity-check--@tone">
+                <div class="admin-integrity-check__summary">
+                    <span class="admin-integrity-check__icon" aria-hidden="true"><i class="bi @check.Icon"></i></span>
+                    <div class="admin-integrity-check__copy">
+                        <div class="admin-integrity-check__title">
+                            <strong>@check.Title</strong>
+                            <span class="admin-status-pill admin-status-pill--@tone">@Model.StatusLabel(check.Status)</span>
+                        </div>
+                        <p>@check.Description</p>
+                    </div>
+                    <div class="admin-integrity-check__count">
+                        <strong>@check.Findings.Count</strong>
+                        <span>finding@(check.Findings.Count == 1 ? string.Empty : "s")</span>
+                    </div>
+                </div>
+
+                @if (check.Findings.Count > 0)
+                {
+                    <details class="admin-integrity-findings" open="@(check.Status == MasterDataIntegrityStatus.Critical ? "open" : null)">
+                        <summary>Review findings</summary>
+                        <ul>
+                            @foreach (var finding in check.Findings.Take(25))
+                            {
+                                <li>
+                                    <i class="bi @(check.Status == MasterDataIntegrityStatus.Critical ? "bi-exclamation-octagon" : "bi-exclamation-triangle")" aria-hidden="true"></i>
+                                    <span>@finding.Message</span>
+                                </li>
+                            }
+                        </ul>
+                        @if (check.Findings.Count > 25)
+                        {
+                            <p class="admin-muted-value">Showing the first 25 of @check.Findings.Count findings.</p>
+                        }
+                    </details>
+                }
+
+                @if (check.CanRepair)
+                {
+                    <form method="post" asp-page-handler="NormaliseOrder" class="admin-integrity-repair" data-admin-controlled-submit>
+                        <input type="hidden" name="checkKey" value="@check.Key" />
+                        <label class="form-check">
+                            <input class="form-check-input" type="checkbox" name="acknowledge" value="true" required />
+                            <span class="form-check-label">I reviewed the findings and authorise deterministic order normalisation.</span>
+                        </label>
+                        <button class="btn btn-warning" type="submit">
+                            <i class="bi bi-arrow-down-up" aria-hidden="true"></i>
+                            @(check.RepairLabel ?? "Apply repair")
+                        </button>
+                    </form>
+                }
+            </article>
+        }
+    </div>
+</section>
+
+<section class="admin-guidance-strip" aria-label="Integrity repair guidance">
+    <span aria-hidden="true"><i class="bi bi-shield-check"></i></span>
+    <div>
+        <strong>Controlled repair boundary</strong>
+        <p>Automatic repair changes only deterministic display positions. Hierarchy, naming and reference findings require an administrator to review the affected record before changing it.</p>
+    </div>
+    <a asp-area="Admin" asp-page="/Help/Index" asp-fragment="master-data">Read guidance <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+</section>

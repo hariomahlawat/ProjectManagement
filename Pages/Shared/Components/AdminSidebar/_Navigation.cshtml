@@ -1,13 +1,36 @@
 @model ProjectManagement.ViewComponents.AdminSidebarViewModel
+@{
+    var instance = ViewData["AdminSidebarInstance"] as string ?? "admin";
+    var searchId = $"admin-navigation-search-{instance}";
+}
 
-<nav class="admin-sidebar__nav" aria-label="Administration sections">
+<div class="admin-sidebar__search" data-admin-sidebar-search-wrap>
+    <i class="bi bi-search" aria-hidden="true"></i>
+    <label class="visually-hidden" for="@searchId">Search administration</label>
+    <input id="@searchId"
+           type="search"
+           placeholder="Find administration page"
+           autocomplete="off"
+           data-admin-sidebar-search />
+    <button type="button" data-admin-sidebar-search-clear aria-label="Clear administration search" hidden>
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
+    </button>
+</div>
+
+<nav class="admin-sidebar__nav" aria-label="Administration sections" data-admin-sidebar-nav>
     @foreach (var group in Model.Groups)
     {
-        <section class="admin-sidebar__group@(group.IsActive ? " is-active" : string.Empty)"
-                 aria-label="@group.Name">
-            <h2 class="admin-sidebar__group-label">
-                @group.Name
-            </h2>
+        var groupKey = group.Name.ToLowerInvariant().Replace(" & ", "-").Replace(" ", "-");
+        var isInitiallyOpen = group.IsActive || string.Equals(group.Name, "Overview", StringComparison.Ordinal);
+        <details class="admin-sidebar__group@(group.IsActive ? " is-active" : string.Empty)"
+                 data-admin-sidebar-group
+                 data-group-key="@groupKey"
+                 data-active-group="@(group.IsActive ? "true" : "false")"
+                 open="@(isInitiallyOpen ? "open" : null)">
+            <summary class="admin-sidebar__group-label">
+                <span>@group.Name</span>
+                <i class="bi bi-chevron-down" aria-hidden="true"></i>
+            </summary>
 
             <div class="admin-sidebar__items">
                 @foreach (var item in group.Items)
@@ -19,7 +42,8 @@
                         <a class="@itemClasses"
                            href="@item.Url"
                            aria-current="@(item.IsActive ? "page" : null)"
-                           data-admin-sidebar-link>
+                           data-admin-sidebar-link
+                           data-admin-sidebar-label="@item.Text.ToLowerInvariant()">
                             <span class="admin-sidebar__item-icon" aria-hidden="true">
                                 <i class="bi @(item.Icon ?? "bi-circle")"></i>
                             </span>
@@ -28,7 +52,7 @@
                     }
                     else
                     {
-                        <span class="@itemClasses" aria-disabled="true">
+                        <span class="@itemClasses" aria-disabled="true" data-admin-sidebar-label="@item.Text.ToLowerInvariant()">
                             <span class="admin-sidebar__item-icon" aria-hidden="true">
                                 <i class="bi @(item.Icon ?? "bi-circle")"></i>
                             </span>
@@ -37,6 +61,7 @@
                     }
                 }
             </div>
-        </section>
+        </details>
     }
+    <p class="admin-sidebar__no-results" data-admin-sidebar-no-results hidden>No authorised pages match this search.</p>
 </nav>

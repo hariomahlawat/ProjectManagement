@@ -10,7 +10,7 @@
 <partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
 <partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 
-<section class="admin-monitoring-metrics admin-monitoring-metrics--four" aria-label="Calendar recovery summary">
+<section class="admin-recovery-metric-grid admin-recovery-metric-grid--compact" aria-label="Calendar recovery summary">
     <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-calendar-x"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.TotalCount</strong><span>Deleted events</span><small>Current filter scope</small></span></article>
     <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-arrow-repeat"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.RecurringCount</strong><span>Recurring series</span><small>Series definition retained</small></span></article>
     <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-calendar2-week"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.AllDayCount</strong><span>All-day events</span><small>Original dates preserved</small></span></article>

@@ -43,6 +43,13 @@ public sealed class IndexModel : PageModel
             {
                 new AdminPageActionModel
                 {
+                    Text = "Integrity review",
+                    Href = Url.Page("/MasterData/Integrity/Index", new { area = "Admin" }),
+                    Icon = "bi-clipboard2-check",
+                    IsPrimary = true
+                },
+                new AdminPageActionModel
+                {
                     Text = "Administration guide",
                     Href = Url.Page("/Help/Index", new { area = "Admin", section = "master-data" }),
                     Icon = "bi-question-circle"

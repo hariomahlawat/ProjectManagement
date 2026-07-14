@@ -85,7 +85,8 @@ public sealed partial class AuditActionPresentationCatalog : IAuditActionPresent
             ["CelebrationDeleted"] = new("Celebration deleted", "bi-trash3", "danger", "Master data", "Celebration"),
             ["MasterData.Created"] = new("Master-data item created", "bi-plus-circle", "success", "Master data"),
             ["MasterData.Updated"] = new("Master-data item updated", "bi-pencil-square", "neutral", "Master data"),
-            ["MasterData.Deactivated"] = new("Master-data item deactivated", "bi-slash-circle", "warning", "Master data")
+            ["MasterData.Deactivated"] = new("Master-data item deactivated", "bi-slash-circle", "warning", "Master data"),
+            ["MasterData.IntegrityOrderNormalised"] = new("Display order normalised", "bi-arrow-down-up", "success", "Master data", "MasterDataIntegrity")
         };
 
     public AuditActionPresentation Describe(string? action, string? level = null)

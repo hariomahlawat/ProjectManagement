@@ -8,6 +8,7 @@ public static class AdminNavigationKeys
 {
     public const string Dashboard = "dashboard";
     public const string Users = "users";
+    public const string AccessGovernance = "access-governance";
     public const string Logins = "logins";
     public const string Logs = "logs";
     public const string DatabaseHealth = "database-health";
@@ -17,6 +18,7 @@ public static class AdminNavigationKeys
     public const string PdfIngestion = "pdf-ingestion";
     public const string DeletedEvents = "deleted-events";
     public const string MasterDataCentre = "master-data-centre";
+    public const string MasterDataIntegrity = "master-data-integrity";
     public const string Holidays = "holidays";
     public const string Celebrations = "celebrations";
     public const string ProjectCategories = "project-categories";
@@ -132,6 +134,14 @@ public static class AdminNavigationCatalog
             showOnDashboard: true),
 
         Entry(
+            AdminNavigationKeys.AccessGovernance,
+            AdminNavigationGroups.AccessSecurity,
+            25,
+            Item("Access governance", "Admin", "/AccessGovernance/Index", "bi-shield-check", AdminPolicies.AccessGovernanceView),
+            matchPagePattern: "/AccessGovernance/",
+            showOnDashboard: true),
+
+        Entry(
             AdminNavigationKeys.Logins,
             AdminNavigationGroups.Monitoring,
             30,
@@ -227,6 +237,14 @@ public static class AdminNavigationCatalog
             115,
             Item("Master data centre", "Admin", "/MasterData/Index", "bi-sliders2", AdminPolicies.MasterDataManage),
             exactPage: true,
+            showOnDashboard: true),
+
+        Entry(
+            AdminNavigationKeys.MasterDataIntegrity,
+            AdminNavigationGroups.MasterData,
+            117,
+            Item("Configuration integrity", "Admin", "/MasterData/Integrity/Index", "bi-clipboard2-check", AdminPolicies.IntegrityManage),
+            matchPagePattern: "/MasterData/Integrity/",
             showOnDashboard: true),
 
         Entry(

@@ -686,7 +686,10 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
+            var nextSortOrder = (await set.AsNoTracking()
+                .MaxAsync(item => (int?)EF.Property<int>(item, "SortOrder"), cancellationToken) ?? -1) + 1;
             var entity = factory(name);
+            _db.Entry(entity).Property("SortOrder").CurrentValue = nextSortOrder;
             set.Add(entity);
             await _db.SaveChangesAsync(cancellationToken);
             var id = getId(entity);
@@ -742,8 +745,10 @@ public sealed class AdminMasterDataCommandService : IAdminMasterDataCommandServi
         }
 
         var before = snapshot(entity);
+        var preservedSortOrder = (int)(_db.Entry(entity).Property("SortOrder").CurrentValue ?? 0);
         _db.Entry(entity).Property("RowVersion").OriginalValue = command.RowVersion;
         apply(entity, name);
+        _db.Entry(entity).Property("SortOrder").CurrentValue = preservedSortOrder;
 
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
         try

@@ -43,12 +43,14 @@ public sealed class AdminNavigationCatalogTests
     public void SensitiveDestinations_UseExpectedPolicies()
     {
         Assert.Equal(AdminPolicies.UsersManage, AdminNavigationCatalog.Get(AdminNavigationKeys.Users).AuthorizationPolicy);
+        Assert.Equal(AdminPolicies.AccessGovernanceView, AdminNavigationCatalog.Get(AdminNavigationKeys.AccessGovernance).AuthorizationPolicy);
         Assert.Equal(AdminPolicies.LogsView, AdminNavigationCatalog.Get(AdminNavigationKeys.Logs).AuthorizationPolicy);
         Assert.Equal(AdminPolicies.RecoveryManage, AdminNavigationCatalog.Get(AdminNavigationKeys.RecoveryCentre).AuthorizationPolicy);
         Assert.Equal(AdminPolicies.RecoveryManage, AdminNavigationCatalog.Get(AdminNavigationKeys.ProjectTrash).AuthorizationPolicy);
         Assert.Equal(AdminPolicies.RecoveryManage, AdminNavigationCatalog.Get(AdminNavigationKeys.DocumentRecycle).AuthorizationPolicy);
         Assert.Equal(AdminPolicies.RecoveryManage, AdminNavigationCatalog.Get(AdminNavigationKeys.DeletedEvents).AuthorizationPolicy);
         Assert.Equal(AdminPolicies.MasterDataManage, AdminNavigationCatalog.Get(AdminNavigationKeys.MasterDataCentre).AuthorizationPolicy);
+        Assert.Equal(AdminPolicies.IntegrityManage, AdminNavigationCatalog.Get(AdminNavigationKeys.MasterDataIntegrity).AuthorizationPolicy);
         Assert.Equal(AdminPolicies.HolidaysManage, AdminNavigationCatalog.Get(AdminNavigationKeys.Holidays).AuthorizationPolicy);
         Assert.Equal(Policies.Calendar.ManageCelebrations, AdminNavigationCatalog.Get(AdminNavigationKeys.Celebrations).AuthorizationPolicy);
         Assert.Equal(AdminPolicies.IngestionManage, AdminNavigationCatalog.Get(AdminNavigationKeys.PdfIngestion).AuthorizationPolicy);
@@ -57,10 +59,12 @@ public sealed class AdminNavigationCatalogTests
     [Theory]
     [InlineData("Admin", "/Users/Index", AdminNavigationKeys.Users)]
     [InlineData("Admin", "/Users/Edit", AdminNavigationKeys.Users)]
+    [InlineData("Admin", "/AccessGovernance/Index", AdminNavigationKeys.AccessGovernance)]
     [InlineData("Admin", "/Analytics/Index", AdminNavigationKeys.Logins)]
     [InlineData("Admin", "/Recovery/Index", AdminNavigationKeys.RecoveryCentre)]
     [InlineData("Admin", "/Projects/Archived", AdminNavigationKeys.ArchivedProjects)]
     [InlineData("Admin", "/MasterData/Index", AdminNavigationKeys.MasterDataCentre)]
+    [InlineData("Admin", "/MasterData/Integrity/Index", AdminNavigationKeys.MasterDataIntegrity)]
     [InlineData("Admin", "/Lookups/ProjectTypes/Edit", AdminNavigationKeys.ProjectTypes)]
     [InlineData("", "/Settings/Holidays/Edit", AdminNavigationKeys.Holidays)]
     [InlineData("", "/Celebrations/Edit", AdminNavigationKeys.Celebrations)]

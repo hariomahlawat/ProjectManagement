@@ -109,12 +109,12 @@
                             <td>
                                 <div class="admin-order-control">
                                     <span>@(row.SortOrder + 1)</span>
-                                    <form method="post" asp-area="@Model.Area" asp-page="@Model.IndexPage" asp-page-handler="@Model.MoveHandler">
+                                    <form method="post" data-admin-controlled-submit asp-area="@Model.Area" asp-page="@Model.IndexPage" asp-page-handler="@Model.MoveHandler">
                                         <input type="hidden" name="id" value="@row.Id" />
                                         <input type="hidden" name="offset" value="-1" />
                                         <button class="btn btn-sm btn-icon" type="submit" disabled="@(!row.CanMoveUp ? "disabled" : null)" aria-label="Move @row.Name up"><i class="bi bi-chevron-up" aria-hidden="true"></i></button>
                                     </form>
-                                    <form method="post" asp-area="@Model.Area" asp-page="@Model.IndexPage" asp-page-handler="@Model.MoveHandler">
+                                    <form method="post" data-admin-controlled-submit asp-area="@Model.Area" asp-page="@Model.IndexPage" asp-page-handler="@Model.MoveHandler">
                                         <input type="hidden" name="id" value="@row.Id" />
                                         <input type="hidden" name="offset" value="1" />
                                         <button class="btn btn-sm btn-icon" type="submit" disabled="@(!row.CanMoveDown ? "disabled" : null)" aria-label="Move @row.Name down"><i class="bi bi-chevron-down" aria-hidden="true"></i></button>
@@ -128,7 +128,7 @@
                                         <li><a class="dropdown-item" asp-area="@Model.Area" asp-page="@Model.CreatePage" asp-route-parentId="@row.Id"><i class="bi bi-node-plus" aria-hidden="true"></i>Add child</a></li>
                                         <li><a class="dropdown-item" asp-area="@Model.Area" asp-page="@Model.EditPage" asp-route-id="@row.Id"><i class="bi bi-pencil-square" aria-hidden="true"></i>Edit</a></li>
                                         <li>
-                                            <form method="post" asp-area="@Model.Area" asp-page="@Model.IndexPage" asp-page-handler="@Model.ToggleHandler">
+                                            <form method="post" data-admin-controlled-submit asp-area="@Model.Area" asp-page="@Model.IndexPage" asp-page-handler="@Model.ToggleHandler">
                                                 <input type="hidden" name="id" value="@row.Id" />
                                                 <button class="dropdown-item" type="submit"><i class="bi @(row.IsActive ? "bi-slash-circle" : "bi-check-circle")" aria-hidden="true"></i>@(row.IsActive ? "Deactivate" : "Activate")</button>
                                             </form>

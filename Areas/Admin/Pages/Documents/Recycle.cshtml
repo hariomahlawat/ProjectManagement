@@ -9,7 +9,7 @@
 <partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
 <partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 
-<section class="admin-monitoring-metrics admin-monitoring-metrics--four" aria-label="Document recovery summary">
+<section class="admin-recovery-metric-grid admin-recovery-metric-grid--compact" aria-label="Document recovery summary">
     <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-files"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.TotalCount</strong><span>Recoverable documents</span><small>Current filter scope</small></span></article>
     <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-device-ssd"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.FormatBytes(Model.Result.TotalBytes)</strong><span>Stored files</span><small>Measured recycle storage</small></span></article>
     <article class="admin-monitoring-metric admin-monitoring-metric--success"><span class="admin-monitoring-metric__icon"><i class="bi bi-arrow-counterclockwise"></i></span><span class="admin-monitoring-metric__copy"><strong>Restorable</strong><span>Published state retained</span><small>Project and stage links preserved</small></span></article>

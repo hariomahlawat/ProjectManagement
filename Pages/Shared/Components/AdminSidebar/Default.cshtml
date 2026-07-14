@@ -28,7 +28,11 @@
 
     @await Html.PartialAsync(
         "~/Pages/Shared/Components/AdminSidebar/_Navigation.cshtml",
-        Model)
+        Model,
+        new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData)
+        {
+            ["AdminSidebarInstance"] = "desktop"
+        })
 </aside>
 
 <div class="offcanvas offcanvas-start admin-sidebar-offcanvas"
@@ -53,6 +57,10 @@
     <div class="offcanvas-body admin-sidebar-offcanvas__body">
         @await Html.PartialAsync(
             "~/Pages/Shared/Components/AdminSidebar/_Navigation.cshtml",
-            Model)
+            Model,
+            new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData)
+            {
+                ["AdminSidebarInstance"] = "mobile"
+            })
     </div>
 </div>

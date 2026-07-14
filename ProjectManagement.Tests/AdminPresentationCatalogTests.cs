@@ -24,6 +24,7 @@ public sealed class AdminPresentationCatalogTests
     [InlineData("AdminUserPasswordReset", "User password reset")]
     [InlineData("CustomAuditAction", "Custom Audit Action")]
     [InlineData("MasterData.ProjectCategoryCreated", "Project category created")]
+    [InlineData("MasterData.IntegrityOrderNormalised", "Display order normalised")]
     public void AuditCatalog_ReturnsReadableLabels(string action, string expected)
     {
         var catalog = new AuditActionPresentationCatalog();

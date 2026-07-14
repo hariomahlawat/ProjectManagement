@@ -23,6 +23,22 @@
             </div>
         </section>
 
+        <section id="access-governance" class="admin-panel admin-guide-section">
+            <header class="admin-panel__header">
+                <div><div class="admin-panel__eyebrow">Access governance</div><h2>Roles, capabilities and privileged accounts</h2></div>
+                <i class="bi bi-shield-check" aria-hidden="true"></i>
+            </header>
+            <div class="admin-guide-section__body">
+                <p>The Access Governance page explains which configured role grants each administrative capability and identifies privileged account conditions requiring review.</p>
+                <ul>
+                    <li>Role and policy composition remains code-defined; the governance page is a review surface, not a dynamic policy editor.</li>
+                    <li>Disabled or deletion-pending accounts may retain role assignments for historical and restoration purposes.</li>
+                    <li>Maintain more than one active Administrator where organisational policy permits.</li>
+                    <li>Export the bounded access-review file for formal review or record keeping.</li>
+                </ul>
+            </div>
+        </section>
+
         <section id="monitoring" class="admin-panel admin-guide-section">
             <header class="admin-panel__header">
                 <div><div class="admin-panel__eyebrow">Monitoring</div><h2>Login activity and audit logs</h2></div>
@@ -79,15 +95,33 @@
                 </ul>
             </div>
         </section>
+
+        <section id="configuration-integrity" class="admin-panel admin-guide-section">
+            <header class="admin-panel__header">
+                <div><div class="admin-panel__eyebrow">Configuration assurance</div><h2>Integrity review and controlled repair</h2></div>
+                <i class="bi bi-clipboard2-check" aria-hidden="true"></i>
+            </header>
+            <div class="admin-guide-section__body">
+                <p>Configuration Integrity checks hierarchy, naming, reference and display-order conditions without changing data.</p>
+                <ul>
+                    <li>Automatic repair is deliberately limited to deterministic display-order normalisation.</li>
+                    <li>Hierarchy, duplicate-name and reference findings require record-level review.</li>
+                    <li>Every repair records the affected domain, changed-record count and actor in the audit trail.</li>
+                    <li>Run the integrity review after legacy import or significant taxonomy restructuring.</li>
+                </ul>
+            </div>
+        </section>
     </div>
 
     <aside class="admin-panel admin-guide-nav" aria-label="Guide sections">
         <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">On this page</div><h2>Guide sections</h2></div></header>
         <a href="#people-access">People and access</a>
+        <a href="#access-governance">Access governance</a>
         <a href="#monitoring">Monitoring</a>
         <a href="#recovery">Recovery and retention</a>
         <a href="#maintenance">Controlled maintenance</a>
         <a href="#master-data">Master data</a>
+        <a href="#configuration-integrity">Configuration integrity</a>
     </aside>
 </div>
 
