@@ -69,25 +69,6 @@
             </div>
         </div>
 
-        <div class="po-command__metrics" aria-label="Workspace summary">
-            <a class="po-metric @(vm.AssignedProjectCount > 0 ? "po-metric--primary" : "po-metric--clear")"
-               href="#assigned-projects"
-               aria-label="View @vm.AssignedProjectCount assigned projects">
-                <span class="po-metric__icon"><i class="bi bi-kanban-fill" aria-hidden="true"></i></span>
-                <span><strong>@vm.AssignedProjectCount</strong><small>Assigned projects</small></span>
-                <span class="po-metric__action">View projects<i class="bi bi-arrow-right" aria-hidden="true"></i></span>
-            </a>
-            <button type="button"
-                    class="po-metric @(vm.RecordGapCount > 0 ? "po-metric--danger" : "po-metric--clear")"
-                    data-bs-toggle="modal"
-                    data-bs-target="#recordHealthAll"
-                    title="View all record gaps across assigned projects"
-                    aria-label="View @vm.RecordGapCount record gaps across assigned projects">
-                <span class="po-metric__icon"><i class="bi bi-clipboard2-pulse-fill" aria-hidden="true"></i></span>
-                <span><strong>@vm.RecordGapCount</strong><small>Record gaps</small></span>
-                <span class="po-metric__action">Review gaps<i class="bi bi-arrow-right" aria-hidden="true"></i></span>
-            </button>
-        </div>
     </header>
 
     <nav class="po-section-nav" aria-label="Project Officer workspace sections">
@@ -461,6 +442,27 @@
                         })
                 </section>
             }
+
+            <section class="po-erp-activity" aria-labelledby="myErpActivityHeading">
+                <div class="po-erp-activity__head">
+                    <div>
+                        <span class="po-panel__kicker">System adoption</span>
+                        <h2 id="myErpActivityHeading">My ERP activity</h2>
+                    </div>
+                    <span>Last 14 days</span>
+                </div>
+                @await Html.PartialAsync(
+                    "_ErpActivityStrip",
+                    new ErpActivityStripRenderVm
+                    {
+                        Activity = vm.ActivityStrip,
+                        Variant = "card",
+                        ShowTitle = false,
+                        ShowSummary = true,
+                        ShowLegend = true
+                    })
+                <p class="po-erp-activity__note">Activity level reflects ERP use, not attendance.</p>
+            </section>
 
             <section id="upcoming-events" class="po-upcoming" aria-labelledby="upcomingEventsHeading">
                 <div class="po-upcoming__head">

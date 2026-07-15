@@ -1,0 +1,55 @@
+@using ProjectManagement.ViewModels.Workspace
+@model ErpActivityStripRenderVm
+@{
+    var activity = Model.Activity;
+    var variant = string.IsNullOrWhiteSpace(Model.Variant) ? "header" : Model.Variant.Trim().ToLowerInvariant();
+}
+<div class="erp-activity-strip erp-activity-strip--@variant" aria-label="@Model.Title, @activity.PeriodLabel">
+    @if (Model.ShowTitle)
+    {
+        <div class="erp-activity-strip__heading">
+            <strong>@Model.Title</strong>
+            <span>@activity.PeriodLabel</span>
+        </div>
+    }
+
+    <div class="erp-activity-strip__cells" role="list" aria-label="Daily ERP activity">
+        @foreach (var day in activity.Days)
+        {
+            var stateClass = day.IsHistoricalAudit
+                ? $"level-{Math.Clamp(day.Level, 0, 3)}"
+                : !day.IsMonitored
+                    ? "not-monitored"
+                    : !day.IsWorkingDay && !day.HasActivity
+                        ? "non-working"
+                        : $"level-{Math.Clamp(day.Level, 0, 3)}";
+            <span class="erp-activity-strip__cell erp-activity-strip__cell--@stateClass @(day.IsHistoricalAudit ? "is-historical" : string.Empty) @(day.IsToday ? "is-today" : string.Empty)"
+                  role="listitem"
+                  title="@day.Tooltip"
+                  aria-label="@day.Tooltip">
+                <span class="visually-hidden">@day.Date.ToString("dd MMM yyyy")</span>
+            </span>
+        }
+    </div>
+
+    @if (Model.ShowSummary)
+    {
+        <div class="erp-activity-strip__summary">
+            <span>@activity.ActivitySummary</span>
+            <span aria-hidden="true">·</span>
+            <span>@activity.LastActiveLabel</span>
+        </div>
+    }
+
+    @if (Model.ShowLegend)
+    {
+        <div class="erp-activity-strip__legend" aria-label="Activity level legend">
+            <span>Less activity</span>
+            <i class="erp-activity-strip__cell erp-activity-strip__cell--level-0" aria-hidden="true"></i>
+            <i class="erp-activity-strip__cell erp-activity-strip__cell--level-1" aria-hidden="true"></i>
+            <i class="erp-activity-strip__cell erp-activity-strip__cell--level-2" aria-hidden="true"></i>
+            <i class="erp-activity-strip__cell erp-activity-strip__cell--level-3" aria-hidden="true"></i>
+            <span>More activity</span>
+        </div>
+    }
+</div>

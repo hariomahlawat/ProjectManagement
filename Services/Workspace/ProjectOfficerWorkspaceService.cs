@@ -10,6 +10,7 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Services.Usage;
 using ProjectManagement.Services;
 using ProjectManagement.ViewModels.Workspace;
 
@@ -25,6 +26,8 @@ public sealed class ProjectOfficerWorkspaceService
     private readonly IActionTrackerClock _clock;
     private readonly IAotsUnreadService _aotsUnreadService;
     private readonly IOfficerWorkloadReadService _officerWorkloadReadService;
+    private readonly IProjectOfficerConferenceActionQuery _conferenceActions;
+    private readonly IErpUsageQueryService _erpUsage;
 
     public ProjectOfficerWorkspaceService(
         ApplicationDbContext db,
@@ -34,7 +37,9 @@ public sealed class ProjectOfficerWorkspaceService
         ActionTaskMyWorkQueueBuilder myWorkQueueBuilder,
         IActionTrackerClock clock,
         IAotsUnreadService aotsUnreadService,
-        IOfficerWorkloadReadService officerWorkloadReadService)
+        IOfficerWorkloadReadService officerWorkloadReadService,
+        IProjectOfficerConferenceActionQuery conferenceActions,
+        IErpUsageQueryService erpUsage)
     {
         _db = db;
         _users = users;
@@ -44,6 +49,8 @@ public sealed class ProjectOfficerWorkspaceService
         _clock = clock;
         _aotsUnreadService = aotsUnreadService;
         _officerWorkloadReadService = officerWorkloadReadService;
+        _conferenceActions = conferenceActions;
+        _erpUsage = erpUsage;
     }
 
     // SECTION: Workspace composition
@@ -76,6 +83,13 @@ public sealed class ProjectOfficerWorkspaceService
             _clock.UtcNow,
             ct);
         var health = await _health.CalculateForProjectsAsync(projects, userId, ct);
+        var pendingConferenceDirections = await _conferenceActions.GetPendingAsync(
+            userId,
+            projects.ToDictionary(project => project.Id, project => project.Name),
+            ideaVms.ToDictionary(idea => idea.IdeaId, idea => idea.Title),
+            tasks.ToDictionary(task => task.TaskId, task => task.Title),
+            ct);
+        var activityStrip = await _erpUsage.GetActivityStripAsync(userId, days: 14, cancellationToken: ct);
         var allMatrixRows = projects
             .Select(project => BuildMatrixRow(project, health[project.Id], userId, today))
             .OrderBy(ProjectAttentionRank)
@@ -108,7 +122,8 @@ public sealed class ProjectOfficerWorkspaceService
             ideasNeedingUpdate,
             aotsDocuments,
             aotsUnreadCount,
-            allMatrixRows);
+            allMatrixRows,
+            pendingConferenceDirections);
         var actionQueue = actionQueueResult.Items;
         var dailyActionCount = actionQueueResult.TotalCount;
 
@@ -117,6 +132,7 @@ public sealed class ProjectOfficerWorkspaceService
             .Concat(officialTasksDue.Select(ToAttentionItem))
             .Concat(ideasNeedingUpdate.Select(ToAttentionItem))
             .Concat(aotsDocuments.Select(ToAttentionItem))
+            .Concat(pendingConferenceDirections.Select(ToAttentionItem))
             .Concat(timelineAlerts)
             .GroupBy(i => $"{i.Type}:{i.Title}")
             .Select(g => g
@@ -161,7 +177,9 @@ public sealed class ProjectOfficerWorkspaceService
             ProjectsNeedingAttentionCount = allMatrixRows.Count(RequiresProjectAttention),
             ProjectTimelineIssueCount = allMatrixRows.Count(HasProjectTimelineIssue),
             AssignedIdeaCount = ideaVms.Count,
+            PendingConferenceDirectionCount = pendingConferenceDirections.Count,
             Engagement = engagement,
+            ActivityStrip = activityStrip,
             CommandChips = BuildCommandChips(
                 remarksDue.Count,
                 aotsUnreadCount,
@@ -339,6 +357,21 @@ public sealed class ProjectOfficerWorkspaceService
             OpenUrl = WorkspaceRouteHelper.ProjectIdea(idea.Id)
         };
     }
+
+    private static WorkspaceAttentionItemVm ToAttentionItem(WorkspaceConferenceDirectionActionVm direction)
+        => new()
+        {
+            Type = "Conference",
+            Title = direction.Title,
+            Detail = string.IsNullOrWhiteSpace(direction.DirectionText)
+                ? "Conference direction awaiting progress"
+                : direction.DirectionText,
+            Severity = "Warning",
+            BadgeText = "Direction",
+            ActionText = "Add progress",
+            ActionUrl = direction.ActionUrl,
+            DueOrEventDateUtc = direction.IssuedAtUtc
+        };
 
     // SECTION: Due-soon detection uses the workspace IST operating date.
     private static bool IsDueSoon(DateTime? dueDateUtc, DateOnly today)

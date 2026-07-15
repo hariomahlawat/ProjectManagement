@@ -9,6 +9,7 @@
 
 @section Styles {
     <link rel="stylesheet" href="~/css/command-workspace.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/erp-activity-strip.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/officer-conference.css" asp-append-version="true" />
 }
 
@@ -17,7 +18,7 @@
         @Html.AntiForgeryToken()
     </form>
 
-    <header class="oc-header">
+    <header class="oc-header" data-oc-sticky-header>
         <div class="oc-header__identity">
             <a asp-page="/Workspace/Index"
                asp-route-mode="command"
@@ -37,6 +38,20 @@
                     <span><strong data-oc-header-task-count>@Model.Conference.OtherTaskCount</strong> <span data-oc-header-task-label>@(Model.Conference.OtherTaskCount == 1 ? "other task" : "other tasks")</span></span>
                 </p>
             </div>
+        </div>
+
+        <div class="oc-header__activity">
+            @await Html.PartialAsync(
+                "_ErpActivityStrip",
+                new ErpActivityStripRenderVm
+                {
+                    Activity = Model.Conference.ActivityStrip,
+                    Title = "ERP activity",
+                    Variant = "header",
+                    ShowTitle = true,
+                    ShowSummary = true,
+                    ShowLegend = false
+                })
         </div>
 
         <nav class="oc-officer-nav" aria-label="Officer conference navigation">

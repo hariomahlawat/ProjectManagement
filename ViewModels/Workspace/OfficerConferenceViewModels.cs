@@ -28,6 +28,8 @@ public sealed class OfficerConferenceVm
     public IReadOnlyList<OfficerConferenceOfficerOptionVm> OfficerOptions { get; init; }
         = Array.Empty<OfficerConferenceOfficerOptionVm>();
 
+    public ErpActivityStripVm ActivityStrip { get; init; } = new();
+
     public IReadOnlyList<OfficerConferenceSectionVm> Sections { get; init; }
         = Array.Empty<OfficerConferenceSectionVm>();
 }
@@ -58,6 +60,7 @@ public sealed class OfficerConferenceItemVm
     public string? CurrentContext { get; init; }
     public string? AttentionText { get; init; }
     public bool RequiresAttention { get; init; }
+    public WorkspaceRecordHealthVm? RecordHealth { get; init; }
 
     public ConferenceDirectionVm? LatestDirection { get; init; }
     public IReadOnlyList<ConferenceProgressEntryVm> ProgressEntries { get; init; }

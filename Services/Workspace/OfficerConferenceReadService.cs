@@ -10,6 +10,7 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.ConferenceRemarks;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Usage;
 using ProjectManagement.ViewModels.Workspace;
 
 namespace ProjectManagement.Services.Workspace;
@@ -25,7 +26,11 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
     private readonly IOfficerWorkloadReadService _workload;
     private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
     private readonly IClock _clock;
+    private readonly ProjectRecordHealthService? _recordHealth;
+    private readonly IErpUsageQueryService? _erpUsage;
 
+    // Retained for isolated conference-read tests and legacy composition roots. The
+    // application DI container resolves the complete constructor below.
     public OfficerConferenceReadService(
         ApplicationDbContext db,
         IOfficerWorkloadReadService workload,
@@ -37,6 +42,24 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         _workflowStageMetadataProvider = workflowStageMetadataProvider
             ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+    }
+
+    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
+    public OfficerConferenceReadService(
+        ApplicationDbContext db,
+        IOfficerWorkloadReadService workload,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+        IClock clock,
+        ProjectRecordHealthService recordHealth,
+        IErpUsageQueryService erpUsage)
+    {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _workload = workload ?? throw new ArgumentNullException(nameof(workload));
+        _workflowStageMetadataProvider = workflowStageMetadataProvider
+            ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _recordHealth = recordHealth ?? throw new ArgumentNullException(nameof(recordHealth));
+        _erpUsage = erpUsage ?? throw new ArgumentNullException(nameof(erpUsage));
     }
 
     public async Task<OfficerConferenceVm?> GetAsync(
@@ -73,6 +96,18 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         var projectRows = await LoadProjectsAsync(projectIds, cancellationToken);
         var ideaRows = await LoadIdeasAsync(ideaIds, cancellationToken);
         var taskRows = await LoadTasksAsync(taskIds, cancellationToken);
+        var projectRecordHealth = _recordHealth is null
+            ? new Dictionary<int, WorkspaceRecordHealthVm>()
+            : await _recordHealth.CalculateForProjectIdsAsync(
+                projectIds,
+                selected.UserId,
+                cancellationToken);
+        var activityStrip = _erpUsage is null
+            ? new ErpActivityStripVm()
+            : await _erpUsage.GetActivityStripAsync(
+                selected.UserId,
+                days: 14,
+                cancellationToken: cancellationToken);
 
         var latestProjectDirections = (await LoadLatestProjectDirectionsAsync(projectIds, cancellationToken))
             .ToDictionary(direction => direction.ProjectId);
@@ -159,6 +194,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             latestProjectDirections,
             authorNames,
             mcoUserIds,
+            projectRecordHealth,
             today);
         var ideaItems = BuildIdeaItems(
             selected,
@@ -198,6 +234,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                 ? orderedOfficers[selectedIndex.index + 1].UserId
                 : null,
             OfficerOptions = officerOptions,
+            ActivityStrip = activityStrip,
             Sections = new[]
             {
                 new OfficerConferenceSectionVm
@@ -492,6 +529,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         IReadOnlyDictionary<int, Remark> latestDirections,
         IReadOnlyDictionary<string, string> authorNames,
         IReadOnlySet<string> mcoUserIds,
+        IReadOnlyDictionary<int, WorkspaceRecordHealthVm> recordHealth,
         DateOnly today)
     {
         var rowsById = rows.ToDictionary(row => row.Id);
@@ -630,6 +668,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                 CurrentContext = contextParts.Count == 0 ? null : string.Join(" · ", contextParts),
                 AttentionText = attentionText,
                 RequiresAttention = requiresAttention,
+                RecordHealth = recordHealth.GetValueOrDefault(row.Id),
                 LatestDirection = direction is null
                     ? null
                     : new ConferenceDirectionVm

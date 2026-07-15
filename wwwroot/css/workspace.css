@@ -2457,3 +2457,71 @@
         animation-iteration-count: 1 !important;
     }
 }
+
+/* SECTION: Transparent personal ERP activity and compact workspace header */
+.po-command__main {
+    min-height: 92px;
+}
+
+.po-erp-activity {
+    overflow: hidden;
+    border: 1px solid var(--po-line);
+    border-radius: 12px;
+    background: var(--po-surface);
+    box-shadow: var(--po-shadow);
+}
+
+.po-erp-activity__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 15px 9px;
+    border-bottom: 1px solid var(--po-line-soft);
+}
+
+.po-erp-activity__head h2 {
+    margin: 3px 0 0;
+    color: var(--po-navy-950);
+    font-size: 1.02rem;
+    font-weight: 780;
+    letter-spacing: -.012em;
+}
+
+.po-erp-activity__head > span {
+    color: var(--po-muted);
+    font-size: .68rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.po-erp-activity .erp-activity-strip--card {
+    padding-bottom: 9px;
+}
+
+.po-erp-activity__note {
+    margin: 0;
+    padding: 9px 15px 11px;
+    border-top: 1px solid var(--po-line-soft);
+    color: var(--po-muted);
+    font-size: .68rem;
+    line-height: 1.35;
+}
+
+.po-type--conference {
+    color: #6d4ba5;
+    background: #f3eefb;
+}
+
+[data-bs-theme="dark"] .po-erp-activity {
+    border-color: #344359;
+    background: #172131;
+}
+
+[data-bs-theme="dark"] .po-erp-activity__head,
+[data-bs-theme="dark"] .po-erp-activity__note {
+    border-color: #344359;
+}
+
+[data-bs-theme="dark"] .po-erp-activity__head h2 { color: #e2e9f4; }
+[data-bs-theme="dark"] .po-type--conference { color: #c5b8f4; background: #30264b; }

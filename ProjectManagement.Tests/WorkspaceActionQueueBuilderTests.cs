@@ -204,4 +204,50 @@ public sealed class WorkspaceActionQueueBuilderTests
         Assert.Equal(4, result.TotalCount);
         Assert.Single(result.Items);
     }
+    [Fact]
+    public void Build_PrioritisesPendingConferenceDirectionAndGroupsItWithItsProject()
+    {
+        var rows = new[]
+        {
+            new WorkspaceProjectMatrixRowVm
+            {
+                ProjectId = 42,
+                ProjectName = "Directed project",
+                HasCurrentStageIssue = true,
+                IsCurrentStagePdcMissing = true,
+                TimelineUrl = "/Projects/42/Timeline"
+            }
+        };
+        var directions = new[]
+        {
+            new WorkspaceConferenceDirectionActionVm
+            {
+                Kind = ConferenceItemKind.Project,
+                ItemId = 42,
+                ProjectId = 42,
+                Title = "Directed project",
+                DirectionText = "Submit the revised concept paper.",
+                IssuedAtUtc = new DateTime(2026, 7, 12, 8, 0, 0, DateTimeKind.Utc),
+                ActionUrl = "/Projects/42/Remarks"
+            }
+        };
+
+        var result = WorkspaceActionQueueBuilder.Build(
+            Array.Empty<WorkspaceAttentionItemVm>(),
+            Array.Empty<WorkspaceTaskVm>(),
+            Array.Empty<WorkspaceAttentionItemVm>(),
+            Array.Empty<WorkspaceIdeaVm>(),
+            Array.Empty<WorkspaceAotsDocumentVm>(),
+            0,
+            rows,
+            directions);
+
+        Assert.Equal(2, result.TotalCount);
+        Assert.Equal("Conference", result.Items[0].Type);
+        Assert.Equal("Add progress", result.Items[0].ActionText);
+        var group = Assert.Single(result.Groups);
+        Assert.Equal(42, group.ProjectId);
+        Assert.Equal(new[] { "Conference", "Timeline" }, group.Actions.Select(item => item.Type));
+    }
+
 }

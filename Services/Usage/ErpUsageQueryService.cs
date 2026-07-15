@@ -6,6 +6,7 @@ using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Admin;
 using ProjectManagement.Services.Scheduling;
+using ProjectManagement.ViewModels.Workspace;
 
 namespace ProjectManagement.Services.Usage;
 
@@ -117,6 +118,11 @@ public interface IErpUsageQueryService
         CancellationToken cancellationToken = default);
 
     Task<ErpUsageCommandSummary> GetCommandSummaryAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<ErpActivityStripVm> GetActivityStripAsync(
+        string userId,
+        int days = 14,
         CancellationToken cancellationToken = default);
 }
 
@@ -582,6 +588,156 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
             result.Summary.NoUsageSevenWorkingDays,
             result.RegularClassificationAvailable,
             result.SevenDayReviewAvailable);
+    }
+
+    public async Task<ErpActivityStripVm> GetActivityStripAsync(
+        string userId,
+        int days = 14,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("A user id is required.", nameof(userId));
+        }
+
+        var displayDays = Math.Clamp(days, 7, 31);
+        var today = _time.TodayIst;
+        var startDate = today.AddDays(-(displayDays - 1));
+        var dates = EnumerateDates(startDate, today).ToArray();
+        var options = _options.Value;
+        var trackingInceptionUtc = options.TrackingInceptionUtc.ToUniversalTime();
+        var trackingInceptionDate = DateOnly.FromDateTime(_time.ToIst(trackingInceptionUtc).DateTime);
+        var endUtc = _time.EndExclusiveOfIstDayUtc(today).UtcDateTime;
+        var startUtc = _time.StartOfIstDayUtc(startDate).UtcDateTime;
+
+        var user = await _db.Users
+            .AsNoTracking()
+            .Where(candidate => candidate.Id == userId)
+            .Select(candidate => new UserProjection(
+                candidate.Id,
+                candidate.UserName ?? string.Empty,
+                candidate.FullName,
+                candidate.Rank,
+                candidate.CreatedUtc,
+                candidate.IsDisabled,
+                candidate.PendingDeletion,
+                candidate.AccountKind))
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (user is null)
+        {
+            return new ErpActivityStripVm
+            {
+                StartDate = startDate,
+                EndDate = today,
+                Days = dates.Select(date => new ErpActivityDayVm(
+                    date,
+                    0,
+                    false,
+                    false,
+                    false,
+                    $"{date:dd MMM yyyy}: User account unavailable",
+                    date == today)).ToArray()
+            };
+        }
+
+        var buckets = _time.UtcNow < trackingInceptionUtc
+            ? new List<BucketProjection>()
+            : await _db.UserActivityBuckets
+                .AsNoTracking()
+                .Where(bucket =>
+                    bucket.UserId == userId
+                    && bucket.ActivityDateIst >= startDate
+                    && bucket.ActivityDateIst <= today
+                    && bucket.BucketStartUtc >= trackingInceptionUtc.UtcDateTime)
+                .Select(bucket => new BucketProjection(
+                    bucket.UserId,
+                    bucket.ActivityDateIst,
+                    bucket.BucketStartUtc,
+                    bucket.ModuleKey,
+                    bucket.HadNavigation,
+                    bucket.HadInteractiveHeartbeat,
+                    bucket.LastSeenUtc))
+                .ToListAsync(cancellationToken);
+
+        var rawActions = await CandidateAuditQuery()
+            .Where(audit =>
+                audit.UserId == userId
+                && audit.TimeUtc >= startUtc
+                && audit.TimeUtc < endUtc)
+            .Select(audit => new RawActionProjection(audit.UserId!, audit.TimeUtc, audit.Action))
+            .ToListAsync(cancellationToken);
+
+        var actions = rawActions
+            .Select(action => new ActionProjection(
+                action.UserId,
+                action.TimeUtc,
+                action.Action,
+                ErpUsageActionClassifier.Classify(action.Action)))
+            .Where(action => action.Kind != ErpUsageActionKind.Ignored)
+            .ToList();
+
+        var nonWorkingDates = await _officeCalendar.GetNonWorkingDatesAsync(
+            startDate,
+            today.AddDays(1),
+            cancellationToken);
+        var configuredWorkingDays = options.WorkingDays.ToHashSet();
+        var createdDate = DateOnly.FromDateTime(_time.ToIst(user.CreatedUtc).Date);
+        var effectiveTrackingStart = LatestOf(startDate, trackingInceptionDate, createdDate);
+        var heatmap = BuildHeatmap(
+            dates,
+            user,
+            effectiveTrackingStart,
+            buckets,
+            actions,
+            configuredWorkingDays,
+            nonWorkingDates);
+
+        var dayRows = heatmap.Select(cell =>
+        {
+            var isWorkingDay = configuredWorkingDays.Contains(cell.Date.DayOfWeek)
+                && !nonWorkingDates.Contains(cell.Date);
+            var isHistoricalAudit = cell.Label.StartsWith(
+                "Historical audited",
+                StringComparison.OrdinalIgnoreCase);
+            var isMonitored = _time.UtcNow >= trackingInceptionUtc
+                && cell.Date >= effectiveTrackingStart;
+            var level = cell.State switch
+            {
+                ErpUsageHeatmapState.Navigation => 1,
+                ErpUsageHeatmapState.Interactive => 2,
+                ErpUsageHeatmapState.AdministrativeAction => 2,
+                ErpUsageHeatmapState.BusinessAction => 3,
+                _ => 0
+            };
+            var tooltip = $"{cell.Date:ddd, dd MMM yyyy}\n{cell.Label.Replace("\n", "; ", StringComparison.Ordinal)}";
+
+            return new ErpActivityDayVm(
+                cell.Date,
+                level,
+                isWorkingDay,
+                isMonitored,
+                isHistoricalAudit,
+                tooltip,
+                cell.Date == today);
+        }).ToArray();
+
+        var monitoredWorkingDays = dayRows.Count(day => day.IsWorkingDay && day.IsMonitored);
+        var activeWorkingDays = dayRows.Count(day => day.IsWorkingDay && day.IsMonitored && day.HasActivity);
+        var lastActiveDate = dayRows
+            .Where(day => day.HasActivity)
+            .Select(day => (DateOnly?)day.Date)
+            .LastOrDefault();
+
+        return new ErpActivityStripVm
+        {
+            StartDate = startDate,
+            EndDate = today,
+            Days = dayRows,
+            ActiveWorkingDays = activeWorkingDays,
+            MonitoredWorkingDays = monitoredWorkingDays,
+            LastActiveDate = lastActiveDate
+        };
     }
 
     private IReadOnlyList<ErpUsageHeatmapCell> BuildHeatmap(

@@ -20,9 +20,11 @@ public sealed class ProjectOfficerWorkspaceVm
     public int ProjectsNeedingAttentionCount { get; set; }
     public int ProjectTimelineIssueCount { get; set; }
     public int AssignedIdeaCount { get; set; }
+    public int PendingConferenceDirectionCount { get; set; }
     public int AotsUnreadCount { get; set; }
     public string AotsUrl { get; set; } = "/DocumentRepository/Documents?scope=aots";
     public WorkspaceEngagementVm Engagement { get; set; } = new();
+    public ErpActivityStripVm ActivityStrip { get; set; } = new();
     public IReadOnlyList<WorkspaceCommandChipVm> CommandChips { get; set; } = Array.Empty<WorkspaceCommandChipVm>();
     public WorkspaceDataCompletenessInsightVm DataCompletenessInsight { get; set; } = new();
     public IReadOnlyList<WorkspaceRailItemVm> RailItems { get; set; } = Array.Empty<WorkspaceRailItemVm>();
@@ -46,16 +48,14 @@ public sealed class ProjectOfficerWorkspaceVm
     {
         get
         {
-            var parts = new List<string>();
-
-            if (ProjectsNeedingAttentionCount > 0)
+            var parts = new List<string>
             {
-                parts.Add($"{ProjectsNeedingAttentionCount} project{(ProjectsNeedingAttentionCount == 1 ? string.Empty : "s")} affected");
-            }
+                $"Across {AssignedProjectCount} project{(AssignedProjectCount == 1 ? string.Empty : "s")}"
+            };
 
             if (ProjectTimelineIssueCount > 0)
             {
-                parts.Add($"{ProjectTimelineIssueCount} timeline action{(ProjectTimelineIssueCount == 1 ? string.Empty : "s")} pending");
+                parts.Add($"{ProjectTimelineIssueCount} timeline action{(ProjectTimelineIssueCount == 1 ? string.Empty : "s")}");
             }
 
             if (RecordGapCount > 0)
@@ -63,19 +63,17 @@ public sealed class ProjectOfficerWorkspaceVm
                 parts.Add($"{RecordGapCount} record gap{(RecordGapCount == 1 ? string.Empty : "s")}");
             }
 
-            if (parts.Count == 0 && AotsUnreadCount > 0)
+            if (PendingConferenceDirectionCount > 0)
             {
-                parts.Add($"{AotsUnreadCount} AOTS document{(AotsUnreadCount == 1 ? string.Empty : "s")} awaiting review");
+                parts.Add($"{PendingConferenceDirectionCount} conference direction{(PendingConferenceDirectionCount == 1 ? string.Empty : "s")}");
             }
 
-            if (parts.Count > 0)
+            if (parts.Count == 1 && AotsUnreadCount > 0)
             {
-                return string.Join(" · ", parts);
+                parts.Add($"{AotsUnreadCount} AOTS document{(AotsUnreadCount == 1 ? string.Empty : "s")}");
             }
 
-            return ActionQueueTotalCount > 0
-                ? $"{ActionQueueTotalCount} assigned action{(ActionQueueTotalCount == 1 ? string.Empty : "s")} sequenced below"
-                : "No overdue project actions or incomplete timelines";
+            return string.Join(" · ", parts);
         }
     }
 
@@ -207,6 +205,23 @@ public sealed class WorkspaceAotsDocumentVm
     public DateTime CreatedAtUtc { get; set; }
 
     public string OpenUrl { get; set; } = string.Empty;
+}
+
+public sealed class WorkspaceConferenceDirectionActionVm
+{
+    public ConferenceItemKind Kind { get; set; }
+
+    public int ItemId { get; set; }
+
+    public int? ProjectId { get; set; }
+
+    public string Title { get; set; } = string.Empty;
+
+    public string DirectionText { get; set; } = string.Empty;
+
+    public DateTime IssuedAtUtc { get; set; }
+
+    public string ActionUrl { get; set; } = string.Empty;
 }
 
 public sealed class WorkspaceActionQueueItemVm

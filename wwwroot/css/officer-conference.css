@@ -1124,3 +1124,166 @@
 }
 [data-bs-theme="dark"] .oc-task-editor__heading strong { color: #e4eafa; }
 [data-bs-theme="dark"] .oc-task-save { border-color: #b8a66a; background: #8a784c; }
+
+/* SECTION: Conference review context and record-readiness refinement */
+.officer-conference {
+    --oc-topbar-height: var(--pm-header-height, 70px);
+    --oc-sticky-header-height: 70px;
+}
+
+.oc-header {
+    position: sticky;
+    top: var(--oc-topbar-height);
+    z-index: 1020;
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) minmax(250px, auto) auto;
+    backdrop-filter: blur(14px);
+}
+
+.oc-header__activity {
+    min-width: 250px;
+    justify-self: center;
+}
+
+.oc-header__activity .erp-activity-strip--header {
+    min-width: 250px;
+}
+
+.oc-section {
+    overflow: visible;
+}
+
+.oc-section__header {
+    position: sticky;
+    top: calc(var(--oc-topbar-height) + var(--oc-sticky-header-height) + 8px);
+    z-index: 1010;
+    border-radius: 10px 10px 0 0;
+    box-shadow: 0 7px 14px -13px rgba(18, 33, 63, .55);
+}
+
+.oc-section > .oc-item:last-of-type,
+.oc-section > .oc-section__empty:last-child {
+    border-radius: 0 0 9px 9px;
+}
+
+.oc-record-health {
+    display: block;
+    width: min(100%, 230px);
+    margin-top: 9px;
+    padding: 7px 8px 6px;
+    border: 1px solid #dfe6ef;
+    border-radius: 7px;
+    background: #fafbfd;
+    color: #52627a;
+    text-decoration: none;
+    transition: border-color .16s ease, background .16s ease, transform .16s ease;
+}
+
+.oc-record-health:hover,
+.oc-record-health:focus-visible {
+    border-color: #b8c8dc;
+    background: #f5f8fc;
+    color: #263c5c;
+    transform: translateY(-1px);
+}
+
+.oc-record-health__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: .62rem;
+    line-height: 1.2;
+}
+
+.oc-record-health__top strong {
+    color: #405573;
+    font-weight: 850;
+    letter-spacing: .035em;
+    text-transform: uppercase;
+}
+
+.oc-record-health__top span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.oc-record-health__track {
+    display: block;
+    width: 100%;
+    height: 4px;
+    margin-top: 6px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 999px;
+    background: #e5eaf1;
+    appearance: none;
+}
+
+.oc-record-health__track::-webkit-progress-bar {
+    border-radius: 999px;
+    background: #e5eaf1;
+}
+
+.oc-record-health__track::-webkit-progress-value {
+    border-radius: 999px;
+    background: #b7790b;
+}
+
+.oc-record-health__track::-moz-progress-bar {
+    border-radius: 999px;
+    background: #b7790b;
+}
+
+.oc-record-health--good .oc-record-health__track::-webkit-progress-value { background: #3b8a5c; }
+.oc-record-health--good .oc-record-health__track::-moz-progress-bar { background: #3b8a5c; }
+.oc-record-health--danger .oc-record-health__track::-webkit-progress-value { background: #bd3449; }
+.oc-record-health--danger .oc-record-health__track::-moz-progress-bar { background: #bd3449; }
+
+@media (max-width: 1240px) {
+    .oc-header {
+        grid-template-columns: minmax(300px, 1fr) auto;
+    }
+
+    .oc-header__activity {
+        grid-column: 1 / -1;
+        justify-self: stretch;
+    }
+
+    .oc-header__activity .erp-activity-strip--header {
+        min-width: 0;
+    }
+}
+
+@media (max-width: 760px) {
+    .oc-header,
+    .oc-section__header {
+        position: static;
+    }
+
+    .oc-header {
+        display: flex;
+    }
+
+    .oc-header__activity {
+        width: 100%;
+    }
+}
+
+[data-bs-theme="dark"] .oc-record-health {
+    border-color: #344359;
+    background: #1b2738;
+    color: #aeb9c9;
+}
+
+[data-bs-theme="dark"] .oc-record-health:hover,
+[data-bs-theme="dark"] .oc-record-health:focus-visible {
+    border-color: #52637b;
+    background: #223046;
+    color: #e2e9f4;
+}
+
+[data-bs-theme="dark"] .oc-record-health__top strong { color: #d5deea; }
+[data-bs-theme="dark"] .oc-record-health__track,
+[data-bs-theme="dark"] .oc-record-health__track::-webkit-progress-bar { background: #2c394d; }

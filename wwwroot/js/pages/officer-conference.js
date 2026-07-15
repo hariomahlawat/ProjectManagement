@@ -3,6 +3,18 @@ const root = document.querySelector('[data-officer-conference]');
 if (root) {
     const antiforgeryToken = root.querySelector('.oc-antiforgery input[name="__RequestVerificationToken"]')?.value ?? '';
     const selector = root.querySelector('[data-officer-selector]');
+    const stickyHeader = root.querySelector('[data-oc-sticky-header]');
+
+    const syncStickyHeaderHeight = () => {
+        const height = stickyHeader ? Math.ceil(stickyHeader.getBoundingClientRect().height) : 0;
+        root.style.setProperty('--oc-sticky-header-height', `${height}px`);
+    };
+
+    syncStickyHeaderHeight();
+    if (stickyHeader && typeof ResizeObserver !== 'undefined') {
+        const stickyHeaderObserver = new ResizeObserver(syncStickyHeaderHeight);
+        stickyHeaderObserver.observe(stickyHeader);
+    }
     let openEditor = null;
     let openIdeaEditor = null;
     let openTaskEditor = null;
@@ -968,6 +980,7 @@ if (root) {
     window.addEventListener('resize', () => {
         window.clearTimeout(resizeTimer);
         resizeTimer = window.setTimeout(() => {
+            syncStickyHeaderHeight();
             root.querySelectorAll('[data-oc-direction-content]').forEach(configureDirectionToggle);
             root.querySelectorAll('[data-oc-progress-entry]').forEach(configureProgressToggle);
         }, 120);

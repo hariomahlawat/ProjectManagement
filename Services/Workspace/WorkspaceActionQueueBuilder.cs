@@ -1,3 +1,4 @@
+using ProjectManagement.Infrastructure;
 using ProjectManagement.ViewModels.Workspace;
 
 namespace ProjectManagement.Services.Workspace;
@@ -17,6 +18,7 @@ internal static class WorkspaceActionQueueBuilder
     private const int MaximumVisibleItems = 10;
     private const int ReturnedPriority = 0;
     private const int OverdueTaskPriority = 10;
+    private const int ConferenceDirectionPriority = 15;
     private const int OverdueTimelinePriority = 20;
     private const int CurrentStageTimelinePriority = 30;
     private const int ProjectUpdatePriority = 40;
@@ -33,6 +35,25 @@ internal static class WorkspaceActionQueueBuilder
         IReadOnlyList<WorkspaceAotsDocumentVm> aotsDocuments,
         int aotsUnreadTotalCount,
         IReadOnlyList<WorkspaceProjectMatrixRowVm> projectRows)
+        => Build(
+            returnedItems,
+            otherAssignedTasksDue,
+            remarksDue,
+            ideasNeedingUpdate,
+            aotsDocuments,
+            aotsUnreadTotalCount,
+            projectRows,
+            Array.Empty<WorkspaceConferenceDirectionActionVm>());
+
+    public static WorkspaceActionQueueBuildResult Build(
+        IReadOnlyList<WorkspaceAttentionItemVm> returnedItems,
+        IReadOnlyList<WorkspaceTaskVm> otherAssignedTasksDue,
+        IReadOnlyList<WorkspaceAttentionItemVm> remarksDue,
+        IReadOnlyList<WorkspaceIdeaVm> ideasNeedingUpdate,
+        IReadOnlyList<WorkspaceAotsDocumentVm> aotsDocuments,
+        int aotsUnreadTotalCount,
+        IReadOnlyList<WorkspaceProjectMatrixRowVm> projectRows,
+        IReadOnlyList<WorkspaceConferenceDirectionActionVm> conferenceDirections)
     {
         ArgumentNullException.ThrowIfNull(returnedItems);
         ArgumentNullException.ThrowIfNull(otherAssignedTasksDue);
@@ -40,6 +61,7 @@ internal static class WorkspaceActionQueueBuilder
         ArgumentNullException.ThrowIfNull(ideasNeedingUpdate);
         ArgumentNullException.ThrowIfNull(aotsDocuments);
         ArgumentNullException.ThrowIfNull(projectRows);
+        ArgumentNullException.ThrowIfNull(conferenceDirections);
 
         var items = new List<WorkspaceActionQueueItemVm>();
         var projectIdsByName = BuildUniqueProjectNameIndex(projectRows);
@@ -75,6 +97,24 @@ internal static class WorkspaceActionQueueBuilder
             ActionUrl = task.OpenUrl,
             SortDateUtc = task.DueDateUtc,
             PriorityRank = task.IsOverdue ? OverdueTaskPriority : DueSoonTaskPriority
+        }));
+
+        items.AddRange(conferenceDirections.Select(direction => new WorkspaceActionQueueItemVm
+        {
+            ProjectId = direction.ProjectId,
+            Type = "Conference",
+            BadgeText = "Direction",
+            Title = direction.Title,
+            Detail = string.IsNullOrWhiteSpace(direction.DirectionText)
+                ? "Conference direction awaiting progress"
+                : direction.DirectionText,
+            Meta = $"Issued {IstClock.ToIst(direction.IssuedAtUtc):dd MMM yyyy} · Progress update required",
+            PriorityReason = "Conference direction awaiting progress",
+            Severity = "Warning",
+            ActionText = "Add progress",
+            ActionUrl = direction.ActionUrl,
+            SortDateUtc = direction.IssuedAtUtc,
+            PriorityRank = ConferenceDirectionPriority
         }));
 
         items.AddRange(projectRows

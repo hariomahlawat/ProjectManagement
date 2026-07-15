@@ -50,6 +50,27 @@
         {
             <p class="oc-current-context">@item.CurrentContext</p>
         }
+        @if (item.Kind == ConferenceItemKind.Project && item.RecordHealth is not null)
+        {
+            var recordHealth = item.RecordHealth;
+            var recordHealthCss = WorkspaceDisplayHelpers.HealthCss(recordHealth.HealthPercent);
+            var recordGapLabel = $"{recordHealth.RecordGapCount} gap{(recordHealth.RecordGapCount == 1 ? string.Empty : "s")}";
+            <a class="oc-record-health oc-record-health--@recordHealthCss"
+               href="@recordHealth.OpenUrl"
+               target="_blank"
+               rel="noopener"
+               title="Open project record for @item.Title"
+               aria-label="@item.Title: @recordHealth.HealthPercent percent record complete with @recordGapLabel">
+                <span class="oc-record-health__top">
+                    <strong>Records</strong>
+                    <span>@recordHealth.HealthPercent% complete · @recordGapLabel</span>
+                </span>
+                <progress class="oc-record-health__track"
+                          value="@recordHealth.HealthPercent"
+                          max="100"
+                          aria-label="Record completeness: @recordHealth.HealthPercent percent">@recordHealth.HealthPercent%</progress>
+            </a>
+        }
         @if (!string.IsNullOrWhiteSpace(item.AttentionText))
         {
             <span class="oc-attention"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i>@item.AttentionText</span>
