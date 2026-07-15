@@ -119,6 +119,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         [Required] public ProliferationSource Source { get; set; } // SDD and 515 ABW are configurable
         [Range(2000, 3000)] public int Year { get; set; }
         [Required] public YearPreferenceMode Mode { get; set; } // Auto, UseYearly, UseGranular, UseYearlyAndGranular
+        [MaxLength(500)] public string? Reason { get; set; }
     }
 
     public sealed class ProliferationManageListQueryDto
@@ -235,6 +236,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
         [Required]
         public string RowVersion { get; set; } = string.Empty;
+
+        [MaxLength(500)]
+        public string? Reason { get; set; }
     }
 
     public sealed class ProliferationYearlyUpdateDto : ProliferationYearlyCreateDto

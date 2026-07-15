@@ -17,8 +17,16 @@
         .ToList();
 
     var recentYears = years
+        .Where(x => x.Year is >= 2000 and <= 3000)
         .OrderByDescending(x => x.Year)
         .Take(6)
+        .ToList();
+
+    var invalidYears = years
+        .Where(x => x.Year is < 2000 or > 3000)
+        .Select(x => x.Year)
+        .Distinct()
+        .OrderBy(x => x)
         .ToList();
 
     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
@@ -41,12 +49,6 @@
             <p class="pf-page-subtitle mb-0">@Model.Lede</p>
         </div>
         <div class="pf-page-actions">
-            <a class="btn btn-outline-secondary"
-               asp-area="ProjectOfficeReports"
-               asp-page="/Proliferation/Reports">
-                <i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i>
-                Reports
-            </a>
             @if (Model.CanManageRecords)
             {
                 <a class="btn btn-primary"
@@ -59,20 +61,41 @@
         </div>
     </header>
 
+    @if (invalidYears.Count > 0)
+    {
+        <div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
+            <i class="bi bi-exclamation-triangle-fill mt-1" aria-hidden="true"></i>
+            <div>
+                <strong>Data-quality review required.</strong>
+                Proliferation records exist with an invalid year (@string.Join(", ", invalidYears)).
+                These quantities remain included in the overall total until the source records are corrected.
+                @if (Model.CanManageRecords)
+                {
+                    <a class="alert-link ms-1" asp-area="ProjectOfficeReports" asp-page="/Proliferation/Manage">Review records</a>
+                }
+            </div>
+        </div>
+    }
+
     <section class="pf-project-finder" aria-labelledby="find-project-heading">
         <div>
             <h2 id="find-project-heading">Find a project total</h2>
             <p>Search by project name or code. Open the project to see the year-wise calculation and detailed records.</p>
         </div>
         <div class="pf-project-finder__control">
-            <i class="bi bi-search" aria-hidden="true"></i>
-            <input type="search"
-                   id="pf-project-search"
-                   class="form-control"
-                   placeholder="Search project name or code"
-                   autocomplete="off"
-                   aria-controls="pf-project-table" />
-            <button type="button" class="btn btn-link d-none" id="pf-project-search-clear">Clear</button>
+            <div class="input-group input-group-lg">
+                <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
+                <input type="search"
+                       id="pf-project-search"
+                       class="form-control"
+                       placeholder="Search project name or code"
+                       autocomplete="off" />
+                <button type="button" class="btn btn-outline-secondary d-none" id="pf-project-search-clear">Clear</button>
+                <button type="button" class="btn btn-primary" id="pf-project-search-open" disabled>View total</button>
+            </div>
+            <input type="hidden" id="pf-project-search-id" />
+            <div class="pf-suggestions d-none" id="pf-project-search-suggestions" role="listbox"></div>
+            <div class="form-text" id="pf-project-search-status" aria-live="polite"></div>
         </div>
     </section>
 
@@ -109,7 +132,7 @@
                asp-page-handler="ExportProjects"
                title="Export project totals to Excel">
                 <i class="bi bi-download" aria-hidden="true"></i>
-                Export
+                Export project totals
             </a>
         </div>
 
@@ -135,10 +158,10 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var project in projects)
+                        @for (var projectIndex = 0; projectIndex < projects.Count; projectIndex++)
                         {
-                            var searchText = $"{project.ProjectName} {project.ProjectCode}".ToLowerInvariant();
-                            <tr data-project-row data-search="@searchText">
+                            var project = projects[projectIndex];
+                            <tr data-project-row data-project-rank="@(projectIndex + 1)" class="@(projectIndex >= 15 ? "pf-project-row--collapsed" : string.Empty)">
                                 <td>
                                     <a class="pf-project-link"
                                        asp-area="ProjectOfficeReports"
@@ -172,8 +195,14 @@
                 No project matches the current search.
             </div>
             <div class="pf-card__footer">
-                <span id="pf-project-count">Showing @projects.Count.ToString("N0") projects</span>
-                <a asp-area="ProjectOfficeReports" asp-page="/Proliferation/Index">Browse grouped records</a>
+                <span id="pf-project-count">Showing @Math.Min(15, projects.Count).ToString("N0") of @projects.Count.ToString("N0") projects</span>
+                <div class="d-flex flex-wrap gap-3 align-items-center">
+                    @if (projects.Count > 15)
+                    {
+                        <button type="button" class="btn btn-sm btn-link p-0" id="pf-project-show-all">Show all projects</button>
+                    }
+                    <a asp-area="ProjectOfficeReports" asp-page="/Proliferation/Index">Browse grouped records</a>
+                </div>
             </div>
         }
     </section>
@@ -197,6 +226,7 @@
                     <canvas id="proliferation-yearly-chart-canvas" aria-label="Year-wise proliferation chart" role="img"></canvas>
                 </div>
                 <div class="pf-chart-fallback">
+                    <span class="text-muted d-none" id="proliferation-yearly-chart-message" role="status"></span>
                     <a asp-page-handler="ExportYearBreakdown">Export year-wise data</a>
                 </div>
             </section>
@@ -231,7 +261,7 @@
 
     @if (Model.TechnicalCategoryBreakdown.Count > 0)
     {
-        <details class="pf-card pf-analytics-details mt-4">
+        <details class="pf-card pf-analytics-details mt-4" id="proliferation-technical-analysis">
             <summary>
                 <span>
                     <strong>Additional analysis</strong>
@@ -245,10 +275,13 @@
                      data-categories='@JsonSerializer.Serialize(Model.TechnicalCategoryBreakdown, jsonOptions)'>
                     <canvas id="proliferation-techcat-chart-canvas" aria-label="Proliferation by technical category chart" role="img"></canvas>
                 </div>
+                <p class="text-muted small d-none mt-3 mb-0" id="proliferation-techcat-chart-message" role="status"></p>
             </div>
         </details>
     }
 </div>
 
 <link rel="stylesheet" href="~/css/proliferation.css" asp-append-version="true" />
+<script src="~/lib/chartjs/chart.umd.js" asp-append-version="true" defer></script>
+<script src="~/js/components/proliferation-project-picker.js" asp-append-version="true" defer></script>
 <script src="~/js/pages/project-office-reports/proliferation-summary-charts.js" asp-append-version="true" defer></script>

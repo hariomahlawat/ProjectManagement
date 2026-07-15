@@ -10,6 +10,7 @@
   const editorCard = document.querySelector('#pf-editor');
   const manageLayout = document.querySelector('#pf-manage-layout');
   const commandElements = {
+    title: document.querySelector('[data-command-title]'),
     scope: document.querySelector('[data-command-scope]'),
     updated: document.querySelector('[data-command-updated-value]')
   };
@@ -30,7 +31,9 @@
     id: '',
     kind: '',
     status: '',
-    rowVersion: ''
+    rowVersion: '',
+    sourceLabel: '',
+    quantity: ''
   };
   if (!listCard || !editorCard) {
     return;
@@ -51,7 +54,8 @@
     deleteGranular: (id, rowVersion) => `/api/proliferation/granular/${id}?rowVersion=${encodeURIComponent(rowVersion)}`,
     setPreference: '/api/proliferation/year-preference',
     decideYearly: (id) => `/api/proliferation/yearly/${id}/decision`,
-    decideGranular: (id) => `/api/proliferation/granular/${id}/decision`
+    decideGranular: (id) => `/api/proliferation/granular/${id}/decision`,
+    groups: '/api/proliferation/groups'
   };
 
   const listEl = document.querySelector('#pf-list');
@@ -186,6 +190,12 @@
     btnReset: document.querySelector('#pf-reset'),
     btnDelete: document.querySelector('#pf-delete')
   };
+
+  if (editor.date) {
+    const maxDate = new Date();
+    maxDate.setUTCDate(maxDate.getUTCDate() + 30);
+    editor.date.max = maxDate.toISOString().slice(0, 10);
+  }
 
   let editorBaseline = '';
 
@@ -327,6 +337,16 @@
         const value = (editor.date?.value ?? '').toString().trim();
         if (!value) {
           return 'Select a proliferation date.';
+        }
+        const selected = new Date(`${value}T00:00:00Z`);
+        const minimum = new Date('2000-01-01T00:00:00Z');
+        const maximum = new Date();
+        maximum.setUTCDate(maximum.getUTCDate() + 30);
+        if (Number.isNaN(selected.getTime()) || selected < minimum) {
+          return 'Date cannot be earlier than 01 Jan 2000.';
+        }
+        if (selected > maximum) {
+          return 'Date cannot be more than 30 days in the future.';
         }
         return '';
       }
@@ -535,7 +555,9 @@
     ruleMode: overridesCard ? overridesCard.querySelector('#pf-rule-mode') : null,
     ruleSave: overridesCard ? overridesCard.querySelector('#pf-rule-save') : null,
     ruleGuidance: overridesCard ? overridesCard.querySelector('#pf-rule-guidance') : null,
-    ruleDefaultBadge: overridesCard ? overridesCard.querySelector('#pf-rule-default-badge') : null
+    ruleDefaultBadge: overridesCard ? overridesCard.querySelector('#pf-rule-default-badge') : null,
+    ruleReason: overridesCard ? overridesCard.querySelector('#pf-rule-reason') : null,
+    ruleImpact: overridesCard ? overridesCard.querySelector('#pf-rule-impact') : null
   };
   const overridesOverviewUrl = overridesCard?.dataset?.overviewUrl ?? '';
   const overridesExportUrl = overridesCard?.dataset?.exportUrl ?? '';
@@ -550,6 +572,10 @@
   };
   const overridesRows = new Map();
   let overridesSearchTimer = null;
+  let listController = null;
+  let listSequence = 0;
+  let overridesController = null;
+  let rulePreviewController = null;
 
   const deleteModalElements = (() => {
     const element = document.querySelector('#pf-delete-modal');
@@ -558,6 +584,9 @@
       element,
       project: element.querySelector('[data-confirm-project]'),
       date: element.querySelector('[data-confirm-date]'),
+      source: element.querySelector('[data-confirm-source]'),
+      quantity: element.querySelector('[data-confirm-quantity]'),
+      status: element.querySelector('[data-confirm-status]'),
       type: element.querySelector('[data-confirm-type]'),
       confirm: element.querySelector('[data-confirm-accept]'),
       cancel: element.querySelector('[data-confirm-cancel]')
@@ -565,6 +594,37 @@
   })();
 
   let deleteModalTrigger = null;
+  const rejectModalElements = (() => {
+    const element = document.querySelector('#pf-reject-modal');
+    if (!element) return null;
+    return {
+      element,
+      reason: element.querySelector('#pf-reject-reason'),
+      error: element.querySelector('#pf-reject-reason-error'),
+      confirm: element.querySelector('#pf-reject-confirm')
+    };
+  })();
+
+  async function readErrorResponse(response, fallback) {
+    const text = await response.text().catch(() => '');
+    if (!text) return fallback;
+    try {
+      const payload = JSON.parse(text);
+      if (payload?.message) return String(payload.message);
+      if (payload?.detail) return String(payload.detail);
+      if (payload?.title && payload.title !== 'One or more validation errors occurred.') return String(payload.title);
+      if (payload?.errors && typeof payload.errors === 'object') {
+        const messages = Object.values(payload.errors)
+          .flatMap(value => Array.isArray(value) ? value : [value])
+          .map(value => String(value || '').trim())
+          .filter(Boolean);
+        if (messages.length) return messages.join(' ');
+      }
+    } catch {
+      // Plain-text error response.
+    }
+    return text || fallback;
+  }
 
   function toast(message, variant = 'success') {
     if (!message || !toastHost) return;
@@ -827,6 +887,10 @@
 
   function getScopeLabel(kind) {
     return kind === 'yearly' ? 'Annual quantity' : 'Detailed entry';
+  }
+
+  function setCommandTitle(text) {
+    if (commandElements.title) commandElements.title.textContent = text || 'Current record';
   }
 
   function setCommandScope(kind) {
@@ -1337,6 +1401,8 @@
 
   async function fetchOverrides() {
     if (!overridesCard || !overridesElements.tableBody) return;
+    overridesController?.abort();
+    overridesController = new AbortController();
     const params = new URLSearchParams();
     if (overridesState.filters.projectId) params.set('projectId', overridesState.filters.projectId);
     if (overridesState.filters.source) params.set('source', overridesState.filters.source);
@@ -1350,15 +1416,15 @@
     updateOverridesExportAvailability(false);
 
     try {
-      const response = await fetch(`${api.overrides}?${params.toString()}`, { headers: { Accept: 'application/json' } });
+      const response = await fetch(`${api.overrides}?${params.toString()}`, { headers: { Accept: 'application/json' }, signal: overridesController.signal });
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || 'Unable to load counting exceptions');
+        throw new Error(await readErrorResponse(response, 'Unable to load counting exceptions'));
       }
       const data = await response.json();
       const rows = Array.isArray(data) ? data : [];
       renderOverrides(rows);
     } catch (error) {
+      if (error.name === 'AbortError') return;
       overridesElements.tableBody.innerHTML = '<tr><td colspan="6" class="text-danger">Failed to load counting exceptions.</td></tr>';
       if (overridesElements.summary) {
         overridesElements.summary.textContent = '';
@@ -1463,6 +1529,50 @@
     return Number(sourceValue) === 2 ? 'UseYearly' : 'UseYearlyAndGranular';
   }
 
+  function calculateRuleTotal(mode, annual, detailed) {
+    if (mode === 'UseYearly') return annual;
+    if (mode === 'UseGranular') return detailed;
+    if (mode === 'Auto') return detailed > 0 ? detailed : annual;
+    return annual + detailed;
+  }
+
+  async function refreshRuleImpact() {
+    const projectId = Number(overridesElements.ruleProject?.value || 0);
+    const source = Number(overridesElements.ruleSource?.value || 0);
+    const year = Number(overridesElements.ruleYear?.value || 0);
+    const host = overridesElements.ruleImpact;
+    if (!host || !Number.isInteger(projectId) || projectId <= 0 || ![1, 2].includes(source) || year < 2000) {
+      host?.classList.add('d-none');
+      return;
+    }
+    rulePreviewController?.abort();
+    rulePreviewController = new AbortController();
+    host.classList.remove('d-none');
+    host.textContent = 'Loading calculation impact…';
+    try {
+      const qs = new URLSearchParams({ projectId: String(projectId), source: String(source), year: String(year), page: '1', pageSize: '1' });
+      const response = await fetch(`${api.groups}?${qs}`, { headers: { Accept: 'application/json' }, signal: rulePreviewController.signal });
+      if (!response.ok) throw new Error('Unable to load calculation');
+      const data = await response.json();
+      const row = Array.isArray(data.items) ? data.items[0] : null;
+      const annual = Number(row?.annualQuantity || 0);
+      const detailed = Number(row?.detailedQuantity || 0);
+      const current = Number(row?.reportedTotal || 0);
+      const selected = overridesElements.ruleMode?.value || 'default';
+      const mode = selected === 'default' ? getSourceDefaultMode(source) : selected;
+      const next = calculateRuleTotal(mode, annual, detailed);
+      host.replaceChildren();
+      const title = document.createElement('strong');
+      title.textContent = 'Calculation impact';
+      const text = document.createElement('span');
+      text.textContent = `Annual ${formatNumber(annual)} · detailed ${formatNumber(detailed)} · current reported total ${formatNumber(current)} · after change ${formatNumber(next)}`;
+      host.append(title, text);
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      host.textContent = 'Calculation impact could not be loaded.';
+    }
+  }
+
   function updateRuleGuidance() {
     if (!overridesElements.ruleSource) return;
     const isAbw = Number(overridesElements.ruleSource.value) === 2;
@@ -1471,8 +1581,8 @@
         ? '515 ABW default: annual quantity'
         : 'SDD default: annual + detailed';
     }
+    const selectedMode = overridesElements.ruleMode?.value || 'default';
     if (overridesElements.ruleGuidance) {
-      const selectedMode = overridesElements.ruleMode?.value || 'default';
       if (selectedMode === 'default') {
         overridesElements.ruleGuidance.textContent = isAbw
           ? '515 ABW normally counts the approved annual quantity. Detailed entries remain available for reference.'
@@ -1481,6 +1591,11 @@
         overridesElements.ruleGuidance.textContent = 'This creates a deliberate exception for the selected project, source and year.';
       }
     }
+    if (overridesElements.ruleReason) {
+      overridesElements.ruleReason.required = selectedMode !== 'default';
+      overridesElements.ruleReason.classList.remove('is-invalid');
+    }
+    refreshRuleImpact();
   }
 
   function editRuleFromOverride(row) {
@@ -1499,6 +1614,7 @@
       const allowed = ['UseYearlyAndGranular', 'UseYearly', 'UseGranular', 'Auto'];
       overridesElements.ruleMode.value = allowed.includes(row.mode) ? row.mode : 'default';
     }
+    if (overridesElements.ruleReason) overridesElements.ruleReason.value = '';
     updateRuleGuidance();
     overridesElements.ruleEditor.scrollIntoView({ behavior: 'smooth', block: 'center' });
     overridesElements.ruleMode?.focus();
@@ -1515,6 +1631,7 @@
     const source = Number(overridesElements.ruleSource?.value || 0);
     const year = Number(overridesElements.ruleYear?.value || 0);
     const selected = overridesElements.ruleMode?.value || 'default';
+    const reason = overridesElements.ruleReason?.value?.trim() || '';
 
     if (!Number.isInteger(projectId) || projectId <= 0) {
       toast('Select a project for the counting rule.', 'warning');
@@ -1529,6 +1646,13 @@
     if (!Number.isInteger(year) || year < 2000 || year > 3000) {
       toast('Enter a valid four digit year.', 'warning');
       overridesElements.ruleYear?.focus();
+      return;
+    }
+
+    if (selected !== 'default' && !reason) {
+      toast('Enter a reason for the counting exception.', 'warning');
+      overridesElements.ruleReason?.classList.add('is-invalid');
+      overridesElements.ruleReason?.focus();
       return;
     }
 
@@ -1551,15 +1675,16 @@
       const response = await fetch(api.setPreference, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
-        body: JSON.stringify({ projectId, source, year, mode })
+        body: JSON.stringify({ projectId, source, year, mode, reason: reason || null })
       });
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || 'Unable to save the counting rule.');
+        throw new Error(await readErrorResponse(response, 'Unable to save the counting rule.'));
       }
 
       toast(selected === 'default' ? 'Source default restored.' : 'Counting rule saved.', 'success');
+      if (overridesElements.ruleReason) overridesElements.ruleReason.value = '';
       await fetchOverrides();
+      await refreshRuleImpact();
     } catch (error) {
       toast(error.message || 'Unable to save the counting rule.', 'danger');
     } finally {
@@ -1579,7 +1704,8 @@
         projectId: row.projectId,
         source: row.sourceValue ?? row.source,
         year: row.year,
-        mode: Number(row.sourceValue ?? row.source) === 2 ? 'UseYearly' : 'UseYearlyAndGranular'
+        mode: Number(row.sourceValue ?? row.source) === 2 ? 'UseYearly' : 'UseYearlyAndGranular',
+        reason: 'Restored source default'
       };
       const response = await fetch(api.setPreference, {
         method: 'POST',
@@ -1587,12 +1713,12 @@
         body: JSON.stringify(payload)
       });
       if (!response.ok) {
-        const text = await response.text();
+        const message = await readErrorResponse(response, 'Unable to restore the source default');
         if (response.status === 403) {
           openOverview(row, '#preferences');
-          throw new Error(text || 'You do not have permission to change this counting rule.');
+          throw new Error(message || 'You do not have permission to change this counting rule.');
         }
-        throw new Error(text || 'Unable to restore the source default');
+        throw new Error(message);
       }
       toast('Counting exception cleared.', 'success');
       emitDeepLinkEvent('override-cleared', {
@@ -1639,9 +1765,10 @@
     if (deleteModalElements.project) {
       deleteModalElements.project.textContent = details.project || 'this project';
     }
-    if (deleteModalElements.date) {
-      deleteModalElements.date.textContent = details.dateOrYear || 'the selected period';
-    }
+    if (deleteModalElements.date) deleteModalElements.date.textContent = details.dateOrYear || 'the selected period';
+    if (deleteModalElements.source) deleteModalElements.source.textContent = details.source || '—';
+    if (deleteModalElements.quantity) deleteModalElements.quantity.textContent = details.quantity || '—';
+    if (deleteModalElements.status) deleteModalElements.status.textContent = details.status || '—';
 
     if (deleteModalElements.cancel) {
       deleteModalElements.cancel.disabled = false;
@@ -1700,6 +1827,9 @@
 
   async function fetchList() {
     if (!listEl) return;
+    const sequence = ++listSequence;
+    listController?.abort();
+    listController = new AbortController();
     const params = new URLSearchParams();
     if (filters.projectId) params.set('projectId', filters.projectId);
     if (filters.source) params.set('source', filters.source);
@@ -1714,10 +1844,10 @@
     countEl.textContent = '';
 
     try {
-      const response = await fetch(`${api.list}?${params.toString()}`, { headers: { Accept: 'application/json' } });
+      const response = await fetch(`${api.list}?${params.toString()}`, { headers: { Accept: 'application/json' }, signal: listController.signal });
+      if (sequence !== listSequence) return;
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || 'Unable to load list');
+        throw new Error(await readErrorResponse(response, 'Unable to load list'));
       }
       const data = await response.json();
       pager.page = Number(data.page) || pager.page;
@@ -1728,6 +1858,7 @@
       renderPager();
       renderCount();
     } catch (error) {
+      if (error.name === 'AbortError') return;
       pager.total = 0;
       renderList([]);
       renderPager();
@@ -1810,8 +1941,11 @@
       overridesElements.ruleYear.value = bootDefaults.overrides?.year || String(defaults.year);
     }
     updateRuleGuidance();
+    overridesElements.ruleProject?.addEventListener('change', refreshRuleImpact);
     overridesElements.ruleSource?.addEventListener('change', updateRuleGuidance);
+    overridesElements.ruleYear?.addEventListener('change', refreshRuleImpact);
     overridesElements.ruleMode?.addEventListener('change', updateRuleGuidance);
+    overridesElements.ruleReason?.addEventListener('input', () => overridesElements.ruleReason.classList.remove('is-invalid'));
     overridesElements.ruleSave?.addEventListener('click', saveCountingRule);
 
     overridesElements.tableBody?.addEventListener('click', (event) => {
@@ -1853,7 +1987,8 @@
       const sourceLabel = item.sourceLabel ?? '';
       const quantity = formatNumber(item.quantity ?? item.totalQuantity);
       const dateText = item.proliferationDateUtc ? formatDate(item.proliferationDateUtc) : (item.year ?? '');
-      const subtitleParts = [sourceLabel, dateText].filter(Boolean);
+      const unitName = kind === 'granular' ? (item.unitName ?? '').trim() : '';
+      const subtitleParts = [sourceLabel, dateText, unitName].filter(Boolean);
       const approval = item.approvalStatus ? `Status: ${item.approvalStatus}` : '';
       const subtitle = [subtitleParts.join(' · '), approval].filter(Boolean).join(' • ');
       const updatedValue = item.lastUpdatedOnUtc ?? item.LastUpdatedOnUtc ?? '';
@@ -2003,6 +2138,10 @@
     document.querySelectorAll('.granular-only').forEach((el) => {
       el.classList.toggle('d-none', !isGranular);
     });
+    if (editor.year) {
+      editor.year.readOnly = isGranular;
+      editor.year.setAttribute('aria-readonly', isGranular ? 'true' : 'false');
+    }
     if (editor.date) editor.date.required = isGranular;
     if (editor.unit) editor.unit.required = isGranular;
     if (editor.qty) editor.qty.min = isGranular ? 1 : 0;
@@ -2032,6 +2171,16 @@
     updateSaveButtonState();
   }
 
+
+  editor.date?.addEventListener('change', () => {
+    const value = editor.date.value || '';
+    if (value.length >= 4 && editor.kind?.value === 'granular') {
+      editor.year.value = value.slice(0, 4);
+      validateField('year', { display: true });
+      updateSaveButtonState();
+    }
+  });
+
   document.querySelector('#tab-granular')?.addEventListener('click', () => {
     if (editor.kind?.value !== 'granular') {
       beginNewEntry('granular', { preserveContext: true });
@@ -2046,7 +2195,7 @@
   document.querySelectorAll('[data-new-proliferation]').forEach((button) => {
     button.addEventListener('click', () => {
       const kind = button.dataset.newProliferation === 'yearly' ? 'yearly' : 'granular';
-      if (!beginNewEntry(kind)) return;
+      if (!beginNewEntry(kind, { preserveContext: true })) return;
       document.querySelector('#pf-detail-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       editor.project?.focus();
     });
@@ -2056,8 +2205,7 @@
     const endpoint = kind === 'yearly' ? api.yearly(id) : api.granular(id);
     const response = await fetch(endpoint, { headers: { Accept: 'application/json' } });
     if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || 'Failed to load entry');
+      throw new Error(await readErrorResponse(response, 'Failed to load entry'));
     }
     const detail = await response.json();
     editor.id.value = detail.id ?? '';
@@ -2087,6 +2235,10 @@
     currentRecord.kind = kind;
     currentRecord.status = statusValue;
     currentRecord.rowVersion = detail.rowVersion ?? '';
+    currentRecord.sourceLabel = getOptionLabel(editor.source, editor.source.value) || '';
+    currentRecord.quantity = kind === 'yearly' ? String(detail.totalQuantity ?? '') : String(detail.quantity ?? '');
+    const projectLabel = getOptionLabel(editor.project, editor.project.value) || 'Selected project';
+    setCommandTitle(projectLabel);
     const updatedValue = detail.lastUpdatedOnUtc ?? detail.LastUpdatedOnUtc ?? (typeof metadata === 'object' && metadata ? metadata.updated || '' : '');
     setCommandUpdated(updatedValue);
     updateApprovalUi(detail);
@@ -2120,12 +2272,24 @@
         body: JSON.stringify(payload)
       });
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || 'Save failed');
+        throw new Error(await readErrorResponse(response, 'Save failed'));
       }
-      toast('Entry saved successfully.', 'success');
+      const result = await response.json().catch(() => ({}));
+      const savedId = id || result.id;
       await fetchList();
-      resetEditor(kind === 'yearly' ? 'yearly' : 'granular');
+      if (savedId) {
+        await loadIntoEditor(kind, savedId);
+        const normalizedStatus = String(currentRecord.status || '').toLowerCase();
+        const message = normalizedStatus === 'approved'
+          ? 'Entry saved and approved.'
+          : normalizedStatus === 'pending'
+            ? 'Entry saved and submitted for approval.'
+            : 'Entry saved successfully.';
+        toast(message, 'success');
+      } else {
+        resetEditor(kind);
+        toast('Entry saved successfully.', 'success');
+      }
       setSaveButtonState('success');
     } catch (error) {
       setSaveButtonState('idle');
@@ -2133,12 +2297,12 @@
     }
   });
 
-  async function decideRecord(approve) {
+  async function decideRecord(approve, reason = null) {
     if (!canApproveRecords || !currentRecord.id) {
-      return;
+      return false;
     }
     if (!confirmDiscardChanges()) {
-      return;
+      return false;
     }
 
     const kind = currentRecord.kind === 'yearly' ? 'yearly' : 'granular';
@@ -2146,11 +2310,11 @@
     const rowVersion = editor.rowVersion.value || currentRecord.rowVersion;
     if (!rowVersion) {
       toast('Refresh the record before taking action.', 'warning');
-      return;
+      return false;
     }
 
     const endpoint = kind === 'yearly' ? api.decideYearly(id) : api.decideGranular(id);
-    const payload = { approve: Boolean(approve), rowVersion };
+    const payload = { approve: Boolean(approve), rowVersion, reason };
 
     setDecisionBusy(true);
     try {
@@ -2160,14 +2324,15 @@
         body: JSON.stringify(payload)
       });
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || 'Unable to update approval status');
+        throw new Error(await readErrorResponse(response, 'Unable to update approval status'));
       }
       toast(approve ? 'Entry approved.' : 'Entry rejected.', approve ? 'success' : 'warning');
       await fetchList();
       await loadIntoEditor(kind, id);
+      return true;
     } catch (error) {
       toast(error.message || 'Unable to update approval status', 'danger');
+      return false;
     } finally {
       setDecisionBusy(false);
     }
@@ -2233,9 +2398,31 @@
   });
 
   decisionButtons.reject?.addEventListener('click', () => {
-    decideRecord(false).catch((error) => {
-      toast(error.message || 'Unable to update approval status', 'danger');
-    });
+    if (!rejectModalElements || !Modal) {
+      const reason = window.prompt('Reason for rejection');
+      if (!reason?.trim()) return;
+      decideRecord(false, reason.trim());
+      return;
+    }
+    rejectModalElements.reason.value = '';
+    rejectModalElements.error.classList.add('d-none');
+    Modal.getOrCreateInstance(rejectModalElements.element).show();
+  });
+
+  rejectModalElements?.confirm?.addEventListener('click', async () => {
+    const reason = rejectModalElements.reason?.value?.trim() || '';
+    if (!reason) {
+      rejectModalElements.error?.classList.remove('d-none');
+      rejectModalElements.reason?.focus();
+      return;
+    }
+    rejectModalElements.confirm.disabled = true;
+    try {
+      const succeeded = await decideRecord(false, reason);
+      if (succeeded) Modal?.getOrCreateInstance(rejectModalElements.element)?.hide();
+    } finally {
+      rejectModalElements.confirm.disabled = false;
+    }
   });
 
   editor.btnDelete?.addEventListener('click', async () => {
@@ -2256,6 +2443,9 @@
       project: projectText,
       type: kind,
       dateOrYear,
+      source: currentRecord.sourceLabel,
+      quantity: editor.qty?.value || currentRecord.quantity,
+      status: currentRecord.status || 'Unknown',
       trigger: editor.btnDelete
     });
     if (!confirmed) return;
@@ -2264,8 +2454,7 @@
       const url = kind === 'yearly' ? api.deleteYearly(id, rowVersion) : api.deleteGranular(id, rowVersion);
       const response = await fetch(url, { method: 'DELETE', headers: { 'X-CSRF-TOKEN': getCsrfToken() }, credentials: 'same-origin' });
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || 'Delete failed');
+        throw new Error(await readErrorResponse(response, 'Delete failed'));
       }
       toast('Entry deleted.', 'warning');
       await fetchList();
@@ -2293,6 +2482,9 @@
     currentRecord.kind = preferredKind === 'yearly' ? 'yearly' : 'granular';
     currentRecord.status = '';
     currentRecord.rowVersion = '';
+    currentRecord.sourceLabel = '';
+    currentRecord.quantity = '';
+    setCommandTitle(preferredKind === 'yearly' ? 'New annual quantity' : 'New detailed entry');
     resetApprovalUi();
     updateDecisionButtons();
     if (listEl) {
@@ -2322,6 +2514,12 @@
   }
 
   window.addEventListener('hashchange', handleHashChange);
+  window.addEventListener('pagehide', () => {
+    listController?.abort();
+    overridesController?.abort();
+    rulePreviewController?.abort();
+  }, { once: true });
+
   window.addEventListener('beforeunload', (event) => {
     if (!isEditorDirty()) return;
     event.preventDefault();

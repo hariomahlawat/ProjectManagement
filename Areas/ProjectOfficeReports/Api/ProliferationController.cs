@@ -295,6 +295,49 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             return results;
         }
 
+        [HttpGet("projects/{id:int}")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
+        public async Task<ActionResult<ProliferationProjectLookupDto>> GetEligibleProjectById(
+            int id,
+            [FromQuery] int? projectCategoryId,
+            [FromQuery] int? technicalCategoryId,
+            CancellationToken ct)
+        {
+            if (id <= 0)
+            {
+                return BadRequest("A valid project id is required.");
+            }
+
+            var projects = _db.Projects
+                .AsNoTracking()
+                .Where(p =>
+                    p.Id == id &&
+                    !p.IsDeleted &&
+                    !p.IsArchived &&
+                    p.LifecycleStatus == ProjectLifecycleStatus.Completed);
+
+            if (projectCategoryId.HasValue)
+            {
+                projects = projects.Where(p => p.CategoryId == projectCategoryId.Value);
+            }
+
+            if (technicalCategoryId.HasValue)
+            {
+                projects = projects.Where(p => p.TechnicalCategoryId == technicalCategoryId.Value);
+            }
+
+            var project = await projects
+                .Select(p => new ProliferationProjectLookupDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Code = p.CaseFileNumber
+                })
+                .FirstOrDefaultAsync(ct);
+
+            return project is null ? NotFound() : Ok(project);
+        }
+
         [HttpGet("lookups")]
         [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
         public async Task<ActionResult<ProliferationLookupsDto>> GetLookups(CancellationToken ct)
@@ -394,74 +437,25 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 .ToList();
 
             var total = ordered.Count;
-            var selected = ordered
+            var items = ordered
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .ToList();
-
-            var selectedKeys = selected
-                .Select(x => (x.ProjectId, x.Source, x.Year))
-                .ToHashSet();
-            var selectedProjectIds = selected.Select(x => x.ProjectId).Distinct().ToArray();
-
-            var detailedEntries = selectedProjectIds.Length == 0
-                ? new List<ProliferationGroupedDetailedEntryProjection>()
-                : await _db.ProliferationGranularEntries
-                    .AsNoTracking()
-                    .Where(x =>
-                        selectedProjectIds.Contains(x.ProjectId) &&
-                        x.ApprovalStatus == ApprovalStatus.Approved)
-                    .OrderByDescending(x => x.ProliferationDate)
-                    .ThenBy(x => x.UnitName)
-                    .Select(x => new ProliferationGroupedDetailedEntryProjection(
-                        x.Id,
-                        x.ProjectId,
-                        x.Source,
-                        x.ProliferationDate.Year,
-                        x.ProliferationDate,
-                        x.UnitName,
-                        x.Quantity,
-                        x.Remarks))
-                    .ToListAsync(ct);
-
-            var entriesLookup = detailedEntries
-                .Where(x => selectedKeys.Contains((x.ProjectId, x.Source, x.Year)))
-                .GroupBy(x => (x.ProjectId, x.Source, x.Year))
-                .ToDictionary(
-                    group => group.Key,
-                    group => (IReadOnlyList<ProliferationGroupedDetailedEntryDto>)group
-                        .Select(x => new ProliferationGroupedDetailedEntryDto
-                        {
-                            Id = x.Id,
-                            ProliferationDate = x.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                            UnitName = x.UnitName,
-                            Quantity = x.Quantity,
-                            Remarks = x.Remarks
-                        })
-                        .ToList());
-
-            var items = selected
-                .Select(row =>
+                .Select(row => new ProliferationGroupedRowDto
                 {
-                    entriesLookup.TryGetValue((row.ProjectId, row.Source, row.Year), out var entries);
-                    return new ProliferationGroupedRowDto
-                    {
-                        ProjectId = row.ProjectId,
-                        ProjectName = row.ProjectName,
-                        ProjectCode = row.ProjectCode,
-                        Source = row.Source,
-                        SourceLabel = row.SourceLabel,
-                        Year = row.Year,
-                        AnnualQuantity = row.AnnualQuantity,
-                        DetailedQuantity = row.DetailedQuantity,
-                        DetailedEntryCount = row.DetailedEntryCount,
-                        ReportedTotal = row.ReportedTotal,
-                        CalculationLabel = row.CalculationLabel,
-                        EffectiveMode = row.EffectiveMode.ToString(),
-                        HasCountingException = row.HasCountingException,
-                        LastUpdatedOnUtc = row.LastUpdatedOnUtc,
-                        DetailedEntries = entries ?? Array.Empty<ProliferationGroupedDetailedEntryDto>()
-                    };
+                    ProjectId = row.ProjectId,
+                    ProjectName = row.ProjectName,
+                    ProjectCode = row.ProjectCode,
+                    Source = row.Source,
+                    SourceLabel = row.SourceLabel,
+                    Year = row.Year,
+                    AnnualQuantity = row.AnnualQuantity,
+                    DetailedQuantity = row.DetailedQuantity,
+                    DetailedEntryCount = row.DetailedEntryCount,
+                    ReportedTotal = row.ReportedTotal,
+                    CalculationLabel = row.CalculationLabel,
+                    EffectiveMode = row.EffectiveMode.ToString(),
+                    HasCountingException = row.HasCountingException,
+                    LastUpdatedOnUtc = row.LastUpdatedOnUtc
                 })
                 .ToList();
 
@@ -472,6 +466,63 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 PageSize = pageSize,
                 Items = items
             });
+        }
+
+        [HttpGet("groups/{projectId:int}/entries")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
+        public async Task<ActionResult<IReadOnlyList<ProliferationGroupedDetailedEntryDto>>> GetGroupedDetailedEntries(
+            int projectId,
+            [FromQuery] ProliferationSource source,
+            [FromQuery] int year,
+            CancellationToken ct)
+        {
+            if (projectId <= 0)
+            {
+                return BadRequest("A valid project id is required.");
+            }
+
+            if (source is not (ProliferationSource.Sdd or ProliferationSource.Abw515))
+            {
+                return BadRequest("A valid source is required.");
+            }
+
+            if (year is < 2000 or > 3000)
+            {
+                return BadRequest("Year must be between 2000 and 3000.");
+            }
+
+            var rows = await _db.ProliferationGranularEntries
+                .AsNoTracking()
+                .Where(x =>
+                    x.ProjectId == projectId &&
+                    x.Source == source &&
+                    x.ProliferationDate.Year == year &&
+                    x.ApprovalStatus == ApprovalStatus.Approved)
+                .OrderByDescending(x => x.ProliferationDate)
+                .ThenBy(x => x.UnitName)
+                .Select(x => new ProliferationGroupedDetailedEntryProjection(
+                    x.Id,
+                    x.ProjectId,
+                    x.Source,
+                    x.ProliferationDate.Year,
+                    x.ProliferationDate,
+                    x.UnitName,
+                    x.Quantity,
+                    x.Remarks))
+                .ToListAsync(ct);
+
+            var entries = rows
+                .Select(x => new ProliferationGroupedDetailedEntryDto
+                {
+                    Id = x.Id,
+                    ProliferationDate = x.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    UnitName = x.UnitName,
+                    Quantity = x.Quantity,
+                    Remarks = x.Remarks
+                })
+                .ToList();
+
+            return Ok(entries);
         }
 
         [HttpGet("overview")]
@@ -903,7 +954,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 return BadRequest("Only completed projects are eligible");
 
             var result = await _submitSvc.CreateYearlyAsync(dto, User, ct);
-            return result.Success ? Ok() : BadRequest(result.Error);
+            return result.Success ? Ok(new { id = result.EntityId }) : BadRequest(result.Error);
         }
 
         [HttpPost("granular")]
@@ -918,7 +969,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             try
             {
                 var result = await _submitSvc.CreateGranularAsync(dto, User, ct);
-                return result.Success ? Ok() : BadRequest(result.Error);
+                return result.Success ? Ok(new { id = result.EntityId }) : BadRequest(result.Error);
             }
             catch (DbUpdateException ex)
             {
@@ -957,7 +1008,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 return BadRequest("Decision payload is required.");
             }
 
-            var result = await _submitSvc.DecideYearlyAsync(id, dto.Approve, dto.RowVersion, User, ct);
+            var result = await _submitSvc.DecideYearlyAsync(id, dto.Approve, dto.RowVersion, dto.Reason, User, ct);
             return ToActionResult(result);
         }
 
@@ -970,7 +1021,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 return BadRequest("Decision payload is required.");
             }
 
-            var result = await _submitSvc.DecideGranularAsync(id, dto.Approve, dto.RowVersion, User, ct);
+            var result = await _submitSvc.DecideGranularAsync(id, dto.Approve, dto.RowVersion, dto.Reason, User, ct);
             return ToActionResult(result);
         }
 
@@ -1069,7 +1120,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         {
             if (result.Success)
             {
-                return noContent ? NoContent() : Ok();
+                return noContent ? NoContent() : Ok(new { id = result.EntityId });
             }
 
             if (string.Equals(result.Error, "Record not found.", StringComparison.OrdinalIgnoreCase))

@@ -18,7 +18,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
     {
         public bool Success { get; private set; }
         public string? Error { get; private set; }
-        public static ServiceResult Ok() => new() { Success = true };
+        public Guid? EntityId { get; private set; }
+        public static ServiceResult Ok(Guid? entityId = null) => new() { Success = true, EntityId = entityId };
         public static ServiceResult Fail(string error) => new() { Success = false, Error = error };
     }
 
@@ -28,6 +29,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         private readonly UserManager<ApplicationUser> _users;
         private readonly IClock _clock;
         private readonly IAuditService _audit;
+        private static readonly DateTime MinimumProliferationDateUtc = new(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         public ProliferationSubmissionService(
             ApplicationDbContext db,
@@ -113,7 +115,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 .ProliferationYearlyRecorded(project.Id, entity.Source, entity.Year, entity.TotalQuantity, entity.ApprovalStatus, actor.Id, "Create")
                 .WriteAsync(_audit, userName: actor.UserName);
 
-            return ServiceResult.Ok();
+            return ServiceResult.Ok(entity.Id);
         }
 
         public async Task<ServiceResult> CreateGranularAsync(ProliferationGranularCreateDto dto, ClaimsPrincipal user, CancellationToken ct)
@@ -160,6 +162,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             var now = _clock.UtcNow.UtcDateTime;
             var normalizedDateTime = DateTime.SpecifyKind(dto.ProliferationDateUtc, DateTimeKind.Utc);
             var maxDate = now.AddDays(30);
+            if (normalizedDateTime < MinimumProliferationDateUtc)
+            {
+                return ServiceResult.Fail("Proliferation date cannot be earlier than 01 Jan 2000.");
+            }
             if (normalizedDateTime > maxDate)
             {
                 return ServiceResult.Fail("Proliferation date cannot be more than 30 days in the future.");
@@ -200,7 +206,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 .ProliferationGranularRecorded(project.Id, project.Name, entity.Source, entity.UnitName, entity.ProliferationDate, entity.Quantity, entity.ApprovalStatus, actor.Id, "Create")
                 .WriteAsync(_audit, userName: actor.UserName);
 
-            return ServiceResult.Ok();
+            return ServiceResult.Ok(entity.Id);
         }
 
         public async Task<ServiceResult> SetYearPreferenceAsync(ProliferationYearPreferenceDto dto, ClaimsPrincipal user, CancellationToken ct)
@@ -259,7 +265,14 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             await _db.SaveChangesAsync(ct);
 
             await Audit.Events
-                .ProliferationPreferenceChanged(project.Id, dto.Source, dto.Year, actor.Id, actor.Id, isNew ? "Created" : "Updated")
+                .ProliferationPreferenceChanged(
+                    project.Id,
+                    dto.Source,
+                    dto.Year,
+                    actor.Id,
+                    actor.Id,
+                    isNew ? "Created" : "Updated",
+                    Normalize(dto.Reason, 500))
                 .WriteAsync(_audit, userName: actor.UserName);
 
             return ServiceResult.Ok();
@@ -308,8 +321,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             var remarks = Normalize(dto.Remarks, 500);
             var now = _clock.UtcNow.UtcDateTime;
 
-            var requiresApproval = RequiresImmediateApproval(user) || entity.ApprovalStatus == ApprovalStatus.Approved;
-            if (requiresApproval)
+            var canApproveImmediately = RequiresImmediateApproval(user);
+            if (canApproveImmediately)
             {
                 var duplicate = await _db.ProliferationYearlies
                     .AsNoTracking()
@@ -333,6 +346,18 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             entity.TotalQuantity = dto.TotalQuantity;
             entity.Remarks = remarks;
             entity.LastUpdatedOnUtc = now;
+            if (canApproveImmediately)
+            {
+                entity.ApprovalStatus = ApprovalStatus.Approved;
+                entity.ApprovedByUserId = actor.Id;
+                entity.ApprovedOnUtc = now;
+            }
+            else
+            {
+                entity.ApprovalStatus = ApprovalStatus.Pending;
+                entity.ApprovedByUserId = null;
+                entity.ApprovedOnUtc = null;
+            }
 
             _db.Entry(entity).Property(e => e.RowVersion).OriginalValue = rowVersion;
 
@@ -349,7 +374,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 .ProliferationYearlyRecorded(entity.ProjectId, entity.Source, entity.Year, entity.TotalQuantity, entity.ApprovalStatus, actor.Id, "Update")
                 .WriteAsync(_audit, userName: actor.UserName);
 
-            return ServiceResult.Ok();
+            return ServiceResult.Ok(entity.Id);
         }
 
         public async Task<ServiceResult> UpdateGranularAsync(Guid id, ProliferationGranularUpdateDto dto, ClaimsPrincipal user, CancellationToken ct)
@@ -405,6 +430,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             var now = _clock.UtcNow.UtcDateTime;
             var normalizedDateTime = DateTime.SpecifyKind(dto.ProliferationDateUtc, DateTimeKind.Utc);
             var maxDate = now.AddDays(30);
+            if (normalizedDateTime < MinimumProliferationDateUtc)
+            {
+                return ServiceResult.Fail("Proliferation date cannot be earlier than 01 Jan 2000.");
+            }
             if (normalizedDateTime > maxDate)
             {
                 return ServiceResult.Fail("Proliferation date cannot be more than 30 days in the future.");
@@ -420,6 +449,18 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             entity.Quantity = dto.Quantity;
             entity.Remarks = remarks;
             entity.LastUpdatedOnUtc = now;
+            if (RequiresImmediateApproval(user))
+            {
+                entity.ApprovalStatus = ApprovalStatus.Approved;
+                entity.ApprovedByUserId = actor.Id;
+                entity.ApprovedOnUtc = now;
+            }
+            else
+            {
+                entity.ApprovalStatus = ApprovalStatus.Pending;
+                entity.ApprovedByUserId = null;
+                entity.ApprovedOnUtc = null;
+            }
 
             _db.Entry(entity).Property(e => e.RowVersion).OriginalValue = rowVersion;
 
@@ -436,12 +477,18 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 .ProliferationGranularRecorded(entity.ProjectId, project.Name, entity.Source, entity.UnitName, entity.ProliferationDate, entity.Quantity, entity.ApprovalStatus, actor.Id, "Update")
                 .WriteAsync(_audit, userName: actor.UserName);
 
-            return ServiceResult.Ok();
+            return ServiceResult.Ok(entity.Id);
         }
 
-        public async Task<ServiceResult> DecideYearlyAsync(Guid id, bool approve, string? rowVersionBase64, ClaimsPrincipal user, CancellationToken ct)
+        public async Task<ServiceResult> DecideYearlyAsync(Guid id, bool approve, string? rowVersionBase64, string? reason, ClaimsPrincipal user, CancellationToken ct)
         {
             if (user is null) throw new ArgumentNullException(nameof(user));
+
+            var normalizedReason = Normalize(reason, 500);
+            if (!approve && string.IsNullOrWhiteSpace(normalizedReason))
+            {
+                return ServiceResult.Fail("A reason is required when rejecting a record.");
+            }
 
             var actor = await _users.GetUserAsync(user);
             if (actor is null)
@@ -504,15 +551,21 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             }
 
             await Audit.Events
-                .ProliferationYearlyDecided(entity.ProjectId, entity.Source, entity.Year, approve, actor.Id)
+                .ProliferationYearlyDecided(entity.ProjectId, entity.Source, entity.Year, approve, actor.Id, normalizedReason)
                 .WriteAsync(_audit, userName: actor.UserName);
 
             return ServiceResult.Ok();
         }
 
-        public async Task<ServiceResult> DecideGranularAsync(Guid id, bool approve, string? rowVersionBase64, ClaimsPrincipal user, CancellationToken ct)
+        public async Task<ServiceResult> DecideGranularAsync(Guid id, bool approve, string? rowVersionBase64, string? reason, ClaimsPrincipal user, CancellationToken ct)
         {
             if (user is null) throw new ArgumentNullException(nameof(user));
+
+            var normalizedReason = Normalize(reason, 500);
+            if (!approve && string.IsNullOrWhiteSpace(normalizedReason))
+            {
+                return ServiceResult.Fail("A reason is required when rejecting a record.");
+            }
 
             var actor = await _users.GetUserAsync(user);
             if (actor is null)
@@ -560,7 +613,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             }
 
             await Audit.Events
-                .ProliferationGranularDecided(entity.ProjectId, entity.Source, entity.ProliferationDate, approve, actor.Id)
+                .ProliferationGranularDecided(entity.ProjectId, entity.Source, entity.ProliferationDate, approve, actor.Id, normalizedReason)
                 .WriteAsync(_audit, userName: actor.UserName);
 
             return ServiceResult.Ok();
@@ -580,6 +633,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             if (entity is null)
             {
                 return ServiceResult.Fail("Record not found.");
+            }
+
+            if (entity.ApprovalStatus == ApprovalStatus.Approved && !RequiresImmediateApproval(user))
+            {
+                return ServiceResult.Fail("Approved records can be deleted only by Admin or HoD.");
             }
 
             if (!TryDecodeRowVersion(rowVersionBase64, out var rowVersion))
@@ -620,6 +678,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             if (entity is null)
             {
                 return ServiceResult.Fail("Record not found.");
+            }
+
+            if (entity.ApprovalStatus == ApprovalStatus.Approved && !RequiresImmediateApproval(user))
+            {
+                return ServiceResult.Fail("Approved records can be deleted only by Admin or HoD.");
             }
 
             if (!TryDecodeRowVersion(rowVersionBase64, out var rowVersion))
@@ -720,6 +783,14 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             if (!Enum.IsDefined(typeof(YearPreferenceMode), dto.Mode))
             {
                 return ServiceResult.Fail("Preference mode is required.");
+            }
+
+            var sourceDefault = dto.Source == ProliferationSource.Abw515
+                ? YearPreferenceMode.UseYearly
+                : YearPreferenceMode.UseYearlyAndGranular;
+            if (dto.Mode != sourceDefault && string.IsNullOrWhiteSpace(dto.Reason))
+            {
+                return ServiceResult.Fail("A reason is required for a counting exception.");
             }
 
             return null;

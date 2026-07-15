@@ -387,6 +387,7 @@ public sealed class ApprovalDecisionService
             id,
             request.Decision == ApprovalDecisionAction.Approve,
             request.RowVersion,
+            request.Remarks,
             user,
             cancellationToken);
 
@@ -425,6 +426,7 @@ public sealed class ApprovalDecisionService
             id,
             request.Decision == ApprovalDecisionAction.Approve,
             request.RowVersion,
+            request.Remarks,
             user,
             cancellationToken);
 

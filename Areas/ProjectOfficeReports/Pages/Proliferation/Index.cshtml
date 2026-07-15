@@ -27,7 +27,7 @@
         <div class="pf-page-actions">
             <button type="button" class="btn btn-outline-success" id="pf-record-export">
                 <i class="bi bi-download" aria-hidden="true"></i>
-                Export
+                Export underlying records
             </button>
             @if (Model.CanManageRecords)
             {
@@ -57,7 +57,9 @@
                        placeholder="All projects — type to select one"
                        autocomplete="off" />
                 <input type="hidden" id="pf-record-project-id" />
+                <button class="pf-picker-clear d-none" id="pf-record-project-clear" type="button" aria-label="Clear selected project"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
                 <div class="pf-suggestions d-none" id="pf-record-project-suggestions" role="listbox"></div>
+                <div class="form-text" id="pf-record-project-status" aria-live="polite">Leave blank for all projects.</div>
             </div>
             <div class="col-6 col-lg-2">
                 <label class="form-label" for="pf-record-source">Source</label>
@@ -69,13 +71,14 @@
             </div>
             <div class="col-6 col-lg-2">
                 <label class="form-label" for="pf-record-year">Year</label>
-                <input type="number" class="form-control" id="pf-record-year" min="2000" max="3000" placeholder="All years" />
+                <input type="number" class="form-control" id="pf-record-year" min="2000" max="3000" placeholder="All years" aria-describedby="pf-record-year-status" />
+                <div class="form-text" id="pf-record-year-status" aria-live="polite"></div>
             </div>
             <div class="col-12 col-lg-3">
                 <label class="form-label" for="pf-record-search">Search records</label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
-                    <input type="search" class="form-control" id="pf-record-search" placeholder="Unit, remarks or project" />
+                    <input type="search" class="form-control" id="pf-record-search" placeholder="Project, code, unit or remarks" />
                 </div>
             </div>
         </div>
@@ -126,4 +129,5 @@
 <div class="toast-container position-fixed top-0 end-0 p-3" id="toastHost" aria-live="polite" aria-atomic="true"></div>
 
 <link rel="stylesheet" href="~/css/proliferation.css" asp-append-version="true" />
+<script src="~/js/components/proliferation-project-picker.js" asp-append-version="true" defer></script>
 <script src="~/js/pages/proliferation-dashboard.js" asp-append-version="true" defer></script>

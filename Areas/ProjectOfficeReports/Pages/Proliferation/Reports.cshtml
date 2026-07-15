@@ -42,11 +42,13 @@
         <div class="position-relative">
             <div class="input-group input-group-lg">
                 <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
-                <input class="form-control" id="pf-report-project-total" placeholder="Search project name or code" autocomplete="off" />
+                <input class="form-control" id="pf-report-project-total" placeholder="Search project name or code" autocomplete="off" aria-describedby="pf-report-project-total-status" />
+                <button class="btn btn-outline-secondary d-none" id="pf-report-project-total-clear" type="button" aria-label="Clear selected project"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
                 <button class="btn btn-primary" id="pf-report-open-project" type="button" disabled>View total</button>
             </div>
             <input type="hidden" id="pf-report-project-total-id" />
             <div class="pf-suggestions d-none" id="pf-report-project-total-suggestions" role="listbox"></div>
+            <div class="form-text" id="pf-report-project-total-status" aria-live="polite"></div>
         </div>
     </section>
 
@@ -56,29 +58,29 @@
             <p class="text-muted small mb-0">Choose a report. Only the controls relevant to that report will be shown.</p>
         </div>
         <div class="pf-report-chooser" role="list" aria-label="Detailed report types">
-            <button class="pf-report-choice active" type="button" data-report-kind="ProjectToUnits">
+            <button class="pf-report-choice active" type="button" data-report-kind="ProjectToUnits" aria-pressed="true">
                 <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
                 <strong>Units receiving a project</strong>
                 <small>Find where a selected project was proliferated.</small>
             </button>
-            <button class="pf-report-choice" type="button" data-report-kind="UnitToProjects">
+            <button class="pf-report-choice" type="button" aria-pressed="false" data-report-kind="UnitToProjects">
                 <i class="bi bi-building" aria-hidden="true"></i>
                 <strong>Projects received by a unit</strong>
                 <small>Find all detailed project entries for a unit.</small>
             </button>
-            <button class="pf-report-choice" type="button" data-report-kind="ProjectCoverageSummary">
+            <button class="pf-report-choice" type="button" aria-pressed="false" data-report-kind="ProjectCoverageSummary">
                 <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
                 <strong>Project coverage</strong>
                 <small>Compare detailed quantity, unit coverage and date range.</small>
             </button>
-            <button class="pf-report-choice" type="button" data-report-kind="GranularLedger">
+            <button class="pf-report-choice" type="button" aria-pressed="false" data-report-kind="GranularLedger">
                 <i class="bi bi-journal-text" aria-hidden="true"></i>
                 <strong>Detailed records ledger</strong>
                 <small>Review individual approved, pending or rejected entries.</small>
             </button>
             @if (Model.CanReviewCalculations)
             {
-                <button class="pf-report-choice" type="button" data-report-kind="YearlyReconciliation">
+                <button class="pf-report-choice" type="button" aria-pressed="false" data-report-kind="YearlyReconciliation">
                     <i class="bi bi-calculator" aria-hidden="true"></i>
                     <strong>Calculation review</strong>
                     <small>Compare annual, detailed and reported quantities.</small>
@@ -109,8 +111,11 @@
             <div class="row g-3 align-items-end">
                 <div class="col-12 col-lg-5 position-relative" id="rep-project-wrap">
                     <label class="form-label" for="rep-project">Project</label>
-                    <input class="form-control" id="rep-project" placeholder="Search project name or code" autocomplete="off" />
+                    <input class="form-control" id="rep-project" placeholder="Search project name or code" autocomplete="off" aria-describedby="rep-project-status" />
+                    <input type="hidden" id="rep-project-id" />
+                    <button class="pf-picker-clear d-none" id="rep-project-clear" type="button" aria-label="Clear selected project"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
                     <div class="pf-suggestions d-none" id="rep-project-suggest" role="listbox"></div>
+                    <div class="form-text" id="rep-project-status" aria-live="polite"></div>
                 </div>
                 <div class="col-12 col-lg-5 d-none" id="rep-unit-wrap">
                     <label class="form-label" for="rep-unit">Unit</label>
@@ -245,6 +250,7 @@
     <link rel="stylesheet" href="~/css/proliferation.css" asp-append-version="true" />
 }
 @section Scripts {
+    <script src="~/js/components/proliferation-project-picker.js" asp-append-version="true"></script>
     <script src="~/js/pages/proliferation-report-launcher.js" asp-append-version="true"></script>
     <script src="~/js/pages/proliferation-reports.js" asp-append-version="true"></script>
 }

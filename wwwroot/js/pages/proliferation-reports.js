@@ -85,8 +85,8 @@
     return text;
   }
 
-  async function fetchJson(url) {
-    const res = await fetch(url, { headers: { "Accept": "application/json" } });
+  async function fetchJson(url, signal) {
+    const res = await fetch(url, { headers: { "Accept": "application/json" }, signal });
     const contentType = res.headers.get("content-type") || "";
     const isJson = contentType.includes("application/json");
 
@@ -126,6 +126,11 @@
     sortDir: "desc",
     projectMismatch: false,
     visibleColumnKeys: [],
+    requestController: null,
+    requestSequence: 0,
+    busy: false,
+    projectPicker: null,
+    unitController: null,
     lookups: {
       projectCategories: [],
       technicalCategories: []
@@ -137,6 +142,9 @@
     kind: $("rep-kind"),
     projectWrap: $("rep-project-wrap"),
     project: $("rep-project"),
+    projectId: $("rep-project-id"),
+    projectClear: $("rep-project-clear"),
+    projectStatus: $("rep-project-status"),
     projectSuggest: $("rep-project-suggest"),
     unitWrap: $("rep-unit-wrap"),
     unit: $("rep-unit"),
@@ -174,7 +182,10 @@
 
   // SECTION: UI behavior
   function reportShowsProjectFilter(kind) {
-    return kind === "ProjectToUnits";
+    return kind === "ProjectToUnits"
+      || kind === "ProjectCoverageSummary"
+      || kind === "GranularLedger"
+      || kind === "YearlyReconciliation";
   }
 
   function reportRequiresProject(kind) {
@@ -193,44 +204,66 @@
     return kind !== "YearlyReconciliation";
   }
 
-  function applyKindUI() {
-    const kind = el.kind.value;
+  function updateReportChoiceState(kind) {
+    document.querySelectorAll("[data-report-kind]").forEach(button => {
+      const active = button.dataset.reportKind === kind;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  }
 
+  function applyKindUI(options = {}) {
+    const kind = el.kind.value;
+    const resetContext = options.resetContext !== false;
+
+    updateReportChoiceState(kind);
     el.projectWrap.classList.toggle("d-none", !reportShowsProjectFilter(kind));
     el.unitWrap.classList.toggle("d-none", !reportNeedsUnit(kind));
 
     const usesDate = reportUsesDate(kind);
     el.from.disabled = !usesDate;
     el.to.disabled = !usesDate;
-
     if (!usesDate) {
       el.from.value = "";
       el.to.value = "";
     }
 
-    state.page = 1;
-    state.projectId = null;
-    state.projectLabel = "";
-    state.sortBy = null;
-    state.sortDir = "desc";
-    state.projectMismatch = false;
-    el.project.value = "";
-    el.unit.value = "";
-    invalidateResults();
+    if (resetContext) {
+      state.page = 1;
+      state.sortBy = null;
+      state.sortDir = "desc";
+      state.projectMismatch = false;
+      state.projectPicker?.clear({ notify: false });
+      state.projectId = null;
+      state.projectLabel = "";
+      el.unit.value = "";
+      invalidateResults();
+    }
+
     applySavedColumns(kind);
     renderColumnsModal(kind);
 
     if (kind === "YearlyReconciliation") {
-      el.hint.textContent = "Compare annual quantities, detailed quantities and the final reported total for each project-year.";
-      return;
+      el.hint.textContent = "Compare annual quantities, detailed quantities and the final reported total for each project-year. Project is optional.";
+    } else if (kind === "ProjectToUnits") {
+      el.hint.textContent = "Select a project. This report shows the receiving units and individual detailed entries recorded for it.";
+    } else if (kind === "UnitToProjects") {
+      el.hint.textContent = "Enter a unit name to find its detailed proliferation entries.";
+    } else if (kind === "ProjectCoverageSummary") {
+      el.hint.textContent = "Compare detailed quantity, receiving-unit coverage and date range. Project is optional.";
+    } else {
+      el.hint.textContent = "Review individual detailed entries. Project is optional.";
     }
+  }
 
-    if (kind === "ProjectToUnits") {
-      el.hint.textContent = "Select a project. This report shows the units and individual detailed entries recorded for it.";
-      return;
+  function setReportKind(kind, options = {}) {
+    const option = [...el.kind.options].find(x => x.value === kind);
+    if (!option) return;
+    el.kind.value = kind;
+    applyKindUI({ resetContext: options.resetContext !== false });
+    if (options.scroll) {
+      document.getElementById("report-filters-heading")?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-
-    el.hint.textContent = "This report uses detailed entries because unit names and exact dates are not available in annual quantities.";
   }
 
   // SECTION: Lookups
@@ -257,8 +290,10 @@
       el.unitList.innerHTML = "";
       return;
     }
+    state.unitController?.abort();
+    state.unitController = new AbortController();
     const url = `${api.unitSuggestions}?q=${encodeURIComponent(q)}&take=25`;
-    const list = await fetchJson(url);
+    const list = await fetchJson(url, state.unitController.signal);
     el.unitList.innerHTML = (list || [])
       .map(x => `<option value="${esc(x)}"></option>`)
       .join("");
@@ -271,57 +306,40 @@
     unitSuggestTimer = window.setTimeout(() => refreshUnitSuggestions().catch(() => {}), 250);
   });
 
-  // SECTION: Project suggestions
-  let projTimer = null;
-  async function refreshProjectSuggestions() {
-    const q = el.project.value.trim();
-    if (q.length < 2) {
-      el.projectSuggest.classList.add("d-none");
-      el.projectSuggest.innerHTML = "";
-      return;
-    }
-    const pc = el.projectCategory.value.trim();
-    const tc = el.technicalCategory.value.trim();
-
-    const qs = new URLSearchParams();
-    qs.set("q", q);
-    if (pc) qs.set("projectCategoryId", pc);
-    if (tc) qs.set("technicalCategoryId", tc);
-
-    const url = `${api.projects}?${qs.toString()}`;
-    const list = await fetchJson(url);
-
-    el.projectSuggest.innerHTML = (list || []).map(p => {
-      const label = `${p.name}${p.code ? " (" + p.code + ")" : ""}`;
-      return `<button type="button" class="list-group-item list-group-item-action" data-id="${p.id}" data-label="${esc(label)}">${esc(label)}</button>`;
-    }).join("");
-
-    el.projectSuggest.classList.toggle("d-none", (list || []).length === 0);
+  // SECTION: Project picker
+  function initialiseProjectPicker() {
+    if (!window.ProliferationProjectPicker || !el.project || !el.projectSuggest) return;
+    state.projectPicker = new window.ProliferationProjectPicker({
+      input: el.project,
+      hiddenInput: el.projectId,
+      suggestions: el.projectSuggest,
+      clearButton: el.projectClear,
+      statusElement: el.projectStatus,
+      minimumLength: 2,
+      getExtraParams: () => {
+        const params = {};
+        const projectCategoryId = el.projectCategory.value.trim();
+        const technicalCategoryId = el.technicalCategory.value.trim();
+        if (projectCategoryId) params.projectCategoryId = projectCategoryId;
+        if (technicalCategoryId) params.technicalCategoryId = technicalCategoryId;
+        return params;
+      },
+      onSelected: project => {
+        state.projectId = Number(project.id);
+        state.projectLabel = project.display || (project.code ? `${project.name} (${project.code})` : project.name);
+        state.projectMismatch = false;
+        state.page = 1;
+        invalidateResults();
+      },
+      onCleared: () => {
+        state.projectId = null;
+        state.projectLabel = "";
+        state.projectMismatch = false;
+        state.page = 1;
+        invalidateResults();
+      }
+    });
   }
-
-  el.project.addEventListener("input", () => {
-    state.page = 1;
-    state.projectId = null;
-    invalidateResults();
-    if (projTimer) window.clearTimeout(projTimer);
-    projTimer = window.setTimeout(() => refreshProjectSuggestions().catch(() => {}), 250);
-  });
-
-  el.projectSuggest.addEventListener("click", (e) => {
-    const btn = e.target.closest("button[data-id]");
-    if (!btn) return;
-    state.projectId = Number(btn.dataset.id);
-    state.projectLabel = btn.dataset.label || "";
-    state.projectMismatch = false;
-    el.project.value = state.projectLabel;
-    el.projectSuggest.classList.add("d-none");
-  });
-
-  document.addEventListener("click", (e) => {
-    if (!el.projectWrap.contains(e.target)) {
-      el.projectSuggest.classList.add("d-none");
-    }
-  });
 
   // SECTION: Query building
   function buildQueryState() {
@@ -475,7 +493,7 @@
         const td = document.createElement("td");
         if (c.key === "__actions") {
           const url = buildManageUrl(r);
-          td.innerHTML = `<a href="${url}" class="btn btn-link btn-sm p-0">Manage</a>`;
+          td.innerHTML = `<a href="${url}" class="btn btn-link btn-sm p-0">Open record</a>`;
         } else {
           const key = c.key;
           const val = (r && Object.prototype.hasOwnProperty.call(r, key)) ? r[key] : "";
@@ -594,21 +612,24 @@
     return `preset-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   }
 
-  async function validateProjectSelection(projectId, projectLabel) {
-    if (!projectId || !projectLabel) return true;
+  async function validateProjectSelection(projectId) {
+    if (!projectId) return true;
+    const qs = new URLSearchParams();
     const pc = el.projectCategory.value.trim();
     const tc = el.technicalCategory.value.trim();
-    const qs = new URLSearchParams();
-    qs.set("q", projectLabel);
     if (pc) qs.set("projectCategoryId", pc);
     if (tc) qs.set("technicalCategoryId", tc);
-    const list = await fetchJson(`${api.projects}?${qs.toString()}`);
-    return (list || []).some(p => Number(p.id) === Number(projectId));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    const response = await fetch(`${api.projects}/${encodeURIComponent(projectId)}${suffix}`, {
+      headers: { Accept: "application/json" }
+    });
+    if (response.status === 404) return false;
+    if (!response.ok) throw new Error("Unable to validate the selected project.");
+    return true;
   }
 
   function applyPresetState(presetState) {
-    el.kind.value = presetState.reportKind || "ProjectToUnits";
-    applyKindUI();
+    setReportKind(presetState.reportKind || "ProjectToUnits", { resetContext: true });
 
     el.source.value = presetState.filters?.source || "";
     el.status.value = presetState.filters?.approvalStatus || "Approved";
@@ -626,7 +647,11 @@
 
     state.projectId = presetState.filters?.projectId || null;
     state.projectLabel = presetState.filters?.projectLabel || "";
-    el.project.value = state.projectLabel;
+    if (state.projectId && state.projectLabel) {
+      state.projectPicker?.setSelection({ id: state.projectId, display: state.projectLabel, name: state.projectLabel, code: "" }, { notify: false });
+    } else {
+      state.projectPicker?.clear({ notify: false });
+    }
 
     el.unit.value = presetState.filters?.unitName || "";
     state.page = 1;
@@ -634,7 +659,6 @@
   }
 
   function resetFiltersToDefault() {
-    el.kind.value = el.kind.options[0]?.value || "ProjectToUnits";
     el.source.value = "";
     el.status.value = "Approved";
     el.projectCategory.value = "";
@@ -644,12 +668,14 @@
     el.pageSize.value = "50";
     state.projectId = null;
     state.projectLabel = "";
-    el.project.value = "";
+    state.projectPicker?.clear({ notify: false });
     el.unit.value = "";
     state.sortBy = null;
     state.sortDir = "desc";
-    el.hint.textContent = "";
-    applyKindUI();
+    setReportKind(el.kind.options[0]?.value || "ProjectToUnits", { resetContext: false });
+    state.page = 1;
+    invalidateResults();
+    el.hint.textContent = "Filters cleared. Select the report and criteria required.";
   }
 
   // SECTION: Pager
@@ -668,10 +694,10 @@
       el.count.textContent = `Showing ${from}-${to} of ${total} rows`;
     }
 
-    el.prev.disabled = state.page <= 1;
-    el.next.disabled = (state.page * pageSize) >= total;
+    el.prev.disabled = state.busy || state.page <= 1;
+    el.next.disabled = state.busy || (state.page * pageSize) >= total;
 
-    el.export.disabled = !state.lastQuery || total === 0;
+    el.export.disabled = state.busy || !state.lastQuery || total === 0;
   }
 
   // SECTION: Table invalidation
@@ -690,15 +716,26 @@
   }
 
   // SECTION: Report execution
-  async function runReport() {
+  function setBusy(busy) {
+    state.busy = busy;
+    el.run.disabled = busy;
+    el.run.innerHTML = busy
+      ? '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> Generating…'
+      : '<i class="bi bi-play-fill" aria-hidden="true"></i> Generate report';
+    updatePager();
+  }
+
+  async function runReport(options = {}) {
     const kind = el.kind.value;
 
     if (reportRequiresProject(kind) && !state.projectId) {
-      el.hint.textContent = "Select a project to run this report.";
+      el.hint.textContent = "Select a project from the suggestions to run this report.";
+      el.project.focus();
       return;
     }
     if (reportNeedsUnit(kind) && !el.unit.value.trim()) {
       el.hint.textContent = "Enter a unit name to run this report.";
+      el.unit.focus();
       return;
     }
 
@@ -707,44 +744,69 @@
       const to = el.to.value;
       if (from && to && from > to) {
         el.hint.textContent = "From date must be on or before To date.";
+        el.from.focus();
         return;
       }
     }
 
     if (state.projectId && (el.projectCategory.value.trim() || el.technicalCategory.value.trim())) {
       try {
-        state.projectMismatch = !(await validateProjectSelection(state.projectId, state.projectLabel));
-      } catch {
-        state.projectMismatch = false;
+        state.projectMismatch = !(await validateProjectSelection(state.projectId));
+      } catch (error) {
+        el.hint.textContent = error?.message || "Unable to validate the selected project.";
+        return;
+      }
+      if (state.projectMismatch) {
+        el.hint.textContent = "The selected project does not match the selected categories. Clear the project or category filter and try again.";
+        el.project.classList.add("is-invalid");
+        el.project.focus();
+        return;
       }
     } else {
       state.projectMismatch = false;
     }
+    el.project.classList.remove("is-invalid");
 
     const queryState = buildQueryState();
     const qs = buildQueryString(queryState);
-    state.lastQuery = qs;
-    state.lastQueryState = queryState;
+    const sequence = ++state.requestSequence;
+    state.requestController?.abort();
+    state.requestController = new AbortController();
+    setBusy(true);
+    el.hint.textContent = "Generating report…";
 
-    const url = `${api.run}?${qs}`;
-    const result = await fetchJson(url);
+    try {
+      const result = await fetchJson(`${api.run}?${qs}`, state.requestController.signal);
+      if (sequence !== state.requestSequence) return;
 
-    const baseColumns = result.columns || [];
-    const columns = reportSupportsManageActions(kind) && canManageRecords
-      ? [...baseColumns, { key: "__actions", label: "Actions" }]
-      : baseColumns;
+      state.lastQuery = qs;
+      state.lastQueryState = queryState;
+      const baseColumns = result.columns || [];
+      const columns = reportSupportsManageActions(kind) && canManageRecords
+        ? [...baseColumns, { key: "__actions", label: "Actions" }]
+        : baseColumns;
 
-    state.allColumns = columns;
-    applySavedColumns(kind);
-    state.columns = columns;
-    state.rows = result.rows || [];
-    state.total = result.total || 0;
-    state.lastRunAtUtc = new Date().toISOString();
+      state.allColumns = columns;
+      applySavedColumns(kind);
+      state.columns = columns;
+      state.rows = result.rows || [];
+      state.total = result.total || 0;
+      state.lastRunAtUtc = new Date().toISOString();
 
-    renderColumnsModal(kind);
-    renderTable(state.columns, state.rows);
-    updatePager();
-    updateContext();
+      renderColumnsModal(kind);
+      renderTable(state.columns, state.rows);
+      updatePager();
+      updateContext();
+      el.hint.textContent = state.total ? "Report generated." : "No rows match the selected criteria.";
+      if (options.scroll !== false) {
+        document.getElementById("report-results-heading")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+      el.hint.textContent = error?.message ? `Error: ${error.message}` : "Error running report.";
+    } finally {
+      if (sequence === state.requestSequence) setBusy(false);
+    }
   }
 
   function exportExcel() {
@@ -753,16 +815,14 @@
       el.hint.textContent = "Nothing to export.";
       return;
     }
-    const url = `${api.export}?${state.lastQuery}`;
+    const query = new URLSearchParams(state.lastQuery);
+    state.visibleColumnKeys.forEach(key => query.append("columns", key));
+    const url = `${api.export}?${query.toString()}`;
     window.location.href = url;
   }
 
   // SECTION: Events
-  el.run.addEventListener("click", () => {
-    runReport().catch(err => {
-      el.hint.textContent = err?.message ? `Error: ${err.message}` : "Error running report.";
-    });
-  });
+  el.run.addEventListener("click", () => runReport());
 
   el.export.addEventListener("click", exportExcel);
 
@@ -777,7 +837,7 @@
       state.sortDir = "desc";
     }
     state.page = 1;
-    runReport().catch(() => {});
+    runReport({ scroll: false });
   });
 
   el.columnsApply.addEventListener("click", () => {
@@ -808,17 +868,17 @@
   el.prev.addEventListener("click", () => {
     if (state.page <= 1) return;
     state.page--;
-    runReport().catch(() => {});
+    runReport({ scroll: false });
   });
 
   el.next.addEventListener("click", () => {
     const pageSize = Number(el.pageSize.value) || 50;
     if ((state.page * pageSize) >= (state.total || 0)) return;
     state.page++;
-    runReport().catch(() => {});
+    runReport({ scroll: false });
   });
 
-  el.kind.addEventListener("change", applyKindUI);
+  el.kind.addEventListener("change", () => setReportKind(el.kind.value, { resetContext: true }));
   el.pageSize.addEventListener("change", () => {
     state.page = 1;
     invalidateResults();
@@ -835,11 +895,11 @@
     if (!preset) return;
     applyPresetState(preset.state || {});
     try {
-      const isValid = await validateProjectSelection(state.projectId, state.projectLabel);
+      const isValid = await validateProjectSelection(state.projectId);
       if (!isValid) {
         state.projectId = null;
         state.projectLabel = "";
-        el.project.value = "";
+        state.projectPicker?.clear({ notify: false });
         el.hint.textContent = "Saved preset project is not available for the selected categories.";
       }
     } catch {
@@ -897,8 +957,7 @@
     state.projectId = null;
     state.projectLabel = "";
     state.projectMismatch = false;
-    el.project.value = "";
-    el.projectSuggest.classList.add("d-none");
+    state.projectPicker?.clear({ notify: false });
   }
 
   el.source.addEventListener("change", () => {
@@ -931,11 +990,21 @@
   });
 
   // SECTION: Init
-  applyKindUI();
+  initialiseProjectPicker();
+  document.querySelectorAll("[data-report-kind]").forEach(button => {
+    button.addEventListener("click", () => setReportKind(button.dataset.reportKind, { resetContext: true, scroll: true }));
+  });
+  setReportKind(el.kind.value, { resetContext: false });
   renderPresetsList();
   loadLookups().catch(() => {
     el.hint.textContent = "Unable to load category filters.";
   });
+
+  window.addEventListener("pagehide", () => {
+    state.requestController?.abort();
+    state.unitController?.abort();
+    state.projectPicker?.destroy();
+  }, { once: true });
 
   const columnsModal = document.getElementById("rep-columns-modal");
   if (columnsModal) {

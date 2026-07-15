@@ -97,6 +97,78 @@ public class ProliferationControllerPreferenceTests
         Assert.Equal(20, row.EffectiveTotal);
     }
 
+
+    [Fact]
+    public async Task ProjectLookupAndGroupedEntries_ReturnSelectedProjectAndLazyDetails()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+        var now = DateTime.UtcNow;
+        context.Projects.Add(new Project
+        {
+            Id = 77,
+            Name = "VR Multi Mode Simulator",
+            CaseFileNumber = "VRM-77",
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            RowVersion = Guid.NewGuid().ToByteArray()
+        });
+        context.ProliferationGranularEntries.Add(new ProliferationGranular
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = 77,
+            Source = ProliferationSource.Sdd,
+            UnitName = "20 JAT",
+            ProliferationDate = new DateOnly(2025, 7, 9),
+            Quantity = 2,
+            ApprovalStatus = ApprovalStatus.Approved,
+            SubmittedByUserId = "submitter",
+            CreatedOnUtc = now,
+            LastUpdatedOnUtc = now,
+            RowVersion = new byte[] { 1 }
+        });
+        await context.SaveChangesAsync();
+
+        var aggregate = new ProliferationAggregateReadService(context);
+        var readService = new ProliferationTrackerReadService(aggregate);
+        var controller = new ProliferationController(
+            context,
+            readService,
+            submitSvc: null!,
+            manageSvc: new ProliferationManageService(context),
+            overviewSvc: new ProliferationOverviewService(context, readService),
+            aggregateSvc: aggregate,
+            exportService: new StubProliferationExportService(),
+            logger: NullLogger<ProliferationController>.Instance);
+
+        var projectResult = await controller.GetEligibleProjectById(77, null, null, CancellationToken.None);
+        var projectOk = Assert.IsType<OkObjectResult>(projectResult.Result);
+        var project = Assert.IsType<ProliferationProjectLookupDto>(projectOk.Value);
+        Assert.Equal("VRM-77", project.Code);
+
+        var groupResult = await controller.GetGroupedRecords(
+            new ProliferationGroupedQueryDto { ProjectId = 77, Page = 1, PageSize = 25 },
+            CancellationToken.None);
+        var groupOk = Assert.IsType<OkObjectResult>(groupResult.Result);
+        var groups = Assert.IsType<ProliferationGroupedResponseDto>(groupOk.Value);
+        var group = Assert.Single(groups.Items);
+        Assert.Equal(2, group.DetailedQuantity);
+        Assert.Empty(group.DetailedEntries);
+
+        var entryResult = await controller.GetGroupedDetailedEntries(
+            77,
+            ProliferationSource.Sdd,
+            2025,
+            CancellationToken.None);
+        var entryOk = Assert.IsType<OkObjectResult>(entryResult.Result);
+        var entries = Assert.IsAssignableFrom<IReadOnlyList<ProliferationGroupedDetailedEntryDto>>(entryOk.Value);
+        Assert.Equal("20 JAT", Assert.Single(entries).UnitName);
+    }
+
     [Fact]
     public void GetPreferenceOverrides_IsProtectedByManagePolicy()
     {

@@ -27,7 +27,7 @@
     <div class="pf-command-bar" data-command-bar>
         <div class="pf-command-bar__details">
             <div class="pf-command-bar__title-row">
-                <h2 class="pf-command-bar__title">Current record</h2>
+                <h2 class="pf-command-bar__title" data-command-title>New detailed entry</h2>
                 <span class="pf-command-bar__scope" data-command-scope>Detailed entry</span>
             </div>
             <div class="pf-command-bar__meta">
@@ -49,10 +49,6 @@
                 <i class="bi bi-check2" aria-hidden="true"></i> Save
             </button>
             <button class="btn btn-sm btn-outline-danger" id="pf-delete" type="button" disabled>Delete</button>
-            @if (Model.CanManagePreferences)
-            {
-                <button class="btn btn-sm btn-outline-secondary" id="pf-overrides-export" type="button" aria-disabled="true" disabled>Export rules</button>
-            }
         </div>
     </div>
 
@@ -92,11 +88,38 @@
             </div>
             <div class="modal-body">
                 <p class="mb-2">Delete the <span data-confirm-type>selected record</span> for <strong data-confirm-project>this project</strong>?</p>
-                <p class="text-muted mb-0">This removes data for <span data-confirm-date>the selected date</span> and cannot be undone.</p>
+                <dl class="row small mb-2">
+                    <dt class="col-4">Source</dt><dd class="col-8" data-confirm-source>—</dd>
+                    <dt class="col-4">Date / year</dt><dd class="col-8" data-confirm-date>—</dd>
+                    <dt class="col-4">Quantity</dt><dd class="col-8" data-confirm-quantity>—</dd>
+                    <dt class="col-4">Status</dt><dd class="col-8" data-confirm-status>—</dd>
+                </dl>
+                <p class="text-danger small mb-0">This action cannot be undone. Approved records can be deleted only by Admin or HoD.</p>
             </div>
             <div class="modal-footer border-0 pt-0">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-confirm-cancel>Cancel</button>
                 <button type="button" class="btn btn-danger" data-confirm-accept>Delete record</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="pf-reject-modal" tabindex="-1" aria-labelledby="pf-reject-modal-label" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="pf-reject-modal-label">Reject proliferation record</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cancel rejection"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="pf-reject-reason">Reason for rejection</label>
+                <textarea class="form-control" id="pf-reject-reason" rows="4" maxlength="500" required></textarea>
+                <div class="form-text">The reason will be retained in the audit trail and should clearly state the correction required.</div>
+                <div class="text-danger small mt-2 d-none" id="pf-reject-reason-error">Enter a reason for rejection.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="pf-reject-confirm">Reject record</button>
             </div>
         </div>
     </div>

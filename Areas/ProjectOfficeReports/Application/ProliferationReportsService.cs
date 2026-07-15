@@ -99,11 +99,27 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 ApprovalStatus = q.ApprovalStatus,
                 SortBy = q.SortBy,
                 SortDir = q.SortDir,
+                Columns = q.Columns,
                 Page = 1,
                 PageSize = maxExportRows
             }, ct, maxExportRows);
 
-            var columns = pageDto.Columns.Select(c => (c.Key, c.Label)).ToList();
+            var requestedColumns = (q.Columns ?? Array.Empty<string>())
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .Select(key => key.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            IReadOnlyList<ProliferationReportColumnDto> exportColumns = requestedColumns.Count == 0
+                ? pageDto.Columns
+                : pageDto.Columns.Where(column => requestedColumns.Contains(column.Key)).ToList();
+
+            if (exportColumns.Count == 0)
+            {
+                exportColumns = pageDto.Columns;
+            }
+
+            var columns = exportColumns.Select(c => (c.Key, c.Label)).ToList();
             var rows = pageDto.Rows.Select(RowToDictionary).ToList();
             var isTruncated = pageDto.Total > maxExportRows;
             var filters = await BuildFilterDictionaryAsync(q, isTruncated, maxExportRows, ct);
@@ -209,7 +225,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 ["To"] = q.ToDateUtc?.ToString("yyyy-MM-dd") ?? string.Empty,
                 ["Project category"] = projectCategoryName,
                 ["Technical category"] = technicalCategoryName,
-                ["Sort"] = sortLabel
+                ["Sort"] = sortLabel,
+                ["Columns"] = q.Columns is { Length: > 0 }
+                    ? string.Join(", ", q.Columns.Where(x => !string.IsNullOrWhiteSpace(x)))
+                    : "Default"
             };
 
             if (isTruncated)
@@ -307,6 +326,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             CancellationToken ct)
         {
             var projects = EligibleProjectsQuery(q.ProjectCategoryId, q.TechnicalCategoryId);
+            if (q.ProjectId.HasValue)
+            {
+                projects = projects.Where(p => p.Id == q.ProjectId.Value);
+            }
 
             var baseQuery = from g in GranularBase(q, fromDate, toDate, statusFilter)
                             join p in projects on g.ProjectId equals p.Id
@@ -386,6 +409,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             }
 
             var projects = EligibleProjectsQuery(q.ProjectCategoryId, q.TechnicalCategoryId);
+            if (q.ProjectId.HasValue)
+            {
+                projects = projects.Where(p => p.Id == q.ProjectId.Value);
+            }
 
             var baseQuery = from g in GranularBase(q, fromDate, toDate, statusFilter)
                             join p in projects on g.ProjectId equals p.Id

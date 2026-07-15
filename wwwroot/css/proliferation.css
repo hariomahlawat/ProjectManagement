@@ -696,3 +696,34 @@
     flex: 1 1 24rem;
     color: var(--pf-muted);
 }
+
+/* Corrective release: predictable disclosure, pickers and action context */
+.pf-project-row--collapsed { display: none; }
+.pf-suggestion.active,
+.pf-suggestion[aria-selected="true"] { background: rgba(var(--bs-primary-rgb), .1); outline: 1px solid rgba(var(--bs-primary-rgb), .3); }
+.pf-picker-clear { position: absolute; z-index: 4; right: .75rem; top: 2.15rem; width: 2rem; height: 2rem; padding: 0; color: var(--pf-muted); background: transparent; border: 0; border-radius: 50%; }
+.pf-picker-clear:hover { color: var(--bs-body-color); background: rgba(var(--bs-secondary-rgb), .08); }
+#rep-project[data-project-selected="true"],
+#pf-record-project[data-project-selected="true"] { padding-right: 3rem; }
+.pf-command-bar { position: static; backdrop-filter: none; }
+.pf-report-chooser { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.pf-report-choice { min-height: 8.25rem; }
+.pf-rule-impact { display: flex; flex-wrap: wrap; gap: .35rem .75rem; margin-top: .85rem; padding: .75rem; color: var(--bs-body-color); background: var(--pf-surface); border: 1px solid var(--pf-border); border-radius: .65rem; }
+.pf-rule-impact strong { flex: 0 0 100%; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+.pf-record-entries { padding: 1rem; border-top: 1px solid var(--pf-border); background: rgba(var(--bs-secondary-rgb), .025); }
+.pf-record-entries .table { margin-bottom: 0; }
+
+@media (max-width: 1199.98px) {
+    .pf-report-chooser { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 767.98px) {
+    .pf-report-chooser { grid-template-columns: 1fr; }
+    .pf-command-bar__actions { width: 100%; }
+    .pf-command-bar__actions .btn { flex: 1 1 auto; }
+}
+.pf-command-bar__title { max-width: min(42rem, 62vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.pf-record-group--invalid,
+.pf-year-card--invalid { border-color: var(--bs-warning-border-subtle); }
+.pf-record-group--invalid > summary,
+.pf-year-card--invalid > summary { background: var(--bs-warning-bg-subtle); }

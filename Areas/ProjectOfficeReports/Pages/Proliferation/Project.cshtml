@@ -5,7 +5,9 @@
 @{
     ViewData["Title"] = $"{Model.Detail.ProjectName} proliferation";
     ViewData["UseFullWidth"] = true;
-    var latestYear = Model.Detail.Years.FirstOrDefault()?.Year;
+    var latestYear = Model.Detail.Years.FirstOrDefault(x => x.Year is >= 2000 and <= 3000)?.Year
+        ?? Model.Detail.Years.FirstOrDefault()?.Year;
+    var invalidYears = Model.Detail.Years.Where(x => x.Year is < 2000 or > 3000).Select(x => x.Year).ToList();
     var exportUrl = Url.Action("Export", "Proliferation", new
     {
         area = "ProjectOfficeReports",
@@ -64,6 +66,24 @@
         </div>
     </header>
 
+    @if (invalidYears.Count > 0)
+    {
+        <div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
+            <i class="bi bi-exclamation-triangle-fill mt-1" aria-hidden="true"></i>
+            <div>
+                <strong>Invalid historical year detected:</strong> @string.Join(", ", invalidYears).
+                The associated approved quantity remains included in this project total until the underlying record is corrected.
+                @if (Model.CanManageRecords)
+                {
+                    <a class="alert-link ms-1"
+                       asp-area="ProjectOfficeReports"
+                       asp-page="/Proliferation/Manage"
+                       asp-route-projectId="@Model.Detail.ProjectId">Review records</a>
+                }
+            </div>
+        </div>
+    }
+
     <section class="pf-total-hero" aria-labelledby="project-total-heading">
         <div>
             <div class="pf-total-hero__label" id="project-total-heading">Total proliferation</div>
@@ -109,9 +129,10 @@
             <div class="pf-year-list">
                 @foreach (var year in Model.Detail.Years)
                 {
-                    <details class="pf-year-card" open="@(year.Year == latestYear)">
+                    var invalidYear = year.Year is < 2000 or > 3000;
+                    <details class="pf-year-card @(invalidYear ? "pf-year-card--invalid" : string.Empty)" open="@(year.Year == latestYear)">
                         <summary class="pf-year-card__summary">
-                            <span class="pf-year-card__year">@year.Year</span>
+                            <span class="pf-year-card__year">@(invalidYear ? $"Invalid year: {year.Year}" : year.Year.ToString())</span>
                             <span class="pf-year-card__sources">
                                 <span>SDD <strong>@year.Totals.Sdd.ToString("N0")</strong></span>
                                 <span>515 ABW <strong>@year.Totals.Abw515.ToString("N0")</strong></span>

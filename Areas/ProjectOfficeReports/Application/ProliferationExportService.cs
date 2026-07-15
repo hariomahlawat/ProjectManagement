@@ -239,15 +239,17 @@ public sealed class ProliferationExportService : IProliferationExportService
 
         if (!string.IsNullOrEmpty(filters.Search))
         {
-            var like = $"%{filters.Search}%";
+            var like = $"%{EscapeLikePattern(filters.Search)}%";
             yearlyBase = yearlyBase.Where(x =>
-                EF.Functions.ILike(x.Project.Name, like) ||
-                (x.Project.CaseFileNumber != null && EF.Functions.ILike(x.Project.CaseFileNumber, like)));
+                EF.Functions.ILike(x.Project.Name, like, "\\") ||
+                (x.Project.CaseFileNumber != null && EF.Functions.ILike(x.Project.CaseFileNumber, like, "\\")) ||
+                (x.Yearly.Remarks != null && EF.Functions.ILike(x.Yearly.Remarks, like, "\\")));
 
             granularBase = granularBase.Where(x =>
-                EF.Functions.ILike(x.Project.Name, like) ||
-                (x.Project.CaseFileNumber != null && EF.Functions.ILike(x.Project.CaseFileNumber, like)) ||
-                EF.Functions.ILike(x.Granular.UnitName, like));
+                EF.Functions.ILike(x.Project.Name, like, "\\") ||
+                (x.Project.CaseFileNumber != null && EF.Functions.ILike(x.Project.CaseFileNumber, like, "\\")) ||
+                EF.Functions.ILike(x.Granular.UnitName, like, "\\") ||
+                (x.Granular.Remarks != null && EF.Functions.ILike(x.Granular.Remarks, like, "\\")));
         }
 
         var yearlyRowsQuery = yearlyBase.Select(x => new
@@ -335,6 +337,11 @@ public sealed class ProliferationExportService : IProliferationExportService
 
         return new ExportQueryResult(rows, filters.Years);
     }
+
+    private static string EscapeLikePattern(string value)
+        => value.Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("%", "\\%", StringComparison.Ordinal)
+            .Replace("_", "\\_", StringComparison.Ordinal);
 
     private static string BuildFileName(NormalizedFilters filters, DateTimeOffset generatedAtUtc)
     {

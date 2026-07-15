@@ -33,8 +33,15 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
         public async Task<ActionResult<ProliferationReportPageDto>> Run([FromQuery] ProliferationReportQueryDto q, CancellationToken ct)
         {
-            var result = await _svc.RunAsync(q, ct);
-            return Ok(result);
+            try
+            {
+                var result = await _svc.RunAsync(q, ct);
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         // SECTION: Export
@@ -42,8 +49,15 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
         public async Task<IActionResult> Export([FromQuery] ProliferationReportQueryDto q, CancellationToken ct)
         {
-            var (content, fileName) = await _svc.ExportAsync(q, ct);
-            return File(content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+            try
+            {
+                var (content, fileName) = await _svc.ExportAsync(q, ct);
+                return File(content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
 }

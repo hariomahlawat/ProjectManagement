@@ -7,6 +7,7 @@
     const api = {
         groups: "/api/proliferation/groups",
         projects: "/api/proliferation/projects",
+        entries: projectId => `/api/proliferation/groups/${encodeURIComponent(projectId)}/entries`,
         export: "/api/proliferation/export"
     };
 
@@ -16,16 +17,20 @@
         pageSize: 25,
         total: 0,
         projectId: null,
-        controller: null,
-        projectController: null
+        requestController: null,
+        requestSequence: 0,
+        picker: null
     };
 
     const el = {
         project: document.getElementById("pf-record-project"),
         projectId: document.getElementById("pf-record-project-id"),
         projectSuggestions: document.getElementById("pf-record-project-suggestions"),
+        projectStatus: document.getElementById("pf-record-project-status"),
+        projectClear: document.getElementById("pf-record-project-clear"),
         source: document.getElementById("pf-record-source"),
         year: document.getElementById("pf-record-year"),
+        yearStatus: document.getElementById("pf-record-year-status"),
         search: document.getElementById("pf-record-search"),
         reset: document.getElementById("pf-record-reset"),
         export: document.getElementById("pf-record-export"),
@@ -43,8 +48,8 @@
     const debounce = (fn, delay = 300) => {
         let timer;
         return (...args) => {
-            clearTimeout(timer);
-            timer = setTimeout(() => fn(...args), delay);
+            window.clearTimeout(timer);
+            timer = window.setTimeout(() => fn(...args), delay);
         };
     };
 
@@ -64,6 +69,40 @@
             : date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
     }
 
+    async function readError(response) {
+        const text = await response.text().catch(() => "");
+        if (!text) return `Request failed (${response.status}).`;
+        try {
+            const json = JSON.parse(text);
+            return json.message || json.detail || json.title || text;
+        } catch {
+            return text;
+        }
+    }
+
+    function validateYear() {
+        const raw = el.year.value.trim();
+        if (!raw) {
+            el.year.classList.remove("is-invalid");
+            el.yearStatus.textContent = "";
+            return true;
+        }
+        if (!/^\d{4}$/.test(raw)) {
+            el.year.classList.add("is-invalid");
+            el.yearStatus.textContent = "Enter a four-digit year, or leave blank for all years.";
+            return false;
+        }
+        const year = Number(raw);
+        if (year < 2000 || year > 3000) {
+            el.year.classList.add("is-invalid");
+            el.yearStatus.textContent = "Year must be between 2000 and 3000.";
+            return false;
+        }
+        el.year.classList.remove("is-invalid");
+        el.yearStatus.textContent = "";
+        return true;
+    }
+
     function queryParams() {
         const params = new URLSearchParams({
             page: String(state.page),
@@ -76,20 +115,13 @@
         return params;
     }
 
-    async function readError(response) {
-        const text = await response.text().catch(() => "");
-        if (!text) return `Request failed (${response.status}).`;
-        try {
-            const json = JSON.parse(text);
-            return json.message || json.detail || json.title || text;
-        } catch {
-            return text;
-        }
-    }
-
     function setLoading(isLoading) {
         el.loading.classList.toggle("d-none", !isLoading);
         el.groups.setAttribute("aria-busy", String(isLoading));
+        el.prev.disabled = isLoading || state.page <= 1;
+        const end = Math.min(state.page * state.pageSize, state.total);
+        el.next.disabled = isLoading || end >= state.total;
+        el.export.disabled = isLoading;
     }
 
     function renderCalculation(item, body) {
@@ -155,31 +187,27 @@
         }
     }
 
-    function renderEntries(item, body) {
-        if (!Array.isArray(item.detailedEntries) || item.detailedEntries.length === 0) {
-            const note = document.createElement("p");
-            note.className = "text-muted small mt-3 mb-0";
-            note.textContent = item.detailedQuantity > 0
-                ? "Detailed entries are not included on this page. Open the project for the complete calculation."
-                : "No approved detailed entries are recorded for this project-year.";
-            body.appendChild(note);
+    function renderEntriesTable(entries, host) {
+        host.replaceChildren();
+        if (!Array.isArray(entries) || entries.length === 0) {
+            addText(host, "p", "No approved detailed entries are recorded for this project-year.", "text-muted small mb-0");
             return;
         }
 
         const heading = document.createElement("div");
         heading.className = "pf-record-detail-heading";
         addText(heading, "h4", "Detailed entries");
-        addText(heading, "span", `${formatter.format(item.detailedEntries.length)} shown`);
-        body.appendChild(heading);
+        addText(heading, "span", `${formatter.format(entries.length)} shown`);
+        host.appendChild(heading);
 
         const responsive = document.createElement("div");
         responsive.className = "table-responsive";
         const table = document.createElement("table");
         table.className = "table table-sm align-middle mb-0 pf-detail-table";
-        table.innerHTML = "<thead><tr><th>Date</th><th>Receiving unit</th><th class=\"text-end\">Quantity</th><th>Remarks</th></tr></thead>";
+        table.innerHTML = '<thead><tr><th>Date</th><th>Receiving unit</th><th class="text-end">Quantity</th><th>Remarks</th></tr></thead>';
         const tbody = document.createElement("tbody");
 
-        item.detailedEntries.forEach(entry => {
+        entries.forEach(entry => {
             const row = document.createElement("tr");
             addText(row, "td", formatDate(entry.proliferationDate));
             addText(row, "td", entry.unitName || "—");
@@ -190,12 +218,57 @@
 
         table.appendChild(tbody);
         responsive.appendChild(table);
-        body.appendChild(responsive);
+        host.appendChild(responsive);
+    }
+
+    async function loadEntries(item, host) {
+        if (host.dataset.loaded === "true" || host.dataset.loading === "true") return;
+        if (Number(item.detailedEntryCount || 0) === 0) {
+            host.dataset.loaded = "true";
+            renderEntriesTable([], host);
+            return;
+        }
+
+        host.dataset.loading = "true";
+        host.replaceChildren();
+        const loading = document.createElement("div");
+        loading.className = "d-flex align-items-center gap-2 text-muted small py-2";
+        loading.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>Loading detailed entries…</span>';
+        host.appendChild(loading);
+
+        try {
+            const params = new URLSearchParams({ source: String(item.source), year: String(item.year) });
+            const response = await fetch(`${api.entries(item.projectId)}?${params}`, {
+                headers: { Accept: "application/json" },
+                credentials: "same-origin"
+            });
+            if (!response.ok) throw new Error(await readError(response));
+            const rows = await response.json();
+            host.dataset.loaded = "true";
+            renderEntriesTable(rows, host);
+        } catch (error) {
+            host.replaceChildren();
+            const alert = addText(host, "div", error.message || "Unable to load detailed entries.", "alert alert-danger py-2 mb-0");
+            alert.setAttribute("role", "alert");
+            const retry = document.createElement("button");
+            retry.type = "button";
+            retry.className = "btn btn-sm btn-link px-0 ms-2";
+            retry.textContent = "Try again";
+            retry.addEventListener("click", () => {
+                delete host.dataset.loading;
+                loadEntries(item, host);
+            });
+            alert.appendChild(retry);
+        } finally {
+            delete host.dataset.loading;
+        }
     }
 
     function renderItem(item) {
         const details = document.createElement("details");
-        details.className = "pf-record-group";
+        const year = Number(item.year);
+        const invalidYear = !Number.isInteger(year) || year < 2000 || year > 3000;
+        details.className = `pf-record-group${invalidYear ? " pf-record-group--invalid" : ""}`;
 
         const summary = document.createElement("summary");
         const identity = document.createElement("div");
@@ -205,8 +278,9 @@
         title.textContent = item.projectName;
         title.addEventListener("click", event => event.stopPropagation());
         identity.appendChild(title);
-        const meta = [item.projectCode, item.sourceLabel, item.year].filter(Boolean).join(" · ");
-        addText(identity, "small", meta);
+        const yearLabel = invalidYear ? `Invalid year: ${item.year}` : item.year;
+        const meta = [item.projectCode, item.sourceLabel, yearLabel].filter(Boolean).join(" · ");
+        addText(identity, "small", meta, invalidYear ? "text-warning-emphasis fw-semibold" : "");
         summary.appendChild(identity);
 
         const metrics = document.createElement("div");
@@ -234,7 +308,18 @@
         const body = document.createElement("div");
         body.className = "pf-record-group__body";
         renderCalculation(item, body);
-        renderEntries(item, body);
+
+        if (invalidYear) {
+            const warning = document.createElement("div");
+            warning.className = "alert alert-warning py-2 mt-3 mb-0";
+            warning.setAttribute("role", "alert");
+            warning.textContent = "This record has an invalid historical year. Its quantity remains included in the reported total until the underlying record is corrected.";
+            body.appendChild(warning);
+        }
+
+        const entriesHost = document.createElement("div");
+        entriesHost.className = "pf-record-entries mt-3";
+        body.appendChild(entriesHost);
 
         const actions = document.createElement("div");
         actions.className = "pf-record-group__actions";
@@ -252,6 +337,15 @@
         }
         body.appendChild(actions);
         details.appendChild(body);
+        details.addEventListener("toggle", () => {
+            if (!details.open) return;
+            if (invalidYear) {
+                entriesHost.replaceChildren();
+                addText(entriesHost, "p", "Correct the historical date before opening its detailed entries.", "text-muted small mb-0");
+                return;
+            }
+            loadEntries(item, entriesHost);
+        });
         return details;
     }
 
@@ -262,14 +356,6 @@
 
         state.total = Number(data.total || 0);
         state.page = Number(data.page || state.page);
-        if (state.projectId && !el.project.value && items.length > 0) {
-            const selectedProject = items.find(item => Number(item.projectId) === Number(state.projectId));
-            if (selectedProject) {
-                el.project.value = selectedProject.projectCode
-                    ? `${selectedProject.projectName} (${selectedProject.projectCode})`
-                    : selectedProject.projectName;
-            }
-        }
         state.pageSize = Number(data.pageSize || state.pageSize);
 
         const start = state.total === 0 ? 0 : ((state.page - 1) * state.pageSize) + 1;
@@ -284,78 +370,33 @@
     }
 
     async function load() {
-        state.controller?.abort();
-        state.controller = new AbortController();
+        if (!validateYear()) return;
+        state.requestController?.abort();
+        state.requestController = new AbortController();
+        const sequence = ++state.requestSequence;
         setLoading(true);
         el.error.classList.add("d-none");
 
         try {
             const response = await fetch(`${api.groups}?${queryParams()}`, {
                 headers: { Accept: "application/json" },
-                signal: state.controller.signal
+                signal: state.requestController.signal,
+                credentials: "same-origin"
             });
             if (!response.ok) throw new Error(await readError(response));
-            render(await response.json());
+            const data = await response.json();
+            if (sequence !== state.requestSequence) return;
+            render(data);
         } catch (error) {
-            if (error.name === "AbortError") return;
+            if (error.name === "AbortError" || sequence !== state.requestSequence) return;
             el.groups.replaceChildren();
             el.empty.classList.add("d-none");
             el.error.textContent = error.message || "Unable to load proliferation records.";
             el.error.classList.remove("d-none");
             el.summary.textContent = "Records could not be loaded.";
         } finally {
-            setLoading(false);
+            if (sequence === state.requestSequence) setLoading(false);
         }
-    }
-
-    function closeSuggestions() {
-        el.projectSuggestions.classList.add("d-none");
-        el.projectSuggestions.replaceChildren();
-    }
-
-    async function searchProjects() {
-        const query = el.project.value.trim();
-        if (query.length < 2) {
-            closeSuggestions();
-            return;
-        }
-
-        state.projectController?.abort();
-        state.projectController = new AbortController();
-        try {
-            const response = await fetch(`${api.projects}?q=${encodeURIComponent(query)}`, {
-                headers: { Accept: "application/json" },
-                signal: state.projectController.signal
-            });
-            if (!response.ok) return;
-            const projects = await response.json();
-            el.projectSuggestions.replaceChildren();
-            projects.forEach(project => {
-                const button = document.createElement("button");
-                button.type = "button";
-                button.className = "pf-suggestion";
-                button.setAttribute("role", "option");
-                addText(button, "strong", project.name);
-                if (project.code) addText(button, "small", project.code);
-                button.addEventListener("click", () => {
-                    state.projectId = project.id;
-                    el.projectId.value = project.id;
-                    el.project.value = project.display || (project.code ? `${project.name} (${project.code})` : project.name);
-                    closeSuggestions();
-                    state.page = 1;
-                    load();
-                });
-                el.projectSuggestions.appendChild(button);
-            });
-            el.projectSuggestions.classList.toggle("d-none", projects.length === 0);
-        } catch (error) {
-            if (error.name !== "AbortError") closeSuggestions();
-        }
-    }
-
-    function resetProjectSelection() {
-        state.projectId = null;
-        el.projectId.value = "";
     }
 
     const reload = debounce(() => {
@@ -363,54 +404,62 @@
         load();
     });
 
+    function initializeProjectPicker() {
+        if (!window.ProliferationProjectPicker) return;
+        state.picker = new window.ProliferationProjectPicker({
+            input: el.project,
+            hiddenInput: el.projectId,
+            suggestions: el.projectSuggestions,
+            statusElement: el.projectStatus,
+            clearButton: el.projectClear,
+            onSelected: project => {
+                state.projectId = Number(project.id);
+                state.page = 1;
+                load();
+            },
+            onCleared: () => {
+                state.projectId = null;
+                state.page = 1;
+                load();
+            }
+        });
+    }
+
     el.source.addEventListener("change", reload);
-    el.year.addEventListener("input", reload);
+    el.year.addEventListener("input", debounce(() => {
+        if (validateYear()) reload();
+    }, 350));
     el.search.addEventListener("input", reload);
     el.pageSize.addEventListener("change", () => {
         state.pageSize = Number(el.pageSize.value || 25);
         state.page = 1;
         load();
     });
-    el.project.addEventListener("input", () => {
-        resetProjectSelection();
-        searchProjects();
-        if (!el.project.value.trim()) reload();
-    });
-    el.project.addEventListener("blur", () => setTimeout(closeSuggestions, 150));
-    el.project.addEventListener("keydown", event => {
-        if (event.key !== "Enter") return;
-        const first = el.projectSuggestions.querySelector("button");
-        if (first) {
-            event.preventDefault();
-            first.click();
-        }
-    });
     el.prev.addEventListener("click", () => {
-        if (state.page > 1) {
-            state.page -= 1;
-            load();
-            el.groups.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
+        if (state.page <= 1) return;
+        state.page -= 1;
+        load();
+        document.getElementById("record-results-heading")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
     el.next.addEventListener("click", () => {
-        if (state.page * state.pageSize < state.total) {
-            state.page += 1;
-            load();
-            el.groups.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
+        if (state.page * state.pageSize >= state.total) return;
+        state.page += 1;
+        load();
+        document.getElementById("record-results-heading")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
     el.reset.addEventListener("click", () => {
-        state.projectId = null;
         state.page = 1;
-        el.project.value = "";
-        el.projectId.value = "";
+        state.projectId = null;
+        state.picker?.clearSelection({ preserveText: false, notify: false });
         el.source.value = "";
         el.year.value = "";
         el.search.value = "";
-        closeSuggestions();
+        validateYear();
         load();
+        el.project.focus();
     });
     el.export.addEventListener("click", () => {
+        if (!validateYear()) return;
         const params = new URLSearchParams();
         if (state.projectId) params.set("projectId", String(state.projectId));
         if (el.source.value) params.set("source", el.source.value);
@@ -419,18 +468,20 @@
         window.location.assign(`${api.export}?${params}`);
     });
 
+    initializeProjectPicker();
+
     const initial = new URLSearchParams(window.location.search);
     const initialProjectId = Number(initial.get("projectId"));
     if (Number.isInteger(initialProjectId) && initialProjectId > 0) {
         state.projectId = initialProjectId;
         el.projectId.value = String(initialProjectId);
-        fetch(`${api.projects}?q=`, { headers: { Accept: "application/json" } })
-            .then(response => response.ok ? response.json() : [])
-            .then(projects => {
-                const match = projects.find(x => x.id === initialProjectId);
-                if (match) el.project.value = match.display || match.name;
-            })
-            .catch(() => {});
+        state.picker?.initializeById(initialProjectId, { notify: false }).then(project => {
+            if (project) return;
+            state.projectId = null;
+            el.projectId.value = "";
+            el.projectStatus.textContent = "The linked project is no longer available. Showing all projects.";
+            load();
+        });
     }
     if (initial.get("source")) el.source.value = initial.get("source");
     if (initial.get("year")) el.year.value = initial.get("year");
