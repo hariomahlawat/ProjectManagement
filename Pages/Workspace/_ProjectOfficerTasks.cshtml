@@ -2,6 +2,7 @@
 @model ProjectManagement.Pages.Workspace.IndexModel
 @{
     var tasks = Model.Workspace.OfficialTasks;
+    var showFilters = tasks.Count > 8;
     var statuses = tasks
         .Select(task => task.Status)
         .Where(status => !string.IsNullOrWhiteSpace(status))
@@ -12,29 +13,29 @@
 <div class="po-workspace po-workspace--embedded po-dedicated-page">
     <header class="po-dedicated-hero">
         <div><span class="po-eyebrow">My work</span><h1>Assigned tasks</h1><p>Review tasks assigned to you and move directly to the required action.</p></div>
-        <a href="@WorkspaceRouteHelper.ActionTasksMyWork()" class="po-dedicated-hero__action">Open full task register<i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+        <a href="@WorkspaceRouteHelper.ActionTasksMyWork()" class="po-dedicated-hero__action">Open task register<i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
     </header>
 
-    @if (tasks.Any())
-    {
-        <section class="po-filter-bar" data-po-task-filters>
-            <label><span>Search</span><input type="search" placeholder="Task title" data-po-task-search /></label>
-            <label>
-                <span>Status</span>
-                <select data-po-task-status>
-                    <option value="">All statuses</option>
-                    @foreach (var status in statuses)
-                    {
-                        <option value="@status.ToLowerInvariant()">@status</option>
-                    }
-                </select>
-            </label>
-            <label><span>Due</span><select data-po-task-due><option value="">All due dates</option><option value="overdue">Overdue</option><option value="due-soon">Due in next 3 days</option><option value="later">Due later</option></select></label>
-            <button type="button" data-po-clear-filters disabled>Clear</button>
-        </section>
-    }
-
     <section class="po-panel">
+        @if (showFilters)
+        {
+            <div class="po-list-toolbar po-list-toolbar--tasks" data-po-task-filters>
+                <label class="po-list-toolbar__search"><span class="visually-hidden">Search tasks</span><i class="bi bi-search" aria-hidden="true"></i><input type="search" placeholder="Search tasks" data-po-task-search /></label>
+                <label>
+                    <span class="visually-hidden">Status</span>
+                    <select data-po-task-status>
+                        <option value="">All statuses</option>
+                        @foreach (var status in statuses)
+                        {
+                            <option value="@status.ToLowerInvariant()">@status</option>
+                        }
+                    </select>
+                </label>
+                <label><span class="visually-hidden">Due date</span><select data-po-task-due><option value="">All due dates</option><option value="overdue">Overdue</option><option value="due-soon">Due in next 3 days</option><option value="later">Due later</option></select></label>
+                <button type="button" data-po-clear-filters disabled>Reset</button>
+            </div>
+        }
+
         <div class="po-task-list">
             @if (!tasks.Any())
             {
@@ -59,7 +60,7 @@
                 }
             }
         </div>
-        @if (tasks.Any())
+        @if (showFilters)
         {
             <div class="po-filter-empty" data-po-filter-empty hidden>No tasks match the selected filters.</div>
         }

@@ -2,6 +2,7 @@
 @model ProjectManagement.Pages.Workspace.IndexModel
 @{
     var vm = Model.Workspace;
+    var showFilters = vm.ProjectMatrix.Count > 8;
     var stages = vm.ProjectMatrix
         .Select(row => row.CurrentStageCode)
         .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -11,29 +12,39 @@
 }
 <div class="po-workspace po-workspace--embedded po-dedicated-page">
     <header class="po-dedicated-hero">
-        <div><span class="po-eyebrow">My work</span><h1>Assigned projects</h1><p>Monitor stage position, update recency, timeline readiness and record completeness.</p></div>
-        <div class="po-dedicated-hero__metric"><strong>@vm.AssignedProjectCount</strong><span>active assigned projects</span></div>
+        <div><span class="po-eyebrow">My work</span><h1>Assigned projects</h1><p>Stage position, update recency, timeline readiness and record completeness.</p></div>
+        <div class="po-dedicated-hero__metric"><strong>@vm.AssignedProjectCount</strong><span>active projects</span></div>
     </header>
 
-    <section class="po-filter-bar" data-po-project-filters>
-        <label><span>Search</span><input type="search" placeholder="Project name" data-po-project-search /></label>
-        <label>
-            <span>Stage</span>
-            <select data-po-project-stage>
-                <option value="">All stages</option>
-                @foreach (var stage in stages)
-                {
-                    <option value="@stage.ToLowerInvariant()">@stage</option>
-                }
-            </select>
-        </label>
-        <label><span>Attention</span><select data-po-project-attention><option value="">All projects</option><option value="critical">Critical</option><option value="attention">Needs attention</option><option value="current">Current</option></select></label>
-        <button type="button" data-po-clear-filters disabled>Clear</button>
-    </section>
-
     <section class="po-panel po-projects-panel">
-        <div class="po-panel__head"><div><span class="po-panel__kicker">Portfolio register</span><h2>Project status</h2><p>Select a completeness score to view exact record gaps.</p></div><a href="@vm.MyProjectsUrl" class="po-link">Open project register<i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a></div>
+        <div class="po-panel__head">
+            <div><span class="po-panel__kicker">Portfolio register</span><h2>Project status</h2><p>Select a completeness score to view exact record gaps.</p></div>
+            <a href="@vm.MyProjectsUrl" class="po-link">Open project register<i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+        </div>
+
+        @if (showFilters)
+        {
+            <div class="po-list-toolbar po-list-toolbar--projects" data-po-project-filters>
+                <label class="po-list-toolbar__search"><span class="visually-hidden">Search projects</span><i class="bi bi-search" aria-hidden="true"></i><input type="search" placeholder="Search projects" data-po-project-search /></label>
+                <label>
+                    <span class="visually-hidden">Stage</span>
+                    <select data-po-project-stage>
+                        <option value="">All stages</option>
+                        @foreach (var stage in stages)
+                        {
+                            <option value="@stage.ToLowerInvariant()">@stage</option>
+                        }
+                    </select>
+                </label>
+                <label><span class="visually-hidden">Attention</span><select data-po-project-attention><option value="">All projects</option><option value="critical">Critical</option><option value="attention">Needs attention</option><option value="current">Current</option></select></label>
+                <button type="button" data-po-clear-filters disabled>Reset</button>
+            </div>
+        }
+
         @await Html.PartialAsync("_ProjectOfficerProjectTable", new ProjectOfficerProjectTableRenderVm { Rows = vm.ProjectMatrix })
-        <div class="po-filter-empty" data-po-filter-empty hidden>No projects match the selected filters.</div>
+        @if (showFilters)
+        {
+            <div class="po-filter-empty" data-po-filter-empty hidden>No projects match the selected filters.</div>
+        }
     </section>
 </div>

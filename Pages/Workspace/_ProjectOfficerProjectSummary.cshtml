@@ -6,7 +6,7 @@
 }
 else
 {
-    <div class="po-project-summary-list">
+    <div class="po-project-summary-list @(Model.Compact ? "is-compact" : string.Empty)">
         @foreach (var row in Model.Rows)
         {
             var timelineCss = WorkspaceDisplayHelpers.TimelineStatusCss(row);
@@ -25,7 +25,12 @@ else
                 : row.UpdateStatus is "ActionRequired" or "Attention"
                     ? WorkspaceDisplayHelpers.ProjectUpdateStatusDetail(row)
                     : $"{row.RecordHealthPercent}% record completeness";
-            <article class="po-project-summary po-project-summary--@tone">
+            var fullActionLabel = WorkspaceDisplayHelpers.ProjectNextActionLabel(row);
+            var compactActionLabel = fullActionLabel.Equals("Set current-stage PDC", StringComparison.OrdinalIgnoreCase)
+                ? "Set PDC"
+                : fullActionLabel;
+
+            <article class="po-project-summary po-project-summary--@tone @(Model.Compact ? "po-project-summary--compact" : string.Empty)">
                 <span class="po-project-summary__rail" aria-hidden="true"></span>
                 <div class="po-project-summary__identity">
                     <a href="@row.OpenUrl">@row.ProjectName</a>
@@ -33,13 +38,21 @@ else
                 </div>
                 <div class="po-project-summary__attention">
                     <strong>@attentionTitle</strong>
-                    <span>@attentionDetail</span>
+                    @if (!Model.Compact)
+                    {
+                        <span>@attentionDetail</span>
+                    }
                 </div>
                 <div class="po-project-summary__records">
                     <strong>@row.RecordHealthPercent%</strong>
                     <span>@row.RecordGapCount gap@(row.RecordGapCount == 1 ? string.Empty : "s")</span>
                 </div>
-                <a class="po-project-summary__action" href="@row.NextActionUrl"><span>@WorkspaceDisplayHelpers.ProjectNextActionLabel(row)</span><i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                <a class="po-project-summary__action"
+                   href="@row.NextActionUrl"
+                   aria-label="@fullActionLabel for @row.ProjectName"
+                   title="@fullActionLabel">
+                    <span>@(Model.Compact ? compactActionLabel : fullActionLabel)</span><i class="bi bi-arrow-right" aria-hidden="true"></i>
+                </a>
             </article>
         }
     </div>

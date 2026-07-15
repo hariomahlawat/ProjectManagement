@@ -328,3 +328,12 @@
         height: 8px;
     }
 }
+
+/* Final Project Officer activity presentation */
+.erp-year-heatmap__canvas {
+    margin-inline: auto;
+}
+
+.erp-activity-strip--card.is-extended .erp-activity-strip__cells {
+    max-width: 100%;
+}

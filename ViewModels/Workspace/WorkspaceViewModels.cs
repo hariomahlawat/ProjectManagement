@@ -208,6 +208,7 @@ public sealed class ProjectOfficerActionGroupsRenderVm
 public sealed class ProjectOfficerProjectTableRenderVm
 {
     public IReadOnlyList<WorkspaceProjectMatrixRowVm> Rows { get; init; } = Array.Empty<WorkspaceProjectMatrixRowVm>();
+    public bool Compact { get; init; }
 }
 
 public sealed class WorkspaceUpcomingEventVm

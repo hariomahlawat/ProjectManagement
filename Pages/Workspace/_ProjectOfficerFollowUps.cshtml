@@ -6,19 +6,12 @@
     var vm = Model.Workspace;
     var generatedAtUtc = new DateTimeOffset(DateTime.SpecifyKind(vm.GeneratedAtUtc, DateTimeKind.Utc));
     var ideasDue = vm.Ideas.Where(idea => idea.NeedsUpdate).ToList();
-    var hasFollowUps = vm.PersonalReminders.Any() || ideasDue.Any();
+    var followUpCount = vm.PersonalReminders.Count + ideasDue.Count;
 }
 <div class="po-workspace po-workspace--embedded po-dedicated-page">
     <header class="po-dedicated-hero">
         <div><span class="po-eyebrow">My work</span><h1>Follow-ups</h1><p>Personal reminders and idea updates that should remain visible.</p></div>
-        @if (hasFollowUps)
-        {
-            <div class="po-dedicated-hero__metrics"><div><strong>@vm.PersonalReminders.Count</strong><span>due or pinned reminders</span></div><div><strong>@ideasDue.Count</strong><span>idea updates</span></div></div>
-        }
-        else
-        {
-            <div class="po-dedicated-hero__status"><i class="bi bi-check2-circle" aria-hidden="true"></i><span><strong>No follow-ups due</strong><small>Your reminder and idea-update lists are clear.</small></span></div>
-        }
+        <div class="po-dedicated-hero__metric"><strong>@followUpCount</strong><span>follow-up@(followUpCount == 1 ? string.Empty : "s") due</span></div>
     </header>
 
     <div class="po-two-column-pages">
@@ -55,9 +48,11 @@
                 <div class="po-follow-page-list">
                     @foreach (var idea in ideasDue)
                     {
+                        var commentLabel = idea.CommentCount == 1 ? "comment" : "comments";
+                        var documentLabel = idea.DocumentCount == 1 ? "document" : "documents";
                         <a href="@idea.OpenUrl" class="po-follow-page-row is-attention">
                             <span class="po-follow-page-row__icon"><i class="bi bi-lightbulb" aria-hidden="true"></i></span>
-                            <div><strong>@idea.Title</strong><span>@idea.Status · @idea.CommentCount comments · @idea.DocumentCount docs</span></div>
+                            <div><strong>@idea.Title</strong><span>@idea.Status · @idea.CommentCount @commentLabel · @idea.DocumentCount @documentLabel</span></div>
                             <i class="bi bi-arrow-right" aria-hidden="true"></i>
                         </a>
                     }

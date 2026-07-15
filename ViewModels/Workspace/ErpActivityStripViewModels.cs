@@ -9,36 +9,33 @@ public sealed record ErpActivityDayVm(
     string Tooltip,
     bool IsToday)
 {
-    public bool HasActivity => Level > 0;
+    /// <summary>
+    /// Activity that was captured after comprehensive personal usage monitoring became available.
+    /// Historical audit records are deliberately excluded from adoption calculations.
+    /// </summary>
+    public bool HasActivity => IsMonitored && !IsHistoricalAudit && Level > 0;
 
-    public bool IsNonWorkingWithoutActivity => !IsWorkingDay && !HasActivity;
+    public bool HasHistoricalActivity => IsHistoricalAudit;
 
-    public string StateLabel => IsHistoricalAudit
-        ? Level switch
-        {
-            3 => "Historical audited operational activity",
-            2 => "Historical audited administrative activity",
-            _ => "Historical audited activity"
-        }
-        : !IsMonitored
-            ? "Not monitored"
-            : IsNonWorkingWithoutActivity
-                ? "Non-working day"
-                : Level switch
-                {
-                    3 => "Operational activity",
-                    2 => "Interactive use",
-                    1 => "Navigation or read-only use",
-                    _ => "No recorded activity"
-                };
+    public bool IsNonWorkingWithoutActivity => IsMonitored && !IsWorkingDay && !HasActivity;
 
-    public string CellStateClass => IsHistoricalAudit
-        ? $"level-{Math.Clamp(Level, 0, 3)} is-historical"
-        : !IsMonitored
-            ? "not-monitored"
-            : IsNonWorkingWithoutActivity
-                ? "non-working"
-                : $"level-{Math.Clamp(Level, 0, 3)}";
+    public string StateLabel => !IsMonitored
+        ? "Not monitored"
+        : IsNonWorkingWithoutActivity
+            ? "Non-working day"
+            : Level switch
+            {
+                3 => "Operational activity",
+                2 => "Interactive use",
+                1 => "Navigation or read-only use",
+                _ => "No recorded activity"
+            };
+
+    public string CellStateClass => !IsMonitored
+        ? "not-monitored"
+        : IsNonWorkingWithoutActivity
+            ? "non-working"
+            : $"level-{Math.Clamp(Level, 0, 3)}";
 }
 
 public sealed class ErpActivityStripVm
@@ -49,10 +46,13 @@ public sealed class ErpActivityStripVm
     public int ActiveWorkingDays { get; init; }
     public int MonitoredWorkingDays { get; init; }
     public DateOnly? LastActiveDate { get; init; }
+    public DateOnly? MonitoringStartedOn { get; init; }
 
-    public int OperationalActionDays => Days.Count(day => day.Level == 3);
+    public int OperationalActionDays => Days.Count(day => day.IsMonitored && !day.IsHistoricalAudit && day.Level == 3);
 
-    public int InteractiveOrHigherDays => Days.Count(day => day.Level >= 2);
+    public int InteractiveOrHigherDays => Days.Count(day => day.IsMonitored && !day.IsHistoricalAudit && day.Level >= 2);
+
+    public int HistoricalAuditDays => Days.Count(day => day.IsHistoricalAudit);
 
     public DateOnly? MonitoringAvailableFrom => Days
         .Where(day => day.IsMonitored)
@@ -64,11 +64,18 @@ public sealed class ErpActivityStripVm
         .OrderByDescending(day => day.Date)
         .FirstOrDefault();
 
-    public string LastActivityTypeLabel => LastActiveDay?.StateLabel ?? "No recorded activity";
+    public string LastActivityTypeLabel => LastActiveDay?.StateLabel ?? "No monitored activity";
 
-    public string MonitoringAvailabilityLabel => MonitoringAvailableFrom.HasValue
-        ? $"Monitoring available from {MonitoringAvailableFrom.Value:dd MMM yyyy}"
-        : "Monitoring has not started";
+    public string MonitoringAvailabilityLabel
+    {
+        get
+        {
+            var monitoringStart = MonitoringStartedOn ?? MonitoringAvailableFrom;
+            return monitoringStart.HasValue
+                ? $"Monitoring available from {monitoringStart.Value:dd MMM yyyy}"
+                : "Monitoring has not started";
+        }
+    }
 
     public string PeriodLabel => Days.Count == 1
         ? "Last day"
@@ -88,7 +95,7 @@ public sealed class ErpActivityStripVm
         {
             if (!LastActiveDate.HasValue)
             {
-                return "No recorded activity";
+                return "No monitored activity";
             }
 
             if (LastActiveDate.Value == EndDate)
@@ -119,7 +126,13 @@ public sealed class ErpActivityYearVm
 
     public int WeekCount => Weeks.Count;
 
-    public bool HasHistoricalAudits => Year.Days.Any(day => day.IsHistoricalAudit);
+    public bool HasHistoricalAudits => HistoricalAuditDays > 0;
+
+    public int HistoricalAuditDays => Year.HistoricalAuditDays;
+
+    public string HistoricalAuditSummary => HistoricalAuditDays == 1
+        ? "A historical ERP record was found on 1 date before comprehensive monitoring was available. It is excluded from the activity scale and adoption metrics."
+        : $"Historical ERP records were found on {HistoricalAuditDays} dates before comprehensive monitoring was available. They are excluded from the activity scale and adoption metrics.";
 
     public string RollingPeriodLabel => $"{Year.StartDate:dd MMM yyyy} – {Year.EndDate:dd MMM yyyy}";
 }

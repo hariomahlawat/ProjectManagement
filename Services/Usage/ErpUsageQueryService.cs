@@ -713,6 +713,7 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
             cancellationToken);
         var configuredWorkingDays = options.WorkingDays.ToHashSet();
         var createdDate = DateOnly.FromDateTime(_time.ToIst(user.CreatedUtc).Date);
+        var monitoringStartedOn = LatestOf(trackingInceptionDate, createdDate);
         var effectiveTrackingStart = LatestOf(
             startDate,
             trackingInceptionDate,
@@ -735,17 +736,22 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
             var isHistoricalAudit = cell.Label.StartsWith(
                 "Historical audited",
                 StringComparison.OrdinalIgnoreCase);
-            var isMonitored = _time.UtcNow >= trackingInceptionUtc
+            var isMonitored = !isHistoricalAudit
+                && _time.UtcNow >= trackingInceptionUtc
                 && cell.Date >= effectiveTrackingStart;
-            var level = cell.State switch
-            {
-                ErpUsageHeatmapState.Navigation => 1,
-                ErpUsageHeatmapState.Interactive => 2,
-                ErpUsageHeatmapState.AdministrativeAction => 2,
-                ErpUsageHeatmapState.BusinessAction => 3,
-                _ => 0
-            };
-            var tooltip = $"{cell.Date:ddd, dd MMM yyyy}\n{cell.Label.Replace("\n", "; ", StringComparison.Ordinal)}";
+            var level = isHistoricalAudit
+                ? 0
+                : cell.State switch
+                {
+                    ErpUsageHeatmapState.Navigation => 1,
+                    ErpUsageHeatmapState.Interactive => 2,
+                    ErpUsageHeatmapState.AdministrativeAction => 2,
+                    ErpUsageHeatmapState.BusinessAction => 3,
+                    _ => 0
+                };
+            var tooltip = isHistoricalAudit
+                ? $"{cell.Date:ddd, dd MMM yyyy}\nNot monitored\nHistorical ERP record exists; excluded from adoption metrics"
+                : $"{cell.Date:ddd, dd MMM yyyy}\n{cell.Label.Replace("\n", "; ", StringComparison.Ordinal)}";
 
             return new ErpActivityDayVm(
                 cell.Date,
@@ -757,7 +763,7 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                 cell.Date == today);
         }).ToArray();
 
-        return BuildActivityStrip(dayRows);
+        return BuildActivityStrip(dayRows, monitoringStartedOn);
     }
 
     private static ErpActivityStripVm SliceActivity(
@@ -768,11 +774,12 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
             .TakeLast(Math.Min(days, source.Days.Count))
             .ToArray();
 
-        return BuildActivityStrip(selected);
+        return BuildActivityStrip(selected, source.MonitoringStartedOn);
     }
 
     private static ErpActivityStripVm BuildActivityStrip(
-        IReadOnlyList<ErpActivityDayVm> days)
+        IReadOnlyList<ErpActivityDayVm> days,
+        DateOnly? monitoringStartedOn = null)
     {
         if (days.Count == 0)
         {
@@ -793,7 +800,8 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
             Days = days,
             ActiveWorkingDays = activeWorkingDays,
             MonitoredWorkingDays = monitoredWorkingDays,
-            LastActiveDate = lastActiveDate
+            LastActiveDate = lastActiveDate,
+            MonitoringStartedOn = monitoringStartedOn
         };
     }
 

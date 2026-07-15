@@ -4,6 +4,7 @@
     var activityYear = Model.Workspace.ActivityYear;
     var year = activityYear.Year;
     var recent = activityYear.Recent;
+    var monitoringStart = year.MonitoringStartedOn ?? year.MonitoringAvailableFrom;
 }
 <div class="po-workspace po-workspace--embedded po-dedicated-page">
     <header class="po-dedicated-hero">
@@ -12,10 +13,9 @@
             <h1>My ERP activity</h1>
             <p>Review your recorded ERP adoption pattern. This is not an attendance or productivity measure.</p>
         </div>
-        <div class="po-dedicated-hero__metric po-dedicated-hero__metric--activity">
-            <strong>@year.MonitoredWorkingDays</strong>
-            <span>monitored working day@(year.MonitoredWorkingDays == 1 ? string.Empty : "s") available</span>
-            <small>@year.MonitoringAvailabilityLabel</small>
+        <div class="po-dedicated-hero__metric po-dedicated-hero__metric--date">
+            <strong>@(monitoringStart?.ToString("dd MMM yyyy") ?? "Not started")</strong>
+            <span>Monitoring since</span>
         </div>
     </header>
 
@@ -24,7 +24,7 @@
             <span><i class="bi bi-calendar-check" aria-hidden="true"></i></span>
             <div>
                 <strong>@recent.ActiveWorkingDays of @recent.MonitoredWorkingDays</strong>
-                <b>Active working days</b>
+                <b>Active monitored working days</b>
                 <small>Last 30 calendar days</small>
             </div>
         </article>
@@ -40,8 +40,8 @@
             <span><i class="bi bi-pencil-square" aria-hidden="true"></i></span>
             <div>
                 <strong>@year.OperationalActionDays</strong>
-                <b>Operational-action day@(year.OperationalActionDays == 1 ? string.Empty : "s")</b>
-                <small>Rolling 12-month period</small>
+                <b>Recognised-action day@(year.OperationalActionDays == 1 ? string.Empty : "s")</b>
+                <small>Monitored period only</small>
             </div>
         </article>
     </section>
@@ -50,14 +50,22 @@
         <header class="po-year-activity-panel__header">
             <div>
                 <span class="po-panel__kicker">Rolling 12 months</span>
-                <h2 id="po-year-activity-title">Activity over the last year</h2>
-                <p>The shade represents the highest ERP activity level recorded on each calendar day.</p>
+                <h2 id="po-year-activity-title">Activity over the last 12 months</h2>
+                <p>Green shades show the highest monitored ERP activity level recorded on each calendar day.</p>
             </div>
             <span class="po-period-chip">@activityYear.RollingPeriodLabel</span>
         </header>
 
         <div class="po-year-activity-panel__body">
             @await Html.PartialAsync("_ErpActivityYearHeatmap", activityYear)
+
+            @if (activityYear.HasHistoricalAudits)
+            {
+                <div class="po-activity-history-note" role="note">
+                    <i class="bi bi-info-circle" aria-hidden="true"></i>
+                    <span><strong>Historical records excluded.</strong> @activityYear.HistoricalAuditSummary</span>
+                </div>
+            }
 
             <div class="po-activity-privacy-note" role="note">
                 <i class="bi bi-shield-check" aria-hidden="true"></i>

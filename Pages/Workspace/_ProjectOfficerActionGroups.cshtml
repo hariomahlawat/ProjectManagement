@@ -43,18 +43,38 @@ else
                              data-action-type="@item.Type.ToLowerInvariant()"
                              data-filter-text="@itemFilterText"
                              data-action-count="@item.RepresentedActionCount">
-                            <div class="po-action-line__type">
-                                <span class="po-type po-type--@item.Type.ToLowerInvariant()">@item.BadgeText</span>
+                            <div class="po-action-line__type @(isRecommended ? "po-action-line__type--recommended" : string.Empty)">
+                                @if (isRecommended)
+                                {
+                                    <i class="bi bi-stars" aria-hidden="true"></i>
+                                }
+                                else
+                                {
+                                    <span class="po-type po-type--@item.Type.ToLowerInvariant()">@item.BadgeText</span>
+                                }
                             </div>
                             <div class="po-action-line__content">
                                 @if (isRecommended)
                                 {
-                                    <span class="po-action__recommendation"><strong><i class="bi bi-stars" aria-hidden="true"></i>Recommended next</strong></span>
+                                    <span class="po-action__recommendation"><strong>Recommended next</strong></span>
                                 }
                                 <span class="po-action-line__detail">@item.Detail</span>
-                                @if (!string.IsNullOrWhiteSpace(item.Meta))
+                                @if (isRecommended || !string.IsNullOrWhiteSpace(item.Meta))
                                 {
-                                    <small>@item.Meta</small>
+                                    <small class="po-action-line__meta-text">
+                                        @if (isRecommended)
+                                        {
+                                            <span>@item.BadgeText</span>
+                                        }
+                                        @if (isRecommended && !string.IsNullOrWhiteSpace(item.Meta))
+                                        {
+                                            <span aria-hidden="true">·</span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(item.Meta))
+                                        {
+                                            <span>@item.Meta</span>
+                                        }
+                                    </small>
                                 }
                             </div>
                             <a class="po-action-line__button" href="@item.ActionUrl">
