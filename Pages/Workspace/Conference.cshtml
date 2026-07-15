@@ -24,19 +24,14 @@
     {
         <section class="oc-landing" aria-labelledby="oc-landing-title">
             <header class="oc-landing__header">
-                <a asp-page="/Workspace/Index"
-                   asp-route-mode="command"
-                   asp-route-view="officers"
-                   class="oc-back"
-                   aria-label="Back to officer workload"
-                   title="Back to officer workload">
-                    <i class="bi bi-arrow-left" aria-hidden="true"></i>
-                </a>
                 <span class="oc-landing__mark" aria-hidden="true"><i class="bi bi-clipboard2-check"></i></span>
-                <div>
+                <div class="oc-landing__heading">
                     <span class="oc-eyebrow">Project monitoring</span>
-                    <h1 id="oc-landing-title">Conference review</h1>
-                    <p>Select a Project Officer to review assigned work, issue conference directions and examine progress recorded after each direction.</p>
+                    <div class="oc-landing__title-row">
+                        <h1 id="oc-landing-title">Conference review</h1>
+                        <span class="oc-landing__count">@Model.OfficerOptions.Count @(Model.OfficerOptions.Count == 1 ? "officer" : "officers")</span>
+                    </div>
+                    <p>Select a Project Officer to review assigned work, issue directions and examine subsequent progress.</p>
                 </div>
             </header>
 
@@ -50,23 +45,6 @@
             }
             else
             {
-                <form method="get" asp-page="/Workspace/Conference" class="oc-landing__selector" aria-label="Select officer for conference review">
-                    <label for="oc-landing-officer">Project Officer</label>
-                    <div>
-                        <select id="oc-landing-officer" name="officerUserId" required>
-                            <option value="">Select an officer</option>
-                            @foreach (var option in Model.OfficerOptions)
-                            {
-                                <option value="@option.UserId">@option.DisplayName</option>
-                            }
-                        </select>
-                        <button type="submit">
-                            <span>Open review</span>
-                            <i class="bi bi-arrow-right" aria-hidden="true"></i>
-                        </button>
-                    </div>
-                </form>
-
                 <div class="oc-landing__officers" aria-label="Project Officers available for conference review">
                     @foreach (var option in Model.OfficerOptions)
                     {
@@ -101,7 +79,7 @@
         <div class="oc-sticky-shell" data-oc-sticky-shell>
             <header class="oc-header" data-oc-sticky-header>
                 <div class="oc-header__identity">
-                    <a asp-page="/Workspace/Conference"
+                    <a href="@Url.Content("~/Workspace/Conference")"
                        class="oc-back"
                        aria-label="Back to conference review"
                        title="Back to conference review">
@@ -135,7 +113,7 @@
                             Title = "ERP activity",
                             Variant = "header",
                             ShowTitle = true,
-                            ShowSummary = true,
+                            ShowSummary = false,
                             ShowLegend = false
                         })
                 </a>
