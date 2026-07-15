@@ -1,0 +1,61 @@
+@using ProjectManagement.Services.Workspace
+@model ProjectManagement.Pages.Workspace.IndexModel
+@{
+    var tasks = Model.Workspace.OfficialTasks;
+    var statuses = tasks
+        .Select(task => task.Status)
+        .Where(status => !string.IsNullOrWhiteSpace(status))
+        .Distinct()
+        .OrderBy(status => status)
+        .ToList();
+}
+<div class="po-workspace po-workspace--embedded po-dedicated-page">
+    <header class="po-dedicated-hero">
+        <div><span class="po-eyebrow">My work</span><h1>Assigned tasks</h1><p>Review tasks assigned to you and move directly to the required action.</p></div>
+        <a href="@WorkspaceRouteHelper.ActionTasksMyWork()" class="po-dedicated-hero__action">Open task management<i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+    </header>
+
+    <section class="po-filter-bar" data-po-task-filters>
+        <label><span>Search</span><input type="search" placeholder="Task title" data-po-task-search /></label>
+        <label>
+            <span>Status</span>
+            <select data-po-task-status>
+                <option value="">All statuses</option>
+                @foreach (var status in statuses)
+                {
+                    <option value="@status.ToLowerInvariant()">@status</option>
+                }
+            </select>
+        </label>
+        <label><span>Due</span><select data-po-task-due><option value="">All due dates</option><option value="overdue">Overdue</option><option value="dated">With due date</option><option value="undated">No due date</option></select></label>
+        <button type="button" data-po-clear-filters>Clear</button>
+    </section>
+
+    <section class="po-panel">
+        <div class="po-task-list">
+            @if (!tasks.Any())
+            {
+                <div class="po-empty po-empty--success"><i class="bi bi-check2-circle" aria-hidden="true"></i><div><strong>No assigned tasks</strong><span>Your task list is clear.</span></div></div>
+            }
+            else
+            {
+                @foreach (var task in tasks)
+                {
+                    var dueKind = task.IsOverdue ? "overdue" : task.DueDateUtc.HasValue ? "dated" : "undated";
+                    var filterText = $"{task.Title} {task.ContextLabel} {task.Priority} {task.Status}".ToLowerInvariant();
+                    <article class="po-task-row @(task.IsOverdue ? "is-overdue" : string.Empty)"
+                             data-po-task-row
+                             data-filter-text="@filterText"
+                             data-status="@task.Status.ToLowerInvariant()"
+                             data-due="@dueKind">
+                        <span class="po-task-row__icon"><i class="bi bi-check2-square" aria-hidden="true"></i></span>
+                        <div class="po-task-row__content"><strong>@task.Title</strong><span>@task.ContextLabel · @task.Priority · @task.Status</span></div>
+                        <div class="po-task-row__due">@(task.DueDateUtc.HasValue ? task.DueDateUtc.Value.ToString("dd MMM yyyy") : "No due date")</div>
+                        <a href="@task.OpenUrl">Open<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                    </article>
+                }
+            }
+        </div>
+        <div class="po-filter-empty" data-po-filter-empty hidden>No tasks match the selected filters.</div>
+    </section>
+</div>

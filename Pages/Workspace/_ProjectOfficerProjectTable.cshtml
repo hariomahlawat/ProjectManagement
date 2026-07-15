@@ -1,0 +1,31 @@
+@using ProjectManagement.ViewModels.Workspace
+@model ProjectOfficerProjectTableRenderVm
+@if (!Model.Rows.Any())
+{
+    <div class="po-empty"><i class="bi bi-kanban"></i><div><strong>No assigned projects</strong><span>Projects assigned to you will appear here.</span></div></div>
+}
+else
+{
+    <div class="po-table-wrap">
+        <table class="po-project-table">
+            <thead><tr><th>Project</th><th>Current stage</th><th>Attention required</th><th>Records</th><th>Next action</th></tr></thead>
+            <tbody>
+            @foreach (var row in Model.Rows)
+            {
+                var timelineCss = WorkspaceDisplayHelpers.TimelineStatusCss(row);
+                var rowCritical = row.UpdateStatus.Equals("ActionRequired", StringComparison.OrdinalIgnoreCase) || timelineCss == "danger";
+                var rowWarning = !rowCritical && (row.UpdateStatus.Equals("Attention", StringComparison.OrdinalIgnoreCase) || timelineCss == "warning" || row.RecordGapCount > 0);
+                var rowClass = rowCritical ? "po-project-row--critical" : rowWarning ? "po-project-row--warning" : "po-project-row--normal";
+                var filterText = $"{row.ProjectName} {row.CurrentStageCode} {row.CurrentStageName} {WorkspaceDisplayHelpers.ProjectUpdateStatusLabel(row)} {WorkspaceDisplayHelpers.TimelineStatusLabel(row)}".ToLowerInvariant();
+                <tr class="@rowClass" data-po-project-row data-filter-text="@filterText" data-stage="@row.CurrentStageCode.ToLowerInvariant()" data-attention="@(rowCritical ? "critical" : rowWarning ? "attention" : "current")">
+                    <td data-label="Project"><div class="po-project-cell"><span class="po-project-indicator" aria-hidden="true"></span><a class="po-project-name" href="@row.OpenUrl">@row.ProjectName</a></div></td>
+                    <td data-label="Current stage"><div class="po-stage"><strong>@row.CurrentStageCode</strong><span>@WorkspaceDisplayHelpers.CurrentStageDurationLabel(row)</span></div></td>
+                    <td data-label="Attention required"><div class="po-attention-stack"><span class="po-status po-status--stacked po-status--@row.UpdateStatus.ToLowerInvariant()"><i></i><span><strong>@WorkspaceDisplayHelpers.ProjectUpdateStatusLabel(row)</strong><small>@WorkspaceDisplayHelpers.ProjectUpdateStatusDetail(row)</small></span></span><span class="po-status po-status--stacked po-status--@timelineCss"><i></i><span><strong>@WorkspaceDisplayHelpers.TimelineStatusLabel(row)</strong><small>@WorkspaceDisplayHelpers.TimelineStatusDetail(row)</small></span></span></div></td>
+                    <td data-label="Records"><button type="button" class="po-record po-record--@WorkspaceDisplayHelpers.HealthCss(row.RecordHealthPercent)" data-bs-toggle="modal" data-bs-target="#recordHealth-@row.ProjectId"><span class="po-record__top"><strong>@row.RecordHealthPercent% complete</strong><small>@row.RecordGapCount gap@(row.RecordGapCount == 1 ? "" : "s")</small></span><progress class="po-record__bar" value="@row.RecordHealthPercent" max="100">@row.RecordHealthPercent%</progress><span class="po-record__view">View gaps</span></button></td>
+                    <td data-label="Next action"><a class="po-row-action" href="@row.NextActionUrl"><span>@WorkspaceDisplayHelpers.CompactActionLabel(row.NextActionText)</span><i class="bi bi-arrow-right"></i></a></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}

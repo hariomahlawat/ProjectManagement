@@ -6,6 +6,8 @@ namespace ProjectManagement.Services.Workspace;
 internal sealed record WorkspaceActionQueueBuildResult(
     IReadOnlyList<WorkspaceActionQueueItemVm> Items,
     IReadOnlyList<WorkspaceActionQueueGroupVm> Groups,
+    IReadOnlyList<WorkspaceActionQueueItemVm> AllItems,
+    IReadOnlyList<WorkspaceActionQueueGroupVm> AllGroups,
     int TotalCount);
 
 /// <summary>
@@ -187,6 +189,8 @@ internal static class WorkspaceActionQueueBuilder
         return new WorkspaceActionQueueBuildResult(
             visibleItems,
             BuildGroups(visibleItems),
+            orderedItems,
+            BuildGroups(orderedItems),
             totalCount);
     }
 

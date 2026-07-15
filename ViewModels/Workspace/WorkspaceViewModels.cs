@@ -25,13 +25,19 @@ public sealed class ProjectOfficerWorkspaceVm
     public string AotsUrl { get; set; } = "/DocumentRepository/Documents?scope=aots";
     public WorkspaceEngagementVm Engagement { get; set; } = new();
     public ErpActivityStripVm ActivityStrip { get; set; } = new();
+    public WorkspaceDocumentHubVm DocumentHub { get; set; } = new();
     public IReadOnlyList<WorkspaceCommandChipVm> CommandChips { get; set; } = Array.Empty<WorkspaceCommandChipVm>();
     public WorkspaceDataCompletenessInsightVm DataCompletenessInsight { get; set; } = new();
     public IReadOnlyList<WorkspaceRailItemVm> RailItems { get; set; } = Array.Empty<WorkspaceRailItemVm>();
     public IReadOnlyList<WorkspaceAttentionItemVm> PendingWithMe { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public IReadOnlyList<WorkspaceActionQueueItemVm> ActionQueue { get; set; } = Array.Empty<WorkspaceActionQueueItemVm>();
     public IReadOnlyList<WorkspaceActionQueueGroupVm> ActionQueueGroups { get; set; } = Array.Empty<WorkspaceActionQueueGroupVm>();
+    public IReadOnlyList<WorkspaceActionQueueItemVm> AllActionQueue { get; set; } = Array.Empty<WorkspaceActionQueueItemVm>();
+    public IReadOnlyList<WorkspaceActionQueueGroupVm> AllActionQueueGroups { get; set; } = Array.Empty<WorkspaceActionQueueGroupVm>();
     public int ActionQueueTotalCount { get; set; }
+    public int ActionProjectCount { get; set; }
+    public int ActionIdeaCount { get; set; }
+    public int ActionTaskCount { get; set; }
 
     public string ActionHeadline => ActionQueueTotalCount switch
     {
@@ -42,16 +48,37 @@ public sealed class ProjectOfficerWorkspaceVm
         _ => $"{ActionQueueTotalCount} actions require attention"
     };
 
-    public int FollowUpCount => PersonalReminders.Count + Ideas.Count;
+    public int FollowUpCount => PersonalReminders.Count + Ideas.Count(idea => idea.NeedsUpdate);
 
     public string OperationalSummary
     {
         get
         {
-            var parts = new List<string>
+            var scope = new List<string>();
+            if (ActionProjectCount > 0)
             {
-                $"Across {AssignedProjectCount} project{(AssignedProjectCount == 1 ? string.Empty : "s")}"
-            };
+                scope.Add($"{ActionProjectCount} project{(ActionProjectCount == 1 ? string.Empty : "s")}");
+            }
+
+            if (ActionIdeaCount > 0)
+            {
+                scope.Add($"{ActionIdeaCount} idea{(ActionIdeaCount == 1 ? string.Empty : "s")}");
+            }
+
+            if (ActionTaskCount > 0)
+            {
+                scope.Add($"{ActionTaskCount} task{(ActionTaskCount == 1 ? string.Empty : "s")}");
+            }
+
+            var parts = new List<string>();
+            if (scope.Count > 0)
+            {
+                parts.Add($"Across {JoinHumanReadable(scope)}");
+            }
+            else if (AssignedProjectCount > 0)
+            {
+                parts.Add($"Across {AssignedProjectCount} project{(AssignedProjectCount == 1 ? string.Empty : "s")}");
+            }
 
             if (ProjectTimelineIssueCount > 0)
             {
@@ -68,14 +95,22 @@ public sealed class ProjectOfficerWorkspaceVm
                 parts.Add($"{PendingConferenceDirectionCount} conference direction{(PendingConferenceDirectionCount == 1 ? string.Empty : "s")}");
             }
 
-            if (parts.Count == 1 && AotsUnreadCount > 0)
+            if (parts.Count == 0 && AotsUnreadCount > 0)
             {
                 parts.Add($"{AotsUnreadCount} AOTS document{(AotsUnreadCount == 1 ? string.Empty : "s")}");
             }
 
-            return string.Join(" · ", parts);
+            return parts.Count == 0 ? "No immediate action required" : string.Join(" · ", parts);
         }
     }
+
+    private static string JoinHumanReadable(IReadOnlyList<string> values) => values.Count switch
+    {
+        0 => string.Empty,
+        1 => values[0],
+        2 => $"{values[0]} and {values[1]}",
+        _ => $"{string.Join(", ", values.Take(values.Count - 1))} and {values[^1]}"
+    };
 
     public int ActionQueueHiddenCount => Math.Max(0, ActionQueueTotalCount - ActionQueue.Count);
     public IReadOnlyList<WorkspaceAttentionItemVm> RemarksDue { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
@@ -101,6 +136,52 @@ public sealed class ProjectOfficerWorkspaceVm
     public IReadOnlyList<WorkspaceReminderVm> PersonalReminders { get; set; } = Array.Empty<WorkspaceReminderVm>();
     public CommandOfficerWorkloadVm? CommandWorkloadCard { get; set; }
     public IReadOnlyList<WorkspaceUpcomingEventVm> UpcomingEvents { get; set; } = Array.Empty<WorkspaceUpcomingEventVm>();
+}
+
+public sealed class WorkspaceDocumentHubVm
+{
+    public int FavouriteCount { get; set; }
+    public int AotsUnreadCount { get; set; }
+    public int RecentCount { get; set; }
+    public int UploadedByMeCount { get; set; }
+    public IReadOnlyList<WorkspaceDocumentVm> Favourites { get; set; } = Array.Empty<WorkspaceDocumentVm>();
+    public IReadOnlyList<WorkspaceDocumentVm> Aots { get; set; } = Array.Empty<WorkspaceDocumentVm>();
+    public IReadOnlyList<WorkspaceDocumentVm> Recent { get; set; } = Array.Empty<WorkspaceDocumentVm>();
+    public IReadOnlyList<WorkspaceDocumentVm> UploadedByMe { get; set; } = Array.Empty<WorkspaceDocumentVm>();
+}
+
+public sealed class WorkspaceDocumentVm
+{
+    public Guid DocumentId { get; set; }
+    public string Subject { get; set; } = string.Empty;
+    public string Office { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public DateOnly? DocumentDate { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTimeOffset? LastViewedAtUtc { get; set; }
+    public bool IsAots { get; set; }
+    public bool IsFavourite { get; set; }
+    public bool IsUnreadAots { get; set; }
+    public string OpenUrl { get; set; } = string.Empty;
+}
+
+public sealed class ProjectOfficerDocumentListRenderVm
+{
+    public IReadOnlyList<WorkspaceDocumentVm> Documents { get; init; } = Array.Empty<WorkspaceDocumentVm>();
+    public string EmptyTitle { get; init; } = "No documents";
+    public string EmptyText { get; init; } = "Documents will appear here when available.";
+    public string DateMode { get; init; } = "document";
+}
+
+public sealed class ProjectOfficerActionGroupsRenderVm
+{
+    public IReadOnlyList<WorkspaceActionQueueGroupVm> Groups { get; init; } = Array.Empty<WorkspaceActionQueueGroupVm>();
+    public bool ShowRecommended { get; init; } = true;
+}
+
+public sealed class ProjectOfficerProjectTableRenderVm
+{
+    public IReadOnlyList<WorkspaceProjectMatrixRowVm> Rows { get; init; } = Array.Empty<WorkspaceProjectMatrixRowVm>();
 }
 
 public sealed class WorkspaceUpcomingEventVm

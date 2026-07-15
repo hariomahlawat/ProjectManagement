@@ -54,7 +54,17 @@ public sealed class ProjectOfficerWorkspaceService
     }
 
     // SECTION: Workspace composition
-    public async Task<ProjectOfficerWorkspaceVm> GetProjectOfficerWorkspaceAsync(string userId, ClaimsPrincipal principal, CancellationToken ct)
+    public Task<ProjectOfficerWorkspaceVm> GetProjectOfficerWorkspaceAsync(
+        string userId,
+        ClaimsPrincipal principal,
+        CancellationToken ct)
+        => GetProjectOfficerWorkspaceAsync(userId, principal, includeDocuments: true, ct: ct);
+
+    public async Task<ProjectOfficerWorkspaceVm> GetProjectOfficerWorkspaceAsync(
+        string userId,
+        ClaimsPrincipal principal,
+        bool includeDocuments,
+        CancellationToken ct)
     {
         var today = DateOnly.FromDateTime(_clock.IstToday);
         var istNow = IstClock.ToIst(_clock.UtcNow);
@@ -97,23 +107,22 @@ public sealed class ProjectOfficerWorkspaceService
             .ThenByDescending(row => row.DaysInCurrentStage ?? 0)
             .ThenBy(row => row.ProjectName)
             .ToList();
-        var matrix = allMatrixRows.Take(8).ToList();
-
         var remarksDue = _nudges.BuildRemarksDue(projects, userId, today).ToList();
         var returnedItems = await BuildReturnedItemsAsync(userId, ct);
         var officialTasksDue = tasks
             .Where(t => t.IsOverdue || IsDueSoon(t.DueDateUtc, today))
             .OrderByDescending(t => t.IsOverdue)
             .ThenBy(t => t.DueDateUtc ?? DateTime.MaxValue)
-            .Take(5)
             .ToList();
         var ideasNeedingUpdate = ideaVms
             .Where(i => i.NeedsUpdate)
             .OrderByDescending(i => i.LastActivityAtUtc)
-            .Take(5)
             .ToList();
         var aotsUnreadCount = await _aotsUnreadService.GetUnreadCountAsync(userId, ct);
         var aotsDocuments = await LoadUnreadAotsDocumentsAsync(userId, ct);
+        var documentHub = includeDocuments
+            ? await LoadDocumentHubAsync(userId, aotsUnreadCount, ct)
+            : new WorkspaceDocumentHubVm();
         var timelineAlerts = _nudges.BuildTimelineAlerts(projects, today).ToList();
         var actionQueueResult = WorkspaceActionQueueBuilder.Build(
             returnedItems,
@@ -126,6 +135,23 @@ public sealed class ProjectOfficerWorkspaceService
             pendingConferenceDirections);
         var actionQueue = actionQueueResult.Items;
         var dailyActionCount = actionQueueResult.TotalCount;
+        var actionProjectCount = actionQueueResult.AllItems
+            .Where(item => item.ProjectId is > 0)
+            .Select(item => item.ProjectId!.Value)
+            .Distinct()
+            .Count();
+        var actionIdeaCount = pendingConferenceDirections
+            .Where(direction => direction.Kind == ConferenceItemKind.ProjectIdea)
+            .Select(direction => direction.ItemId)
+            .Concat(ideaVms.Where(idea => idea.NeedsUpdate).Select(idea => idea.IdeaId))
+            .Distinct()
+            .Count();
+        var actionTaskCount = pendingConferenceDirections
+            .Where(direction => direction.Kind == ConferenceItemKind.ActionTask)
+            .Select(direction => direction.ItemId)
+            .Concat(officialTasksDue.Select(task => task.TaskId))
+            .Distinct()
+            .Count();
 
         var pending = returnedItems
             .Concat(remarksDue)
@@ -180,6 +206,7 @@ public sealed class ProjectOfficerWorkspaceService
             PendingConferenceDirectionCount = pendingConferenceDirections.Count,
             Engagement = engagement,
             ActivityStrip = activityStrip,
+            DocumentHub = documentHub,
             CommandChips = BuildCommandChips(
                 remarksDue.Count,
                 aotsUnreadCount,
@@ -189,7 +216,12 @@ public sealed class ProjectOfficerWorkspaceService
             PendingWithMe = pending.Take(5).ToList(),
             ActionQueue = actionQueue,
             ActionQueueGroups = actionQueueResult.Groups,
+            AllActionQueue = actionQueueResult.AllItems,
+            AllActionQueueGroups = actionQueueResult.AllGroups,
             ActionQueueTotalCount = actionQueueResult.TotalCount,
+            ActionProjectCount = actionProjectCount,
+            ActionIdeaCount = actionIdeaCount,
+            ActionTaskCount = actionTaskCount,
             RemarksDue = remarksDue.Take(5).ToList(),
             OfficialTasksDue = officialTasksDue,
             IdeasNeedingUpdate = ideasNeedingUpdate,
@@ -197,12 +229,11 @@ public sealed class ProjectOfficerWorkspaceService
             ReturnedItems = returnedItems.Take(5).ToList(),
             TimelineAlerts = timelineAlerts.Take(5).ToList(),
             WaitingOnOthers = waitingOnOthers.Take(5).ToList(),
-            ProjectMatrix = matrix,
-            OfficialTasks = tasks.Take(5).ToList(),
+            ProjectMatrix = allMatrixRows,
+            OfficialTasks = tasks,
             Ideas = ideaVms
                 .OrderByDescending(i => i.NeedsUpdate)
                 .ThenByDescending(i => i.LastActivityAtUtc)
-                .Take(4)
                 .ToList(),
             RecordHealth = health.Values
                 .OrderBy(h => h.HealthPercent)
@@ -301,7 +332,6 @@ public sealed class ProjectOfficerWorkspaceService
                 item.ReminderAtUtc < endTodayUtc)
             .OrderByDescending(item => item.IsPinned)
             .ThenBy(item => item.ReminderAtUtc)
-            .Take(5)
             .Select(item => new WorkspaceReminderVm
             {
                 ReminderId = item.Id,
@@ -479,6 +509,204 @@ public sealed class ProjectOfficerWorkspaceService
             .ToListAsync(ct);
     }
 
+
+    // SECTION: Personal document hub reuses canonical repository records.
+    private async Task<WorkspaceDocumentHubVm> LoadDocumentHubAsync(
+        string userId,
+        int aotsUnreadCount,
+        CancellationToken ct)
+    {
+        const int previewLimit = 12;
+        var returnUrl = WorkspaceRouteHelper.ProjectOfficerWorkspace("documents");
+
+        var favouriteRows = await (
+                from favourite in _db.DocRepoFavourites.AsNoTracking()
+                join document in _db.Documents.AsNoTracking() on favourite.DocumentId equals document.Id
+                where favourite.UserId == userId
+                      && !document.IsDeleted
+                      && !document.IsExternal
+                      && document.IsActive
+                orderby favourite.CreatedAtUtc descending
+                select new
+                {
+                    document.Id,
+                    document.Subject,
+                    document.DocumentDate,
+                    document.CreatedAtUtc,
+                    document.IsAots,
+                    Office = document.OfficeCategory.Name,
+                    Category = document.DocumentCategory.Name
+                })
+            .Take(previewLimit)
+            .ToListAsync(ct);
+
+        var favouriteCount = await (
+                from favourite in _db.DocRepoFavourites.AsNoTracking()
+                join document in _db.Documents.AsNoTracking() on favourite.DocumentId equals document.Id
+                where favourite.UserId == userId
+                      && !document.IsDeleted
+                      && !document.IsExternal
+                      && document.IsActive
+                select document.Id)
+            .CountAsync(ct);
+
+        var viewedRows = await _db.DocRepoAudits
+            .AsNoTracking()
+            .Where(audit =>
+                audit.ActorUserId == userId
+                && audit.DocumentId.HasValue
+                && audit.EventType == DocRepoAuditEventTypes.Viewed)
+            .GroupBy(audit => audit.DocumentId!.Value)
+            .Select(group => new
+            {
+                DocumentId = group.Key,
+                LastViewedAtUtc = group.Max(audit => audit.OccurredAtUtc)
+            })
+            .OrderByDescending(row => row.LastViewedAtUtc)
+            .Take(previewLimit)
+            .ToListAsync(ct);
+
+        var recentCount = await (
+                from audit in _db.DocRepoAudits.AsNoTracking()
+                join document in _db.Documents.AsNoTracking() on audit.DocumentId equals (Guid?)document.Id
+                where audit.ActorUserId == userId
+                      && audit.EventType == DocRepoAuditEventTypes.Viewed
+                      && !document.IsDeleted
+                      && !document.IsExternal
+                      && document.IsActive
+                select document.Id)
+            .Distinct()
+            .CountAsync(ct);
+
+        var viewedIds = viewedRows.Select(row => row.DocumentId).ToArray();
+        var viewedDocuments = viewedIds.Length == 0
+            ? new Dictionary<Guid, WorkspaceDocumentProjection>()
+            : (await _db.Documents
+                .AsNoTracking()
+                .Where(document =>
+                    viewedIds.Contains(document.Id)
+                    && !document.IsDeleted
+                    && !document.IsExternal
+                    && document.IsActive)
+                .Select(document => new WorkspaceDocumentProjection(
+                    document.Id,
+                    document.Subject,
+                    document.DocumentDate,
+                    document.CreatedAtUtc,
+                    document.IsAots,
+                    document.OfficeCategory.Name,
+                    document.DocumentCategory.Name))
+                .ToListAsync(ct))
+                .ToDictionary(document => document.Id);
+
+        var recent = viewedRows
+            .Where(row => viewedDocuments.ContainsKey(row.DocumentId))
+            .Select(row =>
+            {
+                var document = viewedDocuments[row.DocumentId];
+                return new WorkspaceDocumentVm
+                {
+                    DocumentId = document.Id,
+                    Subject = document.Subject,
+                    Office = document.Office,
+                    Category = document.Category,
+                    DocumentDate = document.DocumentDate,
+                    CreatedAtUtc = document.CreatedAtUtc,
+                    LastViewedAtUtc = row.LastViewedAtUtc,
+                    IsAots = document.IsAots,
+                    OpenUrl = WorkspaceRouteHelper.DocumentReader(document.Id, returnUrl)
+                };
+            })
+            .ToList();
+
+        var aotsRows = await _db.Documents
+            .AsNoTracking()
+            .Where(document =>
+                document.IsAots
+                && !document.IsDeleted
+                && !document.IsExternal
+                && document.IsActive)
+            .OrderByDescending(document => document.DocumentDate.HasValue)
+            .ThenByDescending(document => document.DocumentDate)
+            .ThenByDescending(document => document.CreatedAtUtc)
+            .Take(previewLimit)
+            .Select(document => new
+            {
+                document.Id,
+                document.Subject,
+                document.DocumentDate,
+                document.CreatedAtUtc,
+                Office = document.OfficeCategory.Name,
+                Category = document.DocumentCategory.Name,
+                IsSeen = _db.DocRepoAotsViews.Any(view => view.DocumentId == document.Id && view.UserId == userId)
+            })
+            .ToListAsync(ct);
+
+        var uploadedRows = await _db.Documents
+            .AsNoTracking()
+            .Where(document =>
+                document.CreatedByUserId == userId
+                && !document.IsDeleted
+                && !document.IsExternal
+                && document.IsActive)
+            .OrderByDescending(document => document.CreatedAtUtc)
+            .Take(previewLimit)
+            .Select(document => new
+            {
+                document.Id,
+                document.Subject,
+                document.DocumentDate,
+                document.CreatedAtUtc,
+                document.IsAots,
+                Office = document.OfficeCategory.Name,
+                Category = document.DocumentCategory.Name
+            })
+            .ToListAsync(ct);
+
+        var uploadedCount = await _db.Documents
+            .AsNoTracking()
+            .CountAsync(document =>
+                document.CreatedByUserId == userId
+                && !document.IsDeleted
+                && !document.IsExternal
+                && document.IsActive, ct);
+
+        return new WorkspaceDocumentHubVm
+        {
+            FavouriteCount = favouriteCount,
+            AotsUnreadCount = aotsUnreadCount,
+            RecentCount = recentCount,
+            UploadedByMeCount = uploadedCount,
+            Favourites = favouriteRows.Select(row => new WorkspaceDocumentVm
+            {
+                DocumentId = row.Id, Subject = row.Subject, Office = row.Office, Category = row.Category,
+                DocumentDate = row.DocumentDate, CreatedAtUtc = row.CreatedAtUtc, IsAots = row.IsAots, IsFavourite = true,
+                OpenUrl = WorkspaceRouteHelper.DocumentReader(row.Id, returnUrl)
+            }).ToList(),
+            Aots = aotsRows.Select(row => new WorkspaceDocumentVm
+            {
+                DocumentId = row.Id, Subject = row.Subject, Office = row.Office, Category = row.Category,
+                DocumentDate = row.DocumentDate, CreatedAtUtc = row.CreatedAtUtc, IsAots = true, IsUnreadAots = !row.IsSeen,
+                OpenUrl = WorkspaceRouteHelper.DocumentReader(row.Id, returnUrl)
+            }).ToList(),
+            Recent = recent,
+            UploadedByMe = uploadedRows.Select(row => new WorkspaceDocumentVm
+            {
+                DocumentId = row.Id, Subject = row.Subject, Office = row.Office, Category = row.Category,
+                DocumentDate = row.DocumentDate, CreatedAtUtc = row.CreatedAtUtc, IsAots = row.IsAots,
+                OpenUrl = WorkspaceRouteHelper.DocumentReader(row.Id, returnUrl)
+            }).ToList()
+        };
+    }
+
+    private sealed record WorkspaceDocumentProjection(
+        Guid Id,
+        string Subject,
+        DateOnly? DocumentDate,
+        DateTime CreatedAtUtc,
+        bool IsAots,
+        string Office,
+        string Category);
 
     // SECTION: Waiting-on-others summarizes submissions that are no longer actionable by the PO.
     private async Task<IReadOnlyList<WorkspaceAttentionItemVm>> BuildWaitingOnOthersAsync(string userId, IReadOnlyList<ActionTaskItem> submittedAwaitingClosureTasks, CancellationToken ct)

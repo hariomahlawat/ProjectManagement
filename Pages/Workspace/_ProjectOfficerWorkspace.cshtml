@@ -1,742 +1,84 @@
 @using ProjectManagement.ViewModels.Workspace
-@using ProjectManagement.Services.Workspace
-@using ProjectManagement.Infrastructure
 @model ProjectManagement.Pages.Workspace.IndexModel
 @{
     var vm = Model.Workspace;
-    var actionCount = vm.ActionQueueTotalCount;
-    var generatedAtUtc = new DateTimeOffset(DateTime.SpecifyKind(vm.GeneratedAtUtc, DateTimeKind.Utc));
-    var visibleProjectCount = vm.ProjectMatrix.Count;
-    var projectRecordHealthRows = vm.ProjectMatrix
-        .Select(row => row.RecordHealth)
-        .Concat(vm.ImproveProjects.Select(item => item.RecordHealth))
-        .Where(health => health.ProjectId > 0)
-        .GroupBy(health => health.ProjectId)
-        .Select(group => group.First())
-        .OrderBy(health => health.HealthPercent)
-        .ToList();
-    var allRecordHealthRows = vm.RecordHealth
-        .Where(health => health.ProjectId > 0)
-        .OrderBy(health => health.HealthPercent)
-        .ThenBy(health => health.ProjectName)
-        .ToList();
-    var projectsWithRecordGaps = allRecordHealthRows
-        .Where(health => health.RecordGapCount > 0)
-        .ToList();
-    var hasReminders = vm.PersonalReminders.Any();
-    var hasIdeas = vm.Ideas.Any();
-    var hasBothFollowUpTypes = hasReminders && hasIdeas;
+    var activeView = Model.View;
+    string Active(string view) => activeView == view ? "is-active" : string.Empty;
+    string? Current(string view) => activeView == view ? "page" : null;
 }
-<div class="po-workspace">
-    <header class="po-command" id="today">
-        <div class="po-command__main">
-            <div class="po-command__identity">
-                <span class="po-command__mark" aria-hidden="true"><i class="bi bi-grid-1x2-fill"></i></span>
-                <div class="po-command__copy">
-                    <div class="po-command__context">
-                        <span class="po-eyebrow">Project Officer Workspace</span>
-                        @if (Model.CanSwitchWorkspace)
-                        {
-                            <a asp-page="/Workspace/Index"
-                               asp-route-mode="command"
-                               class="po-workspace-switch"
-                               title="Switch to the Comdt / HoD workspace"
-                               aria-label="Switch to Comdt or HoD workspace">
-                                <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
-                                <span>Switch to Comdt / HoD</span>
-                            </a>
-                        }
-                    </div>
-                    <h1>@vm.ActionHeadline</h1>
-                    <div class="po-operational-summary">
-                        <i class="bi bi-activity" aria-hidden="true"></i>
-                        <span>@vm.OperationalSummary</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="po-command__actions">
-                <span class="po-date" title="Workspace data refresh time">
-                    <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
-                    Updated @IstClock.ToIst(vm.GeneratedAtUtc).ToString("HH:mm")
-                </span>
-                <a class="po-btn po-btn--secondary" href="@WorkspaceRouteHelper.ActionTasksMyWork()">
-                    <i class="bi bi-list-check" aria-hidden="true"></i><span>Assigned tasks</span>
-                </a>
-                <a class="po-btn po-btn--primary" href="@vm.MyProjectsUrl">
-                    <i class="bi bi-kanban" aria-hidden="true"></i><span>My projects</span>
-                </a>
-            </div>
+<div class="command-workspace project-officer-workspace is-nav-expanded" data-project-officer-workspace>
+    <aside class="cw-local-rail is-expanded" data-workspace-rail aria-label="Project Officer workspace navigation">
+        <div class="cw-local-rail__identity">
+            <span class="cw-local-rail__mark" aria-hidden="true"><i class="bi bi-person-workspace"></i></span>
+            <div><small>PRISM ERP</small><strong>Project Officer workspace</strong></div>
+            <button type="button" class="cw-local-rail__toggle" data-workspace-rail-toggle aria-expanded="true" aria-controls="project-officer-local-navigation" aria-label="Collapse workspace navigation" title="Collapse workspace navigation"><i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i></button>
         </div>
-
-    </header>
-
-    <nav class="po-section-nav" aria-label="Project Officer workspace sections">
-        <a href="#action-queue" class="active" aria-current="page">
-            <i class="bi bi-list-check" aria-hidden="true"></i><span>Action queue</span><b>@actionCount</b>
-        </a>
-        <a href="#assigned-projects">
-            <i class="bi bi-kanban" aria-hidden="true"></i><span>Assigned projects</span><b>@vm.AssignedProjectCount</b>
-        </a>
-        <a href="#follow-ups">
-            <i class="bi bi-bell" aria-hidden="true"></i><span>Follow-ups</span><b>@vm.FollowUpCount</b>
-        </a>
-    </nav>
-
-    <div class="po-layout">
-        <main class="po-main">
-            <section id="action-queue" class="po-panel po-actions-panel" data-workspace-section>
-                <div class="po-panel__head">
-                    <div>
-                        <span class="po-panel__kicker">Current workload</span>
-                        <h2>Action Queue</h2>
-                        <p>Grouped by project and sequenced by operational priority. Start with the highlighted action.</p>
-                    </div>
-                    <a class="po-link" href="@WorkspaceRouteHelper.ActionTasksMyWork()">Open assigned tasks<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
-                </div>
-
-                @if (!vm.ActionQueue.Any())
+        <nav id="project-officer-local-navigation">
+            <div class="cw-local-rail__group">
+                <span class="cw-local-rail__group-label">Workspace mode</span>
+                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="overview" class="is-context-active" data-tooltip="Project Officer workspace"><i class="bi bi-person-workspace" aria-hidden="true"></i><span>Project Officer</span></a>
+                @if (Model.CanSwitchWorkspace)
                 {
-                    <div class="po-empty po-empty--success">
-                        <i class="bi bi-check2-circle" aria-hidden="true"></i>
-                        <div><strong>Queue clear</strong><span>New project actions and documents will appear here.</span></div>
-                    </div>
+                    <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="officers" data-tooltip="Comdt / HoD workspace"><i class="bi bi-building" aria-hidden="true"></i><span>Comdt / HoD</span></a>
                 }
-                else
+            </div>
+            <div class="cw-local-rail__group">
+                <span class="cw-local-rail__group-label">My work</span>
+                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="overview" class="@(Active("overview"))" aria-current="@(Current("overview"))" data-tooltip="Overview"><i class="bi bi-grid-1x2" aria-hidden="true"></i><span>Overview</span></a>
+                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="actions" class="@(Active("actions"))" aria-current="@(Current("actions"))" data-tooltip="Action queue"><i class="bi bi-list-check" aria-hidden="true"></i><span>Action queue</span><b>@vm.ActionQueueTotalCount</b></a>
+                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="projects" class="@(Active("projects"))" aria-current="@(Current("projects"))" data-tooltip="Assigned projects"><i class="bi bi-kanban" aria-hidden="true"></i><span>Assigned projects</span><b>@vm.AssignedProjectCount</b></a>
+                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="tasks" class="@(Active("tasks"))" aria-current="@(Current("tasks"))" data-tooltip="Assigned tasks"><i class="bi bi-check2-square" aria-hidden="true"></i><span>Assigned tasks</span><b>@vm.OfficialTasks.Count</b></a>
+                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="ideas" class="@(Active("ideas"))" aria-current="@(Current("ideas"))" data-tooltip="My ideas"><i class="bi bi-lightbulb" aria-hidden="true"></i><span>My ideas</span><b>@vm.AssignedIdeaCount</b></a>
+                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="follow-ups" class="@(Active("follow-ups"))" aria-current="@(Current("follow-ups"))" data-tooltip="Follow-ups"><i class="bi bi-bell" aria-hidden="true"></i><span>Follow-ups</span><b>@vm.FollowUpCount</b></a>
+            </div>
+            <div class="cw-local-rail__group">
+                <span class="cw-local-rail__group-label">My resources</span>
+                @if (Model.CanViewDocuments)
                 {
-                    <div class="po-action-groups" role="list">
-                        @foreach (var group in vm.ActionQueueGroups)
+                    <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="documents" class="@(Active("documents"))" aria-current="@(Current("documents"))" data-tooltip="My documents">
+                        <i class="bi bi-folder2-open" aria-hidden="true"></i>
+                        <span>My documents</span>
+                        @if (vm.AotsUnreadCount > 0)
                         {
-                            var groupSeverityClass = group.IsRecommended
-                                ? "recommended"
-                                : group.Severity.Equals("Danger", StringComparison.OrdinalIgnoreCase)
-                                    ? "danger"
-                                    : group.Severity.Equals("Warning", StringComparison.OrdinalIgnoreCase)
-                                        ? "warning"
-                                        : "routine";
-
-                            <article role="listitem" class="po-action-group po-action-group--@groupSeverityClass">
-                                <span class="po-action-group__rail" aria-hidden="true"></span>
-
-                                <div class="po-action-group__identity">
-                                    <a href="@group.PrimaryUrl"
-                                       class="po-action-group__title"
-                                       title="@group.Title">@group.Title</a>
-                                    <span>@group.ActionCount action@(group.ActionCount == 1 ? string.Empty : "s")</span>
-                                </div>
-
-                                <div class="po-action-group__actions">
-                                    @for (var actionIndex = 0; actionIndex < group.Actions.Count; actionIndex++)
-                                    {
-                                        var item = group.Actions[actionIndex];
-                                        var isRecommendedAction = group.IsRecommended && actionIndex == 0;
-                                        var actionSeverityClass = item.Type.Equals("Aots", StringComparison.OrdinalIgnoreCase)
-                                            ? "routine"
-                                            : item.Severity.ToLowerInvariant();
-
-                                        <div class="po-action-line po-action-line--@actionSeverityClass @(isRecommendedAction ? "po-action-line--recommended" : string.Empty)">
-                                            <div class="po-action-line__type">
-                                                <span class="po-type po-type--@item.Type.ToLowerInvariant()">@item.BadgeText</span>
-                                            </div>
-                                            <div class="po-action-line__content">
-                                                <div class="po-action-line__meta">
-                                                    @if (isRecommendedAction)
-                                                    {
-                                                        <span class="po-action__recommendation">
-                                                            <strong><i class="bi bi-stars" aria-hidden="true"></i>Recommended next</strong>
-                                                            @if (!string.IsNullOrWhiteSpace(item.PriorityReason))
-                                                            {
-                                                                <span aria-hidden="true">·</span><span>@item.PriorityReason</span>
-                                                            }
-                                                        </span>
-                                                    }
-                                                    @if (!isRecommendedAction || !string.Equals(item.Detail, item.PriorityReason, StringComparison.OrdinalIgnoreCase))
-                                                    {
-                                                        <span>@item.Detail</span>
-                                                    }
-                                                    @if (!string.IsNullOrWhiteSpace(item.Meta))
-                                                    {
-                                                        <span class="po-action__separator" aria-hidden="true"></span>
-                                                        <span class="po-action__context">@item.Meta</span>
-                                                    }
-                                                </div>
-                                            </div>
-                                            <a class="po-action-line__button" href="@item.ActionUrl">
-                                                <span>@item.ActionText</span><i class="bi bi-arrow-right" aria-hidden="true"></i>
-                                            </a>
-                                        </div>
-                                    }
-                                </div>
-                            </article>
+                            <b>@vm.AotsUnreadCount</b>
                         }
-                    </div>
-
-                    @if (vm.ActionQueueHiddenCount > 0)
-                    {
-                        <div class="po-panel__footer">
-                            <span>@vm.ActionQueueHiddenCount additional action@(vm.ActionQueueHiddenCount == 1 ? "" : "s") not shown</span>
-                            <a href="@WorkspaceRouteHelper.ActionTasksMyWork()">Open assigned tasks</a>
-                        </div>
-                    }
+                    </a>
                 }
-            </section>
-
-            <section id="assigned-projects" class="po-panel po-projects-panel" data-workspace-section>
-                <div class="po-panel__head">
-                    <div>
-                        <span class="po-panel__kicker">Portfolio control</span>
-                        <h2>Assigned Projects</h2>
-                        <p>Projects requiring attention are shown first.</p>
-                    </div>
-                    <div class="po-head-actions">
-                        @if (vm.AssignedProjectCount > visibleProjectCount)
-                        {
-                            <span>Showing @visibleProjectCount of @vm.AssignedProjectCount</span>
-                        }
-                        <a class="po-link" href="@vm.MyProjectsUrl">View all projects<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
-                    </div>
-                </div>
-
-                @if (!vm.ProjectMatrix.Any())
-                {
-                    <div class="po-empty">
-                        <i class="bi bi-kanban" aria-hidden="true"></i>
-                        <div><strong>No assigned projects</strong><span>Your assigned projects will appear here.</span></div>
-                    </div>
-                }
-                else
-                {
-                    <div class="po-table-wrap">
-                        <table class="po-project-table">
-                            <caption class="visually-hidden">Assigned projects ordered by operational attention required</caption>
-                            <colgroup>
-                                <col class="po-project-col--project" />
-                                <col class="po-project-col--stage" />
-                                <col class="po-project-col--attention" />
-                                <col class="po-project-col--record" />
-                                <col class="po-project-col--action" />
-                            </colgroup>
-                            <thead>
-                                <tr>
-                                    <th scope="col">Project</th>
-                                    <th scope="col">Current stage</th>
-                                    <th scope="col">Attention required</th>
-                                    <th scope="col">
-                                        <span class="po-th-with-help">Records
-                                            <button type="button" class="po-help-button" data-bs-toggle="modal" data-bs-target="#recordCompletenessHelp" aria-label="How record completeness is calculated">
-                                                <i class="bi bi-info-circle" aria-hidden="true"></i>
-                                            </button>
-                                        </span>
-                                    </th>
-                                    <th scope="col">Next action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var row in vm.ProjectMatrix)
-                                {
-                                    var timelineCss = WorkspaceDisplayHelpers.TimelineStatusCss(row);
-                                    var rowCritical = row.UpdateStatus.Equals("ActionRequired", StringComparison.OrdinalIgnoreCase) || timelineCss == "danger";
-                                    var rowWarning = !rowCritical && (row.UpdateStatus.Equals("Attention", StringComparison.OrdinalIgnoreCase) || timelineCss == "warning" || row.RecordGapCount > 0);
-                                    var rowClass = rowCritical ? "po-project-row--critical" : rowWarning ? "po-project-row--warning" : "po-project-row--normal";
-                                    <tr class="@rowClass">
-                                        <td data-label="Project">
-                                            <div class="po-project-cell">
-                                                <span class="po-project-indicator" aria-hidden="true"></span>
-                                                <a class="po-project-name" href="@row.OpenUrl" title="@row.ProjectName">@row.ProjectName</a>
-                                            </div>
-                                        </td>
-                                        <td data-label="Current stage">
-                                            <div class="po-stage" title="@row.CurrentStageName">
-                                                <strong>@row.CurrentStageCode</strong>
-                                                <span>@WorkspaceDisplayHelpers.CurrentStageDurationLabel(row)</span>
-                                            </div>
-                                        </td>
-                                        <td data-label="Attention required">
-                                            <div class="po-attention-stack">
-                                                <span class="po-status po-status--stacked po-status--@row.UpdateStatus.ToLowerInvariant()">
-                                                    <i aria-hidden="true"></i>
-                                                    <span><strong>@WorkspaceDisplayHelpers.ProjectUpdateStatusLabel(row)</strong><small>@WorkspaceDisplayHelpers.ProjectUpdateStatusDetail(row)</small></span>
-                                                </span>
-                                                <span class="po-status po-status--stacked po-status--@timelineCss">
-                                                    <i aria-hidden="true"></i>
-                                                    <span><strong>@WorkspaceDisplayHelpers.TimelineStatusLabel(row)</strong><small>@WorkspaceDisplayHelpers.TimelineStatusDetail(row)</small></span>
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td data-label="Records">
-                                            <button type="button"
-                                                    class="po-record po-record--@WorkspaceDisplayHelpers.HealthCss(row.RecordHealthPercent)"
-                                                    data-bs-toggle="modal"
-                                                    data-bs-target="#recordHealth-@row.ProjectId"
-                                                    title="View exact record gaps for @row.ProjectName"
-                                                    aria-label="@row.ProjectName: @row.RecordHealthPercent percent record complete with @row.RecordGapCount gaps">
-                                                <span class="po-record__top"><strong>@row.RecordHealthPercent% complete</strong><small>@row.RecordGapCount gap@(row.RecordGapCount == 1 ? "" : "s")</small></span>
-                                                <progress class="po-record__bar" value="@row.RecordHealthPercent" max="100" aria-label="Record completeness: @row.RecordHealthPercent percent">@row.RecordHealthPercent%</progress>
-                                                <span class="po-record__view">View gaps</span>
-                                            </button>
-                                        </td>
-                                        <td data-label="Next action">
-                                            <a class="po-row-action" href="@row.NextActionUrl">
-                                                <span>@WorkspaceDisplayHelpers.CompactActionLabel(row.NextActionText)</span><i class="bi bi-arrow-right" aria-hidden="true"></i>
-                                            </a>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </section>
-
-            <section id="follow-ups" class="po-panel po-follow-panel" data-workspace-section>
-                <div class="po-panel__head">
-                    <div>
-                        <span class="po-panel__kicker">Personal work</span>
-                        <h2>Follow-ups</h2>
-                        <p>Reminders and project ideas requiring your attention.</p>
-                    </div>
-                    <a class="po-link" href="/Notebook?view=today">Open notebook<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
-                </div>
-
-                @if (!hasReminders && !hasIdeas)
-                {
-                    <div class="po-follow-clear">
-                        <i class="bi bi-check2-circle" aria-hidden="true"></i>
-                        <div><strong>No follow-ups require attention</strong><span>You have no due reminders or active assigned ideas.</span></div>
-                    </div>
-                }
-                else if (hasBothFollowUpTypes)
-                {
-                    <div class="po-follow-grid">
-                        <div class="po-follow-column">
-                            <div class="po-follow-column__head">
-                                <span><i class="bi bi-bell" aria-hidden="true"></i><strong>Reminders</strong></span>
-                                <b>@vm.PersonalReminders.Count</b>
-                            </div>
-                            <div class="po-follow-list">
-                                @foreach (var reminder in vm.PersonalReminders.Take(4))
-                                {
-                                    var reminderClass = string.Empty;
-                                    if (reminder.DueAtUtc.HasValue)
-                                    {
-                                        if (reminder.DueAtUtc.Value < generatedAtUtc)
-                                        {
-                                            reminderClass = "po-follow-item--overdue";
-                                        }
-                                        else if (reminder.DueAtUtc.Value <= generatedAtUtc.AddDays(7))
-                                        {
-                                            reminderClass = "po-follow-item--due-soon";
-                                        }
-                                    }
-                                    <a href="@reminder.OpenUrl" class="@reminderClass">
-                                        <span><strong>@reminder.Title</strong><small>@reminder.Priority · @WorkspaceDisplayHelpers.FormatReminderDate(reminder.DueAtUtc)</small></span>
-                                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
-                                    </a>
-                                }
-                            </div>
-                        </div>
-
-                        <div class="po-follow-column">
-                            <div class="po-follow-column__head">
-                                <span><i class="bi bi-lightbulb" aria-hidden="true"></i><strong>Project ideas</strong></span>
-                                <a href="/ProjectIdeas?MyIdeas=true">View all</a>
-                            </div>
-                            <div class="po-follow-list">
-                                @foreach (var idea in vm.Ideas.Take(4))
-                                {
-                                    <a href="@idea.OpenUrl">
-                                        <span><strong>@idea.Title</strong><small>@idea.Status · @idea.CommentCount comments · @idea.DocumentCount docs</small></span>
-                                        @if (idea.NeedsUpdate)
-                                        {
-                                            <em>Update</em>
-                                        }
-                                        else
-                                        {
-                                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
-                                        }
-                                    </a>
-                                }
-                            </div>
-                        </div>
-                    </div>
-                }
-                else if (hasReminders)
-                {
-                    <div class="po-follow-compact">
-                        <div class="po-follow-compact__category">
-                            <span><i class="bi bi-bell" aria-hidden="true"></i><strong>Reminders</strong></span>
-                            <b>@vm.PersonalReminders.Count</b>
-                        </div>
-                        <div class="po-follow-compact__list">
-                            @foreach (var reminder in vm.PersonalReminders.Take(4))
-                            {
-                                var reminderClass = string.Empty;
-                                if (reminder.DueAtUtc.HasValue)
-                                {
-                                    if (reminder.DueAtUtc.Value < generatedAtUtc)
-                                    {
-                                        reminderClass = "po-follow-item--overdue";
-                                    }
-                                    else if (reminder.DueAtUtc.Value <= generatedAtUtc.AddDays(7))
-                                    {
-                                        reminderClass = "po-follow-item--due-soon";
-                                    }
-                                }
-                                <a href="@reminder.OpenUrl" class="po-follow-compact__item @reminderClass">
-                                    <strong>@reminder.Title</strong>
-                                    <small>@reminder.Priority · @WorkspaceDisplayHelpers.FormatReminderDate(reminder.DueAtUtc)</small>
-                                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
-                                </a>
-                            }
-                        </div>
-                    </div>
-                }
-                else
-                {
-                    <div class="po-follow-compact">
-                        <div class="po-follow-compact__category">
-                            <span><i class="bi bi-lightbulb" aria-hidden="true"></i><strong>Project ideas</strong></span>
-                            <a href="/ProjectIdeas?MyIdeas=true">View all</a>
-                        </div>
-                        <div class="po-follow-compact__list">
-                            @foreach (var idea in vm.Ideas.Take(4))
-                            {
-                                <a href="@idea.OpenUrl" class="po-follow-compact__item">
-                                    <strong>@idea.Title</strong>
-                                    <small>@idea.Status · @idea.CommentCount comments · @idea.DocumentCount docs</small>
-                                    @if (idea.NeedsUpdate)
-                                    {
-                                        <em>Update</em>
-                                    }
-                                    else
-                                    {
-                                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
-                                    }
-                                </a>
-                            }
-                        </div>
-                    </div>
-                }
-            </section>
-        </main>
-
-        <aside class="po-sidebar" aria-label="Workspace context">
-            @if (vm.CommandWorkloadCard is null)
-            {
-                <section class="po-command-profile-empty" aria-label="Command workload view unavailable">
-                    <i class="bi bi-person-workspace" aria-hidden="true"></i>
-                    <strong>No command workload card</strong>
-                    <span>No active Project Officer workload is presently associated with this account.</span>
-                </section>
-            }
-            else
-            {
-                <section class="po-command-profile" aria-label="Workload card shown in the Comdt and HoD workspace">
-                    @await Html.PartialAsync(
-                        "_OfficerWorkloadCard",
-                        new OfficerWorkloadCardRenderVm
-                        {
-                            Officer = vm.CommandWorkloadCard,
-                            CanReorder = false,
-                            ShowConferenceAction = false
-                        })
-                </section>
-            }
-
-            <section class="po-erp-activity" aria-labelledby="myErpActivityHeading">
-                <div class="po-erp-activity__head">
-                    <div>
-                        <span class="po-panel__kicker">System adoption</span>
-                        <h2 id="myErpActivityHeading">My ERP activity</h2>
-                    </div>
-                    <span>Last 14 days</span>
-                </div>
-                @await Html.PartialAsync(
-                    "_ErpActivityStrip",
-                    new ErpActivityStripRenderVm
-                    {
-                        Activity = vm.ActivityStrip,
-                        Variant = "card",
-                        ShowTitle = false,
-                        ShowSummary = true,
-                        ShowLegend = true
-                    })
-                <p class="po-erp-activity__note">Activity level reflects ERP use, not attendance.</p>
-            </section>
-
-            <section id="upcoming-events" class="po-upcoming" aria-labelledby="upcomingEventsHeading">
-                <div class="po-upcoming__head">
-                    <div>
-                        <span class="po-panel__kicker">Calendar</span>
-                        <h2 id="upcomingEventsHeading">Upcoming</h2>
-                        @if (vm.UpcomingEvents.Any())
-                        {
-                            <p>Events and celebrations over the next 14 days.</p>
-                        }
-                    </div>
-                    <span class="po-upcoming__count">@vm.UpcomingEvents.Count</span>
-                </div>
-
-                @if (!vm.UpcomingEvents.Any())
-                {
-                    <div class="po-upcoming__empty">
-                        <i class="bi bi-calendar2-check" aria-hidden="true"></i>
-                        <div><strong>No events in the next 14 days</strong><span>Your calendar is clear.</span></div>
-                    </div>
-                }
-                else
-                {
-                    <div class="po-upcoming__groups">
-                        @foreach (var group in vm.UpcomingEvents.GroupBy(item => item.GroupLabel))
-                        {
-                            <section class="po-upcoming-group">
-                                <h3>@group.Key</h3>
-                                <div class="po-upcoming-list">
-                                    @foreach (var item in group)
-                                    {
-                                        var eventAccessibleLabel = $"{item.DateLabel}, {item.TimeLabel}, {item.Title}";
-                                        <a class="po-upcoming-item po-upcoming-item--@item.Tone"
-                                           href="@item.OpenUrl"
-                                           title="@eventAccessibleLabel"
-                                           aria-label="@eventAccessibleLabel">
-                                            <span class="po-upcoming-item__date">
-                                                <strong>@item.LocalDate.Day.ToString("00")</strong>
-                                                <small>@item.LocalDate.ToString("MMM").ToUpperInvariant()</small>
-                                            </span>
-                                            <span class="po-upcoming-item__icon" aria-hidden="true"><i class="bi @item.Icon"></i></span>
-                                            <span class="po-upcoming-item__content">
-                                                <strong>@item.Title</strong>
-                                                <small>
-                                                    <span>@item.TimeLabel</span>
-                                                    <span class="po-upcoming-item__separator" aria-hidden="true"></span>
-                                                    <span>@item.CategoryLabel</span>
-                                                </small>
-                                                @if (!string.IsNullOrWhiteSpace(item.Location))
-                                                {
-                                                    <em><i class="bi bi-geo-alt" aria-hidden="true"></i>@item.Location</em>
-                                                }
-                                            </span>
-                                            <i class="bi bi-chevron-right po-upcoming-item__arrow" aria-hidden="true"></i>
-                                        </a>
-                                    }
-                                </div>
-                            </section>
-                        }
-                    </div>
-                }
-
-                <a class="po-upcoming__footer" href="/Calendar">Open calendar<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
-            </section>
-        </aside>
-    </div>
+                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="activity" class="@(Active("activity"))" aria-current="@(Current("activity"))" data-tooltip="My ERP activity"><i class="bi bi-activity" aria-hidden="true"></i><span>My ERP activity</span></a>
+            </div>
+        </nav>
+    </aside>
+    <main class="cw-workspace-content po-workspace-content">
+        @switch (activeView)
+        {
+            case "actions":
+                @await Html.PartialAsync("_ProjectOfficerActionQueue", Model)
+                break;
+            case "projects":
+                @await Html.PartialAsync("_ProjectOfficerProjects", Model)
+                break;
+            case "tasks":
+                @await Html.PartialAsync("_ProjectOfficerTasks", Model)
+                break;
+            case "ideas":
+                @await Html.PartialAsync("_ProjectOfficerIdeas", Model)
+                break;
+            case "follow-ups":
+                @await Html.PartialAsync("_ProjectOfficerFollowUps", Model)
+                break;
+            case "documents":
+                @await Html.PartialAsync("_ProjectOfficerDocuments", Model)
+                break;
+            case "activity":
+                @await Html.PartialAsync("_ProjectOfficerActivity", Model)
+                break;
+            default:
+                @await Html.PartialAsync("_ProjectOfficerOverview", Model)
+                break;
+        }
+    </main>
 </div>
-
-<div class="modal fade po-record-modal po-record-overview-modal" id="recordHealthAll" tabindex="-1" aria-labelledby="recordHealthAllLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header po-record-modal__header">
-                <div>
-                    <span class="po-record-modal__eyebrow">Assigned portfolio</span>
-                    <h2 class="modal-title" id="recordHealthAllLabel">All record gaps</h2>
-                    <p>Every incomplete record is grouped by project with a direct correction action.</p>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body po-record-modal__body">
-                <div class="po-record-overview__summary">
-                    <div><strong>@Model.Workspace.RecordGapCount</strong><span>Total gaps</span></div>
-                    <div><strong>@projectsWithRecordGaps.Count</strong><span>Projects affected</span></div>
-                    <div><strong>@Model.Workspace.AssignedProjectCount</strong><span>Assigned projects</span></div>
-                </div>
-
-                @if (!projectsWithRecordGaps.Any())
-                {
-                    <div class="po-record-complete-state">
-                        <i class="bi bi-check2-circle" aria-hidden="true"></i>
-                        <div><strong>Portfolio records complete</strong><span>No record gaps remain across your assigned projects.</span></div>
-                    </div>
-                }
-                else
-                {
-                    <div class="po-record-overview__projects">
-                        @foreach (var health in projectsWithRecordGaps)
-                        {
-                            var overviewHealthCss = WorkspaceDisplayHelpers.HealthCss(health.HealthPercent);
-                            <section class="po-record-overview-project po-record-overview-project--@overviewHealthCss" aria-labelledby="recordOverviewProject-@health.ProjectId">
-                                <header>
-                                    <div>
-                                        <h3 id="recordOverviewProject-@health.ProjectId">@health.ProjectName</h3>
-                                        <span>@health.HealthPercent% complete · @health.RecordGapCount gap@(health.RecordGapCount == 1 ? "" : "s")</span>
-                                    </div>
-                                    <a href="@health.OpenUrl">Open project<i class="bi bi-arrow-right"></i></a>
-                                </header>
-                                <progress class="po-record-overview-project__bar" value="@health.HealthPercent" max="100" aria-label="@health.ProjectName record completeness: @health.HealthPercent percent">@health.HealthPercent%</progress>
-                                <div class="po-record-overview-project__gaps">
-                                    @foreach (var gap in health.GapDetails.OrderBy(gap => gap.Priority).ThenBy(gap => gap.FieldLabel))
-                                    {
-                                        <article class="po-record-overview-gap">
-                                            <span class="po-record-overview-gap__icon"><i class="bi @gap.Icon" aria-hidden="true"></i></span>
-                                            <div>
-                                                <strong>@gap.FieldLabel</strong>
-                                                <span>@gap.Reason</span>
-                                            </div>
-                                            <a href="@gap.ActionUrl">@gap.ActionText<i class="bi bi-arrow-right"></i></a>
-                                        </article>
-                                    }
-                                </div>
-                            </section>
-                        }
-                    </div>
-                }
-            </div>
-            <div class="modal-footer po-record-modal__footer">
-                <span><i class="bi bi-info-circle"></i>Select a project percentage in the workspace for its full score breakdown.</span>
-                <button type="button" class="po-btn po-btn--primary" data-bs-dismiss="modal">Done</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-@foreach (var health in projectRecordHealthRows)
+@if (activeView is "overview" or "projects")
 {
-    var healthCss = WorkspaceDisplayHelpers.HealthCss(health.HealthPercent);
-    <div class="modal fade po-record-modal" id="recordHealth-@health.ProjectId" tabindex="-1" aria-labelledby="recordHealthLabel-@health.ProjectId" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header po-record-modal__header">
-                    <div>
-                        <span class="po-record-modal__eyebrow">Project record completeness</span>
-                        <h2 class="modal-title" id="recordHealthLabel-@health.ProjectId">@health.ProjectName</h2>
-                        <p>The score covers required project records, supporting media, and fields applicable to the current stage.</p>
-                    </div>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body po-record-modal__body">
-                    <div class="po-record-summary po-record-summary--@healthCss">
-                        <div class="po-record-summary__score">
-                            <strong>@health.HealthPercent%</strong>
-                            <span>@health.HealthLabel</span>
-                        </div>
-                        <progress class="po-record-summary__progress" value="@health.HealthPercent" max="100" aria-label="@health.HealthPercent percent complete">@health.HealthPercent%</progress>
-                        <div class="po-record-summary__meta">
-                            <strong>@health.RecordGapCount record gap@(health.RecordGapCount == 1 ? "" : "s")</strong>
-                            <span>Every deduction below maps to a specific record gap and correction action.</span>
-                        </div>
-                    </div>
-
-                    <section class="po-component-section" aria-labelledby="componentScores-@health.ProjectId">
-                        <div class="po-record-modal__section-head">
-                            <div>
-                                <h3 id="componentScores-@health.ProjectId">Score breakdown</h3>
-                                <p>Component scores total 100 points.</p>
-                            </div>
-                        </div>
-                        <div class="po-component-grid">
-                            @foreach (var component in health.Components)
-                            {
-                                var componentPercent = component.MaximumPoints <= 0 ? 100 : (int)Math.Round(component.EarnedPoints / component.MaximumPoints * 100m);
-                                var componentCss = component.Status.ToLowerInvariant();
-                                <article class="po-component-card po-component-card--@componentCss">
-                                    <div class="po-component-card__top">
-                                        <span>@component.Label</span>
-                                        <strong>@component.EarnedPoints.ToString("0.##")/@component.MaximumPoints.ToString("0.##")</strong>
-                                    </div>
-                                    <progress class="po-component-card__bar" value="@componentPercent" max="100" aria-label="@component.Label: @componentPercent percent complete">@componentPercent%</progress>
-                                    <div class="po-component-card__foot">
-                                        <span class="po-component-status">@component.Status</span>
-                                        @if (component.Gaps.Count > 0)
-                                        {
-                                            <span>@component.Gaps.Count pending</span>
-                                        }
-                                    </div>
-                                </article>
-                            }
-                        </div>
-                    </section>
-
-                    <section class="po-pending-section" aria-labelledby="pendingFields-@health.ProjectId">
-                        <div class="po-record-modal__section-head">
-                            <div>
-                                <h3 id="pendingFields-@health.ProjectId">Exact record gaps</h3>
-                                <p>Complete these items to improve the score.</p>
-                            </div>
-                        </div>
-                        @if (!health.GapDetails.Any())
-                        {
-                            <div class="po-record-complete-state">
-                                <i class="bi bi-check2-circle"></i>
-                                <div><strong>Record complete</strong><span>No record gaps remain.</span></div>
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="po-pending-groups">
-                                @foreach (var group in health.GapDetails.GroupBy(gap => gap.Component))
-                                {
-                                    <div class="po-pending-group">
-                                        <h4>@group.Key <span>@group.Count()</span></h4>
-                                        <div class="po-pending-list">
-                                            @foreach (var gap in group)
-                                            {
-                                                <article class="po-pending-field">
-                                                    <span class="po-pending-field__icon"><i class="bi @gap.Icon"></i></span>
-                                                    <div class="po-pending-field__content">
-                                                        <div class="po-pending-field__title">
-                                                            <strong>@gap.FieldLabel</strong>
-                                                            <span class="po-field-status po-field-status--@gap.Status.ToLowerInvariant()">@gap.Status</span>
-                                                        </div>
-                                                        <p>@gap.Reason</p>
-                                                        <small>@gap.MaximumPoints.ToString("0.##") point@(gap.MaximumPoints == 1 ? "" : "s") affected</small>
-                                                    </div>
-                                                    <a class="po-pending-field__action" href="@gap.ActionUrl">@gap.ActionText<i class="bi bi-arrow-right"></i></a>
-                                                </article>
-                                            }
-                                        </div>
-                                    </div>
-                                }
-                            </div>
-                        }
-                    </section>
-                </div>
-                <div class="modal-footer po-record-modal__footer">
-                    <span><i class="bi bi-shield-check"></i>Not-applicable and not-yet-applicable fields do not reduce the score.</span>
-                    <a class="po-btn po-btn--secondary" href="@health.OpenUrl">Open project overview</a>
-                    <button type="button" class="po-btn po-btn--primary" data-bs-dismiss="modal">Done</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    @await Html.PartialAsync("_ProjectOfficerRecordModals", vm)
 }
-
-<div class="modal fade po-record-help-modal" id="recordCompletenessHelp" tabindex="-1" aria-labelledby="recordCompletenessHelpLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <div>
-                    <span class="po-record-modal__eyebrow">How the score works</span>
-                    <h2 class="modal-title" id="recordCompletenessHelpLabel">Record completeness</h2>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body po-record-help">
-                <p class="po-record-help__lead">The score measures how much of the project information that should exist at the present stage has actually been recorded.</p>
-                <div class="po-record-help__principles">
-                    <div><i class="bi bi-diagram-3"></i><strong>Stage-aware</strong><span>Procurement and timeline fields are stage-aware; documents and supporting media are assessed for every active project.</span></div>
-                    <div><i class="bi bi-percent"></i><strong>Proportional</strong><span>Partially completed categories receive proportionate marks.</span></div>
-                    <div><i class="bi bi-clock-history"></i><strong>Historical dates</strong><span>Completed historical stages assess Actual Completion. Actual Start may be inferred and does not reduce the score.</span></div>
-                    <div><i class="bi bi-calendar2-week"></i><strong>Current-stage PDC</strong><span>The active stage assesses its start date and PDC. An overdue date affects schedule health, not completeness.</span></div>
-                </div>
-                <div class="po-record-help__weights">
-                    <div><span>Core project profile</span><strong>15</strong></div>
-                    <div><span>Procurement at a glance</span><strong>25</strong></div>
-                    <div><span>Historical stage actual dates</span><strong>20</strong></div>
-                    <div><span>Current-stage timeline (PDC)</span><strong>15</strong></div>
-                    <div><span>Published project documents</span><strong>15</strong></div>
-                    <div><span>Supporting media</span><strong>10</strong></div>
-                </div>
-                <p class="po-record-help__note"><i class="bi bi-info-circle"></i>Not-applicable and not-yet-applicable fields are excluded. Select any project percentage to see its exact record gaps and direct correction links.</p>
-            </div>
-            <div class="modal-footer"><button type="button" class="po-btn po-btn--primary" data-bs-dismiss="modal">Understood</button></div>
-        </div>
-    </div>
-</div>

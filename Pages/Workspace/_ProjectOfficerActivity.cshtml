@@ -1,0 +1,83 @@
+@using ProjectManagement.ViewModels.Workspace
+@model ProjectManagement.Pages.Workspace.IndexModel
+@{
+    var activity = Model.Workspace.ActivityStrip;
+    var activeRate = activity.MonitoredWorkingDays == 0
+        ? 0
+        : (int)Math.Round(activity.ActiveWorkingDays * 100d / activity.MonitoredWorkingDays);
+}
+<div class="po-workspace po-workspace--embedded po-dedicated-page">
+    <header class="po-dedicated-hero">
+        <div>
+            <span class="po-eyebrow">My resources</span>
+            <h1>My ERP activity</h1>
+            <p>Review your own recorded ERP activity. This is an adoption indicator, not an attendance measure.</p>
+        </div>
+        <div class="po-dedicated-hero__metric">
+            <strong>@activity.ActiveWorkingDays</strong>
+            <span>active monitored working days</span>
+        </div>
+    </header>
+
+    <section class="po-panel po-personal-activity-page">
+        <div class="po-personal-activity-page__strip">
+            <div>
+                <span class="po-panel__kicker">Last 14 days</span>
+                <h2>Activity pattern</h2>
+                <p>The shade reflects the highest activity level recorded on each day.</p>
+            </div>
+            @await Html.PartialAsync(
+                "_ErpActivityStrip",
+                new ErpActivityStripRenderVm
+                {
+                    Activity = activity,
+                    Variant = "detail",
+                    ShowTitle = false,
+                    ShowSummary = true,
+                    ShowLegend = true
+                })
+        </div>
+
+        <div class="po-personal-activity-kpis">
+            <article>
+                <span><i class="bi bi-calendar-check" aria-hidden="true"></i></span>
+                <div><strong>@activity.ActiveWorkingDays of @activity.MonitoredWorkingDays</strong><b>Active monitored working days</b><small>@activeRate% of available monitored working days</small></div>
+            </article>
+            <article>
+                <span><i class="bi bi-clock-history" aria-hidden="true"></i></span>
+                <div><strong>@activity.LastActiveLabel.Replace("Last active ", string.Empty)</strong><b>Last recorded activity</b><small>Navigation, interaction or recognised action</small></div>
+            </article>
+            <article>
+                <span><i class="bi bi-shield-check" aria-hidden="true"></i></span>
+                <div><strong>Private self-view</strong><b>Your activity</b><small>No peer ranking or productivity comparison</small></div>
+            </article>
+        </div>
+
+        <div class="po-activity-day-list" aria-label="Daily ERP activity">
+            @foreach (var day in activity.Days.Reverse())
+            {
+                var state = !day.IsMonitored
+                    ? "Not monitored"
+                    : !day.IsWorkingDay
+                        ? "Non-working day"
+                        : day.Level switch
+                        {
+                            3 => "Operational activity",
+                            2 => "Interactive use",
+                            1 => "Navigation or read-only use",
+                            _ => "No recorded activity"
+                        };
+                var cellClass = !day.IsMonitored
+                    ? "is-unmonitored"
+                    : !day.IsWorkingDay
+                        ? "is-non-working"
+                        : string.Empty;
+                <div class="po-activity-day-row">
+                    <time datetime="@(day.Date.ToString("yyyy-MM-dd"))">@day.Date.ToString("ddd, dd MMM")</time>
+                    <span class="po-activity-day-cell po-activity-day-cell--level-@day.Level @cellClass" aria-hidden="true"></span>
+                    <strong>@state</strong>
+                </div>
+            }
+        </div>
+    </section>
+</div>

@@ -1,0 +1,66 @@
+@using ProjectManagement.ViewModels.Workspace
+@model ProjectOfficerActionGroupsRenderVm
+@if (!Model.Groups.Any())
+{
+    <div class="po-empty po-empty--success">
+        <i class="bi bi-check2-circle" aria-hidden="true"></i>
+        <div><strong>Queue clear</strong><span>No actions currently require your attention.</span></div>
+    </div>
+}
+else
+{
+    <div class="po-action-groups" role="list">
+        @for (var groupIndex = 0; groupIndex < Model.Groups.Count; groupIndex++)
+        {
+            var group = Model.Groups[groupIndex];
+            var recommended = Model.ShowRecommended && groupIndex == 0;
+            var severityClass = recommended
+                ? "recommended"
+                : group.Severity.Equals("Danger", StringComparison.OrdinalIgnoreCase)
+                    ? "danger"
+                    : group.Severity.Equals("Warning", StringComparison.OrdinalIgnoreCase)
+                        ? "warning"
+                        : "routine";
+            var filterText = $"{group.Title} {string.Join(" ", group.Actions.Select(action => $"{action.Type} {action.Detail} {action.Meta}"))}".ToLowerInvariant();
+            var actionTypes = string.Join(" ", group.Actions.Select(action => action.Type.ToLowerInvariant()).Distinct());
+
+            <article role="listitem"
+                     class="po-action-group po-action-group--@severityClass"
+                     data-po-action-row
+                     data-filter-text="@filterText"
+                     data-action-types="@actionTypes">
+                <span class="po-action-group__rail" aria-hidden="true"></span>
+                <div class="po-action-group__identity">
+                    <a href="@group.PrimaryUrl" class="po-action-group__title">@group.Title</a>
+                    <span>@group.ActionCount action@(group.ActionCount == 1 ? string.Empty : "s")</span>
+                </div>
+                <div class="po-action-group__actions">
+                    @for (var actionIndex = 0; actionIndex < group.Actions.Count; actionIndex++)
+                    {
+                        var item = group.Actions[actionIndex];
+                        var isRecommended = recommended && actionIndex == 0;
+                        <div class="po-action-line @(isRecommended ? "po-action-line--recommended" : string.Empty)">
+                            <div class="po-action-line__type">
+                                <span class="po-type po-type--@item.Type.ToLowerInvariant()">@item.BadgeText</span>
+                            </div>
+                            <div class="po-action-line__content">
+                                @if (isRecommended)
+                                {
+                                    <span class="po-action__recommendation"><strong><i class="bi bi-stars" aria-hidden="true"></i>Recommended next</strong></span>
+                                }
+                                <span>@item.Detail</span>
+                                @if (!string.IsNullOrWhiteSpace(item.Meta))
+                                {
+                                    <small>@item.Meta</small>
+                                }
+                            </div>
+                            <a class="po-action-line__button" href="@item.ActionUrl">
+                                <span>@item.ActionText</span><i class="bi bi-arrow-right" aria-hidden="true"></i>
+                            </a>
+                        </div>
+                    }
+                </div>
+            </article>
+        }
+    </div>
+}

@@ -25,19 +25,9 @@ public sealed class ErpActivityStripVm
         ? "Last day"
         : $"Last {Days.Count} days";
 
-    public string ActivitySummary
-    {
-        get
-        {
-            if (MonitoredWorkingDays <= 0)
-            {
-                return "Monitoring not yet available";
-            }
-
-            var dayLabel = MonitoredWorkingDays == 1 ? "working day" : "working days";
-            return $"{ActiveWorkingDays} of {MonitoredWorkingDays} monitored {dayLabel} active";
-        }
-    }
+    public string ActivitySummary => MonitoredWorkingDays == 0
+        ? "Monitoring has not started"
+        : $"Active on {ActiveWorkingDays} of {MonitoredWorkingDays} monitored working day{(MonitoredWorkingDays == 1 ? string.Empty : "s")}";
 
     public string LastActiveLabel
     {

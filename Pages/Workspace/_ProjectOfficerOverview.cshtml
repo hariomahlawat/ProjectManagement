@@ -1,0 +1,43 @@
+@using ProjectManagement.ViewModels.Workspace
+@using ProjectManagement.Infrastructure
+@model ProjectManagement.Pages.Workspace.IndexModel
+@{
+    var vm = Model.Workspace;
+    var overviewGroups = vm.AllActionQueueGroups.Take(5).ToList();
+    var overviewProjects = vm.ProjectMatrix.Take(3).ToList();
+}
+<div class="po-workspace po-workspace--embedded">
+    <header class="po-command po-page-hero">
+        <div class="po-command__main">
+            <div class="po-command__identity"><span class="po-command__mark"><i class="bi bi-grid-1x2-fill"></i></span><div class="po-command__copy"><span class="po-eyebrow">Project Officer workspace</span><h1>@vm.ActionHeadline</h1><div class="po-operational-summary"><i class="bi bi-activity"></i><span>@vm.OperationalSummary</span></div></div></div>
+            <div class="po-command__actions"><span class="po-date"><i class="bi bi-arrow-clockwise"></i>Updated @IstClock.ToIst(vm.GeneratedAtUtc).ToString("HH:mm")</span></div>
+        </div>
+    </header>
+    <div class="po-layout po-layout--overview">
+        <main class="po-main">
+            <section class="po-panel po-actions-panel">
+                <div class="po-panel__head"><div><span class="po-panel__kicker">Current workload</span><h2>Action queue</h2><p>Grouped by work item and sequenced by operational priority.</p></div><a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="actions" class="po-link">View all actions<i class="bi bi-arrow-right"></i></a></div>
+                @await Html.PartialAsync("_ProjectOfficerActionGroups", new ProjectOfficerActionGroupsRenderVm { Groups = overviewGroups })
+            </section>
+            <section class="po-panel po-projects-panel">
+                <div class="po-panel__head"><div><span class="po-panel__kicker">Portfolio control</span><h2>Assigned projects</h2><p>Projects requiring attention are shown first.</p></div><a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="projects" class="po-link">View all projects<i class="bi bi-arrow-right"></i></a></div>
+                @await Html.PartialAsync("_ProjectOfficerProjectTable", new ProjectOfficerProjectTableRenderVm { Rows = overviewProjects })
+            </section>
+            <section class="po-panel po-follow-panel">
+                <div class="po-panel__head"><div><span class="po-panel__kicker">Personal work</span><h2>Follow-ups</h2><p>Due reminders and assigned ideas.</p></div><a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="follow-ups" class="po-link">View all follow-ups<i class="bi bi-arrow-right"></i></a></div>
+                <div class="po-follow-summary-grid">
+                    <article><span><i class="bi bi-bell"></i></span><strong>@vm.PersonalReminders.Count</strong><b>Due reminders</b></article>
+                    <article><span><i class="bi bi-lightbulb"></i></span><strong>@vm.Ideas.Count</strong><b>Assigned ideas</b></article>
+                </div>
+            </section>
+        </main>
+        <aside class="po-sidebar">
+            @if (vm.CommandWorkloadCard is not null)
+            {
+                <section class="po-command-profile">@await Html.PartialAsync("_OfficerWorkloadCard", new OfficerWorkloadCardRenderVm { Officer = vm.CommandWorkloadCard, CanReorder = false, ShowConferenceAction = false })</section>
+            }
+            <section class="po-erp-activity"><div class="po-erp-activity__head"><div><span class="po-panel__kicker">ERP activity</span><h2>My ERP activity</h2></div><a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="activity">View</a></div>@await Html.PartialAsync("_ErpActivityStrip", new ErpActivityStripRenderVm { Activity = vm.ActivityStrip, Variant = "card", ShowTitle = false, ShowSummary = true, ShowLegend = true })<p class="po-erp-activity__note">Activity level reflects ERP use, not attendance.</p></section>
+            <section class="po-upcoming"><div class="po-upcoming__head"><div><span class="po-panel__kicker">Calendar</span><h2>Upcoming</h2></div><span class="po-upcoming__count">@vm.UpcomingEvents.Count</span></div>@if (!vm.UpcomingEvents.Any()){<div class="po-upcoming__empty"><i class="bi bi-calendar2-check"></i><div><strong>No events in the next 14 days</strong><span>Your calendar is clear.</span></div></div>}else{<div class="po-upcoming-list">@foreach(var item in vm.UpcomingEvents.Take(5)){<a class="po-upcoming-item po-upcoming-item--@item.Tone" href="@item.OpenUrl"><span class="po-upcoming-item__date"><strong>@item.LocalDate.Day.ToString("00")</strong><small>@item.LocalDate.ToString("MMM").ToUpperInvariant()</small></span><span class="po-upcoming-item__content"><strong>@item.Title</strong><small>@item.TimeLabel · @item.CategoryLabel</small></span><i class="bi bi-chevron-right"></i></a>}</div>}<a class="po-upcoming__footer" href="/Calendar">Open calendar<i class="bi bi-arrow-right"></i></a></section>
+        </aside>
+    </div>
+</div>

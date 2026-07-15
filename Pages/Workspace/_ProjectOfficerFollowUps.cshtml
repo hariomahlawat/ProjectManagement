@@ -1,0 +1,60 @@
+@using ProjectManagement.Services.Workspace
+@using ProjectManagement.Infrastructure
+@using ProjectManagement.ViewModels.Workspace
+@model ProjectManagement.Pages.Workspace.IndexModel
+@{
+    var vm = Model.Workspace;
+    var generatedAtUtc = new DateTimeOffset(DateTime.SpecifyKind(vm.GeneratedAtUtc, DateTimeKind.Utc));
+    var ideasDue = vm.Ideas.Where(idea => idea.NeedsUpdate).ToList();
+}
+<div class="po-workspace po-workspace--embedded po-dedicated-page">
+    <header class="po-dedicated-hero">
+        <div><span class="po-eyebrow">My work</span><h1>Follow-ups</h1><p>Personal reminders and idea updates that should remain visible.</p></div>
+        <div class="po-dedicated-hero__metrics"><div><strong>@vm.PersonalReminders.Count</strong><span>due reminders</span></div><div><strong>@ideasDue.Count</strong><span>idea updates</span></div></div>
+    </header>
+
+    <div class="po-two-column-pages">
+        <section class="po-panel">
+            <div class="po-panel__head"><div><span class="po-panel__kicker">Notebook</span><h2>Reminders</h2><p>Due and pinned reminders.</p></div><a href="@WorkspaceRouteHelper.PersonalReminders()" class="po-link">Open notebook<i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
+            @if (!vm.PersonalReminders.Any())
+            {
+                <div class="po-empty po-empty--success"><i class="bi bi-check2-circle" aria-hidden="true"></i><div><strong>No reminders due</strong><span>Your reminder list is clear.</span></div></div>
+            }
+            else
+            {
+                <div class="po-follow-page-list">
+                    @foreach (var item in vm.PersonalReminders)
+                    {
+                        var overdueClass = item.DueAtUtc.HasValue && item.DueAtUtc.Value < generatedAtUtc ? "is-overdue" : string.Empty;
+                        <a href="@item.OpenUrl" class="po-follow-page-row @overdueClass">
+                            <span class="po-follow-page-row__icon"><i class="bi @(item.IsPinned ? "bi-pin-angle-fill" : "bi-bell")" aria-hidden="true"></i></span>
+                            <div><strong>@item.Title</strong><span>@item.Priority · @WorkspaceDisplayHelpers.FormatReminderDate(item.DueAtUtc)</span></div>
+                            <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                        </a>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="po-panel">
+            <div class="po-panel__head"><div><span class="po-panel__kicker">Ideas</span><h2>Idea follow-ups</h2><p>Assigned ideas currently requiring an update.</p></div><a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="ideas" class="po-link">Open ideas<i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
+            @if (!ideasDue.Any())
+            {
+                <div class="po-empty po-empty--success"><i class="bi bi-check2-circle" aria-hidden="true"></i><div><strong>No idea update due</strong><span>Your assigned ideas are current.</span></div></div>
+            }
+            else
+            {
+                <div class="po-follow-page-list">
+                    @foreach (var idea in ideasDue)
+                    {
+                        <a href="@idea.OpenUrl" class="po-follow-page-row is-attention">
+                            <span class="po-follow-page-row__icon"><i class="bi bi-lightbulb" aria-hidden="true"></i></span>
+                            <div><strong>@idea.Title</strong><span>@idea.Status · @idea.CommentCount comments · @idea.DocumentCount docs</span></div>
+                            <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                        </a>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+</div>

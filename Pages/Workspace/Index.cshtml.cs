@@ -16,11 +16,13 @@ public class IndexModel : PageModel
     private readonly ProjectOfficerWorkspaceService _projectOfficerWorkspaceService;
     private readonly CommandWorkspaceService _commandWorkspaceService;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IAuthorizationService _authorization;
 
     public ProjectOfficerWorkspaceVm Workspace { get; private set; } = new();
     public CommandWorkspaceVm CommandWorkspace { get; private set; } = new();
     public bool IsCommandMode { get; private set; }
     public bool CanSwitchWorkspace { get; private set; }
+    public bool CanViewDocuments { get; private set; }
 
     [BindProperty(SupportsGet = true)] public string? Mode { get; set; }
     [BindProperty(SupportsGet = true)] public string View { get; set; } = "officers";
@@ -33,11 +35,16 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)] public string? PatternModule { get; set; }
     [BindProperty(SupportsGet = true)] public string? PatternSignal { get; set; }
 
-    public IndexModel(ProjectOfficerWorkspaceService projectOfficerWorkspaceService, CommandWorkspaceService commandWorkspaceService, UserManager<ApplicationUser> userManager)
+    public IndexModel(
+        ProjectOfficerWorkspaceService projectOfficerWorkspaceService,
+        CommandWorkspaceService commandWorkspaceService,
+        UserManager<ApplicationUser> userManager,
+        IAuthorizationService authorization)
     {
         _projectOfficerWorkspaceService = projectOfficerWorkspaceService;
         _commandWorkspaceService = commandWorkspaceService;
         _userManager = userManager;
+        _authorization = authorization;
     }
 
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
@@ -50,6 +57,7 @@ public class IndexModel : PageModel
         if (!hasCommandRole && !hasProjectOfficerRole) return RedirectToPage("/Dashboard/Index");
 
         CanSwitchWorkspace = hasCommandRole && hasProjectOfficerRole;
+        CanViewDocuments = (await _authorization.AuthorizeAsync(User, "DocRepo.View")).Succeeded;
         IsCommandMode = hasCommandRole && (!string.Equals(Mode, "project-officer", StringComparison.OrdinalIgnoreCase) || !hasProjectOfficerRole);
 
         if (IsCommandMode)
@@ -82,11 +90,33 @@ public class IndexModel : PageModel
         }
         else
         {
-            Workspace = await _projectOfficerWorkspaceService.GetProjectOfficerWorkspaceAsync(userId, User, ct);
+            View = NormalizeProjectOfficerView(View);
+            if (View == "documents" && !CanViewDocuments)
+            {
+                return Forbid();
+            }
+
+            Workspace = await _projectOfficerWorkspaceService.GetProjectOfficerWorkspaceAsync(
+                userId,
+                User,
+                includeDocuments: CanViewDocuments && View == "documents",
+                ct: ct);
         }
 
         return Page();
     }
+
+    private static string NormalizeProjectOfficerView(string? view) => view?.Trim().ToLowerInvariant() switch
+    {
+        "actions" or "action-queue" or "queue" => "actions",
+        "projects" or "assigned-projects" => "projects",
+        "tasks" or "assigned-tasks" => "tasks",
+        "ideas" or "my-ideas" => "ideas",
+        "follow-ups" or "followups" or "reminders" => "follow-ups",
+        "documents" or "my-documents" => "documents",
+        "activity" or "erp-activity" or "my-erp-activity" => "activity",
+        _ => "overview"
+    };
     public async Task<IActionResult> OnPostSaveOfficerOrderAsync([FromBody] SaveOfficerOrderRequest request, CancellationToken ct)
     {
         if (!User.IsInRole(RoleNames.Comdt) && !User.IsInRole(RoleNames.HoD)) return Forbid();

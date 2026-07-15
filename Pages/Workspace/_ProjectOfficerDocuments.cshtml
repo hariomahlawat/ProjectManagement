@@ -1,0 +1,48 @@
+@using ProjectManagement.ViewModels.Workspace
+@using ProjectManagement.Services.Workspace
+@model ProjectManagement.Pages.Workspace.IndexModel
+@{
+    var hub = Model.Workspace.DocumentHub;
+}
+<div class="po-workspace po-workspace--embedded po-dedicated-page">
+    <header class="po-dedicated-hero">
+        <div><span class="po-eyebrow">My resources</span><h1>My documents</h1><p>Personal document views backed by the central Document Repository.</p></div>
+        <a href="@WorkspaceRouteHelper.DocumentRepository()" class="po-dedicated-hero__action">Open Document Repository<i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+    </header>
+
+    <section class="po-panel po-documents-page" data-po-document-tabs>
+        <div class="po-document-tabs" role="tablist" aria-label="My document views">
+            <button id="po-doc-tab-favourites" type="button" role="tab" aria-selected="true" aria-controls="po-doc-panel-favourites" data-document-tab="favourites"><i class="bi bi-star" aria-hidden="true"></i><span>Favourites</span><b>@hub.FavouriteCount</b></button>
+            <button id="po-doc-tab-aots" type="button" role="tab" aria-selected="false" aria-controls="po-doc-panel-aots" data-document-tab="aots">
+                <i class="bi bi-file-earmark-lock2" aria-hidden="true"></i>
+                <span>AOTS</span>
+                @if (hub.AotsUnreadCount > 0)
+                {
+                    <b title="@hub.AotsUnreadCount unread">@hub.AotsUnreadCount</b>
+                }
+            </button>
+            <button id="po-doc-tab-recent" type="button" role="tab" aria-selected="false" aria-controls="po-doc-panel-recent" data-document-tab="recent"><i class="bi bi-clock-history" aria-hidden="true"></i><span>Recently opened</span><b>@hub.RecentCount</b></button>
+            <button id="po-doc-tab-uploaded" type="button" role="tab" aria-selected="false" aria-controls="po-doc-panel-uploaded" data-document-tab="uploaded"><i class="bi bi-cloud-arrow-up" aria-hidden="true"></i><span>Uploaded by me</span><b>@hub.UploadedByMeCount</b></button>
+        </div>
+
+        <div id="po-doc-panel-favourites" class="po-document-panel" role="tabpanel" aria-labelledby="po-doc-tab-favourites" data-document-panel="favourites">
+            <div class="po-document-panel__head"><div><h2>Favourites</h2><p>Documents marked for quick access.</p></div><a href="@WorkspaceRouteHelper.DocumentFavourites()">Open all favourites<i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
+            @await Html.PartialAsync("_ProjectOfficerDocumentList", new ProjectOfficerDocumentListRenderVm { Documents = hub.Favourites, EmptyTitle = "No favourite documents", EmptyText = "Mark documents as favourites in the repository to see them here." })
+        </div>
+
+        <div id="po-doc-panel-aots" class="po-document-panel" role="tabpanel" aria-labelledby="po-doc-tab-aots" data-document-panel="aots" hidden>
+            <div class="po-document-panel__head"><div><h2>AOTS documents</h2><p>Latest AOTS documents, with unread items highlighted.</p></div><a href="@WorkspaceRouteHelper.AotsInbox()">Open AOTS inbox<i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
+            @await Html.PartialAsync("_ProjectOfficerDocumentList", new ProjectOfficerDocumentListRenderVm { Documents = hub.Aots, EmptyTitle = "No AOTS documents", EmptyText = "AOTS documents will appear here when published." })
+        </div>
+
+        <div id="po-doc-panel-recent" class="po-document-panel" role="tabpanel" aria-labelledby="po-doc-tab-recent" data-document-panel="recent" hidden>
+            <div class="po-document-panel__head"><div><h2>Recently opened</h2><p>Documents opened after this personal history was enabled.</p></div></div>
+            @await Html.PartialAsync("_ProjectOfficerDocumentList", new ProjectOfficerDocumentListRenderVm { Documents = hub.Recent, EmptyTitle = "No recent document history", EmptyText = "Documents you open from the repository will appear here.", DateMode = "viewed" })
+        </div>
+
+        <div id="po-doc-panel-uploaded" class="po-document-panel" role="tabpanel" aria-labelledby="po-doc-tab-uploaded" data-document-panel="uploaded" hidden>
+            <div class="po-document-panel__head"><div><h2>Uploaded by me</h2><p>Active repository documents originally uploaded by your account.</p></div><a href="@WorkspaceRouteHelper.DocumentRepository()">Open repository<i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
+            @await Html.PartialAsync("_ProjectOfficerDocumentList", new ProjectOfficerDocumentListRenderVm { Documents = hub.UploadedByMe, EmptyTitle = "No uploaded documents", EmptyText = "Documents uploaded by you will appear here." })
+        </div>
+    </section>
+</div>
