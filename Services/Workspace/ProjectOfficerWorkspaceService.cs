@@ -124,7 +124,12 @@ public sealed class ProjectOfficerWorkspaceService
                 }
                 break;
             case ProjectOfficerWorkspaceView.Activity:
-                vm.ActivityStrip = await _erpUsage.GetActivityStripAsync(userId, days: 14, cancellationToken: ct);
+                vm.ActivityYear = await _erpUsage.GetActivityYearAsync(
+                    userId,
+                    days: 365,
+                    recentDays: 30,
+                    cancellationToken: ct);
+                vm.ActivityStrip = vm.ActivityYear.Recent;
                 break;
             default:
                 await PopulateOverviewAsync(vm, userId, today, ct);
@@ -179,7 +184,7 @@ public sealed class ProjectOfficerWorkspaceService
 
         var commandWorkloadCard = await _officerWorkloadReadService.GetOfficerAsync(userId, ct);
         var upcomingEvents = await WorkspaceUpcomingEventQuery.LoadAsync(_db, userId, _clock.UtcNow, ct);
-        var activityStrip = await _erpUsage.GetActivityStripAsync(userId, days: 14, cancellationToken: ct);
+        var activityStrip = await _erpUsage.GetActivityStripAsync(userId, days: 30, cancellationToken: ct);
         var averageHealth = health.Count == 0
             ? 0
             : (int)Math.Round(health.Values.Average(item => item.HealthPercent));

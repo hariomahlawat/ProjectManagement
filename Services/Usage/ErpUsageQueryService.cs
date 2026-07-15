@@ -124,6 +124,12 @@ public interface IErpUsageQueryService
         string userId,
         int days = 14,
         CancellationToken cancellationToken = default);
+
+    Task<ErpActivityYearVm> GetActivityYearAsync(
+        string userId,
+        int days = 365,
+        int recentDays = 30,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class ErpUsageQueryService : IErpUsageQueryService
@@ -590,23 +596,51 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
             result.SevenDayReviewAvailable);
     }
 
-    public async Task<ErpActivityStripVm> GetActivityStripAsync(
+    public Task<ErpActivityStripVm> GetActivityStripAsync(
         string userId,
         int days = 14,
         CancellationToken cancellationToken = default)
+    {
+        var displayDays = Math.Clamp(days, 7, 31);
+        return GetActivityRangeAsync(userId, displayDays, cancellationToken);
+    }
+
+    public async Task<ErpActivityYearVm> GetActivityYearAsync(
+        string userId,
+        int days = 365,
+        int recentDays = 30,
+        CancellationToken cancellationToken = default)
+    {
+        var yearDays = Math.Clamp(days, 90, 365);
+        var year = await GetActivityRangeAsync(userId, yearDays, cancellationToken);
+        var recent = SliceActivity(year, Math.Clamp(recentDays, 7, 31));
+
+        return new ErpActivityYearVm
+        {
+            Year = year,
+            Recent = recent,
+            Weeks = BuildYearWeeks(year)
+        };
+    }
+
+    private async Task<ErpActivityStripVm> GetActivityRangeAsync(
+        string userId,
+        int displayDays,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(userId))
         {
             throw new ArgumentException("A user id is required.", nameof(userId));
         }
 
-        var displayDays = Math.Clamp(days, 7, 31);
+        displayDays = Math.Clamp(displayDays, 1, 365);
         var today = _time.TodayIst;
         var startDate = today.AddDays(-(displayDays - 1));
         var dates = EnumerateDates(startDate, today).ToArray();
         var options = _options.Value;
         var trackingInceptionUtc = options.TrackingInceptionUtc.ToUniversalTime();
         var trackingInceptionDate = DateOnly.FromDateTime(_time.ToIst(trackingInceptionUtc).DateTime);
+        var retentionStartDate = today.AddDays(-(Math.Clamp(options.RetentionDays, 30, 1095) - 1));
         var endUtc = _time.EndExclusiveOfIstDayUtc(today).UtcDateTime;
         var startUtc = _time.StartOfIstDayUtc(startDate).UtcDateTime;
 
@@ -626,19 +660,15 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
 
         if (user is null)
         {
-            return new ErpActivityStripVm
-            {
-                StartDate = startDate,
-                EndDate = today,
-                Days = dates.Select(date => new ErpActivityDayVm(
+            return BuildActivityStrip(
+                dates.Select(date => new ErpActivityDayVm(
                     date,
                     0,
                     false,
                     false,
                     false,
                     $"{date:dd MMM yyyy}: User account unavailable",
-                    date == today)).ToArray()
-            };
+                    date == today)).ToArray());
         }
 
         var buckets = _time.UtcNow < trackingInceptionUtc
@@ -683,7 +713,11 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
             cancellationToken);
         var configuredWorkingDays = options.WorkingDays.ToHashSet();
         var createdDate = DateOnly.FromDateTime(_time.ToIst(user.CreatedUtc).Date);
-        var effectiveTrackingStart = LatestOf(startDate, trackingInceptionDate, createdDate);
+        var effectiveTrackingStart = LatestOf(
+            startDate,
+            trackingInceptionDate,
+            createdDate,
+            retentionStartDate);
         var heatmap = BuildHeatmap(
             dates,
             user,
@@ -691,7 +725,8 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
             buckets,
             actions,
             configuredWorkingDays,
-            nonWorkingDates);
+            nonWorkingDates,
+            retentionStartDate);
 
         var dayRows = heatmap.Select(cell =>
         {
@@ -722,22 +757,84 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                 cell.Date == today);
         }).ToArray();
 
-        var monitoredWorkingDays = dayRows.Count(day => day.IsWorkingDay && day.IsMonitored);
-        var activeWorkingDays = dayRows.Count(day => day.IsWorkingDay && day.IsMonitored && day.HasActivity);
-        var lastActiveDate = dayRows
+        return BuildActivityStrip(dayRows);
+    }
+
+    private static ErpActivityStripVm SliceActivity(
+        ErpActivityStripVm source,
+        int days)
+    {
+        var selected = source.Days
+            .TakeLast(Math.Min(days, source.Days.Count))
+            .ToArray();
+
+        return BuildActivityStrip(selected);
+    }
+
+    private static ErpActivityStripVm BuildActivityStrip(
+        IReadOnlyList<ErpActivityDayVm> days)
+    {
+        if (days.Count == 0)
+        {
+            return new ErpActivityStripVm();
+        }
+
+        var monitoredWorkingDays = days.Count(day => day.IsWorkingDay && day.IsMonitored);
+        var activeWorkingDays = days.Count(day => day.IsWorkingDay && day.IsMonitored && day.HasActivity);
+        var lastActiveDate = days
             .Where(day => day.HasActivity)
             .Select(day => (DateOnly?)day.Date)
             .LastOrDefault();
 
         return new ErpActivityStripVm
         {
-            StartDate = startDate,
-            EndDate = today,
-            Days = dayRows,
+            StartDate = days[0].Date,
+            EndDate = days[^1].Date,
+            Days = days,
             ActiveWorkingDays = activeWorkingDays,
             MonitoredWorkingDays = monitoredWorkingDays,
             LastActiveDate = lastActiveDate
         };
+    }
+
+    private static IReadOnlyList<ErpActivityWeekVm> BuildYearWeeks(
+        ErpActivityStripVm activity)
+    {
+        if (activity.Days.Count == 0)
+        {
+            return Array.Empty<ErpActivityWeekVm>();
+        }
+
+        var dayMap = activity.Days.ToDictionary(day => day.Date);
+        var gridStart = activity.StartDate.AddDays(-(int)activity.StartDate.DayOfWeek);
+        var gridEnd = activity.EndDate.AddDays(6 - (int)activity.EndDate.DayOfWeek);
+        var weeks = new List<ErpActivityWeekVm>();
+
+        for (var weekStart = gridStart; weekStart <= gridEnd; weekStart = weekStart.AddDays(7))
+        {
+            var weekDays = Enumerable.Range(0, 7)
+                .Select(offset => weekStart.AddDays(offset))
+                .Select(date => date < activity.StartDate || date > activity.EndDate
+                    ? (ErpActivityDayVm?)null
+                    : dayMap.GetValueOrDefault(date))
+                .ToArray();
+
+            var firstVisibleDate = weekDays
+                .Where(day => day is not null)
+                .Select(day => day!.Date)
+                .FirstOrDefault();
+            var monthBoundary = weekDays
+                .Where(day => day is not null && day.Date.Day == 1)
+                .Select(day => (DateOnly?)day!.Date)
+                .FirstOrDefault();
+            var monthLabel = weeks.Count == 0 && firstVisibleDate != default
+                ? firstVisibleDate.ToString("MMM")
+                : monthBoundary?.ToString("MMM");
+
+            weeks.Add(new ErpActivityWeekVm(weekStart, monthLabel, weekDays));
+        }
+
+        return weeks;
     }
 
     private IReadOnlyList<ErpUsageHeatmapCell> BuildHeatmap(
@@ -747,7 +844,8 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
         IReadOnlyList<BucketProjection> buckets,
         IReadOnlyList<ActionProjection> actions,
         IReadOnlySet<DayOfWeek> configuredWorkingDays,
-        IReadOnlySet<DateOnly> nonWorkingDates)
+        IReadOnlySet<DateOnly> nonWorkingDates,
+        DateOnly? retainedDetailAvailableFrom = null)
     {
         var bucketsByDate = buckets
             .GroupBy(bucket => bucket.ActivityDateIst)
@@ -793,9 +891,15 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
 
             if (date < effectiveTrackingStart)
             {
-                var reason = date < DateOnly.FromDateTime(_time.ToIst(user.CreatedUtc).Date)
+                var createdDate = DateOnly.FromDateTime(_time.ToIst(user.CreatedUtc).Date);
+                var trackingDate = DateOnly.FromDateTime(_time.ToIst(_options.Value.TrackingInceptionUtc).DateTime);
+                var reason = date < createdDate
                     ? "Account not yet created"
-                    : "Comprehensive usage monitoring not active";
+                    : date < trackingDate
+                        ? "Comprehensive usage monitoring not active"
+                        : retainedDetailAvailableFrom.HasValue && date < retainedDetailAvailableFrom.Value
+                            ? "Detailed usage history no longer retained"
+                            : "Comprehensive usage monitoring not active";
                 return new ErpUsageHeatmapCell(date, ErpUsageHeatmapState.NotObserved, reason);
             }
 

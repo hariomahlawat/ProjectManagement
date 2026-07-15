@@ -25,7 +25,7 @@ public sealed class ErpUsageOptionsValidator : IValidateOptions<ErpUsageOptions>
         if (options.RegularUserThresholdPercent is < 1 or > 100)
             failures.Add("ErpUsage:RegularUserThresholdPercent must be between 1 and 100.");
         if (options.MaximumLookbackDays is < 90 or > 365)
-            failures.Add("ErpUsage:MaximumLookbackDays must be between 90 and 365 because the command view supports a 90-day period.");
+            failures.Add("ErpUsage:MaximumLookbackDays must be between 90 and 365 because the Project Officer self-view supports a rolling 12-month period.");
         if (options.RetentionDays < options.MaximumLookbackDays)
             failures.Add("ErpUsage:RetentionDays must be greater than or equal to MaximumLookbackDays.");
         if (options.HeartbeatIntervalSeconds >= options.InteractiveIdleMinutes * 60)

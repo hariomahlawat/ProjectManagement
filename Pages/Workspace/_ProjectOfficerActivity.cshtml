@@ -1,81 +1,95 @@
 @using ProjectManagement.ViewModels.Workspace
 @model ProjectManagement.Pages.Workspace.IndexModel
 @{
-    var activity = Model.Workspace.ActivityStrip;
+    var activityYear = Model.Workspace.ActivityYear;
+    var year = activityYear.Year;
+    var recent = activityYear.Recent;
 }
 <div class="po-workspace po-workspace--embedded po-dedicated-page">
     <header class="po-dedicated-hero">
         <div>
             <span class="po-eyebrow">My resources</span>
             <h1>My ERP activity</h1>
-            <p>Review your own recorded ERP activity. This is an adoption indicator, not an attendance measure.</p>
+            <p>Review your recorded ERP adoption pattern. This is not an attendance or productivity measure.</p>
         </div>
         <div class="po-dedicated-hero__metric po-dedicated-hero__metric--activity">
-            <strong>@activity.MonitoredWorkingDays</strong>
-            <span>monitored working day@(activity.MonitoredWorkingDays == 1 ? string.Empty : "s") available</span>
-            <small>@activity.MonitoringAvailabilityLabel</small>
+            <strong>@year.MonitoredWorkingDays</strong>
+            <span>monitored working day@(year.MonitoredWorkingDays == 1 ? string.Empty : "s") available</span>
+            <small>@year.MonitoringAvailabilityLabel</small>
         </div>
     </header>
 
-    <section class="po-panel po-personal-activity-page">
-        <div class="po-personal-activity-page__strip">
+    <section class="po-personal-activity-kpis po-personal-activity-kpis--year" aria-label="ERP activity summary">
+        <article>
+            <span><i class="bi bi-calendar-check" aria-hidden="true"></i></span>
             <div>
-                <span class="po-panel__kicker">@activity.PeriodLabel</span>
-                <h2>Activity pattern</h2>
-                <p>The shade reflects the highest activity level recorded on each day.</p>
+                <strong>@recent.ActiveWorkingDays of @recent.MonitoredWorkingDays</strong>
+                <b>Active working days</b>
+                <small>Last 30 calendar days</small>
             </div>
-            @await Html.PartialAsync(
-                "_ErpActivityStrip",
-                new ErpActivityStripRenderVm
-                {
-                    Activity = activity,
-                    Variant = "detail",
-                    ShowTitle = false,
-                    ShowSummary = true,
-                    ShowLegend = true
-                })
-        </div>
+        </article>
+        <article>
+            <span><i class="bi bi-clock-history" aria-hidden="true"></i></span>
+            <div>
+                <strong>@year.LastActivityTypeLabel</strong>
+                <b>Last recorded activity</b>
+                <small>@year.LastActiveLabel</small>
+            </div>
+        </article>
+        <article>
+            <span><i class="bi bi-pencil-square" aria-hidden="true"></i></span>
+            <div>
+                <strong>@year.OperationalActionDays</strong>
+                <b>Operational-action day@(year.OperationalActionDays == 1 ? string.Empty : "s")</b>
+                <small>Rolling 12-month period</small>
+            </div>
+        </article>
+    </section>
 
-        <div class="po-personal-activity-kpis">
-            <article>
-                <span><i class="bi bi-calendar-check" aria-hidden="true"></i></span>
-                <div><strong>@activity.ActiveWorkingDays of @activity.MonitoredWorkingDays</strong><b>Monitored working days active</b><small>@activity.MonitoringAvailabilityLabel</small></div>
-            </article>
-            <article>
-                <span><i class="bi bi-clock-history" aria-hidden="true"></i></span>
-                <div><strong>@activity.LastActivityTypeLabel</strong><b>Last recorded activity</b><small>@activity.LastActiveLabel</small></div>
-            </article>
-            <article>
-                <span><i class="bi bi-shield-check" aria-hidden="true"></i></span>
-                <div><strong>Private self-view</strong><b>Your activity</b><small>No peer ranking or productivity comparison</small></div>
-            </article>
-        </div>
+    <section class="po-panel po-year-activity-panel" aria-labelledby="po-year-activity-title">
+        <header class="po-year-activity-panel__header">
+            <div>
+                <span class="po-panel__kicker">Rolling 12 months</span>
+                <h2 id="po-year-activity-title">Activity over the last year</h2>
+                <p>The shade represents the highest ERP activity level recorded on each calendar day.</p>
+            </div>
+            <span class="po-period-chip">@activityYear.RollingPeriodLabel</span>
+        </header>
 
-        <div class="po-activity-day-list" aria-label="Daily ERP activity">
-            @foreach (var day in activity.Days.Reverse())
+        <div class="po-year-activity-panel__body">
+            @await Html.PartialAsync("_ErpActivityYearHeatmap", activityYear)
+
+            <div class="po-activity-privacy-note" role="note">
+                <i class="bi bi-shield-check" aria-hidden="true"></i>
+                <span><strong>Private self-view.</strong> No peer ranking or productivity comparison is performed.</span>
+            </div>
+        </div>
+    </section>
+
+    <details class="po-panel po-recent-activity-details">
+        <summary>
+            <span>
+                <span class="po-panel__kicker">Daily detail</span>
+                <strong>Recent 30 days</strong>
+                <small>@recent.DateRangeLabel</small>
+            </span>
+            <span class="po-recent-activity-details__summary">
+                @recent.ActivitySummary
+                <i class="bi bi-chevron-down" aria-hidden="true"></i>
+            </span>
+        </summary>
+
+        <div class="po-activity-day-list" aria-label="Recent daily ERP activity">
+            @foreach (var day in recent.Days.Reverse())
             {
-                var state = !day.IsMonitored
-                    ? "Not monitored"
-                    : !day.IsWorkingDay
-                        ? "Non-working day"
-                        : day.Level switch
-                        {
-                            3 => "Operational activity",
-                            2 => "Interactive use",
-                            1 => "Navigation or read-only use",
-                            _ => "No recorded activity"
-                        };
-                var cellClass = !day.IsMonitored
-                    ? "is-unmonitored"
-                    : !day.IsWorkingDay
-                        ? "is-non-working"
-                        : string.Empty;
                 <div class="po-activity-day-row">
                     <time datetime="@(day.Date.ToString("yyyy-MM-dd"))">@day.Date.ToString("ddd, dd MMM")</time>
-                    <span class="po-activity-day-cell po-activity-day-cell--level-@day.Level @cellClass" aria-hidden="true"></span>
-                    <strong>@state</strong>
+                    <span class="po-activity-day-cell @day.CellStateClass @(day.IsToday ? "is-today" : string.Empty)"
+                          title="@day.Tooltip"
+                          aria-hidden="true"></span>
+                    <strong>@day.StateLabel</strong>
                 </div>
             }
         </div>
-    </section>
+    </details>
 </div>

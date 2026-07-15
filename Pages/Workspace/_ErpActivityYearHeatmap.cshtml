@@ -1,0 +1,67 @@
+@using ProjectManagement.ViewModels.Workspace
+@model ErpActivityYearVm
+@{
+    var weekdayLabels = new[] { string.Empty, "Mon", string.Empty, "Wed", string.Empty, "Fri", string.Empty };
+}
+<div class="erp-year-heatmap" aria-label="ERP activity over the last 12 months">
+    <div class="erp-year-heatmap__viewport">
+        <div class="erp-year-heatmap__canvas">
+            <div class="erp-year-heatmap__months" aria-hidden="true">
+                @foreach (var week in Model.Weeks)
+                {
+                    <span>@week.MonthLabel</span>
+                }
+            </div>
+
+            <table class="erp-year-heatmap__table">
+                <caption class="visually-hidden">
+                    Daily ERP activity from @Model.Year.StartDate.ToString("dd MMM yyyy") to @Model.Year.EndDate.ToString("dd MMM yyyy").
+                </caption>
+                <tbody>
+                    @for (var dayIndex = 0; dayIndex < 7; dayIndex++)
+                    {
+                        <tr>
+                            <th scope="row">@weekdayLabels[dayIndex]</th>
+                            @foreach (var week in Model.Weeks)
+                            {
+                                var day = week.Days[dayIndex];
+                                <td>
+                                    @if (day is null)
+                                    {
+                                        <span class="erp-year-heatmap__cell is-outside-range" aria-hidden="true"></span>
+                                    }
+                                    else
+                                    {
+                                        <span class="erp-year-heatmap__cell @day.CellStateClass @(day.IsToday ? "is-today" : string.Empty)"
+                                              title="@day.Tooltip">
+                                            <span class="visually-hidden">@day.Tooltip</span>
+                                        </span>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="erp-year-heatmap__footer">
+        <div class="erp-year-heatmap__state-legend" aria-label="Calendar state legend">
+            <span><i class="erp-year-heatmap__cell not-monitored" aria-hidden="true"></i>Not monitored</span>
+            <span><i class="erp-year-heatmap__cell non-working" aria-hidden="true"></i>Non-working day</span>
+            @if (Model.HasHistoricalAudits)
+            {
+                <span><i class="erp-year-heatmap__cell level-3 is-historical" aria-hidden="true"></i>Historical audited action</span>
+            }
+        </div>
+        <div class="erp-year-heatmap__level-legend" aria-label="Activity level legend">
+            <span>Less</span>
+            <i class="erp-year-heatmap__cell level-0" aria-hidden="true"></i>
+            <i class="erp-year-heatmap__cell level-1" aria-hidden="true"></i>
+            <i class="erp-year-heatmap__cell level-2" aria-hidden="true"></i>
+            <i class="erp-year-heatmap__cell level-3" aria-hidden="true"></i>
+            <span>More</span>
+        </div>
+    </div>
+</div>

@@ -38,36 +38,62 @@
     max-width: 100%;
 }
 
-.erp-activity-strip__cell {
+.erp-activity-strip__cell,
+.erp-year-heatmap__cell {
     display: block;
-    width: 13px;
-    height: 13px;
     border: 1px solid rgba(80, 100, 130, .12);
     border-radius: 3px;
     background: #edf1f6;
 }
 
-.erp-activity-strip__cell--level-0 { background: #edf1f6; }
-.erp-activity-strip__cell--level-1 { background: #cfe3d7; border-color: #bfd8c9; }
-.erp-activity-strip__cell--level-2 { background: #79b68f; border-color: #6baa82; }
-.erp-activity-strip__cell--level-3 { background: #2f8051; border-color: #287047; }
-.erp-activity-strip__cell--not-monitored {
+.erp-activity-strip__cell {
+    width: 13px;
+    height: 13px;
+}
+
+.erp-activity-strip__cell.level-0,
+.erp-year-heatmap__cell.level-0 { background: #edf1f6; }
+
+.erp-activity-strip__cell.level-1,
+.erp-year-heatmap__cell.level-1 {
+    border-color: #bfd8c9;
+    background: #cfe3d7;
+}
+
+.erp-activity-strip__cell.level-2,
+.erp-year-heatmap__cell.level-2 {
+    border-color: #6baa82;
+    background: #79b68f;
+}
+
+.erp-activity-strip__cell.level-3,
+.erp-year-heatmap__cell.level-3 {
+    border-color: #287047;
+    background: #2f8051;
+}
+
+.erp-activity-strip__cell.not-monitored,
+.erp-year-heatmap__cell.not-monitored {
     border-style: dashed;
     border-color: #cbd3df;
     background: transparent;
-    opacity: .7;
+    opacity: .72;
 }
-.erp-activity-strip__cell--non-working {
+
+.erp-activity-strip__cell.non-working,
+.erp-year-heatmap__cell.non-working {
     border-color: #d4dbe5;
     background: repeating-linear-gradient(135deg, #f2f4f7 0 3px, #e7ebf0 3px 5px);
 }
 
-.erp-activity-strip__cell.is-historical {
+.erp-activity-strip__cell.is-historical,
+.erp-year-heatmap__cell.is-historical {
     border-style: dashed;
 }
 
-.erp-activity-strip__cell.is-today {
-    outline: 2px solid rgba(49, 95, 214, .25);
+.erp-activity-strip__cell.is-today,
+.erp-year-heatmap__cell.is-today {
+    outline: 2px solid rgba(49, 95, 214, .27);
     outline-offset: 1px;
 }
 
@@ -109,6 +135,120 @@
     padding: 13px 15px 12px;
 }
 
+.erp-activity-strip--card.is-extended .erp-activity-strip__cells {
+    grid-template-columns: repeat(30, 9px);
+    gap: 2px;
+}
+
+.erp-activity-strip--card.is-extended .erp-activity-strip__cell {
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+}
+
+/* Rolling 12-month self-view */
+.erp-year-heatmap {
+    min-width: 0;
+}
+
+.erp-year-heatmap__viewport {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 2px 1px 7px;
+    scrollbar-width: thin;
+}
+
+.erp-year-heatmap__canvas {
+    width: max-content;
+    min-width: 824px;
+}
+
+.erp-year-heatmap__months {
+    display: grid;
+    grid-template-columns: repeat(53, 12px);
+    gap: 3px;
+    min-height: 20px;
+    margin-left: 37px;
+    color: #66738a;
+    font-size: .66rem;
+    line-height: 1;
+}
+
+.erp-year-heatmap__months span {
+    min-width: 0;
+    overflow: visible;
+    white-space: nowrap;
+}
+
+.erp-year-heatmap__table {
+    border-collapse: separate;
+    border-spacing: 3px;
+    table-layout: fixed;
+}
+
+.erp-year-heatmap__table th {
+    width: 31px;
+    min-width: 31px;
+    padding: 0 3px 0 0;
+    color: #66738a;
+    font-size: .64rem;
+    font-weight: 600;
+    line-height: 12px;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.erp-year-heatmap__table td {
+    width: 12px;
+    min-width: 12px;
+    height: 12px;
+    padding: 0;
+}
+
+.erp-year-heatmap__cell {
+    width: 12px;
+    height: 12px;
+}
+
+.erp-year-heatmap__cell.is-outside-range {
+    visibility: hidden;
+}
+
+.erp-year-heatmap__footer,
+.erp-year-heatmap__state-legend,
+.erp-year-heatmap__level-legend {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.erp-year-heatmap__footer {
+    justify-content: space-between;
+    gap: 10px 18px;
+    margin-top: 7px;
+    color: #748198;
+    font-size: .68rem;
+}
+
+.erp-year-heatmap__state-legend,
+.erp-year-heatmap__level-legend {
+    gap: 7px;
+}
+
+.erp-year-heatmap__state-legend > span,
+.erp-year-heatmap__level-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.erp-year-heatmap__state-legend .erp-year-heatmap__cell,
+.erp-year-heatmap__level-legend .erp-year-heatmap__cell {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+}
+
 [data-bs-theme="dark"] .erp-activity-strip {
     color: #aeb9c9;
 }
@@ -119,7 +259,10 @@
 
 [data-bs-theme="dark"] .erp-activity-strip__heading span,
 [data-bs-theme="dark"] .erp-activity-strip__summary,
-[data-bs-theme="dark"] .erp-activity-strip__legend {
+[data-bs-theme="dark"] .erp-activity-strip__legend,
+[data-bs-theme="dark"] .erp-year-heatmap__footer,
+[data-bs-theme="dark"] .erp-year-heatmap__months,
+[data-bs-theme="dark"] .erp-year-heatmap__table th {
     color: #aeb9c9;
 }
 
@@ -128,12 +271,38 @@
     background: #1b2738;
 }
 
-[data-bs-theme="dark"] .erp-activity-strip__cell--level-0 { background: #2a3648; border-color: #39485c; }
-[data-bs-theme="dark"] .erp-activity-strip__cell--level-1 { background: #315f45; border-color: #3c7053; }
-[data-bs-theme="dark"] .erp-activity-strip__cell--level-2 { background: #3e895d; border-color: #4b9b6b; }
-[data-bs-theme="dark"] .erp-activity-strip__cell--level-3 { background: #69bd82; border-color: #7cca92; }
-[data-bs-theme="dark"] .erp-activity-strip__cell--not-monitored { border-color: #526176; background: transparent; }
-[data-bs-theme="dark"] .erp-activity-strip__cell--non-working {
+[data-bs-theme="dark"] .erp-activity-strip__cell.level-0,
+[data-bs-theme="dark"] .erp-year-heatmap__cell.level-0 {
+    border-color: #39485c;
+    background: #2a3648;
+}
+
+[data-bs-theme="dark"] .erp-activity-strip__cell.level-1,
+[data-bs-theme="dark"] .erp-year-heatmap__cell.level-1 {
+    border-color: #3c7053;
+    background: #315f45;
+}
+
+[data-bs-theme="dark"] .erp-activity-strip__cell.level-2,
+[data-bs-theme="dark"] .erp-year-heatmap__cell.level-2 {
+    border-color: #4b9b6b;
+    background: #3e895d;
+}
+
+[data-bs-theme="dark"] .erp-activity-strip__cell.level-3,
+[data-bs-theme="dark"] .erp-year-heatmap__cell.level-3 {
+    border-color: #7cca92;
+    background: #69bd82;
+}
+
+[data-bs-theme="dark"] .erp-activity-strip__cell.not-monitored,
+[data-bs-theme="dark"] .erp-year-heatmap__cell.not-monitored {
+    border-color: #526176;
+    background: transparent;
+}
+
+[data-bs-theme="dark"] .erp-activity-strip__cell.non-working,
+[data-bs-theme="dark"] .erp-year-heatmap__cell.non-working {
     border-color: #435166;
     background: repeating-linear-gradient(135deg, #273345 0 3px, #202a39 3px 5px);
 }
@@ -147,5 +316,15 @@
     .erp-activity-strip__cell {
         width: 11px;
         height: 11px;
+    }
+
+    .erp-activity-strip--card.is-extended .erp-activity-strip__cells {
+        grid-template-columns: repeat(30, 8px);
+        gap: 2px;
+    }
+
+    .erp-activity-strip--card.is-extended .erp-activity-strip__cell {
+        width: 8px;
+        height: 8px;
     }
 }

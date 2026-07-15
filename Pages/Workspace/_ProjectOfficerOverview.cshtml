@@ -36,7 +36,14 @@
             {
                 <section class="po-command-profile"><span class="po-command-profile__label">Command view</span>@await Html.PartialAsync("_OfficerWorkloadCard", new OfficerWorkloadCardRenderVm { Officer = vm.CommandWorkloadCard, CanReorder = false, ShowConferenceAction = false })</section>
             }
-            <section class="po-erp-activity"><div class="po-erp-activity__head"><div><span class="po-panel__kicker">ERP activity</span><h2>My ERP activity</h2></div><a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="activity">View</a></div>@await Html.PartialAsync("_ErpActivityStrip", new ErpActivityStripRenderVm { Activity = vm.ActivityStrip, Variant = "card", ShowTitle = false, ShowSummary = true, ShowLegend = true })<p class="po-erp-activity__note">Activity level reflects ERP use, not attendance.</p></section>
+            <section class="po-erp-activity">
+                <div class="po-erp-activity__head">
+                    <div><span class="po-panel__kicker">ERP activity</span><h2>My ERP activity</h2></div>
+                    <div class="po-erp-activity__head-actions"><span>Last 30 days</span><a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="activity">View</a></div>
+                </div>
+                @await Html.PartialAsync("_ErpActivityStrip", new ErpActivityStripRenderVm { Activity = vm.ActivityStrip, Variant = "card", ShowTitle = false, ShowSummary = true, ShowLegend = true })
+                <p class="po-erp-activity__note">Activity level reflects ERP use, not attendance.</p>
+            </section>
             <section class="po-upcoming"><div class="po-upcoming__head"><div><span class="po-panel__kicker">Calendar</span><h2>Upcoming</h2></div><span class="po-upcoming__count">@vm.UpcomingEvents.Count</span></div>@if (!vm.UpcomingEvents.Any()){<div class="po-upcoming__empty"><i class="bi bi-calendar2-check"></i><div><strong>No events in the next 14 days</strong><span>Your calendar is clear.</span></div></div>}else{<div class="po-upcoming-list">@foreach(var item in vm.UpcomingEvents.Take(5)){<a class="po-upcoming-item po-upcoming-item--@item.Tone" href="@item.OpenUrl"><span class="po-upcoming-item__date"><strong>@item.LocalDate.Day.ToString("00")</strong><small>@item.LocalDate.ToString("MMM").ToUpperInvariant()</small></span><span class="po-upcoming-item__content"><strong>@item.Title</strong><small>@item.TimeLabel · @item.CategoryLabel</small></span><i class="bi bi-chevron-right"></i></a>}</div>}<a class="po-upcoming__footer" href="/Calendar">Open calendar<i class="bi bi-arrow-right"></i></a></section>
         </aside>
     </div>

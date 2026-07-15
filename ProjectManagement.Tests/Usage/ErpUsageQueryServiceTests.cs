@@ -216,6 +216,78 @@ public sealed class ErpUsageQueryServiceTests
         Assert.Equal(1, summary.NoUsageSevenWorkingDays);
     }
 
+    [Fact]
+    public async Task ActivityYear_ReturnsRollingYearInFiftyThreeWeekGridAndRecentThirtyDays()
+    {
+        await using var db = CreateContext();
+        db.Users.Add(new ApplicationUser
+        {
+            Id = "u1",
+            UserName = "project.officer",
+            FullName = "Project Officer",
+            Rank = "Lt Col",
+            CreatedUtc = UtcFromIst(2025, 1, 1, 9)
+        });
+        db.UserActivityBuckets.Add(Bucket(
+            "u1",
+            new DateOnly(2026, 7, 15),
+            10,
+            "projects",
+            heartbeat: true));
+        await db.SaveChangesAsync();
+
+        var options = new ErpUsageOptions
+        {
+            TrackingInceptionUtc = UtcOffsetFromIst(2025, 1, 1, 0),
+            RetentionDays = 400,
+            MaximumLookbackDays = 365
+        };
+        var service = CreateService(db, new DateTime(2026, 7, 15, 18, 0, 0), options);
+
+        var result = await service.GetActivityYearAsync("u1");
+
+        Assert.Equal(new DateOnly(2025, 7, 16), result.Year.StartDate);
+        Assert.Equal(new DateOnly(2026, 7, 15), result.Year.EndDate);
+        Assert.Equal(365, result.Year.Days.Count);
+        Assert.Equal(30, result.Recent.Days.Count);
+        Assert.Equal(53, result.Weeks.Count);
+        Assert.All(result.Weeks, week => Assert.Equal(7, week.Days.Count));
+        Assert.Equal("Interactive use", result.Year.LastActivityTypeLabel);
+        Assert.Equal(1, result.Year.ActiveWorkingDays);
+    }
+
+    [Fact]
+    public async Task ActivityYear_MarksDatesBeforeComprehensiveMonitoringAsNotMonitored()
+    {
+        await using var db = CreateContext();
+        db.Users.Add(new ApplicationUser
+        {
+            Id = "u1",
+            UserName = "project.officer",
+            FullName = "Project Officer",
+            Rank = "Lt Col",
+            CreatedUtc = UtcFromIst(2026, 1, 1, 9)
+        });
+        await db.SaveChangesAsync();
+
+        var options = new ErpUsageOptions
+        {
+            TrackingInceptionUtc = UtcOffsetFromIst(2026, 7, 14, 0),
+            RetentionDays = 400,
+            MaximumLookbackDays = 365
+        };
+        var service = CreateService(db, new DateTime(2026, 7, 15, 18, 0, 0), options);
+
+        var result = await service.GetActivityYearAsync("u1");
+
+        var beforeMonitoring = Assert.Single(result.Year.Days.Where(day => day.Date == new DateOnly(2026, 7, 13)));
+        Assert.False(beforeMonitoring.IsMonitored);
+        Assert.Equal("Not monitored", beforeMonitoring.StateLabel);
+
+        var monitoredDay = Assert.Single(result.Year.Days.Where(day => day.Date == new DateOnly(2026, 7, 14)));
+        Assert.True(monitoredDay.IsMonitored);
+    }
+
     private static ErpUsageQueryService CreateService(
         ApplicationDbContext db,
         DateTime nowIst,

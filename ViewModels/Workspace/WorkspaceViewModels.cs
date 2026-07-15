@@ -27,6 +27,7 @@ public sealed class ProjectOfficerWorkspaceVm
     public string AotsUrl { get; set; } = "/DocumentRepository/Documents?scope=aots";
     public WorkspaceEngagementVm Engagement { get; set; } = new();
     public ErpActivityStripVm ActivityStrip { get; set; } = new();
+    public ErpActivityYearVm ActivityYear { get; set; } = new();
     public WorkspaceDocumentHubVm DocumentHub { get; set; } = new();
     public IReadOnlyList<WorkspaceCommandChipVm> CommandChips { get; set; } = Array.Empty<WorkspaceCommandChipVm>();
     public WorkspaceDataCompletenessInsightVm DataCompletenessInsight { get; set; } = new();
