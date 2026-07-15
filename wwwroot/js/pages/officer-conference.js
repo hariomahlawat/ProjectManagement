@@ -3,21 +3,52 @@ const root = document.querySelector('[data-officer-conference]');
 if (root) {
     const antiforgeryToken = root.querySelector('.oc-antiforgery input[name="__RequestVerificationToken"]')?.value ?? '';
     const selector = root.querySelector('[data-officer-selector]');
+    const stickyShell = root.querySelector('[data-oc-sticky-shell]');
     const stickyHeader = root.querySelector('[data-oc-sticky-header]');
-
-    const syncStickyHeaderHeight = () => {
-        const height = stickyHeader ? Math.ceil(stickyHeader.getBoundingClientRect().height) : 0;
-        root.style.setProperty('--oc-sticky-header-height', `${height}px`);
-    };
-
-    syncStickyHeaderHeight();
-    if (stickyHeader && typeof ResizeObserver !== 'undefined') {
-        const stickyHeaderObserver = new ResizeObserver(syncStickyHeaderHeight);
-        stickyHeaderObserver.observe(stickyHeader);
-    }
+    const applicationTopbar = document.querySelector('.pm-topbar');
     let openEditor = null;
     let openIdeaEditor = null;
     let openTaskEditor = null;
+    let stickyFrame = 0;
+
+    const readElementHeight = (element, fallback) => {
+        if (!element) return fallback;
+        const height = Math.ceil(element.getBoundingClientRect().height);
+        return Number.isFinite(height) && height > 0 ? height : fallback;
+    };
+
+    const syncStickyHeaderHeight = () => {
+        if (!stickyShell || !stickyHeader) return;
+
+        const topbarHeight = readElementHeight(applicationTopbar, 52);
+        const stickyHeaderHeight = readElementHeight(stickyHeader, 64);
+        root.style.setProperty('--oc-topbar-height', `${topbarHeight}px`);
+        root.style.setProperty('--oc-sticky-header-height', `${stickyHeaderHeight}px`);
+        document.documentElement.style.scrollPaddingTop = `${topbarHeight + stickyHeaderHeight + 12}px`;
+
+        const shellTop = stickyShell.getBoundingClientRect().top;
+        const isStuck = window.scrollY > 0 && shellTop <= topbarHeight + 1;
+        stickyShell.classList.toggle('is-stuck', isStuck);
+    };
+
+    const scheduleStickySync = () => {
+        if (stickyFrame) return;
+        stickyFrame = window.requestAnimationFrame(() => {
+            stickyFrame = 0;
+            syncStickyHeaderHeight();
+        });
+    };
+
+    if (stickyShell && stickyHeader) {
+        syncStickyHeaderHeight();
+        window.addEventListener('scroll', scheduleStickySync, { passive: true });
+
+        if ('ResizeObserver' in window) {
+            const stickyResizeObserver = new ResizeObserver(scheduleStickySync);
+            stickyResizeObserver.observe(stickyHeader);
+            if (applicationTopbar) stickyResizeObserver.observe(applicationTopbar);
+        }
+    }
 
     const formatIstDateTime = (value) => {
         if (!value) return '';
@@ -183,6 +214,24 @@ if (root) {
         });
     };
 
+
+    const ensureColumnHeadings = (section, itemLabel) => {
+        if (!section || section.querySelector('.oc-column-headings')) return;
+
+        const headings = document.createElement('div');
+        headings.className = 'oc-column-headings';
+        headings.setAttribute('aria-hidden', 'true');
+        [itemLabel, 'Latest direction', 'Progress after direction'].forEach((text) => {
+            const span = document.createElement('span');
+            span.textContent = text;
+            headings.append(span);
+        });
+
+        const anchor = section.querySelector('[data-oc-item-list]')
+            ?? section.querySelector('[data-oc-idea-item-template], [data-oc-task-item-template]');
+        anchor?.before(headings);
+    };
+
     const appendCreatedIdea = (idea) => {
         const section = root.querySelector('[data-oc-section="ideas"]');
         const template = section?.querySelector('[data-oc-idea-item-template]');
@@ -229,6 +278,7 @@ if (root) {
             if (feedback) feedback.id = feedbackId;
         }
 
+        ensureColumnHeadings(section, 'Idea');
         let list = section.querySelector('[data-oc-item-list]');
         if (!list) {
             list = document.createElement('div');
@@ -442,6 +492,7 @@ if (root) {
             if (feedback) feedback.id = feedbackId;
         }
 
+        ensureColumnHeadings(section, 'Task');
         let list = section.querySelector('[data-oc-item-list]');
         if (!list) {
             list = document.createElement('div');
@@ -584,14 +635,7 @@ if (root) {
         wrapper.className = 'oc-direction';
         wrapper.dataset.ocDirectionContent = '';
 
-        const label = document.createElement('div');
-        label.className = 'oc-direction__label';
-        const labelText = document.createElement('span');
-        const icon = document.createElement('i');
-        icon.className = 'bi bi-file-earmark-check';
-        icon.setAttribute('aria-hidden', 'true');
-        labelText.append(icon, document.createTextNode('Latest conference direction'));
-        label.append(labelText);
+        wrapper.setAttribute('aria-label', 'Latest conference direction');
 
         const instruction = document.createElement('div');
         instruction.className = 'oc-direction__instruction';
@@ -615,9 +659,10 @@ if (root) {
         const timestamp = document.createElement('time');
         timestamp.className = 'oc-direction__timestamp';
         timestamp.dateTime = direction.createdAtUtc ?? '';
-        timestamp.textContent = formatIstDateTime(direction.createdAtUtc);
+        const formattedTimestamp = formatIstDateTime(direction.createdAtUtc);
+        timestamp.textContent = formattedTimestamp ? `Issued ${formattedTimestamp}` : '';
 
-        wrapper.append(label, instruction, timestamp);
+        wrapper.append(instruction, timestamp);
         return wrapper;
     };
 
@@ -688,10 +733,6 @@ if (root) {
         if (!host) return;
 
         host.replaceChildren();
-        const label = document.createElement('span');
-        label.className = 'oc-progress-label';
-        label.textContent = 'Progress after direction';
-        host.append(label);
 
         const entries = Array.isArray(payload.progressEntries) ? payload.progressEntries : [];
         if (entries.length > 0) {
@@ -721,7 +762,33 @@ if (root) {
         }
 
         renderProgress(item, payload);
-        item.querySelector('.oc-item__actions')?.classList.remove('oc-item__actions--empty');
+
+        const actions = item.querySelector('.oc-item__actions');
+        if (actions) {
+            actions.classList.remove('oc-item__actions--empty');
+            if (!actions.querySelector('[data-oc-add]')) {
+                const editor = item.querySelector('[data-oc-editor]');
+                const addButton = document.createElement('button');
+                addButton.type = 'button';
+                addButton.className = 'oc-add-direction';
+                addButton.dataset.ocAdd = '';
+                addButton.dataset.ocDirectionAction = '';
+                addButton.setAttribute('aria-controls', editor?.id ?? '');
+                addButton.setAttribute('aria-expanded', 'false');
+
+                const icon = document.createElement('i');
+                icon.className = 'bi bi-plus-circle';
+                icon.setAttribute('aria-hidden', 'true');
+                const label = document.createElement('span');
+                label.textContent = 'Issue further direction';
+                addButton.append(icon, label);
+                actions.prepend(addButton);
+            }
+        }
+
+        const saveLabel = item.querySelector('[data-oc-save-label]');
+        if (saveLabel) saveLabel.textContent = 'Issue further direction';
+
         item.classList.remove('is-saved');
         void item.offsetWidth;
         item.classList.add('is-saved');

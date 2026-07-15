@@ -62,7 +62,40 @@ public sealed class CommandWorkspaceService
             return await BuildUsagePatternAsync(query, cancellationToken);
         }
 
+        if (string.Equals(query.View, "my-activity", StringComparison.OrdinalIgnoreCase))
+        {
+            return await BuildNavigationShellAsync("my-activity", cancellationToken);
+        }
+
         return await BuildOfficerWorkloadAsync(query, cancellationToken);
+    }
+
+    public Task<CommandWorkspaceVm> GetNavigationShellAsync(
+        string activeView,
+        CancellationToken cancellationToken = default)
+        => BuildNavigationShellAsync(activeView, cancellationToken);
+
+    private async Task<CommandWorkspaceVm> BuildNavigationShellAsync(
+        string activeView,
+        CancellationToken cancellationToken)
+    {
+        var totalOngoingProjects = await _db.Projects
+            .AsNoTracking()
+            .CountAsync(project =>
+                !project.IsDeleted
+                && !project.IsArchived
+                && project.LifecycleStatus == ProjectLifecycleStatus.Active,
+                cancellationToken);
+        var officerCount = await _officerWorkloadReadService.CountActiveOfficersAsync(
+            cancellationToken);
+
+        return new CommandWorkspaceVm
+        {
+            GeneratedAtUtc = DateTime.UtcNow,
+            ActiveView = activeView,
+            TotalOngoingProjects = totalOngoingProjects,
+            ProjectOfficerCount = officerCount
+        };
     }
 
     /// <summary>

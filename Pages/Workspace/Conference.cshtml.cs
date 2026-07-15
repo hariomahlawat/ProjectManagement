@@ -15,6 +15,7 @@ namespace ProjectManagement.Pages.Workspace;
 public sealed class ConferenceModel : PageModel
 {
     private readonly IOfficerConferenceReadService _readService;
+    private readonly CommandWorkspaceService _commandWorkspaceService;
     private readonly IConferenceRemarkCommandService _remarkCommandService;
     private readonly IConferenceTaskCommandService _taskCommandService;
     private readonly IConferenceIdeaCommandService _ideaCommandService;
@@ -24,6 +25,7 @@ public sealed class ConferenceModel : PageModel
 
     public ConferenceModel(
         IOfficerConferenceReadService readService,
+        CommandWorkspaceService commandWorkspaceService,
         IConferenceRemarkCommandService remarkCommandService,
         IConferenceTaskCommandService taskCommandService,
         IConferenceIdeaCommandService ideaCommandService,
@@ -32,6 +34,7 @@ public sealed class ConferenceModel : PageModel
         ILogger<ConferenceModel> logger)
     {
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
+        _commandWorkspaceService = commandWorkspaceService ?? throw new ArgumentNullException(nameof(commandWorkspaceService));
         _remarkCommandService = remarkCommandService ?? throw new ArgumentNullException(nameof(remarkCommandService));
         _taskCommandService = taskCommandService ?? throw new ArgumentNullException(nameof(taskCommandService));
         _ideaCommandService = ideaCommandService ?? throw new ArgumentNullException(nameof(ideaCommandService));
@@ -41,12 +44,16 @@ public sealed class ConferenceModel : PageModel
     }
 
     public OfficerConferenceVm Conference { get; private set; } = new();
+    public CommandWorkspaceRailVm CommandRail { get; private set; } = new() { ActiveView = "conference" };
+    public IReadOnlyList<OfficerConferenceOfficerOptionVm> OfficerOptions { get; private set; }
+        = Array.Empty<OfficerConferenceOfficerOptionVm>();
+    public bool HasSelectedOfficer => !string.IsNullOrWhiteSpace(Conference.OfficerUserId);
     public DateTime MinimumTaskDueDate => _taskClock.IstToday;
     public DateTime DefaultTaskDueDate => _taskClock.IstToday.AddDays(7);
     public ConferenceIdeaCreationOptionsVm IdeaCreation { get; private set; } = new();
 
     public async Task<IActionResult> OnGetAsync(
-        string officerUserId,
+        string? officerUserId,
         CancellationToken cancellationToken)
     {
         var userId = _users.GetUserId(User);
@@ -55,17 +62,44 @@ public sealed class ConferenceModel : PageModel
             return Challenge();
         }
 
-        var conference = await _readService.GetAsync(
-            userId,
-            officerUserId,
-            cancellationToken);
-        if (conference is null)
+        if (string.IsNullOrWhiteSpace(officerUserId))
         {
-            return NotFound();
+            OfficerOptions = await _readService.GetOfficerOptionsAsync(
+                userId,
+                selectedOfficerUserId: null,
+                cancellationToken: cancellationToken);
+        }
+        else
+        {
+            var conference = await _readService.GetAsync(
+                userId,
+                officerUserId,
+                cancellationToken);
+            if (conference is null)
+            {
+                return NotFound();
+            }
+
+            Conference = conference;
+            OfficerOptions = conference.OfficerOptions;
+            IdeaCreation = await BuildIdeaCreationOptionsAsync(userId);
         }
 
-        Conference = conference;
-        IdeaCreation = await BuildIdeaCreationOptionsAsync(userId);
+        var navigation = await _commandWorkspaceService.GetNavigationShellAsync(
+            "conference",
+            cancellationToken);
+        CommandRail = new CommandWorkspaceRailVm
+        {
+            CanSwitchWorkspace =
+                (User.IsInRole(RoleNames.Comdt) || User.IsInRole(RoleNames.HoD))
+                && User.IsInRole(RoleNames.ProjectOfficer),
+            ActiveView = "conference",
+            ProjectOfficerCount = OfficerOptions.Count > 0
+                ? OfficerOptions.Count
+                : navigation.ProjectOfficerCount,
+            TotalOngoingProjects = navigation.TotalOngoingProjects
+        };
+
         return Page();
     }
 

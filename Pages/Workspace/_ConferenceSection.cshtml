@@ -9,8 +9,10 @@
         ConferenceItemKind.ActionTask => "tasks",
         _ => "general"
     };
+    var isProjectSection = sectionModel.Kind == ConferenceItemKind.Project;
     var isIdeaSection = sectionModel.Kind == ConferenceItemKind.ProjectIdea;
     var isTaskSection = sectionModel.Kind == ConferenceItemKind.ActionTask;
+    var itemColumnLabel = isProjectSection ? "Project" : isIdeaSection ? "Idea" : "Task";
 
     var ideaEditorId = $"oc-idea-create-{Model.OfficerUserId}";
     var ideaTitleErrorId = $"{ideaEditorId}-title-error";
@@ -268,6 +270,11 @@
     }
     else
     {
+        <div class="oc-column-headings" aria-hidden="true">
+            <span>@itemColumnLabel</span>
+            <span>Latest direction</span>
+            <span>Progress after direction</span>
+        </div>
         <div class="oc-item-list" data-oc-item-list>
             @foreach (var item in sectionModel.Items)
             {
@@ -299,17 +306,23 @@
                         <i class="bi bi-file-earmark" aria-hidden="true"></i>
                         <span>No conference direction recorded</span>
                     </div>
+                    <button type="button" class="oc-add-direction oc-add-direction--issue" data-oc-add data-oc-direction-action aria-controls="" aria-expanded="false">
+                        <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                        <span>Issue direction</span>
+                    </button>
                 </div>
 
                 <div class="oc-item__progress">
-                    <div data-oc-progress-content></div>
+                    <div data-oc-progress-content>
+                        <p class="oc-progress-empty oc-progress-empty--awaiting"
+                           aria-label="Awaiting initial direction. Progress tracking begins after a direction is issued."
+                           title="Progress tracking begins after a direction is issued.">
+                            Awaiting initial direction
+                        </p>
+                    </div>
                     <div class="oc-item__actions oc-item__actions--empty">
-                        <button type="button" class="oc-add-direction" data-oc-add aria-controls="" aria-expanded="false">
-                            <i class="bi bi-plus-circle" aria-hidden="true"></i>
-                            <span>Add direction</span>
-                        </button>
                         <a href="" target="_blank" rel="noopener" class="oc-open-item" data-oc-new-idea-open>
-                            Open <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                            Open idea <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
                         </a>
                         <span class="oc-row-status" data-oc-row-status aria-live="polite"></span>
                     </div>
@@ -332,7 +345,7 @@
                         <div>
                             <button type="button" class="oc-editor-cancel" data-oc-cancel>Cancel</button>
                             <button type="submit" class="oc-editor-save" data-oc-save disabled>
-                                <span>Add direction</span>
+                                <span data-oc-save-label>Issue direction</span>
                                 <i class="bi bi-arrow-right" aria-hidden="true"></i>
                             </button>
                         </div>
@@ -362,17 +375,23 @@
                         <i class="bi bi-file-earmark" aria-hidden="true"></i>
                         <span>No conference direction recorded</span>
                     </div>
+                    <button type="button" class="oc-add-direction oc-add-direction--issue" data-oc-add data-oc-direction-action aria-controls="" aria-expanded="false">
+                        <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                        <span>Issue direction</span>
+                    </button>
                 </div>
 
                 <div class="oc-item__progress">
-                    <div data-oc-progress-content></div>
+                    <div data-oc-progress-content>
+                        <p class="oc-progress-empty oc-progress-empty--awaiting"
+                           aria-label="Awaiting initial direction. Progress tracking begins after a direction is issued."
+                           title="Progress tracking begins after a direction is issued.">
+                            Awaiting initial direction
+                        </p>
+                    </div>
                     <div class="oc-item__actions oc-item__actions--empty">
-                        <button type="button" class="oc-add-direction" data-oc-add aria-controls="" aria-expanded="false">
-                            <i class="bi bi-plus-circle" aria-hidden="true"></i>
-                            <span>Add direction</span>
-                        </button>
                         <a href="" target="_blank" rel="noopener" class="oc-open-item" data-oc-new-task-open>
-                            Open <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                            Open task <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
                         </a>
                         <span class="oc-row-status" data-oc-row-status aria-live="polite"></span>
                     </div>
@@ -395,7 +414,7 @@
                         <div>
                             <button type="button" class="oc-editor-cancel" data-oc-cancel>Cancel</button>
                             <button type="submit" class="oc-editor-save" data-oc-save disabled>
-                                <span>Add direction</span>
+                                <span data-oc-save-label>Issue direction</span>
                                 <i class="bi bi-arrow-right" aria-hidden="true"></i>
                             </button>
                         </div>

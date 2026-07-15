@@ -5,6 +5,8 @@
     var year = activityYear.Year;
     var recent = activityYear.Recent;
     var monitoringStart = year.MonitoringStartedOn ?? recent.MonitoringStartedOn ?? year.MonitoringAvailableFrom;
+    var activityRouteMode = Model.IsCommandMode ? "command" : "project-officer";
+    var activityRouteView = Model.IsCommandMode ? "my-activity" : "activity";
 }
 <div class="po-workspace po-workspace--embedded po-dedicated-page">
     <header class="po-dedicated-hero">
@@ -59,8 +61,8 @@
                     @foreach (var option in activityYear.PrimaryPeriodOptions)
                     {
                         <a asp-page="/Workspace/Index"
-                           asp-route-mode="project-officer"
-                           asp-route-view="activity"
+                           asp-route-mode="@activityRouteMode"
+                           asp-route-view="@activityRouteView"
                            asp-route-activityPeriod="@option.Key"
                            class="@(option.IsSelected ? "is-active" : string.Empty)"
                            aria-current="@(option.IsSelected ? "page" : null)">@option.Label</a>
@@ -68,8 +70,8 @@
                     @if (activityYear.OlderPeriodOptions.Any())
                     {
                         <form method="get" class="po-activity-periods__older">
-                            <input type="hidden" name="mode" value="project-officer" />
-                            <input type="hidden" name="view" value="activity" />
+                            <input type="hidden" name="mode" value="@activityRouteMode" />
+                            <input type="hidden" name="view" value="@activityRouteView" />
                             <label for="po-activity-older-year" class="visually-hidden">Older calendar year</label>
                             <select id="po-activity-older-year" name="activityPeriod" onchange="this.form.submit()">
                                 <option value="">Older years</option>

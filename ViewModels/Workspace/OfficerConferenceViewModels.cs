@@ -37,7 +37,10 @@ public sealed class OfficerConferenceVm
 public sealed record OfficerConferenceOfficerOptionVm(
     string UserId,
     string DisplayName,
-    bool IsSelected);
+    bool IsSelected,
+    int ProjectCount = 0,
+    int IdeaCount = 0,
+    int OtherTaskCount = 0);
 
 public sealed class OfficerConferenceSectionVm
 {

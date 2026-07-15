@@ -69,6 +69,8 @@ public class IndexModel : PageModel
                 "adoption" => "adoption",
                 "usage-pattern" => "usage-pattern",
                 "pattern" => "usage-pattern",
+                "my-activity" => "my-activity",
+                "activity" => "my-activity",
                 _ => "officers"
             };
             if (View == "portfolio" && !Request.Query.ContainsKey(nameof(PopulatedStagesOnly)))
@@ -88,6 +90,17 @@ public class IndexModel : PageModel
                 PatternSignal = PatternSignal,
                 RequestingUserId = userId
             }, ct);
+
+            if (View == "my-activity")
+            {
+                Workspace = await _projectOfficerWorkspaceService.GetProjectOfficerWorkspaceAsync(
+                    userId,
+                    User,
+                    ProjectOfficerWorkspaceView.Activity,
+                    includeDocuments: false,
+                    ct: ct,
+                    activityPeriod: ActivityPeriod);
+            }
         }
         else
         {

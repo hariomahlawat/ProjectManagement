@@ -62,6 +62,21 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         _erpUsage = erpUsage ?? throw new ArgumentNullException(nameof(erpUsage));
     }
 
+
+    public async Task<IReadOnlyList<OfficerConferenceOfficerOptionVm>> GetOfficerOptionsAsync(
+        string requestingUserId,
+        string? selectedOfficerUserId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(requestingUserId))
+        {
+            return Array.Empty<OfficerConferenceOfficerOptionVm>();
+        }
+
+        var orderedOfficers = await _workload.GetAllAsync(requestingUserId, cancellationToken);
+        return BuildOfficerOptions(orderedOfficers, selectedOfficerUserId);
+    }
+
     public async Task<OfficerConferenceVm?> GetAsync(
         string requestingUserId,
         string officerUserId,
@@ -106,7 +121,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             ? new ErpActivityStripVm()
             : await _erpUsage.GetActivityStripAsync(
                 selected.UserId,
-                days: 14,
+                days: 30,
                 cancellationToken: cancellationToken);
 
         var latestProjectDirections = (await LoadLatestProjectDirectionsAsync(projectIds, cancellationToken))
@@ -211,12 +226,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             authorNames,
             today);
 
-        var officerOptions = orderedOfficers
-            .Select(officer => new OfficerConferenceOfficerOptionVm(
-                officer.UserId,
-                DisplayOfficerName(officer),
-                string.Equals(officer.UserId, selected.UserId, StringComparison.Ordinal)))
-            .ToList();
+        var officerOptions = BuildOfficerOptions(orderedOfficers, selected.UserId);
 
         return new OfficerConferenceVm
         {
@@ -261,6 +271,20 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             }
         };
     }
+
+
+    private static IReadOnlyList<OfficerConferenceOfficerOptionVm> BuildOfficerOptions(
+        IReadOnlyList<CommandOfficerWorkloadVm> orderedOfficers,
+        string? selectedOfficerUserId)
+        => orderedOfficers
+            .Select(officer => new OfficerConferenceOfficerOptionVm(
+                officer.UserId,
+                DisplayOfficerName(officer),
+                string.Equals(officer.UserId, selectedOfficerUserId, StringComparison.Ordinal),
+                officer.ProjectCount,
+                officer.IdeaCount,
+                officer.OtherTaskCount))
+            .ToArray();
 
     private async Task<List<ProjectRow>> LoadProjectsAsync(
         int[] projectIds,
@@ -641,7 +665,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                     ? new ConferenceProgressEntryVm
                     {
                         Label = "Project Officer",
-                        EmptyText = "No remark by the Project Officer after the direction."
+                        EmptyText = "Progress update awaited. No Project Officer remark has been recorded since the direction was issued."
                     }
                     : BuildRemarkProgressEntry(
                         "Project Officer",
@@ -791,7 +815,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                     },
                 ProgressEntries = progressEntries,
                 EmptyProgressText = direction is not null && progressEntries.Count == 0
-                    ? "No comment or note after the direction."
+                    ? "Progress update awaited. No comment or note has been recorded since the direction was issued."
                     : null,
                 ProgressSummary = string.Empty,
                 LatestProgressText = null
@@ -861,7 +885,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                     ? new ConferenceProgressEntryVm
                     {
                         Label = "Task Assignee",
-                        EmptyText = "No update by the task assignee after the direction."
+                        EmptyText = "Progress update awaited. No task-assignee update has been recorded since the direction was issued."
                     }
                     : new ConferenceProgressEntryVm
                     {

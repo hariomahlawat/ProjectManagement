@@ -338,3 +338,22 @@
 .erp-activity-strip--card.is-extended .erp-activity-strip__cells {
     max-width: 100%;
 }
+
+/* Compact 30-day header strip used in officer conference review. */
+.erp-activity-strip--header.is-extended .erp-activity-strip__cells {
+    grid-template-columns: repeat(30, 7px);
+    gap: 2px;
+}
+
+.erp-activity-strip--header.is-extended .erp-activity-strip__cell {
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+}
+
+@media (max-width: 1240px) {
+    .erp-activity-strip--header.is-extended .erp-activity-strip__cells {
+        grid-template-columns: repeat(30, minmax(5px, 1fr));
+        width: 100%;
+    }
+}

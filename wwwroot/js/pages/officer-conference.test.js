@@ -37,9 +37,9 @@ test('conference save surfaces server trace references and row-local feedback', 
     assert.match(source, /setRowStatus\(item, 'Save failed\.', true\)/);
 });
 
-test('conference direction uses formal instruction icon and simplified metadata', () => {
-    assert.match(source, /bi bi-file-earmark-check/);
-    assert.match(source, /Latest conference direction/);
+test('conference direction uses a semantic label and simplified metadata', () => {
+    assert.match(source, /aria-label', 'Latest conference direction/);
+    assert.doesNotMatch(source, /oc-direction__label/);
     assert.doesNotMatch(source, /direction\.authorRole/);
     assert.doesNotMatch(source, /direction\.snapshotLabel/);
     assert.doesNotMatch(source, /direction\.snapshotValue/);
@@ -140,4 +140,25 @@ test('new idea rendering uses textContent and updates idea counts', () => {
     assert.match(source, /context\.textContent = idea\.currentContext/);
     assert.match(source, /data-oc-header-idea-count/);
     assert.doesNotMatch(source, /idea\.title.*innerHTML/);
+});
+
+
+test('first direction transitions from issue action to issue-further-direction action', () => {
+    assert.match(source, /label\.textContent = 'Issue further direction'/);
+    assert.match(source, /actions\.prepend\(addButton\)/);
+    assert.match(source, /saveLabel\.textContent = 'Issue further direction'/);
+});
+
+test('conference sticky toolbar measures the actual application header and avoids fixed offsets', () => {
+    assert.match(source, /document\.querySelector\('\.pm-topbar'\)/);
+    assert.match(source, /const syncStickyHeaderHeight/);
+    assert.match(source, /--oc-topbar-height/);
+    assert.match(source, /ResizeObserver/);
+    assert.match(source, /window\.addEventListener\('scroll', scheduleStickySync/);
+});
+
+test('conference rows create column headings when the first idea or task is added', () => {
+    assert.match(source, /const ensureColumnHeadings/);
+    assert.match(source, /ensureColumnHeadings\(section, 'Idea'\)/);
+    assert.match(source, /ensureColumnHeadings\(section, 'Task'\)/);
 });

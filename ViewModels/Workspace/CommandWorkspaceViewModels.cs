@@ -1,5 +1,13 @@
 namespace ProjectManagement.ViewModels.Workspace;
 
+public sealed class CommandWorkspaceRailVm
+{
+    public bool CanSwitchWorkspace { get; init; }
+    public string ActiveView { get; init; } = "officers";
+    public int ProjectOfficerCount { get; init; }
+    public int TotalOngoingProjects { get; init; }
+}
+
 public sealed class CommandWorkspaceVm
 {
     public DateTime GeneratedAtUtc { get; init; } = DateTime.UtcNow;

@@ -11,6 +11,8 @@
         ConferenceItemKind.ActionTask => "task",
         _ => "item"
     };
+    var openLabel = $"Open {kindLabel}";
+    var directionActionLabel = direction is null ? "Issue direction" : "Issue further direction";
     var directionDate = direction is null
         ? null
         : IstClock.ToIst(direction.CreatedAtUtc).ToString("dd MMM yyyy, hh:mm tt");
@@ -30,7 +32,7 @@
          data-item-id="@item.ItemId">
     <div class="oc-item__main">
         <div class="oc-item__title-row">
-            <a href="@item.OpenUrl" target="_blank" rel="noopener" title="Open @kindLabel">
+            <a href="@item.OpenUrl" target="_blank" rel="noopener" title="@openLabel">
                 @item.Title
             </a>
         </div>
@@ -84,13 +86,19 @@
                 <i class="bi bi-file-earmark" aria-hidden="true"></i>
                 <span>No conference direction recorded</span>
             </div>
+            <button type="button"
+                    class="oc-add-direction oc-add-direction--issue"
+                    data-oc-add
+                    data-oc-direction-action
+                    aria-controls="@editorId"
+                    aria-expanded="false">
+                <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                <span>Issue direction</span>
+            </button>
         }
         else
         {
-            <div class="oc-direction" data-oc-direction-content>
-                <div class="oc-direction__label">
-                    <span><i class="bi bi-file-earmark-check" aria-hidden="true"></i>Latest conference direction</span>
-                </div>
+            <div class="oc-direction" data-oc-direction-content aria-label="Latest conference direction">
                 <div class="oc-direction__instruction">
                     <p id="@directionBodyId" class="oc-direction__body" data-oc-direction-body>@direction.Body</p>
                     <button type="button"
@@ -100,7 +108,7 @@
                             aria-expanded="false"
                             hidden>More</button>
                 </div>
-                <time class="oc-direction__timestamp" datetime="@directionDateIso">@directionDate</time>
+                <time class="oc-direction__timestamp" datetime="@directionDateIso">Issued @directionDate</time>
             </div>
         }
     </div>
@@ -109,8 +117,6 @@
         <div data-oc-progress-content>
             @if (direction is not null)
             {
-                <span class="oc-progress-label">Progress after direction</span>
-
                 @if (item.ProgressEntries.Count > 0)
                 {
                     <div class="oc-progress-list">
@@ -168,15 +174,31 @@
                     <p class="oc-progress-empty">@item.EmptyProgressText</p>
                 }
             }
+            else
+            {
+                <p class="oc-progress-empty oc-progress-empty--awaiting"
+                   aria-label="Awaiting initial direction. Progress tracking begins after a direction is issued."
+                   title="Progress tracking begins after a direction is issued.">
+                    Awaiting initial direction
+                </p>
+            }
         </div>
 
         <div class="oc-item__actions @(direction is null ? "oc-item__actions--empty" : string.Empty)">
-            <button type="button" class="oc-add-direction" data-oc-add aria-controls="@editorId" aria-expanded="false">
-                <i class="bi bi-plus-circle" aria-hidden="true"></i>
-                <span>Add direction</span>
-            </button>
+            @if (direction is not null)
+            {
+                <button type="button"
+                        class="oc-add-direction"
+                        data-oc-add
+                        data-oc-direction-action
+                        aria-controls="@editorId"
+                        aria-expanded="false">
+                    <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                    <span>Issue further direction</span>
+                </button>
+            }
             <a href="@item.OpenUrl" target="_blank" rel="noopener" class="oc-open-item">
-                Open <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                @openLabel <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
             </a>
             <span class="oc-row-status" data-oc-row-status aria-live="polite"></span>
         </div>
@@ -205,7 +227,7 @@
             <div>
                 <button type="button" class="oc-editor-cancel" data-oc-cancel>Cancel</button>
                 <button type="submit" class="oc-editor-save" data-oc-save disabled>
-                    <span>Add direction</span>
+                    <span data-oc-save-label>@directionActionLabel</span>
                     <i class="bi bi-arrow-right" aria-hidden="true"></i>
                 </button>
             </div>

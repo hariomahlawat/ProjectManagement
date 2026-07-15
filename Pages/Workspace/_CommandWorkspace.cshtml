@@ -9,6 +9,7 @@
     var isPortfolio = vm.ActiveView == "portfolio";
     var isAdoption = vm.ActiveView == "adoption";
     var isUsagePattern = vm.ActiveView == "usage-pattern";
+    var isMyActivity = vm.ActiveView == "my-activity";
     var selectedCategoryCount = vm.SelectedParentCategoryIds.Count;
     var categoryTriggerText = selectedCategoryCount switch
     {
@@ -32,92 +33,25 @@
     var population = Math.Max(1, adoption.TotalUsers);
     var usageReach = Math.Clamp((int)Math.Round(adoption.UsedErpUsers * 100d / population), 0, 100);
     var contributionReach = Math.Clamp((int)Math.Round(adoption.OperationalContributors * 100d / population), 0, 100);
+    var commandRail = new CommandWorkspaceRailVm
+    {
+        CanSwitchWorkspace = Model.CanSwitchWorkspace,
+        ActiveView = vm.ActiveView,
+        ProjectOfficerCount = vm.ProjectOfficerCount,
+        TotalOngoingProjects = vm.TotalOngoingProjects
+    };
 }
 
 <div class="command-workspace is-nav-expanded" data-command-workspace>
-    <aside class="cw-local-rail is-expanded" data-workspace-rail aria-label="Comdt and HoD workspace navigation">
-        <div class="cw-local-rail__identity">
-            <span class="cw-local-rail__mark" aria-hidden="true"><i class="bi bi-grid-1x2-fill"></i></span>
-            <div>
-                <small>PRISM ERP</small>
-                <strong>Command workspace</strong>
-            </div>
-            <button type="button"
-                    class="cw-local-rail__toggle"
-                    data-workspace-rail-toggle
-                    aria-expanded="true"
-                    aria-controls="workspace-local-navigation"
-                    aria-label="Collapse workspace navigation"
-                    title="Collapse workspace navigation">
-                <i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i>
-            </button>
-        </div>
-
-        <nav id="workspace-local-navigation">
-            @if (Model.CanSwitchWorkspace)
-            {
-                <div class="cw-local-rail__group">
-                    <span class="cw-local-rail__group-label">Workspace</span>
-                    <a asp-page="/Workspace/Index"
-                       asp-route-mode="command"
-                       asp-route-view="officers"
-                       class="is-context-active"
-                       data-tooltip="Comdt / HoD workspace">
-                        <i class="bi bi-building" aria-hidden="true"></i><span>Comdt / HoD</span>
-                    </a>
-                    <a asp-page="/Workspace/Index"
-                       asp-route-mode="project-officer"
-                       data-tooltip="Project Officer workspace">
-                        <i class="bi bi-person-workspace" aria-hidden="true"></i><span>Project Officer</span>
-                    </a>
-                </div>
-            }
-
-            <div class="cw-local-rail__group">
-                <span class="cw-local-rail__group-label">Project monitoring</span>
-                <a asp-page="/Workspace/Index"
-                   asp-route-mode="command"
-                   asp-route-view="officers"
-                   class="@(!isPortfolio && !isAdoption && !isUsagePattern ? "is-active" : null)"
-                   aria-current="@(!isPortfolio && !isAdoption && !isUsagePattern ? "page" : null)"
-                   data-tooltip="Officer workload">
-                    <i class="bi bi-people" aria-hidden="true"></i><span>Officer workload</span><b>@vm.ProjectOfficerCount</b>
-                </a>
-                <a asp-page="/Workspace/Index"
-                   asp-route-mode="command"
-                   asp-route-view="portfolio"
-                   class="@(isPortfolio ? "is-active" : null)"
-                   aria-current="@(isPortfolio ? "page" : null)"
-                   data-tooltip="Project portfolio">
-                    <i class="bi bi-diagram-3" aria-hidden="true"></i><span>Project portfolio</span><b>@vm.TotalOngoingProjects</b>
-                </a>
-            </div>
-
-            <div class="cw-local-rail__group">
-                <span class="cw-local-rail__group-label">System adoption</span>
-                <a asp-page="/Workspace/Index"
-                   asp-route-mode="command"
-                   asp-route-view="adoption"
-                   class="@(isAdoption ? "is-active" : null)"
-                   aria-current="@(isAdoption ? "page" : null)"
-                   data-tooltip="ERP adoption">
-                    <i class="bi bi-person-check" aria-hidden="true"></i><span>ERP adoption</span>
-                </a>
-                <a asp-page="/Workspace/Index"
-                   asp-route-mode="command"
-                   asp-route-view="usage-pattern"
-                   class="@(isUsagePattern ? "is-active" : null)"
-                   aria-current="@(isUsagePattern ? "page" : null)"
-                   data-tooltip="ERP usage pattern">
-                    <i class="bi bi-bounding-box-circles" aria-hidden="true"></i><span>ERP usage pattern</span>
-                </a>
-            </div>
-        </nav>
-    </aside>
+    @await Html.PartialAsync("_CommandWorkspaceRail", commandRail)
 
     <main class="cw-workspace-content">
 
-        @if (isAdoption)
+        @if (isMyActivity)
+        {
+            @await Html.PartialAsync("_ProjectOfficerActivity", Model)
+        }
+        else if (isAdoption)
         {
             <section class="cw-adoption-hero" aria-labelledby="cw-adoption-title">
                 <div>
