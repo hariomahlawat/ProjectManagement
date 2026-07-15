@@ -150,9 +150,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 return ServiceResult.Fail(ex.Message);
             }
 
-            if (dto.Source != ProliferationSource.Sdd)
+            if (dto.Source != ProliferationSource.Sdd && dto.Source != ProliferationSource.Abw515)
             {
-                return ServiceResult.Fail("Granular entries support only the SDD source.");
+                return ServiceResult.Fail("Unsupported source.");
             }
 
             var remarks = Normalize(dto.Remarks, 500);
@@ -219,11 +219,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             if (requiredError is not null)
             {
                 return requiredError;
-            }
-
-            if (dto.Source == ProliferationSource.Abw515 && dto.Mode != YearPreferenceMode.Auto)
-            {
-                return ServiceResult.Fail("ABW 515 uses Yearly totals and cannot be overridden.");
             }
 
             var project = await GetCompletedProjectAsync(dto.ProjectId, ct);
@@ -357,10 +352,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             return ServiceResult.Ok();
         }
 
-    public async Task<ServiceResult> UpdateGranularAsync(Guid id, ProliferationGranularUpdateDto dto, ClaimsPrincipal user, CancellationToken ct)
-    {
-        if (dto is null) throw new ArgumentNullException(nameof(dto));
-        if (user is null) throw new ArgumentNullException(nameof(user));
+        public async Task<ServiceResult> UpdateGranularAsync(Guid id, ProliferationGranularUpdateDto dto, ClaimsPrincipal user, CancellationToken ct)
+        {
+            if (dto is null) throw new ArgumentNullException(nameof(dto));
+            if (user is null) throw new ArgumentNullException(nameof(user));
 
             var actor = await _users.GetUserAsync(user);
             if (actor is null)
@@ -386,9 +381,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 return ServiceResult.Fail("The record is out of date. Refresh and try again.");
             }
 
-            if (dto.Source != ProliferationSource.Sdd)
+            if (dto.Source != ProliferationSource.Sdd && dto.Source != ProliferationSource.Abw515)
             {
-                return ServiceResult.Fail("Granular entries support only the SDD source.");
+                return ServiceResult.Fail("Unsupported source.");
             }
 
             string unit;
@@ -715,6 +710,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             if (dto.Year is < 2000 or > 3000)
             {
                 return ServiceResult.Fail("Year must be between 2000 and 3000.");
+            }
+
+            if (dto.Source != ProliferationSource.Sdd && dto.Source != ProliferationSource.Abw515)
+            {
+                return ServiceResult.Fail("Unsupported source.");
             }
 
             if (!Enum.IsDefined(typeof(YearPreferenceMode), dto.Mode))

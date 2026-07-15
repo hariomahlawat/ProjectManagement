@@ -72,7 +72,7 @@ public class ProliferationControllerPreferenceTests
 
         await context.SaveChangesAsync();
 
-        var readService = new ProliferationTrackerReadService(context);
+        var readService = new ProliferationTrackerReadService(new ProliferationAggregateReadService(context));
         var overviewService = new ProliferationOverviewService(context, readService);
         var controller = new ProliferationController(
             context,
@@ -80,6 +80,7 @@ public class ProliferationControllerPreferenceTests
             submitSvc: null!,
             manageSvc: new ProliferationManageService(context),
             overviewSvc: overviewService,
+            aggregateSvc: new ProliferationAggregateReadService(context),
             exportService: new StubProliferationExportService(),
             logger: NullLogger<ProliferationController>.Instance);
 
@@ -157,7 +158,7 @@ public class ProliferationControllerPreferenceTests
 
         await context.SaveChangesAsync();
 
-        var readService = new ProliferationTrackerReadService(context);
+        var readService = new ProliferationTrackerReadService(new ProliferationAggregateReadService(context));
         var overviewService = new ProliferationOverviewService(context, readService);
         var controller = new ProliferationController(
             context,
@@ -165,6 +166,7 @@ public class ProliferationControllerPreferenceTests
             submitSvc: null!,
             manageSvc: new ProliferationManageService(context),
             overviewSvc: overviewService,
+            aggregateSvc: new ProliferationAggregateReadService(context),
             exportService: new StubProliferationExportService(),
             logger: NullLogger<ProliferationController>.Instance);
 
@@ -174,7 +176,7 @@ public class ProliferationControllerPreferenceTests
 
         var file = Assert.IsType<FileContentResult>(result);
         Assert.Equal("text/csv", file.ContentType);
-        Assert.StartsWith("proliferation-preference-overrides-", file.FileDownloadName);
+        Assert.StartsWith("proliferation-counting-exceptions-", file.FileDownloadName);
 
         var csv = Encoding.UTF8.GetString(file.FileContents);
         Assert.Contains("Project,Project Code,Source,Year", csv);

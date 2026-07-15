@@ -89,6 +89,15 @@
     return /^[0-9]{4}$/.test(text) ? text : '';
   }
 
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   const pager = {
     page: 1,
     pageSize: Number(listCard.dataset.pageSize) || 25,
@@ -177,6 +186,71 @@
     btnReset: document.querySelector('#pf-reset'),
     btnDelete: document.querySelector('#pf-delete')
   };
+
+  let editorBaseline = '';
+
+  function serializeEditorState() {
+    return JSON.stringify({
+      kind: editor.kind?.value || 'granular',
+      projectId: editor.project?.value || '',
+      source: editor.source?.value || '',
+      year: editor.year?.value || '',
+      date: editor.date?.value || '',
+      unit: editor.unit?.value?.trim() || '',
+      quantity: editor.qty?.value || '',
+      remarks: editor.remarks?.value?.trim() || ''
+    });
+  }
+
+  function markEditorClean() {
+    editorBaseline = serializeEditorState();
+  }
+
+  function isEditorDirty() {
+    return Boolean(editorBaseline) && serializeEditorState() !== editorBaseline;
+  }
+
+  function confirmDiscardChanges() {
+    if (!isEditorDirty()) {
+      return true;
+    }
+
+    return window.confirm('You have unsaved changes. Continue without saving them?');
+  }
+
+  function beginNewEntry(kind, options = {}) {
+    const target = kind === 'yearly' ? 'yearly' : 'granular';
+    if (!confirmDiscardChanges()) {
+      return false;
+    }
+
+    const preserveContext = options.preserveContext === true;
+    const context = preserveContext
+      ? {
+          projectId: editor.project?.value || '',
+          source: editor.source?.value || '',
+          year: editor.year?.value || ''
+        }
+      : null;
+
+    resetEditor(target);
+
+    if (context) {
+      if (editor.project && context.projectId && hasOption(editor.project, context.projectId)) {
+        editor.project.value = context.projectId;
+      }
+      if (editor.source && context.source && hasOption(editor.source, context.source)) {
+        editor.source.value = context.source;
+      }
+      if (editor.year && context.year) {
+        editor.year.value = context.year;
+      }
+      updateSaveButtonState();
+      markEditorClean();
+    }
+
+    return true;
+  }
 
   const fieldErrors = {
     project: document.querySelector('[data-field-error="project"]'),
@@ -453,7 +527,15 @@
     year: overridesCard ? overridesCard.querySelector('#pf-overrides-year') : null,
     search: overridesCard ? overridesCard.querySelector('#pf-overrides-search') : null,
     refresh: overridesCard ? overridesCard.querySelector('#pf-overrides-refresh') : null,
-    export: document.querySelector('#pf-overrides-export')
+    export: document.querySelector('#pf-overrides-export'),
+    ruleEditor: overridesCard ? overridesCard.querySelector('#pf-rule-editor') : null,
+    ruleProject: overridesCard ? overridesCard.querySelector('#pf-rule-project') : null,
+    ruleSource: overridesCard ? overridesCard.querySelector('#pf-rule-source') : null,
+    ruleYear: overridesCard ? overridesCard.querySelector('#pf-rule-year') : null,
+    ruleMode: overridesCard ? overridesCard.querySelector('#pf-rule-mode') : null,
+    ruleSave: overridesCard ? overridesCard.querySelector('#pf-rule-save') : null,
+    ruleGuidance: overridesCard ? overridesCard.querySelector('#pf-rule-guidance') : null,
+    ruleDefaultBadge: overridesCard ? overridesCard.querySelector('#pf-rule-default-badge') : null
   };
   const overridesOverviewUrl = overridesCard?.dataset?.overviewUrl ?? '';
   const overridesExportUrl = overridesCard?.dataset?.exportUrl ?? '';
@@ -489,11 +571,20 @@
     const wrapper = document.createElement('div');
     wrapper.className = `toast align-items-center text-bg-${variant} border-0`;
     wrapper.role = 'status';
-    wrapper.innerHTML = `
-      <div class="d-flex">
-        <div class="toast-body">${message}</div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-      </div>`;
+
+    const layout = document.createElement('div');
+    layout.className = 'd-flex';
+    const body = document.createElement('div');
+    body.className = 'toast-body';
+    body.textContent = String(message);
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'btn-close btn-close-white me-2 m-auto';
+    close.setAttribute('data-bs-dismiss', 'toast');
+    close.setAttribute('aria-label', 'Close');
+    layout.append(body, close);
+    wrapper.append(layout);
+
     toastHost.append(wrapper);
     const instance = bootstrap?.Toast?.getOrCreateInstance(wrapper, { delay: 3500 }) ?? null;
     wrapper.addEventListener('hidden.bs.toast', () => wrapper.remove(), { once: true });
@@ -735,7 +826,7 @@
   }
 
   function getScopeLabel(kind) {
-    return kind === 'yearly' ? 'Yearly total' : 'Granular entry';
+    return kind === 'yearly' ? 'Annual quantity' : 'Detailed entry';
   }
 
   function setCommandScope(kind) {
@@ -919,7 +1010,7 @@
       chips.push({ key: 'source', label: 'Source', value: label });
     }
     if (filters.kind) {
-      const label = getOptionLabel(filterInputs.kind, filters.kind) || (filters.kind === 'granular' ? 'Granular' : 'Yearly');
+      const label = getOptionLabel(filterInputs.kind, filters.kind) || (filters.kind === 'granular' ? 'Detailed entry' : 'Annual quantity');
       chips.push({ key: 'kind', label: 'Type', value: label });
     }
     if (filters.status) {
@@ -1099,7 +1190,7 @@
     if (!overridesElements.summary) return;
     const count = overridesRows.size;
     if (count === 0) {
-      overridesElements.summary.textContent = 'No overrides configured.';
+      overridesElements.summary.textContent = 'No counting exceptions configured.';
       return;
     }
 
@@ -1107,8 +1198,8 @@
     if (stats) {
       const breakdown = [];
       if (stats.both) breakdown.push(`${stats.both} with both data types`);
-      if (stats.granularOnly) breakdown.push(`${stats.granularOnly} granular-only`);
-      if (stats.yearlyOnly) breakdown.push(`${stats.yearlyOnly} yearly-only`);
+      if (stats.granularOnly) breakdown.push(`${stats.granularOnly} detailed-only`);
+      if (stats.yearlyOnly) breakdown.push(`${stats.yearlyOnly} annual-only`);
       if (stats.none) breakdown.push(`${stats.none} without approved data`);
       if (stats.autoFallback) breakdown.push(`${stats.autoFallback} auto fallback`);
       if (breakdown.length) {
@@ -1129,7 +1220,7 @@
       }
     }
 
-    let summary = count === 1 ? '1 override loaded.' : `${count} overrides loaded.`;
+    let summary = count === 1 ? '1 counting exception loaded.' : `${count} counting exceptions loaded.`;
     if (detailParts.length) {
       summary = `${summary} ${detailParts.join(' ')}`;
     }
@@ -1141,7 +1232,7 @@
     overridesRows.clear();
 
     if (!rows || rows.length === 0) {
-      overridesElements.tableBody.innerHTML = '<tr><td colspan="6" class="text-muted">No overrides found.</td></tr>';
+      overridesElements.tableBody.innerHTML = '<tr><td colspan="6" class="text-muted">No counting exceptions found.</td></tr>';
       updateOverridesSummary();
       updateOverridesExportAvailability(false);
       return;
@@ -1181,21 +1272,21 @@
     };
 
     const markup = normalizedRows.map((row) => {
-      const projectCode = row.projectCode ? `<div class="small text-muted">${row.projectCode}</div>` : '';
-      const scope = `<div class="small text-muted">${row.sourceLabel} · ${row.year}</div>`;
+      const projectCode = row.projectCode ? `<div class="small text-muted">${escapeHtml(row.projectCode)}</div>` : '';
+      const scope = `<div class="small text-muted">${escapeHtml(row.sourceLabel)} · ${escapeHtml(row.year)}</div>`;
       const updated = formatDateTime(row.setOnUtc);
       const coverageBadges = [];
       if (row.hasYearly && row.hasGranular) {
         stats.both += 1;
-        coverageBadges.push('<span class="badge text-bg-success">Yearly + Granular present</span>');
+        coverageBadges.push('<span class="badge text-bg-success">Annual + detailed records present</span>');
       } else if (row.hasGranular) {
         stats.granularOnly += 1;
-        coverageBadges.push('<span class="badge text-bg-primary">Granular present</span>');
-        coverageBadges.push('<span class="badge text-bg-light text-wrap">No yearly total</span>');
+        coverageBadges.push('<span class="badge text-bg-primary">Detailed records present</span>');
+        coverageBadges.push('<span class="badge text-bg-light text-wrap">No annual quantity</span>');
       } else if (row.hasYearly) {
         stats.yearlyOnly += 1;
-        coverageBadges.push('<span class="badge text-bg-primary">Yearly present</span>');
-        coverageBadges.push('<span class="badge text-bg-light text-wrap">No granular data</span>');
+        coverageBadges.push('<span class="badge text-bg-primary">Annual quantity present</span>');
+        coverageBadges.push('<span class="badge text-bg-light text-wrap">No detailed entries</span>');
       } else {
         stats.none += 1;
         coverageBadges.push('<span class="badge text-bg-warning text-dark">No approved data</span>');
@@ -1210,16 +1301,16 @@
       const effectiveTotalDisplay = effectiveTotal === null ? '—' : effectiveTotal.toLocaleString();
       const actions = `
         <div class="btn-group btn-group-sm" role="group">
-          <button type="button" class="btn btn-outline-secondary" data-action="focus-list" data-id="${row.id}">List</button>
-          <button type="button" class="btn btn-outline-secondary" data-action="prefill" data-id="${row.id}">Editor</button>
-          <button type="button" class="btn btn-outline-secondary" data-action="overview" data-id="${row.id}">Overview</button>
-          <button type="button" class="btn btn-outline-danger" data-action="clear" data-id="${row.id}">Clear</button>
+          <button type="button" class="btn btn-outline-secondary" data-action="focus-list" data-id="${escapeHtml(row.id)}">Records</button>
+          <button type="button" class="btn btn-outline-primary" data-action="edit-rule" data-id="${escapeHtml(row.id)}">Edit rule</button>
+          <button type="button" class="btn btn-outline-secondary" data-action="project" data-id="${escapeHtml(row.id)}">Project total</button>
+          <button type="button" class="btn btn-outline-danger" data-action="clear" data-id="${escapeHtml(row.id)}">Use default</button>
         </div>`;
 
       return `
         <tr>
           <td>
-            <div class="fw-semibold">${row.projectName}</div>
+            <div class="fw-semibold">${escapeHtml(row.projectName)}</div>
             ${projectCode}
           </td>
           <td>${scope}</td>
@@ -1227,19 +1318,19 @@
             <div class="d-flex flex-wrap gap-1">${coverageBadges.join('')}</div>
           </td>
           <td>
-            <div class="fw-semibold">${row.modeLabel}</div>
-            <div class="small text-muted">Effective: ${row.effectiveModeLabel}</div>
-            <div class="small">Total in play: <span class="fw-semibold">${effectiveTotalDisplay}</span></div>
+            <div class="fw-semibold">${escapeHtml(row.modeLabel)}</div>
+            <div class="small text-muted">Effective: ${escapeHtml(row.effectiveModeLabel)}</div>
+            <div class="small">Total in play: <span class="fw-semibold">${escapeHtml(effectiveTotalDisplay)}</span></div>
           </td>
           <td>
-            <div class="fw-semibold">${row.setByDisplayName}</div>
-            <div class="small text-muted">${updated}</div>
+            <div class="fw-semibold">${escapeHtml(row.setByDisplayName)}</div>
+            <div class="small text-muted">${escapeHtml(updated)}</div>
           </td>
           <td class="text-end">${actions}</td>
         </tr>`;
     }).join('');
 
-    overridesElements.tableBody.innerHTML = markup || '<tr><td colspan="6" class="text-muted">No overrides found.</td></tr>';
+    overridesElements.tableBody.innerHTML = markup || '<tr><td colspan="6" class="text-muted">No counting exceptions found.</td></tr>';
     updateOverridesSummary(stats);
     updateOverridesExportAvailability(overridesRows.size > 0);
   }
@@ -1262,18 +1353,18 @@
       const response = await fetch(`${api.overrides}?${params.toString()}`, { headers: { Accept: 'application/json' } });
       if (!response.ok) {
         const text = await response.text();
-        throw new Error(text || 'Unable to load overrides');
+        throw new Error(text || 'Unable to load counting exceptions');
       }
       const data = await response.json();
       const rows = Array.isArray(data) ? data : [];
       renderOverrides(rows);
     } catch (error) {
-      overridesElements.tableBody.innerHTML = '<tr><td colspan="6" class="text-danger">Failed to load overrides.</td></tr>';
+      overridesElements.tableBody.innerHTML = '<tr><td colspan="6" class="text-danger">Failed to load counting exceptions.</td></tr>';
       if (overridesElements.summary) {
         overridesElements.summary.textContent = '';
       }
       updateOverridesExportAvailability(false);
-      toast(error.message || 'Unable to load overrides', 'danger');
+      toast(error.message || 'Unable to load counting exceptions', 'danger');
     }
   }
 
@@ -1365,40 +1456,130 @@
     renderFilterChips();
     fetchList();
     listCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    toast('List filters updated for this override.', 'info');
+    toast('List filters updated for this counting exception.', 'info');
   }
 
-  function prefillEditorFromOverride(row) {
-    if (!row) return;
-    resetEditor('yearly');
-    if (editor.project && hasOption(editor.project, row.projectId)) {
-      editor.project.value = String(row.projectId);
+  function getSourceDefaultMode(sourceValue) {
+    return Number(sourceValue) === 2 ? 'UseYearly' : 'UseYearlyAndGranular';
+  }
+
+  function updateRuleGuidance() {
+    if (!overridesElements.ruleSource) return;
+    const isAbw = Number(overridesElements.ruleSource.value) === 2;
+    if (overridesElements.ruleDefaultBadge) {
+      overridesElements.ruleDefaultBadge.textContent = isAbw
+        ? '515 ABW default: annual quantity'
+        : 'SDD default: annual + detailed';
     }
-    if (editor.source && row.sourceValue !== null && row.sourceValue !== undefined) {
-      const sourceValue = String(row.sourceValue);
-      if (hasOption(editor.source, sourceValue)) {
-        editor.source.value = sourceValue;
+    if (overridesElements.ruleGuidance) {
+      const selectedMode = overridesElements.ruleMode?.value || 'default';
+      if (selectedMode === 'default') {
+        overridesElements.ruleGuidance.textContent = isAbw
+          ? '515 ABW normally counts the approved annual quantity. Detailed entries remain available for reference.'
+          : 'SDD normally adds the annual quantity and approved detailed entries.';
+      } else {
+        overridesElements.ruleGuidance.textContent = 'This creates a deliberate exception for the selected project, source and year.';
       }
     }
-    if (editor.year) {
-      editor.year.value = String(row.year ?? defaults.year);
+  }
+
+  function editRuleFromOverride(row) {
+    if (!row || !overridesElements.ruleEditor) return;
+    if (overridesElements.ruleProject) {
+      ensureFilterOption(overridesElements.ruleProject, row.projectId, row.projectName);
+      overridesElements.ruleProject.value = String(row.projectId ?? '');
     }
-    setTab('yearly');
-    editor.project?.focus();
-    editorCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    toast('Editor prefilled from override.', 'info');
+    if (overridesElements.ruleSource && row.sourceValue !== null && row.sourceValue !== undefined) {
+      overridesElements.ruleSource.value = String(row.sourceValue);
+    }
+    if (overridesElements.ruleYear) {
+      overridesElements.ruleYear.value = String(row.year ?? defaults.year);
+    }
+    if (overridesElements.ruleMode) {
+      const allowed = ['UseYearlyAndGranular', 'UseYearly', 'UseGranular', 'Auto'];
+      overridesElements.ruleMode.value = allowed.includes(row.mode) ? row.mode : 'default';
+    }
+    updateRuleGuidance();
+    overridesElements.ruleEditor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    overridesElements.ruleMode?.focus();
+  }
+
+  function openProjectTotal(row) {
+    const projectId = Number(row?.projectId);
+    if (!Number.isInteger(projectId) || projectId <= 0) return;
+    window.open(`/ProjectOfficeReports/Proliferation/Project/${encodeURIComponent(projectId)}`, '_blank', 'noopener');
+  }
+
+  async function saveCountingRule() {
+    const projectId = Number(overridesElements.ruleProject?.value || 0);
+    const source = Number(overridesElements.ruleSource?.value || 0);
+    const year = Number(overridesElements.ruleYear?.value || 0);
+    const selected = overridesElements.ruleMode?.value || 'default';
+
+    if (!Number.isInteger(projectId) || projectId <= 0) {
+      toast('Select a project for the counting rule.', 'warning');
+      overridesElements.ruleProject?.focus();
+      return;
+    }
+    if (![1, 2].includes(source)) {
+      toast('Select a valid source.', 'warning');
+      overridesElements.ruleSource?.focus();
+      return;
+    }
+    if (!Number.isInteger(year) || year < 2000 || year > 3000) {
+      toast('Enter a valid four digit year.', 'warning');
+      overridesElements.ruleYear?.focus();
+      return;
+    }
+
+    const mode = selected === 'default' ? getSourceDefaultMode(source) : selected;
+    const allowed = ['UseYearlyAndGranular', 'UseYearly', 'UseGranular', 'Auto'];
+    if (!allowed.includes(mode)) {
+      toast('Select a valid counting rule.', 'warning');
+      overridesElements.ruleMode?.focus();
+      return;
+    }
+
+    const button = overridesElements.ruleSave;
+    const original = button?.innerHTML || 'Save counting rule';
+    if (button) {
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Saving…';
+    }
+
+    try {
+      const response = await fetch(api.setPreference, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
+        body: JSON.stringify({ projectId, source, year, mode })
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || 'Unable to save the counting rule.');
+      }
+
+      toast(selected === 'default' ? 'Source default restored.' : 'Counting rule saved.', 'success');
+      await fetchOverrides();
+    } catch (error) {
+      toast(error.message || 'Unable to save the counting rule.', 'danger');
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.innerHTML = original;
+      }
+    }
   }
 
   async function clearOverride(row) {
     if (!row) return;
-    const confirmed = window.confirm('Clear this preference override and return to defaults?');
+    const confirmed = window.confirm('Return this project-year to its source default counting rule?');
     if (!confirmed) return;
     try {
       const payload = {
         projectId: row.projectId,
         source: row.sourceValue ?? row.source,
         year: row.year,
-        mode: 'UseYearlyAndGranular'
+        mode: Number(row.sourceValue ?? row.source) === 2 ? 'UseYearly' : 'UseYearlyAndGranular'
       };
       const response = await fetch(api.setPreference, {
         method: 'POST',
@@ -1409,11 +1590,11 @@
         const text = await response.text();
         if (response.status === 403) {
           openOverview(row, '#preferences');
-          throw new Error(text || 'You do not have permission to change preferences. Try updating them from the overview.');
+          throw new Error(text || 'You do not have permission to change this counting rule.');
         }
-        throw new Error(text || 'Unable to clear override');
+        throw new Error(text || 'Unable to restore the source default');
       }
-      toast('Preference override cleared.', 'success');
+      toast('Counting exception cleared.', 'success');
       emitDeepLinkEvent('override-cleared', {
         targetProjectId: row.projectId ? String(row.projectId) : '',
         targetSource: row.sourceValue !== null && row.sourceValue !== undefined
@@ -1423,12 +1604,12 @@
       });
       fetchOverrides();
     } catch (error) {
-      toast(error.message || 'Unable to clear override', 'danger');
+      toast(error.message || 'Unable to restore the source default', 'danger');
     }
   }
 
   function confirmDeletion(details = {}) {
-    const fallbackType = details.type === 'yearly' ? 'yearly total' : 'record';
+    const fallbackType = details.type === 'yearly' ? 'annual quantity' : 'record';
     const fallbackProject = details.project ? ` for ${details.project}` : '';
     const fallbackDate = details.dateOrYear ? ` (${details.dateOrYear})` : '';
     const fallbackMessage = `Are you sure you want to delete this ${fallbackType}${fallbackProject}${fallbackDate}?`;
@@ -1452,7 +1633,7 @@
     }
 
     if (deleteModalElements.type) {
-      const typeLabel = details.type === 'yearly' ? 'yearly total' : 'record';
+      const typeLabel = details.type === 'yearly' ? 'annual quantity' : 'record';
       deleteModalElements.type.textContent = typeLabel;
     }
     if (deleteModalElements.project) {
@@ -1619,6 +1800,20 @@
       exportOverrides();
     });
 
+    if (overridesElements.ruleProject && bootDefaults.overrides?.projectId) {
+      overridesElements.ruleProject.value = bootDefaults.overrides.projectId;
+    }
+    if (overridesElements.ruleSource) {
+      overridesElements.ruleSource.value = bootDefaults.overrides?.source || '1';
+    }
+    if (overridesElements.ruleYear) {
+      overridesElements.ruleYear.value = bootDefaults.overrides?.year || String(defaults.year);
+    }
+    updateRuleGuidance();
+    overridesElements.ruleSource?.addEventListener('change', updateRuleGuidance);
+    overridesElements.ruleMode?.addEventListener('change', updateRuleGuidance);
+    overridesElements.ruleSave?.addEventListener('click', saveCountingRule);
+
     overridesElements.tableBody?.addEventListener('click', (event) => {
       const button = event.target.closest('button[data-action][data-id]');
       if (!button) return;
@@ -1627,13 +1822,13 @@
       if (!id || !action) return;
       const row = overridesRows.get(id);
       if (!row) {
-        toast('Override details not found. Refresh and try again.', 'warning');
+        toast('Counting exception details not found. Refresh and try again.', 'warning');
         return;
       }
-      if (action === 'overview') {
-        openOverview(row, '#overview');
-      } else if (action === 'prefill') {
-        prefillEditorFromOverride(row);
+      if (action === 'project') {
+        openProjectTotal(row);
+      } else if (action === 'edit-rule') {
+        editRuleFromOverride(row);
       } else if (action === 'focus-list') {
         focusListFromOverride(row);
       } else if (action === 'clear') {
@@ -1670,11 +1865,11 @@
         <button class="list-group-item list-group-item-action${activeClass}" data-id="${item.id}" data-kind="${kind}"${updatedAttr}${currentAttr} type="button">
           <div class="d-flex justify-content-between align-items-start gap-3">
             <div>
-              <div class="fw-semibold">${project}</div>
-              <div class="small text-muted">${subtitle}</div>
+              <div class="fw-semibold">${escapeHtml(project)}</div>
+              <div class="small text-muted">${escapeHtml(subtitle)}</div>
             </div>
             <div class="text-end">
-              <div class="fw-semibold">${quantity}</div>
+              <div class="fw-semibold">${escapeHtml(quantity)}</div>
             </div>
           </div>
         </button>`;
@@ -1767,41 +1962,32 @@
     if (!button) return;
     const id = button.getAttribute('data-id');
     const kind = button.getAttribute('data-kind');
-    if (!id || !kind) return;
-    if (listEl) {
-      listEl.querySelectorAll('.list-group-item.active').forEach((item) => {
-        item.classList.remove('active');
-        item.removeAttribute('aria-current');
-      });
-    }
-    button.classList.add('active');
-    button.setAttribute('aria-current', 'true');
+    if (!id || !kind || !confirmDiscardChanges()) return;
+
     const metadata = {
       updated: button.dataset.updated || ''
     };
-    loadIntoEditor(kind, id, metadata).catch((err) => {
-      toast(err.message || 'Unable to load entry', 'danger');
-    });
+
+    loadIntoEditor(kind, id, metadata)
+      .then(() => {
+        if (listEl) {
+          listEl.querySelectorAll('.list-group-item.active').forEach((item) => {
+            item.classList.remove('active');
+            item.removeAttribute('aria-current');
+          });
+        }
+        button.classList.add('active');
+        button.setAttribute('aria-current', 'true');
+      })
+      .catch((err) => {
+        toast(err.message || 'Unable to load entry', 'danger');
+      });
   });
 
-  function enforceSourceForKind(kind) {
-    const options = Array.from(editor.source?.options ?? []);
-    if (!options.length) return;
-    if (kind === 'granular') {
-      options.forEach((opt) => {
-        if (!opt.value) return;
-        const isSdd = Number(opt.value) === Number(defaults.granularSource);
-        opt.disabled = !isSdd;
-      });
-      const selected = options.find((opt) => !opt.disabled) ?? options.find((opt) => opt.value);
-      if (selected) {
-        editor.source.value = selected.value;
-      }
-    } else {
-      options.forEach((opt) => {
-        opt.disabled = false;
-      });
-    }
+  function enforceSourceForKind() {
+    Array.from(editor.source?.options ?? []).forEach((option) => {
+      option.disabled = false;
+    });
   }
 
   function setTab(kind, options = {}) {
@@ -1822,6 +2008,21 @@
     if (editor.qty) editor.qty.min = isGranular ? 1 : 0;
     enforceSourceForKind(target);
     setCommandScope(target);
+
+    const guidance = document.querySelector('[data-guidance-text]');
+    const quantityLabel = document.querySelector('[data-quantity-label]');
+    const quantityHelp = document.querySelector('[data-quantity-help]');
+    if (guidance) {
+      guidance.textContent = isGranular
+        ? 'Use a detailed entry when the proliferation date, receiving unit and quantity are known.'
+        : 'Use an annual quantity for records that do not have individual date and unit details. Enter only the quantity not already represented by detailed entries.';
+    }
+    if (quantityLabel) quantityLabel.textContent = isGranular ? 'Quantity' : 'Annual quantity';
+    if (quantityHelp) {
+      quantityHelp.textContent = isGranular
+        ? 'Enter the quantity received by the selected unit on this date.'
+        : 'Enter only the aggregate quantity for which detailed entries are unavailable.';
+    }
     if (updateHash) {
       const newHash = `#${target}`;
       if (window.location.hash !== newHash) {
@@ -1831,8 +2032,25 @@
     updateSaveButtonState();
   }
 
-  document.querySelector('#tab-granular')?.addEventListener('click', () => setTab('granular'));
-  document.querySelector('#tab-yearly')?.addEventListener('click', () => setTab('yearly'));
+  document.querySelector('#tab-granular')?.addEventListener('click', () => {
+    if (editor.kind?.value !== 'granular') {
+      beginNewEntry('granular', { preserveContext: true });
+    }
+  });
+  document.querySelector('#tab-yearly')?.addEventListener('click', () => {
+    if (editor.kind?.value !== 'yearly') {
+      beginNewEntry('yearly', { preserveContext: true });
+    }
+  });
+
+  document.querySelectorAll('[data-new-proliferation]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const kind = button.dataset.newProliferation === 'yearly' ? 'yearly' : 'granular';
+      if (!beginNewEntry(kind)) return;
+      document.querySelector('#pf-detail-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      editor.project?.focus();
+    });
+  });
 
   async function loadIntoEditor(kind, id, metadata = {}) {
     const endpoint = kind === 'yearly' ? api.yearly(id) : api.granular(id);
@@ -1876,6 +2094,7 @@
     clearValidationState();
     setSaveButtonState('idle');
     updateSaveButtonState();
+    markEditorClean();
   }
 
   editor.form?.addEventListener('submit', async (event) => {
@@ -1916,6 +2135,9 @@
 
   async function decideRecord(approve) {
     if (!canApproveRecords || !currentRecord.id) {
+      return;
+    }
+    if (!confirmDiscardChanges()) {
       return;
     }
 
@@ -1999,6 +2221,7 @@
   }
 
   editor.btnReset?.addEventListener('click', () => {
+    if (!confirmDiscardChanges()) return;
     const currentKind = editor.kind.value;
     resetEditor(currentKind);
   });
@@ -2079,6 +2302,7 @@
       });
     }
     setSaveButtonState('idle');
+    markEditorClean();
   }
 
   function getHashKind() {
@@ -2091,11 +2315,18 @@
 
   function handleHashChange() {
     const kind = getHashKind();
-    if (!kind) return;
-    setTab(kind, { updateHash: false });
+    if (!kind || kind === editor.kind?.value) return;
+    if (!beginNewEntry(kind, { preserveContext: true })) {
+      window.history.replaceState(null, '', `#${editor.kind?.value || 'granular'}`);
+    }
   }
 
   window.addEventListener('hashchange', handleHashChange);
+  window.addEventListener('beforeunload', (event) => {
+    if (!isEditorDirty()) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
 
   function initFilters() {
     loadFiltersFromStorage();
@@ -2168,6 +2399,7 @@
     } else {
       setTab('granular', { updateHash: false });
     }
+    markEditorClean();
     fetchList();
   }
 

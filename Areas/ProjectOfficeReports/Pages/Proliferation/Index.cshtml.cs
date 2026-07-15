@@ -26,7 +26,7 @@ public sealed class IndexModel : PageModel
         var managePreferencesResult = await _authorizationService.AuthorizeAsync(
             User,
             resource: null,
-            ProjectOfficeReportsPolicies.ApproveProliferationTracker);
+            ProjectOfficeReportsPolicies.ManageProliferationPreferences);
         CanManagePreferences = managePreferencesResult.Succeeded;
 
         var submitResult = await _authorizationService.AuthorizeAsync(

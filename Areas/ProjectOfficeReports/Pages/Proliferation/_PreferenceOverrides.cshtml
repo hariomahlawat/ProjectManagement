@@ -1,5 +1,4 @@
 @using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels
-
 @model ProliferationPreferenceOverridesBootVm
 @{
     var defaults = Model.Defaults;
@@ -12,53 +11,123 @@
         ProliferationRecordKind.Granular => "granular",
         _ => string.Empty
     };
-
     var overviewUrl = Url.Page("/Proliferation/Index", new { area = "ProjectOfficeReports" }) ?? string.Empty;
     var exportUrl = Url.Action("ExportPreferenceOverrides", "Proliferation", new { area = "ProjectOfficeReports" }) ?? string.Empty;
 }
 
-<div class="card shadow-sm pf-manage-card pf-manage-card--overrides" id="pf-overrides-card" data-default-year="@Model.CurrentYear" data-overview-url="@overviewUrl" data-export-url="@exportUrl"
-     data-boot-project-id="@defaultProjectId" data-boot-source="@defaultSource" data-boot-year="@defaultYear" data-boot-kind="@defaultKind">
+<div class="card pf-manage-card pf-manage-card--overrides" id="pf-overrides-card"
+     data-default-year="@Model.CurrentYear"
+     data-overview-url="@overviewUrl"
+     data-export-url="@exportUrl"
+     data-boot-project-id="@defaultProjectId"
+     data-boot-source="@defaultSource"
+     data-boot-year="@defaultYear"
+     data-boot-kind="@defaultKind">
     <div class="card-header border-0 pb-0">
         <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
             <div>
-                <h3 class="card-title h5 mb-0">Preference overrides</h3>
-                <p class="card-subtitle text-muted small mb-0">Review override coverage and jump to projects that need attention.</p>
+                <h3 class="card-title h5 mb-0">Counting exceptions</h3>
+                <p class="card-subtitle text-muted small mb-0">
+                    Defaults: SDD counts annual quantity + detailed entries; 515 ABW counts annual quantity. Only deliberate exceptions are listed here.
+                </p>
             </div>
             <button class="btn btn-sm btn-link text-decoration-none" id="pf-overrides-collapse-toggle" type="button" aria-expanded="true">
-                <span data-expanded-text>Hide table</span>
-                <span data-collapsed-text class="d-none">Show table</span>
+                <span data-expanded-text>Hide</span>
+                <span data-collapsed-text class="d-none">Show</span>
             </button>
         </div>
     </div>
 
-    <div class="card-body pt-3">
-        <div class="d-flex flex-wrap align-items-center gap-2 w-100">
-            <label class="visually-hidden" for="pf-overrides-project">Project</label>
-            <select class="form-select form-select-sm flex-fill" id="pf-overrides-project">
-                <option value="">All projects</option>
-                @foreach (var project in Model.CompletedProjects)
-                {
-                    <option value="@project.Id">@project.DisplayName</option>
-                }
-            </select>
+    <div class="card-body pt-3 border-top-0">
+        <section class="pf-rule-editor" id="pf-rule-editor" aria-labelledby="pf-rule-editor-heading">
+            <div class="pf-rule-editor__heading">
+                <div>
+                    <h4 class="h6 mb-1" id="pf-rule-editor-heading">Set a counting rule</h4>
+                    <p class="text-muted small mb-0">Use this only where a project-year must be counted differently from its source default.</p>
+                </div>
+                <span class="badge text-bg-light" id="pf-rule-default-badge">SDD default: annual + detailed</span>
+            </div>
+            <div class="row g-2 align-items-end mt-1">
+                <div class="col-12 col-lg-4">
+                    <label class="form-label small" for="pf-rule-project">Project</label>
+                    <select class="form-select form-select-sm" id="pf-rule-project">
+                        <option value="">Select project</option>
+                        @foreach (var project in Model.CompletedProjects)
+                        {
+                            <option value="@project.Id">@project.DisplayName</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-6 col-lg-2">
+                    <label class="form-label small" for="pf-rule-source">Source</label>
+                    <select class="form-select form-select-sm" id="pf-rule-source">
+                        @foreach (var source in Model.SourceOptions)
+                        {
+                            <option value="@source.Value">@source.Label</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-6 col-lg-2">
+                    <label class="form-label small" for="pf-rule-year">Year</label>
+                    <input class="form-control form-control-sm" id="pf-rule-year" type="number" value="@Model.CurrentYear" min="2000" max="3000" />
+                </div>
+                <div class="col-12 col-lg-4">
+                    <label class="form-label small" for="pf-rule-mode">Counting rule</label>
+                    <select class="form-select form-select-sm" id="pf-rule-mode">
+                        <option value="default">Use source default</option>
+                        <option value="UseYearlyAndGranular">Annual quantity + detailed entries</option>
+                        <option value="UseYearly">Annual quantity only</option>
+                        <option value="UseGranular">Detailed entries only</option>
+                        <option value="Auto">Detailed entries where available; otherwise annual quantity</option>
+                    </select>
+                </div>
+            </div>
+            <div class="pf-rule-editor__footer">
+                <p class="small mb-0" id="pf-rule-guidance">SDD normally adds the annual quantity and approved detailed entries.</p>
+                <button class="btn btn-sm btn-primary" id="pf-rule-save" type="button">Save counting rule</button>
+            </div>
+        </section>
+    </div>
 
-            <label class="visually-hidden" for="pf-overrides-source">Source</label>
-            <select class="form-select form-select-sm flex-fill" id="pf-overrides-source">
-                <option value="">All sources</option>
-                @foreach (var source in Model.SourceOptions)
-                {
-                    <option value="@source.Value">@source.Label</option>
-                }
-            </select>
-
-            <label class="visually-hidden" for="pf-overrides-year">Year</label>
-            <input class="form-control form-control-sm flex-fill" id="pf-overrides-year" type="number" placeholder="Year" min="2000" max="3000" />
-
-            <label class="visually-hidden" for="pf-overrides-search">Search overrides</label>
-            <input class="form-control form-control-sm flex-grow-1" id="pf-overrides-search" type="search" placeholder="Search…" />
-
-            <button class="btn btn-sm btn-outline-secondary" id="pf-overrides-refresh" type="button">Refresh</button>
+    <div class="card-body pt-3 border-top">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <div>
+                <h4 class="h6 mb-0">Configured exceptions</h4>
+                <p class="text-muted small mb-0">Rules matching the source default are not shown.</p>
+            </div>
+        </div>
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-lg-4">
+                <label class="form-label small" for="pf-overrides-project">Project</label>
+                <select class="form-select form-select-sm" id="pf-overrides-project">
+                    <option value="">All projects</option>
+                    @foreach (var project in Model.CompletedProjects)
+                    {
+                        <option value="@project.Id">@project.DisplayName</option>
+                    }
+                </select>
+            </div>
+            <div class="col-6 col-lg-2">
+                <label class="form-label small" for="pf-overrides-source">Source</label>
+                <select class="form-select form-select-sm" id="pf-overrides-source">
+                    <option value="">All sources</option>
+                    @foreach (var source in Model.SourceOptions)
+                    {
+                        <option value="@source.Value">@source.Label</option>
+                    }
+                </select>
+            </div>
+            <div class="col-6 col-lg-2">
+                <label class="form-label small" for="pf-overrides-year">Year</label>
+                <input class="form-control form-control-sm" id="pf-overrides-year" type="number" placeholder="All" min="2000" max="3000" />
+            </div>
+            <div class="col-9 col-lg-3">
+                <label class="form-label small" for="pf-overrides-search">Search</label>
+                <input class="form-control form-control-sm" id="pf-overrides-search" type="search" placeholder="Project or user" />
+            </div>
+            <div class="col-3 col-lg-1 d-grid">
+                <button class="btn btn-sm btn-outline-secondary" id="pf-overrides-refresh" type="button" aria-label="Refresh counting exceptions"><i class="bi bi-arrow-clockwise"></i></button>
+            </div>
         </div>
     </div>
 
@@ -69,17 +138,15 @@
                     <thead class="table-light">
                         <tr>
                             <th scope="col">Project</th>
-                            <th scope="col">Scope</th>
-                            <th scope="col">Data coverage</th>
-                            <th scope="col">Preference</th>
-                            <th scope="col">Updated</th>
+                            <th scope="col">Source / year</th>
+                            <th scope="col">Available records</th>
+                            <th scope="col">Counting rule</th>
+                            <th scope="col">Changed by</th>
                             <th scope="col" class="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="pf-overrides-body">
-                        <tr data-placeholder>
-                            <td colspan="6" class="text-muted">Use the filters to load overrides.</td>
-                        </tr>
+                        <tr data-placeholder><td colspan="6" class="text-muted">Loading counting exceptions…</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -88,6 +155,6 @@
 
     <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div id="pf-overrides-summary" class="small text-muted" aria-live="polite"></div>
-        <button class="btn btn-sm btn-outline-secondary d-none" id="pf-overrides-reset" type="button">Reset filters</button>
+        <button class="btn btn-sm btn-outline-secondary d-none" id="pf-overrides-reset" type="button">Clear filters</button>
     </div>
 </div>

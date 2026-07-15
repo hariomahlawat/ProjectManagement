@@ -23,6 +23,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
     [ApiController]
     [Route("api/proliferation")]
     [Authorize]
+    [AutoValidateAntiforgeryToken]
     public sealed class ProliferationController : ControllerBase
     {
         private readonly ApplicationDbContext _db;
@@ -30,6 +31,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         private readonly ProliferationSubmissionService _submitSvc;
         private readonly ProliferationManageService _manageSvc;
         private readonly ProliferationOverviewService _overviewSvc;
+        private readonly ProliferationAggregateReadService _aggregateSvc;
         private readonly IProliferationExportService _exportService;
         private readonly ILogger<ProliferationController> _logger;
 
@@ -39,6 +41,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             ProliferationSubmissionService submitSvc,
             ProliferationManageService manageSvc,
             ProliferationOverviewService overviewSvc,
+            ProliferationAggregateReadService aggregateSvc,
             IProliferationExportService exportService,
             ILogger<ProliferationController> logger)
         {
@@ -47,6 +50,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             _submitSvc = submitSvc;
             _manageSvc = manageSvc;
             _overviewSvc = overviewSvc;
+            _aggregateSvc = aggregateSvc;
             _exportService = exportService;
             _logger = logger;
         }
@@ -123,9 +127,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                     SourceLabel = item.Source.ToDisplayName(),
                     Year = item.Year,
                     Mode = item.Mode,
-                    ModeLabel = item.Mode.ToString(),
+                    ModeLabel = ProliferationAggregateReadService.GetCalculationLabel(item.Mode, item.Source),
                     EffectiveMode = item.EffectiveMode,
-                    EffectiveModeLabel = item.EffectiveMode.ToString(),
+                    EffectiveModeLabel = ProliferationAggregateReadService.GetCalculationLabel(item.EffectiveMode, item.Source),
                     SetByUserId = item.SetByUserId,
                     SetByDisplayName = item.SetByDisplayName,
                     SetOnUtc = item.SetOnUtc,
@@ -156,10 +160,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 "Project Code",
                 "Source",
                 "Year",
-                "Configured Mode",
-                "Effective Mode",
-                "Has Approved Yearly",
-                "Has Approved Granular",
+                "Configured counting rule",
+                "Effective counting rule",
+                "Has approved annual quantity",
+                "Has approved detailed entries",
                 "Set By",
                 "Set By User ID",
                 "Updated On (UTC)"
@@ -185,7 +189,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             }
 
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
-            var fileName = $"proliferation-preference-overrides-{timestamp}.csv";
+            var fileName = $"proliferation-counting-exceptions-{timestamp}.csv";
             var buffer = Encoding.UTF8.GetBytes(builder.ToString());
             return File(buffer, "text/csv", fileName);
         }
@@ -324,6 +328,150 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 ProjectCategories = projectCategories,
                 TechnicalCategories = technicalCategories
             };
+        }
+
+        [HttpGet("groups")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
+        public async Task<ActionResult<ProliferationGroupedResponseDto>> GetGroupedRecords(
+            [FromQuery] ProliferationGroupedQueryDto query,
+            CancellationToken ct)
+        {
+            var page = Math.Max(1, query.Page);
+            var pageSize = Math.Clamp(query.PageSize <= 0 ? 25 : query.PageSize, 10, 100);
+
+            var aggregates = await _aggregateSvc.GetApprovedAggregatesAsync(query.ProjectId, ct);
+            IEnumerable<ProliferationAggregateRow> filtered = aggregates;
+
+            if (query.Source.HasValue)
+            {
+                filtered = filtered.Where(x => x.Source == query.Source.Value);
+            }
+
+            if (query.Year.HasValue)
+            {
+                filtered = filtered.Where(x => x.Year == query.Year.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(query.Search))
+            {
+                var term = query.Search.Trim();
+                var like = $"%{EscapeLikePattern(term)}%";
+
+                var matchingDetailed = await _db.ProliferationGranularEntries
+                    .AsNoTracking()
+                    .Where(x => x.ApprovalStatus == ApprovalStatus.Approved)
+                    .Where(x =>
+                        EF.Functions.ILike(x.UnitName, like, "\\") ||
+                        (x.Remarks != null && EF.Functions.ILike(x.Remarks, like, "\\")))
+                    .Select(x => new { x.ProjectId, x.Source, Year = x.ProliferationDate.Year })
+                    .Distinct()
+                    .ToListAsync(ct);
+
+                var matchingAnnual = await _db.ProliferationYearlies
+                    .AsNoTracking()
+                    .Where(x => x.ApprovalStatus == ApprovalStatus.Approved && x.Remarks != null)
+                    .Where(x => EF.Functions.ILike(x.Remarks!, like, "\\"))
+                    .Select(x => new { x.ProjectId, x.Source, x.Year })
+                    .Distinct()
+                    .ToListAsync(ct);
+
+                var matchingKeys = matchingDetailed
+                    .Select(x => (x.ProjectId, x.Source, x.Year))
+                    .Concat(matchingAnnual.Select(x => (x.ProjectId, x.Source, x.Year)))
+                    .ToHashSet();
+
+                filtered = filtered.Where(x =>
+                    x.ProjectName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    (!string.IsNullOrWhiteSpace(x.ProjectCode) &&
+                     x.ProjectCode.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
+                    matchingKeys.Contains((x.ProjectId, x.Source, x.Year)));
+            }
+
+            var ordered = filtered
+                .OrderBy(x => x.ProjectName, StringComparer.OrdinalIgnoreCase)
+                .ThenByDescending(x => x.Year)
+                .ThenBy(x => x.Source)
+                .ToList();
+
+            var total = ordered.Count;
+            var selected = ordered
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            var selectedKeys = selected
+                .Select(x => (x.ProjectId, x.Source, x.Year))
+                .ToHashSet();
+            var selectedProjectIds = selected.Select(x => x.ProjectId).Distinct().ToArray();
+
+            var detailedEntries = selectedProjectIds.Length == 0
+                ? new List<ProliferationGroupedDetailedEntryProjection>()
+                : await _db.ProliferationGranularEntries
+                    .AsNoTracking()
+                    .Where(x =>
+                        selectedProjectIds.Contains(x.ProjectId) &&
+                        x.ApprovalStatus == ApprovalStatus.Approved)
+                    .OrderByDescending(x => x.ProliferationDate)
+                    .ThenBy(x => x.UnitName)
+                    .Select(x => new ProliferationGroupedDetailedEntryProjection(
+                        x.Id,
+                        x.ProjectId,
+                        x.Source,
+                        x.ProliferationDate.Year,
+                        x.ProliferationDate,
+                        x.UnitName,
+                        x.Quantity,
+                        x.Remarks))
+                    .ToListAsync(ct);
+
+            var entriesLookup = detailedEntries
+                .Where(x => selectedKeys.Contains((x.ProjectId, x.Source, x.Year)))
+                .GroupBy(x => (x.ProjectId, x.Source, x.Year))
+                .ToDictionary(
+                    group => group.Key,
+                    group => (IReadOnlyList<ProliferationGroupedDetailedEntryDto>)group
+                        .Select(x => new ProliferationGroupedDetailedEntryDto
+                        {
+                            Id = x.Id,
+                            ProliferationDate = x.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                            UnitName = x.UnitName,
+                            Quantity = x.Quantity,
+                            Remarks = x.Remarks
+                        })
+                        .ToList());
+
+            var items = selected
+                .Select(row =>
+                {
+                    entriesLookup.TryGetValue((row.ProjectId, row.Source, row.Year), out var entries);
+                    return new ProliferationGroupedRowDto
+                    {
+                        ProjectId = row.ProjectId,
+                        ProjectName = row.ProjectName,
+                        ProjectCode = row.ProjectCode,
+                        Source = row.Source,
+                        SourceLabel = row.SourceLabel,
+                        Year = row.Year,
+                        AnnualQuantity = row.AnnualQuantity,
+                        DetailedQuantity = row.DetailedQuantity,
+                        DetailedEntryCount = row.DetailedEntryCount,
+                        ReportedTotal = row.ReportedTotal,
+                        CalculationLabel = row.CalculationLabel,
+                        EffectiveMode = row.EffectiveMode.ToString(),
+                        HasCountingException = row.HasCountingException,
+                        LastUpdatedOnUtc = row.LastUpdatedOnUtc,
+                        DetailedEntries = entries ?? Array.Empty<ProliferationGroupedDetailedEntryDto>()
+                    };
+                })
+                .ToList();
+
+            return Ok(new ProliferationGroupedResponseDto
+            {
+                Total = total,
+                Page = page,
+                PageSize = pageSize,
+                Items = items
+            });
         }
 
         [HttpGet("overview")]
@@ -778,8 +926,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 _logger.LogError(ex, "Granular save failed. {Message}", root.Message);
 
                 return Problem(
-                    title: "Database update failed",
-                    detail: root.Message,
+                    title: "Unable to save the detailed entry",
+                    detail: "The entry could not be saved. Review the values and try again.",
                     statusCode: StatusCodes.Status400BadRequest);
             }
         }
@@ -878,9 +1026,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         [Authorize(Policy = ProjectOfficeReportsPolicies.ApproveProliferationTracker)]
         public async Task<IActionResult> SetPreference([FromBody] ProliferationYearPreferenceDto dto, CancellationToken ct)
         {
-            if (dto.Source == ProliferationSource.Abw515 && dto.Mode != YearPreferenceMode.Auto)
-                return BadRequest("ABW 515 uses Yearly totals and cannot be overridden");
-
             var ok = await _submitSvc.SetYearPreferenceAsync(dto, User, ct);
             return ok.Success ? Ok() : BadRequest(ok.Error);
         }
@@ -904,6 +1049,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 FromDate: from,
                 ToDate: to,
                 Source: q.Source,
+                ProjectId: q.ProjectId,
                 ProjectCategoryId: q.ProjectCategoryId,
                 TechnicalCategoryId: q.TechnicalCategoryId,
                 Search: q.Search,
@@ -941,13 +1087,18 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 return string.Empty;
             }
 
-            var needsEscaping = value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r');
+            // Prevent spreadsheet applications from interpreting exported text as a formula.
+            var safeValue = value[0] is '=' or '+' or '-' or '@' or '\t'
+                ? $"'{value}"
+                : value;
+
+            var needsEscaping = safeValue.Contains(',') || safeValue.Contains('"') || safeValue.Contains('\n') || safeValue.Contains('\r');
             if (!needsEscaping)
             {
-                return value;
+                return safeValue;
             }
 
-            var escaped = value.Replace("\"", "\"\"");
+            var escaped = safeValue.Replace("\"", "\"\"");
             return $"\"{escaped}\"";
         }
 
@@ -1025,6 +1176,16 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             YearPreferenceMode? Mode);
 
         private sealed record CombinationKey(int ProjectId, ProliferationSource Source, int Year);
+
+        private sealed record ProliferationGroupedDetailedEntryProjection(
+            Guid Id,
+            int ProjectId,
+            ProliferationSource Source,
+            int Year,
+            DateOnly Date,
+            string UnitName,
+            int Quantity,
+            string? Remarks);
 
     }
 }

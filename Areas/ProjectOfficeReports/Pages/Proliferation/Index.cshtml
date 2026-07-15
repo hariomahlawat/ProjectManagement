@@ -2,111 +2,128 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.IndexModel
 @{
     ViewData["Title"] = "Proliferation records";
+    ViewData["UseFullWidth"] = true;
 }
 
-<div class="container-fluid px-3 py-3"
-     data-page="proliferation"
+<div class="container-xxl py-3 pf-shell"
+     data-page="proliferation-records"
      data-can-manage-records="@(Model.CanManageRecords ? "true" : "false")">
-
-    <!-- breadcrumb -->
     <nav aria-label="Breadcrumb" class="mb-2">
         <ol class="breadcrumb mb-0 small">
-            <li class="breadcrumb-item">
-                <a asp-area="" asp-page="/Dashboard/Index">Dashboard</a>
-            </li>
-            <li class="breadcrumb-item">
-                <a asp-area="ProjectOfficeReports" asp-page="/Proliferation/Summary">Proliferation tracker</a>
-            </li>
-            <li class="breadcrumb-item active" aria-current="page">
-                Records
-            </li>
+            <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+            <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/Proliferation/Summary">Proliferation</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Records</li>
         </ol>
     </nav>
 
-    <!-- header + actions -->
-    <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+    <partial name="_ProliferationNav" model="Model.CanManageRecords" />
+
+    <header class="pf-page-header">
         <div>
-            <h1 class="h4 mb-1">Proliferation records</h1>
-            <p class="text-muted small mb-0" id="pf-filter-summary" aria-live="polite"></p>
+            <div class="pf-eyebrow">Proliferation</div>
+            <h1 class="pf-page-title">Records</h1>
+            <p class="pf-page-subtitle mb-0">Review each project-year as one clear calculation. Open a row only when individual entries are required.</p>
         </div>
-        <div class="btn-toolbar gap-2" role="toolbar" aria-label="Proliferation actions">
-            <div class="btn-group" role="group" aria-label="Data utilities">
-                <button type="button"
-                        class="btn btn-outline-success d-flex align-items-center gap-1"
-                        id="btnExport">
-                    <i class="bi bi-download" aria-hidden="true"></i>
-                    <span>Export data</span>
-                </button>
-            </div>
+        <div class="pf-page-actions">
+            <button type="button" class="btn btn-outline-success" id="pf-record-export">
+                <i class="bi bi-download" aria-hidden="true"></i>
+                Export
+            </button>
             @if (Model.CanManageRecords)
             {
-                <div class="btn-group" role="group" aria-label="Management actions">
-                    <a class="btn btn-outline-primary d-flex align-items-center gap-1"
-                       asp-area="ProjectOfficeReports"
-                       asp-page="/Proliferation/Manage">
-                        <i class="bi bi-gear" aria-hidden="true"></i>
-                        <span>Manage proliferation</span>
-                    </a>
-                </div>
+                <a class="btn btn-primary" asp-area="ProjectOfficeReports" asp-page="/Proliferation/Manage">
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                    Add proliferation
+                </a>
             }
         </div>
-    </div>
+    </header>
 
-    <div class="row g-4 align-items-start">
-        <!-- main column -->
-        <div class="col-12 col-xxl-9">
-
-            <!-- filters -->
-            <section class="mb-3" aria-labelledby="filters-heading">
-                <div class="card border-0 shadow-sm rounded-4">
-                    <div class="card-body py-3 px-4">
-                        <partial name="Partials/_FilterBar" />
-                    </div>
-                </div>
-            </section>
-
-            <!-- records list -->
-            <section aria-labelledby="records-heading">
-                <div class="card border-0 shadow-sm rounded-4 mb-4">
-                    <div class="card-body p-0">
-                        <div class="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
-                            <h2 id="records-heading" class="h6 mb-0">Records</h2>
-                        </div>
-                        <div class="px-4 py-3">
-                            <!-- the table / workspace -->
-                            <partial name="Partials/_EntryWorkspace" />
-                        </div>
-                    </div>
-                </div>
-            </section>
+    <section class="pf-filter-panel" aria-labelledby="record-filters-heading">
+        <div class="pf-filter-panel__heading">
+            <div>
+                <h2 id="record-filters-heading">Find records</h2>
+                <p>Filter by project, source or year. Search also checks project names, codes, units and remarks.</p>
+            </div>
+            <button class="btn btn-sm btn-link" type="button" id="pf-record-reset">Clear filters</button>
         </div>
 
-        <!-- right rail -->
-        <aside class="col-12 col-xxl-3">
-            <section class="card border-0 shadow-sm rounded-4" aria-labelledby="year-preferences-heading">
-                <div class="card-body p-3">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <div>
-                            <h2 id="year-preferences-heading" class="h6 mb-0">Year preferences</h2>
-                            <p class="text-muted small mb-0">Advanced controls</p>
-                        </div>
-                        <span class="badge text-bg-success" id="prefStatusLabel">Active</span>
-                    </div>
-                    <partial name="_ReconciliationPanel" model="Model.CanManagePreferences" />
+        <div class="row g-3 align-items-end">
+            <div class="col-12 col-lg-5 position-relative">
+                <label class="form-label" for="pf-record-project">Project</label>
+                <input type="search"
+                       class="form-control"
+                       id="pf-record-project"
+                       placeholder="All projects — type to select one"
+                       autocomplete="off" />
+                <input type="hidden" id="pf-record-project-id" />
+                <div class="pf-suggestions d-none" id="pf-record-project-suggestions" role="listbox"></div>
+            </div>
+            <div class="col-6 col-lg-2">
+                <label class="form-label" for="pf-record-source">Source</label>
+                <select class="form-select" id="pf-record-source">
+                    <option value="">All sources</option>
+                    <option value="1">SDD</option>
+                    <option value="2">515 ABW</option>
+                </select>
+            </div>
+            <div class="col-6 col-lg-2">
+                <label class="form-label" for="pf-record-year">Year</label>
+                <input type="number" class="form-control" id="pf-record-year" min="2000" max="3000" placeholder="All years" />
+            </div>
+            <div class="col-12 col-lg-3">
+                <label class="form-label" for="pf-record-search">Search records</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
+                    <input type="search" class="form-control" id="pf-record-search" placeholder="Unit, remarks or project" />
                 </div>
-            </section>
-        </aside>
-    </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="pf-card mt-4" aria-labelledby="record-results-heading">
+        <div class="pf-card__header">
+            <div>
+                <h2 class="pf-card__title" id="record-results-heading">Project-year calculations</h2>
+                <p class="pf-card__subtitle" id="pf-record-summary" aria-live="polite">Loading approved records…</p>
+            </div>
+            <label class="pf-page-size" for="pf-record-page-size">
+                <span>Rows</span>
+                <select class="form-select form-select-sm" id="pf-record-page-size">
+                    <option value="10">10</option>
+                    <option value="25" selected>25</option>
+                    <option value="50">50</option>
+                </select>
+            </label>
+        </div>
+
+        <div id="pf-record-loading" class="pf-loading-state">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            Loading records…
+        </div>
+        <div id="pf-record-groups" class="pf-record-groups" aria-live="polite"></div>
+        <div id="pf-record-empty" class="pf-empty-state d-none">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <h3>No records found</h3>
+            <p>Change or clear the filters and try again.</p>
+        </div>
+        <div id="pf-record-error" class="alert alert-danger m-4 d-none" role="alert"></div>
+
+        <div class="pf-card__footer pf-pagination-footer">
+            <span id="pf-record-range"></span>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Record pages">
+                <button class="btn btn-outline-secondary" type="button" id="pf-record-prev" disabled>
+                    <i class="bi bi-chevron-left" aria-hidden="true"></i> Previous
+                </button>
+                <button class="btn btn-outline-secondary" type="button" id="pf-record-next" disabled>
+                    Next <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+    </section>
 </div>
 
-<!-- toast host -->
-<div class="toast-container position-fixed top-0 end-0 p-3"
-     id="toastHost"
-     aria-live="polite"
-     aria-atomic="true"></div>
-
-<!-- export modal -->
-<partial name="Partials/_ExportModal" />
+<div class="toast-container position-fixed top-0 end-0 p-3" id="toastHost" aria-live="polite" aria-atomic="true"></div>
 
 <link rel="stylesheet" href="~/css/proliferation.css" asp-append-version="true" />
 <script src="~/js/pages/proliferation-dashboard.js" asp-append-version="true" defer></script>

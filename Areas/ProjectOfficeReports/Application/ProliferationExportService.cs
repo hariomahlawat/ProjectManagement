@@ -142,6 +142,7 @@ public sealed class ProliferationExportService : IProliferationExportService
             ToDate: toDate,
             Source: request.Source,
             SourceLabel: request.Source?.ToDisplayName(),
+            ProjectId: request.ProjectId,
             ProjectCategoryId: request.ProjectCategoryId,
             ProjectCategoryName: null,
             TechnicalCategoryId: request.TechnicalCategoryId,
@@ -177,6 +178,11 @@ public sealed class ProliferationExportService : IProliferationExportService
         var projectsQuery = _db.Projects
             .AsNoTracking()
             .Where(p => !p.IsDeleted && !p.IsArchived);
+
+        if (filters.ProjectId.HasValue)
+        {
+            projectsQuery = projectsQuery.Where(p => p.Id == filters.ProjectId.Value);
+        }
 
         if (filters.ProjectCategoryId.HasValue)
         {
@@ -382,6 +388,7 @@ public sealed class ProliferationExportService : IProliferationExportService
         DateOnly? ToDate,
         ProliferationSource? Source,
         string? SourceLabel,
+        int? ProjectId,
         int? ProjectCategoryId,
         string? ProjectCategoryName,
         int? TechnicalCategoryId,
@@ -412,6 +419,7 @@ public sealed record ProliferationExportRequest(
     DateOnly? FromDate,
     DateOnly? ToDate,
     ProliferationSource? Source,
+    int? ProjectId,
     int? ProjectCategoryId,
     int? TechnicalCategoryId,
     string? Search,

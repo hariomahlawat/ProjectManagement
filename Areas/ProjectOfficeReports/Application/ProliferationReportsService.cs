@@ -704,7 +704,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                                 m.Year,
                                 m.YearlyTotal,
                                 m.GranularTotal,
-                                Mode = pref != null ? pref.Mode : YearPreferenceMode.UseYearlyAndGranular
+                                Mode = pref != null
+                                    ? pref.Mode
+                                    : (m.Source == ProliferationSource.Abw515
+                                        ? YearPreferenceMode.UseYearly
+                                        : YearPreferenceMode.UseYearlyAndGranular)
                             };
 
             var withProjects = from x in withPrefs
@@ -756,7 +760,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             var rows = pageRows.Select(x =>
             {
-                var effective = ComputeEffectiveTotal(x.Source, x.Mode, x.YearlyTotal, x.GranularTotal);
+                var effective = ComputeEffectiveTotal(x.Mode, x.YearlyTotal, x.GranularTotal);
                 return new ProliferationReportRowDto
                 {
                     ProjectId = x.Id,
@@ -767,7 +771,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                     Year = x.Year,
                     YearlyApprovedTotal = x.YearlyTotal,
                     GranularApprovedTotal = x.GranularTotal,
-                    PreferenceMode = x.Mode.ToString(),
+                    PreferenceMode = ProliferationAggregateReadService.GetCalculationLabel(x.Mode, x.Source),
                     EffectiveTotal = effective
                 };
             }).ToList();
@@ -783,13 +787,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             };
         }
 
-        private static int ComputeEffectiveTotal(ProliferationSource source, YearPreferenceMode mode, int yearly, int granular)
+        private static int ComputeEffectiveTotal(YearPreferenceMode mode, int yearly, int granular)
         {
-            if (source == ProliferationSource.Abw515)
-            {
-                return yearly;
-            }
-
             return mode switch
             {
                 YearPreferenceMode.UseYearly => yearly,
@@ -864,10 +863,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             Col("projectName", "Project"),
             Col("sourceLabel", "Source"),
             Col("year", "Year"),
-            Col("yearlyApprovedTotal", "Yearly approved total"),
-            Col("granularApprovedTotal", "Granular approved total"),
-            Col("preferenceMode", "Preference mode"),
-            Col("effectiveTotal", "Effective total")
+            Col("yearlyApprovedTotal", "Annual quantity"),
+            Col("granularApprovedTotal", "Detailed quantity"),
+            Col("preferenceMode", "Counting rule"),
+            Col("effectiveTotal", "Reported total")
         };
 
         private static ProliferationReportColumnDto Col(string key, string label) => new ProliferationReportColumnDto { Key = key, Label = label };

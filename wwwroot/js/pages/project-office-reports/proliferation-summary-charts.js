@@ -1,208 +1,166 @@
 "use strict";
 
-// wwwroot/js/pages/project-office-reports/proliferation-summary-charts.js
-document.addEventListener("DOMContentLoaded", function () {
-    const DEVICE_PIXEL_RATIO = window.devicePixelRatio || 1;
+document.addEventListener("DOMContentLoaded", () => {
+    const numberFormatter = new Intl.NumberFormat();
 
-    function getParsedDataset(host, key, logLabel) {
-        if (!host) {
-            return null;
-        }
-
-        const raw = host.dataset[key];
-        if (!raw) {
-            return null;
-        }
-
+    function parseData(host, key) {
+        if (!host?.dataset?.[key]) return [];
         try {
-            return JSON.parse(raw);
+            const value = JSON.parse(host.dataset[key]);
+            return Array.isArray(value) ? value : [];
         } catch (error) {
-            console.error(`${logLabel}: bad JSON`, error);
-            return null;
+            console.error(`Unable to read proliferation ${key} data.`, error);
+            return [];
         }
     }
 
-    function wireDownloadButtons() {
-        const btns = document.querySelectorAll('[data-action="download-png"][data-target]');
-        btns.forEach(btn => {
-            btn.addEventListener("click", function () {
-                const targetId = btn.dataset.target;
-                if (!targetId) return;
-                const canvas = document.getElementById(targetId);
-                if (!canvas) return;
-                const link = document.createElement("a");
-                link.href = canvas.toDataURL("image/png");
-                link.download = `${targetId}.png`;
-                link.click();
+    function wireProjectSearch() {
+        const input = document.getElementById("pf-project-search");
+        const clear = document.getElementById("pf-project-search-clear");
+        const rows = Array.from(document.querySelectorAll("[data-project-row]"));
+        const empty = document.getElementById("pf-project-no-results");
+        const count = document.getElementById("pf-project-count");
+        if (!input || rows.length === 0) return;
+
+        const apply = () => {
+            const query = input.value.trim().toLocaleLowerCase();
+            let visible = 0;
+            rows.forEach(row => {
+                const match = !query || (row.dataset.search || "").includes(query);
+                row.classList.toggle("d-none", !match);
+                if (match) visible += 1;
             });
+
+            clear?.classList.toggle("d-none", !query);
+            empty?.classList.toggle("d-none", visible !== 0);
+            if (count) {
+                count.textContent = query
+                    ? `${numberFormatter.format(visible)} matching ${visible === 1 ? "project" : "projects"}`
+                    : `Showing ${numberFormatter.format(rows.length)} projects`;
+            }
+        };
+
+        input.addEventListener("input", apply);
+        clear?.addEventListener("click", () => {
+            input.value = "";
+            apply();
+            input.focus();
         });
     }
 
-    (function initYearlyChart() {
+    function initYearChart() {
         const host = document.getElementById("proliferation-yearly-chart");
-        const rows = getParsedDataset(host, "yearly", "Proliferation summary yearly");
-        if (!rows || rows.length === 0) {
-            return;
-        }
-
-        const labels = rows.map(r => r.year);
-        const totals = rows.map(r => r.totals?.total ?? 0);
-        const sdd = rows.map(r => r.totals?.sdd ?? 0);
-        const abw515 = rows.map(r => r.totals?.abw515 ?? 0);
-
         const canvas = document.getElementById("proliferation-yearly-chart-canvas");
-        if (!canvas) return;
+        const rows = parseData(host, "yearly")
+            .slice()
+            .sort((a, b) => Number(a.year) - Number(b.year));
 
-        new Chart(canvas, {
+        if (!canvas || rows.length === 0 || typeof Chart === "undefined") return;
+
+        let range = 10;
+        const buildRows = () => range === "all" ? rows : rows.slice(-Number(range));
+
+        const chart = new Chart(canvas, {
             type: "bar",
-            data: {
-                labels,
-                datasets: [
-                    {
-                        type: "bar",
-                        label: "SDD",
-                        data: sdd,
-                        backgroundColor: "rgba(59, 130, 246, 0.75)",
-                        borderRadius: 8,
-                        order: 2,
-                        maxBarThickness: 34
-                    },
-                    {
-                        type: "bar",
-                        label: "515 ABW",
-                        data: abw515,
-                        backgroundColor: "rgba(14, 165, 233, 0.75)",
-                        borderRadius: 8,
-                        order: 2,
-                        maxBarThickness: 34
-                    },
-                    {
-                        type: "line",
-                        label: "Total",
-                        data: totals,
-                        borderColor: "rgba(15, 23, 42, 0.9)",
-                        borderWidth: 2,
-                        tension: 0.35,
-                        pointRadius: 4,
-                        pointBackgroundColor: "rgba(15, 23, 42, 1)",
-                        order: 1,
-                        yAxisID: "y"
-                    }
-                ]
-            },
+            data: { labels: [], datasets: [] },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                devicePixelRatio: DEVICE_PIXEL_RATIO,
-                interaction: {
-                    mode: "index",
-                    intersect: false
-                },
+                interaction: { mode: "index", intersect: false },
                 plugins: {
                     legend: {
-                        position: "top",
-                        labels: {
-                            usePointStyle: true
-                        }
+                        position: "bottom",
+                        labels: { usePointStyle: true, boxWidth: 8, padding: 18 }
                     },
                     tooltip: {
                         callbacks: {
-                            label: function (ctx) {
-                                const label = ctx.dataset.label || "";
-                                const value = ctx.parsed.y ?? ctx.raw ?? 0;
-                                return `${label}: ${value}`;
+                            footer(items) {
+                                return `Total: ${numberFormatter.format(items.reduce((sum, item) => sum + Number(item.raw || 0), 0))}`;
                             }
                         }
                     }
                 },
                 scales: {
-                    x: {
-                        grid: { display: false }
-                    },
+                    x: { stacked: true, grid: { display: false } },
                     y: {
+                        stacked: true,
                         beginAtZero: true,
-                        grid: { color: "rgba(148, 163, 184, 0.25)" },
-                        ticks: { precision: 0 }
+                        ticks: { precision: 0, callback: value => numberFormatter.format(value) },
+                        grid: { color: "rgba(148, 163, 184, 0.2)" }
                     }
                 }
             }
         });
-    })();
 
-    (function initTechCategoryChart() {
-        const host = document.getElementById("proliferation-techcat-chart");
-        const rows = getParsedDataset(host, "categories", "Proliferation technical categories");
-        if (!rows || rows.length === 0) {
-            return;
-        }
-
-        const labels = rows.map(r => r.name);
-        const counts = rows.map(r => r.total ?? 0);
-        const canvas = document.getElementById("proliferation-techcat-chart-canvas");
-        if (!canvas) return;
-
-        const valueLabelPlugin = {
-            id: "valueLabelPlugin",
-            afterDatasetsDraw(chart) {
-                const { ctx } = chart;
-                ctx.save();
-                const meta = chart.getDatasetMeta(0);
-                meta.data.forEach((bar, index) => {
-                    const value = counts[index];
-                    ctx.font = "12px system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif";
-                    ctx.fillStyle = "#0f172a";
-                    ctx.textBaseline = "middle";
-                    const x = bar.x + 6;
-                    const y = bar.y;
-                    ctx.fillText(String(value), x, y);
-                });
-                ctx.restore();
-            }
+        const render = () => {
+            const selected = buildRows();
+            chart.data.labels = selected.map(x => x.year);
+            chart.data.datasets = [
+                {
+                    label: "SDD",
+                    data: selected.map(x => x.totals?.sdd ?? 0),
+                    backgroundColor: "rgba(59, 130, 246, 0.82)",
+                    borderRadius: 5,
+                    maxBarThickness: 44
+                },
+                {
+                    label: "515 ABW",
+                    data: selected.map(x => x.totals?.abw515 ?? 0),
+                    backgroundColor: "rgba(14, 165, 233, 0.72)",
+                    borderRadius: 5,
+                    maxBarThickness: 44
+                }
+            ];
+            chart.update();
         };
+
+        document.querySelectorAll("[data-trend-range]").forEach(button => {
+            button.addEventListener("click", () => {
+                range = button.dataset.trendRange === "all" ? "all" : Number(button.dataset.trendRange || 10);
+                document.querySelectorAll("[data-trend-range]").forEach(item => item.classList.toggle("active", item === button));
+                render();
+            });
+        });
+
+        render();
+    }
+
+    function initCategoryChart() {
+        const host = document.getElementById("proliferation-techcat-chart");
+        const canvas = document.getElementById("proliferation-techcat-chart-canvas");
+        const rows = parseData(host, "categories");
+        if (!canvas || rows.length === 0 || typeof Chart === "undefined") return;
 
         new Chart(canvas, {
             type: "bar",
             data: {
-                labels,
-                datasets: [
-                    {
-                        label: "Proliferations",
-                        data: counts,
-                        backgroundColor: "rgba(59, 130, 246, 0.85)",
-                        borderRadius: 6,
-                        maxBarThickness: 32
-                    }
-                ]
+                labels: rows.map(x => x.name),
+                datasets: [{
+                    label: "Total proliferation",
+                    data: rows.map(x => x.total ?? 0),
+                    backgroundColor: "rgba(59, 130, 246, 0.78)",
+                    borderRadius: 5,
+                    maxBarThickness: 32
+                }]
             },
             options: {
                 indexAxis: "y",
                 responsive: true,
                 maintainAspectRatio: false,
-                devicePixelRatio: DEVICE_PIXEL_RATIO,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: function (ctx) {
-                                return `Proliferations: ${ctx.parsed.x}`;
-                            }
-                        }
-                    }
-                },
+                plugins: { legend: { display: false } },
                 scales: {
                     x: {
                         beginAtZero: true,
-                        ticks: { precision: 0 },
-                        grid: { color: "rgba(148, 163, 184, 0.25)" }
+                        ticks: { precision: 0, callback: value => numberFormatter.format(value) },
+                        grid: { color: "rgba(148, 163, 184, 0.2)" }
                     },
-                    y: {
-                        grid: { display: false }
-                    }
+                    y: { grid: { display: false } }
                 }
-            },
-            plugins: [valueLabelPlugin]
+            }
         });
-    })();
+    }
 
-    wireDownloadButtons();
+    wireProjectSearch();
+    initYearChart();
+    initCategoryChart();
 });

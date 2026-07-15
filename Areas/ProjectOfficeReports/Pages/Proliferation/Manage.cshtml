@@ -1,64 +1,85 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.ManageModel
 @{
-    ViewData["Title"] = "Proliferation Manager";
+    ViewData["Title"] = "Manage proliferation";
     ViewData["UseFullWidth"] = true;
 }
 
-<div class="container-xxl my-4" data-page="proliferation-manage" data-can-approve="@(Model.CanApproveRecords ? "true" : "false")">
-    <nav aria-label="Breadcrumb" class="visit-breadcrumb">
-        <ol class="breadcrumb mb-0">
+<div class="container-xxl py-3 pf-shell" data-page="proliferation-manage" data-can-approve="@(Model.CanApproveRecords ? "true" : "false")">
+    <nav aria-label="Breadcrumb" class="mb-2">
+        <ol class="breadcrumb mb-0 small">
             <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-            <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/Proliferation/Index">Proliferation tracker</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Proliferation manager</li>
+            <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/Proliferation/Summary">Proliferation</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Manage</li>
         </ol>
     </nav>
+
+    <partial name="_ProliferationNav" model="true" />
+
+    <header class="pf-page-header">
+        <div>
+            <div class="pf-eyebrow">Proliferation</div>
+            <h1 class="pf-page-title">Manage records</h1>
+            <p class="pf-page-subtitle mb-0">Add annual quantities or detailed entries, review existing records and manage exceptional counting rules.</p>
+        </div>
+    </header>
 
     <div class="pf-command-bar" data-command-bar>
         <div class="pf-command-bar__details">
             <div class="pf-command-bar__title-row">
-                <h2 class="pf-command-bar__title mb-0">Proliferation Manager</h2>
-                <span class="pf-command-bar__scope" data-command-scope>Granular entry</span>
+                <h2 class="pf-command-bar__title">Current record</h2>
+                <span class="pf-command-bar__scope" data-command-scope>Detailed entry</span>
             </div>
             <div class="pf-command-bar__meta">
-                <span class="pf-command-bar__timestamp">Last updated:</span>
-                <span class="pf-command-bar__timestamp-value" data-command-updated-value>—</span>
+                <span>Last updated:</span>
+                <span data-command-updated-value>—</span>
             </div>
         </div>
         <div class="pf-command-bar__actions">
             @if (Model.CanApproveRecords)
             {
-                <div class="btn-group" role="group" aria-label="Approval actions">
-                    <button class="btn btn-success" id="pf-approve" type="button" disabled>
-                        <span class="me-1" aria-hidden="true">✓</span>
-                        <span>Approve</span>
-                    </button>
-                    <button class="btn btn-outline-danger" id="pf-reject" type="button" disabled>
-                        <span class="me-1" aria-hidden="true">✕</span>
-                        <span>Reject</span>
-                    </button>
-                </div>
+                <button class="btn btn-sm btn-success" id="pf-approve" type="button" disabled>
+                    <i class="bi bi-check-lg" aria-hidden="true"></i> Approve
+                </button>
+                <button class="btn btn-sm btn-outline-danger" id="pf-reject" type="button" disabled>
+                    <i class="bi bi-x-lg" aria-hidden="true"></i> Reject
+                </button>
             }
-            <button class="btn btn-primary" id="pf-save" type="submit" form="pf-form" disabled>Save</button>
-            <button class="btn btn-outline-danger" id="pf-delete" type="button" disabled>Delete</button>
-            <button class="btn btn-outline-secondary" id="pf-overrides-export" type="button" aria-disabled="true" disabled>Export CSV</button>
+            <button class="btn btn-sm btn-primary" id="pf-save" type="submit" form="pf-form" disabled>
+                <i class="bi bi-check2" aria-hidden="true"></i> Save
+            </button>
+            <button class="btn btn-sm btn-outline-danger" id="pf-delete" type="button" disabled>Delete</button>
+            @if (Model.CanManagePreferences)
+            {
+                <button class="btn btn-sm btn-outline-secondary" id="pf-overrides-export" type="button" aria-disabled="true" disabled>Export rules</button>
+            }
         </div>
     </div>
 
-    <p class="text-muted mb-4">Review existing entries and add or edit yearly totals and granular records.</p>
+    <div class="pf-manage-new-actions" aria-label="Add proliferation">
+        <button type="button" class="btn btn-outline-primary" data-new-proliferation="granular">
+            <strong><i class="bi bi-list-check" aria-hidden="true"></i> New detailed entry</strong>
+            <small>Use when date, receiving unit and quantity are known.</small>
+        </button>
+        <button type="button" class="btn btn-outline-primary" data-new-proliferation="yearly">
+            <strong><i class="bi bi-calendar3" aria-hidden="true"></i> New annual quantity</strong>
+            <small>Use when only an aggregate quantity for the year is available.</small>
+        </button>
+    </div>
 
     <div class="pf-manage-layout" id="pf-manage-layout">
-        <section class="pf-manage-column pf-manage-column--list" id="pf-list-panel">
+        <section class="pf-manage-column pf-manage-column--list" id="pf-list-panel" aria-label="Existing records">
             <partial name="_ProliferationList" model="Model.ListBoot" />
         </section>
-        <section class="pf-manage-column pf-manage-column--detail" id="pf-detail-panel">
+        <section class="pf-manage-column pf-manage-column--detail" id="pf-detail-panel" aria-label="Record editor">
             <partial name="_ProliferationEditor" model="Model.EditorBoot" />
         </section>
-        <aside class="pf-manage-column pf-manage-column--rail" id="pf-rail-panel">
-            <div class="pf-manage-rail">
+        @if (Model.CanManagePreferences)
+        {
+            <section class="pf-manage-column pf-manage-column--rail pf-counting-rules-section" id="pf-rail-panel" aria-label="Counting rules">
                 <partial name="_PreferenceOverrides" model="Model.OverridesBoot" />
-            </div>
-        </aside>
+            </section>
+        }
     </div>
 </div>
 
@@ -66,16 +87,16 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title" id="pf-delete-modal-label">Delete proliferation entry</h5>
+                <h2 class="modal-title fs-5" id="pf-delete-modal-label">Delete proliferation record</h2>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cancel deletion"></button>
             </div>
             <div class="modal-body">
-                <p class="mb-2">Are you sure you want to delete the <span data-confirm-type>selected record</span> for <span data-confirm-project>this project</span>?</p>
-                <p class="text-muted mb-0">This will remove data for <span data-confirm-date>the selected date</span>. This action cannot be undone.</p>
+                <p class="mb-2">Delete the <span data-confirm-type>selected record</span> for <strong data-confirm-project>this project</strong>?</p>
+                <p class="text-muted mb-0">This removes data for <span data-confirm-date>the selected date</span> and cannot be undone.</p>
             </div>
             <div class="modal-footer border-0 pt-0">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-confirm-cancel>Cancel</button>
-                <button type="button" class="btn btn-danger" data-confirm-accept>Delete entry</button>
+                <button type="button" class="btn btn-danger" data-confirm-accept>Delete record</button>
             </div>
         </div>
     </div>
@@ -83,10 +104,10 @@
 
 <div class="toast-container position-fixed top-0 end-0 p-3" id="toastHost" aria-live="polite" aria-atomic="true"></div>
 
-@section Styles {
-    <link rel="stylesheet" href="~/css/proliferation.css" asp-append-version="true" />
+@section Scripts {
+    <script src="~/js/pages/proliferation-manage.js" asp-append-version="true"></script>
 }
 
-@section Scripts {
-    <script src="~/js/pages/proliferation-manage.js" asp-append-version="true" defer></script>
+@section Styles {
+    <link rel="stylesheet" href="~/css/proliferation.css" asp-append-version="true" />
 }

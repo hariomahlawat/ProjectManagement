@@ -26,7 +26,7 @@ public sealed class ProliferationExportServiceTests
         using var context = CreateContext();
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 6, 1, 8, 0, 0, TimeSpan.Zero));
         var audit = new RecordingAudit();
-        var tracker = new ProliferationTrackerReadService(context);
+        var tracker = new ProliferationTrackerReadService(new ProliferationAggregateReadService(context));
         var service = new ProliferationExportService(
             context,
             tracker,
@@ -40,6 +40,7 @@ public sealed class ProliferationExportServiceTests
             FromDate: new DateOnly(2024, 1, 1),
             ToDate: new DateOnly(2024, 12, 31),
             Source: ProliferationSource.Sdd,
+            ProjectId: null,
             ProjectCategoryId: null,
             TechnicalCategoryId: null,
             Search: null,
@@ -139,7 +140,7 @@ public sealed class ProliferationExportServiceTests
         context.ProliferationYearPreferences.Add(preference);
         await context.SaveChangesAsync();
 
-        var tracker = new ProliferationTrackerReadService(context);
+        var tracker = new ProliferationTrackerReadService(new ProliferationAggregateReadService(context));
         var service = new ProliferationExportService(
             context,
             tracker,
@@ -153,6 +154,7 @@ public sealed class ProliferationExportServiceTests
             FromDate: null,
             ToDate: null,
             Source: ProliferationSource.Sdd,
+            ProjectId: null,
             ProjectCategoryId: projectCategory.Id,
             TechnicalCategoryId: technicalCategory.Id,
             Search: "Alpha",
@@ -265,7 +267,7 @@ public sealed class ProliferationExportServiceTests
         context.ProliferationYearlies.Add(yearly);
         await context.SaveChangesAsync();
 
-        var tracker = new ProliferationTrackerReadService(context);
+        var tracker = new ProliferationTrackerReadService(new ProliferationAggregateReadService(context));
         var service = new ProliferationExportService(
             context,
             tracker,
@@ -279,6 +281,7 @@ public sealed class ProliferationExportServiceTests
             FromDate: null,
             ToDate: null,
             Source: null,
+            ProjectId: null,
             ProjectCategoryId: null,
             TechnicalCategoryId: null,
             Search: null,

@@ -27,6 +27,7 @@ public sealed class ManageModel : PageModel
     public ProliferationEditorBootVm EditorBoot { get; private set; } = default!;
     public ProliferationPreferenceOverridesBootVm OverridesBoot { get; private set; } = default!;
     public bool CanApproveRecords { get; private set; }
+    public bool CanManagePreferences { get; private set; }
 
     public async Task OnGetAsync(
         int? projectId,
@@ -44,5 +45,11 @@ public sealed class ManageModel : PageModel
             resource: null,
             ProjectOfficeReportsPolicies.ApproveProliferationTracker);
         CanApproveRecords = approvalResult.Succeeded;
+
+        var preferenceResult = await _authorizationService.AuthorizeAsync(
+            User,
+            resource: null,
+            ProjectOfficeReportsPolicies.ManageProliferationPreferences);
+        CanManagePreferences = preferenceResult.Succeeded;
     }
 }

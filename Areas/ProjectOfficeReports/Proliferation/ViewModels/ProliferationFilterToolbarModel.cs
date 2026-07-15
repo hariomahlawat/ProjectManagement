@@ -24,8 +24,8 @@ public sealed record ProliferationFilterToolbarModel(
     public static readonly IReadOnlyList<ProliferationFilterOption> DefaultTypes = new ReadOnlyCollection<ProliferationFilterOption>(new List<ProliferationFilterOption>
     {
         new("", "All types"),
-        new("yearly", "Yearly"),
-        new("granular", "Granular")
+        new("yearly", "Annual quantity"),
+        new("granular", "Detailed entry")
     });
 
     public static ProliferationFilterToolbarModel Create(

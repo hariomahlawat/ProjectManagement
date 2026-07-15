@@ -1,0 +1,48 @@
+@using System
+@model bool
+@{
+    var page = (ViewContext.RouteData.Values["page"]?.ToString() ?? string.Empty).ToLowerInvariant();
+    string Active(string target)
+    {
+        var normalized = target.ToLowerInvariant();
+        if (page.EndsWith(normalized, StringComparison.Ordinal))
+        {
+            return "active";
+        }
+
+        return normalized.EndsWith("/proliferation/summary", StringComparison.Ordinal) &&
+               page.EndsWith("/proliferation/project", StringComparison.Ordinal)
+            ? "active"
+            : string.Empty;
+    }
+}
+
+<nav class="pf-module-nav" aria-label="Proliferation module">
+    <a class="pf-module-nav__link @Active("/Proliferation/Summary")"
+       asp-area="ProjectOfficeReports"
+       asp-page="/Proliferation/Summary">
+        <i class="bi bi-grid-1x2" aria-hidden="true"></i>
+        <span>Overview</span>
+    </a>
+    <a class="pf-module-nav__link @Active("/Proliferation/Index")"
+       asp-area="ProjectOfficeReports"
+       asp-page="/Proliferation/Index">
+        <i class="bi bi-list-check" aria-hidden="true"></i>
+        <span>Records</span>
+    </a>
+    <a class="pf-module-nav__link @Active("/Proliferation/Reports")"
+       asp-area="ProjectOfficeReports"
+       asp-page="/Proliferation/Reports">
+        <i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i>
+        <span>Reports</span>
+    </a>
+    @if (Model)
+    {
+        <a class="pf-module-nav__link @Active("/Proliferation/Manage")"
+           asp-area="ProjectOfficeReports"
+           asp-page="/Proliferation/Manage">
+            <i class="bi bi-pencil-square" aria-hidden="true"></i>
+            <span>Manage</span>
+        </a>
+    }
+</nav>

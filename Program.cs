@@ -593,8 +593,10 @@ builder.Services.AddHostedService<ProjectRetentionWorker>();
 builder.Services.AddScoped<PlanDraftService>();
 builder.Services.AddScoped<PlanApprovalService>();
 builder.Services.AddScoped<INavigationProvider, RoleBasedNavigationProvider>();
+builder.Services.AddScoped<ProliferationAggregateReadService>();
 builder.Services.AddScoped<ProliferationOverviewService>();
 builder.Services.AddScoped<IProliferationSummaryReadService, ProliferationSummaryReadService>();
+builder.Services.AddScoped<IProliferationProjectReadService, ProliferationProjectReadService>();
 
 // SECTION: Simulators Compendium (Projects module)
 builder.Services.AddScoped<ICompendiumReadService, CompendiumReadService>();

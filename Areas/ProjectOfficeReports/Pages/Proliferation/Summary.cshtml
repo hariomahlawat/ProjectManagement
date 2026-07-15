@@ -1,326 +1,254 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.SummaryModel
-@using System.Text.Json
+@using System
 @using System.Linq
+@using System.Text.Json
 @{
-    ViewData["Title"] = "Proliferation dashboard";
+    ViewData["Title"] = "Proliferation overview";
+    ViewData["UseFullWidth"] = true;
 
-    // Ensure yearly data for the chart is ordered from oldest to newest
-    var yearlyOrdered = Model.Summary.ByYear
-        .OrderBy(row => row.Year)
+    var projects = Model.Summary.ByProject
+        .OrderByDescending(x => x.Totals.Total)
+        .ThenBy(x => x.ProjectName, StringComparer.OrdinalIgnoreCase)
         .ToList();
+
+    var years = Model.Summary.ByYear
+        .OrderBy(x => x.Year)
+        .ToList();
+
+    var recentYears = years
+        .OrderByDescending(x => x.Year)
+        .Take(6)
+        .ToList();
+
+    var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 }
 
-<div class="container-xxl py-3" data-page="proliferation-summary">
-    <!-- breadcrumb -->
+<div class="container-xxl py-3 pf-shell" data-page="proliferation-summary">
     <nav aria-label="Breadcrumb" class="mb-2">
-        <ol class="breadcrumb mb-0">
-            <li class="breadcrumb-item">
-                <a asp-area="" asp-page="/Dashboard/Index">Dashboard</a>
-            </li>
-            <li class="breadcrumb-item active" aria-current="page">
-                Proliferation tracker
-            </li>
+        <ol class="breadcrumb mb-0 small">
+            <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Proliferation</li>
         </ol>
     </nav>
 
-    <!-- header -->
-    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+    <partial name="_ProliferationNav" model="Model.CanManageRecords" />
+
+    <header class="pf-page-header">
         <div>
-            <h1 class="h3 mb-1">Proliferation summary</h1>
-            <p class="text-muted mb-0">@Model.Lede</p>
+            <div class="pf-eyebrow">Proliferation</div>
+            <h1 class="pf-page-title">Overview</h1>
+            <p class="pf-page-subtitle mb-0">@Model.Lede</p>
         </div>
-        <div class="d-flex flex-wrap gap-2">
-            <!-- SECTION: Reports navigation -->
-            <a asp-area="ProjectOfficeReports"
-               asp-page="/Proliferation/Reports"
-               class="btn btn-outline-primary d-inline-flex align-items-center gap-1">
-                <i class="bi bi-clipboard-data" aria-hidden="true"></i>
-                <span>Reports</span>
+        <div class="pf-page-actions">
+            <a class="btn btn-outline-secondary"
+               asp-area="ProjectOfficeReports"
+               asp-page="/Proliferation/Reports">
+                <i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i>
+                Reports
             </a>
-            <a asp-area="ProjectOfficeReports"
-               asp-page="/Proliferation/Index"
-               class="btn btn-outline-secondary d-inline-flex align-items-center gap-1">
-                <i class="bi bi-table" aria-hidden="true"></i>
-                <span>View records</span>
-            </a>
-            <a asp-area="ProjectOfficeReports"
-               asp-page="/Proliferation/Manage"
-               class="btn btn-primary d-inline-flex align-items-center gap-1">
-                <i class="bi bi-gear" aria-hidden="true"></i>
-                <span>Manage records</span>
-            </a>
+            @if (Model.CanManageRecords)
+            {
+                <a class="btn btn-primary"
+                   asp-area="ProjectOfficeReports"
+                   asp-page="/Proliferation/Manage">
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                    Add proliferation
+                </a>
+            }
         </div>
-    </div>
+    </header>
 
-    <!-- totals -->
-    <section class="prol-card mb-4">
-        <dl class="totals-dl">
-            <div class="totals-dl__item">
-                <dt>Projects</dt>
-                <dd class="prol-total">@Model.ProjectsTotal.ToString("N0")</dd>
-            </div>
-            <div class="totals-dl__item">
-                <dt>Years</dt>
-                <dd class="prol-total">@Model.YearsTotal.ToString("N0")</dd>
-            </div>
-            <div class="totals-dl__item">
-                <dt>Proliferations</dt>
-                <dd class="prol-total">@Model.GrandTotal.ToString("N0")</dd>
-            </div>
-            <div class="totals-dl__item">
-                <dt>515 ABW totals</dt>
-                <dd class="prol-total">@Model.GrandAbw.ToString("N0")</dd>
-            </div>
-            <div class="totals-dl__item">
-                <dt>SDD totals</dt>
-                <dd class="prol-total">@Model.GrandSdd.ToString("N0")</dd>
-            </div>
-        </dl>
-    </section>
-
-    <!-- chart: yearly trend -->
-    <section class="mb-4">
-        <div class="bg-white rounded-3 shadow-sm border p-4">
-            <div class="d-flex justify-content-between align-items-start mb-3 gap-3">
-                <div>
-                    <h2 class="h6 mb-1">Yearly proliferation trend</h2>
-                    <p class="text-muted small mb-0">
-                        Bars show SDD vs 515 ABW for every year. Line shows total proliferations for that year.
-                    </p>
-                </div>
-                <div class="d-flex gap-2">
-                    <button type="button"
-                            class="btn btn-light btn-sm"
-                            data-action="download-png"
-                            data-target="proliferation-yearly-chart-canvas"
-                            title="Download chart"
-                            aria-label="Download chart as PNG">
-                        <i class="bi bi-download" aria-hidden="true"></i>
-                    </button>
-                </div>
-            </div>
-
-            <div id="proliferation-yearly-chart"
-                 data-yearly='@JsonSerializer.Serialize(yearlyOrdered, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })'>
-                <div class="ratio ratio-21x9">
-                    <canvas id="proliferation-yearly-chart-canvas"></canvas>
-                </div>
-            </div>
+    <section class="pf-project-finder" aria-labelledby="find-project-heading">
+        <div>
+            <h2 id="find-project-heading">Find a project total</h2>
+            <p>Search by project name or code. Open the project to see the year-wise calculation and detailed records.</p>
+        </div>
+        <div class="pf-project-finder__control">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <input type="search"
+                   id="pf-project-search"
+                   class="form-control"
+                   placeholder="Search project name or code"
+                   autocomplete="off"
+                   aria-controls="pf-project-table" />
+            <button type="button" class="btn btn-link d-none" id="pf-project-search-clear">Clear</button>
         </div>
     </section>
 
-    <!-- chart: by technical category -->
-    <section class="mb-4">
-        <div class="bg-white rounded-3 shadow-sm border p-4">
-            <div class="d-flex justify-content-between align-items-start mb-3 gap-3">
-                <div>
-                    <h2 class="h6 mb-1">Proliferations by technical category</h2>
-                    <p class="text-muted small mb-0">
-                        Sorted by highest proliferation count. Only categories that have projects in this summary are shown.
-                    </p>
-                </div>
-                <div class="d-flex gap-2">
-                    <button type="button"
-                            class="btn btn-light btn-sm"
-                            data-action="download-png"
-                            data-target="proliferation-techcat-chart-canvas"
-                            title="Download chart"
-                            aria-label="Download chart as PNG">
-                        <i class="bi bi-download" aria-hidden="true"></i>
-                    </button>
-                </div>
-            </div>
-
-            <div id="proliferation-techcat-chart"
-                 data-categories='@JsonSerializer.Serialize(Model.TechnicalCategoryBreakdown, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })'>
-                <div class="ratio pm-util-aspect-60">
-                    <canvas id="proliferation-techcat-chart-canvas"></canvas>
-                </div>
-            </div>
-        </div>
+    <section class="pf-kpi-grid" aria-label="Proliferation totals">
+        <article class="pf-kpi pf-kpi--primary">
+            <span>Total proliferation</span>
+            <strong>@Model.GrandTotal.ToString("N0")</strong>
+            <small>Approved reported total</small>
+        </article>
+        <article class="pf-kpi">
+            <span>Projects</span>
+            <strong>@Model.ProjectsTotal.ToString("N0")</strong>
+            <small>With reported proliferation</small>
+        </article>
+        <article class="pf-kpi">
+            <span>SDD</span>
+            <strong>@Model.GrandSdd.ToString("N0")</strong>
+            <small>@(Model.GrandTotal > 0 ? ((decimal)Model.GrandSdd / Model.GrandTotal).ToString("P1") : "0%") of total</small>
+        </article>
+        <article class="pf-kpi">
+            <span>515 ABW</span>
+            <strong>@Model.GrandAbw.ToString("N0")</strong>
+            <small>@(Model.GrandTotal > 0 ? ((decimal)Model.GrandAbw / Model.GrandTotal).ToString("P1") : "0%") of total</small>
+        </article>
     </section>
 
-    @{
-        // pre-compute for lower cards
-        var projectsByTotals = Model.Summary.ByProject
-        .OrderByDescending(row => row.Totals.Total)
-        .ThenBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
-        .ToList();
-        var topProjects = projectsByTotals.Take(10).ToList();
-        var hasMoreProjects = projectsByTotals.Count > topProjects.Count;
+    <section class="pf-card mt-4" aria-labelledby="project-totals-heading">
+        <div class="pf-card__header">
+            <div>
+                <h2 class="pf-card__title" id="project-totals-heading">Project totals</h2>
+                <p class="pf-card__subtitle">The reported proliferation count is shown first. Open a project for the underlying calculation.</p>
+            </div>
+            <a class="btn btn-sm btn-outline-secondary"
+               asp-page-handler="ExportProjects"
+               title="Export project totals to Excel">
+                <i class="bi bi-download" aria-hidden="true"></i>
+                Export
+            </a>
+        </div>
 
-        var yearSummaries = Model.Summary.ByYear.ToDictionary(row => row.Year, row => row);
-
-        var projectGroups = Model.Summary.ByProjectYear
-        .GroupBy(row => row.Year)
-        .ToDictionary(
-        group => group.Key,
-        group => group
-        .OrderByDescending(row => row.Totals.Total)
-        .ThenBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
-        .ToList()
-        );
-
-        var allYears = yearSummaries.Keys
-        .Concat(projectGroups.Keys)
-        .Distinct()
-        .OrderByDescending(year => year)
-        .ToList();
-    }
-
-    <!-- two-column layout -->
-    <div class="row g-4 mb-4">
-        <!-- left: projects ranked -->
-        <div class="col-lg-5">
-            <section class="prol-card h-100">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h2 class="h5 prol-heading mb-0">Projects ranked by proliferations</h2>
-                    <div class="d-flex gap-2">
-                        <!-- export as Excel -->
-                        <a asp-area="ProjectOfficeReports"
-                           asp-page="/Proliferation/Summary"
-                           asp-page-handler="ExportProjects"
-                           class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center"
-                           title="Export ranked projects to Excel"
-                           aria-label="Export ranked projects to Excel">
-                            <i class="bi bi-download"></i>
-                        </a>
-                        @if (hasMoreProjects)
+        @if (projects.Count == 0)
+        {
+            <div class="pf-empty-state">
+                <i class="bi bi-inbox" aria-hidden="true"></i>
+                <h3>No approved proliferation recorded</h3>
+                <p>Approved project totals will appear here.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table align-middle mb-0 pf-project-table" id="pf-project-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Project</th>
+                            <th scope="col" class="text-end">SDD</th>
+                            <th scope="col" class="text-end">515 ABW</th>
+                            <th scope="col" class="text-end">Total proliferation</th>
+                            <th scope="col" class="pf-table-action"><span class="visually-hidden">Open</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var project in projects)
                         {
-                            <a asp-area="ProjectOfficeReports"
-                               asp-page="/Proliferation/Index"
-                               class="small text-decoration-none align-self-center">View all</a>
-                        }
-                    </div>
-                </div>
-                <ol class="prol-ol mb-0">
-                    @foreach (var project in topProjects)
-                    {
-                        <li class="prol-row">
-                            <div class="prol-name">
-                                <span class="prol-heading">
-                                    <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">
-                                        @project.ProjectName
+                            var searchText = $"{project.ProjectName} {project.ProjectCode}".ToLowerInvariant();
+                            <tr data-project-row data-search="@searchText">
+                                <td>
+                                    <a class="pf-project-link"
+                                       asp-area="ProjectOfficeReports"
+                                       asp-page="/Proliferation/Project"
+                                       asp-route-id="@project.ProjectId">
+                                        <span>@project.ProjectName</span>
+                                        @if (!string.IsNullOrWhiteSpace(project.ProjectCode))
+                                        {
+                                            <small>@project.ProjectCode</small>
+                                        }
                                     </a>
-                                    @if (!string.IsNullOrWhiteSpace(project.ProjectCode))
-                                    {
-                                        <span class="prol-code">(@project.ProjectCode)</span>
-                                    }
-                                </span>
-                                <span class="prol-meta">
-                                    515 ABW: @project.Totals.Abw515.ToString("N0") ·
-                                    SDD: @project.Totals.Sdd.ToString("N0")
-                                </span>
-                            </div>
-                            <span class="prol-badge">@project.Totals.Total.ToString("N0")</span>
-                        </li>
-                    }
-                    @if (topProjects.Count == 0)
-                    {
-                        <li class="prol-meta">No projects in the current view.</li>
-                    }
-                </ol>
-            </section>
-        </div>
-
-        <!-- right: breakdown by year -->
-        <div class="col-lg-7">
-            <section class="prol-card h-100">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h2 class="h5 prol-heading mb-0">Project breakdown by year</h2>
-                    <div class="d-flex gap-2 align-items-center">
-                        <!-- export as Excel -->
-                        <a asp-area="ProjectOfficeReports"
-                           asp-page="/Proliferation/Summary"
-                           asp-page-handler="ExportYearBreakdown"
-                           class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center"
-                           title="Export yearly breakdown to Excel"
-                           aria-label="Export yearly breakdown to Excel">
-                            <i class="bi bi-download"></i>
-                        </a>
-
-                        @if (allYears.Count > 0)
-                        {
-                            <div class="prol-yr__actions small d-flex gap-2">
-                                <button type="button" class="btn btn-link btn-sm p-0" data-prol-action="expand-all">
-                                    Expand all
-                                </button>
-                                <span aria-hidden="true" class="text-muted">/</span>
-                                <button type="button" class="btn btn-link btn-sm p-0" data-prol-action="collapse-all">
-                                    Collapse all
-                                </button>
-                            </div>
+                                </td>
+                                <td class="text-end pf-number">@project.Totals.Sdd.ToString("N0")</td>
+                                <td class="text-end pf-number">@project.Totals.Abw515.ToString("N0")</td>
+                                <td class="text-end"><strong class="pf-total-pill">@project.Totals.Total.ToString("N0")</strong></td>
+                                <td class="text-end">
+                                    <a class="btn btn-sm btn-light"
+                                       asp-area="ProjectOfficeReports"
+                                       asp-page="/Proliferation/Project"
+                                       asp-route-id="@project.ProjectId"
+                                       aria-label="Open @project.ProjectName proliferation details">
+                                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
                         }
+                    </tbody>
+                </table>
+            </div>
+            <div class="pf-table-empty d-none" id="pf-project-no-results">
+                No project matches the current search.
+            </div>
+            <div class="pf-card__footer">
+                <span id="pf-project-count">Showing @projects.Count.ToString("N0") projects</span>
+                <a asp-area="ProjectOfficeReports" asp-page="/Proliferation/Index">Browse grouped records</a>
+            </div>
+        }
+    </section>
+
+    <div class="row g-4 mt-0">
+        <div class="col-12 col-xl-8">
+            <section class="pf-card h-100" aria-labelledby="trend-heading">
+                <div class="pf-card__header">
+                    <div>
+                        <h2 class="pf-card__title" id="trend-heading">Year-wise trend</h2>
+                        <p class="pf-card__subtitle">Stacked bars show the reported SDD and 515 ABW totals for each year.</p>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Trend period">
+                        <button type="button" class="btn btn-outline-secondary active" data-trend-range="10">Last 10 years</button>
+                        <button type="button" class="btn btn-outline-secondary" data-trend-range="all">All years</button>
                     </div>
                 </div>
-
-                <ul class="list-unstyled mb-0" data-prol-year-list>
-                    @foreach (var year in allYears)
+                <div id="proliferation-yearly-chart"
+                     class="pf-chart-host"
+                     data-yearly='@JsonSerializer.Serialize(years, jsonOptions)'>
+                    <canvas id="proliferation-yearly-chart-canvas" aria-label="Year-wise proliferation chart" role="img"></canvas>
+                </div>
+                <div class="pf-chart-fallback">
+                    <a asp-page-handler="ExportYearBreakdown">Export year-wise data</a>
+                </div>
+            </section>
+        </div>
+        <div class="col-12 col-xl-4">
+            <section class="pf-card h-100" aria-labelledby="recent-years-heading">
+                <div class="pf-card__header">
+                    <div>
+                        <h2 class="pf-card__title" id="recent-years-heading">Recent years</h2>
+                        <p class="pf-card__subtitle">Exact reported totals for the latest recorded years.</p>
+                    </div>
+                </div>
+                <div class="pf-recent-years">
+                    @foreach (var year in recentYears)
                     {
-                        var hasSummary = yearSummaries.TryGetValue(year, out var yearRow);
-                        var projects = projectGroups.TryGetValue(year, out var breakdown)
-                        ? breakdown
-                        : new List<ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels.ProliferationSummaryProjectYearRow>();
-
-                        var yearTotal = hasSummary ? yearRow!.Totals.Total : projects.Sum(row => row.Totals.Total);
-                        var yearAbw = hasSummary ? yearRow!.Totals.Abw515 : projects.Sum(row => row.Totals.Abw515);
-                        var yearSdd = hasSummary ? yearRow!.Totals.Sdd : projects.Sum(row => row.Totals.Sdd);
-                        var isOpen = Model.OpenYears.Contains(year);
-
-                        <li class="mb-2">
-                            <details class="prol-yr" @(isOpen ? "open" : "")>
-                                <summary class="prol-yr__summary">
-                                    <span class="prol-yr__title">@year</span>
-                                    <span class="prol-yr__totals">
-                                        <span class="prol-yr__total">@yearTotal.ToString("N0") total</span>
-                                        <span class="prol-yr__meta">
-                                            515 ABW: @yearAbw.ToString("N0") · SDD: @yearSdd.ToString("N0")
-                                        </span>
-                                    </span>
-                                </summary>
-
-                                <ol class="prol-ol prol-yr__list mb-2">
-                                    @foreach (var project in projects)
-                                    {
-                                        <li class="prol-row">
-                                            <div class="prol-name">
-                                                <span class="prol-heading">
-                                                    <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">
-                                                        @project.ProjectName
-                                                    </a>
-                                                    @if (!string.IsNullOrWhiteSpace(project.ProjectCode))
-                                                    {
-                                                        <span class="prol-code">(@project.ProjectCode)</span>
-                                                    }
-                                                </span>
-                                                <span class="prol-meta">
-                                                    515 ABW: @project.Totals.Abw515.ToString("N0") ·
-                                                    SDD: @project.Totals.Sdd.ToString("N0")
-                                                </span>
-                                            </div>
-                                            <span class="prol-badge">@project.Totals.Total.ToString("N0")</span>
-                                        </li>
-                                    }
-                                    @if (projects.Count == 0)
-                                    {
-                                        <li class="prol-meta">No projects for this year.</li>
-                                    }
-                                </ol>
-                            </details>
-                        </li>
+                        <div class="pf-recent-year">
+                            <div>
+                                <strong>@year.Year</strong>
+                                <small>SDD @year.Totals.Sdd.ToString("N0") · 515 ABW @year.Totals.Abw515.ToString("N0")</small>
+                            </div>
+                            <span>@year.Totals.Total.ToString("N0")</span>
+                        </div>
                     }
-                    @if (allYears.Count == 0)
+                    @if (recentYears.Count == 0)
                     {
-                        <li class="prol-meta">No yearly data available.</li>
+                        <p class="text-muted mb-0">No year-wise data is available.</p>
                     }
-                </ul>
+                </div>
             </section>
         </div>
     </div>
+
+    @if (Model.TechnicalCategoryBreakdown.Count > 0)
+    {
+        <details class="pf-card pf-analytics-details mt-4">
+            <summary>
+                <span>
+                    <strong>Additional analysis</strong>
+                    <small>View proliferation by technical category</small>
+                </span>
+                <i class="bi bi-chevron-down" aria-hidden="true"></i>
+            </summary>
+            <div class="pf-analytics-details__body">
+                <div id="proliferation-techcat-chart"
+                     class="pf-chart-host pf-chart-host--category"
+                     data-categories='@JsonSerializer.Serialize(Model.TechnicalCategoryBreakdown, jsonOptions)'>
+                    <canvas id="proliferation-techcat-chart-canvas" aria-label="Proliferation by technical category chart" role="img"></canvas>
+                </div>
+            </div>
+        </details>
+    }
 </div>
 
-@section Scripts {
-    <script src="~/lib/chart.js/chart.umd.js"></script>
-    <script src="~/js/pages/project-office-reports/proliferation-summary-charts.js" asp-append-version="true"></script>
-}
+<link rel="stylesheet" href="~/css/proliferation.css" asp-append-version="true" />
+<script src="~/js/pages/project-office-reports/proliferation-summary-charts.js" asp-append-version="true" defer></script>

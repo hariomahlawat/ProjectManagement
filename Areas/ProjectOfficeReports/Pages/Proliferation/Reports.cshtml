@@ -2,216 +2,249 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.ReportsModel
 @{
     ViewData["Title"] = "Proliferation reports";
+    ViewData["UseFullWidth"] = true;
 }
 
-<div class="container-fluid mt-3"
+<div class="container-xxl py-3 pf-shell"
      data-page="proliferation-reports"
      data-can-manage-records="@(Model.CanManageRecords ? "true" : "false")">
-    <!-- SECTION: Header -->
-    <div class="d-flex align-items-center justify-content-between mb-3">
+    <nav aria-label="Breadcrumb" class="mb-2">
+        <ol class="breadcrumb mb-0 small">
+            <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+            <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/Proliferation/Summary">Proliferation</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Reports</li>
+        </ol>
+    </nav>
+
+    <partial name="_ProliferationNav" model="Model.CanManageRecords" />
+
+    <header class="pf-page-header">
         <div>
-            <div class="text-muted small">
-                <a asp-area="" asp-page="/Index">Dashboard</a> /
-                <a asp-area="ProjectOfficeReports" asp-page="/Proliferation/Summary">Proliferation tracker</a> /
-                Reports
+            <div class="pf-eyebrow">Proliferation</div>
+            <h1 class="pf-page-title">Reports</h1>
+            <p class="pf-page-subtitle mb-0">Start with the information you need. Advanced filters remain available when required.</p>
+        </div>
+        @if (Model.CanManageRecords)
+        {
+            <div class="pf-page-actions">
+                <a class="btn btn-primary" asp-area="ProjectOfficeReports" asp-page="/Proliferation/Manage">
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i> Add proliferation
+                </a>
             </div>
-            <h2 class="mb-0">Proliferation reports</h2>
-            <div class="text-muted">Generate unit-wise and project-wise reports from granular proliferation data.</div>
+        }
+    </header>
+
+    <section class="pf-project-finder mb-4" aria-labelledby="report-project-total-heading">
+        <div>
+            <h2 id="report-project-total-heading">Total for a project</h2>
+            <p>Select a project to view its total proliferation, SDD/515 ABW split, year-wise calculation and detailed entries.</p>
         </div>
-        <div class="d-flex gap-2">
-            @if (Model.CanManageRecords)
+        <div class="position-relative">
+            <div class="input-group input-group-lg">
+                <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
+                <input class="form-control" id="pf-report-project-total" placeholder="Search project name or code" autocomplete="off" />
+                <button class="btn btn-primary" id="pf-report-open-project" type="button" disabled>View total</button>
+            </div>
+            <input type="hidden" id="pf-report-project-total-id" />
+            <div class="pf-suggestions d-none" id="pf-report-project-total-suggestions" role="listbox"></div>
+        </div>
+    </section>
+
+    <section aria-labelledby="report-type-heading">
+        <div class="mb-3">
+            <h2 class="h5 mb-1" id="report-type-heading">Detailed reports</h2>
+            <p class="text-muted small mb-0">Choose a report. Only the controls relevant to that report will be shown.</p>
+        </div>
+        <div class="pf-report-chooser" role="list" aria-label="Detailed report types">
+            <button class="pf-report-choice active" type="button" data-report-kind="ProjectToUnits">
+                <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                <strong>Units receiving a project</strong>
+                <small>Find where a selected project was proliferated.</small>
+            </button>
+            <button class="pf-report-choice" type="button" data-report-kind="UnitToProjects">
+                <i class="bi bi-building" aria-hidden="true"></i>
+                <strong>Projects received by a unit</strong>
+                <small>Find all detailed project entries for a unit.</small>
+            </button>
+            <button class="pf-report-choice" type="button" data-report-kind="ProjectCoverageSummary">
+                <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
+                <strong>Project coverage</strong>
+                <small>Compare detailed quantity, unit coverage and date range.</small>
+            </button>
+            <button class="pf-report-choice" type="button" data-report-kind="GranularLedger">
+                <i class="bi bi-journal-text" aria-hidden="true"></i>
+                <strong>Detailed records ledger</strong>
+                <small>Review individual approved, pending or rejected entries.</small>
+            </button>
+            @if (Model.CanReviewCalculations)
             {
-                <!-- SECTION: Manage -->
-                <a class="btn btn-outline-primary" asp-area="ProjectOfficeReports" asp-page="/Proliferation/Manage">Manage proliferation</a>
+                <button class="pf-report-choice" type="button" data-report-kind="YearlyReconciliation">
+                    <i class="bi bi-calculator" aria-hidden="true"></i>
+                    <strong>Calculation review</strong>
+                    <small>Compare annual, detailed and reported quantities.</small>
+                </button>
             }
-            <a class="btn btn-outline-secondary" asp-area="ProjectOfficeReports" asp-page="/Proliferation/Summary">Back to summary</a>
         </div>
-    </div>
+    </section>
 
-    <!-- SECTION: Filters -->
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <div class="row g-2 align-items-end">
-                <div class="col-md-3">
-                    <label class="form-label">Report</label>
-                    <select class="form-select" id="rep-kind">
-                        <option value="ProjectToUnits">Project to units (detail)</option>
-                        <option value="UnitToProjects">Unit to projects (detail)</option>
-                        <option value="ProjectCoverageSummary">Project coverage summary</option>
-                        <option value="GranularLedger">Granular ledger</option>
-                        <option value="YearlyReconciliation">Yearly reconciliation</option>
-                    </select>
-                </div>
+    <section class="pf-card mt-4" aria-labelledby="report-filters-heading">
+        <div class="pf-card__header">
+            <div>
+                <h2 class="pf-card__title" id="report-filters-heading">Report options</h2>
+                <p class="pf-card__subtitle" id="rep-hint">Select a project to see the units that received it.</p>
+            </div>
+            <select class="form-select form-select-sm d-none" id="rep-kind" aria-label="Report type">
+                <option value="ProjectToUnits">Units receiving a project</option>
+                <option value="UnitToProjects">Projects received by a unit</option>
+                <option value="ProjectCoverageSummary">Project coverage</option>
+                <option value="GranularLedger">Detailed records ledger</option>
+                @if (Model.CanReviewCalculations)
+                {
+                    <option value="YearlyReconciliation">Calculation review</option>
+                }
+            </select>
+        </div>
 
-                <div class="col-md-3 position-relative" id="rep-project-wrap">
-                    <label class="form-label">Project</label>
+        <div class="pf-report-config">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-lg-5 position-relative" id="rep-project-wrap">
+                    <label class="form-label" for="rep-project">Project</label>
                     <input class="form-control" id="rep-project" placeholder="Search project name or code" autocomplete="off" />
-                    <div class="list-group position-absolute w-100 d-none" id="rep-project-suggest" style="z-index: 2000;"></div>
+                    <div class="pf-suggestions d-none" id="rep-project-suggest" role="listbox"></div>
                 </div>
-
-                <div class="col-md-3 d-none" id="rep-unit-wrap">
-                    <label class="form-label">Unit</label>
+                <div class="col-12 col-lg-5 d-none" id="rep-unit-wrap">
+                    <label class="form-label" for="rep-unit">Unit</label>
                     <input class="form-control" id="rep-unit" placeholder="Type unit name" list="rep-unit-list" />
                     <datalist id="rep-unit-list"></datalist>
                 </div>
-
-                <div class="col-md-3">
-                    <label class="form-label">Project category</label>
-                    <select class="form-select" id="rep-project-category">
-                        <option value="">All categories</option>
-                    </select>
-                </div>
-
-                <div class="col-md-3">
-                    <label class="form-label">Technical category</label>
-                    <select class="form-select" id="rep-technical-category">
-                        <option value="">All categories</option>
-                    </select>
-                </div>
-
-                <div class="col-md-2">
-                    <label class="form-label">Source</label>
+                <div class="col-6 col-lg-2">
+                    <label class="form-label" for="rep-source">Source</label>
                     <select class="form-select" id="rep-source">
                         <option value="">All sources</option>
                         <option value="1">SDD</option>
                         <option value="2">515 ABW</option>
                     </select>
                 </div>
-
-                <div class="col-md-2">
-                    <label class="form-label">Approval status</label>
-                    <select class="form-select" id="rep-status">
-                        <option value="Approved" selected>Approved</option>
-                        <option value="All">All</option>
-                        <option value="Pending">Pending</option>
-                        <option value="Rejected">Rejected</option>
-                    </select>
-                </div>
-
-                <div class="col-md-2">
-                    <label class="form-label">From date</label>
+                <div class="col-6 col-lg-2">
+                    <label class="form-label" for="rep-from">From date</label>
                     <input class="form-control" type="date" id="rep-from" />
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label">To date</label>
+                <div class="col-6 col-lg-2">
+                    <label class="form-label" for="rep-to">To date</label>
                     <input class="form-control" type="date" id="rep-to" />
                 </div>
-
-                <div class="col-md-2">
-                    <label class="form-label">Page size</label>
-                    <select class="form-select" id="rep-pagesize">
-                        <option value="25">25</option>
-                        <option value="50" selected>50</option>
-                        <option value="100">100</option>
-                        <option value="200">200</option>
-                    </select>
-                </div>
-
-                <div class="col-md-4 d-flex flex-wrap gap-2">
-                    <button class="btn btn-primary" id="rep-run">Run report</button>
-                    <button class="btn btn-outline-success" id="rep-export" disabled>Export Excel</button>
-                    <button class="btn btn-outline-secondary" id="rep-columns"
-                            data-bs-toggle="modal"
-                            data-bs-target="#rep-columns-modal">
-                        Columns
-                    </button>
-                </div>
-
-                <!-- SECTION: Presets -->
-                <div class="col-md-4">
-                    <label class="form-label">Presets</label>
-                    <div class="d-flex gap-2">
-                        <select class="form-select" id="rep-presets"></select>
-                        <button class="btn btn-outline-secondary" id="rep-preset-load" disabled>Load</button>
-                    </div>
-                </div>
-
-                <div class="col-md-4 d-flex flex-wrap gap-2 align-items-end">
-                    <button class="btn btn-outline-primary" id="rep-preset-save"
-                            data-bs-toggle="modal"
-                            data-bs-target="#rep-preset-modal">
-                        Save preset
-                    </button>
-                    <button class="btn btn-outline-danger" id="rep-preset-delete" disabled>Delete</button>
+                <div class="col-12 col-lg-auto d-flex flex-wrap gap-2">
+                    <button class="btn btn-primary" id="rep-run" type="button"><i class="bi bi-play-fill" aria-hidden="true"></i> Generate report</button>
+                    <button class="btn btn-outline-success" id="rep-export" type="button" disabled><i class="bi bi-download" aria-hidden="true"></i> Export Excel</button>
                 </div>
             </div>
 
-            <div class="mt-2 text-muted small" id="rep-hint"></div>
-
-            <!-- SECTION: Context + Chips -->
-            <div class="mt-3">
-                <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
-                    <div class="text-muted small" id="reportContext">Not run yet.</div>
-                    <button class="btn btn-outline-secondary btn-sm" id="rep-clear">Clear filters</button>
+            <details class="pf-report-advanced">
+                <summary>Advanced filters and saved views</summary>
+                <div class="pf-report-advanced__body">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="rep-project-category">Project category</label>
+                            <select class="form-select" id="rep-project-category"><option value="">All categories</option></select>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="rep-technical-category">Technical category</label>
+                            <select class="form-select" id="rep-technical-category"><option value="">All categories</option></select>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label" for="rep-status">Approval status</label>
+                            <select class="form-select" id="rep-status">
+                                <option value="Approved" selected>Approved</option>
+                                <option value="All">All</option>
+                                <option value="Pending">Pending</option>
+                                <option value="Rejected">Rejected</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label" for="rep-pagesize">Rows per page</label>
+                            <select class="form-select" id="rep-pagesize">
+                                <option value="25">25</option>
+                                <option value="50" selected>50</option>
+                                <option value="100">100</option>
+                                <option value="200">200</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <label class="form-label" for="rep-presets">Saved views <span class="text-muted fw-normal">(this browser)</span></label>
+                            <div class="input-group">
+                                <select class="form-select" id="rep-presets"></select>
+                                <button class="btn btn-outline-secondary" id="rep-preset-load" type="button" disabled>Load</button>
+                                <button class="btn btn-outline-danger" id="rep-preset-delete" type="button" disabled>Delete</button>
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-6 d-flex flex-wrap gap-2">
+                            <button class="btn btn-outline-primary" id="rep-preset-save" type="button" data-bs-toggle="modal" data-bs-target="#rep-preset-modal">Save view</button>
+                            <button class="btn btn-outline-secondary" id="rep-columns" type="button" data-bs-toggle="modal" data-bs-target="#rep-columns-modal">Choose columns</button>
+                            <button class="btn btn-link" id="rep-clear" type="button">Clear filters</button>
+                        </div>
+                    </div>
                 </div>
+            </details>
+
+            <div class="mt-3">
+                <div class="text-muted small" id="reportContext">Not run yet.</div>
                 <div class="d-flex flex-wrap gap-2 mt-2" id="reportChips"></div>
             </div>
         </div>
-    </div>
+    </section>
 
-    <!-- SECTION: Results -->
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <div class="text-muted" id="rep-count">No data loaded.</div>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-outline-secondary btn-sm" id="rep-prev" disabled>Prev</button>
-                    <button class="btn btn-outline-secondary btn-sm" id="rep-next" disabled>Next</button>
-                </div>
+    <section class="pf-card mt-4" aria-labelledby="report-results-heading">
+        <div class="pf-card__header">
+            <div>
+                <h2 class="pf-card__title" id="report-results-heading">Results</h2>
+                <p class="pf-card__subtitle" id="rep-count">No data loaded.</p>
             </div>
-
-            <div class="table-responsive">
-                <table class="table table-sm table-hover align-middle" id="rep-table">
-                    <thead><tr id="rep-head"></tr></thead>
-                    <tbody id="rep-body"></tbody>
-                </table>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" id="rep-prev" type="button" disabled>Previous</button>
+                <button class="btn btn-outline-secondary" id="rep-next" type="button" disabled>Next</button>
             </div>
         </div>
-    </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0" id="rep-table">
+                <thead><tr id="rep-head"></tr></thead>
+                <tbody id="rep-body"><tr><td class="text-muted p-4">Select report options and generate the report.</td></tr></tbody>
+            </table>
+        </div>
+    </section>
 </div>
 
-<!-- SECTION: Column chooser modal -->
 <div class="modal fade" id="rep-columns-modal" tabindex="-1" aria-labelledby="rep-columns-modal-label" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title fs-5" id="rep-columns-modal-label">Choose columns</h2>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
+            <div class="modal-header"><h2 class="modal-title fs-5" id="rep-columns-modal-label">Choose columns</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
             <div class="modal-body">
-                <div class="text-muted small mb-2">Select the columns you want to see for this report.</div>
+                <p class="text-muted small">Select the columns to display and export.</p>
                 <div class="row g-2" id="rep-columns-list"></div>
                 <div class="text-danger small mt-2 d-none" id="rep-columns-warning">Select at least one column.</div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" id="rep-columns-reset">Reset to default</button>
-                <button type="button" class="btn btn-primary" id="rep-columns-apply">Apply</button>
-            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" id="rep-columns-reset">Reset</button><button type="button" class="btn btn-primary" id="rep-columns-apply">Apply</button></div>
         </div>
     </div>
 </div>
 
-<!-- SECTION: Preset modal -->
 <div class="modal fade" id="rep-preset-modal" tabindex="-1" aria-labelledby="rep-preset-modal-label" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title fs-5" id="rep-preset-modal-label">Save preset</h2>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
+            <div class="modal-header"><h2 class="modal-title fs-5" id="rep-preset-modal-label">Save view</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
             <div class="modal-body">
-                <label class="form-label" for="rep-preset-name">Preset name</label>
-                <input class="form-control" id="rep-preset-name" placeholder="Example: Approved SDD last 12 months" />
-                <div class="text-muted small mt-2" id="rep-preset-help">Saved presets are stored in this browser only.</div>
+                <label class="form-label" for="rep-preset-name">View name</label>
+                <input class="form-control" id="rep-preset-name" placeholder="Example: Approved SDD entries" />
+                <div class="text-muted small mt-2" id="rep-preset-help">Saved views are stored in this browser only.</div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="rep-preset-save-confirm">Save preset</button>
-            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="rep-preset-save-confirm">Save view</button></div>
         </div>
     </div>
 </div>
 
+@section Styles {
+    <link rel="stylesheet" href="~/css/proliferation.css" asp-append-version="true" />
+}
 @section Scripts {
+    <script src="~/js/pages/proliferation-report-launcher.js" asp-append-version="true"></script>
     <script src="~/js/pages/proliferation-reports.js" asp-append-version="true"></script>
 }

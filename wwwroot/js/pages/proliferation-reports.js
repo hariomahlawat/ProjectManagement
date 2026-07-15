@@ -9,11 +9,11 @@
   };
 
   const reportLabels = {
-    ProjectToUnits: "Project to units (detail)",
-    UnitToProjects: "Unit to projects (detail)",
-    ProjectCoverageSummary: "Project coverage summary",
-    GranularLedger: "Granular ledger",
-    YearlyReconciliation: "Yearly reconciliation"
+    ProjectToUnits: "Units receiving a project",
+    UnitToProjects: "Projects received by a unit",
+    ProjectCoverageSummary: "Project coverage",
+    GranularLedger: "Detailed records ledger",
+    YearlyReconciliation: "Calculation review"
   };
 
   const reportSortKeys = {
@@ -178,7 +178,7 @@
   }
 
   function reportRequiresProject(kind) {
-    return false;
+    return kind === "ProjectToUnits";
   }
 
   function reportSupportsManageActions(kind) {
@@ -221,16 +221,16 @@
     renderColumnsModal(kind);
 
     if (kind === "YearlyReconciliation") {
-      el.hint.textContent = "This report compares yearly totals and granular sums and shows the effective total based on preference mode.";
+      el.hint.textContent = "Compare annual quantities, detailed quantities and the final reported total for each project-year.";
       return;
     }
 
     if (kind === "ProjectToUnits") {
-      el.hint.textContent = "Select a project to narrow this report (optional). Dates and unit names are derived from granular entries only.";
+      el.hint.textContent = "Select a project. This report shows the units and individual detailed entries recorded for it.";
       return;
     }
 
-    el.hint.textContent = "Dates and unit names are derived from granular entries only.";
+    el.hint.textContent = "This report uses detailed entries because unit names and exact dates are not available in annual quantities.";
   }
 
   // SECTION: Lookups

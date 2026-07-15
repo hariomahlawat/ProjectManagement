@@ -50,7 +50,7 @@ public class ProliferationTrackerReadServiceTests
 
         await context.SaveChangesAsync();
 
-        var service = new ProliferationTrackerReadService(context);
+        var service = new ProliferationTrackerReadService(new ProliferationAggregateReadService(context));
         var combinedTotal = await service.GetEffectiveTotalAsync(1, ProliferationSource.Sdd, 2024, CancellationToken.None);
         Assert.Equal(30, combinedTotal);
 
@@ -113,7 +113,7 @@ public class ProliferationTrackerReadServiceTests
 
         await context.SaveChangesAsync();
 
-        var service = new ProliferationTrackerReadService(context);
+        var service = new ProliferationTrackerReadService(new ProliferationAggregateReadService(context));
 
         var yearlyPreferred = await service.GetEffectiveTotalAsync(2, ProliferationSource.Sdd, 2025, CancellationToken.None);
         Assert.Equal(50, yearlyPreferred);
@@ -205,7 +205,7 @@ public class ProliferationTrackerReadServiceTests
 
         await context.SaveChangesAsync();
 
-        var service = new ProliferationTrackerReadService(context);
+        var service = new ProliferationTrackerReadService(new ProliferationAggregateReadService(context));
         var result = await service.GetEffectiveTotalAsync(9, ProliferationSource.Sdd, 2027, CancellationToken.None);
 
         Assert.Equal(15, result);
@@ -252,9 +252,68 @@ public class ProliferationTrackerReadServiceTests
 
         await context.SaveChangesAsync();
 
-        var service = new ProliferationTrackerReadService(context);
+        var service = new ProliferationTrackerReadService(new ProliferationAggregateReadService(context));
         var result = await service.GetEffectiveTotalAsync(3, ProliferationSource.Abw515, 2026, CancellationToken.None);
 
         Assert.Equal(35, result);
     }
+    [Fact]
+    public async Task GetEffectiveTotalAsync_Abw515CanUseDetailedEntriesWhenConfigured()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+
+        var now = DateTime.UtcNow;
+        context.ProliferationYearlies.Add(new ProliferationYearly
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = 4,
+            Source = ProliferationSource.Abw515,
+            Year = 2026,
+            TotalQuantity = 35,
+            ApprovalStatus = ApprovalStatus.Approved,
+            SubmittedByUserId = "user-4",
+            CreatedOnUtc = now,
+            LastUpdatedOnUtc = now,
+            RowVersion = new byte[] { 1 }
+        });
+
+        context.ProliferationGranularEntries.Add(new ProliferationGranular
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = 4,
+            Source = ProliferationSource.Abw515,
+            UnitName = "Unit",
+            ProliferationDate = new DateOnly(2026, 1, 1),
+            Quantity = 90,
+            ApprovalStatus = ApprovalStatus.Approved,
+            SubmittedByUserId = "user-4",
+            CreatedOnUtc = now,
+            LastUpdatedOnUtc = now,
+            RowVersion = new byte[] { 1 }
+        });
+
+        context.ProliferationYearPreferences.Add(new ProliferationYearPreference
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = 4,
+            Source = ProliferationSource.Abw515,
+            Year = 2026,
+            Mode = YearPreferenceMode.UseGranular,
+            SetByUserId = "pref-user",
+            SetOnUtc = now
+        });
+
+        await context.SaveChangesAsync();
+
+        var service = new ProliferationTrackerReadService(new ProliferationAggregateReadService(context));
+        var result = await service.GetEffectiveTotalAsync(4, ProliferationSource.Abw515, 2026, CancellationToken.None);
+
+        Assert.Equal(90, result);
+    }
+
 }
