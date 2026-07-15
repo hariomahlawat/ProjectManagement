@@ -105,6 +105,7 @@ namespace ProjectManagement.Data
         public DbSet<ProjectPlanDuration> ProjectPlanDurations => Set<ProjectPlanDuration>();
         public DbSet<Holiday> Holidays => Set<Holiday>();
         public DbSet<UserActivityBucket> UserActivityBuckets => Set<UserActivityBucket>();
+        public DbSet<UserActivityDailySummary> UserActivityDailySummaries => Set<UserActivityDailySummary>();
         public DbSet<StageShiftLog> StageShiftLogs => Set<StageShiftLog>();
         public DbSet<Status> Statuses => Set<Status>();
         public DbSet<Workflow> Workflows => Set<Workflow>();
@@ -1954,6 +1955,7 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => x.TimeUtc);
                 e.HasIndex(x => x.Action);
                 e.HasIndex(x => x.UserId);
+                e.HasIndex(x => new { x.UserId, x.TimeUtc });
                 e.HasIndex(x => x.Level);
                 e.HasIndex(x => x.UserName);
                 e.HasIndex(x => x.Ip);
@@ -2415,6 +2417,20 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => new { x.UserId, x.BucketStartUtc, x.ModuleKey }).IsUnique();
                 e.HasIndex(x => new { x.ActivityDateIst, x.UserId });
                 e.HasIndex(x => new { x.ModuleKey, x.ActivityDateIst });
+                e.HasOne(x => x.User)
+                    .WithMany()
+                    .HasForeignKey(x => x.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<UserActivityDailySummary>(e =>
+            {
+                e.Property(x => x.UserId).HasMaxLength(450);
+                e.Property(x => x.ActivityDateIst).HasColumnType("date");
+                e.Property(x => x.FirstSeenUtc).HasColumnType("timestamp with time zone");
+                e.Property(x => x.LastSeenUtc).HasColumnType("timestamp with time zone");
+                e.HasIndex(x => new { x.UserId, x.ActivityDateIst }).IsUnique();
+                e.HasIndex(x => x.ActivityDateIst);
                 e.HasOne(x => x.User)
                     .WithMany()
                     .HasForeignKey(x => x.UserId)

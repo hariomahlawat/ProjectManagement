@@ -165,7 +165,8 @@
 
 .erp-year-heatmap__months {
     display: grid;
-    grid-template-columns: repeat(53, 12px);
+    grid-auto-flow: column;
+    grid-auto-columns: 12px;
     gap: 3px;
     min-height: 20px;
     margin-left: 37px;

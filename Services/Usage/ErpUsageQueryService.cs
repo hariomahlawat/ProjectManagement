@@ -130,6 +130,12 @@ public interface IErpUsageQueryService
         int days = 365,
         int recentDays = 30,
         CancellationToken cancellationToken = default);
+
+    Task<ErpActivityYearVm> GetActivityYearAsync(
+        string userId,
+        string? period,
+        int recentDays = 30,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class ErpUsageQueryService : IErpUsageQueryService
@@ -366,7 +372,9 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
             historyStartDate,
             endDateExclusive,
             cancellationToken);
-        var configuredWorkingDays = options.WorkingDays.ToHashSet();
+        var configuredWorkingDays = options.WorkingDays
+            .Where(day => day != DayOfWeek.Sunday)
+            .ToHashSet();
         var allWorkingDays = EnumerateDates(historyStartDate, today)
             .Where(date => configuredWorkingDays.Contains(date.DayOfWeek) && !nonWorkingDates.Contains(date))
             .ToArray();
@@ -467,6 +475,7 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                 heatmapDates,
                 user,
                 effectiveTrackingStart,
+                Array.Empty<DailyProjection>(),
                 userSelectedBuckets,
                 userSelectedActions,
                 configuredWorkingDays,
@@ -602,7 +611,12 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
         CancellationToken cancellationToken = default)
     {
         var displayDays = Math.Clamp(days, 7, 31);
-        return GetActivityRangeAsync(userId, displayDays, cancellationToken);
+        var today = _time.TodayIst;
+        return GetActivityRangeAsync(
+            userId,
+            today.AddDays(-(displayDays - 1)),
+            today,
+            cancellationToken);
     }
 
     public async Task<ErpActivityYearVm> GetActivityYearAsync(
@@ -612,36 +626,104 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
         CancellationToken cancellationToken = default)
     {
         var yearDays = Math.Clamp(days, 90, 365);
-        var year = await GetActivityRangeAsync(userId, yearDays, cancellationToken);
-        var recent = SliceActivity(year, Math.Clamp(recentDays, 7, 31));
+        var today = _time.TodayIst;
+        return await BuildActivityYearAsync(
+            userId,
+            today.AddDays(-(yearDays - 1)),
+            today,
+            selectedPeriodKey: "rolling",
+            selectedCalendarYear: null,
+            recentDays,
+            cancellationToken);
+    }
+
+    public async Task<ErpActivityYearVm> GetActivityYearAsync(
+        string userId,
+        string? period,
+        int recentDays = 30,
+        CancellationToken cancellationToken = default)
+    {
+        var today = _time.TodayIst;
+        var trackingYear = DateOnly.FromDateTime(
+            _time.ToIst(_options.Value.TrackingInceptionUtc.ToUniversalTime()).DateTime).Year;
+        var selectedYear = ParseCalendarYear(period, trackingYear, today.Year);
+        var selectedKey = selectedYear?.ToString() ?? "rolling";
+        var startDate = selectedYear.HasValue
+            ? new DateOnly(selectedYear.Value, 1, 1)
+            : today.AddDays(-364);
+        var endDate = selectedYear.HasValue
+            ? (selectedYear.Value == today.Year ? today : new DateOnly(selectedYear.Value, 12, 31))
+            : today;
+
+        return await BuildActivityYearAsync(
+            userId,
+            startDate,
+            endDate,
+            selectedKey,
+            selectedYear,
+            recentDays,
+            cancellationToken);
+    }
+
+    private async Task<ErpActivityYearVm> BuildActivityYearAsync(
+        string userId,
+        DateOnly startDate,
+        DateOnly endDate,
+        string selectedPeriodKey,
+        int? selectedCalendarYear,
+        int recentDays,
+        CancellationToken cancellationToken)
+    {
+        var year = await GetActivityRangeAsync(userId, startDate, endDate, cancellationToken);
+        var recentDayCount = Math.Clamp(recentDays, 7, 31);
+        var today = _time.TodayIst;
+        var recentStart = today.AddDays(-(recentDayCount - 1));
+        var recent = endDate == today && startDate <= recentStart
+            ? SliceActivity(year, recentDayCount)
+            : await GetActivityRangeAsync(userId, recentStart, today, cancellationToken);
+        var trackingYear = DateOnly.FromDateTime(
+            _time.ToIst(_options.Value.TrackingInceptionUtc.ToUniversalTime()).DateTime).Year;
 
         return new ErpActivityYearVm
         {
             Year = year,
             Recent = recent,
-            Weeks = BuildYearWeeks(year)
+            Weeks = BuildYearWeeks(year),
+            PeriodOptions = BuildPeriodOptions(trackingYear, today.Year, selectedPeriodKey),
+            SelectedPeriodKey = selectedPeriodKey,
+            SelectedCalendarYear = selectedCalendarYear
         };
     }
 
     private async Task<ErpActivityStripVm> GetActivityRangeAsync(
         string userId,
-        int displayDays,
+        DateOnly startDate,
+        DateOnly endDate,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(userId))
         {
             throw new ArgumentException("A user id is required.", nameof(userId));
         }
+        if (endDate < startDate)
+        {
+            throw new ArgumentOutOfRangeException(nameof(endDate), "The activity range end cannot precede its start.");
+        }
+        if (endDate.DayNumber - startDate.DayNumber > 366)
+        {
+            throw new ArgumentOutOfRangeException(nameof(endDate), "A personal activity request cannot exceed one calendar year.");
+        }
 
-        displayDays = Math.Clamp(displayDays, 1, 365);
         var today = _time.TodayIst;
-        var startDate = today.AddDays(-(displayDays - 1));
-        var dates = EnumerateDates(startDate, today).ToArray();
+        if (endDate > today)
+        {
+            endDate = today;
+        }
+        var dates = EnumerateDates(startDate, endDate).ToArray();
         var options = _options.Value;
         var trackingInceptionUtc = options.TrackingInceptionUtc.ToUniversalTime();
         var trackingInceptionDate = DateOnly.FromDateTime(_time.ToIst(trackingInceptionUtc).DateTime);
-        var retentionStartDate = today.AddDays(-(Math.Clamp(options.RetentionDays, 30, 1095) - 1));
-        var endUtc = _time.EndExclusiveOfIstDayUtc(today).UtcDateTime;
+        var endUtc = _time.EndExclusiveOfIstDayUtc(endDate).UtcDateTime;
         var startUtc = _time.StartOfIstDayUtc(startDate).UtcDateTime;
 
         var user = await _db.Users
@@ -671,6 +753,31 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                     date == today)).ToArray());
         }
 
+        var dailySummaries = _time.UtcNow < trackingInceptionUtc
+            ? new List<DailyProjection>()
+            : await _db.UserActivityDailySummaries
+                .AsNoTracking()
+                .Where(summary =>
+                    summary.UserId == userId
+                    && summary.ActivityDateIst >= startDate
+                    && summary.ActivityDateIst <= endDate
+                    && summary.LastSeenUtc >= trackingInceptionUtc.UtcDateTime)
+                .Select(summary => new DailyProjection(
+                    summary.UserId,
+                    summary.ActivityDateIst,
+                    summary.HadNavigation,
+                    summary.HadInteractiveHeartbeat,
+                    summary.HadAdministrativeAction,
+                    summary.HadOperationalAction,
+                    summary.AdministrativeActionCount,
+                    summary.OperationalActionCount,
+                    summary.FirstSeenUtc,
+                    summary.LastSeenUtc))
+                .ToListAsync(cancellationToken);
+
+        // Detailed buckets are retained for a bounded period and provide module labels.
+        // They also act as a compatibility fallback until the permanent summary migration
+        // has backfilled every existing environment.
         var buckets = _time.UtcNow < trackingInceptionUtc
             ? new List<BucketProjection>()
             : await _db.UserActivityBuckets
@@ -678,7 +785,7 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                 .Where(bucket =>
                     bucket.UserId == userId
                     && bucket.ActivityDateIst >= startDate
-                    && bucket.ActivityDateIst <= today
+                    && bucket.ActivityDateIst <= endDate
                     && bucket.BucketStartUtc >= trackingInceptionUtc.UtcDateTime)
                 .Select(bucket => new BucketProjection(
                     bucket.UserId,
@@ -689,6 +796,25 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                     bucket.HadInteractiveHeartbeat,
                     bucket.LastSeenUtc))
                 .ToListAsync(cancellationToken);
+
+        var summaryDates = dailySummaries
+            .Select(summary => summary.ActivityDateIst)
+            .ToHashSet();
+        dailySummaries.AddRange(
+            buckets
+                .Where(bucket => !summaryDates.Contains(bucket.ActivityDateIst))
+                .GroupBy(bucket => bucket.ActivityDateIst)
+                .Select(group => new DailyProjection(
+                    userId,
+                    group.Key,
+                    group.Any(bucket => bucket.HadNavigation),
+                    group.Any(bucket => bucket.HadInteractiveHeartbeat),
+                    false,
+                    false,
+                    0,
+                    0,
+                    group.Min(bucket => bucket.BucketStartUtc),
+                    group.Max(bucket => bucket.LastSeenUtc))));
 
         var rawActions = await CandidateAuditQuery()
             .Where(audit =>
@@ -709,29 +835,28 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
 
         var nonWorkingDates = await _officeCalendar.GetNonWorkingDatesAsync(
             startDate,
-            today.AddDays(1),
+            endDate.AddDays(1),
             cancellationToken);
-        var configuredWorkingDays = options.WorkingDays.ToHashSet();
+        var configuredWorkingDays = options.WorkingDays
+            .Where(day => day != DayOfWeek.Sunday)
+            .ToHashSet();
         var createdDate = DateOnly.FromDateTime(_time.ToIst(user.CreatedUtc).Date);
         var monitoringStartedOn = LatestOf(trackingInceptionDate, createdDate);
-        var effectiveTrackingStart = LatestOf(
-            startDate,
-            trackingInceptionDate,
-            createdDate,
-            retentionStartDate);
+        var effectiveTrackingStart = LatestOf(startDate, trackingInceptionDate, createdDate);
         var heatmap = BuildHeatmap(
             dates,
             user,
             effectiveTrackingStart,
+            dailySummaries,
             buckets,
             actions,
             configuredWorkingDays,
-            nonWorkingDates,
-            retentionStartDate);
+            nonWorkingDates);
 
         var dayRows = heatmap.Select(cell =>
         {
-            var isWorkingDay = configuredWorkingDays.Contains(cell.Date.DayOfWeek)
+            var isWorkingDay = cell.Date.DayOfWeek != DayOfWeek.Sunday
+                && configuredWorkingDays.Contains(cell.Date.DayOfWeek)
                 && !nonWorkingDates.Contains(cell.Date);
             var isHistoricalAudit = cell.Label.StartsWith(
                 "Historical audited",
@@ -764,6 +889,35 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
         }).ToArray();
 
         return BuildActivityStrip(dayRows, monitoringStartedOn);
+    }
+
+    private static int? ParseCalendarYear(string? period, int earliestYear, int currentYear)
+    {
+        if (!int.TryParse(period, out var year))
+        {
+            return null;
+        }
+
+        return year >= earliestYear && year <= currentYear ? year : null;
+    }
+
+    private static IReadOnlyList<ErpActivityPeriodOptionVm> BuildPeriodOptions(
+        int earliestYear,
+        int currentYear,
+        string selectedKey)
+    {
+        var options = new List<ErpActivityPeriodOptionVm>
+        {
+            new("rolling", "Rolling 12 months", null, selectedKey == "rolling")
+        };
+
+        for (var year = currentYear; year >= earliestYear; year--)
+        {
+            var key = year.ToString();
+            options.Add(new ErpActivityPeriodOptionVm(key, key, year, selectedKey == key));
+        }
+
+        return options;
     }
 
     private static ErpActivityStripVm SliceActivity(
@@ -849,35 +1003,64 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
         IReadOnlyList<DateOnly> dates,
         UserProjection user,
         DateOnly effectiveTrackingStart,
+        IReadOnlyList<DailyProjection> dailySummaries,
         IReadOnlyList<BucketProjection> buckets,
         IReadOnlyList<ActionProjection> actions,
         IReadOnlySet<DayOfWeek> configuredWorkingDays,
-        IReadOnlySet<DateOnly> nonWorkingDates,
-        DateOnly? retainedDetailAvailableFrom = null)
+        IReadOnlySet<DateOnly> nonWorkingDates)
     {
+        var summariesByDate = dailySummaries
+            .GroupBy(summary => summary.ActivityDateIst)
+            .ToDictionary(group => group.Key, group => group.First());
         var bucketsByDate = buckets
             .GroupBy(bucket => bucket.ActivityDateIst)
             .ToDictionary(group => group.Key, group => group.ToArray());
         var actionsByDate = actions
             .GroupBy(ToIstDate)
             .ToDictionary(group => group.Key, group => group.ToArray());
+        var trackingInceptionUtc = _options.Value.TrackingInceptionUtc.ToUniversalTime();
+        var trackingDate = DateOnly.FromDateTime(_time.ToIst(trackingInceptionUtc).DateTime);
 
         return dates.Select(date =>
         {
             var dateActions = actionsByDate.GetValueOrDefault(date) ?? Array.Empty<ActionProjection>();
             var dateBuckets = bucketsByDate.GetValueOrDefault(date) ?? Array.Empty<BucketProjection>();
-            var operationalCount = dateActions.Count(action => action.Kind == ErpUsageActionKind.Operational);
-            var administrativeCount = dateActions.Count(action => action.Kind == ErpUsageActionKind.Administrative);
-            var trackedActionCount = dateActions.Count(action => action.TimeUtc >= _options.Value.TrackingInceptionUtc.UtcDateTime);
+            summariesByDate.TryGetValue(date, out var dailySummary);
+            var actionsAfterInception = dateActions
+                .Where(action => action.TimeUtc >= trackingInceptionUtc.UtcDateTime)
+                .ToArray();
+            var operationalCount = date == trackingDate
+                ? actionsAfterInception.Count(action => action.Kind == ErpUsageActionKind.Operational)
+                : Math.Max(
+                    dailySummary?.OperationalActionCount ?? 0,
+                    dateActions.Count(action => action.Kind == ErpUsageActionKind.Operational));
+            var administrativeCount = date == trackingDate
+                ? actionsAfterInception.Count(action => action.Kind == ErpUsageActionKind.Administrative)
+                : Math.Max(
+                    dailySummary?.AdministrativeActionCount ?? 0,
+                    dateActions.Count(action => action.Kind == ErpUsageActionKind.Administrative));
+            var trackedActionCount = date >= trackingDate
+                ? date == trackingDate
+                    ? actionsAfterInception.Length
+                    : Math.Max(
+                        (dailySummary?.OperationalActionCount ?? 0) + (dailySummary?.AdministrativeActionCount ?? 0),
+                        dateActions.Length)
+                : 0;
             var moduleLabels = dateBuckets
                 .Select(bucket => _modules.Find(bucket.ModuleKey)?.Label ?? bucket.ModuleKey)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(label => label, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
+            var hasTrackedSignal = (dailySummary is not null
+                    && (dailySummary.HadNavigation
+                        || dailySummary.HadInteractiveHeartbeat
+                        || dailySummary.HadAdministrativeAction
+                        || dailySummary.HadOperationalAction))
+                || dateBuckets.Any(bucket => bucket.HadNavigation || bucket.HadInteractiveHeartbeat);
             var beforeComprehensiveMonitoring = date < effectiveTrackingStart
-                || (date == DateOnly.FromDateTime(_time.ToIst(_options.Value.TrackingInceptionUtc).DateTime)
+                || (date == trackingDate
                     && trackedActionCount == 0
-                    && dateBuckets.Length == 0);
+                    && !hasTrackedSignal);
 
             if (operationalCount > 0)
             {
@@ -900,18 +1083,16 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
             if (date < effectiveTrackingStart)
             {
                 var createdDate = DateOnly.FromDateTime(_time.ToIst(user.CreatedUtc).Date);
-                var trackingDate = DateOnly.FromDateTime(_time.ToIst(_options.Value.TrackingInceptionUtc).DateTime);
                 var reason = date < createdDate
                     ? "Account not yet created"
                     : date < trackingDate
                         ? "Comprehensive usage monitoring not active"
-                        : retainedDetailAvailableFrom.HasValue && date < retainedDetailAvailableFrom.Value
-                            ? "Detailed usage history no longer retained"
-                            : "Comprehensive usage monitoring not active";
+                        : "Comprehensive usage monitoring not active";
                 return new ErpUsageHeatmapCell(date, ErpUsageHeatmapState.NotObserved, reason);
             }
 
-            if (dateBuckets.Any(bucket => bucket.HadInteractiveHeartbeat))
+            if (dailySummary?.HadInteractiveHeartbeat == true
+                || dateBuckets.Any(bucket => bucket.HadInteractiveHeartbeat))
             {
                 return new ErpUsageHeatmapCell(
                     date,
@@ -919,7 +1100,8 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                     BuildSignalLabel("Interactive ERP use", 0, moduleLabels, false));
             }
 
-            if (dateBuckets.Any(bucket => bucket.HadNavigation))
+            if (dailySummary?.HadNavigation == true
+                || dateBuckets.Any(bucket => bucket.HadNavigation))
             {
                 return new ErpUsageHeatmapCell(
                     date,
@@ -927,7 +1109,9 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                     BuildSignalLabel("ERP navigation", 0, moduleLabels, false));
             }
 
-            if (!configuredWorkingDays.Contains(date.DayOfWeek) || nonWorkingDates.Contains(date))
+            if (date.DayOfWeek == DayOfWeek.Sunday
+                || !configuredWorkingDays.Contains(date.DayOfWeek)
+                || nonWorkingDates.Contains(date))
             {
                 return new ErpUsageHeatmapCell(date, ErpUsageHeatmapState.NonWorkingDay, "Non-working day");
             }
@@ -1090,6 +1274,18 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
         bool IsDisabled,
         bool PendingDeletion,
         UserAccountKind AccountKind);
+
+    private sealed record DailyProjection(
+        string UserId,
+        DateOnly ActivityDateIst,
+        bool HadNavigation,
+        bool HadInteractiveHeartbeat,
+        bool HadAdministrativeAction,
+        bool HadOperationalAction,
+        int AdministrativeActionCount,
+        int OperationalActionCount,
+        DateTime FirstSeenUtc,
+        DateTime LastSeenUtc);
 
     private sealed record BucketProjection(
         string UserId,

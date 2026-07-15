@@ -5,7 +5,6 @@
     var vm = Model.Workspace;
     var overviewGroups = vm.AllActionQueueGroups.Take(3).ToList();
     var overviewProjects = vm.ProjectMatrix.Take(3).ToList();
-    var ideaUpdatesDue = vm.Ideas.Count(idea => idea.NeedsUpdate);
 }
 <div class="po-workspace po-workspace--embedded">
     <header class="po-command po-page-hero">
@@ -42,12 +41,12 @@
 
             <section class="po-panel po-follow-panel">
                 <div class="po-panel__head">
-                    <div><span class="po-panel__kicker">Personal work</span><h2>Follow-ups</h2><p>Due or pinned reminders and idea updates requiring action.</p></div>
+                    <div><span class="po-panel__kicker">Personal work</span><h2>Follow-ups</h2><p>Due reminders and upcoming calendar commitments.</p></div>
                     <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="follow-ups" class="po-link">View follow-ups<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                 </div>
                 <div class="po-follow-summary-grid">
                     <article><span><i class="bi bi-bell" aria-hidden="true"></i></span><strong>@vm.PersonalReminders.Count</strong><b>Due or pinned reminders</b></article>
-                    <article><span><i class="bi bi-lightbulb" aria-hidden="true"></i></span><strong>@ideaUpdatesDue</strong><b>Idea updates due</b></article>
+                    <article><span><i class="bi bi-calendar-event" aria-hidden="true"></i></span><strong>@vm.UpcomingEventCount</strong><b>Events in next 14 days</b></article>
                 </div>
             </section>
         </main>
@@ -71,7 +70,7 @@
             </section>
 
             <section class="po-upcoming">
-                <div class="po-upcoming__head"><div><span class="po-panel__kicker">Calendar</span><h2>Upcoming</h2></div><span class="po-upcoming__count">@vm.UpcomingEvents.Count</span></div>
+                <div class="po-upcoming__head"><div><span class="po-panel__kicker">Calendar</span><h2>Upcoming</h2></div><span class="po-upcoming__count">@vm.UpcomingEventCount</span></div>
                 @if (!vm.UpcomingEvents.Any())
                 {
                     <div class="po-upcoming__empty"><i class="bi bi-calendar2-check" aria-hidden="true"></i><div><strong>No events in the next 14 days</strong><span>Your calendar is clear.</span></div></div>

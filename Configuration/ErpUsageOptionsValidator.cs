@@ -34,8 +34,13 @@ public sealed class ErpUsageOptionsValidator : IValidateOptions<ErpUsageOptions>
             failures.Add("ErpUsage:MaximumExportRows must be between 100 and 20000.");
         if (options.WorkingDays is null || options.WorkingDays.Length == 0)
             failures.Add("ErpUsage:WorkingDays must contain at least one day.");
-        else if (options.WorkingDays.Distinct().Count() != options.WorkingDays.Length)
-            failures.Add("ErpUsage:WorkingDays cannot contain duplicate values.");
+        else
+        {
+            if (options.WorkingDays.Distinct().Count() != options.WorkingDays.Length)
+                failures.Add("ErpUsage:WorkingDays cannot contain duplicate values.");
+            if (options.WorkingDays.Contains(DayOfWeek.Sunday))
+                failures.Add("ErpUsage:WorkingDays cannot include Sunday; Sunday is a non-working day for PRISM ERP activity calculations.");
+        }
 
         return failures.Count == 0
             ? ValidateOptionsResult.Success

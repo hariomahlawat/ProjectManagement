@@ -20,6 +20,7 @@ public sealed class ProjectOfficerWorkspaceVm
     public int ProjectsNeedingAttentionCount { get; set; }
     public int ProjectTimelineIssueCount { get; set; }
     public int AssignedIdeaCount { get; set; }
+    public int UpcomingEventCount { get; set; }
     public int PendingConferenceDirectionCount { get; set; }
     public int AotsUnreadCount { get; set; }
     public int? NavigationActionCount { get; set; }
@@ -53,7 +54,7 @@ public sealed class ProjectOfficerWorkspaceVm
     };
 
     public int FollowUpCount => NavigationFollowUpCount
-        ?? PersonalReminders.Count + Ideas.Count(idea => idea.NeedsUpdate);
+        ?? PersonalReminders.Count;
 
     public int? ActionQueueBadgeCount
     {

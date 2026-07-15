@@ -15,6 +15,9 @@ public sealed class ErpUsageOptions
     public int BucketMinutes { get; set; } = 5;
     public int HeartbeatIntervalSeconds { get; set; } = 180;
     public int InteractiveIdleMinutes { get; set; } = 10;
+    /// <summary>
+    /// Retention for detailed module/time buckets. Permanent per-day summaries are not deleted.
+    /// </summary>
     public int RetentionDays { get; set; } = 400;
     public int RegularUserThresholdPercent { get; set; } = 80;
     public int MaximumLookbackDays { get; set; } = 365;

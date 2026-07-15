@@ -32,7 +32,7 @@ public sealed class UserActivityRetentionWorker : BackgroundService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _status = status;
         _clock = clock ?? new SystemClock();
-        _status?.Register(WorkerKey, "ERP usage retention", SweepInterval);
+        _status?.Register(WorkerKey, "ERP usage detail retention", SweepInterval);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -52,7 +52,7 @@ public sealed class UserActivityRetentionWorker : BackgroundService
             {
                 _status?.MarkStarted(WorkerKey);
                 var removed = await RunOnceAsync(stoppingToken);
-                _status?.MarkSucceeded(WorkerKey, $"Removed {removed} expired activity bucket(s).");
+                _status?.MarkSucceeded(WorkerKey, $"Removed {removed} expired detailed activity bucket(s); permanent daily summaries were retained.");
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -61,7 +61,7 @@ public sealed class UserActivityRetentionWorker : BackgroundService
             catch (Exception exception)
             {
                 _status?.MarkFailed(WorkerKey, exception);
-                _logger.LogError(exception, "ERP usage retention failed; application requests are unaffected.");
+                _logger.LogError(exception, "ERP usage detail retention failed; permanent daily summaries and application requests are unaffected.");
             }
 
             try

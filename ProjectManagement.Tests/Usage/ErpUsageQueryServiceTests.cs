@@ -288,6 +288,157 @@ public sealed class ErpUsageQueryServiceTests
         Assert.True(monitoredDay.IsMonitored);
     }
 
+
+    [Fact]
+    public async Task ActivityYear_CalendarYearUsesPermanentDailySummary()
+    {
+        await using var db = CreateContext();
+        db.Users.Add(new ApplicationUser
+        {
+            Id = "u1",
+            UserName = "project.officer",
+            FullName = "Project Officer",
+            Rank = "Lt Col",
+            CreatedUtc = UtcFromIst(2024, 1, 1, 9)
+        });
+        db.UserActivityDailySummaries.Add(new UserActivityDailySummary
+        {
+            UserId = "u1",
+            ActivityDateIst = new DateOnly(2025, 4, 15),
+            HadInteractiveHeartbeat = true,
+            FirstSeenUtc = UtcFromIst(2025, 4, 15, 10),
+            LastSeenUtc = UtcFromIst(2025, 4, 15, 11),
+            HeartbeatCount = 4
+        });
+        await db.SaveChangesAsync();
+
+        var options = new ErpUsageOptions
+        {
+            TrackingInceptionUtc = UtcOffsetFromIst(2024, 1, 1, 0),
+            RetentionDays = 400,
+            MaximumLookbackDays = 365
+        };
+        var service = CreateService(db, new DateTime(2026, 7, 15, 18, 0, 0), options);
+
+        var result = await service.GetActivityYearAsync("u1", period: "2025");
+
+        Assert.Equal(new DateOnly(2025, 1, 1), result.Year.StartDate);
+        Assert.Equal(new DateOnly(2025, 12, 31), result.Year.EndDate);
+        Assert.Equal(365, result.Year.Days.Count);
+        Assert.Equal(2025, result.SelectedCalendarYear);
+        Assert.Equal("2025", result.SelectedPeriodKey);
+        var activeDay = Assert.Single(result.Year.Days.Where(day => day.Date == new DateOnly(2025, 4, 15)));
+        Assert.True(activeDay.HasActivity);
+        Assert.Equal("Interactive use", activeDay.StateLabel);
+    }
+
+    [Fact]
+    public async Task ActivityYear_DoesNotPromotePreInceptionAuditOnMonitoringStartDate()
+    {
+        await using var db = CreateContext();
+        db.Users.Add(new ApplicationUser
+        {
+            Id = "u1",
+            UserName = "project.officer",
+            FullName = "Project Officer",
+            Rank = "Lt Col",
+            CreatedUtc = UtcFromIst(2026, 1, 1, 9)
+        });
+        db.AuditLogs.Add(new AuditLog
+        {
+            UserId = "u1",
+            UserName = "project.officer",
+            Action = "Projects.MetaChangedDirect",
+            TimeUtc = UtcFromIst(2026, 7, 14, 10),
+            Level = "Info"
+        });
+        db.UserActivityBuckets.Add(Bucket(
+            "u1",
+            new DateOnly(2026, 7, 14),
+            14,
+            "projects",
+            navigation: true));
+        await db.SaveChangesAsync();
+
+        var options = new ErpUsageOptions
+        {
+            TrackingInceptionUtc = UtcOffsetFromIst(2026, 7, 14, 13)
+        };
+        var service = CreateService(db, new DateTime(2026, 7, 15, 18, 0, 0), options);
+
+        var result = await service.GetActivityYearAsync("u1", period: "2026");
+
+        var startDate = Assert.Single(result.Year.Days.Where(day => day.Date == new DateOnly(2026, 7, 14)));
+        Assert.Equal(1, startDate.Level);
+        Assert.Equal("Navigation or read-only use", startDate.StateLabel);
+    }
+
+    [Fact]
+    public async Task ActivityYear_ExposesFiveRecentYearsAndKeepsOlderYearsSelectable()
+    {
+        await using var db = CreateContext();
+        db.Users.Add(new ApplicationUser
+        {
+            Id = "u1",
+            UserName = "project.officer",
+            FullName = "Project Officer",
+            Rank = "Lt Col",
+            CreatedUtc = UtcFromIst(2020, 1, 1, 9)
+        });
+        await db.SaveChangesAsync();
+
+        var options = new ErpUsageOptions
+        {
+            TrackingInceptionUtc = UtcOffsetFromIst(2020, 1, 1, 0)
+        };
+        var service = CreateService(db, new DateTime(2026, 7, 15, 18, 0, 0), options);
+
+        var result = await service.GetActivityYearAsync("u1", period: "2020");
+
+        Assert.Equal(
+            new[] { "rolling", "2026", "2025", "2024", "2023", "2022" },
+            result.PrimaryPeriodOptions.Select(option => option.Key));
+        Assert.Equal(new[] { "2021", "2020" }, result.OlderPeriodOptions.Select(option => option.Key));
+        Assert.True(result.OlderPeriodOptions.Single(option => option.Key == "2020").IsSelected);
+    }
+
+    [Fact]
+    public async Task ActivityYear_TreatsSundayAsNonWorkingEvenWhenMisconfigured()
+    {
+        await using var db = CreateContext();
+        db.Users.Add(new ApplicationUser
+        {
+            Id = "u1",
+            UserName = "project.officer",
+            FullName = "Project Officer",
+            Rank = "Lt Col",
+            CreatedUtc = UtcFromIst(2026, 1, 1, 9)
+        });
+        await db.SaveChangesAsync();
+
+        var options = new ErpUsageOptions
+        {
+            TrackingInceptionUtc = UtcOffsetFromIst(2026, 1, 1, 0),
+            WorkingDays =
+            [
+                DayOfWeek.Monday,
+                DayOfWeek.Tuesday,
+                DayOfWeek.Wednesday,
+                DayOfWeek.Thursday,
+                DayOfWeek.Friday,
+                DayOfWeek.Saturday,
+                DayOfWeek.Sunday
+            ]
+        };
+        var service = CreateService(db, new DateTime(2026, 7, 15, 18, 0, 0), options);
+
+        var result = await service.GetActivityYearAsync("u1", period: "2026");
+
+        var sunday = Assert.Single(result.Year.Days.Where(day => day.Date == new DateOnly(2026, 7, 12)));
+        Assert.False(sunday.IsWorkingDay);
+        Assert.Equal("Non-working day", sunday.StateLabel);
+    }
+
     private static ErpUsageQueryService CreateService(
         ApplicationDbContext db,
         DateTime nowIst,

@@ -26,7 +26,8 @@ public interface IUserActivityRecorder
 
 public sealed class UserActivityRecorder : IUserActivityRecorder
 {
-    private const int MaximumCounterValue = 10000;
+    private const int MaximumBucketCounterValue = 10000;
+    private const int MaximumDailyCounterValue = 1000000;
 
     private readonly ApplicationDbContext _db;
     private readonly IErpUsageModuleCatalog _modules;
@@ -66,10 +67,14 @@ public sealed class UserActivityRecorder : IUserActivityRecorder
         var activityDateIst = DateOnly.FromDateTime(IstClock.ToIst(now).DateTime);
         var hadNavigation = signal == UserActivitySignal.Navigation;
         var hadHeartbeat = signal == UserActivitySignal.InteractiveHeartbeat;
+        var navigationIncrement = hadNavigation ? 1 : 0;
+        var heartbeatIncrement = hadHeartbeat ? 1 : 0;
         var normalizedModule = moduleKey.Trim().ToLowerInvariant();
 
         if (_db.Database.IsNpgsql())
         {
+            // The detailed bucket supports module/time analytics for the bounded retention
+            // period. The daily summary is retained permanently for personal year views.
             await _db.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT INTO "UserActivityBuckets"
                     ("UserId", "BucketStartUtc", "ActivityDateIst", "ModuleKey",
@@ -78,27 +83,45 @@ public sealed class UserActivityRecorder : IUserActivityRecorder
                 VALUES
                     ({userId}, {bucketStartUtc}, {activityDateIst}, {normalizedModule},
                      {hadNavigation}, {hadHeartbeat}, {seenUtc}, {seenUtc},
-                     {(hadNavigation ? 1 : 0)}, {(hadHeartbeat ? 1 : 0)})
+                     {navigationIncrement}, {heartbeatIncrement})
                 ON CONFLICT ("UserId", "BucketStartUtc", "ModuleKey")
                 DO UPDATE SET
                     "HadNavigation" = "UserActivityBuckets"."HadNavigation" OR EXCLUDED."HadNavigation",
                     "HadInteractiveHeartbeat" = "UserActivityBuckets"."HadInteractiveHeartbeat" OR EXCLUDED."HadInteractiveHeartbeat",
                     "FirstSeenUtc" = LEAST("UserActivityBuckets"."FirstSeenUtc", EXCLUDED."FirstSeenUtc"),
                     "LastSeenUtc" = GREATEST("UserActivityBuckets"."LastSeenUtc", EXCLUDED."LastSeenUtc"),
-                    "NavigationCount" = LEAST({MaximumCounterValue}, "UserActivityBuckets"."NavigationCount" + EXCLUDED."NavigationCount"),
-                    "HeartbeatCount" = LEAST({MaximumCounterValue}, "UserActivityBuckets"."HeartbeatCount" + EXCLUDED."HeartbeatCount");
+                    "NavigationCount" = LEAST({MaximumBucketCounterValue}, "UserActivityBuckets"."NavigationCount"::bigint + EXCLUDED."NavigationCount")::integer,
+                    "HeartbeatCount" = LEAST({MaximumBucketCounterValue}, "UserActivityBuckets"."HeartbeatCount"::bigint + EXCLUDED."HeartbeatCount")::integer;
+
+                INSERT INTO "UserActivityDailySummaries"
+                    ("UserId", "ActivityDateIst", "HadNavigation", "HadInteractiveHeartbeat",
+                     "HadAdministrativeAction", "HadOperationalAction",
+                     "FirstSeenUtc", "LastSeenUtc", "NavigationCount", "HeartbeatCount",
+                     "AdministrativeActionCount", "OperationalActionCount")
+                VALUES
+                    ({userId}, {activityDateIst}, {hadNavigation}, {hadHeartbeat},
+                     FALSE, FALSE, {seenUtc}, {seenUtc}, {navigationIncrement}, {heartbeatIncrement},
+                     0, 0)
+                ON CONFLICT ("UserId", "ActivityDateIst")
+                DO UPDATE SET
+                    "HadNavigation" = "UserActivityDailySummaries"."HadNavigation" OR EXCLUDED."HadNavigation",
+                    "HadInteractiveHeartbeat" = "UserActivityDailySummaries"."HadInteractiveHeartbeat" OR EXCLUDED."HadInteractiveHeartbeat",
+                    "FirstSeenUtc" = LEAST("UserActivityDailySummaries"."FirstSeenUtc", EXCLUDED."FirstSeenUtc"),
+                    "LastSeenUtc" = GREATEST("UserActivityDailySummaries"."LastSeenUtc", EXCLUDED."LastSeenUtc"),
+                    "NavigationCount" = LEAST({MaximumDailyCounterValue}, "UserActivityDailySummaries"."NavigationCount"::bigint + EXCLUDED."NavigationCount")::integer,
+                    "HeartbeatCount" = LEAST({MaximumDailyCounterValue}, "UserActivityDailySummaries"."HeartbeatCount"::bigint + EXCLUDED."HeartbeatCount")::integer;
                 """, cancellationToken);
             return;
         }
 
-        var existing = await _db.UserActivityBuckets.SingleOrDefaultAsync(
+        var existingBucket = await _db.UserActivityBuckets.SingleOrDefaultAsync(
             bucket =>
                 bucket.UserId == userId
                 && bucket.BucketStartUtc == bucketStartUtc
                 && bucket.ModuleKey == normalizedModule,
             cancellationToken);
 
-        if (existing is null)
+        if (existingBucket is null)
         {
             _db.UserActivityBuckets.Add(new UserActivityBucket
             {
@@ -110,20 +133,69 @@ public sealed class UserActivityRecorder : IUserActivityRecorder
                 HadInteractiveHeartbeat = hadHeartbeat,
                 FirstSeenUtc = seenUtc,
                 LastSeenUtc = seenUtc,
-                NavigationCount = hadNavigation ? 1 : 0,
-                HeartbeatCount = hadHeartbeat ? 1 : 0
+                NavigationCount = navigationIncrement,
+                HeartbeatCount = heartbeatIncrement
             });
         }
         else
         {
-            existing.HadNavigation |= hadNavigation;
-            existing.HadInteractiveHeartbeat |= hadHeartbeat;
-            existing.FirstSeenUtc = existing.FirstSeenUtc <= seenUtc ? existing.FirstSeenUtc : seenUtc;
-            existing.LastSeenUtc = existing.LastSeenUtc >= seenUtc ? existing.LastSeenUtc : seenUtc;
-            if (hadNavigation) existing.NavigationCount = Math.Min(MaximumCounterValue, existing.NavigationCount + 1);
-            if (hadHeartbeat) existing.HeartbeatCount = Math.Min(MaximumCounterValue, existing.HeartbeatCount + 1);
+            MergeBucket(existingBucket, hadNavigation, hadHeartbeat, seenUtc);
+        }
+
+        var dailySummary = await _db.UserActivityDailySummaries.SingleOrDefaultAsync(
+            summary => summary.UserId == userId && summary.ActivityDateIst == activityDateIst,
+            cancellationToken);
+
+        if (dailySummary is null)
+        {
+            _db.UserActivityDailySummaries.Add(new UserActivityDailySummary
+            {
+                UserId = userId,
+                ActivityDateIst = activityDateIst,
+                HadNavigation = hadNavigation,
+                HadInteractiveHeartbeat = hadHeartbeat,
+                FirstSeenUtc = seenUtc,
+                LastSeenUtc = seenUtc,
+                NavigationCount = navigationIncrement,
+                HeartbeatCount = heartbeatIncrement
+            });
+        }
+        else
+        {
+            dailySummary.HadNavigation |= hadNavigation;
+            dailySummary.HadInteractiveHeartbeat |= hadHeartbeat;
+            dailySummary.FirstSeenUtc = dailySummary.FirstSeenUtc <= seenUtc ? dailySummary.FirstSeenUtc : seenUtc;
+            dailySummary.LastSeenUtc = dailySummary.LastSeenUtc >= seenUtc ? dailySummary.LastSeenUtc : seenUtc;
+            if (hadNavigation)
+            {
+                dailySummary.NavigationCount = Math.Min(MaximumDailyCounterValue, dailySummary.NavigationCount + 1);
+            }
+            if (hadHeartbeat)
+            {
+                dailySummary.HeartbeatCount = Math.Min(MaximumDailyCounterValue, dailySummary.HeartbeatCount + 1);
+            }
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static void MergeBucket(
+        UserActivityBucket bucket,
+        bool hadNavigation,
+        bool hadHeartbeat,
+        DateTime seenUtc)
+    {
+        bucket.HadNavigation |= hadNavigation;
+        bucket.HadInteractiveHeartbeat |= hadHeartbeat;
+        bucket.FirstSeenUtc = bucket.FirstSeenUtc <= seenUtc ? bucket.FirstSeenUtc : seenUtc;
+        bucket.LastSeenUtc = bucket.LastSeenUtc >= seenUtc ? bucket.LastSeenUtc : seenUtc;
+        if (hadNavigation)
+        {
+            bucket.NavigationCount = Math.Min(MaximumBucketCounterValue, bucket.NavigationCount + 1);
+        }
+        if (hadHeartbeat)
+        {
+            bucket.HeartbeatCount = Math.Min(MaximumBucketCounterValue, bucket.HeartbeatCount + 1);
+        }
     }
 }

@@ -118,13 +118,38 @@ public sealed record ErpActivityWeekVm(
     string? MonthLabel,
     IReadOnlyList<ErpActivityDayVm?> Days);
 
+
+public sealed record ErpActivityPeriodOptionVm(
+    string Key,
+    string Label,
+    int? CalendarYear,
+    bool IsSelected);
+
 public sealed class ErpActivityYearVm
 {
     public ErpActivityStripVm Year { get; init; } = new();
     public ErpActivityStripVm Recent { get; init; } = new();
     public IReadOnlyList<ErpActivityWeekVm> Weeks { get; init; } = Array.Empty<ErpActivityWeekVm>();
+    public IReadOnlyList<ErpActivityPeriodOptionVm> PeriodOptions { get; init; } = Array.Empty<ErpActivityPeriodOptionVm>();
+    public string SelectedPeriodKey { get; init; } = "rolling";
+    public int? SelectedCalendarYear { get; init; }
 
     public int WeekCount => Weeks.Count;
+    public bool IsRollingPeriod => !SelectedCalendarYear.HasValue;
+    public IReadOnlyList<ErpActivityPeriodOptionVm> PrimaryPeriodOptions => PeriodOptions.Take(6).ToArray();
+    public IReadOnlyList<ErpActivityPeriodOptionVm> OlderPeriodOptions => PeriodOptions.Skip(6).ToArray();
+
+    public string PeriodKicker => IsRollingPeriod ? "Rolling 12 months" : "Calendar year";
+    public string PeriodTitle => IsRollingPeriod
+        ? "Activity over the last 12 months"
+        : $"Activity during {SelectedCalendarYear}";
+    public string PeriodDescription => IsRollingPeriod
+        ? "Green shades show the highest monitored ERP activity level recorded on each calendar day."
+        : "Green shades show the highest monitored ERP activity level recorded on each day of the selected calendar year.";
+    public string PeriodLabel => $"{Year.StartDate:dd MMM yyyy} – {Year.EndDate:dd MMM yyyy}";
+    public string OperationalActionPeriodLabel => IsRollingPeriod
+        ? "Rolling 12-month period"
+        : $"Calendar year {SelectedCalendarYear}";
 
     public bool HasHistoricalAudits => HistoricalAuditDays > 0;
 
@@ -133,8 +158,6 @@ public sealed class ErpActivityYearVm
     public string HistoricalAuditSummary => HistoricalAuditDays == 1
         ? "A historical ERP record was found on 1 date before comprehensive monitoring was available. It is excluded from the activity scale and adoption metrics."
         : $"Historical ERP records were found on {HistoricalAuditDays} dates before comprehensive monitoring was available. They are excluded from the activity scale and adoption metrics.";
-
-    public string RollingPeriodLabel => $"{Year.StartDate:dd MMM yyyy} – {Year.EndDate:dd MMM yyyy}";
 }
 
 public sealed class ErpActivityStripRenderVm

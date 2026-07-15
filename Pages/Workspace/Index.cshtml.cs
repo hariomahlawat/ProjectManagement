@@ -34,6 +34,7 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)] public string? PatternRole { get; set; }
     [BindProperty(SupportsGet = true)] public string? PatternModule { get; set; }
     [BindProperty(SupportsGet = true)] public string? PatternSignal { get; set; }
+    [BindProperty(SupportsGet = true)] public string? ActivityPeriod { get; set; }
 
     public IndexModel(
         ProjectOfficerWorkspaceService projectOfficerWorkspaceService,
@@ -102,7 +103,8 @@ public class IndexModel : PageModel
                 User,
                 projectOfficerView,
                 includeDocuments: CanViewDocuments && projectOfficerView == ProjectOfficerWorkspaceView.Documents,
-                ct: ct);
+                ct: ct,
+                activityPeriod: projectOfficerView == ProjectOfficerWorkspaceView.Activity ? ActivityPeriod : null);
         }
 
         return Page();

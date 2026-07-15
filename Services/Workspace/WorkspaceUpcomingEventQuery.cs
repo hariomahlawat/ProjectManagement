@@ -10,27 +10,50 @@ namespace ProjectManagement.Services.Workspace;
 /// <summary>
 /// Loads the compact, read-only calendar preview used by the Project Officer workspace.
 /// The query follows the same recurrence and celebration rules as the main Calendar page,
-/// while keeping the workspace payload bounded to the next fourteen days.
+/// returns an exact total, and bounds only the materialised preview rows.
 /// </summary>
+internal sealed record WorkspaceUpcomingEventResult(
+    IReadOnlyList<WorkspaceUpcomingEventVm> Items,
+    int TotalCount);
+
 internal static class WorkspaceUpcomingEventQuery
 {
-    private const int WindowDays = 14;
-    private const int MaximumItems = 8;
+    private const int DefaultWindowDays = 14;
+    private const int DefaultMaximumItems = 8;
 
     public static async Task<IReadOnlyList<WorkspaceUpcomingEventVm>> LoadAsync(
         ApplicationDbContext db,
         string userId,
         DateTime utcNow,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int windowDays = DefaultWindowDays,
+        int maxItems = DefaultMaximumItems)
+        => (await LoadResultAsync(
+            db,
+            userId,
+            utcNow,
+            cancellationToken,
+            windowDays,
+            maxItems)).Items;
+
+    public static async Task<WorkspaceUpcomingEventResult> LoadResultAsync(
+        ApplicationDbContext db,
+        string userId,
+        DateTime utcNow,
+        CancellationToken cancellationToken,
+        int windowDays = DefaultWindowDays,
+        int maxItems = DefaultMaximumItems)
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+        windowDays = Math.Clamp(windowDays, 1, 31);
+        maxItems = Math.Clamp(maxItems, 1, 20);
 
         var normalizedUtcNow = DateTime.SpecifyKind(utcNow, DateTimeKind.Utc);
         var nowUtc = new DateTimeOffset(normalizedUtcNow);
         var localToday = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(nowUtc, IstClock.TimeZone).Date);
         var windowStart = CelebrationHelpers.ToLocalDateTime(localToday).ToUniversalTime();
-        var windowEnd = windowStart.AddDays(WindowDays);
+        var windowEnd = windowStart.AddDays(windowDays);
 
         var events = await db.Events
             .AsNoTracking()
@@ -77,18 +100,21 @@ internal static class WorkspaceUpcomingEventQuery
                 .Where(celebration => celebration.DeletedUtc == null)
                 .ToListAsync(cancellationToken);
 
-            items.AddRange(BuildCelebrations(celebrations, windowStart, windowEnd));
+            items.AddRange(BuildCelebrations(celebrations, windowStart, windowEnd, windowDays));
         }
 
-        return items
+        var orderedItems = items
             .Where(item =>
                 item.StartUtc < windowEnd &&
                 item.EndUtc > (item.IsAllDay ? windowStart : nowUtc))
             .OrderBy(item => item.StartUtc)
             .ThenBy(item => item.IsAllDay ? 0 : 1)
             .ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase)
-            .Take(MaximumItems)
             .ToList();
+
+        return new WorkspaceUpcomingEventResult(
+            orderedItems.Take(maxItems).ToList(),
+            orderedItems.Count);
     }
 
     private static WorkspaceUpcomingEventVm BuildEvent(
@@ -125,7 +151,8 @@ internal static class WorkspaceUpcomingEventQuery
     private static IEnumerable<WorkspaceUpcomingEventVm> BuildCelebrations(
         IEnumerable<Celebration> celebrations,
         DateTimeOffset windowStart,
-        DateTimeOffset windowEnd)
+        DateTimeOffset windowEnd,
+        int windowDays)
     {
         var localWindowStart = TimeZoneInfo.ConvertTime(windowStart, IstClock.TimeZone);
         var today = DateOnly.FromDateTime(localWindowStart.Date);
@@ -133,7 +160,7 @@ internal static class WorkspaceUpcomingEventQuery
         foreach (var celebration in celebrations)
         {
             var occurrenceDate = CelebrationHelpers.NextOccurrenceLocal(celebration, today);
-            if (occurrenceDate >= today.AddDays(WindowDays))
+            if (occurrenceDate >= today.AddDays(windowDays))
             {
                 continue;
             }

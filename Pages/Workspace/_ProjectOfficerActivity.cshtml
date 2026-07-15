@@ -4,7 +4,7 @@
     var activityYear = Model.Workspace.ActivityYear;
     var year = activityYear.Year;
     var recent = activityYear.Recent;
-    var monitoringStart = year.MonitoringStartedOn ?? year.MonitoringAvailableFrom;
+    var monitoringStart = year.MonitoringStartedOn ?? recent.MonitoringStartedOn ?? year.MonitoringAvailableFrom;
 }
 <div class="po-workspace po-workspace--embedded po-dedicated-page">
     <header class="po-dedicated-hero">
@@ -31,9 +31,9 @@
         <article>
             <span><i class="bi bi-clock-history" aria-hidden="true"></i></span>
             <div>
-                <strong>@year.LastActivityTypeLabel</strong>
+                <strong>@recent.LastActivityTypeLabel</strong>
                 <b>Last recorded activity</b>
-                <small>@year.LastActiveLabel</small>
+                <small>@recent.LastActiveLabel</small>
             </div>
         </article>
         <article>
@@ -41,7 +41,7 @@
             <div>
                 <strong>@year.OperationalActionDays</strong>
                 <b>Recognised-action day@(year.OperationalActionDays == 1 ? string.Empty : "s")</b>
-                <small>Monitored period only</small>
+                <small>@activityYear.OperationalActionPeriodLabel</small>
             </div>
         </article>
     </section>
@@ -49,11 +49,46 @@
     <section class="po-panel po-year-activity-panel" aria-labelledby="po-year-activity-title">
         <header class="po-year-activity-panel__header">
             <div>
-                <span class="po-panel__kicker">Rolling 12 months</span>
-                <h2 id="po-year-activity-title">Activity over the last 12 months</h2>
-                <p>Green shades show the highest monitored ERP activity level recorded on each calendar day.</p>
+                <span class="po-panel__kicker">@activityYear.PeriodKicker</span>
+                <h2 id="po-year-activity-title">@activityYear.PeriodTitle</h2>
+                <p>@activityYear.PeriodDescription</p>
             </div>
-            <span class="po-period-chip">@activityYear.RollingPeriodLabel</span>
+            <div class="po-year-activity-panel__context">
+                <span class="po-period-chip">@activityYear.PeriodLabel</span>
+                <nav class="po-activity-periods" aria-label="ERP activity period">
+                    @foreach (var option in activityYear.PrimaryPeriodOptions)
+                    {
+                        <a asp-page="/Workspace/Index"
+                           asp-route-mode="project-officer"
+                           asp-route-view="activity"
+                           asp-route-activityPeriod="@option.Key"
+                           class="@(option.IsSelected ? "is-active" : string.Empty)"
+                           aria-current="@(option.IsSelected ? "page" : null)">@option.Label</a>
+                    }
+                    @if (activityYear.OlderPeriodOptions.Any())
+                    {
+                        <form method="get" class="po-activity-periods__older">
+                            <input type="hidden" name="mode" value="project-officer" />
+                            <input type="hidden" name="view" value="activity" />
+                            <label for="po-activity-older-year" class="visually-hidden">Older calendar year</label>
+                            <select id="po-activity-older-year" name="activityPeriod" onchange="this.form.submit()">
+                                <option value="">Older years</option>
+                                @foreach (var option in activityYear.OlderPeriodOptions)
+                                {
+                                    if (option.IsSelected)
+                                    {
+                                        <option value="@option.Key" selected>@option.Label</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@option.Key">@option.Label</option>
+                                    }
+                                }
+                            </select>
+                        </form>
+                    }
+                </nav>
+            </div>
         </header>
 
         <div class="po-year-activity-panel__body">
@@ -69,7 +104,7 @@
 
             <div class="po-activity-privacy-note" role="note">
                 <i class="bi bi-shield-check" aria-hidden="true"></i>
-                <span><strong>Private self-view.</strong> No peer ranking or productivity comparison is performed.</span>
+                <span><strong>Private self-view.</strong> Daily summaries are retained to preserve your year-on-year activity history; no peer ranking or productivity comparison is performed.</span>
             </div>
         </div>
     </section>

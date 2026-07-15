@@ -44,7 +44,7 @@ public sealed class WorkspaceViewModelPresentationTests
     }
 
     [Fact]
-    public void FollowUpCount_CombinesOnlyVisibleReminderAndIdeaRows()
+    public void FollowUpCount_CountsActionableRemindersOnly()
     {
         var vm = new ProjectOfficerWorkspaceVm
         {
@@ -59,7 +59,7 @@ public sealed class WorkspaceViewModelPresentationTests
             }
         };
 
-        Assert.Equal(3, vm.FollowUpCount);
+        Assert.Equal(2, vm.FollowUpCount);
     }
 
     [Fact]

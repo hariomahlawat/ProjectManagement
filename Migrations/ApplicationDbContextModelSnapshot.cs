@@ -3354,6 +3354,8 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("UserId");
 
+                    b.HasIndex("UserId", "TimeUtc");
+
                     b.HasIndex("UserName");
 
                     b.ToTable("AuditLogs");
@@ -6176,6 +6178,63 @@ namespace ProjectManagement.Migrations
                     b.ToTable("UserActivityBuckets");
                 });
 
+
+            modelBuilder.Entity("ProjectManagement.Models.Usage.UserActivityDailySummary", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateOnly>("ActivityDateIst")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("FirstSeenUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("HadInteractiveHeartbeat")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HadAdministrativeAction")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HadOperationalAction")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HadNavigation")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("HeartbeatCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("AdministrativeActionCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("LastSeenUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("NavigationCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OperationalActionCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActivityDateIst");
+
+                    b.HasIndex("UserId", "ActivityDateIst")
+                        .IsUnique();
+
+                    b.ToTable("UserActivityDailySummaries");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Scheduling.ProjectPlanDuration", b =>
                 {
                     b.Property<int>("Id")
@@ -8444,6 +8503,7 @@ namespace ProjectManagement.Migrations
                 });
 
             // SECTION: My Notebook module
+
             modelBuilder.Entity("ProjectManagement.Models.NotebookItem", b =>
                 {
                     b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
@@ -8527,6 +8587,17 @@ namespace ProjectManagement.Migrations
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Usage.UserActivityBucket", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Usage.UserActivityDailySummary", b =>
                 {
                     b.HasOne("ProjectManagement.Models.ApplicationUser", "User")
                         .WithMany()

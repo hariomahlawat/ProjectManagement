@@ -24,6 +24,21 @@ public sealed class ErpUsageOptionsValidatorTests
         Assert.False(result.Succeeded);
         Assert.Contains(result.Failures!, failure => failure.Contains("duplicate", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public void SundayAsWorkingDay_IsRejected()
+    {
+        var options = new ErpUsageOptions
+        {
+            WorkingDays = [DayOfWeek.Monday, DayOfWeek.Sunday]
+        };
+
+        var result = new ErpUsageOptionsValidator().Validate(null, options);
+
+        Assert.False(result.Succeeded);
+        Assert.Contains(result.Failures!, failure => failure.Contains("Sunday", StringComparison.OrdinalIgnoreCase));
+    }
+
     [Fact]
     public void RetentionShorterThanLookback_IsRejected()
     {

@@ -86,7 +86,8 @@ public sealed class ProjectOfficerWorkspaceService
         ClaimsPrincipal principal,
         ProjectOfficerWorkspaceView view,
         bool includeDocuments,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? activityPeriod = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
         ArgumentNullException.ThrowIfNull(principal);
@@ -115,7 +116,7 @@ public sealed class ProjectOfficerWorkspaceService
                 await PopulateIdeasAsync(vm, userId, today, ct);
                 break;
             case ProjectOfficerWorkspaceView.FollowUps:
-                await PopulateFollowUpsAsync(vm, userId, today, ct);
+                await PopulateFollowUpsAsync(vm, userId, ct);
                 break;
             case ProjectOfficerWorkspaceView.Documents:
                 if (includeDocuments)
@@ -126,7 +127,7 @@ public sealed class ProjectOfficerWorkspaceService
             case ProjectOfficerWorkspaceView.Activity:
                 vm.ActivityYear = await _erpUsage.GetActivityYearAsync(
                     userId,
-                    days: 365,
+                    period: activityPeriod,
                     recentDays: 30,
                     cancellationToken: ct);
                 vm.ActivityStrip = vm.ActivityYear.Recent;
@@ -183,7 +184,13 @@ public sealed class ProjectOfficerWorkspaceService
             ct);
 
         var commandWorkloadCard = await _officerWorkloadReadService.GetOfficerAsync(userId, ct);
-        var upcomingEvents = await WorkspaceUpcomingEventQuery.LoadAsync(_db, userId, _clock.UtcNow, ct);
+        var upcomingEvents = await WorkspaceUpcomingEventQuery.LoadResultAsync(
+            _db,
+            userId,
+            _clock.UtcNow,
+            ct,
+            windowDays: 14,
+            maxItems: 5);
         var activityStrip = await _erpUsage.GetActivityStripAsync(userId, days: 30, cancellationToken: ct);
         var averageHealth = health.Count == 0
             ? 0
@@ -191,7 +198,7 @@ public sealed class ProjectOfficerWorkspaceService
 
         ApplyOperationalContext(vm, operational);
         CacheNavigationActionCount(userId, operational.ActionQueue.TotalCount);
-        vm.NavigationFollowUpCount = reminders.Count + ideas.Count(idea => idea.NeedsUpdate);
+        vm.NavigationFollowUpCount = reminders.Count;
         vm.ProjectMatrix = matrixRows;
         vm.OfficialTasks = tasks;
         vm.Ideas = OrderIdeas(ideas);
@@ -207,7 +214,8 @@ public sealed class ProjectOfficerWorkspaceService
         vm.PortfolioHealthLabel = HealthSummaryLabel(health.Count, averageHealth);
         vm.RecordHealthSummaryLabel = HealthSummaryLabel(health.Count, averageHealth);
         vm.CommandWorkloadCard = commandWorkloadCard;
-        vm.UpcomingEvents = upcomingEvents;
+        vm.UpcomingEvents = upcomingEvents.Items;
+        vm.UpcomingEventCount = upcomingEvents.TotalCount;
         vm.ActivityStrip = activityStrip;
     }
 
@@ -294,16 +302,21 @@ public sealed class ProjectOfficerWorkspaceService
     private async Task PopulateFollowUpsAsync(
         ProjectOfficerWorkspaceVm vm,
         string userId,
-        DateOnly today,
         CancellationToken ct)
     {
         var reminders = await LoadPersonalRemindersAsync(userId, ct);
-        var ideas = await LoadProjectIdeasAsync(userId, today, ct);
+        var upcomingEvents = await WorkspaceUpcomingEventQuery.LoadResultAsync(
+            _db,
+            userId,
+            _clock.UtcNow,
+            ct,
+            windowDays: 14,
+            maxItems: 5);
 
         vm.PersonalReminders = reminders;
-        vm.Ideas = OrderIdeas(ideas);
-        vm.NavigationFollowUpCount = reminders.Count + ideas.Count(idea => idea.NeedsUpdate);
-        vm.IdeasNeedingUpdateCount = ideas.Count(idea => idea.NeedsUpdate);
+        vm.UpcomingEvents = upcomingEvents.Items;
+        vm.UpcomingEventCount = upcomingEvents.TotalCount;
+        vm.NavigationFollowUpCount = reminders.Count;
     }
 
     private async Task<ProjectOfficerOperationalContext> LoadOperationalContextAsync(
@@ -461,8 +474,6 @@ public sealed class ProjectOfficerWorkspaceService
         var ideaSummaries = await LoadProjectIdeaProjectionsAsync(userId, ct);
         var ideas = ideaSummaries.Select(idea => BuildWorkspaceIdeaVm(idea, today)).ToList();
         var assignedIdeaCount = ideas.Count;
-        var ideaFollowUpCount = ideas.Count(idea => idea.NeedsUpdate);
-
         var endTodayUtc = EndOfIstOperatingDayUtc();
         var reminderFollowUpCount = await _db.NotebookItems
             .AsNoTracking()
@@ -493,7 +504,7 @@ public sealed class ProjectOfficerWorkspaceService
             assignedProjectCount,
             assignedTaskCount,
             assignedIdeaCount,
-            reminderFollowUpCount + ideaFollowUpCount,
+            reminderFollowUpCount,
             aotsUnreadCount,
             actionCount);
     }
