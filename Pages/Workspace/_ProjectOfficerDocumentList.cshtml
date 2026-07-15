@@ -18,12 +18,12 @@ else
                 : document.DocumentDate.HasValue
                     ? document.DocumentDate.Value.ToString("dd MMM yyyy")
                     : $"Added {IstClock.ToIst(document.CreatedAtUtc):dd MMM yyyy}";
-            <article class="po-document-row">
+            <a class="po-document-row" href="@document.OpenUrl">
                 <span class="po-document-row__icon" aria-hidden="true">
                     <i class="bi @(document.IsAots ? "bi-file-earmark-lock2" : "bi-file-earmark-text")"></i>
                 </span>
                 <div class="po-document-row__content">
-                    <div>
+                    <div class="po-document-row__title">
                         <strong>@document.Subject</strong>
                         @if (document.IsFavourite)
                         {
@@ -36,8 +36,8 @@ else
                     </div>
                     <span>@string.Join(" · ", new[] { document.Office, document.Category, dateLabel }.Where(value => !string.IsNullOrWhiteSpace(value)))</span>
                 </div>
-                <a href="@document.OpenUrl">Open<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
-            </article>
+                <span class="po-document-row__open">Open<i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+            </a>
         }
     </div>
 }

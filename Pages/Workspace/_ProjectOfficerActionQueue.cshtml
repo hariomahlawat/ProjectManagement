@@ -2,7 +2,17 @@
 @model ProjectManagement.Pages.Workspace.IndexModel
 @{ var vm = Model.Workspace; }
 <div class="po-workspace po-workspace--embedded po-dedicated-page">
-<header class="po-dedicated-hero"><div><span class="po-eyebrow">My work</span><h1>Action queue</h1><p>All outstanding actions, grouped by work item and ordered by operational priority.</p></div><div class="po-dedicated-hero__metric"><strong>@vm.ActionQueueTotalCount</strong><span>actions requiring attention</span></div></header>
-<section class="po-filter-bar" data-po-action-filters><label><span>Search</span><input type="search" placeholder="Work item or action" data-po-action-search /></label><label><span>Action type</span><select data-po-action-type><option value="">All types</option><option value="conference">Conference direction</option><option value="timeline">Timeline</option><option value="remark">Remark/update</option><option value="task">Task</option><option value="idea">Idea</option><option value="aots">AOTS</option></select></label><button type="button" data-po-clear-filters>Clear</button></section>
-<section class="po-panel po-actions-panel">@await Html.PartialAsync("_ProjectOfficerActionGroups", new ProjectOfficerActionGroupsRenderVm { Groups = vm.AllActionQueueGroups })<div class="po-filter-empty" data-po-filter-empty hidden>No actions match the selected filters.</div></section>
+    <header class="po-dedicated-hero">
+        <div><span class="po-eyebrow">My work</span><h1>Action queue</h1><p>All outstanding actions, grouped by work item and ordered by operational priority.</p></div>
+        <div class="po-dedicated-hero__metric"><strong>@vm.ActionQueueTotalCount</strong><span>actions requiring attention</span></div>
+    </header>
+    <section class="po-filter-bar" data-po-action-filters>
+        <label><span>Search</span><input type="search" placeholder="Work item or action" data-po-action-search /></label>
+        <label><span>Action type</span><select data-po-action-type><option value="">All types</option><option value="returned">Returned</option><option value="conference">Conference direction</option><option value="timeline">Timeline</option><option value="remark">Remark/update</option><option value="task">Task</option><option value="idea">Idea</option><option value="aots">AOTS</option></select></label>
+        <button type="button" data-po-clear-filters disabled>Clear</button>
+    </section>
+    <section class="po-panel po-actions-panel">
+        @await Html.PartialAsync("_ProjectOfficerActionGroups", new ProjectOfficerActionGroupsRenderVm { Groups = vm.AllActionQueueGroups })
+        <div class="po-filter-empty" data-po-filter-empty hidden>No actions match the selected filters.</div>
+    </section>
 </div>

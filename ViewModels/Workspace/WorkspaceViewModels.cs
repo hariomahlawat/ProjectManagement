@@ -22,6 +22,8 @@ public sealed class ProjectOfficerWorkspaceVm
     public int AssignedIdeaCount { get; set; }
     public int PendingConferenceDirectionCount { get; set; }
     public int AotsUnreadCount { get; set; }
+    public int? NavigationActionCount { get; set; }
+    public int? NavigationFollowUpCount { get; set; }
     public string AotsUrl { get; set; } = "/DocumentRepository/Documents?scope=aots";
     public WorkspaceEngagementVm Engagement { get; set; } = new();
     public ErpActivityStripVm ActivityStrip { get; set; } = new();
@@ -38,6 +40,7 @@ public sealed class ProjectOfficerWorkspaceVm
     public int ActionProjectCount { get; set; }
     public int ActionIdeaCount { get; set; }
     public int ActionTaskCount { get; set; }
+    public WorkspaceActionQueueSummaryVm ActionSummary { get; set; } = new();
 
     public string ActionHeadline => ActionQueueTotalCount switch
     {
@@ -48,26 +51,40 @@ public sealed class ProjectOfficerWorkspaceVm
         _ => $"{ActionQueueTotalCount} actions require attention"
     };
 
-    public int FollowUpCount => PersonalReminders.Count + Ideas.Count(idea => idea.NeedsUpdate);
+    public int FollowUpCount => NavigationFollowUpCount
+        ?? PersonalReminders.Count + Ideas.Count(idea => idea.NeedsUpdate);
+
+    public int? ActionQueueBadgeCount
+    {
+        get
+        {
+            var count = NavigationActionCount ?? ActionQueueTotalCount;
+            return count > 0 ? count : null;
+        }
+    }
 
     public string OperationalSummary
     {
         get
         {
             var scope = new List<string>();
-            if (ActionProjectCount > 0)
+            var projectCount = ActionSummary.ProjectCount > 0 ? ActionSummary.ProjectCount : ActionProjectCount;
+            var ideaCount = ActionSummary.IdeaCount > 0 ? ActionSummary.IdeaCount : ActionIdeaCount;
+            var taskCount = ActionSummary.TaskCount > 0 ? ActionSummary.TaskCount : ActionTaskCount;
+
+            if (projectCount > 0)
             {
-                scope.Add($"{ActionProjectCount} project{(ActionProjectCount == 1 ? string.Empty : "s")}");
+                scope.Add($"{projectCount} project{(projectCount == 1 ? string.Empty : "s")}");
             }
 
-            if (ActionIdeaCount > 0)
+            if (ideaCount > 0)
             {
-                scope.Add($"{ActionIdeaCount} idea{(ActionIdeaCount == 1 ? string.Empty : "s")}");
+                scope.Add($"{ideaCount} idea{(ideaCount == 1 ? string.Empty : "s")}");
             }
 
-            if (ActionTaskCount > 0)
+            if (taskCount > 0)
             {
-                scope.Add($"{ActionTaskCount} task{(ActionTaskCount == 1 ? string.Empty : "s")}");
+                scope.Add($"{taskCount} task{(taskCount == 1 ? string.Empty : "s")}");
             }
 
             var parts = new List<string>();
@@ -75,32 +92,40 @@ public sealed class ProjectOfficerWorkspaceVm
             {
                 parts.Add($"Across {JoinHumanReadable(scope)}");
             }
-            else if (AssignedProjectCount > 0)
+            else if (AssignedProjectCount > 0 && ActionQueueTotalCount == 0)
             {
                 parts.Add($"Across {AssignedProjectCount} project{(AssignedProjectCount == 1 ? string.Empty : "s")}");
             }
 
-            if (ProjectTimelineIssueCount > 0)
-            {
-                parts.Add($"{ProjectTimelineIssueCount} timeline action{(ProjectTimelineIssueCount == 1 ? string.Empty : "s")}");
-            }
+            AddCount(parts, ActionSummary.ReturnedCount, "returned item", "returned items");
+            AddCount(parts, ActionSummary.OverdueTaskCount, "overdue task", "overdue tasks");
+            AddCount(parts,
+                ActionSummary.ConferenceDirectionCount > 0 ? ActionSummary.ConferenceDirectionCount : PendingConferenceDirectionCount,
+                "conference direction",
+                "conference directions");
+            AddCount(parts,
+                ActionSummary.TimelineCount > 0 ? ActionSummary.TimelineCount : ProjectTimelineIssueCount,
+                "timeline action",
+                "timeline actions");
+            AddCount(parts, ActionSummary.ProjectUpdateCount, "overdue update", "overdue updates");
+            AddCount(parts, ActionSummary.IdeaUpdateCount, "idea update", "idea updates");
+            AddCount(parts, ActionSummary.DueSoonTaskCount, "task due soon", "tasks due soon");
+            AddCount(parts, ActionSummary.AotsCount, "AOTS document", "AOTS documents");
 
             if (RecordGapCount > 0)
             {
-                parts.Add($"{RecordGapCount} record gap{(RecordGapCount == 1 ? string.Empty : "s")}");
-            }
-
-            if (PendingConferenceDirectionCount > 0)
-            {
-                parts.Add($"{PendingConferenceDirectionCount} conference direction{(PendingConferenceDirectionCount == 1 ? string.Empty : "s")}");
-            }
-
-            if (parts.Count == 0 && AotsUnreadCount > 0)
-            {
-                parts.Add($"{AotsUnreadCount} AOTS document{(AotsUnreadCount == 1 ? string.Empty : "s")}");
+                AddCount(parts, RecordGapCount, "record gap", "record gaps");
             }
 
             return parts.Count == 0 ? "No immediate action required" : string.Join(" · ", parts);
+        }
+    }
+
+    private static void AddCount(ICollection<string> parts, int count, string singular, string plural)
+    {
+        if (count > 0)
+        {
+            parts.Add($"{count} {(count == 1 ? singular : plural)}");
         }
     }
 
@@ -112,7 +137,7 @@ public sealed class ProjectOfficerWorkspaceVm
         _ => $"{string.Join(", ", values.Take(values.Count - 1))} and {values[^1]}"
     };
 
-    public int ActionQueueHiddenCount => Math.Max(0, ActionQueueTotalCount - ActionQueue.Count);
+    public int ActionQueueHiddenCount => Math.Max(0, ActionQueueTotalCount - ActionQueue.Sum(item => item.RepresentedActionCount));
     public IReadOnlyList<WorkspaceAttentionItemVm> RemarksDue { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public IReadOnlyList<WorkspaceTaskVm> OfficialTasksDue { get; set; } = Array.Empty<WorkspaceTaskVm>();
     public IReadOnlyList<WorkspaceIdeaVm> IdeasNeedingUpdate { get; set; } = Array.Empty<WorkspaceIdeaVm>();
@@ -309,6 +334,10 @@ public sealed class WorkspaceActionQueueItemVm
 {
     public int? ProjectId { get; set; }
 
+    public string WorkItemKey { get; set; } = string.Empty;
+
+    public int RepresentedActionCount { get; set; } = 1;
+
     public string Type { get; set; } = string.Empty;
 
     public string BadgeText { get; set; } = string.Empty;
@@ -349,11 +378,31 @@ public sealed class WorkspaceActionQueueGroupVm
 
     public IReadOnlyList<WorkspaceActionQueueItemVm> Actions { get; set; } = Array.Empty<WorkspaceActionQueueItemVm>();
 
-    public int ActionCount => Actions.Count;
+    public int ActionCount => Actions.Sum(action => action.RepresentedActionCount);
+}
+
+public sealed class WorkspaceActionQueueSummaryVm
+{
+    public int TotalCount { get; set; }
+    public int ProjectCount { get; set; }
+    public int IdeaCount { get; set; }
+    public int TaskCount { get; set; }
+    public int ReturnedCount { get; set; }
+    public int OverdueTaskCount { get; set; }
+    public int ConferenceDirectionCount { get; set; }
+    public int TimelineCount { get; set; }
+    public int ProjectUpdateCount { get; set; }
+    public int IdeaUpdateCount { get; set; }
+    public int AotsCount { get; set; }
+    public int DueSoonTaskCount { get; set; }
 }
 
 public sealed class WorkspaceAttentionItemVm
 {
+    public int? ProjectId { get; set; }
+
+    public string WorkItemKey { get; set; } = string.Empty;
+
     public string Type { get; set; } = string.Empty;
 
     public string Title { get; set; } = string.Empty;
@@ -440,9 +489,11 @@ public sealed class WorkspaceTaskVm
 
     public string Status { get; set; } = string.Empty;
 
-    public DateTime? DueDateUtc { get; set; }
+    public DateOnly DueDate { get; set; }
 
     public bool IsOverdue { get; set; }
+
+    public bool IsDueSoon { get; set; }
 
     public int? DaysOverdue { get; set; }
 
@@ -806,9 +857,14 @@ public static class WorkspaceDisplayHelpers
             return "Review timeline";
         }
 
-        if (row.IsCurrentStagePdcMissing || row.IsCurrentStageStartMissing)
+        if (row.IsCurrentStagePdcMissing)
         {
-            return "Update dates";
+            return "Set current-stage PDC";
+        }
+
+        if (row.IsCurrentStageStartMissing)
+        {
+            return "Set stage start";
         }
 
         if (row.HasBackfill)
@@ -819,12 +875,27 @@ public static class WorkspaceDisplayHelpers
         return "Open timeline";
     }
 
+    public static string ProjectNextActionLabel(WorkspaceProjectMatrixRowVm row)
+    {
+        if (row.HasOverdueCurrentStage || row.HasCurrentStageIssue || row.HasBackfill)
+        {
+            return TimelineActionLabel(row);
+        }
+
+        if (row.UpdateStatus is "ActionRequired" or "Attention")
+        {
+            return "Add Project Officer update";
+        }
+
+        return CompactActionLabel(row.NextActionText);
+    }
+
     // SECTION: Matrix action labels are shortened for dense enterprise table rows.
     public static string CompactActionLabel(string action) => action switch
     {
         "Complete backfill" => "Complete timeline",
         "Update current stage" => "Update stage",
-        "Update current stage dates" => "Update dates",
+        "Update current stage dates" => "Set current-stage PDC",
         "Add remark" => "Add remark",
         "Complete project data" => "Complete data",
         _ => action

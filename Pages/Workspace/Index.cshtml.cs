@@ -90,8 +90,9 @@ public class IndexModel : PageModel
         }
         else
         {
-            View = NormalizeProjectOfficerView(View);
-            if (View == "documents" && !CanViewDocuments)
+            var projectOfficerView = ProjectOfficerWorkspaceViewParser.Parse(View);
+            View = projectOfficerView.ToRouteValue();
+            if (projectOfficerView == ProjectOfficerWorkspaceView.Documents && !CanViewDocuments)
             {
                 return Forbid();
             }
@@ -99,24 +100,14 @@ public class IndexModel : PageModel
             Workspace = await _projectOfficerWorkspaceService.GetProjectOfficerWorkspaceAsync(
                 userId,
                 User,
-                includeDocuments: CanViewDocuments && View == "documents",
+                projectOfficerView,
+                includeDocuments: CanViewDocuments && projectOfficerView == ProjectOfficerWorkspaceView.Documents,
                 ct: ct);
         }
 
         return Page();
     }
 
-    private static string NormalizeProjectOfficerView(string? view) => view?.Trim().ToLowerInvariant() switch
-    {
-        "actions" or "action-queue" or "queue" => "actions",
-        "projects" or "assigned-projects" => "projects",
-        "tasks" or "assigned-tasks" => "tasks",
-        "ideas" or "my-ideas" => "ideas",
-        "follow-ups" or "followups" or "reminders" => "follow-ups",
-        "documents" or "my-documents" => "documents",
-        "activity" or "erp-activity" or "my-erp-activity" => "activity",
-        _ => "overview"
-    };
     public async Task<IActionResult> OnPostSaveOfficerOrderAsync([FromBody] SaveOfficerOrderRequest request, CancellationToken ct)
     {
         if (!User.IsInRole(RoleNames.Comdt) && !User.IsInRole(RoleNames.HoD)) return Forbid();

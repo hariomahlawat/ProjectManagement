@@ -13,7 +13,7 @@
     <section class="po-filter-bar" data-po-idea-filters>
         <label><span>Search</span><input type="search" placeholder="Idea title" data-po-idea-search /></label>
         <label><span>State</span><select data-po-idea-state><option value="">All ideas</option><option value="attention">Update required</option><option value="current">Current</option></select></label>
-        <button type="button" data-po-clear-filters>Clear</button>
+        <button type="button" data-po-clear-filters disabled>Clear</button>
     </section>
 
     <section class="po-idea-grid">
@@ -35,7 +35,7 @@
                         }
                         else
                         {
-                            <span class="po-idea-card__state">Current</span>
+                            <span class="po-idea-card__state">No update due</span>
                         }
                     </div>
                     <h2>@idea.Title</h2>
@@ -43,7 +43,7 @@
                     <div class="po-idea-card__meta">
                         <span><i class="bi bi-chat-left-text" aria-hidden="true"></i>@idea.CommentCount comments</span>
                         <span><i class="bi bi-file-earmark" aria-hidden="true"></i>@idea.DocumentCount documents</span>
-                        <span><i class="bi bi-clock" aria-hidden="true"></i>@IstClock.ToIst(idea.LastActivityAtUtc).ToString("dd MMM yyyy")</span>
+                        <span><i class="bi bi-clock" aria-hidden="true"></i>Updated @IstClock.ToIst(idea.LastActivityAtUtc).ToString("dd MMM yyyy")</span>
                     </div>
                     <a href="@idea.OpenUrl">Open idea<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                 </article>

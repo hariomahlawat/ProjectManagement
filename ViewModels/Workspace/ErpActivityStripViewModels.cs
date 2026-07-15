@@ -21,6 +21,28 @@ public sealed class ErpActivityStripVm
     public int MonitoredWorkingDays { get; init; }
     public DateOnly? LastActiveDate { get; init; }
 
+    public DateOnly? MonitoringAvailableFrom => Days
+        .Where(day => day.IsMonitored)
+        .Select(day => (DateOnly?)day.Date)
+        .Min();
+
+    public ErpActivityDayVm? LastActiveDay => Days
+        .Where(day => day.HasActivity)
+        .OrderByDescending(day => day.Date)
+        .FirstOrDefault();
+
+    public string LastActivityTypeLabel => LastActiveDay?.Level switch
+    {
+        3 => "Operational activity",
+        2 => "Interactive ERP use",
+        1 => "Navigation or read-only use",
+        _ => "No recorded activity"
+    };
+
+    public string MonitoringAvailabilityLabel => MonitoringAvailableFrom.HasValue
+        ? $"Monitoring available from {MonitoringAvailableFrom.Value:dd MMM yyyy}"
+        : "Monitoring has not started";
+
     public string PeriodLabel => Days.Count == 1
         ? "Last day"
         : $"Last {Days.Count} days";

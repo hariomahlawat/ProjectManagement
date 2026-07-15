@@ -22,24 +22,33 @@
     if (desktopRail.matches) {
         setRailExpanded(localStorage.getItem(storageKey) !== 'false');
     } else {
-        // Use a compact rail on tablets and a fully readable in-flow menu on phones.
         setRailExpanded(mobileRail.matches);
     }
 
     toggle?.addEventListener('click', () => {
-        const expanded = !(toggle.getAttribute('aria-expanded') === 'true');
+        const expanded = toggle.getAttribute('aria-expanded') !== 'true';
         setRailExpanded(expanded);
         localStorage.setItem(storageKey, String(expanded));
     });
 
     const normalize = (value) => (value || '').toLowerCase().trim();
+    const hasValue = (input) => normalize(input?.value).length > 0;
+
     const bindClear = (container, inputs, apply) => {
-        container?.querySelector('[data-po-clear-filters]')?.addEventListener('click', () => {
+        const button = container?.querySelector('[data-po-clear-filters]');
+        const sync = () => {
+            if (button) button.disabled = !inputs.some(hasValue);
+        };
+
+        button?.addEventListener('click', () => {
             inputs.forEach((input) => { input.value = ''; });
             apply();
             inputs[0]?.focus();
         });
+
+        return sync;
     };
+
     const updateEmpty = (container, count) => {
         const page = container?.closest('.po-dedicated-page');
         const empty = page?.querySelector('[data-po-filter-empty]');
@@ -50,22 +59,46 @@
     if (actionFilters) {
         const search = actionFilters.querySelector('[data-po-action-search]');
         const type = actionFilters.querySelector('[data-po-action-type]');
-        const rows = [...document.querySelectorAll('[data-po-action-row]')];
+        const groups = [...document.querySelectorAll('[data-po-action-row]')];
+        let syncClear = () => {};
+
         const apply = () => {
-            const q = normalize(search?.value);
+            const query = normalize(search?.value);
             const selectedType = normalize(type?.value);
-            let visible = 0;
-            rows.forEach((row) => {
-                const show = (!q || normalize(row.dataset.filterText).includes(q))
-                    && (!selectedType || normalize(row.dataset.actionTypes).split(/\s+/).includes(selectedType));
-                row.hidden = !show;
-                if (show) visible++;
+            let visibleGroups = 0;
+
+            groups.forEach((group) => {
+                const groupTitleMatches = !query || normalize(group.dataset.groupTitle).includes(query);
+                const items = [...group.querySelectorAll('[data-po-action-item]')];
+                let visibleActionCount = 0;
+
+                items.forEach((item) => {
+                    const searchMatches = groupTitleMatches
+                        || !query
+                        || normalize(item.dataset.filterText).includes(query);
+                    const typeMatches = !selectedType || normalize(item.dataset.actionType) === selectedType;
+                    const show = searchMatches && typeMatches;
+                    item.hidden = !show;
+                    if (show) visibleActionCount += Number.parseInt(item.dataset.actionCount || '1', 10) || 1;
+                });
+
+                group.hidden = visibleActionCount === 0;
+                if (!group.hidden) visibleGroups++;
+
+                const count = group.querySelector('[data-po-action-count]');
+                if (count) {
+                    count.textContent = `${visibleActionCount} action${visibleActionCount === 1 ? '' : 's'}`;
+                }
             });
-            updateEmpty(actionFilters, visible);
+
+            updateEmpty(actionFilters, visibleGroups);
+            syncClear();
         };
+
         search?.addEventListener('input', apply);
         type?.addEventListener('change', apply);
-        bindClear(actionFilters, [search, type].filter(Boolean), apply);
+        syncClear = bindClear(actionFilters, [search, type].filter(Boolean), apply);
+        apply();
     }
 
     const projectFilters = document.querySelector('[data-po-project-filters]');
@@ -74,24 +107,31 @@
         const stage = projectFilters.querySelector('[data-po-project-stage]');
         const attention = projectFilters.querySelector('[data-po-project-attention]');
         const rows = [...document.querySelectorAll('[data-po-project-row]')];
+        let syncClear = () => {};
+
         const apply = () => {
-            const q = normalize(search?.value);
+            const query = normalize(search?.value);
             const selectedStage = normalize(stage?.value);
             const selectedAttention = normalize(attention?.value);
             let visible = 0;
+
             rows.forEach((row) => {
-                const show = (!q || normalize(row.dataset.filterText).includes(q))
+                const show = (!query || normalize(row.dataset.filterText).includes(query))
                     && (!selectedStage || normalize(row.dataset.stage) === selectedStage)
                     && (!selectedAttention || normalize(row.dataset.attention) === selectedAttention);
                 row.hidden = !show;
                 if (show) visible++;
             });
+
             updateEmpty(projectFilters, visible);
+            syncClear();
         };
+
         search?.addEventListener('input', apply);
         stage?.addEventListener('change', apply);
         attention?.addEventListener('change', apply);
-        bindClear(projectFilters, [search, stage, attention].filter(Boolean), apply);
+        syncClear = bindClear(projectFilters, [search, stage, attention].filter(Boolean), apply);
+        apply();
     }
 
     const taskFilters = document.querySelector('[data-po-task-filters]');
@@ -100,24 +140,31 @@
         const status = taskFilters.querySelector('[data-po-task-status]');
         const due = taskFilters.querySelector('[data-po-task-due]');
         const rows = [...document.querySelectorAll('[data-po-task-row]')];
+        let syncClear = () => {};
+
         const apply = () => {
-            const q = normalize(search?.value);
+            const query = normalize(search?.value);
             const selectedStatus = normalize(status?.value);
             const selectedDue = normalize(due?.value);
             let visible = 0;
+
             rows.forEach((row) => {
-                const show = (!q || normalize(row.dataset.filterText).includes(q))
+                const show = (!query || normalize(row.dataset.filterText).includes(query))
                     && (!selectedStatus || normalize(row.dataset.status) === selectedStatus)
                     && (!selectedDue || normalize(row.dataset.due) === selectedDue);
                 row.hidden = !show;
                 if (show) visible++;
             });
+
             updateEmpty(taskFilters, visible);
+            syncClear();
         };
+
         search?.addEventListener('input', apply);
         status?.addEventListener('change', apply);
         due?.addEventListener('change', apply);
-        bindClear(taskFilters, [search, status, due].filter(Boolean), apply);
+        syncClear = bindClear(taskFilters, [search, status, due].filter(Boolean), apply);
+        apply();
     }
 
     const ideaFilters = document.querySelector('[data-po-idea-filters]');
@@ -125,21 +172,28 @@
         const search = ideaFilters.querySelector('[data-po-idea-search]');
         const state = ideaFilters.querySelector('[data-po-idea-state]');
         const rows = [...document.querySelectorAll('[data-po-idea-row]')];
+        let syncClear = () => {};
+
         const apply = () => {
-            const q = normalize(search?.value);
+            const query = normalize(search?.value);
             const selectedState = normalize(state?.value);
             let visible = 0;
+
             rows.forEach((row) => {
-                const show = (!q || normalize(row.dataset.filterText).includes(q))
+                const show = (!query || normalize(row.dataset.filterText).includes(query))
                     && (!selectedState || normalize(row.dataset.state) === selectedState);
                 row.hidden = !show;
                 if (show) visible++;
             });
+
             updateEmpty(ideaFilters, visible);
+            syncClear();
         };
+
         search?.addEventListener('input', apply);
         state?.addEventListener('change', apply);
-        bindClear(ideaFilters, [search, state].filter(Boolean), apply);
+        syncClear = bindClear(ideaFilters, [search, state].filter(Boolean), apply);
+        apply();
     }
 
     document.querySelectorAll('[data-po-document-tabs]').forEach((tabsRoot) => {
@@ -154,6 +208,7 @@
             });
             panels.forEach((panel) => { panel.hidden = panel.dataset.documentPanel !== name; });
         };
+
         tabs.forEach((tab, index) => {
             tab.addEventListener('click', () => activate(tab.dataset.documentTab));
             tab.addEventListener('keydown', (event) => {

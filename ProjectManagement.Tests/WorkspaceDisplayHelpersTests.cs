@@ -25,7 +25,7 @@ public sealed class WorkspaceDisplayHelpersTests
 
         Assert.Equal("Current-stage PDC missing", WorkspaceDisplayHelpers.TimelineStatusLabel(row));
         Assert.Equal("Set the PDC for the current stage", WorkspaceDisplayHelpers.TimelineStatusDetail(row));
-        Assert.Equal("Update dates", WorkspaceDisplayHelpers.TimelineActionLabel(row));
+        Assert.Equal("Set current-stage PDC", WorkspaceDisplayHelpers.TimelineActionLabel(row));
     }
 
     [Fact]

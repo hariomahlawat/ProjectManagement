@@ -21,25 +21,28 @@ else
                     : group.Severity.Equals("Warning", StringComparison.OrdinalIgnoreCase)
                         ? "warning"
                         : "routine";
-            var filterText = $"{group.Title} {string.Join(" ", group.Actions.Select(action => $"{action.Type} {action.Detail} {action.Meta}"))}".ToLowerInvariant();
-            var actionTypes = string.Join(" ", group.Actions.Select(action => action.Type.ToLowerInvariant()).Distinct());
+            var groupTitleFilter = group.Title.ToLowerInvariant();
 
             <article role="listitem"
                      class="po-action-group po-action-group--@severityClass"
                      data-po-action-row
-                     data-filter-text="@filterText"
-                     data-action-types="@actionTypes">
+                     data-group-title="@groupTitleFilter">
                 <span class="po-action-group__rail" aria-hidden="true"></span>
                 <div class="po-action-group__identity">
                     <a href="@group.PrimaryUrl" class="po-action-group__title">@group.Title</a>
-                    <span>@group.ActionCount action@(group.ActionCount == 1 ? string.Empty : "s")</span>
+                    <span data-po-action-count>@group.ActionCount action@(group.ActionCount == 1 ? string.Empty : "s")</span>
                 </div>
                 <div class="po-action-group__actions">
                     @for (var actionIndex = 0; actionIndex < group.Actions.Count; actionIndex++)
                     {
                         var item = group.Actions[actionIndex];
                         var isRecommended = recommended && actionIndex == 0;
-                        <div class="po-action-line @(isRecommended ? "po-action-line--recommended" : string.Empty)">
+                        var itemFilterText = $"{item.Type} {item.BadgeText} {item.Detail} {item.Meta}".ToLowerInvariant();
+                        <div class="po-action-line @(isRecommended ? "po-action-line--recommended" : string.Empty)"
+                             data-po-action-item
+                             data-action-type="@item.Type.ToLowerInvariant()"
+                             data-filter-text="@itemFilterText"
+                             data-action-count="@item.RepresentedActionCount">
                             <div class="po-action-line__type">
                                 <span class="po-type po-type--@item.Type.ToLowerInvariant()">@item.BadgeText</span>
                             </div>
@@ -48,7 +51,7 @@ else
                                 {
                                     <span class="po-action__recommendation"><strong><i class="bi bi-stars" aria-hidden="true"></i>Recommended next</strong></span>
                                 }
-                                <span>@item.Detail</span>
+                                <span class="po-action-line__detail">@item.Detail</span>
                                 @if (!string.IsNullOrWhiteSpace(item.Meta))
                                 {
                                     <small>@item.Meta</small>

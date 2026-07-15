@@ -10,7 +10,7 @@
     <aside class="cw-local-rail is-expanded" data-workspace-rail aria-label="Project Officer workspace navigation">
         <div class="cw-local-rail__identity">
             <span class="cw-local-rail__mark" aria-hidden="true"><i class="bi bi-person-workspace"></i></span>
-            <div><small>PRISM ERP</small><strong>Project Officer workspace</strong></div>
+            <div><small>PRISM ERP</small><strong>Project Officer</strong></div>
             <button type="button" class="cw-local-rail__toggle" data-workspace-rail-toggle aria-expanded="true" aria-controls="project-officer-local-navigation" aria-label="Collapse workspace navigation" title="Collapse workspace navigation"><i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i></button>
         </div>
         <nav id="project-officer-local-navigation">
@@ -25,11 +25,11 @@
             <div class="cw-local-rail__group">
                 <span class="cw-local-rail__group-label">My work</span>
                 <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="overview" class="@(Active("overview"))" aria-current="@(Current("overview"))" data-tooltip="Overview"><i class="bi bi-grid-1x2" aria-hidden="true"></i><span>Overview</span></a>
-                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="actions" class="@(Active("actions"))" aria-current="@(Current("actions"))" data-tooltip="Action queue"><i class="bi bi-list-check" aria-hidden="true"></i><span>Action queue</span><b>@vm.ActionQueueTotalCount</b></a>
-                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="projects" class="@(Active("projects"))" aria-current="@(Current("projects"))" data-tooltip="Assigned projects"><i class="bi bi-kanban" aria-hidden="true"></i><span>Assigned projects</span><b>@vm.AssignedProjectCount</b></a>
-                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="tasks" class="@(Active("tasks"))" aria-current="@(Current("tasks"))" data-tooltip="Assigned tasks"><i class="bi bi-check2-square" aria-hidden="true"></i><span>Assigned tasks</span><b>@vm.OfficialTasks.Count</b></a>
-                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="ideas" class="@(Active("ideas"))" aria-current="@(Current("ideas"))" data-tooltip="My ideas"><i class="bi bi-lightbulb" aria-hidden="true"></i><span>My ideas</span><b>@vm.AssignedIdeaCount</b></a>
-                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="follow-ups" class="@(Active("follow-ups"))" aria-current="@(Current("follow-ups"))" data-tooltip="Follow-ups"><i class="bi bi-bell" aria-hidden="true"></i><span>Follow-ups</span><b>@vm.FollowUpCount</b></a>
+                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="actions" class="@(Active("actions"))" aria-current="@(Current("actions"))" data-tooltip="Action queue"><i class="bi bi-list-check" aria-hidden="true"></i><span>Action queue</span>@if (vm.ActionQueueBadgeCount.HasValue) { <b>@vm.ActionQueueBadgeCount.Value</b> }</a>
+                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="projects" class="@(Active("projects"))" aria-current="@(Current("projects"))" data-tooltip="Assigned projects"><i class="bi bi-kanban" aria-hidden="true"></i><span>Assigned projects</span>@if (vm.AssignedProjectCount > 0) { <b>@vm.AssignedProjectCount</b> }</a>
+                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="tasks" class="@(Active("tasks"))" aria-current="@(Current("tasks"))" data-tooltip="Assigned tasks"><i class="bi bi-check2-square" aria-hidden="true"></i><span>Assigned tasks</span>@if (vm.OfficialTaskCount > 0) { <b>@vm.OfficialTaskCount</b> }</a>
+                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="ideas" class="@(Active("ideas"))" aria-current="@(Current("ideas"))" data-tooltip="My ideas"><i class="bi bi-lightbulb" aria-hidden="true"></i><span>My ideas</span>@if (vm.AssignedIdeaCount > 0) { <b>@vm.AssignedIdeaCount</b> }</a>
+                <a asp-page="/Workspace/Index" asp-route-mode="project-officer" asp-route-view="follow-ups" class="@(Active("follow-ups"))" aria-current="@(Current("follow-ups"))" data-tooltip="Follow-ups"><i class="bi bi-bell" aria-hidden="true"></i><span>Follow-ups</span>@if (vm.FollowUpCount > 0) { <b>@vm.FollowUpCount</b> }</a>
             </div>
             <div class="cw-local-rail__group">
                 <span class="cw-local-rail__group-label">My resources</span>

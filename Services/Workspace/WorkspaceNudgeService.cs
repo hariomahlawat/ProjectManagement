@@ -85,6 +85,8 @@ public sealed class WorkspaceNudgeService
 
             items.Add(new WorkspaceAttentionItemVm
             {
+                ProjectId = project.Id,
+                WorkItemKey = $"project:{project.Id}",
                 Type = "Remark",
                 Title = project.Name,
                 Detail = detail,
@@ -117,6 +119,8 @@ public sealed class WorkspaceNudgeService
             {
                 items.Add(new WorkspaceAttentionItemVm
                 {
+                    ProjectId = project.Id,
+                    WorkItemKey = $"project:{project.Id}",
                     Type = "Timeline",
                     Title = project.Name,
                     Detail = "Timeline backfill required",
@@ -137,6 +141,8 @@ public sealed class WorkspaceNudgeService
 
                 items.Add(new WorkspaceAttentionItemVm
                 {
+                    ProjectId = project.Id,
+                    WorkItemKey = $"project:{project.Id}",
                     Type = "Timeline",
                     Title = project.Name,
                     Detail = $"Current stage overdue by {overdueDays} days",
@@ -153,6 +159,8 @@ public sealed class WorkspaceNudgeService
             {
                 items.Add(new WorkspaceAttentionItemVm
                 {
+                    ProjectId = project.Id,
+                    WorkItemKey = $"project:{project.Id}",
                     Type = "Timeline",
                     Title = project.Name,
                     Detail = GetCurrentStageIssueLabel(stage),
@@ -183,40 +191,43 @@ public sealed class WorkspaceNudgeService
         }
 
         items.AddRange(tasks
-            .Where(t => t.IsOverdue)
-            .Select(t => new WorkspaceAttentionItemVm
+            .Where(task => task.IsOverdue)
+            .Select(task => new WorkspaceAttentionItemVm
             {
+                WorkItemKey = $"task:{task.TaskId}",
                 Type = "Task",
-                Title = t.Title,
-                Detail = $"Overdue by {t.DaysOverdue} days",
+                Title = task.Title,
+                Detail = $"Overdue by {task.DaysOverdue} days",
                 Severity = "Danger",
                 BadgeText = "Task",
                 ActionText = "Open Task",
-                ActionUrl = t.OpenUrl,
-                DueOrEventDateUtc = t.DueDateUtc
+                ActionUrl = task.OpenUrl,
+                DueOrEventDateUtc = task.DueDate.ToDateTime(TimeOnly.MinValue)
             }));
 
         items.AddRange(tasks
-            .Where(t =>
-                !t.IsOverdue &&
-                t.DueDateUtc is { } due &&
-                ToIstDate(due).DayNumber <= today.DayNumber + 7)
-            .Select(t => new WorkspaceAttentionItemVm
+            .Where(task =>
+                !task.IsOverdue
+                && task.DueDate.DayNumber >= today.DayNumber
+                && task.DueDate.DayNumber <= today.DayNumber + 7)
+            .Select(task => new WorkspaceAttentionItemVm
             {
+                WorkItemKey = $"task:{task.TaskId}",
                 Type = "Task",
-                Title = t.Title,
-                Detail = ToIstDate(t.DueDateUtc!.Value) == today ? "Due today" : "Due this week",
+                Title = task.Title,
+                Detail = task.DueDate == today ? "Due today" : "Due this week",
                 Severity = "Warning",
                 BadgeText = "Task",
                 ActionText = "Open Task",
-                ActionUrl = t.OpenUrl,
-                DueOrEventDateUtc = t.DueDateUtc
+                ActionUrl = task.OpenUrl,
+                DueOrEventDateUtc = task.DueDate.ToDateTime(TimeOnly.MinValue)
             }));
 
         items.AddRange(ideas
             .Where(i => i.NeedsUpdate)
             .Select(i => new WorkspaceAttentionItemVm
             {
+                WorkItemKey = $"idea:{i.IdeaId}",
                 Type = "Idea",
                 Title = i.Title,
                 Detail = $"No update in last {Math.Max(0, today.DayNumber - ToIstDate(i.LastActivityAtUtc).DayNumber)} days",
@@ -248,6 +259,8 @@ public sealed class WorkspaceNudgeService
         string action,
         string url) => new()
         {
+            ProjectId = project.Id,
+            WorkItemKey = $"project:{project.Id}",
             Type = "Project",
             Title = project.Name,
             Detail = detail,

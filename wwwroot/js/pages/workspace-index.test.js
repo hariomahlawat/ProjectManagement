@@ -57,37 +57,56 @@ test('project officer rail restores the desktop preference and persists changes'
     assert.equal(window.localStorage.getItem('prism.projectOfficerWorkspace.navExpanded'), 'true');
 });
 
-test('action queue filters by text and action type and exposes the empty state', () => {
+test('action queue filters individual actions inside a grouped work item and manages clear state', () => {
     const { window, document } = createDom(`${workspaceShell}
 <div class="po-dedicated-page">
     <section class="po-filter-bar" data-po-action-filters>
         <input data-po-action-search />
-        <select data-po-action-type><option value=""></option><option value="conference">Conference</option></select>
-        <button type="button" data-po-clear-filters>Clear</button>
+        <select data-po-action-type><option value=""></option><option value="conference">Conference</option><option value="timeline">Timeline</option></select>
+        <button type="button" data-po-clear-filters disabled>Clear</button>
     </section>
-    <article data-po-action-row data-filter-text="astrae timeline pdc" data-action-types="timeline"></article>
-    <article data-po-action-row data-filter-text="idea concept paper" data-action-types="conference"></article>
+    <article data-po-action-row data-group-title="astrae">
+        <span data-po-action-count>2 actions</span>
+        <div data-po-action-item data-filter-text="timeline pdc" data-action-type="timeline" data-action-count="1"></div>
+        <div data-po-action-item data-filter-text="conference concept paper" data-action-type="conference" data-action-count="1"></div>
+    </article>
+    <article data-po-action-row data-group-title="aura">
+        <span data-po-action-count>1 action</span>
+        <div data-po-action-item data-filter-text="timeline stage start" data-action-type="timeline" data-action-count="1"></div>
+    </article>
     <div data-po-filter-empty hidden></div>
 </div>`);
 
     const search = document.querySelector('[data-po-action-search]');
     const type = document.querySelector('[data-po-action-type]');
-    const rows = [...document.querySelectorAll('[data-po-action-row]')];
+    const groups = [...document.querySelectorAll('[data-po-action-row]')];
+    const firstGroupItems = [...groups[0].querySelectorAll('[data-po-action-item]')];
+    const count = groups[0].querySelector('[data-po-action-count]');
+    const clear = document.querySelector('[data-po-clear-filters]');
     const empty = document.querySelector('[data-po-filter-empty]');
+
+    assert.equal(clear.disabled, true);
 
     type.value = 'conference';
     type.dispatchEvent(new window.Event('change', { bubbles: true }));
-    assert.equal(rows[0].hidden, true);
-    assert.equal(rows[1].hidden, false);
+    assert.equal(groups[0].hidden, false);
+    assert.equal(groups[1].hidden, true);
+    assert.equal(firstGroupItems[0].hidden, true);
+    assert.equal(firstGroupItems[1].hidden, false);
+    assert.equal(count.textContent, '1 action');
+    assert.equal(clear.disabled, false);
 
     search.value = 'no match';
     search.dispatchEvent(new window.Event('input', { bubbles: true }));
-    assert.equal(rows.every((row) => row.hidden), true);
+    assert.equal(groups.every((group) => group.hidden), true);
     assert.equal(empty.hidden, false);
 
-    document.querySelector('[data-po-clear-filters]').click();
-    assert.equal(rows.every((row) => !row.hidden), true);
+    clear.click();
+    assert.equal(groups.every((group) => !group.hidden), true);
+    assert.equal(firstGroupItems.every((item) => !item.hidden), true);
+    assert.equal(count.textContent, '2 actions');
     assert.equal(empty.hidden, true);
+    assert.equal(clear.disabled, true);
 });
 
 test('document tabs update aria state, focus, and visible panel', () => {

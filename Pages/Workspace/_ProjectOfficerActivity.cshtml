@@ -2,9 +2,6 @@
 @model ProjectManagement.Pages.Workspace.IndexModel
 @{
     var activity = Model.Workspace.ActivityStrip;
-    var activeRate = activity.MonitoredWorkingDays == 0
-        ? 0
-        : (int)Math.Round(activity.ActiveWorkingDays * 100d / activity.MonitoredWorkingDays);
 }
 <div class="po-workspace po-workspace--embedded po-dedicated-page">
     <header class="po-dedicated-hero">
@@ -13,16 +10,17 @@
             <h1>My ERP activity</h1>
             <p>Review your own recorded ERP activity. This is an adoption indicator, not an attendance measure.</p>
         </div>
-        <div class="po-dedicated-hero__metric">
-            <strong>@activity.ActiveWorkingDays</strong>
-            <span>active monitored working days</span>
+        <div class="po-dedicated-hero__metric po-dedicated-hero__metric--activity">
+            <strong>@activity.MonitoredWorkingDays</strong>
+            <span>monitored working day@(activity.MonitoredWorkingDays == 1 ? string.Empty : "s") available</span>
+            <small>@activity.MonitoringAvailabilityLabel</small>
         </div>
     </header>
 
     <section class="po-panel po-personal-activity-page">
         <div class="po-personal-activity-page__strip">
             <div>
-                <span class="po-panel__kicker">Last 14 days</span>
+                <span class="po-panel__kicker">@activity.PeriodLabel</span>
                 <h2>Activity pattern</h2>
                 <p>The shade reflects the highest activity level recorded on each day.</p>
             </div>
@@ -41,11 +39,11 @@
         <div class="po-personal-activity-kpis">
             <article>
                 <span><i class="bi bi-calendar-check" aria-hidden="true"></i></span>
-                <div><strong>@activity.ActiveWorkingDays of @activity.MonitoredWorkingDays</strong><b>Active monitored working days</b><small>@activeRate% of available monitored working days</small></div>
+                <div><strong>@activity.ActiveWorkingDays of @activity.MonitoredWorkingDays</strong><b>Monitored working days active</b><small>@activity.MonitoringAvailabilityLabel</small></div>
             </article>
             <article>
                 <span><i class="bi bi-clock-history" aria-hidden="true"></i></span>
-                <div><strong>@activity.LastActiveLabel.Replace("Last active ", string.Empty)</strong><b>Last recorded activity</b><small>Navigation, interaction or recognised action</small></div>
+                <div><strong>@activity.LastActivityTypeLabel</strong><b>Last recorded activity</b><small>@activity.LastActiveLabel</small></div>
             </article>
             <article>
                 <span><i class="bi bi-shield-check" aria-hidden="true"></i></span>

@@ -49,7 +49,7 @@ public sealed class WorkspaceActionQueueBuilderTests
 
         Assert.Equal(3, result.TotalCount);
         Assert.Equal(2, result.Items.Count(item => item.Type == "Timeline"));
-        Assert.Contains(result.Items, item => item.Title == "Current-stage project" && item.ActionText == "Update dates");
+        Assert.Contains(result.Items, item => item.Title == "Current-stage project" && item.ActionText == "Set current-stage PDC");
         Assert.Contains(result.Items, item => item.Title == "Historical project" && item.ActionText == "Complete timeline");
 
         Assert.Equal(2, result.Groups.Count);
@@ -105,14 +105,18 @@ public sealed class WorkspaceActionQueueBuilderTests
         {
             new WorkspaceTaskVm
             {
+                TaskId = 1,
                 Title = "Shared title",
+                DueDate = new DateOnly(2026, 7, 10),
                 IsOverdue = true,
                 DaysOverdue = 2,
                 OpenUrl = "/Tasks/1"
             },
             new WorkspaceTaskVm
             {
+                TaskId = 2,
                 Title = "Shared title",
+                DueDate = new DateOnly(2026, 7, 11),
                 IsOverdue = true,
                 DaysOverdue = 1,
                 OpenUrl = "/Tasks/2"
@@ -202,7 +206,10 @@ public sealed class WorkspaceActionQueueBuilderTests
             Array.Empty<WorkspaceProjectMatrixRowVm>());
 
         Assert.Equal(4, result.TotalCount);
-        Assert.Single(result.Items);
+        Assert.Equal(2, result.Items.Count);
+        var aggregate = Assert.Single(result.Items, item => item.WorkItemKey == "aots:inbox");
+        Assert.Equal(3, aggregate.RepresentedActionCount);
+        Assert.Equal(4, result.Summary.AotsCount);
     }
     [Fact]
     public void Build_PrioritisesPendingConferenceDirectionAndGroupsItWithItsProject()
