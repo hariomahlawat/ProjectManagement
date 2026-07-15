@@ -68,34 +68,6 @@ public sealed class ProliferationProjectReadService : IProliferationProjectReadS
                 group => group.Key,
                 group => group.Select(x => x.Remarks).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)));
 
-        var detailedEntries = await _db.ProliferationGranularEntries
-            .AsNoTracking()
-            .Where(x => x.ProjectId == projectId && x.ApprovalStatus == ApprovalStatus.Approved)
-            .OrderByDescending(x => x.ProliferationDate)
-            .ThenBy(x => x.UnitName)
-            .Select(x => new DetailedEntryProjection(
-                x.Id,
-                x.Source,
-                x.ProliferationDate.Year,
-                x.ProliferationDate,
-                x.UnitName,
-                x.Quantity,
-                x.Remarks))
-            .ToListAsync(cancellationToken);
-
-        var detailedLookup = detailedEntries
-            .GroupBy(x => new SourceYearKey(x.Source, x.Year))
-            .ToDictionary(
-                group => group.Key,
-                group => (IReadOnlyList<ProliferationProjectDetailedEntryViewModel>)group
-                    .Select(x => new ProliferationProjectDetailedEntryViewModel(
-                        x.Id,
-                        x.Date,
-                        x.UnitName,
-                        x.Quantity,
-                        x.Remarks))
-                    .ToList());
-
         var years = aggregates
             .GroupBy(x => x.Year)
             .OrderByDescending(group => group.Key)
@@ -107,8 +79,6 @@ public sealed class ProliferationProjectReadService : IProliferationProjectReadS
                     {
                         var key = new SourceYearKey(row.Source, row.Year);
                         annualRemarksLookup.TryGetValue(key, out var remarks);
-                        detailedLookup.TryGetValue(key, out var entries);
-
                         return new ProliferationProjectSourceYearViewModel(
                             row.Source,
                             row.SourceLabel,
@@ -121,7 +91,7 @@ public sealed class ProliferationProjectReadService : IProliferationProjectReadS
                             row.HasCountingException,
                             remarks,
                             row.LastUpdatedOnUtc,
-                            entries ?? Array.Empty<ProliferationProjectDetailedEntryViewModel>());
+                            Array.Empty<ProliferationProjectDetailedEntryViewModel>());
                     })
                     .ToList();
 
@@ -155,13 +125,4 @@ public sealed class ProliferationProjectReadService : IProliferationProjectReadS
     }
 
     private readonly record struct SourceYearKey(ProliferationSource Source, int Year);
-
-    private sealed record DetailedEntryProjection(
-        Guid Id,
-        ProliferationSource Source,
-        int Year,
-        DateOnly Date,
-        string UnitName,
-        int Quantity,
-        string? Remarks);
 }

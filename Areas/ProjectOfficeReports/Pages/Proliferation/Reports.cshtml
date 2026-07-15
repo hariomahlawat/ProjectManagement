@@ -52,7 +52,7 @@
         </div>
     </section>
 
-    <section aria-labelledby="report-type-heading">
+    <section aria-labelledby="report-type-heading" id="pf-report-chooser-section">
         <div class="mb-3">
             <h2 class="h5 mb-1" id="report-type-heading">Detailed reports</h2>
             <p class="text-muted small mb-0">Choose a report. Only the controls relevant to that report will be shown.</p>
@@ -88,6 +88,14 @@
             }
         </div>
     </section>
+
+    <div class="pf-selected-report d-none" id="pf-selected-report" aria-live="polite">
+        <div>
+            <span class="text-muted small">Selected report</span>
+            <strong id="pf-selected-report-label">Units receiving a project</strong>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary" id="pf-change-report" type="button">Change report</button>
+    </div>
 
     <section class="pf-card mt-4" aria-labelledby="report-filters-heading">
         <div class="pf-card__header">
@@ -209,6 +217,7 @@
                 <button class="btn btn-outline-secondary" id="rep-next" type="button" disabled>Next</button>
             </div>
         </div>
+        <div class="pf-report-result-summary d-none" id="rep-result-summary" aria-live="polite"></div>
         <div class="table-responsive">
             <table class="table table-sm table-hover align-middle mb-0" id="rep-table">
                 <thead><tr id="rep-head"></tr></thead>

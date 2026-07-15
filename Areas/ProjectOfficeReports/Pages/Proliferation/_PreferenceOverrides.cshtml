@@ -87,16 +87,16 @@
                             <option value="Auto">Detailed entries where available; otherwise annual quantity</option>
                         </select>
                     </div>
-                    <div class="col-12">
-                        <label class="form-label small" for="pf-rule-reason">Reason for exception</label>
-                        <textarea class="form-control form-control-sm" id="pf-rule-reason" rows="2" maxlength="500" placeholder="Required when a project-year is counted differently from its source default"></textarea>
-                        <div class="form-text" id="pf-rule-reason-help">A reason is required for an exception and is retained in the audit trail.</div>
+                    <div class="col-12 d-none" id="pf-rule-reason-wrap">
+                        <label class="form-label small" for="pf-rule-reason">Reason for exception <span class="text-danger" aria-hidden="true">*</span></label>
+                        <textarea class="form-control form-control-sm" id="pf-rule-reason" rows="2" maxlength="500" placeholder="State why this project-year must be counted differently"></textarea>
+                        <div class="form-text" id="pf-rule-reason-help">The reason is mandatory and retained in the audit trail.</div>
                     </div>
                 </div>
                 <div class="pf-rule-impact d-none" id="pf-rule-impact" aria-live="polite"></div>
                 <div class="pf-rule-editor__footer">
                     <p class="small mb-0" id="pf-rule-guidance">SDD normally adds the annual quantity and approved detailed entries.</p>
-                    <button class="btn btn-sm btn-primary" id="pf-rule-save" type="button">Save counting rule</button>
+                    <button class="btn btn-sm btn-primary" id="pf-rule-save" type="button">Restore source default</button>
                 </div>
             </section>
         </div>

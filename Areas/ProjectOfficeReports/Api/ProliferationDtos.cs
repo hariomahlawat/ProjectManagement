@@ -301,4 +301,74 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             = Array.Empty<ProliferationGroupedRowDto>();
     }
 
+    public sealed class ProliferationDataQualityQueryDto
+    {
+        public int? ProjectId { get; set; }
+        public string? IssueType { get; set; }
+        public string? Search { get; set; }
+        public int Page { get; set; } = 1;
+        public int PageSize { get; set; } = 25;
+    }
+
+    public sealed class ProliferationDataQualityIssueDto
+    {
+        public string IssueKey { get; set; } = default!;
+        public string IssueType { get; set; } = default!;
+        public string Severity { get; set; } = default!;
+        public string RecordKind { get; set; } = default!;
+        public Guid RecordId { get; set; }
+        public int ProjectId { get; set; }
+        public string ProjectName { get; set; } = default!;
+        public string? ProjectCode { get; set; }
+        public ProliferationSource Source { get; set; }
+        public string SourceLabel { get; set; } = default!;
+        public int? Year { get; set; }
+        public string? ProliferationDate { get; set; }
+        public string? UnitName { get; set; }
+        public int Quantity { get; set; }
+        public string ApprovalStatus { get; set; } = default!;
+        public DateTime LastUpdatedOnUtc { get; set; }
+        public string RowVersion { get; set; } = default!;
+        public string Description { get; set; } = default!;
+        public bool CanCorrect { get; set; }
+        public int RelatedRecordCount { get; set; }
+    }
+
+    public sealed class ProliferationDataQualityResponseDto
+    {
+        public int Total { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+        public int InvalidDateOrYearCount { get; set; }
+        public int MissingUnitCount { get; set; }
+        public int InvalidQuantityCount { get; set; }
+        public int PossibleDuplicateCount { get; set; }
+        public IReadOnlyList<ProliferationDataQualityIssueDto> Items { get; set; }
+            = Array.Empty<ProliferationDataQualityIssueDto>();
+    }
+
+    public sealed class ProliferationDataQualityCorrectionDto
+    {
+        [Required]
+        public string RecordKind { get; set; } = default!;
+
+        [Required]
+        public string RowVersion { get; set; } = default!;
+
+        [Range(2000, 3000)]
+        public int? CorrectedYear { get; set; }
+
+        public DateTime? CorrectedDateUtc { get; set; }
+
+        [MaxLength(200)]
+        public string? CorrectedUnitName { get; set; }
+
+        [Range(0, int.MaxValue)]
+        public int? CorrectedQuantity { get; set; }
+
+        [Required, MaxLength(500)]
+        public string Reason { get; set; } = default!;
+    }
+
+
 }

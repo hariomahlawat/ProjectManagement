@@ -28,12 +28,15 @@ public sealed class ManageModel : PageModel
     public ProliferationPreferenceOverridesBootVm OverridesBoot { get; private set; } = default!;
     public bool CanApproveRecords { get; private set; }
     public bool CanManagePreferences { get; private set; }
+    public bool CanReviewDataQuality { get; private set; }
+    public string InitialWorkspace { get; private set; } = "records";
 
     public async Task OnGetAsync(
         int? projectId,
         ProliferationSource? source,
         int? year,
         ProliferationRecordKind? kind,
+        string? workspace,
         CancellationToken cancellationToken)
     {
         ListBoot = await _manageService.GetListBootAsync(projectId, source, year, kind, cancellationToken);
@@ -45,11 +48,21 @@ public sealed class ManageModel : PageModel
             resource: null,
             ProjectOfficeReportsPolicies.ApproveProliferationTracker);
         CanApproveRecords = approvalResult.Succeeded;
+        CanReviewDataQuality = approvalResult.Succeeded;
 
         var preferenceResult = await _authorizationService.AuthorizeAsync(
             User,
             resource: null,
             ProjectOfficeReportsPolicies.ManageProliferationPreferences);
         CanManagePreferences = preferenceResult.Succeeded;
+
+        var requestedWorkspace = (workspace ?? string.Empty).Trim().ToLowerInvariant();
+        InitialWorkspace = requestedWorkspace switch
+        {
+            "approvals" when CanApproveRecords => "approvals",
+            "counting-rules" when CanManagePreferences => "counting-rules",
+            "data-quality" when CanReviewDataQuality => "data-quality",
+            _ => "records"
+        };
     }
 }

@@ -426,9 +426,9 @@
     }
 
     el.source.addEventListener("change", reload);
-    el.year.addEventListener("input", debounce(() => {
+    el.year.addEventListener("change", () => {
         if (validateYear()) reload();
-    }, 350));
+    });
     el.search.addEventListener("input", reload);
     el.pageSize.addEventListener("change", () => {
         state.pageSize = Number(el.pageSize.value || 25);

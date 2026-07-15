@@ -12,7 +12,9 @@
   const commandElements = {
     title: document.querySelector('[data-command-title]'),
     scope: document.querySelector('[data-command-scope]'),
-    updated: document.querySelector('[data-command-updated-value]')
+    updated: document.querySelector('[data-command-updated-value]'),
+    typeBadge: document.querySelector('#pf-editor-type-badge'),
+    saveLabel: document.querySelector('[data-save-label]')
   };
   const decisionButtons = {
     approve: document.querySelector('#pf-approve'),
@@ -33,6 +35,9 @@
     status: '',
     rowVersion: '',
     sourceLabel: '',
+    projectId: '',
+    source: '',
+    year: '',
     quantity: ''
   };
   if (!listCard || !editorCard) {
@@ -55,7 +60,8 @@
     setPreference: '/api/proliferation/year-preference',
     decideYearly: (id) => `/api/proliferation/yearly/${id}/decision`,
     decideGranular: (id) => `/api/proliferation/granular/${id}/decision`,
-    groups: '/api/proliferation/groups'
+    groups: '/api/proliferation/groups',
+    unitSuggestions: '/api/proliferation/reports/unit-suggestions'
   };
 
   const listEl = document.querySelector('#pf-list');
@@ -71,6 +77,13 @@
     status: '',
     search: ''
   };
+
+  let activeWorkspace = pageRoot?.dataset?.initialWorkspace || 'records';
+  let storedRecordStatus = '';
+
+  function isApprovalWorkspace() {
+    return activeWorkspace === 'approvals';
+  }
 
   function getCsrfToken() {
     const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')?.trim();
@@ -188,7 +201,13 @@
     remarks: document.querySelector('#pf-remarks'),
     btnSave: document.querySelector('#pf-save'),
     btnReset: document.querySelector('#pf-reset'),
-    btnDelete: document.querySelector('#pf-delete')
+    btnDelete: document.querySelector('#pf-delete'),
+    impact: document.querySelector('#pf-editor-impact'),
+    impactCurrent: document.querySelector('[data-impact-current]'),
+    impactNext: document.querySelector('[data-impact-next]'),
+    impactNextLabel: document.querySelector('[data-impact-next-label]'),
+    impactNote: document.querySelector('[data-impact-note]'),
+    unitSuggestions: document.querySelector('#pf-unit-suggestions')
   };
 
   if (editor.date) {
@@ -291,9 +310,9 @@
   }
 
   function getActiveFieldNames() {
-    const base = ['project', 'source', 'year', 'qty'];
+    const base = ['project', 'source', 'qty'];
     if (editor.kind?.value === 'yearly') {
-      return base;
+      return [...base, 'year'];
     }
     return [...base, 'date', 'unit'];
   }
@@ -516,6 +535,16 @@
 
   ['project', 'source', 'year', 'date', 'unit', 'qty'].forEach((name) => {
     attachValidationHandlers(name);
+    const input = getFieldState(name)?.input;
+    if (input) {
+      input.addEventListener(input.tagName === 'SELECT' ? 'change' : 'input', scheduleEditorImpact);
+    }
+  });
+
+  editor.unit?.addEventListener('focus', refreshUnitSuggestions);
+  editor.unit?.addEventListener('input', () => {
+    window.clearTimeout(unitSuggestionTimer);
+    unitSuggestionTimer = window.setTimeout(refreshUnitSuggestions, 250);
   });
 
   clearValidationState();
@@ -557,6 +586,7 @@
     ruleGuidance: overridesCard ? overridesCard.querySelector('#pf-rule-guidance') : null,
     ruleDefaultBadge: overridesCard ? overridesCard.querySelector('#pf-rule-default-badge') : null,
     ruleReason: overridesCard ? overridesCard.querySelector('#pf-rule-reason') : null,
+    ruleReasonWrap: overridesCard ? overridesCard.querySelector('#pf-rule-reason-wrap') : null,
     ruleImpact: overridesCard ? overridesCard.querySelector('#pf-rule-impact') : null
   };
   const overridesOverviewUrl = overridesCard?.dataset?.overviewUrl ?? '';
@@ -576,6 +606,10 @@
   let listSequence = 0;
   let overridesController = null;
   let rulePreviewController = null;
+  let editorImpactController = null;
+  let editorImpactTimer = null;
+  let unitSuggestionController = null;
+  let unitSuggestionTimer = null;
 
   const deleteModalElements = (() => {
     const element = document.querySelector('#pf-delete-modal');
@@ -999,28 +1033,51 @@
     }
   }
 
-  function updateDecisionButtons() {
-    const hasApproveButton = Boolean(decisionButtons.approve);
-    const hasRejectButton = Boolean(decisionButtons.reject);
-    if (!hasApproveButton && !hasRejectButton) {
-      return;
-    }
+  function getSaveActionText() {
+    const status = (currentRecord.status || '').toLowerCase();
+    if (!currentRecord.id) return 'Save';
+    if (status === 'approved') return canApproveRecords ? 'Save correction' : 'Submit amendment';
+    if (status === 'rejected') return 'Resubmit';
+    return 'Save changes';
+  }
 
+  function updateContextualActions() {
     const hasRecord = Boolean(currentRecord.id);
     const status = (currentRecord.status || '').toLowerCase();
-    const disableAll = !canApproveRecords || decisionButtons.busy || !hasRecord;
+    const pending = hasRecord && status === 'pending';
 
-    if (hasApproveButton) {
-      const disabled = disableAll || status === 'approved';
-      decisionButtons.approve.disabled = disabled;
-      decisionButtons.approve.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+    if (decisionButtons.approve) {
+      const visible = canApproveRecords && pending;
+      decisionButtons.approve.classList.toggle('d-none', !visible);
+      decisionButtons.approve.disabled = !visible || decisionButtons.busy;
+      decisionButtons.approve.setAttribute('aria-disabled', decisionButtons.approve.disabled ? 'true' : 'false');
+    }
+    if (decisionButtons.reject) {
+      const visible = canApproveRecords && pending;
+      decisionButtons.reject.classList.toggle('d-none', !visible);
+      decisionButtons.reject.disabled = !visible || decisionButtons.busy;
+      decisionButtons.reject.setAttribute('aria-disabled', decisionButtons.reject.disabled ? 'true' : 'false');
+    }
+    if (editor.btnDelete) {
+      const visible = !isApprovalWorkspace() && hasRecord && (status !== 'approved' || canApproveRecords);
+      editor.btnDelete.classList.toggle('d-none', !visible);
+      editor.btnDelete.disabled = !visible;
+    }
+    if (editor.btnSave) {
+      const visible = !isApprovalWorkspace();
+      editor.btnSave.classList.toggle('d-none', !visible);
+      if (!visible) editor.btnSave.disabled = true;
     }
 
-    if (hasRejectButton) {
-      const disabled = disableAll || status === 'rejected';
-      decisionButtons.reject.disabled = disabled;
-      decisionButtons.reject.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+    const label = getSaveActionText();
+    saveButtonState.defaultContent = `<i class="bi bi-check2" aria-hidden="true"></i> <span data-save-label>${label}</span>`;
+    if (!saveButtonState.busy && editor.btnSave) {
+      editor.btnSave.innerHTML = saveButtonState.defaultContent;
     }
+  }
+
+  function updateDecisionButtons() {
+    updateContextualActions();
   }
 
   function setDecisionBusy(busy) {
@@ -1123,7 +1180,7 @@
     filters.source = '';
     filters.year = '';
     filters.kind = '';
-    filters.status = '';
+    filters.status = isApprovalWorkspace() ? 'pending' : '';
     filters.search = '';
     pager.page = 1;
     applyFiltersToInputs();
@@ -1151,8 +1208,13 @@
         updateFilter('kind', '');
         break;
       case 'status':
-        if (filterInputs.status) filterInputs.status.value = '';
-        updateFilter('status', '');
+        if (isApprovalWorkspace()) {
+          if (filterInputs.status) filterInputs.status.value = 'pending';
+          updateFilter('status', 'pending');
+        } else {
+          if (filterInputs.status) filterInputs.status.value = '';
+          updateFilter('status', '');
+        }
         break;
       case 'year':
         if (filterInputs.year) filterInputs.year.value = '';
@@ -1536,6 +1598,95 @@
     return annual + detailed;
   }
 
+  function getEditorTargetYear() {
+    if (editor.kind?.value === 'yearly') {
+      return Number(editor.year?.value || 0);
+    }
+    const date = editor.date?.value || '';
+    return /^\d{4}-/.test(date) ? Number(date.slice(0, 4)) : 0;
+  }
+
+  function hideEditorImpact() {
+    editor.impact?.classList.add('d-none');
+  }
+
+  async function refreshEditorImpact() {
+    const projectId = Number(editor.project?.value || 0);
+    const source = Number(editor.source?.value || 0);
+    const year = getEditorTargetYear();
+    const quantity = Number(editor.qty?.value || 0);
+    const kind = editor.kind?.value === 'yearly' ? 'yearly' : 'granular';
+    if (!editor.impact || projectId <= 0 || ![1, 2].includes(source) || year < 2000 || !Number.isFinite(quantity) || quantity < (kind === 'granular' ? 1 : 0)) {
+      hideEditorImpact();
+      return;
+    }
+
+    editorImpactController?.abort();
+    editorImpactController = new AbortController();
+    try {
+      const params = new URLSearchParams({ projectId: String(projectId), source: String(source), year: String(year), page: '1', pageSize: '10' });
+      const response = await fetch(`${api.groups}?${params}`, { headers: { Accept: 'application/json' }, signal: editorImpactController.signal });
+      if (!response.ok) throw new Error('Unable to load calculation preview');
+      const data = await response.json();
+      const row = Array.isArray(data.items) ? data.items.find((x) => Number(x.projectId) === projectId && Number(x.source) === source && Number(x.year) === year) : null;
+      let annual = Number(row?.annualQuantity || 0);
+      let detailed = Number(row?.detailedQuantity || 0);
+      const current = Number(row?.reportedTotal || 0);
+      const sameCombination = currentRecord.id &&
+        Number(currentRecord.projectId) === projectId &&
+        Number(currentRecord.source) === source &&
+        Number(currentRecord.year) === year;
+      if (sameCombination && (currentRecord.status || '').toLowerCase() === 'approved') {
+        const previousQuantity = Number(currentRecord.quantity || 0);
+        if (currentRecord.kind === 'yearly') annual = Math.max(0, annual - previousQuantity);
+        else detailed = Math.max(0, detailed - previousQuantity);
+      }
+      if (kind === 'yearly') annual += quantity;
+      else detailed += quantity;
+      const mode = row?.effectiveMode || getSourceDefaultMode(source);
+      const afterApproval = calculateRuleTotal(mode, annual, detailed);
+      if (editor.impactCurrent) editor.impactCurrent.textContent = formatNumber(current);
+      if (editor.impactNext) editor.impactNext.textContent = formatNumber(afterApproval);
+      if (editor.impactNextLabel) editor.impactNextLabel.textContent = canApproveRecords ? 'After save' : 'After approval';
+      if (editor.impactNote) {
+        editor.impactNote.textContent = canApproveRecords
+          ? 'Admin/HoD records are approved immediately.'
+          : 'The reported total changes only after this record is approved.';
+      }
+      editor.impact.classList.remove('d-none');
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      hideEditorImpact();
+    }
+  }
+
+  function scheduleEditorImpact() {
+    window.clearTimeout(editorImpactTimer);
+    editorImpactTimer = window.setTimeout(refreshEditorImpact, 250);
+  }
+
+  async function refreshUnitSuggestions() {
+    if (!editor.unitSuggestions || editor.kind?.value !== 'granular') return;
+    const query = editor.unit?.value?.trim() || '';
+    unitSuggestionController?.abort();
+    unitSuggestionController = new AbortController();
+    try {
+      const params = new URLSearchParams({ take: '20' });
+      if (query) params.set('q', query);
+      const response = await fetch(`${api.unitSuggestions}?${params}`, { headers: { Accept: 'application/json' }, signal: unitSuggestionController.signal });
+      if (!response.ok) return;
+      const rows = await response.json();
+      editor.unitSuggestions.replaceChildren();
+      (Array.isArray(rows) ? rows : []).forEach((value) => {
+        const option = document.createElement('option');
+        option.value = value;
+        editor.unitSuggestions.append(option);
+      });
+    } catch (error) {
+      if (error.name !== 'AbortError') editor.unitSuggestions?.replaceChildren();
+    }
+  }
+
   async function refreshRuleImpact() {
     const projectId = Number(overridesElements.ruleProject?.value || 0);
     const source = Number(overridesElements.ruleSource?.value || 0);
@@ -1591,9 +1742,15 @@
         overridesElements.ruleGuidance.textContent = 'This creates a deliberate exception for the selected project, source and year.';
       }
     }
+    const isException = selectedMode !== 'default';
+    overridesElements.ruleReasonWrap?.classList.toggle('d-none', !isException);
     if (overridesElements.ruleReason) {
-      overridesElements.ruleReason.required = selectedMode !== 'default';
+      overridesElements.ruleReason.required = isException;
       overridesElements.ruleReason.classList.remove('is-invalid');
+      if (!isException) overridesElements.ruleReason.value = '';
+    }
+    if (overridesElements.ruleSave) {
+      overridesElements.ruleSave.textContent = isException ? 'Save exception' : 'Restore source default';
     }
     refreshRuleImpact();
   }
@@ -2128,25 +2285,27 @@
   function setTab(kind, options = {}) {
     const target = kind === 'yearly' ? 'yearly' : 'granular';
     const updateHash = options.updateHash !== false;
-    document.querySelectorAll('#pf-editor-tabs .nav-link').forEach((btn) => {
-      const active = btn.dataset.target === target;
-      btn.classList.toggle('active', active);
-      btn.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
     editor.kind.value = target;
     const isGranular = target === 'granular';
     document.querySelectorAll('.granular-only').forEach((el) => {
       el.classList.toggle('d-none', !isGranular);
     });
+    document.querySelectorAll('.yearly-only').forEach((el) => {
+      el.classList.toggle('d-none', isGranular);
+    });
     if (editor.year) {
-      editor.year.readOnly = isGranular;
-      editor.year.setAttribute('aria-readonly', isGranular ? 'true' : 'false');
+      editor.year.readOnly = false;
+      editor.year.removeAttribute('aria-readonly');
+      editor.year.required = !isGranular;
     }
     if (editor.date) editor.date.required = isGranular;
     if (editor.unit) editor.unit.required = isGranular;
     if (editor.qty) editor.qty.min = isGranular ? 1 : 0;
     enforceSourceForKind(target);
     setCommandScope(target);
+    if (commandElements.typeBadge) {
+      commandElements.typeBadge.textContent = isGranular ? 'Detailed entry' : 'Annual quantity';
+    }
 
     const guidance = document.querySelector('[data-guidance-text]');
     const quantityLabel = document.querySelector('[data-quantity-label]');
@@ -2169,6 +2328,8 @@
       }
     }
     updateSaveButtonState();
+    updateContextualActions();
+    scheduleEditorImpact();
   }
 
 
@@ -2178,6 +2339,7 @@
       editor.year.value = value.slice(0, 4);
       validateField('year', { display: true });
       updateSaveButtonState();
+      scheduleEditorImpact();
     }
   });
 
@@ -2236,6 +2398,9 @@
     currentRecord.status = statusValue;
     currentRecord.rowVersion = detail.rowVersion ?? '';
     currentRecord.sourceLabel = getOptionLabel(editor.source, editor.source.value) || '';
+    currentRecord.projectId = String(detail.projectId ?? '');
+    currentRecord.source = String(detail.source ?? '');
+    currentRecord.year = String(kind === 'yearly' ? (detail.year ?? '') : (editor.year?.value || ''));
     currentRecord.quantity = kind === 'yearly' ? String(detail.totalQuantity ?? '') : String(detail.quantity ?? '');
     const projectLabel = getOptionLabel(editor.project, editor.project.value) || 'Selected project';
     setCommandTitle(projectLabel);
@@ -2247,6 +2412,7 @@
     setSaveButtonState('idle');
     updateSaveButtonState();
     markEditorClean();
+    scheduleEditorImpact();
   }
 
   editor.form?.addEventListener('submit', async (event) => {
@@ -2291,6 +2457,7 @@
         toast('Entry saved successfully.', 'success');
       }
       setSaveButtonState('success');
+      window.dispatchEvent(new CustomEvent('proliferation:recordchanged'));
     } catch (error) {
       setSaveButtonState('idle');
       toast(error.message || 'Unable to save entry', 'danger');
@@ -2329,6 +2496,7 @@
       toast(approve ? 'Entry approved.' : 'Entry rejected.', approve ? 'success' : 'warning');
       await fetchList();
       await loadIntoEditor(kind, id);
+      window.dispatchEvent(new CustomEvent('proliferation:recordchanged'));
       return true;
     } catch (error) {
       toast(error.message || 'Unable to update approval status', 'danger');
@@ -2346,9 +2514,9 @@
 
     if (!Number.isFinite(projectId) || projectId <= 0) return null;
     if (!Number.isFinite(source) || source <= 0) return null;
-    if (!Number.isFinite(year) || year < 2000) return null;
 
     if (kind === 'yearly') {
+      if (!Number.isFinite(year) || year < 2000) return null;
       const quantity = Number(editor.qty?.value ?? '');
       if (!Number.isFinite(quantity) || quantity < 0) return null;
       const payload = {
@@ -2459,6 +2627,7 @@
       toast('Entry deleted.', 'warning');
       await fetchList();
       resetEditor(kind);
+      window.dispatchEvent(new CustomEvent('proliferation:recordchanged'));
     } catch (error) {
       editor.btnDelete.disabled = false;
       toast(error.message || 'Unable to delete entry', 'danger');
@@ -2483,6 +2652,9 @@
     currentRecord.status = '';
     currentRecord.rowVersion = '';
     currentRecord.sourceLabel = '';
+    currentRecord.projectId = '';
+    currentRecord.source = '';
+    currentRecord.year = '';
     currentRecord.quantity = '';
     setCommandTitle(preferredKind === 'yearly' ? 'New annual quantity' : 'New detailed entry');
     resetApprovalUi();
@@ -2494,6 +2666,8 @@
       });
     }
     setSaveButtonState('idle');
+    hideEditorImpact();
+    updateContextualActions();
     markEditorClean();
   }
 
@@ -2513,11 +2687,102 @@
     }
   }
 
+  function setEditorReviewMode(enabled) {
+    editor.form?.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach((control) => {
+      control.disabled = Boolean(enabled);
+    });
+    editorCard?.classList.toggle('pf-manage-card--review', Boolean(enabled));
+  }
+
+  function updateListWorkspaceCopy() {
+    const heading = document.querySelector('#pf-list-heading');
+    const subtitle = document.querySelector('#pf-list-subtitle');
+    const guidance = document.querySelector('#pf-list-guidance');
+    if (isApprovalWorkspace()) {
+      if (heading) heading.textContent = 'Pending records';
+      if (subtitle) subtitle.textContent = 'Select a submitted record to review and decide.';
+      if (guidance) guidance.textContent = 'Choose a pending record below. Approval uses the last saved values.';
+    } else {
+      if (heading) heading.textContent = 'Existing records';
+      if (subtitle) subtitle.textContent = 'Select a record to review or edit it.';
+      if (guidance) guidance.textContent = 'Choose a record below. Use the buttons above to start a new entry.';
+    }
+  }
+
+  function applyWorkspace(workspace) {
+    const next = workspace || 'records';
+    if (next === activeWorkspace && ((next === 'approvals') === (filters.status === 'pending'))) {
+      updateListWorkspaceCopy();
+      return;
+    }
+
+    if (next === 'approvals') {
+      if (activeWorkspace !== 'approvals') storedRecordStatus = filters.status || '';
+      activeWorkspace = 'approvals';
+      filters.status = 'pending';
+      if (filterInputs.status) {
+        filterInputs.status.value = 'pending';
+        filterInputs.status.disabled = true;
+      }
+      setEditorReviewMode(true);
+      if (!currentRecord.id || currentRecord.status.toLowerCase() !== 'pending') {
+        resetEditor(currentRecord.kind || 'granular');
+        setCommandTitle('Select a pending record');
+        setCommandScope('Review');
+        if (approvalElements.status) approvalElements.status.textContent = 'Select a pending record to review.';
+      }
+      pager.page = 1;
+      updateListWorkspaceCopy();
+      updateContextualActions();
+      renderFilterChips();
+      saveFilters();
+      fetchList();
+      return;
+    }
+
+    const wasApproval = activeWorkspace === 'approvals';
+    activeWorkspace = next;
+    setEditorReviewMode(false);
+    if (wasApproval) {
+      filters.status = storedRecordStatus || '';
+      if (filterInputs.status) {
+        filterInputs.status.disabled = false;
+        filterInputs.status.value = hasOption(filterInputs.status, filters.status) ? filters.status : '';
+      }
+      pager.page = 1;
+      renderFilterChips();
+      saveFilters();
+      fetchList();
+    } else if (filterInputs.status) {
+      filterInputs.status.disabled = false;
+    }
+    updateListWorkspaceCopy();
+    updateContextualActions();
+    updateSaveButtonState();
+  }
+
+  pageRoot?.querySelectorAll('[data-workspace]').forEach((tab) => {
+    tab.addEventListener('click', (event) => {
+      const requested = tab.dataset.workspace || 'records';
+      if (requested === activeWorkspace || requested !== 'approvals' || !isEditorDirty()) return;
+      if (!window.confirm('You have unsaved changes. Open the approval queue and discard them?')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }, true);
+  });
+
+  window.addEventListener('proliferation:workspacechange', (event) => {
+    applyWorkspace(event.detail?.workspace || 'records');
+  });
+
   window.addEventListener('hashchange', handleHashChange);
   window.addEventListener('pagehide', () => {
     listController?.abort();
     overridesController?.abort();
     rulePreviewController?.abort();
+    editorImpactController?.abort();
+    unitSuggestionController?.abort();
   }, { once: true });
 
   window.addEventListener('beforeunload', (event) => {

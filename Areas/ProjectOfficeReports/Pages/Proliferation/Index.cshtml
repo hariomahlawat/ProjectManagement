@@ -51,7 +51,7 @@
         <div class="row g-3 align-items-end">
             <div class="col-12 col-lg-5 position-relative">
                 <label class="form-label" for="pf-record-project">Project</label>
-                <input type="search"
+                <input type="text"
                        class="form-control"
                        id="pf-record-project"
                        placeholder="All projects — type to select one"
@@ -71,8 +71,14 @@
             </div>
             <div class="col-6 col-lg-2">
                 <label class="form-label" for="pf-record-year">Year</label>
-                <input type="number" class="form-control" id="pf-record-year" min="2000" max="3000" placeholder="All years" aria-describedby="pf-record-year-status" />
-                <div class="form-text" id="pf-record-year-status" aria-live="polite"></div>
+                <select class="form-select" id="pf-record-year" aria-describedby="pf-record-year-status">
+                    <option value="">All years</option>
+                    @foreach (var year in Model.AvailableYears)
+                    {
+                        <option value="@year">@year</option>
+                    }
+                </select>
+                <div class="form-text" id="pf-record-year-status" aria-live="polite">Only valid recorded years are listed.</div>
             </div>
             <div class="col-12 col-lg-3">
                 <label class="form-label" for="pf-record-search">Search records</label>

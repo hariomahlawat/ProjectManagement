@@ -1,13 +1,21 @@
 @page "{id:int}"
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.ProjectModel
+@using System
 @using System.Linq
 @using ProjectManagement.Areas.ProjectOfficeReports.Domain
 @{
     ViewData["Title"] = $"{Model.Detail.ProjectName} proliferation";
     ViewData["UseFullWidth"] = true;
-    var latestYear = Model.Detail.Years.FirstOrDefault(x => x.Year is >= 2000 and <= 3000)?.Year
-        ?? Model.Detail.Years.FirstOrDefault()?.Year;
-    var invalidYears = Model.Detail.Years.Where(x => x.Year is < 2000 or > 3000).Select(x => x.Year).ToList();
+    var maximumChronologicalYear = DateTime.UtcNow.Year + 1;
+    var validYears = Model.Detail.Years
+        .Where(x => x.Year is >= 2000 && x.Year <= maximumChronologicalYear)
+        .OrderByDescending(x => x.Year)
+        .ToList();
+    var unresolvedYears = Model.Detail.Years
+        .Where(x => x.Year < 2000 || x.Year > maximumChronologicalYear)
+        .OrderBy(x => x.Year)
+        .ToList();
+    var latestYear = validYears.FirstOrDefault()?.Year;
     var exportUrl = Url.Action("Export", "Proliferation", new
     {
         area = "ProjectOfficeReports",
@@ -15,7 +23,7 @@
     }) ?? $"/api/proliferation/export?projectId={Model.Detail.ProjectId}";
 }
 
-<div class="container-xxl py-3 pf-shell" data-page="proliferation-project">
+<div class="container-xxl py-3 pf-shell" data-page="proliferation-project" data-project-id="@Model.Detail.ProjectId">
     <nav aria-label="Breadcrumb" class="mb-2">
         <ol class="breadcrumb mb-0 small">
             <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
@@ -58,7 +66,8 @@
                 <a class="btn btn-primary"
                    asp-area="ProjectOfficeReports"
                    asp-page="/Proliferation/Manage"
-                   asp-route-projectId="@Model.Detail.ProjectId">
+                   asp-route-projectId="@Model.Detail.ProjectId"
+                   asp-route-workspace="records">
                     <i class="bi bi-plus-lg" aria-hidden="true"></i>
                     Add proliferation
                 </a>
@@ -66,25 +75,26 @@
         </div>
     </header>
 
-    @if (invalidYears.Count > 0)
+    @if (unresolvedYears.Count > 0)
     {
         <div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
             <i class="bi bi-exclamation-triangle-fill mt-1" aria-hidden="true"></i>
-            <div>
-                <strong>Invalid historical year detected:</strong> @string.Join(", ", invalidYears).
-                The associated approved quantity remains included in this project total until the underlying record is corrected.
-                @if (Model.CanManageRecords)
+            <div class="flex-grow-1">
+                <strong>Historical date review required.</strong>
+                @unresolvedYears.Count.ToString("N0") unresolved year @(unresolvedYears.Count == 1 ? "group is" : "groups are") excluded from the chronological breakdown but remain included in the project total.
+                @if (Model.CanReviewDataQuality)
                 {
                     <a class="alert-link ms-1"
                        asp-area="ProjectOfficeReports"
                        asp-page="/Proliferation/Manage"
-                       asp-route-projectId="@Model.Detail.ProjectId">Review records</a>
+                       asp-route-workspace="data-quality"
+                       asp-route-projectId="@Model.Detail.ProjectId">Review data issues</a>
                 }
             </div>
         </div>
     }
 
-    <section class="pf-total-hero" aria-labelledby="project-total-heading">
+    <section class="pf-total-hero pf-total-hero--compact" aria-labelledby="project-total-heading">
         <div>
             <div class="pf-total-hero__label" id="project-total-heading">Total proliferation</div>
             <div class="pf-total-hero__value">@Model.Detail.Totals.Total.ToString("N0")</div>
@@ -102,8 +112,8 @@
                 <dd>@Model.Detail.Totals.Abw515.ToString("N0")</dd>
             </div>
             <div>
-                <dt>Years recorded</dt>
-                <dd>@Model.Detail.Years.Count.ToString("N0")</dd>
+                <dt>Valid years recorded</dt>
+                <dd>@validYears.Count.ToString("N0")</dd>
             </div>
         </dl>
     </section>
@@ -112,27 +122,26 @@
         <div class="pf-card__header">
             <div>
                 <h2 class="pf-card__title" id="year-wise-heading">Year-wise breakdown</h2>
-                <p class="pf-card__subtitle">Open a year to see exactly how its reported total was calculated.</p>
+                <p class="pf-card__subtitle">Open a year to see how its reported total was calculated. Detailed entries load only when requested.</p>
             </div>
         </div>
 
-        @if (Model.Detail.Years.Count == 0)
+        @if (validYears.Count == 0)
         {
             <div class="pf-empty-state">
                 <i class="bi bi-inbox" aria-hidden="true"></i>
-                <h3>No approved proliferation recorded</h3>
-                <p>This project does not yet have an approved annual quantity or detailed entry.</p>
+                <h3>No valid year-wise data available</h3>
+                <p>Approved proliferation may still be included in the total where its historical year requires correction.</p>
             </div>
         }
         else
         {
             <div class="pf-year-list">
-                @foreach (var year in Model.Detail.Years)
+                @foreach (var year in validYears)
                 {
-                    var invalidYear = year.Year is < 2000 or > 3000;
-                    <details class="pf-year-card @(invalidYear ? "pf-year-card--invalid" : string.Empty)" open="@(year.Year == latestYear)">
+                    <details class="pf-year-card" open="@(year.Year == latestYear)">
                         <summary class="pf-year-card__summary">
-                            <span class="pf-year-card__year">@(invalidYear ? $"Invalid year: {year.Year}" : year.Year.ToString())</span>
+                            <span class="pf-year-card__year">@year.Year</span>
                             <span class="pf-year-card__sources">
                                 <span>SDD <strong>@year.Totals.Sdd.ToString("N0")</strong></span>
                                 <span>515 ABW <strong>@year.Totals.Abw515.ToString("N0")</strong></span>
@@ -141,15 +150,29 @@
                                 <small>Reported total</small>
                                 <strong>@year.Totals.Total.ToString("N0")</strong>
                             </span>
+                            <i class="bi bi-chevron-down pf-year-card__chevron" aria-hidden="true"></i>
                         </summary>
 
                         <div class="pf-year-card__body">
                             @foreach (var source in year.Sources)
                             {
-                                <section class="pf-calculation" aria-label="@source.SourceLabel calculation for @year.Year">
+                                var countAnnual = source.EffectiveMode == YearPreferenceMode.UseYearly ||
+                                                  (source.EffectiveMode == YearPreferenceMode.Auto && source.DetailedQuantity == 0);
+                                var countedLabel = countAnnual ? "Annual quantity" : "Detailed quantity";
+                                var countedValue = countAnnual ? source.AnnualQuantity : source.DetailedQuantity;
+                                var referenceLabel = countAnnual ? "Detailed quantity" : "Annual quantity";
+                                var referenceValue = countAnnual ? source.DetailedQuantity : source.AnnualQuantity;
+
+                                <section class="pf-calculation pf-calculation--compact" aria-label="@source.SourceLabel calculation for @year.Year">
                                     <div class="pf-calculation__header">
                                         <div>
-                                            <h3>@source.SourceLabel</h3>
+                                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                                <h3>@source.SourceLabel</h3>
+                                                @if (source.HasCountingException)
+                                                {
+                                                    <span class="badge text-bg-warning">Custom rule</span>
+                                                }
+                                            </div>
                                             <p>@source.CalculationLabel</p>
                                         </div>
                                         <div class="pf-calculation__reported">
@@ -160,101 +183,68 @@
 
                                     @if (source.EffectiveMode == YearPreferenceMode.UseYearlyAndGranular)
                                     {
-                                        <div class="pf-calculation__formula" aria-label="Annual quantity plus detailed quantity equals reported total">
+                                        <div class="pf-calculation-grid" aria-label="Annual quantity plus detailed quantity equals reported total">
                                             <div>
-                                                <span>Annual quantity</span>
+                                                <span>Annual</span>
                                                 <strong>@source.AnnualQuantity.ToString("N0")</strong>
-                                                <small>Quantity without individual unit/date details</small>
+                                                <small>Without unit/date details</small>
                                             </div>
-                                            <span class="pf-calculation__operator" aria-hidden="true">+</span>
+                                            <span class="pf-calculation-grid__operator" aria-hidden="true">+</span>
                                             <div>
-                                                <span>Detailed quantity</span>
+                                                <span>Detailed</span>
                                                 <strong>@source.DetailedQuantity.ToString("N0")</strong>
-                                                <small>@source.DetailedEntryCount.ToString("N0") approved detailed @(source.DetailedEntryCount == 1 ? "entry" : "entries")</small>
+                                                <small>@source.DetailedEntryCount.ToString("N0") approved @(source.DetailedEntryCount == 1 ? "entry" : "entries")</small>
                                             </div>
-                                            <span class="pf-calculation__operator" aria-hidden="true">=</span>
-                                            <div class="pf-calculation__result">
-                                                <span>Reported total</span>
+                                            <span class="pf-calculation-grid__operator" aria-hidden="true">=</span>
+                                            <div class="pf-calculation-grid__result">
+                                                <span>Reported</span>
                                                 <strong>@source.ReportedTotal.ToString("N0")</strong>
-                                                <small>Both quantities are counted</small>
+                                                <small>Both are counted</small>
                                             </div>
                                         </div>
                                     }
                                     else
                                     {
-                                        var countAnnual = source.EffectiveMode == YearPreferenceMode.UseYearly ||
-                                                          (source.EffectiveMode == YearPreferenceMode.Auto && source.DetailedQuantity == 0);
-                                        var countedLabel = countAnnual ? "Annual quantity" : "Detailed quantity";
-                                        var countedValue = countAnnual ? source.AnnualQuantity : source.DetailedQuantity;
-                                        var referenceLabel = countAnnual ? "Detailed quantity" : "Annual quantity";
-                                        var referenceValue = countAnnual ? source.DetailedQuantity : source.AnnualQuantity;
-
-                                        <div class="pf-calculation__selection" aria-label="Selected quantity equals reported total">
-                                            <div class="pf-calculation__selected">
+                                        <div class="pf-calculation-grid pf-calculation-grid--selection" aria-label="Selected quantity equals reported total">
+                                            <div>
                                                 <span>@countedLabel</span>
                                                 <strong>@countedValue.ToString("N0")</strong>
-                                                <small>Counted in the reported total</small>
+                                                <small>Counted</small>
                                             </div>
-                                            <span class="pf-calculation__operator" aria-hidden="true">=</span>
-                                            <div class="pf-calculation__result">
-                                                <span>Reported total</span>
+                                            <span class="pf-calculation-grid__operator" aria-hidden="true">=</span>
+                                            <div class="pf-calculation-grid__result">
+                                                <span>Reported</span>
                                                 <strong>@source.ReportedTotal.ToString("N0")</strong>
                                                 <small>@source.CalculationLabel</small>
                                             </div>
-                                            <div class="pf-calculation__reference">
-                                                <span>@referenceLabel</span>
-                                                <strong>@referenceValue.ToString("N0")</strong>
-                                                <small>Available for reference; not added</small>
-                                            </div>
                                         </div>
-                                    }
-
-                                    @if (source.HasCountingException)
-                                    {
-                                        <div class="pf-note pf-note--warning">
-                                            <i class="bi bi-sliders" aria-hidden="true"></i>
-                                            <span>A specific counting rule is configured for this project, source and year.</span>
+                                        <div class="pf-calculation-reference">
+                                            <span>@referenceLabel available for reference</span>
+                                            <strong>@referenceValue.ToString("N0")</strong>
+                                            <small>Not counted in this reported total</small>
                                         </div>
                                     }
 
                                     @if (!string.IsNullOrWhiteSpace(source.AnnualRemarks))
                                     {
-                                        <div class="pf-note">
-                                            <strong>Annual record remarks:</strong>
+                                        <div class="pf-note mt-3">
+                                            <strong>Annual remarks:</strong>
                                             <span>@source.AnnualRemarks</span>
                                         </div>
                                     }
 
-                                    @if (source.DetailedEntries.Count > 0)
+                                    @if (source.DetailedEntryCount > 0)
                                     {
-                                        <details class="pf-entry-details">
-                                            <summary>
-                                                View @source.DetailedEntries.Count.ToString("N0") detailed @(source.DetailedEntries.Count == 1 ? "entry" : "entries")
-                                            </summary>
-                                            <div class="table-responsive mt-3">
-                                                <table class="table table-sm align-middle pf-detail-table mb-0">
-                                                    <thead>
-                                                        <tr>
-                                                            <th scope="col">Date</th>
-                                                            <th scope="col">Receiving unit</th>
-                                                            <th scope="col" class="text-end">Quantity</th>
-                                                            <th scope="col">Remarks</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        @foreach (var entry in source.DetailedEntries)
-                                                        {
-                                                            <tr>
-                                                                <td class="text-nowrap">@entry.Date.ToString("dd MMM yyyy")</td>
-                                                                <td>@entry.UnitName</td>
-                                                                <td class="text-end fw-semibold">@entry.Quantity.ToString("N0")</td>
-                                                                <td class="text-muted">@(string.IsNullOrWhiteSpace(entry.Remarks) ? "—" : entry.Remarks)</td>
-                                                            </tr>
-                                                        }
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </details>
+                                        <div class="pf-entry-loader mt-3"
+                                             data-entry-loader
+                                             data-project-id="@Model.Detail.ProjectId"
+                                             data-source="@((int)source.Source)"
+                                             data-year="@year.Year">
+                                            <button class="btn btn-sm btn-link p-0" type="button" data-entry-toggle aria-expanded="false">
+                                                View @source.DetailedEntryCount.ToString("N0") detailed @(source.DetailedEntryCount == 1 ? "entry" : "entries")
+                                            </button>
+                                            <div class="pf-entry-loader__host d-none" data-entry-host aria-live="polite"></div>
+                                        </div>
                                     }
                                 </section>
                             }
@@ -268,4 +258,8 @@
 
 @section Styles {
     <link rel="stylesheet" href="~/css/proliferation.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/js/pages/proliferation-project.js" asp-append-version="true"></script>
 }

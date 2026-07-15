@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 using ProjectManagement.Data;
 
@@ -42,6 +43,9 @@ public sealed class SummaryModel : PageModel
     public int GrandSdd { get; private set; }
     public string Lede { get; private set; } = string.Empty;
     public bool CanManageRecords { get; private set; }
+    public bool CanReviewDataQuality { get; private set; }
+    public int DataQualityIssueCount { get; private set; }
+    public IReadOnlyList<int> InvalidYears { get; private set; } = Array.Empty<int>();
 
     public IReadOnlyList<TechnicalCategoryBreakdownRow> TechnicalCategoryBreakdown { get; private set; } =
         Array.Empty<TechnicalCategoryBreakdownRow>();
@@ -60,11 +64,39 @@ public sealed class SummaryModel : PageModel
 
         TechnicalCategoryBreakdown = await BuildTechnicalCategoryBreakdownAsync(Summary, cancellationToken);
 
+        var maximumYear = DateTime.UtcNow.Year + 1;
+        var activeProjectIds = _db.Projects
+            .AsNoTracking()
+            .Where(x => !x.IsDeleted && !x.IsArchived)
+            .Select(x => x.Id);
+        var invalidAnnualYears = await _db.ProliferationYearlies
+            .AsNoTracking()
+            .Where(x => activeProjectIds.Contains(x.ProjectId) && x.ApprovalStatus == ApprovalStatus.Approved && (x.Year < 2000 || x.Year > maximumYear))
+            .Select(x => x.Year)
+            .ToListAsync(cancellationToken);
+        var invalidDetailedYears = await _db.ProliferationGranularEntries
+            .AsNoTracking()
+            .Where(x => activeProjectIds.Contains(x.ProjectId) && x.ApprovalStatus == ApprovalStatus.Approved && (x.ProliferationDate.Year < 2000 || x.ProliferationDate.Year > maximumYear))
+            .Select(x => x.ProliferationDate.Year)
+            .ToListAsync(cancellationToken);
+        InvalidYears = invalidAnnualYears
+            .Concat(invalidDetailedYears)
+            .Distinct()
+            .OrderBy(x => x)
+            .ToList();
+        DataQualityIssueCount = invalidAnnualYears.Count + invalidDetailedYears.Count;
+
         var submitResult = await _authorizationService.AuthorizeAsync(
             User,
             resource: null,
             ProjectOfficeReportsPolicies.SubmitProliferationTracker);
         CanManageRecords = submitResult.Succeeded;
+
+        var qualityResult = await _authorizationService.AuthorizeAsync(
+            User,
+            resource: null,
+            ProjectOfficeReportsPolicies.ApproveProliferationTracker);
+        CanReviewDataQuality = qualityResult.Succeeded;
     }
 
     public async Task<FileResult> OnGetExportProjectsAsync(CancellationToken cancellationToken)

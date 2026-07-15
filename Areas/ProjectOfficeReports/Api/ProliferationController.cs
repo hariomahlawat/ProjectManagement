@@ -33,6 +33,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         private readonly ProliferationOverviewService _overviewSvc;
         private readonly ProliferationAggregateReadService _aggregateSvc;
         private readonly IProliferationExportService _exportService;
+        private readonly ProliferationDataQualityService _dataQualityService;
         private readonly ILogger<ProliferationController> _logger;
 
         public ProliferationController(
@@ -43,6 +44,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             ProliferationOverviewService overviewSvc,
             ProliferationAggregateReadService aggregateSvc,
             IProliferationExportService exportService,
+            ProliferationDataQualityService dataQualityService,
             ILogger<ProliferationController> logger)
         {
             _db = db;
@@ -52,6 +54,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             _overviewSvc = overviewSvc;
             _aggregateSvc = aggregateSvc;
             _exportService = exportService;
+            _dataQualityService = dataQualityService;
             _logger = logger;
         }
 
@@ -523,6 +526,90 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 .ToList();
 
             return Ok(entries);
+        }
+
+        [HttpGet("data-quality")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ApproveProliferationTracker)]
+        public async Task<ActionResult<ProliferationDataQualityResponseDto>> GetDataQualityIssues(
+            [FromQuery] ProliferationDataQualityQueryDto query,
+            CancellationToken ct)
+        {
+            var result = await _dataQualityService.GetIssuesAsync(
+                new ProliferationDataQualityQuery(query.ProjectId, query.IssueType, query.Search, query.Page, query.PageSize),
+                ct);
+
+            return Ok(new ProliferationDataQualityResponseDto
+            {
+                Total = result.Total,
+                Page = result.Page,
+                PageSize = result.PageSize,
+                InvalidDateOrYearCount = result.InvalidDateOrYearCount,
+                MissingUnitCount = result.MissingUnitCount,
+                InvalidQuantityCount = result.InvalidQuantityCount,
+                PossibleDuplicateCount = result.PossibleDuplicateCount,
+                Items = result.Items.Select(item => new ProliferationDataQualityIssueDto
+                {
+                    IssueKey = item.IssueKey,
+                    IssueType = item.IssueType,
+                    Severity = item.Severity,
+                    RecordKind = item.RecordKind == ProliferationRecordKind.Yearly ? "yearly" : "granular",
+                    RecordId = item.RecordId,
+                    ProjectId = item.ProjectId,
+                    ProjectName = item.ProjectName,
+                    ProjectCode = item.ProjectCode,
+                    Source = item.Source,
+                    SourceLabel = item.SourceLabel,
+                    Year = item.Year,
+                    ProliferationDate = item.ProliferationDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    UnitName = item.UnitName,
+                    Quantity = item.Quantity,
+                    ApprovalStatus = item.ApprovalStatus.ToString(),
+                    LastUpdatedOnUtc = item.LastUpdatedOnUtc,
+                    RowVersion = item.RowVersion,
+                    Description = item.Description,
+                    CanCorrect = item.CanCorrect,
+                    RelatedRecordCount = item.RelatedRecordCount
+                }).ToList()
+            });
+        }
+
+        [HttpPost("data-quality/{kind}/{id:guid}/correct")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ApproveProliferationTracker)]
+        public async Task<IActionResult> CorrectDataQualityIssue(
+            string kind,
+            Guid id,
+            [FromBody] ProliferationDataQualityCorrectionDto dto,
+            CancellationToken ct)
+        {
+            var recordKind = ParseKind(kind);
+            if (!recordKind.HasValue)
+            {
+                return BadRequest("Record kind must be yearly or granular.");
+            }
+
+            if (!string.Equals(dto.RecordKind, kind, StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest("Record kind does not match the selected issue.");
+            }
+
+            DateOnly? correctedDate = dto.CorrectedDateUtc.HasValue
+                ? DateOnly.FromDateTime(dto.CorrectedDateUtc.Value)
+                : null;
+
+            var result = await _dataQualityService.CorrectAsync(
+                new ProliferationDataQualityCorrection(
+                    recordKind.Value,
+                    id,
+                    dto.RowVersion,
+                    dto.CorrectedYear,
+                    correctedDate,
+                    dto.CorrectedUnitName,
+                    dto.CorrectedQuantity,
+                    dto.Reason),
+                User,
+                ct);
+
+            return ToActionResult(result);
         }
 
         [HttpGet("overview")]

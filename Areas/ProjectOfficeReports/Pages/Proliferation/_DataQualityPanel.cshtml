@@ -1,0 +1,132 @@
+<div class="card pf-manage-card pf-data-quality-card" id="pf-data-quality-card">
+    <div class="card-header border-0">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+            <div>
+                <h3 class="card-title h5 mb-1">Data-quality review</h3>
+                <p class="card-subtitle text-muted small mb-0">Correct malformed historical values through an auditable workflow. Possible duplicates are flagged for review and are never removed automatically.</p>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" type="button" id="pf-quality-refresh">
+                <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <div class="card-body border-top">
+        <div class="pf-quality-summary" aria-label="Data-quality issue summary">
+            <button type="button" class="pf-quality-stat active" data-quality-filter="">
+                <span>Open issues</span>
+                <strong id="pf-quality-total">—</strong>
+            </button>
+            <button type="button" class="pf-quality-stat" data-quality-filter="invalid_date_or_year">
+                <span>Invalid date / year</span>
+                <strong id="pf-quality-invalid-date">—</strong>
+            </button>
+            <button type="button" class="pf-quality-stat" data-quality-filter="missing_unit">
+                <span>Missing unit</span>
+                <strong id="pf-quality-missing-unit">—</strong>
+            </button>
+            <button type="button" class="pf-quality-stat" data-quality-filter="invalid_quantity">
+                <span>Invalid quantity</span>
+                <strong id="pf-quality-invalid-quantity">—</strong>
+            </button>
+            <button type="button" class="pf-quality-stat" data-quality-filter="possible_duplicate">
+                <span>Possible duplicates</span>
+                <strong id="pf-quality-duplicates">—</strong>
+            </button>
+        </div>
+
+        <div class="alert alert-info py-2 px-3 mt-3 mb-0 d-none" id="pf-quality-project-context">
+            Project filter applied from the originating page. <button class="btn btn-sm btn-link p-0 ms-1" type="button" id="pf-quality-clear-project">Review all projects</button>
+        </div>
+
+        <div class="row g-2 align-items-end mt-3">
+            <div class="col-12 col-lg-4">
+                <label class="form-label small" for="pf-quality-type">Issue type</label>
+                <select class="form-select form-select-sm" id="pf-quality-type">
+                    <option value="">All issue types</option>
+                    <option value="invalid_date_or_year">Invalid date or year</option>
+                    <option value="missing_unit">Missing receiving unit</option>
+                    <option value="invalid_quantity">Invalid quantity</option>
+                    <option value="possible_duplicate">Possible duplicate</option>
+                </select>
+            </div>
+            <div class="col-12 col-lg-6">
+                <label class="form-label small" for="pf-quality-search">Search</label>
+                <input class="form-control form-control-sm" id="pf-quality-search" type="search" placeholder="Project, code, unit or issue" />
+            </div>
+            <div class="col-12 col-lg-2 d-grid">
+                <button class="btn btn-sm btn-outline-secondary" id="pf-quality-clear" type="button">Clear filters</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-body p-0 border-top">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0 pf-quality-table">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Project</th>
+                        <th scope="col">Issue</th>
+                        <th scope="col">Current record</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="text-end">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="pf-quality-body">
+                    <tr><td colspan="5" class="text-muted p-4">Open this workspace to load data-quality issues.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span class="small text-muted" id="pf-quality-range" aria-live="polite"></span>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Data-quality pages">
+            <button class="btn btn-outline-secondary" type="button" id="pf-quality-prev" disabled>Previous</button>
+            <button class="btn btn-outline-secondary" type="button" id="pf-quality-next" disabled>Next</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="pf-quality-correct-modal" tabindex="-1" aria-labelledby="pf-quality-correct-label" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h2 class="modal-title fs-5" id="pf-quality-correct-label">Correct proliferation record</h2>
+                    <p class="text-muted small mb-0" id="pf-quality-correct-context"></p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cancel correction"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-light border small" id="pf-quality-current-value"></div>
+                <div class="mb-3 d-none" id="pf-quality-year-wrap">
+                    <label class="form-label" for="pf-quality-correct-year">Correct year</label>
+                    <input class="form-control" type="number" min="2000" max="3000" id="pf-quality-correct-year" />
+                </div>
+                <div class="mb-3 d-none" id="pf-quality-date-wrap">
+                    <label class="form-label" for="pf-quality-correct-date">Correct date</label>
+                    <input class="form-control" type="date" min="2000-01-01" id="pf-quality-correct-date" />
+                </div>
+                <div class="mb-3 d-none" id="pf-quality-unit-wrap">
+                    <label class="form-label" for="pf-quality-correct-unit">Receiving unit</label>
+                    <input class="form-control" type="text" maxlength="200" id="pf-quality-correct-unit" />
+                </div>
+                <div class="mb-3 d-none" id="pf-quality-quantity-wrap">
+                    <label class="form-label" for="pf-quality-correct-quantity">Correct quantity</label>
+                    <input class="form-control" type="number" min="0" id="pf-quality-correct-quantity" />
+                </div>
+                <div>
+                    <label class="form-label" for="pf-quality-correct-reason">Reason for correction</label>
+                    <textarea class="form-control" id="pf-quality-correct-reason" rows="3" maxlength="500" required></textarea>
+                    <div class="form-text">The original and corrected values, reason, user and date are retained in the audit trail.</div>
+                </div>
+                <div class="text-danger small mt-2 d-none" id="pf-quality-correct-error"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="pf-quality-correct-save">Correct record</button>
+            </div>
+        </div>
+    </div>
+</div>

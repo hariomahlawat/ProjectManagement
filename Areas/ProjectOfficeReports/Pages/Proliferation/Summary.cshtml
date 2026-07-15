@@ -22,13 +22,6 @@
         .Take(6)
         .ToList();
 
-    var invalidYears = years
-        .Where(x => x.Year is < 2000 or > 3000)
-        .Select(x => x.Year)
-        .Distinct()
-        .OrderBy(x => x)
-        .ToList();
-
     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 }
 
@@ -61,17 +54,17 @@
         </div>
     </header>
 
-    @if (invalidYears.Count > 0)
+    @if (Model.DataQualityIssueCount > 0)
     {
         <div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
             <i class="bi bi-exclamation-triangle-fill mt-1" aria-hidden="true"></i>
             <div>
                 <strong>Data-quality review required.</strong>
-                Proliferation records exist with an invalid year (@string.Join(", ", invalidYears)).
-                These quantities remain included in the overall total until the source records are corrected.
-                @if (Model.CanManageRecords)
+                @Model.DataQualityIssueCount.ToString("N0") @(Model.DataQualityIssueCount == 1 ? "record has" : "records have") an invalid year (@string.Join(", ", Model.InvalidYears)).
+                The quantities remain included in the overall total but are excluded from chronological charts and year counts until corrected.
+                @if (Model.CanReviewDataQuality)
                 {
-                    <a class="alert-link ms-1" asp-area="ProjectOfficeReports" asp-page="/Proliferation/Manage">Review records</a>
+                    <a class="alert-link ms-1" asp-area="ProjectOfficeReports" asp-page="/Proliferation/Manage" asp-route-workspace="data-quality">Review @Model.DataQualityIssueCount.ToString("N0") @(Model.DataQualityIssueCount == 1 ? "record" : "records")</a>
                 }
             </div>
         </div>
@@ -85,7 +78,7 @@
         <div class="pf-project-finder__control">
             <div class="input-group input-group-lg">
                 <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
-                <input type="search"
+                <input type="text"
                        id="pf-project-search"
                        class="form-control"
                        placeholder="Search project name or code"
@@ -199,7 +192,7 @@
                 <div class="d-flex flex-wrap gap-3 align-items-center">
                     @if (projects.Count > 15)
                     {
-                        <button type="button" class="btn btn-sm btn-link p-0" id="pf-project-show-all">Show all projects</button>
+                        <button type="button" class="btn btn-sm btn-link p-0" id="pf-project-show-all">View all @projects.Count.ToString("N0") projects</button>
                     }
                     <a asp-area="ProjectOfficeReports" asp-page="/Proliferation/Index">Browse grouped records</a>
                 </div>

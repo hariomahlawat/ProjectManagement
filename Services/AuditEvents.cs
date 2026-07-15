@@ -592,6 +592,34 @@ public static class Audit
             return new AuditEvent("ProjectOfficeReports.Proliferation.YearlyRecorded", actorUserId, data);
         }
 
+        public static AuditEvent ProliferationDataQualityCorrected(
+            Guid recordId,
+            string recordKind,
+            int projectId,
+            ProliferationSource source,
+            string? oldValue,
+            string? newValue,
+            string? oldQuantity,
+            string? newQuantity,
+            string reason,
+            string actorUserId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["RecordId"] = recordId.ToString(),
+                ["RecordKind"] = recordKind,
+                ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
+                ["Source"] = source.ToDisplayName(),
+                ["OldValue"] = oldValue,
+                ["NewValue"] = newValue,
+                ["OldQuantity"] = oldQuantity,
+                ["NewQuantity"] = newQuantity,
+                ["Reason"] = reason
+            };
+
+            return new AuditEvent("ProjectOfficeReports.Proliferation.DataQualityCorrected", actorUserId, data);
+        }
+
         public static AuditEvent ProliferationGranularRecorded(
             int projectId,
             string projectName,

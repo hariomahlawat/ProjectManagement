@@ -727,3 +727,175 @@
 .pf-year-card--invalid { border-color: var(--bs-warning-border-subtle); }
 .pf-record-group--invalid > summary,
 .pf-year-card--invalid > summary { background: var(--bs-warning-bg-subtle); }
+
+/* Operational UX release */
+.pf-workspace-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    padding: .35rem;
+    margin-bottom: 1rem;
+    background: rgba(var(--bs-secondary-rgb), .06);
+    border: 1px solid var(--pf-border);
+    border-radius: .8rem;
+}
+.pf-workspace-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    min-height: 2.55rem;
+    padding: .55rem .8rem;
+    color: var(--bs-body-color);
+    background: transparent;
+    border: 0;
+    border-radius: .6rem;
+    font-weight: 600;
+}
+.pf-workspace-tab:hover,
+.pf-workspace-tab:focus-visible { background: var(--pf-surface); }
+.pf-workspace-tab.active {
+    color: var(--bs-primary);
+    background: var(--pf-surface);
+    box-shadow: 0 .2rem .65rem rgba(15, 23, 42, .08);
+}
+.pf-workspace-panel[hidden] { display: none !important; }
+
+.pf-editor-impact {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: .75rem;
+    padding: .8rem 1rem;
+    color: var(--bs-body-color);
+    background: rgba(var(--bs-primary-rgb), .055);
+    border: 1px solid rgba(var(--bs-primary-rgb), .2);
+    border-radius: .7rem;
+}
+.pf-editor-impact > div { display: flex; flex-direction: column; }
+.pf-editor-impact span { color: var(--pf-muted); font-size: .75rem; }
+.pf-editor-impact strong { font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.pf-editor-impact > p { grid-column: 1 / -1; margin: 0; color: var(--pf-muted); font-size: .8rem; }
+
+.pf-data-quality-card .table-responsive { min-height: 15rem; }
+.pf-quality-summary {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: .65rem;
+}
+.pf-quality-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-height: 4.7rem;
+    padding: .75rem .85rem;
+    color: var(--bs-body-color);
+    background: var(--pf-surface);
+    border: 1px solid var(--pf-border);
+    border-radius: .7rem;
+    text-align: left;
+}
+.pf-quality-stat span { color: var(--pf-muted); font-size: .75rem; }
+.pf-quality-stat strong { margin-top: .15rem; font-size: 1.35rem; }
+.pf-quality-stat:hover,
+.pf-quality-stat:focus-visible { border-color: rgba(var(--bs-primary-rgb), .38); }
+.pf-quality-stat.active {
+    color: var(--bs-primary);
+    background: rgba(var(--bs-primary-rgb), .055);
+    border-color: rgba(var(--bs-primary-rgb), .42);
+}
+.pf-quality-table td { vertical-align: middle; }
+
+.pf-total-hero { padding-block: 1.4rem; }
+.pf-year-card__summary { position: relative; }
+.pf-year-card__chevron { color: var(--pf-muted); transition: transform .15s ease; }
+.pf-year-card[open] .pf-year-card__chevron { transform: rotate(180deg); }
+.pf-calculation--compact { padding: .85rem 1rem; }
+.pf-calculation-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: stretch;
+    gap: .55rem;
+    margin-top: .75rem;
+}
+.pf-calculation-grid > div {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: .7rem .75rem;
+    background: rgba(var(--bs-secondary-rgb), .045);
+    border-radius: .6rem;
+}
+.pf-calculation-grid span,
+.pf-calculation-reference span { color: var(--pf-muted); font-size: .72rem; }
+.pf-calculation-grid strong,
+.pf-calculation-reference strong { margin: .1rem 0; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.pf-calculation-grid small,
+.pf-calculation-reference small { color: var(--pf-muted); font-size: .72rem; }
+.pf-calculation-grid__operator { align-self: center; color: var(--pf-muted); font-weight: 700; }
+.pf-calculation-grid__result { color: var(--bs-primary); background: rgba(var(--bs-primary-rgb), .08) !important; }
+.pf-calculation-grid--selection { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+.pf-calculation-reference {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .15rem .75rem;
+    align-items: center;
+    margin-top: .55rem;
+    padding: .55rem .7rem;
+    border: 1px dashed var(--pf-border);
+    border-radius: .55rem;
+    opacity: .82;
+}
+.pf-calculation-reference small { grid-column: 1 / -1; }
+.pf-entry-loader__host { margin-top: .65rem; }
+.pf-entry-loader__host .table-responsive { max-height: 24rem; }
+
+.pf-selected-report {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: .8rem 1rem;
+    margin-top: 1rem;
+    background: var(--pf-surface);
+    border: 1px solid var(--pf-border);
+    border-radius: .75rem;
+    box-shadow: var(--pf-shadow);
+}
+.pf-selected-report > div { display: flex; flex-direction: column; }
+.pf-report-result-summary {
+    padding: .75rem 1.35rem;
+    color: var(--bs-primary-text-emphasis);
+    background: rgba(var(--bs-primary-rgb), .055);
+    border-bottom: 1px solid var(--pf-border);
+    font-weight: 600;
+}
+
+@media (min-width: 992px) {
+    [data-page="proliferation-manage"][data-active-workspace="records"] .pf-manage-layout,
+    [data-page="proliferation-manage"][data-active-workspace="approvals"] .pf-manage-layout {
+        min-height: 36rem;
+    }
+    [data-page="proliferation-manage"][data-active-workspace="records"] .pf-manage-results,
+    [data-page="proliferation-manage"][data-active-workspace="approvals"] .pf-manage-results {
+        max-height: calc(100vh - 24rem);
+        min-height: 22rem;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .pf-quality-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .pf-quality-stat:first-child { grid-column: 1 / -1; }
+}
+
+@media (max-width: 767.98px) {
+    .pf-workspace-tabs { display: grid; grid-template-columns: 1fr 1fr; }
+    .pf-workspace-tab { justify-content: center; }
+    .pf-editor-impact,
+    .pf-calculation-grid,
+    .pf-calculation-grid--selection { grid-template-columns: 1fr; }
+    .pf-editor-impact > i,
+    .pf-calculation-grid__operator { transform: rotate(90deg); justify-self: center; }
+    .pf-quality-summary { grid-template-columns: 1fr; }
+    .pf-quality-stat:first-child { grid-column: auto; }
+    .pf-selected-report { align-items: stretch; flex-direction: column; }
+}

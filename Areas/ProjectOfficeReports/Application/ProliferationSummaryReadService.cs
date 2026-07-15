@@ -44,7 +44,12 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
             .ThenBy(x => x.ProjectCode ?? string.Empty, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var byYear = active
+        var maximumChronologicalYear = DateTime.UtcNow.Year + 1;
+        var chronological = active
+            .Where(x => x.Year is >= 2000 && x.Year <= maximumChronologicalYear)
+            .ToList();
+
+        var byYear = chronological
             .GroupBy(x => x.Year)
             .Select(group => new ProliferationSummaryYearRow(
                 group.Key,
@@ -52,7 +57,7 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
             .OrderByDescending(x => x.Year)
             .ToList();
 
-        var byProjectYear = active
+        var byProjectYear = chronological
             .GroupBy(x => new { x.ProjectId, x.ProjectName, x.ProjectCode, x.Year })
             .Select(group => new ProliferationSummaryProjectYearRow(
                 group.Key.ProjectId,

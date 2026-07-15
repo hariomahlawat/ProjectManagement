@@ -21,19 +21,12 @@
          data-boot-year="@defaultYear"
          data-boot-kind="@defaultKind">
         <div class="card-header border-0 pb-0">
-            <div class="d-flex flex-column gap-3">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
                 <div>
                     <h3 class="card-title h5 mb-0">Record editor</h3>
-                    <p class="card-subtitle text-muted small mb-0">The two entry types can coexist. Their approved quantities are counted according to the project-year rule.</p>
+                    <p class="card-subtitle text-muted small mb-0">Complete the selected record type. Use the New entry actions above to change type.</p>
                 </div>
-                <ul class="nav nav-tabs card-header-tabs" id="pf-editor-tabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="tab-granular" data-target="granular" type="button" role="tab">Detailed entry</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-yearly" data-target="yearly" type="button" role="tab">Annual quantity</button>
-                    </li>
-                </ul>
+                <span class="badge rounded-pill text-bg-primary" id="pf-editor-type-badge">Detailed entry</span>
             </div>
         </div>
         <div class="card-body">
@@ -50,6 +43,19 @@
                 <div class="small text-muted mt-2" data-approval-submitted>Submitted: —</div>
                 <div class="small text-muted" data-approval-updated>Last updated: —</div>
                 <div class="small text-muted" data-approval-decided hidden>Decision: —</div>
+            </div>
+
+            <div class="pf-editor-impact d-none mb-4" id="pf-editor-impact" aria-live="polite">
+                <div>
+                    <span>Current reported total</span>
+                    <strong data-impact-current>—</strong>
+                </div>
+                <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                <div>
+                    <span data-impact-next-label>After save</span>
+                    <strong data-impact-next>—</strong>
+                </div>
+                <p data-impact-note></p>
             </div>
 
             <form id="pf-form" novalidate>
@@ -79,7 +85,7 @@
                         </select>
                         <div class="form-text text-danger small d-none" id="pf-source-error" data-field-error="source" aria-live="polite"></div>
                     </div>
-                    <div class="col-sm-6">
+                    <div class="col-sm-6 yearly-only">
                         <label class="form-label" for="pf-year">Year</label>
                         <input id="pf-year" type="number" class="form-control" min="2000" max="3000" value="@Model.CurrentYear" aria-describedby="pf-year-error" required />
                         <div class="form-text text-danger small d-none" id="pf-year-error" data-field-error="year" aria-live="polite"></div>
@@ -94,7 +100,8 @@
                     </div>
                     <div class="col-sm-6">
                         <label class="form-label" for="pf-unit">Receiving unit</label>
-                        <input id="pf-unit" type="text" class="form-control" maxlength="200" aria-describedby="pf-unit-error" />
+                        <input id="pf-unit" type="text" class="form-control" maxlength="200" list="pf-unit-suggestions" aria-describedby="pf-unit-error" autocomplete="off" />
+                        <datalist id="pf-unit-suggestions"></datalist>
                         <div class="form-text text-danger small d-none" id="pf-unit-error" data-field-error="unit" aria-live="polite"></div>
                     </div>
                 </div>

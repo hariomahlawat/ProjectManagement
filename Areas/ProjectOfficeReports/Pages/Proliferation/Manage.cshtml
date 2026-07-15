@@ -5,7 +5,10 @@
     ViewData["UseFullWidth"] = true;
 }
 
-<div class="container-xxl py-3 pf-shell" data-page="proliferation-manage" data-can-approve="@(Model.CanApproveRecords ? "true" : "false")">
+<div class="container-xxl py-3 pf-shell"
+     data-page="proliferation-manage"
+     data-can-approve="@(Model.CanApproveRecords ? "true" : "false")"
+     data-initial-workspace="@Model.InitialWorkspace">
     <nav aria-label="Breadcrumb" class="mb-2">
         <ol class="breadcrumb mb-0 small">
             <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
@@ -24,59 +27,100 @@
         </div>
     </header>
 
-    <div class="pf-command-bar" data-command-bar>
-        <div class="pf-command-bar__details">
-            <div class="pf-command-bar__title-row">
-                <h2 class="pf-command-bar__title" data-command-title>New detailed entry</h2>
-                <span class="pf-command-bar__scope" data-command-scope>Detailed entry</span>
-            </div>
-            <div class="pf-command-bar__meta">
-                <span>Last updated:</span>
-                <span data-command-updated-value>—</span>
-            </div>
-        </div>
-        <div class="pf-command-bar__actions">
-            @if (Model.CanApproveRecords)
-            {
-                <button class="btn btn-sm btn-success" id="pf-approve" type="button" disabled>
-                    <i class="bi bi-check-lg" aria-hidden="true"></i> Approve
-                </button>
-                <button class="btn btn-sm btn-outline-danger" id="pf-reject" type="button" disabled>
-                    <i class="bi bi-x-lg" aria-hidden="true"></i> Reject
-                </button>
-            }
-            <button class="btn btn-sm btn-primary" id="pf-save" type="submit" form="pf-form" disabled>
-                <i class="bi bi-check2" aria-hidden="true"></i> Save
+    <nav class="pf-workspace-tabs" aria-label="Manage proliferation workspaces" role="tablist">
+        <button type="button" class="pf-workspace-tab active" data-workspace="records" data-workspace-panel="records" role="tab" aria-selected="true" aria-controls="pf-workspace-records">
+            <i class="bi bi-pencil-square" aria-hidden="true"></i>
+            <span>Records</span>
+        </button>
+        @if (Model.CanApproveRecords)
+        {
+            <button type="button" class="pf-workspace-tab" data-workspace="approvals" data-workspace-panel="records" role="tab" aria-selected="false" aria-controls="pf-workspace-records">
+                <i class="bi bi-check2-square" aria-hidden="true"></i>
+                <span>Pending approval</span>
+                <span class="badge rounded-pill text-bg-warning d-none" id="pf-pending-badge"></span>
             </button>
-            <button class="btn btn-sm btn-outline-danger" id="pf-delete" type="button" disabled>Delete</button>
-        </div>
-    </div>
-
-    <div class="pf-manage-new-actions" aria-label="Add proliferation">
-        <button type="button" class="btn btn-outline-primary" data-new-proliferation="granular">
-            <strong><i class="bi bi-list-check" aria-hidden="true"></i> New detailed entry</strong>
-            <small>Use when date, receiving unit and quantity are known.</small>
-        </button>
-        <button type="button" class="btn btn-outline-primary" data-new-proliferation="yearly">
-            <strong><i class="bi bi-calendar3" aria-hidden="true"></i> New annual quantity</strong>
-            <small>Use when only an aggregate quantity for the year is available.</small>
-        </button>
-    </div>
-
-    <div class="pf-manage-layout" id="pf-manage-layout">
-        <section class="pf-manage-column pf-manage-column--list" id="pf-list-panel" aria-label="Existing records">
-            <partial name="_ProliferationList" model="Model.ListBoot" />
-        </section>
-        <section class="pf-manage-column pf-manage-column--detail" id="pf-detail-panel" aria-label="Record editor">
-            <partial name="_ProliferationEditor" model="Model.EditorBoot" />
-        </section>
+        }
         @if (Model.CanManagePreferences)
         {
-            <section class="pf-manage-column pf-manage-column--rail pf-counting-rules-section" id="pf-rail-panel" aria-label="Counting rules">
-                <partial name="_PreferenceOverrides" model="Model.OverridesBoot" />
-            </section>
+            <button type="button" class="pf-workspace-tab" data-workspace="counting-rules" data-workspace-panel="counting-rules" role="tab" aria-selected="false" aria-controls="pf-workspace-counting-rules">
+                <i class="bi bi-sliders" aria-hidden="true"></i>
+                <span>Counting rules</span>
+            </button>
         }
-    </div>
+        @if (Model.CanReviewDataQuality)
+        {
+            <button type="button" class="pf-workspace-tab" data-workspace="data-quality" data-workspace-panel="data-quality" role="tab" aria-selected="false" aria-controls="pf-workspace-data-quality">
+                <i class="bi bi-shield-check" aria-hidden="true"></i>
+                <span>Data quality</span>
+                <span class="badge rounded-pill text-bg-danger d-none" id="pf-quality-badge"></span>
+            </button>
+        }
+    </nav>
+
+    <section data-workspace-panel="records" class="pf-workspace-panel" id="pf-workspace-records" role="tabpanel">
+        <div class="pf-command-bar" data-command-bar>
+            <div class="pf-command-bar__details">
+                <div class="pf-command-bar__title-row">
+                    <h2 class="pf-command-bar__title" data-command-title>New detailed entry</h2>
+                    <span class="pf-command-bar__scope" data-command-scope>Detailed entry</span>
+                </div>
+                <div class="pf-command-bar__meta">
+                    <span>Last updated:</span>
+                    <span data-command-updated-value>—</span>
+                </div>
+            </div>
+            <div class="pf-command-bar__actions">
+                @if (Model.CanApproveRecords)
+                {
+                    <button class="btn btn-sm btn-success d-none" id="pf-approve" type="button">
+                        <i class="bi bi-check-lg" aria-hidden="true"></i> Approve
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger d-none" id="pf-reject" type="button">
+                        <i class="bi bi-x-lg" aria-hidden="true"></i> Reject
+                    </button>
+                }
+                <button class="btn btn-sm btn-primary" id="pf-save" type="submit" form="pf-form" disabled>
+                    <i class="bi bi-check2" aria-hidden="true"></i> <span data-save-label>Save</span>
+                </button>
+                <button class="btn btn-sm btn-outline-danger d-none" id="pf-delete" type="button">Delete</button>
+            </div>
+        </div>
+
+        <div class="pf-manage-new-actions" aria-label="Add proliferation">
+            <button type="button" class="btn btn-outline-primary" data-new-proliferation="granular">
+                <strong><i class="bi bi-list-check" aria-hidden="true"></i> New detailed entry</strong>
+                <small>Use when date, receiving unit and quantity are known.</small>
+            </button>
+            <button type="button" class="btn btn-outline-primary" data-new-proliferation="yearly">
+                <strong><i class="bi bi-calendar3" aria-hidden="true"></i> New annual quantity</strong>
+                <small>Use when only an aggregate quantity for the year is available.</small>
+            </button>
+        </div>
+
+        <div class="pf-manage-layout" id="pf-manage-layout">
+            <section class="pf-manage-column pf-manage-column--list" id="pf-list-panel" aria-label="Existing records">
+                <partial name="_ProliferationList" model="Model.ListBoot" />
+            </section>
+            <section class="pf-manage-column pf-manage-column--detail" id="pf-detail-panel" aria-label="Record editor">
+                <partial name="_ProliferationEditor" model="Model.EditorBoot" />
+            </section>
+        </div>
+    </section>
+
+    @if (Model.CanManagePreferences)
+    {
+        <section data-workspace-panel="counting-rules" class="pf-workspace-panel d-none" id="pf-workspace-counting-rules" role="tabpanel" hidden>
+            <partial name="_PreferenceOverrides" model="Model.OverridesBoot" />
+        </section>
+    }
+
+    @if (Model.CanReviewDataQuality)
+    {
+        <section data-workspace-panel="data-quality" class="pf-workspace-panel d-none" id="pf-workspace-data-quality" role="tabpanel" hidden>
+            <partial name="_DataQualityPanel" />
+        </section>
+    }
+
 </div>
 
 <div class="modal fade" id="pf-delete-modal" tabindex="-1" aria-labelledby="pf-delete-modal-label" aria-hidden="true">
@@ -129,6 +173,11 @@
 
 @section Scripts {
     <script src="~/js/pages/proliferation-manage.js" asp-append-version="true"></script>
+    <script src="~/js/pages/proliferation-manage-workspaces.js" asp-append-version="true"></script>
+    @if (Model.CanReviewDataQuality)
+    {
+        <script src="~/js/pages/proliferation-data-quality.js" asp-append-version="true"></script>
+    }
 }
 
 @section Styles {

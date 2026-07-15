@@ -177,7 +177,12 @@
     head: $("rep-head"),
     body: $("rep-body"),
     prev: $("rep-prev"),
-    next: $("rep-next")
+    next: $("rep-next"),
+    chooserSection: $("pf-report-chooser-section"),
+    selectedReport: $("pf-selected-report"),
+    selectedReportLabel: $("pf-selected-report-label"),
+    changeReport: $("pf-change-report"),
+    resultSummary: $("rep-result-summary")
   };
 
   // SECTION: UI behavior
@@ -210,6 +215,12 @@
       button.classList.toggle("active", active);
       button.setAttribute("aria-pressed", active ? "true" : "false");
     });
+    if (el.selectedReportLabel) el.selectedReportLabel.textContent = reportLabels[kind] || "Detailed report";
+  }
+
+  function setChooserCollapsed(collapsed) {
+    el.chooserSection?.classList.toggle("d-none", collapsed);
+    el.selectedReport?.classList.toggle("d-none", !collapsed);
   }
 
   function applyKindUI(options = {}) {
@@ -261,6 +272,7 @@
     if (!option) return;
     el.kind.value = kind;
     applyKindUI({ resetContext: options.resetContext !== false });
+    if (options.collapseChooser === true) setChooserCollapsed(true);
     if (options.scroll) {
       document.getElementById("report-filters-heading")?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
@@ -629,7 +641,7 @@
   }
 
   function applyPresetState(presetState) {
-    setReportKind(presetState.reportKind || "ProjectToUnits", { resetContext: true });
+    setReportKind(presetState.reportKind || "ProjectToUnits", { resetContext: true, collapseChooser: true });
 
     el.source.value = presetState.filters?.source || "";
     el.status.value = presetState.filters?.approvalStatus || "Approved";
@@ -673,6 +685,7 @@
     state.sortBy = null;
     state.sortDir = "desc";
     setReportKind(el.kind.options[0]?.value || "ProjectToUnits", { resetContext: false });
+    setChooserCollapsed(false);
     state.page = 1;
     invalidateResults();
     el.hint.textContent = "Filters cleared. Select the report and criteria required.";
@@ -710,6 +723,13 @@
     state.lastQueryState = null;
     state.lastRunAtUtc = null;
     state.projectMismatch = false;
+    if (el.resultSummary) {
+      el.resultSummary.textContent = "";
+      el.resultSummary.classList.add("d-none");
+    }
+    if (!state.busy && el.run) {
+      el.run.innerHTML = '<i class="bi bi-play-fill" aria-hidden="true"></i> Generate report';
+    }
     renderTable([], []);
     updatePager();
     updateContext();
@@ -719,10 +739,26 @@
   function setBusy(busy) {
     state.busy = busy;
     el.run.disabled = busy;
+    const idleLabel = state.lastQuery ? "Update report" : "Generate report";
     el.run.innerHTML = busy
       ? '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span> Generating…'
-      : '<i class="bi bi-play-fill" aria-hidden="true"></i> Generate report';
+      : `<i class="bi bi-play-fill" aria-hidden="true"></i> ${idleLabel}`;
     updatePager();
+  }
+
+  function renderResultSummary(kind) {
+    if (!el.resultSummary || !state.lastQueryState) return;
+    const count = Number(state.total) || 0;
+    const subject = state.projectLabel || el.unit.value.trim();
+    const unit = count === 1 ? "row" : "rows";
+    let text = `${count.toLocaleString()} ${unit}`;
+    if (kind === "ProjectToUnits") text = `${count.toLocaleString()} detailed ${count === 1 ? "entry" : "entries"}${subject ? ` for ${subject}` : ""}`;
+    else if (kind === "UnitToProjects") text = `${count.toLocaleString()} detailed ${count === 1 ? "entry" : "entries"}${subject ? ` for ${subject}` : ""}`;
+    else if (kind === "ProjectCoverageSummary") text = `${count.toLocaleString()} project/source coverage ${count === 1 ? "row" : "rows"}`;
+    else if (kind === "GranularLedger") text = `${count.toLocaleString()} detailed ${count === 1 ? "record" : "records"}`;
+    else if (kind === "YearlyReconciliation") text = `${count.toLocaleString()} project-year ${count === 1 ? "calculation" : "calculations"}`;
+    el.resultSummary.textContent = text;
+    el.resultSummary.classList.toggle("d-none", count === 0);
   }
 
   async function runReport(options = {}) {
@@ -797,6 +833,8 @@
       renderTable(state.columns, state.rows);
       updatePager();
       updateContext();
+      renderResultSummary(kind);
+      setChooserCollapsed(true);
       el.hint.textContent = state.total ? "Report generated." : "No rows match the selected criteria.";
       if (options.scroll !== false) {
         document.getElementById("report-results-heading")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -823,6 +861,10 @@
 
   // SECTION: Events
   el.run.addEventListener("click", () => runReport());
+  el.changeReport?.addEventListener("click", () => {
+    setChooserCollapsed(false);
+    el.chooserSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 
   el.export.addEventListener("click", exportExcel);
 
@@ -992,7 +1034,7 @@
   // SECTION: Init
   initialiseProjectPicker();
   document.querySelectorAll("[data-report-kind]").forEach(button => {
-    button.addEventListener("click", () => setReportKind(button.dataset.reportKind, { resetContext: true, scroll: true }));
+    button.addEventListener("click", () => setReportKind(button.dataset.reportKind, { resetContext: true, scroll: true, collapseChooser: true }));
   });
   setReportKind(el.kind.value, { resetContext: false });
   renderPresetsList();

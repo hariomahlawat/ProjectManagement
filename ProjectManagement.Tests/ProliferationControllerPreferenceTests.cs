@@ -82,6 +82,7 @@ public class ProliferationControllerPreferenceTests
             overviewSvc: overviewService,
             aggregateSvc: new ProliferationAggregateReadService(context),
             exportService: new StubProliferationExportService(),
+            dataQualityService: null!,
             logger: NullLogger<ProliferationController>.Instance);
 
         var result = await controller.GetPreferenceOverrides(
@@ -143,6 +144,7 @@ public class ProliferationControllerPreferenceTests
             overviewSvc: new ProliferationOverviewService(context, readService),
             aggregateSvc: aggregate,
             exportService: new StubProliferationExportService(),
+            dataQualityService: null!,
             logger: NullLogger<ProliferationController>.Instance);
 
         var projectResult = await controller.GetEligibleProjectById(77, null, null, CancellationToken.None);
@@ -240,6 +242,7 @@ public class ProliferationControllerPreferenceTests
             overviewSvc: overviewService,
             aggregateSvc: new ProliferationAggregateReadService(context),
             exportService: new StubProliferationExportService(),
+            dataQualityService: null!,
             logger: NullLogger<ProliferationController>.Instance);
 
         var result = await controller.ExportPreferenceOverrides(

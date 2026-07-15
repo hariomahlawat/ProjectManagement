@@ -604,6 +604,7 @@ builder.Services.AddScoped<ICompendiumExportService, CompendiumExportService>();
 builder.Services.AddScoped<ICompendiumPdfReportBuilder, CompendiumPdfReportBuilder>();
 builder.Services.AddScoped<ProliferationSubmissionService>();
 builder.Services.AddScoped<ProliferationManageService>();
+builder.Services.AddScoped<ProliferationDataQualityService>();
 // SECTION: Proliferation reports services
 builder.Services.AddScoped<ProliferationReportsService>();
 builder.Services.AddSingleton<IWorkflowStageMetadataProvider, WorkflowStageMetadataProvider>();

@@ -27,6 +27,7 @@ public sealed class ProjectModel : PageModel
         ProliferationProjectDetailViewModel.Empty(0);
 
     public bool CanManageRecords { get; private set; }
+    public bool CanReviewDataQuality { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
@@ -43,6 +44,12 @@ public sealed class ProjectModel : PageModel
             resource: null,
             ProjectOfficeReportsPolicies.SubmitProliferationTracker);
         CanManageRecords = submitResult.Succeeded;
+
+        var qualityResult = await _authorizationService.AuthorizeAsync(
+            User,
+            resource: null,
+            ProjectOfficeReportsPolicies.ApproveProliferationTracker);
+        CanReviewDataQuality = qualityResult.Succeeded;
 
         return Page();
     }
