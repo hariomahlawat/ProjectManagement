@@ -56,15 +56,40 @@
                 <input type="hidden" id="pf-kind" value="granular" />
                 <input type="hidden" id="pf-row-version" />
 
-                <div class="mb-2">
-                    <label class="form-label" for="pf-project">Project</label>
-                    <select id="pf-project" class="form-select" aria-describedby="pf-project-error" required>
+                <div class="mb-2 pf-project-combobox" data-manage-project-picker>
+                    <label class="form-label" for="pf-project-search">Project</label>
+                    <div class="input-group pf-project-combobox__field">
+                        <span class="input-group-text" aria-hidden="true"><i class="bi bi-search"></i></span>
+                        <input id="pf-project-search"
+                               type="text"
+                               class="form-control"
+                               placeholder="Search project name, acronym or code"
+                               aria-required="true"
+                               aria-describedby="pf-project-search-status pf-project-error"
+                               autocomplete="off" />
+                        <button id="pf-project-search-clear"
+                                type="button"
+                                class="btn btn-outline-secondary d-none"
+                                aria-label="Clear selected project">
+                            <i class="bi bi-x-lg" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <select id="pf-project"
+                            class="pf-project-combobox__native"
+                            tabindex="-1"
+                            aria-hidden="true"
+                            aria-describedby="pf-project-error"
+                            required>
                         <option value="">Select project</option>
                         @foreach (var project in Model.CompletedProjects)
                         {
-                            <option value="@project.Id">@project.DisplayName</option>
+                            <option value="@project.Id"
+                                    data-name="@project.DisplayName"
+                                    data-display="@project.DisplayName">@project.DisplayName</option>
                         }
                     </select>
+                    <div id="pf-project-search-suggestions" class="pf-suggestions pf-project-combobox__suggestions d-none" role="listbox"></div>
+                    <div class="form-text pf-project-combobox__status" id="pf-project-search-status" aria-live="polite"></div>
                     <div class="form-text text-danger small d-none" id="pf-project-error" data-field-error="project" aria-live="polite"></div>
                 </div>
 
