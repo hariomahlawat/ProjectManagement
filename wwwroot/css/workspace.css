@@ -1419,7 +1419,7 @@
 
 .po-upcoming-item {
     display: grid;
-    grid-template-columns: 38px 34px minmax(0, 1fr) auto;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
     align-items: center;
     gap: 9px;
     min-height: 64px;
@@ -1515,6 +1515,7 @@
 }
 
 .po-upcoming-item__arrow {
+    justify-self: end;
     color: #9aa8ba;
     font-size: .7rem;
 }

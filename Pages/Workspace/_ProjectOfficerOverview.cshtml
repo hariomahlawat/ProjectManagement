@@ -80,7 +80,7 @@
                     <div class="po-upcoming-list">
                         @foreach (var item in vm.UpcomingEvents.Take(5))
                         {
-                            <a class="po-upcoming-item po-upcoming-item--@item.Tone" href="@item.OpenUrl"><span class="po-upcoming-item__date"><strong>@item.LocalDate.Day.ToString("00")</strong><small>@item.LocalDate.ToString("MMM").ToUpperInvariant()</small></span><span class="po-upcoming-item__content"><strong>@item.Title</strong><small>@item.TimeLabel · @item.CategoryLabel</small></span><i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+                            <a class="po-upcoming-item po-upcoming-item--@item.Tone" href="@item.OpenUrl"><span class="po-upcoming-item__date"><strong>@item.LocalDate.Day.ToString("00")</strong><small>@item.LocalDate.ToString("MMM").ToUpperInvariant()</small></span><span class="po-upcoming-item__content"><strong>@item.Title</strong><small>@item.TimeLabel · @item.CategoryLabel</small></span><i class="bi bi-chevron-right po-upcoming-item__arrow" aria-hidden="true"></i></a>
                         }
                     </div>
                 }

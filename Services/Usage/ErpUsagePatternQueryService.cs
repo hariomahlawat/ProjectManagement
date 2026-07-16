@@ -112,6 +112,7 @@ public sealed class ErpUsagePatternQueryService : IErpUsagePatternQueryService
         var requestedDays = NormaliseDays(query.Days);
         var aggregationMinutes = requestedDays > 14 ? 30 : 15;
         var nowUtc = _time.UtcNow;
+        var nowUtcDateTime = nowUtc.UtcDateTime;
         var today = _time.TodayIst;
         var trackingInceptionUtc = options.TrackingInceptionUtc.ToUniversalTime();
         var trackingInceptionDate = DateOnly.FromDateTime(_time.ToIst(trackingInceptionUtc).DateTime);
@@ -216,7 +217,9 @@ public sealed class ErpUsagePatternQueryService : IErpUsagePatternQueryService
                 userIds.Contains(bucket.UserId)
                 && bucket.BucketStartUtc >= startUtc.UtcDateTime
                 && bucket.BucketStartUtc < endUtcExclusive.UtcDateTime
-                && bucket.BucketStartUtc >= trackingInceptionUtc.UtcDateTime);
+                && bucket.BucketStartUtc >= trackingInceptionUtc.UtcDateTime
+                && bucket.BucketStartUtc <= nowUtcDateTime
+                && bucket.LastSeenUtc <= nowUtcDateTime);
 
         if (selectedModule is not null)
         {
@@ -241,7 +244,8 @@ public sealed class ErpUsagePatternQueryService : IErpUsagePatternQueryService
                 && userIds.Contains(audit.UserId)
                 && audit.TimeUtc >= startUtc.UtcDateTime
                 && audit.TimeUtc < endUtcExclusive.UtcDateTime
-                && audit.TimeUtc >= trackingInceptionUtc.UtcDateTime)
+                && audit.TimeUtc >= trackingInceptionUtc.UtcDateTime
+                && audit.TimeUtc <= nowUtcDateTime)
             .Select(audit => new RawActionProjection(
                 audit.UserId!,
                 audit.TimeUtc,

@@ -32,8 +32,8 @@
         : monitoredCalendarDays == 1
             ? "1 monitored day available"
             : $"{monitoredCalendarDays} monitored days available";
-    var naturalChartHeight = Math.Clamp(Model.Users.Count * 48 + 150, 260, 1800);
-    var chartNeedsScroll = naturalChartHeight > 760;
+    var naturalChartHeight = Math.Clamp(Model.Users.Count * 34 + 120, 260, 1200);
+    var chartNeedsScroll = naturalChartHeight > 720;
 }
 
 <section class="cw-adoption-hero cw-pattern-hero" aria-labelledby="cw-pattern-title">

@@ -136,13 +136,18 @@
 }
 
 .erp-activity-strip--card.is-extended .erp-activity-strip__cells {
-    grid-template-columns: repeat(30, 9px);
+    grid-template-columns: repeat(30, minmax(0, 1fr));
     gap: 2px;
+    width: 100%;
+    max-width: none;
 }
 
 .erp-activity-strip--card.is-extended .erp-activity-strip__cell {
-    width: 9px;
-    height: 9px;
+    justify-self: center;
+    width: 100%;
+    max-width: 9px;
+    height: auto;
+    aspect-ratio: 1;
     border-radius: 2px;
 }
 
@@ -320,13 +325,16 @@
     }
 
     .erp-activity-strip--card.is-extended .erp-activity-strip__cells {
-        grid-template-columns: repeat(30, 8px);
-        gap: 2px;
+        grid-template-columns: repeat(30, minmax(0, 1fr));
+        gap: 1.5px;
+        width: 100%;
     }
 
     .erp-activity-strip--card.is-extended .erp-activity-strip__cell {
-        width: 8px;
-        height: 8px;
+        width: 100%;
+        max-width: 8px;
+        height: auto;
+        aspect-ratio: 1;
     }
 }
 

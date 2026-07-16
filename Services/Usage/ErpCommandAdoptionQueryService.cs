@@ -84,6 +84,7 @@ public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQuerySer
             MinimumWorkingDays,
             MaximumWorkingDays);
         var nowUtc = _time.UtcNow;
+        var nowUtcDateTime = nowUtc.UtcDateTime;
         var today = _time.TodayIst;
         var trackingInceptionUtc = options.TrackingInceptionUtc.ToUniversalTime();
         var trackingInceptionDate = DateOnly.FromDateTime(
@@ -150,7 +151,9 @@ public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQuerySer
                 userIds.Contains(bucket.UserId)
                 && bucket.BucketStartUtc >= periodStartUtcDateTime
                 && bucket.BucketStartUtc < periodEndUtcDateTime
-                && bucket.BucketStartUtc >= trackingInceptionUtc.UtcDateTime)
+                && bucket.BucketStartUtc >= trackingInceptionUtc.UtcDateTime
+                && bucket.BucketStartUtc <= nowUtcDateTime
+                && bucket.LastSeenUtc <= nowUtcDateTime)
             .Select(bucket => new BucketProjection(
                 bucket.UserId,
                 bucket.ActivityDateIst,
@@ -164,7 +167,8 @@ public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQuerySer
                 && userIds.Contains(audit.UserId)
                 && audit.TimeUtc >= periodStartUtcDateTime
                 && audit.TimeUtc < periodEndUtcDateTime
-                && audit.TimeUtc >= trackingInceptionUtc.UtcDateTime)
+                && audit.TimeUtc >= trackingInceptionUtc.UtcDateTime
+                && audit.TimeUtc <= nowUtcDateTime)
             .Select(audit => new RawActionProjection(
                 audit.UserId!,
                 audit.TimeUtc,
@@ -264,6 +268,7 @@ public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQuerySer
         DateTimeOffset trackingInceptionUtc,
         CancellationToken cancellationToken)
     {
+        var nowUtcDateTime = _time.UtcNow.UtcDateTime;
         var attentionUsers = users
             .Where(user => !usedErpUserIds.Contains(user.Id))
             .ToArray();
@@ -277,7 +282,9 @@ public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQuerySer
             .AsNoTracking()
             .Where(bucket =>
                 attentionUserIds.Contains(bucket.UserId)
-                && bucket.BucketStartUtc >= trackingInceptionUtc.UtcDateTime)
+                && bucket.BucketStartUtc >= trackingInceptionUtc.UtcDateTime
+                && bucket.BucketStartUtc <= nowUtcDateTime
+                && bucket.LastSeenUtc <= nowUtcDateTime)
             .GroupBy(bucket => bucket.UserId)
             .Select(group => new LastActiveProjection(
                 group.Key,
@@ -293,7 +300,8 @@ public sealed class ErpCommandAdoptionQueryService : IErpCommandAdoptionQuerySer
             .Where(audit =>
                 audit.UserId != null
                 && attentionUserIds.Contains(audit.UserId)
-                && audit.TimeUtc >= trackingInceptionUtc.UtcDateTime)
+                && audit.TimeUtc >= trackingInceptionUtc.UtcDateTime
+                && audit.TimeUtc <= nowUtcDateTime)
             .Select(audit => new RawActionProjection(
                 audit.UserId!,
                 audit.TimeUtc,

@@ -168,6 +168,7 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
 
         var options = _options.Value;
         var nowUtc = _time.UtcNow;
+        var nowUtcDateTime = nowUtc.UtcDateTime;
         var trackingInceptionUtc = options.TrackingInceptionUtc.ToUniversalTime();
         var trackingInceptionDate = DateOnly.FromDateTime(_time.ToIst(trackingInceptionUtc).DateTime);
         var today = _time.TodayIst;
@@ -277,7 +278,9 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                     userIds.Contains(bucket.UserId)
                     && bucket.ActivityDateIst >= historyStartDate
                     && bucket.ActivityDateIst < endDateExclusive
-                    && bucket.BucketStartUtc >= trackingInceptionDateTimeUtc)
+                    && bucket.BucketStartUtc >= trackingInceptionDateTimeUtc
+                    && bucket.BucketStartUtc <= nowUtcDateTime
+                    && bucket.LastSeenUtc <= nowUtcDateTime)
                 .Select(bucket => new BucketProjection(
                     bucket.UserId,
                     bucket.ActivityDateIst,
@@ -316,7 +319,9 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                     .AsNoTracking()
                     .Where(bucket =>
                         userIds.Contains(bucket.UserId)
-                        && bucket.BucketStartUtc >= trackingInceptionDateTimeUtc)
+                        && bucket.BucketStartUtc >= trackingInceptionDateTimeUtc
+                        && bucket.BucketStartUtc <= nowUtcDateTime
+                        && bucket.LastSeenUtc <= nowUtcDateTime)
                     .GroupBy(bucket => bucket.UserId)
                     .Select(group => new LastActiveProjection(
                         group.Key,
@@ -330,7 +335,10 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
             }
 
             var lastActionRows = await CandidateAuditQuery()
-                .Where(audit => audit.UserId != null && userIds.Contains(audit.UserId))
+                .Where(audit =>
+                    audit.UserId != null
+                    && userIds.Contains(audit.UserId)
+                    && audit.TimeUtc <= nowUtcDateTime)
                 .GroupBy(audit => audit.UserId!)
                 .Select(group => new LastActiveProjection(
                     group.Key,
@@ -351,7 +359,8 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                     audit.UserId != null
                     && userIds.Contains(audit.UserId)
                     && audit.TimeUtc >= historyStartUtc
-                    && audit.TimeUtc < endUtc)
+                    && audit.TimeUtc < endUtc
+                    && audit.TimeUtc <= nowUtcDateTime)
                 .Select(audit => new RawActionProjection(audit.UserId!, audit.TimeUtc, audit.Action))
                 .ToListAsync(cancellationToken);
 
@@ -721,6 +730,8 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
         }
         var dates = EnumerateDates(startDate, endDate).ToArray();
         var options = _options.Value;
+        var nowUtc = _time.UtcNow;
+        var nowUtcDateTime = nowUtc.UtcDateTime;
         var trackingInceptionUtc = options.TrackingInceptionUtc.ToUniversalTime();
         var trackingInceptionDate = DateOnly.FromDateTime(_time.ToIst(trackingInceptionUtc).DateTime);
         var endUtc = _time.EndExclusiveOfIstDayUtc(endDate).UtcDateTime;
@@ -753,7 +764,7 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                     date == today)).ToArray());
         }
 
-        var dailySummaries = _time.UtcNow < trackingInceptionUtc
+        var dailySummaries = nowUtc < trackingInceptionUtc
             ? new List<DailyProjection>()
             : await _db.UserActivityDailySummaries
                 .AsNoTracking()
@@ -761,7 +772,9 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                     summary.UserId == userId
                     && summary.ActivityDateIst >= startDate
                     && summary.ActivityDateIst <= endDate
-                    && summary.LastSeenUtc >= trackingInceptionUtc.UtcDateTime)
+                    && summary.LastSeenUtc >= trackingInceptionUtc.UtcDateTime
+                    && summary.FirstSeenUtc <= nowUtcDateTime
+                    && summary.LastSeenUtc <= nowUtcDateTime)
                 .Select(summary => new DailyProjection(
                     summary.UserId,
                     summary.ActivityDateIst,
@@ -778,7 +791,7 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
         // Detailed buckets are retained for a bounded period and provide module labels.
         // They also act as a compatibility fallback until the permanent summary migration
         // has backfilled every existing environment.
-        var buckets = _time.UtcNow < trackingInceptionUtc
+        var buckets = nowUtc < trackingInceptionUtc
             ? new List<BucketProjection>()
             : await _db.UserActivityBuckets
                 .AsNoTracking()
@@ -786,7 +799,9 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                     bucket.UserId == userId
                     && bucket.ActivityDateIst >= startDate
                     && bucket.ActivityDateIst <= endDate
-                    && bucket.BucketStartUtc >= trackingInceptionUtc.UtcDateTime)
+                    && bucket.BucketStartUtc >= trackingInceptionUtc.UtcDateTime
+                    && bucket.BucketStartUtc <= nowUtcDateTime
+                    && bucket.LastSeenUtc <= nowUtcDateTime)
                 .Select(bucket => new BucketProjection(
                     bucket.UserId,
                     bucket.ActivityDateIst,
@@ -820,7 +835,8 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
             .Where(audit =>
                 audit.UserId == userId
                 && audit.TimeUtc >= startUtc
-                && audit.TimeUtc < endUtc)
+                && audit.TimeUtc < endUtc
+                && audit.TimeUtc <= nowUtcDateTime)
             .Select(audit => new RawActionProjection(audit.UserId!, audit.TimeUtc, audit.Action))
             .ToListAsync(cancellationToken);
 
@@ -862,7 +878,7 @@ public sealed class ErpUsageQueryService : IErpUsageQueryService
                 "Historical audited",
                 StringComparison.OrdinalIgnoreCase);
             var isMonitored = !isHistoricalAudit
-                && _time.UtcNow >= trackingInceptionUtc
+                && nowUtc >= trackingInceptionUtc
                 && cell.Date >= effectiveTrackingStart;
             var level = isHistoricalAudit
                 ? 0
