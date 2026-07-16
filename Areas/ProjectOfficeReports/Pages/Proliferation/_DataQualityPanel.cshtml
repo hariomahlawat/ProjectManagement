@@ -3,7 +3,7 @@
         <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
             <div>
                 <h3 class="card-title h5 mb-1">Data-quality review</h3>
-                <p class="card-subtitle text-muted small mb-0">Correct malformed historical values through an auditable workflow. Possible duplicates are flagged for review and are never removed automatically.</p>
+                <p class="card-subtitle text-muted small mb-0">Correct malformed values through an auditable workflow. Possible duplicates are listed separately for review and are never removed automatically.</p>
             </div>
             <button class="btn btn-sm btn-outline-secondary" type="button" id="pf-quality-refresh">
                 <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Refresh
@@ -14,7 +14,7 @@
     <div class="card-body border-top">
         <div class="pf-quality-summary" aria-label="Data-quality issue summary">
             <button type="button" class="pf-quality-stat active" data-quality-filter="">
-                <span>Open issues</span>
+                <span>All review items</span>
                 <strong id="pf-quality-total">—</strong>
             </button>
             <button type="button" class="pf-quality-stat" data-quality-filter="invalid_date_or_year">

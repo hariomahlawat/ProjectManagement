@@ -20,22 +20,15 @@
          data-boot-source="@defaultSource"
          data-boot-year="@defaultYear"
          data-boot-kind="@defaultKind">
-        <div class="card-header border-0 pb-0">
-            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
-                <div>
-                    <h3 class="card-title h5 mb-0">Record editor</h3>
-                    <p class="card-subtitle text-muted small mb-0">Complete the selected record type. Use the New entry actions above to change type.</p>
-                </div>
-                <span class="badge rounded-pill text-bg-primary" id="pf-editor-type-badge">Detailed entry</span>
+        <div class="card-header pf-editor-card-header">
+            <div>
+                <h3 class="card-title h5 mb-0">Entry details</h3>
+                <p class="card-subtitle text-muted small mb-0" data-guidance-text>Use a detailed entry when the proliferation date, receiving unit and quantity are known.</p>
             </div>
+            <span class="badge rounded-pill text-bg-primary" id="pf-editor-type-badge">Detailed entry</span>
         </div>
         <div class="card-body">
-            <div class="pf-editor-guidance" id="pf-entry-guidance">
-                <i class="bi bi-info-circle" aria-hidden="true"></i>
-                <span data-guidance-text>Use a detailed entry when the proliferation date, receiving unit and quantity are known.</span>
-            </div>
-
-            <div class="bg-light border rounded-3 p-3 mb-4" id="pf-approval-panel" data-approval-container>
+            <div class="bg-light border rounded-2 p-2 mb-3 d-none" id="pf-approval-panel" data-approval-container>
                 <div class="d-flex flex-wrap align-items-center gap-2">
                     <span class="badge text-bg-secondary" data-approval-badge>New record</span>
                     <span class="fw-semibold" data-approval-status>Complete the form and save.</span>
@@ -63,9 +56,10 @@
                 <input type="hidden" id="pf-kind" value="granular" />
                 <input type="hidden" id="pf-row-version" />
 
-                <div class="mb-3">
+                <div class="mb-2">
                     <label class="form-label" for="pf-project">Project</label>
                     <select id="pf-project" class="form-select" aria-describedby="pf-project-error" required>
+                        <option value="">Select project</option>
                         @foreach (var project in Model.CompletedProjects)
                         {
                             <option value="@project.Id">@project.DisplayName</option>
@@ -74,7 +68,7 @@
                     <div class="form-text text-danger small d-none" id="pf-project-error" data-field-error="project" aria-live="polite"></div>
                 </div>
 
-                <div class="row g-3">
+                <div class="row g-2">
                     <div class="col-sm-6">
                         <label class="form-label" for="pf-source">Source</label>
                         <select id="pf-source" class="form-select" aria-describedby="pf-source-error" required>
@@ -92,7 +86,7 @@
                     </div>
                 </div>
 
-                <div class="row g-3 granular-only mt-0">
+                <div class="row g-2 granular-only mt-0">
                     <div class="col-sm-6">
                         <label class="form-label" for="pf-date">Proliferation date</label>
                         <input id="pf-date" type="date" min="2000-01-01" class="form-control" aria-describedby="pf-date-error" />
@@ -106,20 +100,20 @@
                     </div>
                 </div>
 
-                <div class="mt-3">
+                <div class="mt-2">
                     <label class="form-label" for="pf-qty"><span data-quantity-label>Quantity</span></label>
                     <input id="pf-qty" type="number" min="0" class="form-control" aria-describedby="pf-qty-error pf-qty-help" required />
                     <div class="form-text" id="pf-qty-help" data-quantity-help>Enter the quantity received by the selected unit on this date.</div>
                     <div class="form-text text-danger small d-none" id="pf-qty-error" data-field-error="qty" aria-live="polite"></div>
                 </div>
 
-                <div class="mt-3">
+                <div class="mt-2">
                     <label class="form-label" for="pf-remarks">Remarks <span class="text-muted fw-normal">(optional)</span></label>
-                    <textarea id="pf-remarks" class="form-control" rows="3" maxlength="500"></textarea>
+                    <textarea id="pf-remarks" class="form-control" rows="2" maxlength="500"></textarea>
                 </div>
 
-                <div class="mt-4 d-flex flex-wrap justify-content-end gap-2">
-                    <button class="btn btn-outline-secondary" id="pf-reset" type="button">Clear form</button>
+                <div class="mt-3 d-flex flex-wrap justify-content-end gap-2">
+                    <button class="btn btn-outline-secondary" id="pf-reset" type="button">Clear</button>
                 </div>
             </form>
         </div>

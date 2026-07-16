@@ -45,8 +45,6 @@
   }
 
   const storageKey = 'proliferation-manage-filters';
-  resetApprovalUi();
-  updateDecisionButtons();
   const overridesStorageKey = 'proliferation-manage-preference-overrides';
   const api = {
     list: '/api/proliferation/list',
@@ -959,6 +957,7 @@
   }
 
   function resetApprovalUi() {
+    approvalElements.container?.classList.add('d-none');
     if (approvalElements.badge) {
       const { text, className } = getStatusBadgeConfig('');
       approvalElements.badge.textContent = text;
@@ -986,6 +985,7 @@
       return;
     }
 
+    approvalElements.container.classList.remove('d-none');
     const statusRaw = (detail.approvalStatus ?? detail.ApprovalStatus ?? '').toString().toLowerCase();
     const { text, className } = getStatusBadgeConfig(statusRaw || 'pending');
     if (approvalElements.badge) {
@@ -2853,15 +2853,15 @@
     applyBootEditorDefaults();
     setCommandUpdated('');
     initOverrides();
+
     const hashKind = getHashKind();
     const bootKind = bootDefaults.editor?.kind || bootDefaults.filters?.kind || '';
-    if (hashKind) {
-      setTab(hashKind, { updateHash: false });
-    } else if (bootKind) {
-      setTab(bootKind, { updateHash: false });
-    } else {
-      setTab('granular', { updateHash: false });
-    }
+    const initialKind = hashKind || bootKind || 'granular';
+
+    setTab(initialKind, { updateHash: false });
+    resetApprovalUi();
+    updateContextualActions();
+    setSaveButtonState('idle');
     markEditorClean();
     fetchList();
   }

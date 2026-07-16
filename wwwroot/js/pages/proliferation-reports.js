@@ -1037,6 +1037,7 @@
     button.addEventListener("click", () => setReportKind(button.dataset.reportKind, { resetContext: true, scroll: true, collapseChooser: true }));
   });
   setReportKind(el.kind.value, { resetContext: false });
+  setChooserCollapsed(true);
   renderPresetsList();
   loadLookups().catch(() => {
     el.hint.textContent = "Unable to load category filters.";

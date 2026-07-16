@@ -102,9 +102,15 @@
         const response = await fetch('/api/proliferation/data-quality?page=1&pageSize=10', { headers: { Accept: 'application/json' } });
         if (response.ok) {
           const data = await response.json();
-          const total = Number(data.total) || 0;
-          qualityBadge.textContent = String(total);
-          qualityBadge.classList.toggle('d-none', total === 0);
+          const correctionsRequired = (Number(data.invalidDateOrYearCount) || 0)
+            + (Number(data.missingUnitCount) || 0)
+            + (Number(data.invalidQuantityCount) || 0);
+          const duplicates = Number(data.possibleDuplicateCount) || 0;
+          qualityBadge.textContent = String(correctionsRequired);
+          qualityBadge.classList.toggle('d-none', correctionsRequired === 0);
+          qualityBadge.title = duplicates > 0
+            ? `${correctionsRequired} corrections required; ${duplicates} possible duplicates to review.`
+            : `${correctionsRequired} corrections required.`;
         }
       } catch { /* Non-blocking badge. */ }
     }

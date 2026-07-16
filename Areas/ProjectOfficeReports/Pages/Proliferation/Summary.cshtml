@@ -201,78 +201,78 @@
         }
     </section>
 
-    <div class="row g-3 mt-0">
-        <div class="col-12 col-xl-8">
-            <section class="pf-card h-100" aria-labelledby="trend-heading">
-                <div class="pf-card__header">
-                    <div>
-                        <h2 class="pf-card__title" id="trend-heading">Year-wise trend</h2>
-                        <p class="pf-card__subtitle">Stacked bars show the reported SDD and 515 ABW totals for each year.</p>
-                    </div>
-                    <div class="btn-group btn-group-sm" role="group" aria-label="Trend period">
-                        <button type="button" class="btn btn-outline-secondary active" data-trend-range="10">Last 10 years</button>
-                        <button type="button" class="btn btn-outline-secondary" data-trend-range="all">All years</button>
-                    </div>
-                </div>
-                <div id="proliferation-yearly-chart"
-                     class="pf-chart-host"
-                     data-yearly='@JsonSerializer.Serialize(years, jsonOptions)'>
-                    <canvas id="proliferation-yearly-chart-canvas" aria-label="Year-wise proliferation chart" role="img"></canvas>
-                </div>
-                <div class="pf-chart-fallback">
-                    <span class="text-muted d-none" id="proliferation-yearly-chart-message" role="status"></span>
-                    <a asp-page-handler="ExportYearBreakdown">Export year-wise data</a>
-                </div>
-            </section>
-        </div>
-        <div class="col-12 col-xl-4">
-            <section class="pf-card h-100" aria-labelledby="recent-years-heading">
-                <div class="pf-card__header">
-                    <div>
-                        <h2 class="pf-card__title" id="recent-years-heading">Recent years</h2>
-                        <p class="pf-card__subtitle">Exact reported totals for the latest recorded years.</p>
-                    </div>
-                </div>
-                <div class="pf-recent-years">
-                    @foreach (var year in recentYears)
+    <section class="pf-card mt-3" id="proliferation-analytics" aria-labelledby="analytics-heading">
+        <div class="pf-card__header pf-analytics-header">
+            <div>
+                <h2 class="pf-card__title" id="analytics-heading">Analytics</h2>
+                <p class="pf-card__subtitle" id="pf-analytics-description">Year-wise reported proliferation with the SDD and 515 ABW split.</p>
+            </div>
+            <div class="pf-analytics-actions">
+                <div class="btn-group btn-group-sm" role="tablist" aria-label="Analytics view">
+                    <button type="button" class="btn btn-outline-secondary active" role="tab" aria-selected="true" data-analytics-tab="trend">Year-wise</button>
+                    @if (Model.TechnicalCategoryBreakdown.Count > 0)
                     {
-                        <div class="pf-recent-year">
-                            <div>
-                                <strong>@year.Year</strong>
-                                <small>SDD @year.Totals.Sdd.ToString("N0") · 515 ABW @year.Totals.Abw515.ToString("N0")</small>
-                            </div>
-                            <span>@year.Totals.Total.ToString("N0")</span>
-                        </div>
-                    }
-                    @if (recentYears.Count == 0)
-                    {
-                        <p class="text-muted mb-0">No year-wise data is available.</p>
+                        <button type="button" class="btn btn-outline-secondary" role="tab" aria-selected="false" data-analytics-tab="category">Technical category</button>
                     }
                 </div>
-            </section>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Trend period" data-analytics-trend-controls>
+                    <button type="button" class="btn btn-outline-secondary active" data-trend-range="10">Last 10 years</button>
+                    <button type="button" class="btn btn-outline-secondary" data-trend-range="all">All years</button>
+                </div>
+            </div>
         </div>
-    </div>
 
-    @if (Model.TechnicalCategoryBreakdown.Count > 0)
-    {
-        <details class="pf-card pf-analytics-details mt-3" id="proliferation-technical-analysis">
-            <summary>
-                <span>
-                    <strong>Additional analysis</strong>
-                    <small>View proliferation by technical category</small>
-                </span>
-                <i class="bi bi-chevron-down" aria-hidden="true"></i>
-            </summary>
-            <div class="pf-analytics-details__body">
+        <div class="pf-analytics-panel" data-analytics-panel="trend">
+            <div class="row g-0">
+                <div class="col-12 col-xl-8 pf-analytics-chart-column">
+                    <div id="proliferation-yearly-chart"
+                         class="pf-chart-host"
+                         data-yearly='@JsonSerializer.Serialize(years, jsonOptions)'>
+                        <canvas id="proliferation-yearly-chart-canvas" aria-label="Year-wise proliferation chart" role="img"></canvas>
+                    </div>
+                    <div class="pf-chart-fallback">
+                        <span class="text-muted d-none" id="proliferation-yearly-chart-message" role="status"></span>
+                        <a asp-page-handler="ExportYearBreakdown">Export year-wise data</a>
+                    </div>
+                </div>
+                <div class="col-12 col-xl-4 pf-recent-years-column" aria-labelledby="recent-years-heading">
+                    <div class="pf-analytics-subheader">
+                        <h3 id="recent-years-heading">Recent years</h3>
+                        <span>Exact reported totals</span>
+                    </div>
+                    <div class="pf-recent-years">
+                        @foreach (var year in recentYears)
+                        {
+                            <div class="pf-recent-year">
+                                <div>
+                                    <strong>@year.Year</strong>
+                                    <small>SDD @year.Totals.Sdd.ToString("N0") · 515 ABW @year.Totals.Abw515.ToString("N0")</small>
+                                </div>
+                                <span>@year.Totals.Total.ToString("N0")</span>
+                            </div>
+                        }
+                        @if (recentYears.Count == 0)
+                        {
+                            <p class="text-muted mb-0">No year-wise data is available.</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (Model.TechnicalCategoryBreakdown.Count > 0)
+        {
+            <div class="pf-analytics-panel d-none" data-analytics-panel="category" hidden>
                 <div id="proliferation-techcat-chart"
                      class="pf-chart-host pf-chart-host--category"
                      data-categories='@JsonSerializer.Serialize(Model.TechnicalCategoryBreakdown, jsonOptions)'>
                     <canvas id="proliferation-techcat-chart-canvas" aria-label="Proliferation by technical category chart" role="img"></canvas>
                 </div>
-                <p class="text-muted small d-none mt-3 mb-0" id="proliferation-techcat-chart-message" role="status"></p>
+                <p class="text-muted small d-none px-3 pb-3 mb-0" id="proliferation-techcat-chart-message" role="status"></p>
             </div>
-        </details>
-    }
+        }
+    </section>
+
 </div>
 
 <link rel="stylesheet" href="~/css/proliferation.css" asp-append-version="true" />

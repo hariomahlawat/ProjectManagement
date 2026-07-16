@@ -1969,3 +1969,510 @@
 .pf-picker-clear {
     top: 1.85rem;
 }
+
+/* --------------------------------------------------------------------------
+   Corrective refactor release
+   Runtime-safe Manage workbench, discoverable analytics and PRISM density.
+   These rules are authoritative for the current proliferation markup.
+   -------------------------------------------------------------------------- */
+.pf-shell.container-xxl {
+    padding-top: .5rem !important;
+    padding-bottom: .75rem !important;
+}
+
+.pf-shell .breadcrumb {
+    margin-bottom: .25rem !important;
+}
+
+.pf-page-header,
+.pf-page-header--compact {
+    margin: .6rem 0 .7rem;
+}
+
+.pf-page-title {
+    font-size: clamp(1.45rem, 1.8vw, 1.8rem);
+    line-height: 1.1;
+}
+
+.pf-page-title--project {
+    font-size: clamp(1.5rem, 2vw, 1.9rem);
+}
+
+.pf-page-subtitle,
+.pf-page-meta {
+    margin-top: .18rem;
+    font-size: .8rem;
+}
+
+.pf-module-nav {
+    min-height: 2.55rem;
+    margin-top: .25rem;
+}
+
+.pf-module-nav a {
+    min-height: 2.15rem;
+    padding: .35rem .65rem;
+    font-size: .82rem;
+}
+
+.pf-card,
+.pf-filter-panel,
+.pf-project-finder,
+.pf-manage-card,
+.pf-project-summary {
+    border-radius: .7rem;
+    box-shadow: 0 8px 20px -22px rgba(15, 23, 42, .5);
+}
+
+.pf-card__header {
+    padding: .7rem .95rem;
+}
+
+.pf-card__footer {
+    padding: .55rem .95rem;
+}
+
+.pf-card__subtitle {
+    font-size: .77rem;
+}
+
+/* Overview */
+.pf-quality-alert {
+    min-height: 2.55rem;
+    margin-bottom: .65rem;
+    padding: .45rem .7rem;
+}
+
+.pf-project-finder,
+.pf-project-finder--compact {
+    grid-template-columns: minmax(11rem, 14rem) minmax(20rem, 1fr);
+    gap: .75rem;
+    padding: .65rem .8rem;
+}
+
+.pf-project-finder h2 {
+    font-size: .94rem;
+}
+
+.pf-project-finder p {
+    margin-top: .08rem;
+    font-size: .75rem;
+    line-height: 1.3;
+}
+
+.pf-kpi-grid {
+    gap: .6rem;
+    margin-top: .6rem;
+}
+
+.pf-kpi {
+    min-height: 5.7rem;
+    padding: .65rem .8rem;
+    border-radius: .7rem;
+}
+
+.pf-kpi > strong {
+    margin: .14rem 0 .04rem;
+    font-size: clamp(1.5rem, 2.1vw, 1.9rem);
+}
+
+.pf-kpi > small {
+    font-size: .72rem;
+}
+
+.pf-project-table thead th {
+    padding: .48rem .85rem;
+}
+
+.pf-project-table tbody td {
+    height: 3rem;
+    padding: .45rem .85rem;
+    font-size: .84rem;
+}
+
+/* One discoverable analytics workspace instead of a hidden secondary chart. */
+.pf-analytics-header {
+    align-items: center;
+}
+
+.pf-analytics-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .4rem;
+}
+
+.pf-analytics-panel[hidden] {
+    display: none !important;
+}
+
+.pf-analytics-chart-column {
+    border-right: 1px solid var(--pf-border);
+}
+
+.pf-chart-host {
+    height: 17.25rem;
+    padding: .55rem .8rem .35rem;
+}
+
+.pf-chart-host--category {
+    height: 18rem;
+    padding: .7rem 1rem .55rem;
+}
+
+.pf-chart-fallback {
+    padding: 0 .9rem .6rem;
+    font-size: .75rem;
+}
+
+.pf-recent-years-column {
+    min-width: 0;
+}
+
+.pf-analytics-subheader {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .65rem .85rem .25rem;
+}
+
+.pf-analytics-subheader h3 {
+    margin: 0;
+    font-size: .88rem;
+}
+
+.pf-analytics-subheader span {
+    color: var(--pf-muted);
+    font-size: .7rem;
+}
+
+.pf-recent-years {
+    padding: 0 .85rem .35rem;
+}
+
+.pf-recent-year {
+    min-height: 2.65rem;
+    padding: .4rem 0;
+}
+
+.pf-recent-year strong {
+    font-size: .82rem;
+}
+
+.pf-recent-year small {
+    font-size: .69rem;
+}
+
+.pf-recent-year > span {
+    font-size: .9rem;
+}
+
+/* Records */
+.pf-filter-panel {
+    padding: .65rem .8rem;
+}
+
+.pf-filter-panel__heading {
+    margin-bottom: .45rem;
+}
+
+.pf-filter-panel__heading h2 {
+    font-size: .9rem;
+}
+
+.pf-filter-panel .row {
+    --bs-gutter-y: .45rem;
+}
+
+.pf-record-groups {
+    padding: .4rem;
+}
+
+.pf-record-group {
+    margin-bottom: .3rem;
+}
+
+.pf-record-group > summary {
+    min-height: 3.2rem;
+    padding: .48rem .75rem;
+}
+
+.pf-loading-state {
+    min-height: 5.5rem;
+}
+
+/* Project total: one divided operational list rather than separate floating cards. */
+.pf-year-list {
+    padding: .45rem .65rem .6rem;
+}
+
+.pf-year-card {
+    margin-bottom: 0;
+    border-radius: 0;
+    border-width: 0 0 1px;
+}
+
+.pf-year-card:first-child {
+    border-top: 1px solid var(--pf-border);
+    border-top-left-radius: .55rem;
+    border-top-right-radius: .55rem;
+}
+
+.pf-year-card:last-child {
+    border-bottom: 1px solid var(--pf-border);
+    border-bottom-left-radius: .55rem;
+    border-bottom-right-radius: .55rem;
+}
+
+.pf-year-card__summary {
+    min-height: 3.15rem;
+    padding: .48rem .75rem;
+}
+
+.pf-year-card__body {
+    padding: .5rem .65rem .65rem;
+    border-top: 1px solid var(--pf-border);
+}
+
+.pf-calculation,
+.pf-calculation--compact {
+    padding: .55rem .65rem;
+    margin-bottom: .4rem;
+}
+
+.pf-calculation-grid {
+    margin-top: .4rem;
+}
+
+.pf-calculation-grid > div {
+    padding: .42rem .5rem;
+}
+
+.pf-calculation-reference {
+    padding: .4rem .5rem;
+}
+
+/* Reports */
+.pf-selected-report {
+    min-height: 2.85rem;
+    padding: .48rem .75rem;
+    margin-top: .65rem;
+}
+
+.pf-report-chooser {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .45rem;
+}
+
+.pf-report-choice {
+    min-height: 5.25rem;
+    padding: .55rem .65rem;
+}
+
+.pf-report-choice i {
+    margin-bottom: .2rem;
+    font-size: .95rem;
+}
+
+.pf-report-choice strong {
+    font-size: .82rem;
+}
+
+.pf-report-choice small {
+    font-size: .69rem;
+}
+
+.pf-report-choice[data-report-kind="YearlyReconciliation"] {
+    grid-column: span 2;
+}
+
+.pf-report-config {
+    padding: .65rem .8rem;
+}
+
+/* Manage workbench */
+.pf-workspace-tabs {
+    min-height: 2.55rem;
+    margin-bottom: .55rem;
+}
+
+.pf-workspace-tab {
+    min-height: 2.15rem;
+    padding: .34rem .58rem;
+    font-size: .78rem;
+}
+
+.pf-manage-layout {
+    grid-template-columns: minmax(18rem, 32%) minmax(0, 1fr);
+    gap: .6rem;
+}
+
+.pf-entry-type-switch {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    min-height: 2.5rem;
+    padding: .35rem .55rem;
+    margin-bottom: .4rem;
+    background: var(--pf-surface);
+    border: 1px solid var(--pf-border);
+    border-radius: .6rem;
+}
+
+.pf-entry-type-switch__label {
+    color: var(--pf-muted);
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .035em;
+}
+
+.pf-entry-type-switch__help {
+    min-width: 0;
+    flex: 1 1 auto;
+    color: var(--pf-muted);
+    font-size: .7rem;
+    text-align: right;
+}
+
+.pf-manage-new-actions {
+    display: flex;
+    gap: .45rem;
+    margin-bottom: .4rem;
+}
+
+.pf-manage-new-actions .btn {
+    display: inline-flex;
+    grid-template-columns: none;
+    min-height: 2.1rem;
+    padding: .3rem .55rem;
+}
+
+.pf-command-bar {
+    min-height: 2.9rem;
+    padding: .42rem .6rem;
+    margin-bottom: .4rem;
+}
+
+.pf-command-bar__title {
+    font-size: .86rem;
+}
+
+.pf-command-bar__meta {
+    font-size: .67rem;
+}
+
+.pf-command-bar__scope {
+    font-size: .62rem;
+}
+
+.pf-editor-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .55rem .7rem !important;
+    border-bottom: 1px solid var(--pf-border) !important;
+}
+
+.pf-manage-card .card-body {
+    padding: .6rem .7rem;
+}
+
+.pf-manage-card .card-header {
+    padding: .6rem .7rem;
+}
+
+.pf-manage-card .card-footer {
+    padding: .45rem .65rem;
+}
+
+.pf-manage-results {
+    min-height: 0 !important;
+    max-height: min(34rem, calc(100vh - 19rem)) !important;
+}
+
+.pf-manage-results .list-group-item {
+    padding: .45rem .65rem;
+}
+
+#pf-approval-panel {
+    font-size: .75rem;
+}
+
+#pf-approval-panel .small {
+    font-size: .68rem;
+}
+
+.pf-editor-impact {
+    padding: .45rem .55rem;
+    margin-bottom: .55rem !important;
+}
+
+.pf-editor-impact strong {
+    font-size: 1rem;
+}
+
+.pf-shell textarea.form-control {
+    min-height: auto;
+}
+
+@media (min-width: 992px) {
+    [data-page="proliferation-manage"][data-active-workspace="records"] .pf-manage-layout,
+    [data-page="proliferation-manage"][data-active-workspace="approvals"] .pf-manage-layout {
+        min-height: 0;
+    }
+}
+
+@media (max-width: 1199.98px) {
+    .pf-report-chooser {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .pf-entry-type-switch__help {
+        display: none;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .pf-analytics-chart-column {
+        border-right: 0;
+        border-bottom: 1px solid var(--pf-border);
+    }
+
+    .pf-manage-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .pf-report-chooser {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767.98px) {
+    .pf-project-finder,
+    .pf-project-finder--compact {
+        padding: .6rem .7rem;
+    }
+
+    .pf-analytics-header {
+        align-items: flex-start;
+    }
+
+    .pf-analytics-actions {
+        justify-content: flex-start;
+    }
+
+    .pf-entry-type-switch {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .pf-report-chooser,
+    .pf-report-choice[data-report-kind="YearlyReconciliation"] {
+        grid-template-columns: 1fr;
+        grid-column: auto;
+    }
+}

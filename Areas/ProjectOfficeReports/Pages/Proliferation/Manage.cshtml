@@ -57,50 +57,52 @@
     </nav>
 
     <section data-workspace-panel="records" class="pf-workspace-panel" id="pf-workspace-records" role="tabpanel">
-        <div class="pf-command-bar" data-command-bar>
-            <div class="pf-command-bar__details">
-                <div class="pf-command-bar__title-row">
-                    <h2 class="pf-command-bar__title" data-command-title>New detailed entry</h2>
-                    <span class="pf-command-bar__scope" data-command-scope>Detailed entry</span>
-                </div>
-                <div class="pf-command-bar__meta">
-                    <span>Last updated:</span>
-                    <span data-command-updated-value>—</span>
-                </div>
-            </div>
-            <div class="pf-command-bar__actions">
-                @if (Model.CanApproveRecords)
-                {
-                    <button class="btn btn-sm btn-success d-none" id="pf-approve" type="button">
-                        <i class="bi bi-check-lg" aria-hidden="true"></i> Approve
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger d-none" id="pf-reject" type="button">
-                        <i class="bi bi-x-lg" aria-hidden="true"></i> Reject
-                    </button>
-                }
-                <button class="btn btn-sm btn-primary" id="pf-save" type="submit" form="pf-form" disabled>
-                    <i class="bi bi-check2" aria-hidden="true"></i> <span data-save-label>Save</span>
-                </button>
-                <button class="btn btn-sm btn-outline-danger d-none" id="pf-delete" type="button">Delete</button>
-            </div>
-        </div>
-
-        <div class="pf-manage-new-actions" aria-label="Add proliferation">
-            <button type="button" class="btn btn-outline-primary" data-new-proliferation="granular">
-                <strong><i class="bi bi-list-check" aria-hidden="true"></i> New detailed entry</strong>
-                <small>Use when date, unit and quantity are known.</small>
-            </button>
-            <button type="button" class="btn btn-outline-primary" data-new-proliferation="yearly">
-                <strong><i class="bi bi-calendar3" aria-hidden="true"></i> New annual quantity</strong>
-                <small>Use when only a yearly aggregate is available.</small>
-            </button>
-        </div>
-
         <div class="pf-manage-layout" id="pf-manage-layout">
             <section class="pf-manage-column pf-manage-column--list" id="pf-list-panel" aria-label="Existing records">
                 <partial name="_ProliferationList" model="Model.ListBoot" />
             </section>
             <section class="pf-manage-column pf-manage-column--detail" id="pf-detail-panel" aria-label="Record editor">
+                <div class="pf-entry-type-switch pf-manage-new-actions" aria-label="New proliferation record type">
+                    <span class="pf-entry-type-switch__label">New record</span>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Choose entry type">
+                        <button type="button" class="btn btn-outline-primary" data-new-proliferation="granular">
+                            <i class="bi bi-list-check" aria-hidden="true"></i> Detailed entry
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" data-new-proliferation="yearly">
+                            <i class="bi bi-calendar3" aria-hidden="true"></i> Annual quantity
+                        </button>
+                    </div>
+                    <span class="pf-entry-type-switch__help">Use detailed when date and unit are known; otherwise record the annual aggregate.</span>
+                </div>
+
+                <div class="pf-command-bar" data-command-bar>
+                    <div class="pf-command-bar__details">
+                        <div class="pf-command-bar__title-row">
+                            <h2 class="pf-command-bar__title" data-command-title>New detailed entry</h2>
+                            <span class="pf-command-bar__scope" data-command-scope>Detailed entry</span>
+                        </div>
+                        <div class="pf-command-bar__meta">
+                            <span>Updated</span>
+                            <span data-command-updated-value>—</span>
+                        </div>
+                    </div>
+                    <div class="pf-command-bar__actions">
+                        @if (Model.CanApproveRecords)
+                        {
+                            <button class="btn btn-sm btn-success d-none" id="pf-approve" type="button">
+                                <i class="bi bi-check-lg" aria-hidden="true"></i> Approve
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger d-none" id="pf-reject" type="button">
+                                <i class="bi bi-x-lg" aria-hidden="true"></i> Reject
+                            </button>
+                        }
+                        <button class="btn btn-sm btn-primary" id="pf-save" type="submit" form="pf-form" disabled>
+                            <i class="bi bi-check2" aria-hidden="true"></i> <span data-save-label>Save</span>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger d-none" id="pf-delete" type="button">Delete</button>
+                    </div>
+                </div>
+
                 <partial name="_ProliferationEditor" model="Model.EditorBoot" />
             </section>
         </div>

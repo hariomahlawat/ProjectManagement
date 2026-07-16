@@ -215,84 +215,128 @@ document.addEventListener("DOMContentLoaded", () => {
         render();
     }
 
-    function initCategoryChartWhenOpened() {
-        const details = document.getElementById("proliferation-technical-analysis");
+    function renderCategoryChart() {
         const host = document.getElementById("proliferation-techcat-chart");
         const canvas = document.getElementById("proliferation-techcat-chart-canvas");
-        if (!details || !host || !canvas) return;
+        if (!host || !canvas) return;
 
-        const render = () => {
-            if (categoryChart) {
-                categoryChart.resize();
-                return;
-            }
-            const rows = parseData(host, "categories");
-            if (rows.length === 0) {
-                showChartMessage("proliferation-techcat-chart-message", "No technical-category data is available.");
-                return;
-            }
-            if (typeof Chart === "undefined") {
-                showChartMessage("proliferation-techcat-chart-message", "The category chart could not be loaded.");
-                return;
-            }
+        if (categoryChart) {
+            categoryChart.resize();
+            return;
+        }
 
-            host.style.height = `${Math.max(270, rows.length * 39 + 76)}px`;
-            const total = rows.reduce((sum, row) => sum + Number(row.total || 0), 0);
+        const rows = parseData(host, "categories");
+        if (rows.length === 0) {
+            showChartMessage("proliferation-techcat-chart-message", "No technical-category data is available.");
+            return;
+        }
+        if (typeof Chart === "undefined") {
+            showChartMessage("proliferation-techcat-chart-message", "The category chart could not be loaded.");
+            return;
+        }
 
-            categoryChart = new Chart(canvas, {
-                type: "bar",
-                plugins: [categoryValueLabels],
-                data: {
-                    labels: rows.map(x => categoryNames.get(x.name) || x.name),
-                    datasets: [{
-                        label: "Total proliferation",
-                        data: rows.map(x => x.total ?? 0),
-                        backgroundColor: "rgba(59, 130, 246, 0.76)",
-                        borderRadius: 4,
-                        maxBarThickness: 26
-                    }]
-                },
-                options: {
-                    indexAxis: "y",
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    layout: { padding: { right: 48 } },
-                    interaction: { mode: "nearest", intersect: true },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label: context => {
-                                    const value = Number(context.parsed.x || 0);
-                                    const percentage = total > 0 ? ` (${(value / total * 100).toFixed(1)}%)` : "";
-                                    return `${numberFormatter.format(value)}${percentage}`;
-                                }
+        host.style.height = `${Math.max(245, rows.length * 35 + 58)}px`;
+        const total = rows.reduce((sum, row) => sum + Number(row.total || 0), 0);
+
+        categoryChart = new Chart(canvas, {
+            type: "bar",
+            plugins: [categoryValueLabels],
+            data: {
+                labels: rows.map(x => categoryNames.get(x.name) || x.name),
+                datasets: [{
+                    label: "Total proliferation",
+                    data: rows.map(x => x.total ?? 0),
+                    backgroundColor: "rgba(59, 130, 246, 0.76)",
+                    borderRadius: 3,
+                    maxBarThickness: 24
+                }]
+            },
+            options: {
+                indexAxis: "y",
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: { padding: { right: 52, top: 4, bottom: 0 } },
+                interaction: { mode: "nearest", intersect: true },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: context => {
+                                const value = Number(context.parsed.x || 0);
+                                const percentage = total > 0 ? ` (${(value / total * 100).toFixed(1)}%)` : "";
+                                return `${numberFormatter.format(value)}${percentage}`;
                             }
                         }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: { precision: 0, font: { size: 12 }, callback: value => numberFormatter.format(value) },
+                        grid: { color: "rgba(148, 163, 184, 0.2)" }
                     },
-                    scales: {
-                        x: {
-                            beginAtZero: true,
-                            ticks: { precision: 0, font: { size: 12 }, callback: value => numberFormatter.format(value) },
-                            grid: { color: "rgba(148, 163, 184, 0.2)" }
-                        },
-                        y: {
-                            grid: { display: false },
-                            ticks: { font: { size: 12 }, autoSkip: false }
-                        }
+                    y: {
+                        grid: { display: false },
+                        ticks: { font: { size: 12 }, autoSkip: false }
                     }
                 }
+            }
+        });
+    }
+
+    function initAnalyticsTabs() {
+        const tabs = [...document.querySelectorAll("[data-analytics-tab]")];
+        const panels = [...document.querySelectorAll("[data-analytics-panel]")];
+        const trendControls = document.querySelector("[data-analytics-trend-controls]");
+        const description = document.getElementById("pf-analytics-description");
+        if (!tabs.length || !panels.length) return;
+
+        const activate = view => {
+            const target = view === "category" ? "category" : "trend";
+            tabs.forEach(tab => {
+                const active = tab.dataset.analyticsTab === target;
+                tab.classList.toggle("active", active);
+                tab.setAttribute("aria-selected", active ? "true" : "false");
+                tab.tabIndex = active ? 0 : -1;
+            });
+            panels.forEach(panel => {
+                const active = panel.dataset.analyticsPanel === target;
+                panel.classList.toggle("d-none", !active);
+                panel.hidden = !active;
+            });
+            trendControls?.classList.toggle("d-none", target !== "trend");
+            if (description) {
+                description.textContent = target === "trend"
+                    ? "Year-wise reported proliferation with the SDD and 515 ABW split."
+                    : "Reported proliferation grouped by technical category.";
+            }
+            window.requestAnimationFrame(() => {
+                if (target === "category") renderCategoryChart();
+                else yearlyChart?.resize();
             });
         };
 
-        details.addEventListener("toggle", () => {
-            if (details.open) window.requestAnimationFrame(render);
+        tabs.forEach(tab => {
+            tab.addEventListener("click", () => activate(tab.dataset.analyticsTab));
+            tab.addEventListener("keydown", event => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                const index = tabs.indexOf(tab);
+                let next = index;
+                if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
+                if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+                if (event.key === 'Home') next = 0;
+                if (event.key === 'End') next = tabs.length - 1;
+                tabs[next]?.focus();
+                activate(tabs[next]?.dataset.analyticsTab);
+            });
         });
-        if (details.open) window.requestAnimationFrame(render);
+
+        activate("trend");
     }
 
     initProjectFinder();
     initProjectTableDisclosure();
     initYearChart();
-    initCategoryChartWhenOpened();
+    initAnalyticsTabs();
 });
