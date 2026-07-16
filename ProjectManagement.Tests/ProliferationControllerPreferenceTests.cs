@@ -172,6 +172,69 @@ public class ProliferationControllerPreferenceTests
     }
 
     [Fact]
+    public async Task GetEligibleProjects_RanksExactAcronymBeforeNameMatches_AndIgnoresPunctuation()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+        context.Projects.AddRange(
+            new Project
+            {
+                Id = 1,
+                Name = "VR based Multi Mode Dvg Sml (VRMMDS)",
+                CaseFileNumber = "30102/VRMMDS/SDD/24",
+                CreatedByUserId = "creator",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                RowVersion = Guid.NewGuid().ToByteArray()
+            },
+            new Project
+            {
+                Id = 2,
+                Name = "VR Multi Mode Display Study",
+                CaseFileNumber = "VR-MMDS-02",
+                CreatedByUserId = "creator",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                RowVersion = Guid.NewGuid().ToByteArray()
+            },
+            new Project
+            {
+                Id = 3,
+                Name = "Active project must not be returned",
+                CaseFileNumber = "VRMMDS",
+                CreatedByUserId = "creator",
+                LifecycleStatus = ProjectLifecycleStatus.Active,
+                RowVersion = Guid.NewGuid().ToByteArray()
+            });
+        await context.SaveChangesAsync();
+
+        var aggregate = new ProliferationAggregateReadService(context);
+        var readService = new ProliferationTrackerReadService(aggregate);
+        var controller = new ProliferationController(
+            context,
+            readService,
+            submitSvc: null!,
+            manageSvc: new ProliferationManageService(context),
+            overviewSvc: new ProliferationOverviewService(context, readService),
+            aggregateSvc: aggregate,
+            exportService: new StubProliferationExportService(),
+            dataQualityService: null!,
+            logger: NullLogger<ProliferationController>.Instance);
+
+        var result = await controller.GetEligibleProjects("vr mmds", null, null, 200, CancellationToken.None);
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        var payload = Assert.IsType<ProliferationProjectLookupResponseDto>(ok.Value);
+
+        Assert.Equal(2, payload.Total);
+        Assert.Equal(1, payload.Items[0].Id);
+        Assert.Equal("VRMMDS", payload.Items[0].Acronym);
+        Assert.Equal("30102/VRMMDS/SDD/24", payload.Items[0].Code);
+        Assert.DoesNotContain(payload.Items, item => item.Id == 3);
+    }
+
+    [Fact]
     public void GetPreferenceOverrides_IsProtectedByManagePolicy()
     {
         var method = typeof(ProliferationController)

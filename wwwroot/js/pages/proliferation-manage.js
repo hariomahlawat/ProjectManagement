@@ -1,4 +1,4 @@
-/* global bootstrap */
+/* global bootstrap, ProliferationProjectPicker */
 (() => {
   const Modal = window.bootstrap?.Modal ?? null;
   const Collapse = window.bootstrap?.Collapse ?? null;
@@ -60,7 +60,8 @@
     decideYearly: (id) => `/api/proliferation/yearly/${id}/decision`,
     decideGranular: (id) => `/api/proliferation/granular/${id}/decision`,
     groups: '/api/proliferation/groups',
-    unitSuggestions: '/api/proliferation/reports/unit-suggestions'
+    unitSuggestions: '/api/proliferation/reports/unit-suggestions',
+    projects: '/api/proliferation/projects'
   };
 
   const listEl = document.querySelector('#pf-list');
@@ -192,6 +193,7 @@
     kind: document.querySelector('#pf-kind'),
     rowVersion: document.querySelector('#pf-row-version'),
     project: document.querySelector('#pf-project'),
+    projectSearch: document.querySelector('#pf-project-search'),
     source: document.querySelector('#pf-source'),
     year: document.querySelector('#pf-year'),
     date: document.querySelector('#pf-date'),
@@ -200,13 +202,16 @@
     remarks: document.querySelector('#pf-remarks'),
     btnSave: document.querySelector('#pf-save'),
     btnReset: document.querySelector('#pf-reset'),
+    btnAddAnother: document.querySelector('#pf-add-another'),
     btnDelete: document.querySelector('#pf-delete'),
     impact: document.querySelector('#pf-editor-impact'),
     impactCurrent: document.querySelector('[data-impact-current]'),
     impactNext: document.querySelector('[data-impact-next]'),
     impactNextLabel: document.querySelector('[data-impact-next-label]'),
     impactNote: document.querySelector('[data-impact-note]'),
-    unitSuggestions: document.querySelector('#pf-unit-suggestions')
+    unitSuggestions: document.querySelector('#pf-unit-suggestions'),
+    duplicateWarning: document.querySelector('#pf-duplicate-warning'),
+    requiredSummary: document.querySelector('#pf-required-summary')
   };
 
   if (editor.date) {
@@ -256,6 +261,7 @@
     const context = preserveContext
       ? {
           projectId: editor.project?.value || '',
+          project: editorProjectPicker?.getSelected() || null,
           source: editor.source?.value || '',
           year: editor.year?.value || ''
         }
@@ -264,8 +270,10 @@
     resetEditor(target);
 
     if (context) {
-      if (editor.project && context.projectId && hasOption(editor.project, context.projectId)) {
-        editor.project.value = context.projectId;
+      if (context.project) {
+        editorProjectPicker?.setSelection(context.project, { notify: false, dispatch: false });
+      } else if (context.projectId) {
+        editorProjectPicker?.initializeById(context.projectId, { notify: false, dispatch: false });
       }
       if (editor.source && context.source && hasOption(editor.source, context.source)) {
         editor.source.value = context.source;
@@ -290,7 +298,7 @@
   };
 
   const fieldStates = {
-    project: { input: editor.project, error: fieldErrors.project, touched: false },
+    project: { input: editor.projectSearch || editor.project, error: fieldErrors.project, touched: false },
     source: { input: editor.source, error: fieldErrors.source, touched: false },
     year: { input: editor.year, error: fieldErrors.year, touched: false },
     date: { input: editor.date, error: fieldErrors.date, touched: false },
@@ -456,6 +464,15 @@
       }
     });
     let formValid = true;
+    const incomplete = [];
+    const fieldLabels = {
+      project: 'project',
+      source: 'source',
+      year: 'year',
+      date: 'proliferation date',
+      unit: 'receiving unit',
+      qty: 'quantity'
+    };
     activeNames.forEach((name) => {
       const state = getFieldState(name);
       if (!state) return;
@@ -463,8 +480,16 @@
       const valid = validateField(name, { display });
       if (!valid) {
         formValid = false;
+        incomplete.push(fieldLabels[name] || name);
       }
     });
+    if (editor.requiredSummary) {
+      editor.requiredSummary.textContent = incomplete.length
+        ? `Complete: ${incomplete.join(', ')}.`
+        : 'All required fields are complete.';
+      editor.requiredSummary.classList.toggle('text-success', incomplete.length === 0);
+      editor.requiredSummary.classList.toggle('text-muted', incomplete.length > 0);
+    }
     editor.btnSave.disabled = !formValid;
     editor.btnSave.setAttribute('aria-disabled', editor.btnSave.disabled ? 'true' : 'false');
   }
@@ -540,6 +565,7 @@
     const input = getFieldState(name)?.input;
     if (input) {
       input.addEventListener(input.tagName === 'SELECT' ? 'change' : 'input', scheduleEditorImpact);
+      input.addEventListener(input.tagName === 'SELECT' ? 'change' : 'input', scheduleDuplicateCheck);
     }
   });
 
@@ -554,6 +580,7 @@
 
   const filterInputs = {
     project: document.querySelector('#pf-filter-project'),
+    projectSearch: document.querySelector('#pf-filter-project-search'),
     source: document.querySelector('#pf-filter-source'),
     year: document.querySelector('#pf-filter-year'),
     kind: document.querySelector('#pf-filter-type'),
@@ -575,6 +602,7 @@
     footer: overridesCard ? overridesCard.querySelector('#pf-overrides-summary')?.closest('.card-footer') : null,
     reset: overridesCard ? overridesCard.querySelector('#pf-overrides-reset') : null,
     project: overridesCard ? overridesCard.querySelector('#pf-overrides-project') : null,
+    projectSearch: overridesCard ? overridesCard.querySelector('#pf-overrides-project-search') : null,
     source: overridesCard ? overridesCard.querySelector('#pf-overrides-source') : null,
     year: overridesCard ? overridesCard.querySelector('#pf-overrides-year') : null,
     search: overridesCard ? overridesCard.querySelector('#pf-overrides-search') : null,
@@ -582,6 +610,7 @@
     export: document.querySelector('#pf-overrides-export'),
     ruleEditor: overridesCard ? overridesCard.querySelector('#pf-rule-editor') : null,
     ruleProject: overridesCard ? overridesCard.querySelector('#pf-rule-project') : null,
+    ruleProjectSearch: overridesCard ? overridesCard.querySelector('#pf-rule-project-search') : null,
     ruleSource: overridesCard ? overridesCard.querySelector('#pf-rule-source') : null,
     ruleYear: overridesCard ? overridesCard.querySelector('#pf-rule-year') : null,
     ruleMode: overridesCard ? overridesCard.querySelector('#pf-rule-mode') : null,
@@ -592,6 +621,69 @@
     ruleReasonWrap: overridesCard ? overridesCard.querySelector('#pf-rule-reason-wrap') : null,
     ruleImpact: overridesCard ? overridesCard.querySelector('#pf-rule-impact') : null
   };
+  let editorProjectPicker = null;
+  let filterProjectPicker = null;
+  let overridesProjectPicker = null;
+  let ruleProjectPicker = null;
+
+  function buildProjectPicker(input, valueInput, options = {}) {
+    const suggestions = options.suggestions || input?.closest('[data-project-search-picker]')?.querySelector('[role="listbox"]');
+    if (!input || !valueInput || !suggestions || typeof window.ProliferationProjectPicker !== 'function') return null;
+    return new window.ProliferationProjectPicker({
+      input,
+      hiddenInput: valueInput,
+      suggestions,
+      clearButton: input.closest('[data-project-search-picker]')?.querySelector('.pf-project-picker__clear'),
+      statusElement: input.closest('[data-project-search-picker]')?.querySelector('[role="status"]'),
+      endpoint: api.projects,
+      minimumLength: 0,
+      maxVisible: 8,
+      onSelected: options.onSelected,
+      onCleared: options.onCleared
+    });
+  }
+
+  function initProjectPickers() {
+    editorProjectPicker = buildProjectPicker(editor.projectSearch, editor.project, {
+      onSelected: () => {
+        fieldStates.project.touched = true;
+        validateField('project', { display: true });
+        updateSaveButtonState();
+        scheduleEditorImpact();
+        scheduleDuplicateCheck();
+        editor.source?.focus();
+      },
+      onCleared: () => {
+        fieldStates.project.touched = true;
+        validateField('project', { display: true });
+        updateSaveButtonState();
+        scheduleEditorImpact();
+        scheduleDuplicateCheck();
+      }
+    });
+
+    filterProjectPicker = buildProjectPicker(filterInputs.projectSearch, filterInputs.project, {
+      onSelected: project => updateFilter('projectId', String(project.id)),
+      onCleared: () => updateFilter('projectId', '')
+    });
+
+    overridesProjectPicker = buildProjectPicker(overridesElements.projectSearch, overridesElements.project, {
+      onSelected: project => updateOverridesFilter('projectId', String(project.id)),
+      onCleared: () => updateOverridesFilter('projectId', '')
+    });
+
+    ruleProjectPicker = buildProjectPicker(overridesElements.ruleProjectSearch, overridesElements.ruleProject, {
+      onSelected: () => {
+        refreshRuleImpact();
+        updateRuleActionState();
+      },
+      onCleared: () => {
+        refreshRuleImpact();
+        updateRuleActionState();
+      }
+    });
+  }
+
   const overridesOverviewUrl = overridesCard?.dataset?.overviewUrl ?? '';
   const overridesExportUrl = overridesCard?.dataset?.exportUrl ?? '';
   const overridesState = {
@@ -613,6 +705,8 @@
   let editorImpactTimer = null;
   let unitSuggestionController = null;
   let unitSuggestionTimer = null;
+  let duplicateCheckController = null;
+  let duplicateCheckTimer = null;
 
   const deleteModalElements = (() => {
     const element = document.querySelector('#pf-delete-modal');
@@ -725,6 +819,7 @@
     const context = bootDefaults.editor || {};
     if (editor.project && context.projectId && hasOption(editor.project, context.projectId)) {
       editor.project.value = context.projectId;
+      editorProjectPicker?.initializeById(context.projectId, { notify: false, dispatch: false }).then(() => markEditorClean());
     }
     if (editor.source && context.source && hasOption(editor.source, context.source)) {
       editor.source.value = context.source;
@@ -842,9 +937,12 @@
   function applyOverrideFiltersToInputs() {
     if (!overridesCard) return;
     if (overridesElements.project) {
-      overridesElements.project.value = hasOption(overridesElements.project, overridesState.filters.projectId)
+      const projectId = hasOption(overridesElements.project, overridesState.filters.projectId)
         ? overridesState.filters.projectId
         : '';
+      overridesElements.project.value = projectId;
+      if (projectId) overridesProjectPicker?.initializeById(projectId, { notify: false, dispatch: false });
+      else overridesProjectPicker?.clear({ notify: false, dispatch: false });
     }
     if (overridesElements.source) {
       overridesElements.source.value = hasOption(overridesElements.source, overridesState.filters.source)
@@ -1102,7 +1200,10 @@
 
   function applyFiltersToInputs() {
     if (filterInputs.project) {
-      filterInputs.project.value = hasOption(filterInputs.project, filters.projectId) ? filters.projectId : '';
+      const projectId = hasOption(filterInputs.project, filters.projectId) ? filters.projectId : '';
+      filterInputs.project.value = projectId;
+      if (projectId) filterProjectPicker?.initializeById(projectId, { notify: false, dispatch: false });
+      else filterProjectPicker?.clear({ notify: false, dispatch: false });
     }
     if (filterInputs.source) {
       filterInputs.source.value = hasOption(filterInputs.source, filters.source) ? filters.source : '';
@@ -1257,6 +1358,7 @@
     switch (key) {
       case 'project':
         if (filterInputs.project) filterInputs.project.value = '';
+        filterProjectPicker?.clear({ notify: false, dispatch: false });
         updateFilter('projectId', '');
         break;
       case 'source':
@@ -1713,9 +1815,22 @@
       if (editor.impactNext) editor.impactNext.textContent = formatNumber(afterApproval);
       if (editor.impactNextLabel) editor.impactNextLabel.textContent = canApproveRecords ? 'After save' : 'After approval';
       if (editor.impactNote) {
-        editor.impactNote.textContent = canApproveRecords
-          ? 'Admin/HoD records are approved immediately.'
-          : 'The reported total changes only after this record is approved.';
+        const hasBothRecordTypes = Number(row?.annualQuantity || 0) > 0 && Number(row?.detailedQuantity || 0) > 0;
+        const modeLabel = row?.effectiveModeLabel || ({
+          UseYearly: 'Annual quantity only',
+          UseGranular: 'Detailed entries only',
+          UseYearlyAndGranular: 'Annual quantity + detailed entries',
+          Auto: 'Detailed entries where available; otherwise annual quantity'
+        }[mode] || mode);
+        const quantityIsCounted = kind === 'yearly'
+          ? mode === 'UseYearly' || mode === 'UseYearlyAndGranular' || (mode === 'Auto' && detailed <= 0)
+          : mode === 'UseGranular' || mode === 'UseYearlyAndGranular' || mode === 'Auto';
+        const approvalTiming = canApproveRecords
+          ? 'The saved record will be approved immediately.'
+          : 'The reported total changes only after approval.';
+        editor.impactNote.textContent = hasBothRecordTypes
+          ? `Annual and detailed records already exist for ${year}. Counting rule: ${modeLabel}. This quantity ${quantityIsCounted ? 'will' : 'will not'} affect the reported total. ${approvalTiming}`
+          : `${modeLabel}. This quantity ${quantityIsCounted ? 'will' : 'will not'} affect the reported total. ${approvalTiming}`;
       }
       editor.impact.classList.remove('d-none');
     } catch (error) {
@@ -1727,6 +1842,63 @@
   function scheduleEditorImpact() {
     window.clearTimeout(editorImpactTimer);
     editorImpactTimer = window.setTimeout(refreshEditorImpact, 250);
+  }
+
+  function hideDuplicateWarning() {
+    editor.duplicateWarning?.classList.add('d-none');
+  }
+
+  function normaliseComparableText(value) {
+    return String(value ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+  }
+
+  function scheduleDuplicateCheck() {
+    window.clearTimeout(duplicateCheckTimer);
+    hideDuplicateWarning();
+    if (editor.kind?.value !== 'granular') return;
+    duplicateCheckTimer = window.setTimeout(checkForDuplicateEntry, 260);
+  }
+
+  async function checkForDuplicateEntry() {
+    const projectId = Number(editor.project?.value || 0);
+    const source = Number(editor.source?.value || 0);
+    const date = editor.date?.value || '';
+    const unit = normaliseComparableText(editor.unit?.value);
+    const quantity = Number(editor.qty?.value || 0);
+    if (projectId <= 0 || source <= 0 || !date || !unit || quantity <= 0) return;
+
+    duplicateCheckController?.abort();
+    duplicateCheckController = new AbortController();
+    const params = new URLSearchParams({
+      projectId: String(projectId),
+      source: String(source),
+      year: date.slice(0, 4),
+      kind: 'granular',
+      approvalStatus: 'approved',
+      page: '1',
+      pageSize: '100',
+      search: editor.unit?.value?.trim() || ''
+    });
+
+    try {
+      const response = await fetch(`${api.list}?${params}`, {
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+        signal: duplicateCheckController.signal
+      });
+      if (!response.ok) return;
+      const payload = await response.json();
+      const duplicate = (Array.isArray(payload?.items) ? payload.items : []).some(item => {
+        if (String(item.id || '') === String(editor.id?.value || '')) return false;
+        return formatDate(item.proliferationDateUtc) === date
+          && normaliseComparableText(item.unitName) === unit
+          && Number(item.quantity) === quantity
+          && String(item.approvalStatus || '').toLowerCase() === 'approved';
+      });
+      editor.duplicateWarning?.classList.toggle('d-none', !duplicate);
+    } catch (error) {
+      if (error?.name !== 'AbortError') hideDuplicateWarning();
+    }
   }
 
   async function refreshUnitSuggestions() {
@@ -1855,6 +2027,7 @@
     if (overridesElements.ruleProject) {
       ensureFilterOption(overridesElements.ruleProject, row.projectId, row.projectName);
       overridesElements.ruleProject.value = String(row.projectId ?? '');
+      ruleProjectPicker?.initializeById(row.projectId, { notify: false, dispatch: false });
     }
     if (overridesElements.ruleSource && row.sourceValue !== null && row.sourceValue !== undefined) {
       overridesElements.ruleSource.value = String(row.sourceValue);
@@ -1887,7 +2060,7 @@
 
     if (!Number.isInteger(projectId) || projectId <= 0) {
       toast('Select a project for the counting rule.', 'warning');
-      overridesElements.ruleProject?.focus();
+      (overridesElements.ruleProjectSearch || overridesElements.ruleProject)?.focus();
       return;
     }
     if (![1, 2].includes(source)) {
@@ -2185,6 +2358,7 @@
 
     if (overridesElements.ruleProject && bootDefaults.overrides?.projectId) {
       overridesElements.ruleProject.value = bootDefaults.overrides.projectId;
+      ruleProjectPicker?.initializeById(bootDefaults.overrides.projectId, { notify: false, dispatch: false });
     }
     if (overridesElements.ruleSource) {
       overridesElements.ruleSource.value = bootDefaults.overrides?.source || '1';
@@ -2469,7 +2643,7 @@
       const kind = button.dataset.newProliferation === 'yearly' ? 'yearly' : 'granular';
       if (!beginNewEntry(kind, { preserveContext: true })) return;
       document.querySelector('#pf-detail-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      editor.project?.focus();
+      (editor.projectSearch || editor.project)?.focus();
     });
   });
 
@@ -2483,6 +2657,7 @@
     editor.id.value = detail.id ?? '';
     editor.rowVersion.value = detail.rowVersion ?? '';
     editor.project.value = String(detail.projectId ?? '');
+    await editorProjectPicker?.initializeById(detail.projectId, { notify: false, dispatch: false });
     const resolvedSource = resolveSourceSelectValue(detail);
     editor.year.value = String(detail.year ?? defaults.year);
     if (kind === 'granular') {
@@ -2515,7 +2690,7 @@
     currentRecord.source = resolvedSource;
     currentRecord.year = String(kind === 'yearly' ? (detail.year ?? '') : (editor.year?.value || ''));
     currentRecord.quantity = kind === 'yearly' ? String(detail.totalQuantity ?? '') : String(detail.quantity ?? '');
-    const projectLabel = getOptionLabel(editor.project, editor.project.value) || 'Selected project';
+    const projectLabel = editorProjectPicker?.getSelected()?.display || getOptionLabel(editor.project, editor.project.value) || 'Selected project';
     setCommandTitle(projectLabel);
     const updatedValue = detail.lastUpdatedOnUtc ?? detail.LastUpdatedOnUtc ?? (typeof metadata === 'object' && metadata ? metadata.updated || '' : '');
     setCommandUpdated(updatedValue);
@@ -2526,6 +2701,7 @@
     updateSaveButtonState();
     markEditorClean();
     scheduleEditorImpact();
+    scheduleDuplicateCheck();
   }
 
   editor.form?.addEventListener('submit', async (event) => {
@@ -2565,6 +2741,7 @@
             ? 'Entry saved and submitted for approval.'
             : 'Entry saved successfully.';
         toast(message, 'success');
+        if (!id) editor.btnAddAnother?.classList.remove('d-none');
       } else {
         resetEditor(kind);
         toast('Entry saved successfully.', 'success');
@@ -2672,6 +2849,11 @@
     resetEditor(currentKind);
   });
 
+  editor.btnAddAnother?.addEventListener('click', () => {
+    beginNewEntry(editor.kind?.value || 'granular', { preserveContext: true });
+    (editor.kind?.value === 'yearly' ? editor.qty : editor.date)?.focus();
+  });
+
   decisionButtons.approve?.addEventListener('click', () => {
     decideRecord(true).catch((error) => {
       toast(error.message || 'Unable to update approval status', 'danger');
@@ -2716,7 +2898,7 @@
       toast('The record is out of date. Reload the entry before deleting.', 'warning');
       return;
     }
-    const projectText = editor.project?.selectedOptions?.[0]?.text?.trim() || '';
+    const projectText = editorProjectPicker?.getSelected()?.display || editor.project?.selectedOptions?.[0]?.text?.trim() || '';
     const dateOrYear = kind === 'yearly'
       ? (editor.year?.value?.trim() || '')
       : formatDate(editor.date?.value || '');
@@ -2749,6 +2931,7 @@
 
   function resetEditor(preferredKind = 'granular') {
     editor.form?.reset();
+    editorProjectPicker?.clear({ notify: false, dispatch: false });
     editor.id.value = '';
     editor.rowVersion.value = '';
     editor.qty.value = '';
@@ -2757,6 +2940,7 @@
     if (editor.date) editor.date.value = '';
     if (editor.unit) editor.unit.value = '';
     editor.btnDelete && (editor.btnDelete.disabled = true);
+    editor.btnAddAnother?.classList.add('d-none');
     clearValidationState();
     setTab(preferredKind, { updateHash: false });
     setCommandUpdated('');
@@ -2780,6 +2964,7 @@
     }
     setSaveButtonState('idle');
     hideEditorImpact();
+    hideDuplicateWarning();
     updateContextualActions();
     markEditorClean();
   }
@@ -2804,6 +2989,7 @@
     editor.form?.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach((control) => {
       control.disabled = Boolean(enabled);
     });
+    editorProjectPicker?.setDisabled(Boolean(enabled));
     editorCard?.classList.toggle('pf-manage-card--review', Boolean(enabled));
   }
 
@@ -2896,6 +3082,12 @@
     rulePreviewController?.abort();
     editorImpactController?.abort();
     unitSuggestionController?.abort();
+    duplicateCheckController?.abort();
+    window.clearTimeout(duplicateCheckTimer);
+    editorProjectPicker?.destroy();
+    filterProjectPicker?.destroy();
+    overridesProjectPicker?.destroy();
+    ruleProjectPicker?.destroy();
   }, { once: true });
 
   window.addEventListener('beforeunload', (event) => {
@@ -2962,6 +3154,7 @@
   }
 
   function init() {
+    initProjectPickers();
     initFilters();
     applyBootEditorDefaults();
     setCommandUpdated('');

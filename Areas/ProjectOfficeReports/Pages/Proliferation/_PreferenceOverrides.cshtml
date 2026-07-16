@@ -55,14 +55,17 @@
                 </div>
                 <div class="row g-2 align-items-end mt-1">
                     <div class="col-12 col-lg-4">
-                        <label class="form-label small" for="pf-rule-project">Project</label>
-                        <select class="form-select form-select-sm" id="pf-rule-project">
-                            <option value="">Select project</option>
-                            @foreach (var project in Model.CompletedProjects)
-                            {
-                                <option value="@project.Id">@project.DisplayName</option>
-                            }
-                        </select>
+                        <partial name="~/Areas/ProjectOfficeReports/Pages/Proliferation/Partials/_ProjectSearchPicker.cshtml"
+                                 model="@(new ProliferationProjectPickerModel(
+                                     InputId: "pf-rule-project-search",
+                                     ValueInputId: "pf-rule-project",
+                                     SuggestionsId: "pf-rule-project-suggestions",
+                                     Label: "Project",
+                                     Projects: Model.CompletedProjects,
+                                     Placeholder: "Search project",
+                                     Compact: true,
+                                     ShowEligibilityText: false,
+                                     RecentStorageKey: "prism-proliferation-rule-recent-projects"))" />
                     </div>
                     <div class="col-6 col-lg-2">
                         <label class="form-label small" for="pf-rule-source">Source</label>
@@ -110,14 +113,17 @@
             </div>
             <div class="row g-2 align-items-end">
                 <div class="col-12 col-lg-4">
-                    <label class="form-label small" for="pf-overrides-project">Project</label>
-                    <select class="form-select form-select-sm" id="pf-overrides-project">
-                        <option value="">All projects</option>
-                        @foreach (var project in Model.CompletedProjects)
-                        {
-                            <option value="@project.Id">@project.DisplayName</option>
-                        }
-                    </select>
+                    <partial name="~/Areas/ProjectOfficeReports/Pages/Proliferation/Partials/_ProjectSearchPicker.cshtml"
+                             model="@(new ProliferationProjectPickerModel(
+                                 InputId: "pf-overrides-project-search",
+                                 ValueInputId: "pf-overrides-project",
+                                 SuggestionsId: "pf-overrides-project-suggestions",
+                                 Label: "Project",
+                                 Projects: Model.CompletedProjects,
+                                 Placeholder: "All projects",
+                                 Compact: true,
+                                 ShowEligibilityText: false,
+                                 RecentStorageKey: "prism-proliferation-rule-filter-recent-projects"))" />
                 </div>
                 <div class="col-6 col-lg-2">
                     <label class="form-label small" for="pf-overrides-source">Source</label>

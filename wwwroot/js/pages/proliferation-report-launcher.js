@@ -15,7 +15,7 @@
         suggestions,
         clearButton,
         statusElement: status,
-        minimumLength: 2,
+        minimumLength: 0,
         onSelected: project => {
             openButton.disabled = false;
             openButton.dataset.projectId = String(project.id);

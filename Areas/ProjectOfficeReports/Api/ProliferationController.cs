@@ -256,11 +256,12 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
         [HttpGet("projects")]
         [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
-        public async Task<ActionResult<IReadOnlyList<ProliferationProjectLookupDto>>> GetEligibleProjects(
+        public async Task<ActionResult<ProliferationProjectLookupResponseDto>> GetEligibleProjects(
             [FromQuery] string? q,
             [FromQuery] int? projectCategoryId,
             [FromQuery] int? technicalCategoryId,
-            CancellationToken ct)
+            [FromQuery] int take = 200,
+            CancellationToken ct = default)
         {
             var projects = _db.Projects
                 .AsNoTracking()
@@ -276,26 +277,48 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 projects = projects.Where(p => p.TechnicalCategoryId == technicalCategoryId.Value);
             }
 
-            if (!string.IsNullOrWhiteSpace(q))
-            {
-                var term = $"%{EscapeLikePattern(q.Trim())}%";
-                projects = projects.Where(p =>
-                    EF.Functions.ILike(p.Name, term, "\\") ||
-                    (p.CaseFileNumber != null && EF.Functions.ILike(p.CaseFileNumber, term, "\\")));
-            }
-
-            var results = await projects
-                .OrderBy(p => p.Name)
-                .Take(25)
-                .Select(p => new ProliferationProjectLookupDto
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Code = p.CaseFileNumber
-                })
+            var candidates = await projects
+                .Select(p => new ProjectLookupCandidate(
+                    p.Id,
+                    p.Name,
+                    p.CaseFileNumber,
+                    p.Category != null ? p.Category.Name : null,
+                    p.TechnicalCategory != null ? p.TechnicalCategory.Name : null))
                 .ToListAsync(ct);
 
-            return results;
+            var term = NormalizeProjectSearchText(q);
+            var limit = Math.Clamp(take, 1, 500);
+
+            IEnumerable<ProjectLookupCandidate> ranked = candidates;
+            if (!string.IsNullOrWhiteSpace(term))
+            {
+                ranked = candidates
+                    .Select(project => new { Project = project, Rank = GetProjectSearchRank(project, term) })
+                    .Where(item => item.Rank < int.MaxValue)
+                    .OrderBy(item => item.Rank)
+                    .ThenBy(item => item.Project.Name, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(item => item.Project.Code, StringComparer.OrdinalIgnoreCase)
+                    .Select(item => item.Project);
+            }
+            else
+            {
+                ranked = candidates
+                    .OrderBy(project => project.Name, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(project => project.Code, StringComparer.OrdinalIgnoreCase);
+            }
+
+            var matched = ranked.ToList();
+            var items = matched
+                .Take(limit)
+                .Select(ToProjectLookupDto)
+                .ToList();
+
+            return Ok(new ProliferationProjectLookupResponseDto
+            {
+                Total = matched.Count,
+                Returned = items.Count,
+                Items = items
+            });
         }
 
         [HttpGet("projects/{id:int}")]
@@ -330,15 +353,15 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             }
 
             var project = await projects
-                .Select(p => new ProliferationProjectLookupDto
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Code = p.CaseFileNumber
-                })
+                .Select(p => new ProjectLookupCandidate(
+                    p.Id,
+                    p.Name,
+                    p.CaseFileNumber,
+                    p.Category != null ? p.Category.Name : null,
+                    p.TechnicalCategory != null ? p.TechnicalCategory.Name : null))
                 .FirstOrDefaultAsync(ct);
 
-            return project is null ? NotFound() : Ok(project);
+            return project is null ? NotFound() : Ok(ToProjectLookupDto(project));
         }
 
         [HttpGet("lookups")]
@@ -1241,6 +1264,90 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         }
 
         // SECTION: Search helpers
+        private static ProliferationProjectLookupDto ToProjectLookupDto(ProjectLookupCandidate project)
+            => new()
+            {
+                Id = project.Id,
+                Name = project.Name,
+                Acronym = ExtractProjectAcronym(project.Name, project.Code),
+                Code = project.Code,
+                ProjectCategory = project.ProjectCategory,
+                TechnicalCategory = project.TechnicalCategory,
+                Status = "Completed"
+            };
+
+        private static int GetProjectSearchRank(ProjectLookupCandidate project, string normalizedTerm)
+        {
+            var normalizedName = NormalizeProjectSearchText(project.Name);
+            var normalizedCode = NormalizeProjectSearchText(project.Code);
+            var normalizedAcronym = NormalizeProjectSearchText(ExtractProjectAcronym(project.Name, project.Code));
+
+            if (!string.IsNullOrEmpty(normalizedAcronym) && normalizedAcronym == normalizedTerm) return 0;
+            if (!string.IsNullOrEmpty(normalizedCode) && normalizedCode == normalizedTerm) return 1;
+            if (normalizedName.StartsWith(normalizedTerm, StringComparison.Ordinal)) return 2;
+            if (!string.IsNullOrEmpty(normalizedAcronym) && normalizedAcronym.StartsWith(normalizedTerm, StringComparison.Ordinal)) return 3;
+            if (!string.IsNullOrEmpty(normalizedCode) && normalizedCode.Contains(normalizedTerm, StringComparison.Ordinal)) return 4;
+            if (normalizedName.Contains(normalizedTerm, StringComparison.Ordinal)) return 5;
+            return int.MaxValue;
+        }
+
+        private static string NormalizeProjectSearchText(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+            var builder = new StringBuilder(value.Length);
+            foreach (var character in value)
+            {
+                if (char.IsLetterOrDigit(character))
+                {
+                    builder.Append(char.ToUpperInvariant(character));
+                }
+            }
+            return builder.ToString();
+        }
+
+        private static string? ExtractProjectAcronym(string? name, string? code)
+        {
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                var close = name.LastIndexOf(')');
+                var open = close > 0 ? name.LastIndexOf('(', close) : -1;
+                if (open >= 0 && close > open + 1)
+                {
+                    var parenthetical = NormalizeProjectSearchText(name[(open + 1)..close]);
+                    if (parenthetical.Length is >= 2 and <= 20 && parenthetical.Any(char.IsLetter))
+                    {
+                        return parenthetical;
+                    }
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(code))
+            {
+                var segments = code
+                    .Split(new[] { '/', '\\', '-', '_', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(segment => NormalizeProjectSearchText(segment))
+                    .Where(segment => segment.Length is >= 2 and <= 20 && segment.Any(char.IsLetter))
+                    .Where(segment => !segment.Equals("SDD", StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(segment => segment.Length)
+                    .ToList();
+                if (segments.Count > 0) return segments[0];
+            }
+
+            if (string.IsNullOrWhiteSpace(name)) return null;
+            var ignored = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "A", "AN", "AND", "BASED", "FOR", "OF", "ON", "THE", "TO", "WITH"
+            };
+            var initials = name
+                .Split(new[] { ' ', '-', '/', '(', ')', '[', ']' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(word => !ignored.Contains(word))
+                .Where(word => word.Any(char.IsLetterOrDigit))
+                .Select(word => char.ToUpperInvariant(word.First(char.IsLetterOrDigit)))
+                .Take(12)
+                .ToArray();
+            return initials.Length >= 2 ? new string(initials) : null;
+        }
+
         private static string EscapeLikePattern(string value)
         {
             return value
@@ -1299,6 +1406,13 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
         private static string EncodeRowVersion(byte[]? rowVersion)
             => rowVersion is { Length: > 0 } ? Convert.ToBase64String(rowVersion) : string.Empty;
+
+        private sealed record ProjectLookupCandidate(
+            int Id,
+            string Name,
+            string? Code,
+            string? ProjectCategory,
+            string? TechnicalCategory);
 
         private sealed record OverviewRowProjection(
             int ProjectId,

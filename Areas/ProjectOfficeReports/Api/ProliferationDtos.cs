@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
+using System.Linq;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Api
@@ -87,8 +88,30 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
     {
         public int Id { get; set; }
         public string Name { get; set; } = default!;
+        public string? Acronym { get; set; }
         public string? Code { get; set; }
-        public string Display => string.IsNullOrWhiteSpace(Code) ? Name : $"{Name} ({Code})";
+        public string? ProjectCategory { get; set; }
+        public string? TechnicalCategory { get; set; }
+        public string Status { get; set; } = "Completed";
+        public string Display => Name;
+        public string SecondaryDisplay
+        {
+            get
+            {
+                var parts = new[] { Code, TechnicalCategory ?? ProjectCategory }
+                    .Where(value => !string.IsNullOrWhiteSpace(value));
+                return string.Join(" · ", parts);
+            }
+        }
+    }
+
+    public sealed class ProliferationProjectLookupResponseDto
+    {
+        public int Total { get; set; }
+        public int Returned { get; set; }
+        public string EligibilityDescription { get; set; } = "Completed projects eligible for proliferation entry.";
+        public IReadOnlyList<ProliferationProjectLookupDto> Items { get; set; }
+            = Array.Empty<ProliferationProjectLookupDto>();
     }
 
     // Create Yearly

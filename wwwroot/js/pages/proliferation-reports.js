@@ -327,7 +327,7 @@
       suggestions: el.projectSuggest,
       clearButton: el.projectClear,
       statusElement: el.projectStatus,
-      minimumLength: 2,
+      minimumLength: 0,
       getExtraParams: () => {
         const params = {};
         const projectCategoryId = el.projectCategory.value.trim();

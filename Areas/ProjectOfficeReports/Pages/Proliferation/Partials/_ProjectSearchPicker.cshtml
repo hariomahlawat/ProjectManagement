@@ -1,0 +1,78 @@
+@using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels
+@model ProliferationProjectPickerModel
+@{
+    Model.Validate();
+    var wrapperClasses = $"pf-project-picker {(Model.Compact ? "pf-project-picker--compact" : string.Empty)} {Model.WrapperClass}".Trim();
+    var describedBy = string.Join(" ", new[]
+    {
+        Model.ShowEligibilityText ? $"{Model.InputId}-help" : null,
+        Model.ErrorElementId,
+        Model.StatusId
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+}
+
+<div class="@wrapperClasses"
+     id="@Model.RootId"
+     data-project-search-picker
+     data-show-recent="@(Model.ShowRecent ? "true" : "false")"
+     data-recent-storage-key="@Model.RecentStorageKey">
+    @if (Model.ShowLabel)
+    {
+        <label class="form-label @(Model.Compact ? "small" : string.Empty)" for="@Model.InputId">
+            @Model.Label
+            @if (Model.Required)
+            {
+                <span class="text-danger" aria-hidden="true">*</span>
+            }
+        </label>
+    }
+
+    <div class="pf-project-picker__control">
+        <i class="bi bi-search pf-project-picker__icon" aria-hidden="true"></i>
+        <input id="@Model.InputId"
+               type="search"
+               class="form-control @(Model.Compact ? "form-control-sm" : string.Empty) pf-project-picker__input"
+               placeholder="@Model.Placeholder"
+               aria-label="@(Model.AriaLabel ?? Model.Label)"
+               aria-describedby="@describedBy"
+               autocomplete="off"
+               spellcheck="false"
+               enterkeyhint="done"
+               required="@Model.Required" />
+        <span class="spinner-border spinner-border-sm pf-project-picker__spinner d-none" role="status" aria-hidden="true"></span>
+        <button id="@Model.ClearButtonId"
+                type="button"
+                class="btn btn-sm pf-project-picker__clear d-none"
+                aria-label="Clear selected project"
+                title="Clear selected project">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+    </div>
+
+    @* The native select is retained only as the immutable ID backing control. *@
+    <select id="@Model.ValueInputId"
+            class="visually-hidden pf-project-picker__value"
+            tabindex="-1"
+            aria-hidden="true"
+            data-project-value-input>
+        <option value=""></option>
+        @foreach (var project in Model.Projects)
+        {
+            <option value="@project.Id">@project.DisplayName</option>
+        }
+    </select>
+
+    <div id="@Model.SuggestionsId"
+         class="pf-suggestions pf-project-picker__panel d-none"
+         role="listbox"
+         aria-label="Project search results"></div>
+    <div class="pf-project-picker__selected d-none" data-project-selected-meta aria-live="polite">
+        <span data-project-selected-secondary></span>
+    </div>
+    <div id="@Model.StatusId" class="visually-hidden" role="status" aria-live="polite"></div>
+
+    @if (Model.ShowEligibilityText)
+    {
+        <div class="form-text pf-project-picker__help" id="@Model.InputId-help">@Model.EligibilityText</div>
+    }
+</div>
