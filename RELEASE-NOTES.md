@@ -1,31 +1,24 @@
 # Release notes
 
-## Release-blocking fix
+## Corrected
 
-`proliferation-manage.js` previously called `updateDecisionButtons()` before the `editor` and `saveButtonState` constants had been initialised. Browsers therefore stopped the script with a temporal-dead-zone `ReferenceError`. Initialisation now occurs in a deterministic order inside `init()`.
+- Loaded proliferation records now resolve Source reliably whether the API serialises the enum as a number, enum name or display label.
+- Malformed years `0–99` are rendered exactly as stored; JavaScript no longer applies the implicit 1900 offset.
+- Correction forms explicitly identify a suggested date derived from a two-digit stored year and require user verification.
+- Pending approval and Counting rules now show one authoritative empty state instead of duplicated messages.
+- Counting-rule actions are contextual:
+  - no action without a valid project/source/year scope;
+  - Save exception only for a non-default rule with a reason;
+  - Restore source default only when an exception exists.
+- Save and Correct record buttons have a visibly disabled state and accurate `aria-disabled` values.
+- Correction reason is enforced by the client, DTO validation and the existing server-side service validation.
+- Manage actions are visually integrated into the editor header, removing the redundant command layer.
+- Empty list and exception footers are hidden when they contain no useful content.
 
-## Manage workflow
+## Preserved
 
-- Existing records load on page opening.
-- Approval information is hidden for a new record and displayed only for a loaded record.
-- New-record project selection starts blank and is mandatory.
-- Detailed and annual record types use the same compact editor with contextual fields.
-- New-record type controls and record actions are located with the editor rather than in separate full-width layers.
-- Empty result areas no longer reserve excessive viewport height.
-
-## Overview analytics
-
-- Year-wise and Technical category are first-class Analytics tabs.
-- The category chart is no longer concealed under the vague “Additional analysis” disclosure.
-- Chart height, recent-year rows and surrounding card spacing are reduced.
-
-## Data quality
-
-- The red navigation badge represents malformed records requiring correction.
-- Possible duplicates remain review items within the Data quality workspace and are not treated as equivalent to invalid dates, years, units or quantities.
-
-## Reports and density
-
-- The default report is represented by a compact selected-report strip.
-- Report choices reopen through Change report.
-- Records filters, KPI cards, project-year disclosures, report choices and Manage controls use a denser PRISM-aligned rhythm.
+- Approval and amendment rules.
+- Admin/HoD automatic approval.
+- Source defaults and project-year counting exceptions.
+- Data-quality audit events.
+- Existing APIs, database model and migrations.

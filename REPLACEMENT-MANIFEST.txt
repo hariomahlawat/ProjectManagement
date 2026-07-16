@@ -1,0 +1,13 @@
+PRISM Proliferation — Final Corrective Polish
+Generated: 2026-07-16
+
+Ready-to-replace files:
+Areas/ProjectOfficeReports/Pages/Proliferation/Manage.cshtml                                               9925 bytes
+Areas/ProjectOfficeReports/Pages/Proliferation/_ProliferationEditor.cshtml                                 7356 bytes
+Areas/ProjectOfficeReports/Pages/Proliferation/_DataQualityPanel.cshtml                                    8255 bytes
+Areas/ProjectOfficeReports/Pages/Proliferation/_PreferenceOverrides.cshtml                                10176 bytes
+wwwroot/js/pages/proliferation-manage.js                                                                 112196 bytes
+wwwroot/js/pages/proliferation-data-quality.js                                                            21952 bytes
+wwwroot/css/proliferation.css                                                                             61126 bytes
+
+No database migration required.

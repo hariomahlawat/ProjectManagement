@@ -2476,3 +2476,88 @@
         grid-column: auto;
     }
 }
+
+
+/* Final corrective polish: integrated Manage actions and explicit disabled states */
+.pf-manage-column--detail {
+    position: relative;
+}
+
+.pf-command-bar--integrated {
+    position: absolute;
+    top: .48rem;
+    right: .58rem;
+    z-index: 4;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+.pf-command-bar--integrated .pf-command-bar__actions {
+    align-items: center;
+}
+
+.pf-editor-card-header {
+    min-height: 3.35rem;
+    padding-right: 21rem !important;
+}
+
+.pf-editor-card-header__content {
+    min-width: 0;
+}
+
+.pf-editor-card-header__title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .45rem;
+}
+
+.pf-editor-card-header__title-row .card-title {
+    max-width: min(46rem, 62vw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pf-editor-card-header__meta {
+    margin-top: .12rem;
+    color: var(--pf-muted);
+    font-size: .68rem;
+}
+
+#pf-save:disabled,
+#pf-quality-correct-save:disabled,
+#pf-rule-save:disabled {
+    opacity: .38;
+    box-shadow: none;
+    cursor: not-allowed;
+    filter: saturate(.55);
+}
+
+#pf-quality-correct-reason.is-invalid {
+    border-color: var(--bs-form-invalid-border-color);
+}
+
+@media (max-width: 1199.98px) {
+    .pf-command-bar--integrated {
+        position: static;
+        justify-content: flex-end;
+        margin-bottom: .35rem;
+    }
+
+    .pf-editor-card-header {
+        padding-right: .7rem !important;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .pf-editor-card-header__title-row .card-title {
+        max-width: 100%;
+        white-space: normal;
+    }
+}

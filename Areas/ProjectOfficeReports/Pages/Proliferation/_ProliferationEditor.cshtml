@@ -21,11 +21,16 @@
          data-boot-year="@defaultYear"
          data-boot-kind="@defaultKind">
         <div class="card-header pf-editor-card-header">
-            <div>
-                <h3 class="card-title h5 mb-0">Entry details</h3>
+            <div class="pf-editor-card-header__content">
+                <div class="pf-editor-card-header__title-row">
+                    <h3 class="card-title h5 mb-0" data-command-title>New detailed entry</h3>
+                    <span class="badge rounded-pill text-bg-primary" id="pf-editor-type-badge" data-command-scope>Detailed entry</span>
+                </div>
                 <p class="card-subtitle text-muted small mb-0" data-guidance-text>Use a detailed entry when the proliferation date, receiving unit and quantity are known.</p>
+                <div class="pf-editor-card-header__meta d-none" data-command-updated-wrap>
+                    Updated <span data-command-updated-value>—</span>
+                </div>
             </div>
-            <span class="badge rounded-pill text-bg-primary" id="pf-editor-type-badge">Detailed entry</span>
         </div>
         <div class="card-body">
             <div class="bg-light border rounded-2 p-2 mb-3 d-none" id="pf-approval-panel" data-approval-container>

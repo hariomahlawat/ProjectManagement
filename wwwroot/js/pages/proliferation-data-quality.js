@@ -27,9 +27,11 @@
     quantityWrap: document.querySelector('#pf-quality-quantity-wrap'),
     year: document.querySelector('#pf-quality-correct-year'),
     date: document.querySelector('#pf-quality-correct-date'),
+    dateSuggestion: document.querySelector('#pf-quality-date-suggestion'),
     unit: document.querySelector('#pf-quality-correct-unit'),
     quantity: document.querySelector('#pf-quality-correct-quantity'),
     reason: document.querySelector('#pf-quality-correct-reason'),
+    reasonError: document.querySelector('#pf-quality-correct-reason-error'),
     error: document.querySelector('#pf-quality-correct-error'),
     save: document.querySelector('#pf-quality-correct-save'),
     projectContext: document.querySelector('#pf-quality-project-context'),
@@ -48,7 +50,8 @@
     loaded: false,
     sequence: 0,
     controller: null,
-    timer: null
+    timer: null,
+    reasonTouched: false
   };
 
   const labels = {
@@ -90,11 +93,37 @@
   };
 
   const formatNumber = (value) => new Intl.NumberFormat().format(Number(value) || 0);
+  const parseIsoDateParts = (value) => {
+    const match = /^(\d{1,6})-(\d{2})-(\d{2})/.exec(String(value || '').trim());
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1 || day > 31) return null;
+    return { year, month, day };
+  };
+
   const formatDate = (value) => {
-    const parts = String(value || '').split('-');
-    if (parts.length !== 3) return value || '—';
-    const date = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
-    return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: '2-digit' }).format(date);
+    const parts = parseIsoDateParts(value);
+    if (!parts) return value || '—';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
+    return `${String(parts.day).padStart(2, '0')} ${months[parts.month - 1]} ${String(parts.year).padStart(4, '0')}`;
+  };
+
+  const suggestedCorrectionDate = (value) => {
+    const parts = parseIsoDateParts(value);
+    if (!parts) return { value: '', suggested: false };
+    const maximumYear = new Date().getUTCFullYear() + 1;
+    if (parts.year >= 2000 && parts.year <= maximumYear) {
+      return { value: `${String(parts.year).padStart(4, '0')}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`, suggested: false };
+    }
+    if (parts.year >= 0 && parts.year <= 99) {
+      const candidateYear = 2000 + parts.year;
+      if (candidateYear <= maximumYear) {
+        return { value: `${candidateYear}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`, suggested: true };
+      }
+    }
+    return { value: '', suggested: false };
   };
 
   const create = (tag, text = '', className = '') => {
@@ -225,6 +254,46 @@
     }
   };
 
+  const isCorrectionFormValid = () => {
+    const item = state.selected;
+    if (!item) return false;
+    const reason = el.reason?.value?.trim() || '';
+    if (!reason) return false;
+    const quantityText = el.quantity?.value ?? '';
+    const quantity = Number(quantityText);
+    if (item.recordKind === 'yearly') {
+      const year = Number(el.year?.value || 0);
+      const maximum = new Date().getUTCFullYear() + 1;
+      return Number.isInteger(year) && year >= 2000 && year <= maximum && quantityText !== '' && Number.isInteger(quantity) && quantity >= 0;
+    }
+    const dateParts = parseIsoDateParts(el.date?.value || '');
+    const maximumDate = new Date();
+    maximumDate.setUTCDate(maximumDate.getUTCDate() + 30);
+    const selectedDate = dateParts
+      ? new Date(Date.UTC(dateParts.year, dateParts.month - 1, dateParts.day))
+      : null;
+    const validDate = Boolean(dateParts) &&
+      dateParts.year >= 2000 &&
+      selectedDate &&
+      !Number.isNaN(selectedDate.getTime()) &&
+      selectedDate.getUTCFullYear() === dateParts.year &&
+      selectedDate.getUTCMonth() === dateParts.month - 1 &&
+      selectedDate.getUTCDate() === dateParts.day &&
+      selectedDate <= maximumDate;
+    return validDate && Boolean(el.unit?.value?.trim()) && quantityText !== '' && Number.isInteger(quantity) && quantity > 0;
+  };
+
+  const updateCorrectionSaveState = () => {
+    if (!el.save) return;
+    const valid = isCorrectionFormValid();
+    el.save.disabled = !valid;
+    el.save.setAttribute('aria-disabled', valid ? 'false' : 'true');
+    const reasonMissing = Boolean(state.selected) && !(el.reason?.value?.trim());
+    const showReasonError = reasonMissing && state.reasonTouched;
+    el.reason?.classList.toggle('is-invalid', showReasonError);
+    el.reasonError?.classList.toggle('d-none', !showReasonError);
+  };
+
   const configureModal = (item) => {
     state.selected = item;
     if (!item || !el.modal) return;
@@ -232,10 +301,17 @@
     if (el.currentValue) el.currentValue.textContent = recordSummary(item);
     [el.yearWrap, el.dateWrap, el.unitWrap, el.quantityWrap].forEach((node) => node?.classList.add('d-none'));
     if (el.year) el.year.value = item.year || '';
-    if (el.date) el.date.value = item.proliferationDate || '';
+    const dateSuggestion = suggestedCorrectionDate(item.proliferationDate);
+    if (el.date) el.date.value = dateSuggestion.value;
+    el.dateSuggestion?.classList.toggle('d-none', !dateSuggestion.suggested);
     if (el.unit) el.unit.value = item.unitName || '';
     if (el.quantity) el.quantity.value = item.quantity ?? '';
-    if (el.reason) el.reason.value = '';
+    state.reasonTouched = false;
+    if (el.reason) {
+      el.reason.value = '';
+      el.reason.classList.remove('is-invalid');
+    }
+    el.reasonError?.classList.add('d-none');
     if (el.error) {
       el.error.textContent = '';
       el.error.classList.add('d-none');
@@ -252,6 +328,7 @@
       if (el.quantity) el.quantity.min = '1';
     }
 
+    updateCorrectionSaveState();
     window.bootstrap?.Modal?.getOrCreateInstance(el.modal)?.show();
   };
 
@@ -260,11 +337,15 @@
     if (!item) return;
     const reason = el.reason?.value?.trim() || '';
     if (!reason) {
+      state.reasonTouched = true;
+      el.reason?.classList.add('is-invalid');
+      el.reasonError?.classList.remove('d-none');
       if (el.error) {
-        el.error.textContent = 'Enter a reason for correction.';
-        el.error.classList.remove('d-none');
+        el.error.textContent = '';
+        el.error.classList.add('d-none');
       }
       el.reason?.focus();
+      updateCorrectionSaveState();
       return;
     }
 
@@ -357,9 +438,32 @@
         el.error.classList.remove('d-none');
       }
     } finally {
-      el.save.disabled = false;
+      updateCorrectionSaveState();
     }
   };
+
+  [el.year, el.date, el.unit, el.quantity, el.reason].forEach((control) => {
+    control?.addEventListener('input', () => {
+      if (control === el.reason && control.value.trim()) {
+        control.classList.remove('is-invalid');
+        el.reasonError?.classList.add('d-none');
+      }
+      updateCorrectionSaveState();
+    });
+    control?.addEventListener('change', updateCorrectionSaveState);
+  });
+  el.reason?.addEventListener('blur', () => {
+    state.reasonTouched = true;
+    updateCorrectionSaveState();
+  });
+  el.modal?.addEventListener('hidden.bs.modal', () => {
+    state.selected = null;
+    state.reasonTouched = false;
+    el.reason?.classList.remove('is-invalid');
+    el.reasonError?.classList.add('d-none');
+    el.dateSuggestion?.classList.add('d-none');
+    updateCorrectionSaveState();
+  });
 
   el.body?.addEventListener('click', (event) => {
     const button = event.target.closest('[data-correct-issue]');

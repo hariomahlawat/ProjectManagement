@@ -13,6 +13,7 @@
     title: document.querySelector('[data-command-title]'),
     scope: document.querySelector('[data-command-scope]'),
     updated: document.querySelector('[data-command-updated-value]'),
+    updatedWrap: document.querySelector('[data-command-updated-wrap]'),
     typeBadge: document.querySelector('#pf-editor-type-badge'),
     saveLabel: document.querySelector('[data-save-label]')
   };
@@ -465,6 +466,7 @@
       }
     });
     editor.btnSave.disabled = !formValid;
+    editor.btnSave.setAttribute('aria-disabled', editor.btnSave.disabled ? 'true' : 'false');
   }
 
   function validateForm(options = {}) {
@@ -510,6 +512,7 @@
     if (state === 'loading') {
       saveButtonState.busy = true;
       editor.btnSave.disabled = true;
+      editor.btnSave.setAttribute('aria-disabled', 'true');
       editor.btnSave.setAttribute('aria-busy', 'true');
       editor.btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span><span>Saving…</span>';
       return;
@@ -517,6 +520,7 @@
     if (state === 'success') {
       saveButtonState.busy = false;
       editor.btnSave.disabled = true;
+      editor.btnSave.setAttribute('aria-disabled', 'true');
       editor.btnSave.setAttribute('aria-busy', 'false');
       editor.btnSave.innerHTML = '<span class="me-1" aria-hidden="true">✓</span><span>Saved</span>';
       saveButtonState.successTimer = window.setTimeout(() => {
@@ -568,6 +572,7 @@
     toggle: overridesCard ? overridesCard.querySelector('#pf-overrides-collapse-toggle') : null,
     tableBody: overridesCard ? overridesCard.querySelector('#pf-overrides-body') : null,
     summary: overridesCard ? overridesCard.querySelector('#pf-overrides-summary') : null,
+    footer: overridesCard ? overridesCard.querySelector('#pf-overrides-summary')?.closest('.card-footer') : null,
     reset: overridesCard ? overridesCard.querySelector('#pf-overrides-reset') : null,
     project: overridesCard ? overridesCard.querySelector('#pf-overrides-project') : null,
     source: overridesCard ? overridesCard.querySelector('#pf-overrides-source') : null,
@@ -859,9 +864,18 @@
     return Boolean(projectId || source || year || search);
   }
 
+  function updateOverridesFooterVisibility() {
+    if (!overridesElements.footer) return;
+    const hasSummary = Boolean(overridesElements.summary?.textContent?.trim());
+    const hasReset = Boolean(overridesElements.reset && !overridesElements.reset.classList.contains('d-none'));
+    overridesElements.footer.classList.toggle('d-none', !hasSummary && !hasReset);
+  }
+
   function updateOverridesResetVisibility() {
-    if (!overridesElements.reset) return;
-    overridesElements.reset.classList.toggle('d-none', !overridesFiltersActive());
+    if (overridesElements.reset) {
+      overridesElements.reset.classList.toggle('d-none', !overridesFiltersActive());
+    }
+    updateOverridesFooterVisibility();
   }
 
   function updateOverridesExportAvailability(enabled) {
@@ -936,6 +950,7 @@
     if (!commandElements.updated) return;
     const text = value ? formatDateTime(value) : '';
     commandElements.updated.textContent = text || '—';
+    commandElements.updatedWrap?.classList.toggle('d-none', !text);
     if (value) {
       commandElements.updated.setAttribute('data-timestamp', value);
     } else {
@@ -1115,6 +1130,51 @@
     if (!select || !value) return '';
     const option = Array.from(select.options).find((opt) => opt.value === String(value));
     return option ? option.textContent.trim() : '';
+  }
+
+  function normalizeSourceToken(value) {
+    return String(value ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+  }
+
+  function resolveSourceSelectValue(detail) {
+    if (!editor.source || !detail) return '';
+    const rawCandidates = [
+      detail.sourceValue,
+      detail.SourceValue,
+      detail.source,
+      detail.Source,
+      detail.sourceLabel,
+      detail.SourceLabel
+    ].filter((value) => value !== undefined && value !== null && String(value).trim() !== '');
+
+    for (const candidate of rawCandidates) {
+      if (hasOption(editor.source, candidate)) return String(candidate);
+    }
+
+    const aliases = new Map([
+      ['1', '1'],
+      ['sdd', '1'],
+      ['simulatordevelopmentdivision', '1'],
+      ['2', '2'],
+      ['abw515', '2'],
+      ['515abw', '2'],
+      ['armybaseworkshop515', '2']
+    ]);
+
+    for (const candidate of rawCandidates) {
+      const token = normalizeSourceToken(candidate);
+      const aliased = aliases.get(token);
+      if (aliased && hasOption(editor.source, aliased)) return aliased;
+
+      const matchingOption = Array.from(editor.source.options).find((option) =>
+        normalizeSourceToken(option.textContent) === token);
+      if (matchingOption) return matchingOption.value;
+    }
+
+    return '';
   }
 
   function renderFilterChips() {
@@ -1316,7 +1376,8 @@
     if (!overridesElements.summary) return;
     const count = overridesRows.size;
     if (count === 0) {
-      overridesElements.summary.textContent = 'No counting exceptions configured.';
+      overridesElements.summary.textContent = '';
+      updateOverridesFooterVisibility();
       return;
     }
 
@@ -1351,6 +1412,7 @@
       summary = `${summary} ${detailParts.join(' ')}`;
     }
     overridesElements.summary.textContent = summary;
+    updateOverridesFooterVisibility();
   }
 
   function renderOverrides(rows) {
@@ -1358,9 +1420,10 @@
     overridesRows.clear();
 
     if (!rows || rows.length === 0) {
-      overridesElements.tableBody.innerHTML = '<tr><td colspan="6" class="text-muted">No counting exceptions found.</td></tr>';
+      overridesElements.tableBody.innerHTML = '<tr><td colspan="6" class="text-muted">No counting exceptions configured.</td></tr>';
       updateOverridesSummary();
       updateOverridesExportAvailability(false);
+      updateRuleActionState();
       return;
     }
 
@@ -1456,9 +1519,10 @@
         </tr>`;
     }).join('');
 
-    overridesElements.tableBody.innerHTML = markup || '<tr><td colspan="6" class="text-muted">No counting exceptions found.</td></tr>';
+    overridesElements.tableBody.innerHTML = markup || '<tr><td colspan="6" class="text-muted">No counting exceptions configured.</td></tr>';
     updateOverridesSummary(stats);
     updateOverridesExportAvailability(overridesRows.size > 0);
+    updateRuleActionState();
   }
 
   async function fetchOverrides() {
@@ -1724,6 +1788,39 @@
     }
   }
 
+  function findRuleScopeOverride() {
+    const projectId = Number(overridesElements.ruleProject?.value || 0);
+    const source = Number(overridesElements.ruleSource?.value || 0);
+    const year = Number(overridesElements.ruleYear?.value || 0);
+    if (!Number.isInteger(projectId) || projectId <= 0 || ![1, 2].includes(source) || year < 2000) {
+      return null;
+    }
+    return Array.from(overridesRows.values()).find((row) =>
+      Number(row.projectId) === projectId &&
+      Number(row.sourceValue ?? row.source) === source &&
+      Number(row.year) === year) || null;
+  }
+
+  function updateRuleActionState() {
+    const button = overridesElements.ruleSave;
+    if (!button) return;
+    const projectId = Number(overridesElements.ruleProject?.value || 0);
+    const source = Number(overridesElements.ruleSource?.value || 0);
+    const year = Number(overridesElements.ruleYear?.value || 0);
+    const selectedMode = overridesElements.ruleMode?.value || 'default';
+    const reason = overridesElements.ruleReason?.value?.trim() || '';
+    const validScope = Number.isInteger(projectId) && projectId > 0 && [1, 2].includes(source) && Number.isInteger(year) && year >= 2000 && year <= 3000;
+    const existingOverride = validScope ? findRuleScopeOverride() : null;
+    const restoringDefault = selectedMode === 'default';
+    const visible = validScope && (!restoringDefault || Boolean(existingOverride));
+    const enabled = visible && (restoringDefault || Boolean(reason));
+
+    button.classList.toggle('d-none', !visible);
+    button.disabled = !enabled;
+    button.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+    button.textContent = restoringDefault ? 'Restore source default' : 'Save exception';
+  }
+
   function updateRuleGuidance() {
     if (!overridesElements.ruleSource) return;
     const isAbw = Number(overridesElements.ruleSource.value) === 2;
@@ -1749,9 +1846,7 @@
       overridesElements.ruleReason.classList.remove('is-invalid');
       if (!isException) overridesElements.ruleReason.value = '';
     }
-    if (overridesElements.ruleSave) {
-      overridesElements.ruleSave.textContent = isException ? 'Save exception' : 'Restore source default';
-    }
+    updateRuleActionState();
     refreshRuleImpact();
   }
 
@@ -1846,8 +1941,8 @@
       toast(error.message || 'Unable to save the counting rule.', 'danger');
     } finally {
       if (button) {
-        button.disabled = false;
         button.innerHTML = original;
+        updateRuleActionState();
       }
     }
   }
@@ -2098,11 +2193,20 @@
       overridesElements.ruleYear.value = bootDefaults.overrides?.year || String(defaults.year);
     }
     updateRuleGuidance();
-    overridesElements.ruleProject?.addEventListener('change', refreshRuleImpact);
+    overridesElements.ruleProject?.addEventListener('change', () => {
+      refreshRuleImpact();
+      updateRuleActionState();
+    });
     overridesElements.ruleSource?.addEventListener('change', updateRuleGuidance);
-    overridesElements.ruleYear?.addEventListener('change', refreshRuleImpact);
+    overridesElements.ruleYear?.addEventListener('change', () => {
+      refreshRuleImpact();
+      updateRuleActionState();
+    });
     overridesElements.ruleMode?.addEventListener('change', updateRuleGuidance);
-    overridesElements.ruleReason?.addEventListener('input', () => overridesElements.ruleReason.classList.remove('is-invalid'));
+    overridesElements.ruleReason?.addEventListener('input', () => {
+      overridesElements.ruleReason.classList.remove('is-invalid');
+      updateRuleActionState();
+    });
     overridesElements.ruleSave?.addEventListener('click', saveCountingRule);
 
     overridesElements.tableBody?.addEventListener('click', (event) => {
@@ -2133,7 +2237,10 @@
   function renderList(items) {
     if (!listEl) return;
     if (!items || items.length === 0) {
-      listEl.innerHTML = '<div class="list-group-item text-muted" data-placeholder>No records found.</div>';
+      const emptyMessage = isApprovalWorkspace()
+        ? 'No proliferation records are awaiting approval.'
+        : 'No records match the current filters.';
+      listEl.innerHTML = `<div class="list-group-item text-muted" data-placeholder>${escapeHtml(emptyMessage)}</div>`;
       applyBootFocusIfNeeded();
       return;
     }
@@ -2173,10 +2280,13 @@
 
   function renderCount() {
     if (!countEl) return;
+    const footer = countEl.closest('.card-footer');
     if (!pager.total) {
-      countEl.textContent = 'No records to display.';
+      countEl.textContent = '';
+      footer?.classList.add('d-none');
       return;
     }
+    footer?.classList.remove('d-none');
     const start = (pager.page - 1) * pager.pageSize + 1;
     const end = Math.min(pager.page * pager.pageSize, pager.total);
     countEl.textContent = `Showing ${start}-${end} of ${pager.total}`;
@@ -2373,7 +2483,7 @@
     editor.id.value = detail.id ?? '';
     editor.rowVersion.value = detail.rowVersion ?? '';
     editor.project.value = String(detail.projectId ?? '');
-    editor.source.value = String(detail.source ?? '');
+    const resolvedSource = resolveSourceSelectValue(detail);
     editor.year.value = String(detail.year ?? defaults.year);
     if (kind === 'granular') {
       const iso = formatDate(detail.proliferationDateUtc ?? detail.proliferationDate);
@@ -2390,6 +2500,9 @@
       editor.qty.value = detail.totalQuantity ?? '';
       setTab('yearly');
     }
+    if (editor.source) {
+      editor.source.value = resolvedSource;
+    }
     editor.remarks.value = detail.remarks ?? '';
     editor.btnDelete.disabled = false;
     const statusValue = (detail.approvalStatus ?? detail.ApprovalStatus ?? '').toString().toLowerCase();
@@ -2399,7 +2512,7 @@
     currentRecord.rowVersion = detail.rowVersion ?? '';
     currentRecord.sourceLabel = getOptionLabel(editor.source, editor.source.value) || '';
     currentRecord.projectId = String(detail.projectId ?? '');
-    currentRecord.source = String(detail.source ?? '');
+    currentRecord.source = resolvedSource;
     currentRecord.year = String(kind === 'yearly' ? (detail.year ?? '') : (editor.year?.value || ''));
     currentRecord.quantity = kind === 'yearly' ? String(detail.totalQuantity ?? '') : String(detail.quantity ?? '');
     const projectLabel = getOptionLabel(editor.project, editor.project.value) || 'Selected project';

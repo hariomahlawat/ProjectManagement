@@ -75,17 +75,7 @@
                     <span class="pf-entry-type-switch__help">Use detailed when date and unit are known; otherwise record the annual aggregate.</span>
                 </div>
 
-                <div class="pf-command-bar" data-command-bar>
-                    <div class="pf-command-bar__details">
-                        <div class="pf-command-bar__title-row">
-                            <h2 class="pf-command-bar__title" data-command-title>New detailed entry</h2>
-                            <span class="pf-command-bar__scope" data-command-scope>Detailed entry</span>
-                        </div>
-                        <div class="pf-command-bar__meta">
-                            <span>Updated</span>
-                            <span data-command-updated-value>—</span>
-                        </div>
-                    </div>
+                <div class="pf-command-bar pf-command-bar--integrated" data-command-bar aria-label="Record actions">
                     <div class="pf-command-bar__actions">
                         @if (Model.CanApproveRecords)
                         {
@@ -96,7 +86,7 @@
                                 <i class="bi bi-x-lg" aria-hidden="true"></i> Reject
                             </button>
                         }
-                        <button class="btn btn-sm btn-primary" id="pf-save" type="submit" form="pf-form" disabled>
+                        <button class="btn btn-sm btn-primary" id="pf-save" type="submit" form="pf-form" disabled aria-disabled="true">
                             <i class="bi bi-check2" aria-hidden="true"></i> <span data-save-label>Save</span>
                         </button>
                         <button class="btn btn-sm btn-outline-danger d-none" id="pf-delete" type="button">Delete</button>
