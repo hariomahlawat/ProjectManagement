@@ -34,10 +34,9 @@
 
     <partial name="_ProliferationNav" model="Model.CanManageRecords" />
 
-    <header class="pf-page-header">
+    <header class="pf-page-header pf-page-header--compact">
         <div class="min-w-0">
-            <div class="pf-eyebrow">Project proliferation</div>
-            <h1 class="pf-page-title">@Model.Detail.ProjectName</h1>
+            <h1 class="pf-page-title pf-page-title--project">@Model.Detail.ProjectName</h1>
             <div class="pf-page-meta">
                 @if (!string.IsNullOrWhiteSpace(Model.Detail.ProjectCode))
                 {
@@ -94,15 +93,13 @@
         </div>
     }
 
-    <section class="pf-total-hero pf-total-hero--compact" aria-labelledby="project-total-heading">
-        <div>
-            <div class="pf-total-hero__label" id="project-total-heading">Total proliferation</div>
-            <div class="pf-total-hero__value">@Model.Detail.Totals.Total.ToString("N0")</div>
-            <p class="pf-total-hero__help mb-0">
-                Approved annual quantities and detailed entries, counted according to the rule for each source and year.
-            </p>
+    <section class="pf-project-summary" aria-labelledby="project-total-heading">
+        <div class="pf-project-summary__primary">
+            <span class="pf-project-summary__label" id="project-total-heading">Total proliferation</span>
+            <strong class="pf-project-summary__value">@Model.Detail.Totals.Total.ToString("N0")</strong>
+            <span class="pf-project-summary__help">Approved annual quantities and detailed entries counted under the applicable project-year rule.</span>
         </div>
-        <dl class="pf-total-hero__split mb-0">
+        <dl class="pf-project-summary__stats mb-0">
             <div>
                 <dt>SDD</dt>
                 <dd>@Model.Detail.Totals.Sdd.ToString("N0")</dd>
@@ -112,17 +109,17 @@
                 <dd>@Model.Detail.Totals.Abw515.ToString("N0")</dd>
             </div>
             <div>
-                <dt>Valid years recorded</dt>
+                <dt>Valid years</dt>
                 <dd>@validYears.Count.ToString("N0")</dd>
             </div>
         </dl>
     </section>
 
-    <section class="pf-card mt-4" aria-labelledby="year-wise-heading">
+    <section class="pf-card mt-3" aria-labelledby="year-wise-heading">
         <div class="pf-card__header">
             <div>
                 <h2 class="pf-card__title" id="year-wise-heading">Year-wise breakdown</h2>
-                <p class="pf-card__subtitle">Open a year to see how its reported total was calculated. Detailed entries load only when requested.</p>
+                <p class="pf-card__subtitle">Open a year to review its calculation. Detailed entries load only when requested.</p>
             </div>
         </div>
 
@@ -185,43 +182,37 @@
                                     {
                                         <div class="pf-calculation-grid" aria-label="Annual quantity plus detailed quantity equals reported total">
                                             <div>
-                                                <span>Annual</span>
+                                                <span>Annual quantity</span>
                                                 <strong>@source.AnnualQuantity.ToString("N0")</strong>
                                                 <small>Without unit/date details</small>
                                             </div>
                                             <span class="pf-calculation-grid__operator" aria-hidden="true">+</span>
                                             <div>
-                                                <span>Detailed</span>
+                                                <span>Detailed quantity</span>
                                                 <strong>@source.DetailedQuantity.ToString("N0")</strong>
                                                 <small>@source.DetailedEntryCount.ToString("N0") approved @(source.DetailedEntryCount == 1 ? "entry" : "entries")</small>
                                             </div>
                                             <span class="pf-calculation-grid__operator" aria-hidden="true">=</span>
                                             <div class="pf-calculation-grid__result">
-                                                <span>Reported</span>
+                                                <span>Reported total</span>
                                                 <strong>@source.ReportedTotal.ToString("N0")</strong>
-                                                <small>Both are counted</small>
+                                                <small>Both quantities counted</small>
                                             </div>
                                         </div>
                                     }
                                     else
                                     {
-                                        <div class="pf-calculation-grid pf-calculation-grid--selection" aria-label="Selected quantity equals reported total">
-                                            <div>
+                                        <div class="pf-calculation-grid pf-calculation-grid--single" aria-label="Counted and reference quantities">
+                                            <div class="pf-calculation-grid__selected">
                                                 <span>@countedLabel</span>
                                                 <strong>@countedValue.ToString("N0")</strong>
-                                                <small>Counted</small>
+                                                <small>Counted in the reported total</small>
                                             </div>
-                                            <span class="pf-calculation-grid__operator" aria-hidden="true">=</span>
-                                            <div class="pf-calculation-grid__result">
-                                                <span>Reported</span>
-                                                <strong>@source.ReportedTotal.ToString("N0")</strong>
-                                                <small>@source.CalculationLabel</small>
+                                            <div class="pf-calculation-grid__reference">
+                                                <span>@referenceLabel</span>
+                                                <strong>@referenceValue.ToString("N0")</strong>
+                                                <small>Available for reference; not counted</small>
                                             </div>
-                                        </div>
-                                        <div class="pf-calculation-reference">
-                                            <span>@referenceLabel available for reference</span>
-                                            <strong>@referenceValue.ToString("N0")</strong>
-                                            <small>Not counted in this reported total</small>
                                         </div>
                                     }
 

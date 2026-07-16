@@ -35,9 +35,8 @@
 
     <partial name="_ProliferationNav" model="Model.CanManageRecords" />
 
-    <header class="pf-page-header">
+    <header class="pf-page-header pf-page-header--compact">
         <div>
-            <div class="pf-eyebrow">Proliferation</div>
             <h1 class="pf-page-title">Overview</h1>
             <p class="pf-page-subtitle mb-0">@Model.Lede</p>
         </div>
@@ -56,34 +55,36 @@
 
     @if (Model.DataQualityIssueCount > 0)
     {
-        <div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
-            <i class="bi bi-exclamation-triangle-fill mt-1" aria-hidden="true"></i>
-            <div>
-                <strong>Data-quality review required.</strong>
-                @Model.DataQualityIssueCount.ToString("N0") @(Model.DataQualityIssueCount == 1 ? "record has" : "records have") an invalid year (@string.Join(", ", Model.InvalidYears)).
-                The quantities remain included in the overall total but are excluded from chronological charts and year counts until corrected.
-                @if (Model.CanReviewDataQuality)
-                {
-                    <a class="alert-link ms-1" asp-area="ProjectOfficeReports" asp-page="/Proliferation/Manage" asp-route-workspace="data-quality">Review @Model.DataQualityIssueCount.ToString("N0") @(Model.DataQualityIssueCount == 1 ? "record" : "records")</a>
-                }
+        <div class="alert alert-warning pf-quality-alert" role="alert">
+            <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+            <div class="pf-quality-alert__copy">
+                <strong>Data review required.</strong>
+                <span>@Model.DataQualityIssueCount.ToString("N0") @(Model.DataQualityIssueCount == 1 ? "record has" : "records have") an invalid year. @(Model.DataQualityIssueCount == 1 ? "It is" : "They are") excluded from chronological analysis until corrected.</span>
+                <span class="visually-hidden">Affected years: @string.Join(", ", Model.InvalidYears). Quantities remain included in the overall total.</span>
             </div>
+            @if (Model.CanReviewDataQuality)
+            {
+                <a class="alert-link pf-quality-alert__action" asp-area="ProjectOfficeReports" asp-page="/Proliferation/Manage" asp-route-workspace="data-quality">Review @Model.DataQualityIssueCount.ToString("N0") @(Model.DataQualityIssueCount == 1 ? "record" : "records")</a>
+            }
         </div>
     }
 
-    <section class="pf-project-finder" aria-labelledby="find-project-heading">
-        <div>
+    <section class="pf-project-finder pf-project-finder--compact" aria-labelledby="find-project-heading">
+        <div class="pf-project-finder__copy">
             <h2 id="find-project-heading">Find a project total</h2>
-            <p>Search by project name or code. Open the project to see the year-wise calculation and detailed records.</p>
+            <p>Open a project for its source split, year-wise calculation and detailed records.</p>
         </div>
         <div class="pf-project-finder__control">
-            <div class="input-group input-group-lg">
+            <div class="input-group">
                 <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
                 <input type="text"
                        id="pf-project-search"
                        class="form-control"
                        placeholder="Search project name or code"
                        autocomplete="off" />
-                <button type="button" class="btn btn-outline-secondary d-none" id="pf-project-search-clear">Clear</button>
+                <button type="button" class="btn btn-outline-secondary d-none pf-project-finder__clear" id="pf-project-search-clear" aria-label="Clear selected project">
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </button>
                 <button type="button" class="btn btn-primary" id="pf-project-search-open" disabled>View total</button>
             </div>
             <input type="hidden" id="pf-project-search-id" />
@@ -115,7 +116,7 @@
         </article>
     </section>
 
-    <section class="pf-card mt-4" aria-labelledby="project-totals-heading">
+    <section class="pf-card mt-3" aria-labelledby="project-totals-heading">
         <div class="pf-card__header">
             <div>
                 <h2 class="pf-card__title" id="project-totals-heading">Project totals</h2>
@@ -171,7 +172,7 @@
                                 <td class="text-end pf-number">@project.Totals.Abw515.ToString("N0")</td>
                                 <td class="text-end"><strong class="pf-total-pill">@project.Totals.Total.ToString("N0")</strong></td>
                                 <td class="text-end">
-                                    <a class="btn btn-sm btn-light"
+                                    <a class="pf-row-open"
                                        asp-area="ProjectOfficeReports"
                                        asp-page="/Proliferation/Project"
                                        asp-route-id="@project.ProjectId"
@@ -200,7 +201,7 @@
         }
     </section>
 
-    <div class="row g-4 mt-0">
+    <div class="row g-3 mt-0">
         <div class="col-12 col-xl-8">
             <section class="pf-card h-100" aria-labelledby="trend-heading">
                 <div class="pf-card__header">
@@ -254,7 +255,7 @@
 
     @if (Model.TechnicalCategoryBreakdown.Count > 0)
     {
-        <details class="pf-card pf-analytics-details mt-4" id="proliferation-technical-analysis">
+        <details class="pf-card pf-analytics-details mt-3" id="proliferation-technical-analysis">
             <summary>
                 <span>
                     <strong>Additional analysis</strong>

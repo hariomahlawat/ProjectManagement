@@ -1,153 +1,76 @@
-# PRISM ERP — Proliferation Corrective Release
+# PRISM Proliferation — Visual Alignment Release
 
 ## Purpose
 
-This package is a path-preserved overlay for the current PRISM ERP solution. It corrects the functional and usability defects identified after the proliferation-module redesign, without changing the intended counting doctrine:
+This is a cumulative, path-preserved replacement package for the proliferation module. It retains the existing proliferation calculations, approvals, data-quality workflow, reports and permissions while aligning the module with the established PRISM ERP visual language.
 
-- **SDD default:** annual quantity + approved detailed entries.
-- **515 ABW default:** approved annual quantity.
-- A deliberate project/source/year counting exception may select another rule.
-- Admin and HoD submissions continue to receive immediate approval.
-
-## Main corrections included
-
-### Overview
-
-- Restores both charts by loading the existing local Chart.js asset.
-- Uses stacked SDD/515 ABW trend bars.
-- Creates the technical-category chart only after its disclosure panel is opened.
-- Adds chart failure and no-data fallbacks.
-- Replaces the misleading table-filter search with a shared project picker that opens the selected project total.
-- Limits the project table to the top 15 initially, with controlled disclosure of all projects.
-- Adds a visible warning when invalid historical years are present.
-
-### Records
-
-- Project filtering now applies only after a project is explicitly selected.
-- Adds keyboard-accessible project suggestions, clear state, deep-link project loading and unavailable-project handling.
-- Validates the year before issuing requests.
-- Searches project name, project code, unit and remarks consistently.
-- Loads detailed entries only when a project-year row is expanded.
-- Preserves filter state during paging and export.
-- Marks invalid historical years instead of presenting them as normal data.
-
-### Reports
-
-- Synchronises the selected report card, hidden report value, clear action and saved views.
-- Uses the shared project picker for consistent keyboard and selection behaviour.
-- Prevents a report from running when the selected project conflicts with selected categories.
-- Adds request cancellation, stale-response protection and a visible generating state.
-- Makes chosen display columns apply to Excel export.
-- Converts report validation exceptions into clear HTTP 400 responses.
-- Changes row action wording from **Manage** to **Open record**.
-
-### Manage records
-
-- Detailed-entry search now includes remarks.
-- Existing-record rows show the receiving unit, making similar records distinguishable.
-- Adds mandatory rejection reasons and records them in audit data.
-- Requires a reason for any non-default counting exception.
-- Shows annual, detailed, current and proposed totals before a counting-rule change.
-- Keeps a saved record selected and reports whether it was approved or submitted for approval.
-- Non-Admin/HoD edits to an approved record return it to Pending and clear prior approval metadata.
-- Approved records can be deleted only by Admin or HoD.
-- Adds minimum-date validation of **01 Jan 2000** in both client and server code.
-- Moves counting-rule export into the counting-exceptions section.
-- Improves JSON/API error messages shown to the user.
-
-### Security and integrity
-
-- Enforces antiforgery validation on proliferation mutation endpoints.
-- Escapes user search text used in PostgreSQL `ILIKE` patterns.
-- Keeps CSV formula-injection protection for counting-exception export.
-- Uses lazy detail endpoints and grouped summary responses to reduce initial payload size.
-
-## Database impact
-
-**No EF Core migration is required.**
-
-A read-only audit script is supplied at:
-
-`Deployment/ProliferationDataQualityAudit.sql`
-
-Run it before deployment. The screenshots showed at least one malformed historical year (`24`). The release prevents new dates before 01 Jan 2000, but it cannot infer the correct year for an existing record. Verify each flagged row against the original source document and correct it deliberately.
+The release reduces excessive vertical space, removes dashboard-style visual treatment and improves scan speed across Overview, Project Total, Records, Reports and Manage.
 
 ## Replacement procedure
 
-1. Back up the application folder and production database.
-2. Run `Deployment/ProliferationDataQualityAudit.sql` against a database copy or production under the authorised maintenance procedure.
-3. Extract this package into the solution root—the folder containing `ProjectManagement.csproj`.
-4. Allow all matching files to be overwritten.
-5. Build and test:
+1. Back up the current solution.
+2. Extract this archive into the solution root containing `ProjectManagement.csproj`.
+3. Allow the files in the archive to overwrite the matching paths.
+4. Do not copy the enclosing package folder into the project. The first folders copied into the solution root must be `Areas`, `Services`, `wwwroot`, `ProjectManagement.Tests`, together with `Program.cs`.
+5. Clean and rebuild the solution.
+
+Recommended commands:
 
 ```powershell
-dotnet restore .\ProjectManagement.sln
-dotnet build .\ProjectManagement.sln -c Release --no-restore
-dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj -c Release --no-build
+ dotnet clean
+ dotnet restore
+ dotnet build -c Release
+ dotnet test -c Release --no-build
 ```
 
-6. Publish using the normal production profile:
+Then publish normally:
 
 ```powershell
-dotnet publish .\ProjectManagement.csproj -c Release -o .\publish
+ dotnet publish -c Release -o .\publish
 ```
 
-7. Deploy through the existing IIS maintenance procedure and perform a browser hard refresh.
+## Database impact
 
-## Mandatory functional verification
+No EF Core migration is required. No proliferation business rule, source default or stored total has been changed.
 
-### Overview
+## Principal UI changes
 
-- Both charts render.
-- Last 10 years / All years changes the trend chart.
-- Opening Additional analysis renders the category chart.
-- Project search supports mouse, Arrow keys, Enter, Escape and Clear.
-- View total opens the selected project.
-- Show all projects / Show top 15 works.
-- Both export links download data.
+- Uses PRISM-standard page-heading scale, form controls, borders, radii and card depth.
+- Removes the redundant proliferation eyebrow from normal module pages.
+- Compacts the module navigation, page headers, warnings, project finder and KPI cards.
+- Replaces the large blue project hero with a standard PRISM summary card.
+- Reduces collapsed project-year rows to a compact single-line disclosure pattern.
+- Moves the year disclosure chevron to the right and removes the large unused row area.
+- Simplifies source calculations while retaining full auditability and calculation transparency.
+- Reduces project table, record group and manager list row heights.
+- Compacts report tiles, filters, workspaces and management controls.
+- Reduces chart height, normalises chart typography and displays values on technical-category bars.
+- Retains responsive layouts, keyboard project pickers and lazy loading of detailed entries.
 
-### Records
+## Key verification checklist
 
-- Typed project text alone does not falsely filter the list.
-- Selecting a suggestion filters records.
-- Clear restores all projects.
-- Source, year and general search work independently and together.
-- Remarks search returns matching records.
-- Expanding a row loads detailed entries.
-- Previous, Next and row-count selection retain filters.
-- Export uses the same project/source/year/search filters.
+After replacement, verify the following:
 
-### Reports
+1. Overview shows the project search, four KPI cards and the start of Project totals within a substantially shorter vertical area.
+2. The data-quality warning remains visible but uses a compact operational alert.
+3. Project Total uses a white summary card with a blue total, not a full-width blue banner.
+4. A collapsed year row displays year, SDD, 515 ABW, reported total and chevron on one line.
+5. Opening a year shows compact calculations and still loads detailed entries only on demand.
+6. Records filters and grouped calculations remain functional.
+7. Reports still collapse the report chooser after a report is selected.
+8. Manage workspaces, approval, counting-rule and data-quality actions remain functional.
+9. Year-wise and technical-category charts render correctly.
+10. Technical-category bars display exact values at the end of the bars.
 
-- Every report card activates the correct controls and report type.
-- Saved view load restores the corresponding active report card.
-- Clear filters returns to the default report consistently.
-- Generate prevents duplicate/stale requests.
-- Category/project mismatch is blocked with a clear message.
-- Sorting and paging preserve the report context.
-- Column selection affects both the screen and Excel export.
-- Open record deep-links to the appropriate manager context.
+## Validation performed in this environment
 
-### Manage records
+- All nine packaged JavaScript files passed `node --check`.
+- `proliferation.css` parsed successfully with `tinycss2` and contains balanced rule blocks.
+- All local CSS and JavaScript references in the packaged Razor files resolved in an assembled copy of the repository.
+- Visual-alignment hooks and compact project/calculation markup were verified.
 
-- New detailed and annual actions preserve useful project/source/year context.
-- Date before 01 Jan 2000 is rejected in the browser and by the API.
-- Save leaves the saved record selected.
-- Approve works on Pending records.
-- Reject requires a reason.
-- Search checks project, code, unit and remarks.
-- Approved-record edit by a non-Admin/HoD becomes Pending.
-- Approved-record delete is blocked for non-Admin/HoD.
-- Counting exception requires a reason and shows calculation impact.
-- Restore source default and export counting exceptions work.
+The .NET SDK was not available in this environment. The complete .NET build and test suite must therefore be run on the development machine before release. The full Node test suite also could not be completed because `jsdom` was not installed and the offline npm cache was incomplete.
 
-## Validation completed in this environment
+## Files
 
-- JavaScript syntax check passed for all six changed module scripts.
-- Changed C# files passed lexical delimiter validation.
-- Razor pages passed literal-ID uniqueness checks.
-- Local script references were verified.
-
-The detailed log is in `Deployment/STATIC-VALIDATION.txt`.
-
-The .NET SDK/compiler was not available in the execution environment, so `dotnet build` and `dotnet test` must be completed on the development machine before production deployment.
+`REPLACEMENT-MANIFEST.txt` lists every cumulative replacement path. `SHA256SUMS.txt` contains checksums for integrity verification. `STATIC-VALIDATION.txt` records the checks completed here.

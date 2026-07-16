@@ -899,3 +899,1073 @@
     .pf-quality-stat:first-child { grid-column: auto; }
     .pf-selected-report { align-items: stretch; flex-direction: column; }
 }
+
+/* --------------------------------------------------------------------------
+   PRISM visual alignment release
+   Uses the established ERP typography, controls and operational density.
+   -------------------------------------------------------------------------- */
+.pf-shell {
+    --pf-shadow: 0 14px 28px -25px rgba(15, 23, 42, .28);
+    --pf-card-radius: .85rem;
+    --pf-control-height: 2.5rem;
+    max-width: 1480px;
+    font-size: var(--bs-body-font-size);
+}
+
+.pf-shell.container-xxl {
+    padding-top: .75rem !important;
+    padding-bottom: 1rem !important;
+}
+
+.pf-shell .breadcrumb {
+    margin-bottom: .4rem !important;
+}
+
+.pf-page-header,
+.pf-page-header--compact {
+    align-items: flex-start;
+    gap: .8rem 1rem;
+    margin: .8rem 0 1rem;
+}
+
+.pf-page-title {
+    font-size: clamp(1.55rem, 2vw, 1.95rem);
+    font-weight: 750;
+    letter-spacing: -.035em;
+    line-height: 1.12;
+}
+
+.pf-page-title--project {
+    max-width: 58rem;
+    font-size: clamp(1.55rem, 2.2vw, 2rem);
+}
+
+.pf-page-subtitle,
+.pf-page-meta {
+    margin-top: .32rem;
+    font-size: .84rem;
+    line-height: 1.45;
+}
+
+.pf-page-meta {
+    gap: .35rem .9rem;
+}
+
+.pf-eyebrow {
+    margin-bottom: .15rem;
+    font-size: .68rem;
+    letter-spacing: .07em;
+}
+
+.pf-page-actions {
+    align-items: center;
+    gap: .45rem;
+}
+
+.pf-shell .btn:not(.btn-link),
+.pf-shell .form-control:not(textarea),
+.pf-shell .form-select,
+.pf-shell .input-group-text {
+    min-height: var(--pf-control-height);
+}
+
+.pf-shell .btn:not(.btn-link) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .38rem;
+    padding: .4rem .78rem;
+    border-radius: var(--bs-border-radius, .5rem);
+    font-size: .875rem;
+    line-height: 1.2;
+}
+
+.pf-shell .btn-sm:not(.btn-link),
+.pf-shell .form-control-sm,
+.pf-shell .form-select-sm {
+    min-height: 2.15rem;
+    padding-top: .28rem;
+    padding-bottom: .28rem;
+    font-size: .8rem;
+}
+
+.pf-shell .form-label {
+    margin-bottom: .3rem;
+    font-size: .82rem;
+    font-weight: 600;
+}
+
+.pf-shell .form-text {
+    margin-top: .25rem;
+    font-size: .74rem;
+    line-height: 1.35;
+}
+
+/* Module navigation: same compact segmented treatment used elsewhere in PRISM. */
+.pf-module-nav {
+    gap: .15rem;
+    padding: .2rem;
+    margin-top: .4rem;
+    border-radius: .75rem;
+}
+
+.pf-module-nav a {
+    min-height: 2.35rem;
+    padding: .42rem .72rem;
+    border-radius: .58rem;
+    font-size: .84rem;
+}
+
+.pf-module-nav a[aria-current="page"],
+.pf-module-nav a.active {
+    box-shadow: 0 4px 12px -10px rgba(15, 23, 42, .65);
+}
+
+/* Shared surfaces */
+.pf-card,
+.pf-filter-panel,
+.pf-project-finder,
+.pf-manage-card,
+.pf-project-summary {
+    border-radius: var(--pf-card-radius);
+    box-shadow: var(--pf-shadow);
+}
+
+.pf-card__header {
+    gap: .75rem;
+    padding: .85rem 1.1rem;
+}
+
+.pf-card__title {
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.pf-card__subtitle {
+    margin-top: .18rem;
+    font-size: .8rem;
+    line-height: 1.4;
+}
+
+.pf-card__footer {
+    gap: .55rem;
+    padding: .65rem 1.1rem;
+    font-size: .8rem;
+}
+
+.pf-empty-state {
+    min-height: 8.5rem;
+    padding: 1.4rem;
+}
+
+.pf-empty-state i {
+    margin-bottom: .4rem;
+    font-size: 1.45rem;
+}
+
+/* Compact operational warning */
+.pf-quality-alert {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    min-height: 2.9rem;
+    margin-bottom: .85rem;
+    padding: .55rem .8rem;
+    border-radius: .65rem;
+    font-size: .82rem;
+}
+
+.pf-quality-alert > i {
+    flex: 0 0 auto;
+}
+
+.pf-quality-alert__copy {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    gap: .15rem .35rem;
+    line-height: 1.35;
+}
+
+.pf-quality-alert__action {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.pf-shell > .alert:not(.pf-quality-alert) {
+    margin-bottom: .85rem;
+    padding: .65rem .8rem;
+    border-radius: .65rem;
+    font-size: .82rem;
+}
+
+/* Project finder */
+.pf-project-finder,
+.pf-project-finder--compact {
+    grid-template-columns: minmax(12rem, 15rem) minmax(20rem, 1fr);
+    gap: 1rem;
+    padding: .85rem 1rem;
+    background: var(--pf-surface);
+}
+
+.pf-project-finder h2 {
+    font-size: 1rem;
+}
+
+.pf-project-finder p {
+    margin-top: .18rem;
+    font-size: .8rem;
+    line-height: 1.4;
+}
+
+.pf-project-finder__control .form-control {
+    min-height: var(--pf-control-height);
+    padding-left: .75rem;
+    padding-right: .75rem;
+    border-radius: 0;
+}
+
+.pf-project-finder__control > i {
+    display: none;
+}
+
+.pf-project-finder__clear {
+    min-width: 2.5rem;
+    padding-inline: .65rem !important;
+}
+
+.pf-suggestions {
+    max-height: 17rem;
+    padding: .25rem;
+    border-radius: .6rem;
+}
+
+.pf-suggestion {
+    min-height: 2.8rem;
+    padding: .48rem .65rem;
+    border-radius: .42rem;
+    font-size: .86rem;
+}
+
+.pf-suggestion small {
+    font-size: .74rem;
+}
+
+/* Overview totals */
+.pf-kpi-grid {
+    gap: .75rem;
+    margin-top: .75rem;
+}
+
+.pf-kpi {
+    min-height: 6.6rem;
+    padding: .8rem .95rem;
+    border-radius: var(--pf-card-radius);
+}
+
+.pf-kpi > span {
+    font-size: .7rem;
+    letter-spacing: .035em;
+}
+
+.pf-kpi > strong {
+    margin: .22rem 0 .08rem;
+    font-size: clamp(1.65rem, 2.5vw, 2.05rem);
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+}
+
+.pf-kpi > small {
+    font-size: .76rem;
+}
+
+.pf-kpi--primary {
+    background: var(--bs-primary);
+}
+
+/* Project total list */
+.pf-project-table thead th {
+    padding: .58rem .95rem;
+    font-size: .72rem;
+    letter-spacing: .025em;
+}
+
+.pf-project-table tbody td {
+    height: 3.25rem;
+    padding: .55rem .95rem;
+    font-size: .88rem;
+}
+
+.pf-project-link {
+    max-width: 42rem;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.pf-project-link small {
+    margin-top: .08rem;
+    font-size: .72rem;
+}
+
+.pf-total-pill {
+    min-width: 4rem;
+    font-size: .95rem;
+}
+
+.pf-table-action {
+    width: 2.25rem;
+}
+
+.pf-row-open {
+    display: inline-grid;
+    width: 1.8rem;
+    height: 1.8rem;
+    place-items: center;
+    color: var(--pf-muted);
+    border-radius: 50%;
+    text-decoration: none;
+}
+
+.pf-row-open:hover,
+.pf-row-open:focus-visible {
+    color: var(--bs-primary);
+    background: rgba(var(--bs-primary-rgb), .08);
+}
+
+.pf-table-empty {
+    padding: 1.25rem;
+}
+
+/* Charts */
+.pf-chart-host {
+    height: 19.5rem;
+    padding: .75rem 1rem .55rem;
+}
+
+.pf-chart-host--category {
+    height: 20rem;
+    padding: .75rem 1rem .65rem;
+}
+
+.pf-chart-fallback {
+    padding: 0 1.1rem .75rem;
+    font-size: .78rem;
+}
+
+.pf-recent-years {
+    padding: .2rem 1rem .45rem;
+}
+
+.pf-recent-year {
+    min-height: 3.1rem;
+    padding: .55rem 0;
+}
+
+.pf-recent-year div {
+    line-height: 1.25;
+}
+
+.pf-recent-year strong {
+    font-size: .9rem;
+}
+
+.pf-recent-year small {
+    margin-top: .1rem;
+    font-size: .74rem;
+}
+
+.pf-recent-year > span {
+    font-size: 1rem;
+}
+
+.pf-analytics-details > summary {
+    min-height: 3.6rem;
+    padding: .75rem 1.1rem;
+    font-size: .9rem;
+}
+
+.pf-analytics-details > summary small {
+    font-size: .75rem;
+}
+
+/* Project detail summary: standard PRISM information card, not a dashboard hero. */
+.pf-project-summary {
+    display: grid;
+    grid-template-columns: minmax(16rem, .9fr) minmax(24rem, 1.1fr);
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.15rem;
+    background: var(--pf-surface);
+    border: 1px solid var(--pf-border);
+}
+
+.pf-project-summary__primary {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: baseline;
+    gap: .15rem .8rem;
+    min-width: 0;
+}
+
+.pf-project-summary__label {
+    grid-column: 1 / -1;
+    color: var(--pf-muted);
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .045em;
+    text-transform: uppercase;
+}
+
+.pf-project-summary__value {
+    color: var(--bs-primary);
+    font-size: clamp(2.4rem, 4.2vw, 3.35rem);
+    font-weight: 750;
+    letter-spacing: -.04em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.pf-project-summary__help {
+    align-self: center;
+    max-width: 32rem;
+    color: var(--pf-muted);
+    font-size: .79rem;
+    line-height: 1.4;
+}
+
+.pf-project-summary__stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-left: 1px solid var(--pf-border);
+}
+
+.pf-project-summary__stats > div {
+    min-width: 0;
+    padding: .25rem 1rem;
+    border-right: 1px solid var(--pf-border);
+}
+
+.pf-project-summary__stats > div:last-child {
+    border-right: 0;
+}
+
+.pf-project-summary__stats dt {
+    color: var(--pf-muted);
+    font-size: .72rem;
+    font-weight: 600;
+}
+
+.pf-project-summary__stats dd {
+    margin: .12rem 0 0;
+    font-size: 1.35rem;
+    font-weight: 700;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Legacy hero classes remain styled neutrally for compatibility. */
+.pf-total-hero {
+    gap: 1rem;
+    padding: 1rem 1.15rem;
+    color: var(--bs-body-color);
+    background: var(--pf-surface);
+    border: 1px solid var(--pf-border);
+}
+
+.pf-total-hero__label,
+.pf-total-hero__help,
+.pf-total-hero__split dt {
+    color: var(--pf-muted);
+}
+
+.pf-total-hero__value {
+    color: var(--bs-primary);
+    font-size: clamp(2.4rem, 4.2vw, 3.35rem);
+}
+
+.pf-total-hero__split > div {
+    padding: .65rem .8rem;
+    background: rgba(var(--bs-secondary-rgb), .035);
+    border-color: var(--pf-border);
+    border-radius: .55rem;
+}
+
+/* Project-year disclosure */
+.pf-year-list {
+    padding: .65rem;
+}
+
+.pf-year-card {
+    margin-bottom: .45rem;
+    border-radius: .65rem;
+}
+
+.pf-year-card__summary {
+    grid-template-columns: 6rem minmax(0, 1fr) minmax(7rem, auto) 1rem;
+    gap: .75rem;
+    min-height: 3.55rem;
+    padding: .62rem .9rem;
+}
+
+.pf-year-card__year {
+    font-size: 1.02rem;
+}
+
+.pf-year-card__sources {
+    gap: .35rem 1rem;
+    font-size: .8rem;
+}
+
+.pf-year-card__total {
+    display: grid;
+    grid-template-columns: auto auto;
+    align-items: baseline;
+    gap: .45rem;
+}
+
+.pf-year-card__total small {
+    font-size: .72rem;
+}
+
+.pf-year-card__total strong {
+    font-size: 1.05rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.pf-year-card__chevron {
+    justify-self: end;
+    font-size: .82rem;
+}
+
+.pf-year-card__body {
+    padding: .65rem;
+}
+
+.pf-calculation,
+.pf-calculation--compact {
+    padding: .7rem .8rem;
+    margin-bottom: .55rem;
+    border-radius: .6rem;
+    box-shadow: none;
+}
+
+.pf-calculation__header {
+    align-items: center;
+}
+
+.pf-calculation__header h3 {
+    font-size: .92rem;
+}
+
+.pf-calculation__header p {
+    margin-top: .08rem;
+    font-size: .75rem;
+}
+
+.pf-calculation__reported span {
+    font-size: .68rem;
+}
+
+.pf-calculation__reported strong {
+    font-size: 1.08rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.pf-calculation-grid {
+    gap: .4rem;
+    margin-top: .55rem;
+}
+
+.pf-calculation-grid > div {
+    padding: .52rem .6rem;
+    border-radius: .48rem;
+}
+
+.pf-calculation-grid span,
+.pf-calculation-grid small {
+    font-size: .68rem;
+    line-height: 1.3;
+}
+
+.pf-calculation-grid strong {
+    margin: .06rem 0;
+    font-size: 1.02rem;
+}
+
+.pf-calculation-grid__operator {
+    font-size: .9rem;
+}
+
+.pf-calculation-grid--single {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pf-calculation-grid__selected {
+    border-left: 3px solid var(--bs-primary);
+}
+
+.pf-calculation-grid__reference {
+    color: var(--pf-muted);
+    background: transparent !important;
+    border: 1px dashed var(--pf-border);
+}
+
+.pf-calculation-reference {
+    margin-top: .4rem;
+    padding: .45rem .55rem;
+}
+
+.pf-note {
+    padding: .5rem .6rem;
+    margin-top: .5rem;
+    border-radius: .5rem;
+    font-size: .76rem;
+}
+
+.pf-entry-loader {
+    margin-top: .5rem !important;
+}
+
+.pf-entry-loader__host {
+    margin-top: .4rem;
+}
+
+.pf-detail-table th,
+.pf-detail-table td,
+.pf-entry-loader__host .table th,
+.pf-entry-loader__host .table td {
+    padding: .45rem .6rem;
+    font-size: .8rem;
+}
+
+/* Records */
+.pf-filter-panel {
+    padding: .85rem 1rem;
+}
+
+.pf-filter-panel__heading {
+    margin-bottom: .7rem;
+}
+
+.pf-filter-panel__heading h2 {
+    font-size: .95rem;
+}
+
+.pf-filter-panel__heading p {
+    margin-top: .12rem;
+    font-size: .77rem;
+}
+
+.pf-record-groups {
+    padding: .55rem;
+}
+
+.pf-record-group {
+    margin-bottom: .42rem;
+    border-radius: .62rem;
+}
+
+.pf-record-group > summary {
+    grid-template-columns: minmax(14rem, 1fr) minmax(11rem, .62fr) minmax(6rem, auto) 1rem;
+    gap: .7rem;
+    min-height: 3.55rem;
+    padding: .6rem .85rem;
+}
+
+.pf-record-group__identity a {
+    font-size: .88rem;
+}
+
+.pf-record-group__identity small {
+    font-size: .74rem;
+}
+
+.pf-record-group__metrics small,
+.pf-record-group__total small {
+    font-size: .67rem;
+}
+
+.pf-record-group__metrics strong {
+    font-size: .92rem;
+}
+
+.pf-record-group__total strong {
+    font-size: 1.05rem;
+}
+
+.pf-record-group__body,
+.pf-record-entries {
+    padding: .65rem .8rem;
+}
+
+.pf-record-detail-heading {
+    margin: .65rem 0 .35rem;
+}
+
+.pf-record-group__actions {
+    margin-top: .65rem;
+}
+
+.pf-loading-state {
+    min-height: 8rem;
+}
+
+.pf-pagination-footer {
+    min-height: 2.9rem;
+}
+
+/* Reports */
+.pf-report-chooser {
+    gap: .6rem;
+}
+
+.pf-report-choice {
+    min-height: 6.9rem;
+    padding: .75rem .85rem;
+    border-radius: .65rem;
+}
+
+.pf-report-choice:hover {
+    transform: none;
+}
+
+.pf-report-choice i {
+    margin-bottom: .35rem;
+    font-size: 1.05rem;
+}
+
+.pf-report-choice strong {
+    font-size: .9rem;
+}
+
+.pf-report-choice small {
+    margin-top: .15rem;
+    font-size: .75rem;
+    line-height: 1.35;
+}
+
+.pf-selected-report {
+    min-height: 3.4rem;
+    padding: .65rem .85rem;
+    margin-top: .75rem;
+    border-radius: .65rem;
+    box-shadow: none;
+}
+
+.pf-report-config {
+    padding: .85rem 1rem;
+}
+
+.pf-report-advanced > summary {
+    margin-top: .55rem;
+    font-size: .8rem;
+}
+
+.pf-report-advanced__body {
+    padding-top: .65rem;
+}
+
+.pf-report-result-summary {
+    padding: .55rem 1rem;
+    font-size: .82rem;
+}
+
+/* Manage workspace */
+.pf-workspace-tabs {
+    gap: .2rem;
+    padding: .22rem;
+    margin-bottom: .75rem;
+    border-radius: .7rem;
+}
+
+.pf-workspace-tab {
+    min-height: 2.3rem;
+    padding: .42rem .68rem;
+    border-radius: .52rem;
+    font-size: .82rem;
+}
+
+.pf-command-bar {
+    min-height: 3.4rem;
+    padding: .55rem .75rem;
+    margin-bottom: .65rem;
+    border-radius: .65rem;
+    box-shadow: none;
+}
+
+.pf-command-bar__title {
+    font-size: .92rem;
+}
+
+.pf-command-bar__scope {
+    padding: .18rem .45rem;
+    font-size: .66rem;
+}
+
+.pf-command-bar__meta {
+    font-size: .72rem;
+}
+
+.pf-manage-new-actions {
+    gap: .5rem;
+    margin-bottom: .65rem;
+}
+
+.pf-manage-new-actions .btn {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    min-height: 3rem;
+    padding: .55rem .7rem;
+}
+
+.pf-manage-new-actions .btn strong {
+    font-size: .84rem;
+}
+
+.pf-manage-new-actions .btn small {
+    grid-column: 2;
+    font-size: .72rem;
+    line-height: 1.25;
+}
+
+.pf-manage-layout {
+    gap: .75rem;
+}
+
+.pf-manage-card .card-header {
+    padding: .75rem .85rem;
+}
+
+.pf-manage-card .card-body {
+    padding: .75rem .85rem;
+}
+
+.pf-manage-card .card-footer {
+    padding: .55rem .75rem;
+}
+
+.pf-manage-card .card-title.h5 {
+    font-size: .95rem;
+}
+
+.pf-manage-card .card-subtitle {
+    font-size: .75rem;
+}
+
+.pf-manage-results .list-group-item {
+    padding: .55rem .75rem;
+    font-size: .82rem;
+    line-height: 1.3;
+}
+
+.pf-editor-guidance {
+    padding: .55rem .65rem;
+    margin-bottom: .65rem;
+    border-radius: .5rem;
+    font-size: .76rem;
+}
+
+.pf-editor-impact {
+    gap: .55rem;
+    padding: .55rem .7rem;
+    border-radius: .55rem;
+}
+
+.pf-editor-impact strong {
+    font-size: 1.08rem;
+}
+
+.pf-rule-editor {
+    padding: .75rem;
+    border-radius: .6rem;
+}
+
+.pf-rule-editor__footer {
+    margin-top: .6rem;
+    padding-top: .55rem;
+}
+
+.pf-rule-impact {
+    margin-top: .6rem;
+    padding: .55rem .65rem;
+}
+
+.pf-quality-summary {
+    gap: .45rem;
+}
+
+.pf-quality-stat {
+    min-height: 3.8rem;
+    padding: .55rem .65rem;
+    border-radius: .55rem;
+}
+
+.pf-quality-stat span {
+    font-size: .68rem;
+}
+
+.pf-quality-stat strong {
+    font-size: 1.1rem;
+}
+
+.pf-quality-table th,
+.pf-quality-table td,
+.pf-manage-card--overrides .table th,
+.pf-manage-card--overrides .table td {
+    padding: .45rem .55rem;
+    font-size: .78rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1199.98px) {
+    .pf-project-summary {
+        grid-template-columns: minmax(14rem, .8fr) minmax(20rem, 1.2fr);
+    }
+}
+
+@media (max-width: 991.98px) {
+    .pf-project-finder,
+    .pf-project-finder--compact,
+    .pf-project-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .pf-project-summary__stats {
+        border-top: 1px solid var(--pf-border);
+        border-left: 0;
+        padding-top: .65rem;
+    }
+
+    .pf-record-group > summary {
+        grid-template-columns: minmax(0, 1fr) minmax(6rem, auto) 1rem;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .pf-shell.container-xxl {
+        padding-inline: .75rem !important;
+    }
+
+    .pf-page-header,
+    .pf-page-header--compact {
+        margin-top: .65rem;
+    }
+
+    .pf-page-actions,
+    .pf-page-actions .btn {
+        width: auto;
+    }
+
+    .pf-page-actions {
+        align-self: flex-start;
+    }
+
+    .pf-quality-alert {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .pf-quality-alert__action {
+        margin-left: 1.55rem;
+    }
+
+    .pf-project-finder,
+    .pf-project-finder--compact {
+        padding: .75rem;
+    }
+
+    .pf-kpi-grid {
+        gap: .55rem;
+    }
+
+    .pf-kpi {
+        min-height: 5.9rem;
+        padding: .7rem .8rem;
+    }
+
+    .pf-project-summary__primary {
+        grid-template-columns: 1fr;
+    }
+
+    .pf-project-summary__stats > div {
+        padding-inline: .6rem;
+    }
+
+    .pf-year-card__summary {
+        grid-template-columns: 4.25rem minmax(0, 1fr) auto 1rem;
+        min-height: 3.7rem;
+    }
+
+    .pf-year-card__sources {
+        display: flex;
+        gap: .25rem .65rem;
+        font-size: .72rem;
+    }
+
+    .pf-year-card__total {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .pf-calculation-grid,
+    .pf-calculation-grid--single {
+        grid-template-columns: 1fr;
+    }
+
+    .pf-calculation-grid__operator {
+        transform: rotate(90deg);
+        justify-self: center;
+    }
+
+    .pf-record-group > summary {
+        grid-template-columns: minmax(0, 1fr) auto 1rem;
+    }
+
+    .pf-manage-new-actions {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 479.98px) {
+    .pf-page-actions {
+        width: 100%;
+    }
+
+    .pf-page-actions .btn {
+        flex: 1 1 auto;
+    }
+
+    .pf-project-summary__stats {
+        grid-template-columns: 1fr;
+    }
+
+    .pf-project-summary__stats > div {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        padding: .45rem 0;
+        border-right: 0;
+        border-bottom: 1px solid var(--pf-border);
+    }
+
+    .pf-project-summary__stats > div:last-child {
+        border-bottom: 0;
+    }
+}
+
+/* Small controls retain Bootstrap's compact proportions inside the module. */
+.pf-shell .form-control.form-control-sm:not(textarea),
+.pf-shell .form-select.form-select-sm,
+.pf-shell .input-group.input-group-sm > .form-control,
+.pf-shell .input-group.input-group-sm > .form-select,
+.pf-shell .input-group.input-group-sm > .input-group-text,
+.pf-shell .input-group.input-group-sm > .btn {
+    min-height: 2.15rem;
+}
+
+.pf-picker-clear {
+    top: 1.85rem;
+}

@@ -18,9 +18,8 @@
 
     <partial name="_ProliferationNav" model="Model.CanManageRecords" />
 
-    <header class="pf-page-header">
+    <header class="pf-page-header pf-page-header--compact">
         <div>
-            <div class="pf-eyebrow">Proliferation</div>
             <h1 class="pf-page-title">Reports</h1>
             <p class="pf-page-subtitle mb-0">Start with the information you need. Advanced filters remain available when required.</p>
         </div>
@@ -34,16 +33,16 @@
         }
     </header>
 
-    <section class="pf-project-finder mb-4" aria-labelledby="report-project-total-heading">
+    <section class="pf-project-finder pf-project-finder--compact mb-3" aria-labelledby="report-project-total-heading">
         <div>
             <h2 id="report-project-total-heading">Total for a project</h2>
             <p>Select a project to view its total proliferation, SDD/515 ABW split, year-wise calculation and detailed entries.</p>
         </div>
         <div class="position-relative">
-            <div class="input-group input-group-lg">
+            <div class="input-group">
                 <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
                 <input class="form-control" id="pf-report-project-total" placeholder="Search project name or code" autocomplete="off" aria-describedby="pf-report-project-total-status" />
-                <button class="btn btn-outline-secondary d-none" id="pf-report-project-total-clear" type="button" aria-label="Clear selected project"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+                <button class="btn btn-outline-secondary d-none pf-project-finder__clear" id="pf-report-project-total-clear" type="button" aria-label="Clear selected project"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
                 <button class="btn btn-primary" id="pf-report-open-project" type="button" disabled>View total</button>
             </div>
             <input type="hidden" id="pf-report-project-total-id" />
@@ -97,7 +96,7 @@
         <button class="btn btn-sm btn-outline-secondary" id="pf-change-report" type="button">Change report</button>
     </div>
 
-    <section class="pf-card mt-4" aria-labelledby="report-filters-heading">
+    <section class="pf-card mt-3" aria-labelledby="report-filters-heading">
         <div class="pf-card__header">
             <div>
                 <h2 class="pf-card__title" id="report-filters-heading">Report options</h2>
@@ -206,7 +205,7 @@
         </div>
     </section>
 
-    <section class="pf-card mt-4" aria-labelledby="report-results-heading">
+    <section class="pf-card mt-3" aria-labelledby="report-results-heading">
         <div class="pf-card__header">
             <div>
                 <h2 class="pf-card__title" id="report-results-heading">Results</h2>
