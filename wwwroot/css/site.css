@@ -9156,6 +9156,7 @@ body {
     --pm-shell-focused: 76rem;   /* 1216px */
     --pm-shell-standard: 90rem;  /* 1440px */
     --pm-shell-wide: 100rem;     /* 1600px */
+    --pm-shell-calendar: 115rem; /* 1840px */
     --pm-shell-analytics: 108rem;/* 1728px */
     --pm-shell-landing: 96rem;   /* 1536px */
     --pm-shell-gutter: clamp(1rem, 2.15vw, 2.5rem);
@@ -9175,6 +9176,7 @@ body {
 .pm-page-shell--focused { max-width: var(--pm-shell-focused); }
 .pm-page-shell--standard { max-width: var(--pm-shell-standard); }
 .pm-page-shell--wide { max-width: var(--pm-shell-wide); }
+.pm-page-shell--calendar { max-width: var(--pm-shell-calendar); }
 .pm-page-shell--workspace {
     width: calc(100% - (2 * clamp(.75rem, 1.2vw, 1.5rem)));
     max-width: none;

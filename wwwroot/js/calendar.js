@@ -24,15 +24,7 @@
 
   const preferencesForm = document.getElementById('calendarPreferences');
   const showCelebrationsToggle = document.getElementById('showCelebrationsToggle');
-  const showInformationalRhToggle = document.getElementById('showInformationalRhToggle');
-  const informationalRhStorageKey = 'prism-calendar-show-informational-rh';
-  let showInformationalRh = true;
-  try {
-    showInformationalRh = window.localStorage.getItem(informationalRhStorageKey) !== 'false';
-  } catch {
-    showInformationalRh = true;
-  }
-  if (showInformationalRhToggle) showInformationalRhToggle.checked = showInformationalRh;
+  const pageShell = document.querySelector('.calendar-page-shell');
   const antiforgeryInput = preferencesForm?.querySelector('input[name="__RequestVerificationToken"]');
   const preferenceEndpoint = preferencesForm?.dataset.preferenceEndpoint || '/calendar/events/preferences/show-celebrations';
 
@@ -263,10 +255,9 @@
     return 'rh-info';
   };
 
-  const shouldDisplayHoliday = (meta) => {
-    if (!meta) return false;
-    return holidayVisualState(meta) !== 'rh-info' || showInformationalRh;
-  };
+  // Informational restricted holidays are always visible, but use a deliberately
+  // subdued presentation so they never compete with office-closure holidays.
+  const shouldDisplayHoliday = (meta) => !!meta;
 
   const getVisibleHolidayMeta = (iso) => {
     const meta = iso ? holidayMap.get(iso) : null;
@@ -1034,7 +1025,18 @@
     headerToolbar: false,
     firstDay: 1,
     height: 'auto',
+    fixedWeekCount: false,
     dayMaxEvents: 3,
+    eventTimeFormat: {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    },
+    slotLabelFormat: {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    },
     nowIndicator: true,
     navLinks: false,
     slotMinTime: '08:00:00',
@@ -1301,19 +1303,6 @@
 
   setCelebrationsStateLocal(showCelebrations);
 
-  if (showInformationalRhToggle) {
-    showInformationalRhToggle.addEventListener('change', () => {
-      showInformationalRh = !!showInformationalRhToggle.checked;
-      try {
-        window.localStorage.setItem(informationalRhStorageKey, showInformationalRh ? 'true' : 'false');
-      } catch {
-        // Display preference remains valid for the current page even when storage is unavailable.
-      }
-      refreshHolidayHighlights();
-      updateCounts();
-    });
-  }
-
   // title handling
   const lblTitle = document.getElementById('calTitle');
   function updateTitle() {
@@ -1360,12 +1349,13 @@
   const btnToday = document.getElementById('btnToday');
   btnToday && btnToday.addEventListener('click', () => calendar.today(), { passive: true });
   function markActiveView() {
-    const v = calendar.view?.type;
+    const v = calendar.view?.type || 'dayGridMonth';
     viewButtons.forEach(b => {
       const isActive = b.getAttribute('data-view') === v;
       b.classList.toggle('active', isActive);
       b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
+    if (pageShell) pageShell.dataset.calendarView = v;
   }
   calendar.on('datesSet', markActiveView);
   markActiveView();
@@ -1422,15 +1412,6 @@
         const label = cat === 'Insp' ? 'Inspection' : cat;
         return `<span><span class="legend-dot pm-cat-${cat.toLowerCase()}"></span>${label} (${n})</span>`;
       }).join('');
-      const holidayDays = [...holidayMap.values()];
-      const gazettedCount = holidayDays.filter(day => holidayVisualState(day) === 'gazetted').length;
-      const observedRhCount = holidayDays.filter(day => holidayVisualState(day) === 'rh-observed').length;
-      const informationalRhCount = showInformationalRh
-        ? holidayDays.filter(day => holidayVisualState(day) === 'rh-info').length
-        : 0;
-      if (gazettedCount > 0) html += `<span><span class="legend-dot pm-holiday--gazetted"></span>Gazetted · office closed (${gazettedCount})</span>`;
-      if (observedRhCount > 0) html += `<span><span class="legend-dot pm-holiday--rh-observed"></span>RH office holiday (${observedRhCount})</span>`;
-      if (informationalRhCount > 0) html += `<span><span class="legend-dot pm-holiday--rh-info"></span>RH · office open (${informationalRhCount})</span>`;
       legend.innerHTML = html;
     }
   }

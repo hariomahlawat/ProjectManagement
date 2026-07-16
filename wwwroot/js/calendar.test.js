@@ -94,6 +94,38 @@ class FakeCalendar {
     }
 }
 
+test('calendar uses compact month rows and official 24-hour time labels', async () => {
+    const dom = new JSDOM(`<!DOCTYPE html><html><body>
+        <div id="calendar" data-show-celebrations="false"></div>
+    </body></html>`, { url: 'https://example.test/Calendar', runScripts: 'dangerously' });
+
+    const { window } = dom;
+    window.alert = () => {};
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    window.FullCalendar = {
+        Calendar: FakeCalendar,
+        dayGrid: () => ({}),
+        timeGrid: () => ({}),
+        list: () => ({}),
+        interaction: () => ({})
+    };
+    window.fetch = async () => ({ ok: true, status: 200, json: async () => [] });
+
+    const scriptEl = window.document.createElement('script');
+    scriptEl.textContent = scriptContent;
+    window.document.body.appendChild(scriptEl);
+    await new Promise(resolve => setTimeout(resolve, 25));
+
+    const options = FakeCalendar.lastInstance.opts;
+    assert.equal(options.fixedWeekCount, false);
+    assert.equal(options.eventTimeFormat.hour, '2-digit');
+    assert.equal(options.eventTimeFormat.minute, '2-digit');
+    assert.equal(options.eventTimeFormat.hour12, false);
+    assert.equal(options.slotLabelFormat.hour, '2-digit');
+    assert.equal(options.slotLabelFormat.minute, '2-digit');
+    assert.equal(options.slotLabelFormat.hour12, false);
+});
+
 test('calendar highlights admin holidays during initial load', async () => {
     const dom = new JSDOM(`<!DOCTYPE html><html><body>
         <div id="calendar" data-show-celebrations="false">
@@ -182,9 +214,8 @@ test('calendar highlights admin holidays during initial load', async () => {
 });
 
 
-test('informational RH remains subtle and can be hidden without affecting closure holidays', async () => {
+test('informational RH remains subtle and is always visible', async () => {
     const dom = new JSDOM(`<!DOCTYPE html><html><body>
-        <input id="showInformationalRhToggle" type="checkbox" checked />
         <div id="calendar" data-show-celebrations="false">
             <div class="fc-daygrid-day" data-date="2024-12-26">
                 <div class="fc-daygrid-day-top"><div class="fc-daygrid-day-number" title="26"></div></div>
@@ -232,16 +263,8 @@ test('informational RH remains subtle and can be hidden without affecting closur
     const number = cell.querySelector('.fc-daygrid-day-number');
     assert.ok((number.getAttribute('title') || '').includes('Office open'));
     assert.ok((number.getAttribute('title') || '').includes('No effect on project schedules'));
-
-    const toggle = window.document.getElementById('showInformationalRhToggle');
-    toggle.checked = false;
-    toggle.dispatchEvent(new window.Event('change', { bubbles: true }));
-
-    assert.ok(!cell.classList.contains('pm-holiday'));
-    assert.equal(cell.querySelector('.pm-holiday-badge'), null);
-    assert.equal(window.localStorage.getItem('prism-calendar-show-informational-rh'), 'false');
+    assert.equal(window.document.getElementById('showInformationalRhToggle'), null);
 });
-
 
 test('calendar celebration source uses the supported events endpoint and filters celebrations', async () => {
     const dom = new JSDOM(`<!DOCTYPE html><html><body>

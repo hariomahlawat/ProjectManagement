@@ -3,14 +3,14 @@
 @{
     ViewData["Title"] = "Calendar";
     ViewData["UseFullWidth"] = true;
-    ViewData["PageShell"] = "wide";
+    ViewData["PageShell"] = "calendar";
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/calendar.css" asp-append-version="true" />
 }
 
-<div class="calendar-page-shell">
+<div class="calendar-page-shell" data-calendar-view="dayGridMonth">
   <header class="calendar-page-header">
     <div>
       <h1 class="calendar-page-title">Calendar</h1>
@@ -64,13 +64,30 @@
         <button type="button" data-view="listMonth">List</button>
       </div>
 
-      <div class="calendar-display-options" aria-label="Calendar display options">
-        <div class="form-check form-switch m-0">
-          <input class="form-check-input"
-                 type="checkbox"
-                 id="showInformationalRhToggle"
-                 checked>
-          <label class="form-check-label" for="showInformationalRhToggle">Show informational RH</label>
+      <div class="dropdown calendar-holiday-help">
+        <button class="calendar-holiday-help__button"
+                type="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+                aria-label="Explain holiday indicators"
+                title="Holiday indicators">
+          <i class="bi bi-info-circle" aria-hidden="true"></i>
+          <span class="calendar-holiday-help__label">Holiday indicators</span>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end calendar-holiday-help__menu">
+          <div class="calendar-holiday-help__title">Holiday indicators</div>
+          <div class="calendar-holiday-help__item">
+            <span class="calendar-holiday-guide__mark calendar-holiday-guide__mark--gazetted" aria-hidden="true"></span>
+            <span><strong>Gazetted holiday</strong><small>Office closed; project schedules are affected.</small></span>
+          </div>
+          <div class="calendar-holiday-help__item">
+            <span class="calendar-holiday-guide__mark calendar-holiday-guide__mark--observed" aria-hidden="true"></span>
+            <span><strong>RH office holiday</strong><small>Office closed for the establishment.</small></span>
+          </div>
+          <div class="calendar-holiday-help__item">
+            <span class="calendar-holiday-guide__mark calendar-holiday-guide__mark--info" aria-hidden="true">RH</span>
+            <span><strong>Informational RH</strong><small>Office remains open; shown for information.</small></span>
+          </div>
         </div>
       </div>
 
@@ -90,19 +107,30 @@
     </div>
   </section>
 
-  <div class="calendar-holiday-guide" aria-label="Holiday display legend">
-    <span><span class="calendar-holiday-guide__mark calendar-holiday-guide__mark--gazetted" aria-hidden="true"></span><strong>Gazetted</strong> — office closed</span>
-    <span><span class="calendar-holiday-guide__mark calendar-holiday-guide__mark--observed" aria-hidden="true"></span><strong>RH office holiday</strong> — office closed</span>
-    <span><span class="calendar-holiday-guide__mark calendar-holiday-guide__mark--info" aria-hidden="true">RH</span><strong>RH</strong> — information only</span>
-  </div>
-
   <section class="calendar-card" aria-label="Calendar">
 <div id="calendar"
      class="shadow-sm border rounded-3 bg-white"
      data-can-edit="@Model.CanEdit.ToString().ToLowerInvariant()"
      data-show-celebrations="@Model.ShowCelebrations.ToString().ToLowerInvariant()"></div>
 
-<div id="categoryLegend" class="calendar-legend" aria-label="Calendar legend"></div>
+<footer class="calendar-card-footer" aria-label="Calendar indicators">
+  <div id="categoryLegend" class="calendar-legend" aria-label="Event category legend"></div>
+  <div class="calendar-holiday-footer" aria-label="Holiday indicators">
+    <span class="calendar-holiday-footer__label">Holiday indicators</span>
+    <span class="calendar-holiday-footer__item">
+      <span class="calendar-holiday-guide__mark calendar-holiday-guide__mark--gazetted" aria-hidden="true"></span>
+      <span><strong>Gazetted</strong> — office closed</span>
+    </span>
+    <span class="calendar-holiday-footer__item">
+      <span class="calendar-holiday-guide__mark calendar-holiday-guide__mark--observed" aria-hidden="true"></span>
+      <span><strong>RH office holiday</strong> — office closed</span>
+    </span>
+    <span class="calendar-holiday-footer__item">
+      <span class="calendar-holiday-guide__mark calendar-holiday-guide__mark--info" aria-hidden="true">RH</span>
+      <span><strong>RH</strong> — information only</span>
+    </span>
+  </div>
+</footer>
   </section>
 </div>
 
