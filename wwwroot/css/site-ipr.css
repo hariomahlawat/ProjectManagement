@@ -85,15 +85,17 @@
 .ipr-insight {
     position: relative;
     min-width: 0;
-    padding: 12px 16px 11px;
     border-right: 1px solid var(--ipr-border);
     color: inherit;
     text-decoration: none;
     transition: background-color .15s ease;
 }
 
+a.ipr-insight { display: flex; flex-direction: column; justify-content: center; padding: 12px 16px 11px; }
+article.ipr-insight { display: flex; flex-direction: column; padding: 0; }
 .ipr-insight:last-child { border-right: 0; }
-.ipr-insight:hover { background: #f8faff; }
+.ipr-insight:hover,
+.ipr-insight:focus-within { background: #f8faff; }
 .ipr-insight::before {
     position: absolute;
     top: 0;
@@ -109,12 +111,29 @@
 .ipr-insight--projects::before { background: var(--ipr-violet); }
 .ipr-insight--attention::before { background: #9aa7ba; }
 .ipr-insight--attention.has-attention::before { background: var(--ipr-red); }
-.ipr-insight span,
-.ipr-insight small { display: block; }
-.ipr-insight span { color: #52627b; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .045em; }
-.ipr-insight strong { display: inline-block; margin: 3px 8px 1px 0; font-size: 1.55rem; line-height: 1; }
-.ipr-insight small { overflow: hidden; color: var(--ipr-muted); font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
-.ipr-insight--attention.has-attention strong { color: var(--ipr-red); }
+.ipr-insight__primary { display: block; min-width: 0; padding: 12px 16px 4px; color: inherit; text-decoration: none; }
+.ipr-insight > span,
+.ipr-insight > small,
+.ipr-insight__primary > span,
+.ipr-insight__primary > small { display: block; }
+.ipr-insight > span,
+.ipr-insight__primary > span { color: #52627b; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .045em; }
+.ipr-insight > strong,
+.ipr-insight__primary > strong { display: inline-block; margin: 3px 8px 1px 0; font-size: 1.55rem; line-height: 1; }
+.ipr-insight > small,
+.ipr-insight__primary > small { overflow: hidden; color: var(--ipr-muted); font-size: .69rem; text-overflow: ellipsis; white-space: nowrap; }
+.ipr-insight--attention.has-attention > strong { color: var(--ipr-red); }
+.ipr-insight__bar { display: flex; height: 3px; margin: 3px 16px 6px; overflow: hidden; border-radius: 999px; background: #edf1f6; }
+.ipr-insight__bar > span { min-width: 0; }
+.ipr-insight__bar .is-patent { background: var(--ipr-blue); }
+.ipr-insight__bar .is-copyright { background: var(--ipr-violet); }
+.ipr-insight__breakdown { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 0 16px 10px; color: #8190a5; font-size: .67rem; line-height: 1.15; }
+.ipr-insight__breakdown > span { flex: 0 0 auto; }
+.ipr-insight__breakdown a { display: inline-flex; align-items: center; gap: 4px; min-width: 0; color: #4f6079; font-weight: 650; text-decoration: none; white-space: nowrap; }
+.ipr-insight__breakdown a:hover { color: var(--ipr-blue-dark); text-decoration: underline; }
+.ipr-insight__breakdown i { display: inline-block; width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; }
+.ipr-insight__breakdown i.is-patent { background: var(--ipr-blue); }
+.ipr-insight__breakdown i.is-copyright { background: var(--ipr-violet); }
 
 .ipr-tabs {
     display: flex;
@@ -437,7 +456,8 @@
 .ipr-type-matrix__head,
 .ipr-type-matrix__row { display: grid; grid-template-columns: 1fr 55px 66px 68px; gap: 7px; align-items: center; }
 .ipr-type-matrix__head { padding: 8px 0; border-bottom: 1px solid var(--ipr-border); color: var(--ipr-muted); font-size: .63rem; font-weight: 720; letter-spacing: .045em; text-transform: uppercase; }
-.ipr-type-matrix__row { min-height: 42px; border-bottom: 1px solid #edf1f6; font-size: .75rem; }
+.ipr-type-matrix__row { min-height: 44px; border-bottom: 1px solid #edf1f6; font-size: .75rem; }
+.ipr-type-matrix__row > span small { display: block; margin-top: 1px; color: var(--ipr-muted); font-size: .57rem; font-weight: 600; text-transform: lowercase; }
 .ipr-type-matrix__row:last-child { border-bottom: 0; }
 .ipr-type-matrix__head span:not(:first-child),
 .ipr-type-matrix__row span { text-align: center; }
@@ -460,6 +480,69 @@
 .ipr-empty-state p { margin: 0; font-size: .82rem; }
 .ipr-empty-state--success i { color: var(--ipr-green); }
 .ipr-compact-empty { display: flex; align-items: center; gap: 9px; padding: 24px; color: var(--ipr-muted); }
+
+
+/* Patent/copyright guidance */
+.ipr-guidance-trigger { white-space: nowrap; }
+.ipr-field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ipr-field-label-row .form-label { margin-bottom: 6px; }
+.ipr-inline-info-button {
+    display: inline-grid;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--ipr-blue);
+    font-size: .92rem;
+}
+.ipr-inline-info-button:hover,
+.ipr-inline-info-button:focus-visible { background: var(--ipr-blue-soft); color: var(--ipr-blue-dark); outline: none; }
+.ipr-type-guidance,
+.ipr-type-both-note { display: flex; align-items: flex-start; gap: 7px; margin-top: 8px; font-size: .7rem; line-height: 1.4; }
+.ipr-type-guidance { color: #425774; }
+.ipr-type-guidance i { margin-top: 1px; color: #b3760e; }
+.ipr-type-both-note { color: #62579a; }
+.ipr-type-both-note i { margin-top: 1px; color: var(--ipr-violet); }
+.ipr-position-guidance { display: block; min-height: 1.1rem; margin-top: 5px; color: #718097; font-size: .67rem; line-height: 1.35; }
+.ipr-decision-aid { margin-top: 8px; border-top: 1px dashed #dbe3ee; padding-top: 7px; }
+.ipr-decision-aid summary { cursor: pointer; color: var(--ipr-blue-dark); font-size: .69rem; font-weight: 700; }
+.ipr-decision-aid ol { margin: 7px 0 0; padding-left: 1.1rem; color: #5f6f86; font-size: .67rem; line-height: 1.45; }
+.ipr-decision-aid li + li { margin-top: 4px; }
+
+.ipr-guidance-modal .modal-content { overflow: hidden; border: 0; border-radius: 16px; box-shadow: 0 24px 70px rgba(16, 33, 63, .22); }
+.ipr-guidance-modal .modal-header { align-items: flex-start; padding: 20px 22px 17px; border-bottom: 1px solid var(--ipr-border); }
+.ipr-guidance-modal .modal-header h2 { margin: 2px 0 3px; color: var(--ipr-navy); font-size: 1.24rem; font-weight: 760; }
+.ipr-guidance-modal .modal-header p { margin: 0; color: var(--ipr-muted); font-size: .78rem; }
+.ipr-guidance-modal__eyebrow { color: var(--ipr-blue); font-size: .64rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.ipr-guidance-modal .modal-body { padding: 20px 22px; background: #f8fafd; }
+.ipr-guidance-modal .modal-footer { padding: 12px 22px; border-top: 1px solid var(--ipr-border); }
+.ipr-guidance-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.ipr-guidance-card { padding: 17px; border: 1px solid var(--ipr-border); border-radius: 13px; background: #fff; }
+.ipr-guidance-card--patent { border-top: 3px solid var(--ipr-blue); }
+.ipr-guidance-card--copyright { border-top: 3px solid var(--ipr-violet); }
+.ipr-guidance-card__heading { display: flex; align-items: center; gap: 11px; }
+.ipr-guidance-card__icon { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; border-radius: 10px; font-size: 1rem; }
+.ipr-guidance-card--patent .ipr-guidance-card__icon { background: var(--ipr-blue-soft); color: var(--ipr-blue); }
+.ipr-guidance-card--copyright .ipr-guidance-card__icon { background: var(--ipr-violet-soft); color: var(--ipr-violet); }
+.ipr-guidance-card__heading span:not(.ipr-guidance-card__icon) { display: block; color: var(--ipr-muted); font-size: .63rem; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
+.ipr-guidance-card__heading strong { display: block; margin-top: 1px; color: #233653; font-size: .85rem; }
+.ipr-guidance-card > p { margin: 13px 0; color: #53647d; font-size: .75rem; line-height: 1.5; }
+.ipr-guidance-card h3 { margin: 0 0 7px; color: #32455f; font-size: .69rem; font-weight: 760; text-transform: uppercase; letter-spacing: .04em; }
+.ipr-guidance-card ul { margin: 0; padding-left: 1.05rem; color: #52637a; font-size: .72rem; line-height: 1.5; }
+.ipr-guidance-card__status { margin-top: 13px; padding-top: 10px; border-top: 1px solid #e8edf4; color: #617087; font-size: .68rem; }
+.ipr-guidance-both { display: flex; align-items: flex-start; gap: 12px; margin-top: 14px; padding: 14px 16px; border: 1px solid #dcd5ff; border-radius: 12px; background: var(--ipr-violet-soft); }
+.ipr-guidance-both__icon { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: 9px; background: #fff; color: var(--ipr-violet); }
+.ipr-guidance-both h3 { margin: 0 0 3px; color: #433685; font-size: .82rem; }
+.ipr-guidance-both p { margin: 0; color: #625b85; font-size: .72rem; line-height: 1.45; }
+.ipr-guidance-checklist { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--ipr-border); border-radius: 12px; background: #fff; }
+.ipr-guidance-checklist h3 { margin: 0 0 8px; color: #2d405d; font-size: .8rem; }
+.ipr-guidance-checklist ol { display: grid; gap: 6px; margin: 0; padding-left: 1.1rem; color: #56677e; font-size: .72rem; }
+.ipr-guidance-note { display: flex; align-items: flex-start; gap: 9px; margin-top: 14px; color: #6b778b; font-size: .68rem; line-height: 1.45; }
+.ipr-guidance-note i { margin-top: 1px; color: var(--ipr-green); }
 
 /* Drawer and write workflow */
 .ipr-record-drawer {
@@ -580,6 +663,13 @@
     .ipr-danger-zone { align-items: flex-start; flex-direction: column; }
 }
 
+
+@media (max-width: 768px) {
+    .ipr-guidance-comparison { grid-template-columns: 1fr; }
+    .ipr-guidance-trigger { flex: 1 1 100%; }
+    .ipr-insight__breakdown { font-size: .64rem; }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .ipr-insight,
     .ipr-project-group__metrics > i { transition: none; }
@@ -618,6 +708,22 @@
 [data-bs-theme="dark"] .ipr-project-picker__option:hover,
 [data-bs-theme="dark"] .ipr-project-picker__option.is-active,
 [data-bs-theme="dark"] .ipr-project-picker__option[aria-selected="true"] { background: #26354d; }
+[data-bs-theme="dark"] .ipr-guidance-modal .modal-content,
+[data-bs-theme="dark"] .ipr-guidance-card,
+[data-bs-theme="dark"] .ipr-guidance-checklist { background: #172033; color: #e6edf7; }
+[data-bs-theme="dark"] .ipr-guidance-modal .modal-body { background: #111827; }
+[data-bs-theme="dark"] .ipr-guidance-card__heading strong,
+[data-bs-theme="dark"] .ipr-guidance-modal .modal-header h2,
+[data-bs-theme="dark"] .ipr-guidance-card h3,
+[data-bs-theme="dark"] .ipr-guidance-checklist h3 { color: #e6edf7; }
+[data-bs-theme="dark"] .ipr-guidance-card > p,
+[data-bs-theme="dark"] .ipr-guidance-card ul,
+[data-bs-theme="dark"] .ipr-guidance-checklist ol,
+[data-bs-theme="dark"] .ipr-type-guidance { color: #b9c5d6; }
+[data-bs-theme="dark"] .ipr-guidance-both { border-color: #4a3f79; background: #292444; }
+[data-bs-theme="dark"] .ipr-guidance-both h3 { color: #ddd7ff; }
+[data-bs-theme="dark"] .ipr-guidance-both p,
+[data-bs-theme="dark"] .ipr-type-both-note { color: #c9c1f4; }
 [data-bs-theme="dark"] .ipr-record-drawer { --ipr-drawer-surface: #172033; --ipr-drawer-subtle: #111827; --ipr-drawer-border: #2d3a50; }
 [data-bs-theme="dark"] .ipr-drawer-form__actions { background: rgba(23,32,51,.97); }
 [data-bs-theme="dark"] .ipr-form-field .form-control,

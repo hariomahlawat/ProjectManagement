@@ -389,21 +389,21 @@ public sealed class IprWriteService : IIprWriteService
         {
             throw new IprValidationException(
                 IprValidationCode.GrantDateRequired,
-                "Grant date is required once the record is granted.");
+                "Protection date is required once the record is protected.");
         }
 
         if (grantedDate.HasValue && grantedDate.Value > todayIst)
         {
             throw new IprValidationException(
                 IprValidationCode.GrantDateInFuture,
-                "Grant date cannot be in the future.");
+                "Protection date cannot be in the future.");
         }
 
         if (grantedDate.HasValue && grantedDate.Value < filedDate.Value)
         {
             throw new IprValidationException(
                 IprValidationCode.GrantDateBeforeFilingDate,
-                "Grant date cannot be earlier than the filing date.");
+                "Protection date cannot be earlier than the filing date.");
         }
     }
 

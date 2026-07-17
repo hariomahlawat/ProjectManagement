@@ -42,8 +42,13 @@ public sealed partial class IndexModel
             })
             .ToList();
 
+        var selectedFormType = Input.Type;
         StatusFormOptions = supportedStatuses
-            .Select(status => new SelectListItem(GetStatusLabel(status), status.ToString())
+            .Select(status => new SelectListItem(
+                selectedFormType is IprType type
+                    ? GetStatusLabel(status, type)
+                    : GetStatusLabel(status),
+                status.ToString())
             {
                 Selected = Input.Status.HasValue && Input.Status.Value == status
             })
@@ -222,9 +227,21 @@ public sealed partial class IndexModel
     private static string GetStatusLabel(IprStatus status)
         => status switch
         {
-            IprStatus.FilingUnderProcess => "Awaiting grant",
-            IprStatus.Filed => "Awaiting grant",
-            IprStatus.Granted => "Granted",
+            IprStatus.FilingUnderProcess => "Pending",
+            IprStatus.Filed => "Pending",
+            IprStatus.Granted => "Protected",
+            IprStatus.Rejected => "Rejected",
+            IprStatus.Withdrawn => "Withdrawn",
+            _ => status.ToString()
+        };
+
+    private static string GetStatusLabel(IprStatus status, IprType type)
+        => status switch
+        {
+            IprStatus.FilingUnderProcess or IprStatus.Filed
+                => type == IprType.Copyright ? "Registration pending" : "Patent pending",
+            IprStatus.Granted
+                => type == IprType.Copyright ? "Copyright registered" : "Patent granted",
             IprStatus.Rejected => "Rejected",
             IprStatus.Withdrawn => "Withdrawn",
             _ => status.ToString()

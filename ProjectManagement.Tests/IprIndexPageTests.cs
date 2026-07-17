@@ -354,12 +354,12 @@ public sealed class IprIndexPageTests
             var filedKey = $"{nameof(IndexModel.Input)}.{nameof(IndexModel.RecordInput.FiledOn)}";
             Assert.True(page.ModelState.TryGetValue(filedKey, out var filedEntry));
             var filedMessage = Assert.Single(filedEntry.Errors).ErrorMessage;
-            Assert.Equal("Grant date cannot be earlier than the filing date.", filedMessage);
+            Assert.Equal("Protection date cannot be earlier than the filing date.", filedMessage);
 
             var grantedKey = $"{nameof(IndexModel.Input)}.{nameof(IndexModel.RecordInput.GrantedOn)}";
             Assert.True(page.ModelState.TryGetValue(grantedKey, out var grantedEntry));
             var grantedMessage = Assert.Single(grantedEntry.Errors).ErrorMessage;
-            Assert.Equal("Grant date cannot be earlier than the filing date.", grantedMessage);
+            Assert.Equal("Protection date cannot be earlier than the filing date.", grantedMessage);
         }
         finally
         {
@@ -390,6 +390,80 @@ public sealed class IprIndexPageTests
 
         var formOptionValues = page.TypeFormOptions.Select(o => o.Value).ToArray();
         Assert.Equal(expectedValues, formOptionValues);
+    }
+
+    [Fact]
+    public async Task OnGetAsync_BuildsPatentAndCopyrightBreakdownForFiledProtectedAndPending()
+    {
+        await using var db = CreateDbContext();
+        db.IprRecords.AddRange(
+            new IprRecord
+            {
+                IprFilingNumber = "PAT-PENDING",
+                Title = "Pending patent",
+                Type = IprType.Patent,
+                Status = IprStatus.Filed,
+                FiledAtUtc = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            },
+            new IprRecord
+            {
+                IprFilingNumber = "PAT-GRANTED",
+                Title = "Granted patent",
+                Type = IprType.Patent,
+                Status = IprStatus.Granted,
+                FiledAtUtc = new DateTimeOffset(2023, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                GrantedAtUtc = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            },
+            new IprRecord
+            {
+                IprFilingNumber = "CR-PENDING",
+                Title = "Pending copyright",
+                Type = IprType.Copyright,
+                Status = IprStatus.Filed,
+                FiledAtUtc = new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero)
+            },
+            new IprRecord
+            {
+                IprFilingNumber = "CR-REGISTERED",
+                Title = "Registered copyright",
+                Type = IprType.Copyright,
+                Status = IprStatus.Granted,
+                FiledAtUtc = new DateTimeOffset(2023, 2, 1, 0, 0, 0, TimeSpan.Zero),
+                GrantedAtUtc = new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero)
+            });
+        await db.SaveChangesAsync();
+
+        using var userManager = CreateUserManager(db);
+        var page = new IndexModel(
+            db,
+            new IprReadService(db),
+            new StubIprWriteService(),
+            new AllowAuthorizationService(),
+            userManager,
+            new StubIprExportService(),
+            CreateAttachmentOptions());
+        ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.EditAllowedRoles[0]));
+
+        var result = await page.OnGetAsync(CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Equal(4, page.Kpis.Total);
+        Assert.Equal(2, page.Kpis.Granted);
+        Assert.Equal(2, page.Kpis.Filed);
+
+        var patent = page.TypeBreakdown.Single(item => item.Type == IprType.Patent);
+        Assert.Equal("Patent", patent.TypeLabel);
+        Assert.Equal(2, patent.Filed);
+        Assert.Equal(1, patent.Protected);
+        Assert.Equal(1, patent.Pending);
+        Assert.Equal("granted", patent.ProtectedVerb);
+
+        var copyright = page.TypeBreakdown.Single(item => item.Type == IprType.Copyright);
+        Assert.Equal("Copyright", copyright.TypeLabel);
+        Assert.Equal(2, copyright.Filed);
+        Assert.Equal(1, copyright.Protected);
+        Assert.Equal(1, copyright.Pending);
+        Assert.Equal("registered", copyright.ProtectedVerb);
     }
 
     private static ApplicationDbContext CreateDbContext()

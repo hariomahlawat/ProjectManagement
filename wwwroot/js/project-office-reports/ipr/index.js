@@ -481,9 +481,11 @@
       setText('[data-ipr-inspector-notes]', record.ExternalRemark ?? record.externalRemark ?? 'No notes recorded.');
 
       const type = record.IprType ?? record.iprType ?? 'Patent';
-      const status = record.Status ?? record.status ?? 'Awaiting grant';
+      const status = record.Status ?? record.status ?? 'Patent pending';
       setBadge('[data-ipr-inspector-type]', type, 'ipr-type-badge', normalizeText(type));
-      setBadge('[data-ipr-inspector-status]', status, 'ipr-status-badge', status === 'Granted' ? 'granted' : 'filed');
+      const protectedStatus = /granted|registered|protected/i.test(status);
+      setBadge('[data-ipr-inspector-status]', status, 'ipr-status-badge', protectedStatus ? 'granted' : 'filed');
+      setText('[data-ipr-inspector-protected-label]', normalizeText(type) === 'copyright' ? 'Registered on' : 'Granted on');
       replaceProject(record);
       renderAttachments(record);
 
@@ -701,7 +703,7 @@
       const anyOpen = visibleGroups.some(group => group.open);
       expand.innerHTML = anyOpen
         ? '<i class="bi bi-arrows-collapse" aria-hidden="true"></i> Collapse all'
-        : '<i class="bi bi-chevron-double-down" aria-hidden="true"></i> Expand awaiting';
+        : '<i class="bi bi-chevron-double-down" aria-hidden="true"></i> Expand pending';
     };
 
     const filter = () => {
@@ -775,6 +777,60 @@
     });
   };
 
+  const initialiseTypeGuidance = () => {
+    const guidanceByType = {
+      patent: {
+        guidance: 'Use for a new technical product, process, mechanism or technical working arrangement.',
+        position: 'Granted means the patent grant has been issued.',
+        pending: 'Patent pending',
+        protected: 'Patent granted',
+        date: 'Grant date'
+      },
+      copyright: {
+        guidance: 'Use for original software, documents, drawings, 3D assets, audiovisual or training content.',
+        position: 'Registered means the copyright registration has been issued.',
+        pending: 'Registration pending',
+        protected: 'Copyright registered',
+        date: 'Registration date'
+      },
+      default: {
+        guidance: 'Patent protects a technical invention; copyright protects original software, documents and creative material.',
+        position: 'Select an IPR category to use the correct lifecycle terminology.',
+        pending: 'Pending',
+        protected: 'Protected',
+        date: 'Protection date'
+      }
+    };
+
+    document.querySelectorAll('[data-ipr-record-form]').forEach(form => {
+      const typeSelect = form.querySelector('[data-ipr-type-select]');
+      const statusSelect = form.querySelector('[data-ipr-status-select]');
+      const guidance = form.querySelector('[data-ipr-type-guidance] span');
+      const positionGuidance = form.querySelector('[data-ipr-position-guidance]');
+      const dateLabel = form.querySelector('[data-ipr-protected-date-label]');
+      if (!typeSelect) return;
+
+      const sync = () => {
+        const key = normalizeText(typeSelect.value);
+        const content = guidanceByType[key] || guidanceByType.default;
+        if (guidance) guidance.textContent = content.guidance;
+        if (positionGuidance) positionGuidance.textContent = content.position;
+        if (dateLabel) dateLabel.textContent = content.date;
+
+        if (statusSelect) {
+          Array.from(statusSelect.options).forEach(option => {
+            const value = normalizeText(option.value);
+            if (value === 'filed') option.textContent = content.pending;
+            if (value === 'granted') option.textContent = content.protected;
+          });
+        }
+      };
+
+      sync();
+      typeSelect.addEventListener('change', sync);
+    });
+  };
+
   const initialiseGrantedDate = () => {
     document.querySelectorAll('[data-ipr-record-form]').forEach(form => {
       const status = form.querySelector('[data-ipr-status-select]');
@@ -819,6 +875,7 @@
   initialiseConfirmations();
   initialiseToasts();
   initialiseAutoSubmitFilters();
+  initialiseTypeGuidance();
   initialiseGrantedDate();
   initialiseAttachmentUpload();
 })();

@@ -97,7 +97,7 @@ test('IPR project view is grouped into expandable project dossiers', () => {
   assert.match(pageSource, /data-ipr-project-group/);
   assert.match(pageSource, /Project dossiers/);
   assert.match(source, /initialiseProjectGroups/);
-  assert.match(source, /Expand awaiting/);
+  assert.match(source, /Expand pending/);
 });
 
 test('IPR module provides an operational follow-up view and compact insight ribbon', () => {
@@ -133,7 +133,7 @@ test('IPR project dossiers provide explicit status filtering, operational sortin
   assert.match(pageSource, /All IPR statuses/);
   assert.match(pageSource, /data-ipr-project-group-sort/);
   assert.match(pageSource, /Attention first/);
-  assert.match(pageSource, /Expand awaiting/);
+  assert.match(pageSource, /Expand pending/);
   assert.match(source, /sortGroups/);
   assert.match(source, /group\.dataset\.awaiting === 'true'/);
 });
@@ -166,3 +166,43 @@ test('IPR records page uses natural browser scrolling without nested vertical sc
   assert.doesNotMatch(cssSource, /\.ipr-record-workbench\s*\{[\s\S]*height:\s*clamp\(/);
   assert.doesNotMatch(cssSource, /\.ipr-record-inspector\s*\{[^}]*overflow-y:\s*auto/);
 });
+
+test('IPR entry workflow provides layered patent and copyright guidance', () => {
+  const pageSource = fs.readFileSync(
+    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
+    'utf8'
+  );
+  const guidanceSource = fs.readFileSync(
+    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/_IprGuidanceModal.cshtml'),
+    'utf8'
+  );
+  assert.match(pageSource, /Patent or copyright\?/);
+  assert.match(pageSource, /_IprGuidanceModal/);
+  assert.match(formSource, /data-ipr-type-select/);
+  assert.match(formSource, /data-ipr-type-guidance/);
+  assert.match(formSource, /Not sure\? Check in 3 questions/);
+  assert.match(formSource, /A project may require both/);
+  assert.match(guidanceSource, /Protects a technical invention/);
+  assert.match(guidanceSource, /Protects original expression/);
+  assert.match(source, /initialiseTypeGuidance/);
+  assert.match(source, /Copyright registered/);
+  assert.match(source, /Patent granted/);
+});
+
+test('IPR summary exposes patent and copyright splits for filed, protected and pending records', () => {
+  const pageSource = fs.readFileSync(
+    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
+    'utf8'
+  );
+  assert.match(pageSource, /patentBreakdown/);
+  assert.match(pageSource, /copyrightBreakdown/);
+  assert.match(pageSource, /Filed IPR category split/);
+  assert.match(pageSource, /Protected IPR category split/);
+  assert.match(pageSource, /Pending IPR category split/);
+  assert.match(pageSource, /patents granted/);
+  assert.match(pageSource, /copyrights registered/);
+  assert.match(pageSource, /ipr-insight__bar/);
+  assert.match(cssSource, /\.ipr-insight__breakdown/);
+  assert.match(cssSource, /\.ipr-insight__bar/);
+});
+

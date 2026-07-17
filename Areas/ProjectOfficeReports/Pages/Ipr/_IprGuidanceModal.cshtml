@@ -1,0 +1,82 @@
+<div class="modal fade ipr-guidance-modal"
+     id="iprGuidanceModal"
+     tabindex="-1"
+     aria-labelledby="iprGuidanceModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <span class="ipr-guidance-modal__eyebrow">IPR decision aid</span>
+                    <h2 class="modal-title" id="iprGuidanceModalLabel">Patent, copyright—or both?</h2>
+                    <p>Start with what the organisation is trying to protect.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="ipr-guidance-comparison">
+                    <article class="ipr-guidance-card ipr-guidance-card--patent">
+                        <div class="ipr-guidance-card__heading">
+                            <span class="ipr-guidance-card__icon"><i class="bi bi-gear-wide-connected" aria-hidden="true"></i></span>
+                            <div>
+                                <span>Patent</span>
+                                <strong>Protects a technical invention</strong>
+                            </div>
+                        </div>
+                        <p>Use where novelty lies in how a product, process, mechanism or technical system works.</p>
+                        <h3>Typical SDD examples</h3>
+                        <ul>
+                            <li>Novel recoil or motion mechanism</li>
+                            <li>New sensor, tracking or control architecture</li>
+                            <li>Innovative hardware arrangement or technical process</li>
+                        </ul>
+                        <div class="ipr-guidance-card__status"><strong>Lifecycle term:</strong> patent granted</div>
+                    </article>
+
+                    <article class="ipr-guidance-card ipr-guidance-card--copyright">
+                        <div class="ipr-guidance-card__heading">
+                            <span class="ipr-guidance-card__icon"><i class="bi bi-code-square" aria-hidden="true"></i></span>
+                            <div>
+                                <span>Copyright</span>
+                                <strong>Protects original expression</strong>
+                            </div>
+                        </div>
+                        <p>Use for original material that has been created; it does not protect the underlying technical idea by itself.</p>
+                        <h3>Typical SDD examples</h3>
+                        <ul>
+                            <li>Simulator source code and software</li>
+                            <li>Manuals, drawings, 3D assets and terrain</li>
+                            <li>Videos, scenarios and training content</li>
+                        </ul>
+                        <div class="ipr-guidance-card__status"><strong>Lifecycle term:</strong> copyright registered</div>
+                    </article>
+                </div>
+
+                <section class="ipr-guidance-both" aria-label="When both protections may apply">
+                    <span class="ipr-guidance-both__icon"><i class="bi bi-intersect" aria-hidden="true"></i></span>
+                    <div>
+                        <h3>A project may legitimately require both</h3>
+                        <p>A novel technical mechanism may be patented, while the associated source code, graphics, manuals and training content may be registered separately under copyright.</p>
+                    </div>
+                </section>
+
+                <section class="ipr-guidance-checklist" aria-labelledby="iprGuidanceChecklistHeading">
+                    <h3 id="iprGuidanceChecklistHeading">Three-question check</h3>
+                    <ol>
+                        <li><strong>New technical working principle?</strong> Patent may apply.</li>
+                        <li><strong>Original code, documentation or creative material?</strong> Copyright may apply.</li>
+                        <li><strong>Both are present?</strong> Create separate patent and copyright records.</li>
+                    </ol>
+                </section>
+
+                <div class="ipr-guidance-note" role="note">
+                    <i class="bi bi-shield-check" aria-hidden="true"></i>
+                    <span>This is an administrative decision aid, not a final legal determination. Refer uncertain or borderline cases for IPR/legal examination before filing.</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Understood</button>
+            </div>
+        </div>
+    </div>
+</div>

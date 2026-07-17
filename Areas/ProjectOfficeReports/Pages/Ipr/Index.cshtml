@@ -2,7 +2,16 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
 @using System.Text.Json
 @using System.Linq
+@using ProjectManagement.Infrastructure.Data
 @functions {
+    private static string CountLabel(int count, string singular, string plural)
+        => $"{count} {(count == 1 ? singular : plural)}";
+
+    private static bool IsProtectedStatus(string status)
+        => status.Contains("granted", StringComparison.OrdinalIgnoreCase)
+            || status.Contains("registered", StringComparison.OrdinalIgnoreCase)
+            || status.Contains("protected", StringComparison.OrdinalIgnoreCase);
+
     private static string FormatAge(int days)
     {
         if (days <= 0)
@@ -48,6 +57,20 @@
     var analyticsRoutes = Model.GetRouteValuesForLinks(new { tab = "analytics", page = 1 }, includePage: false, includeModeAndId: false);
     var assignedProjectGroupCount = Model.ProjectIprGroups.Count(group => !group.IsUnassigned);
     var hasUnassignedProjectGroup = Model.ProjectIprGroups.Any(group => group.IsUnassigned);
+    var patentBreakdown = Model.TypeBreakdown.FirstOrDefault(item => item.Type == IprType.Patent);
+    var copyrightBreakdown = Model.TypeBreakdown.FirstOrDefault(item => item.Type == IprType.Copyright);
+    var patentFiled = patentBreakdown?.Filed ?? 0;
+    var copyrightFiled = copyrightBreakdown?.Filed ?? 0;
+    var patentProtected = patentBreakdown?.Protected ?? 0;
+    var copyrightProtected = copyrightBreakdown?.Protected ?? 0;
+    var patentPending = patentBreakdown?.Pending ?? 0;
+    var copyrightPending = copyrightBreakdown?.Pending ?? 0;
+    var patentFiledPercent = Model.Kpis.Total == 0 ? 0 : Math.Round(patentFiled * 100d / Model.Kpis.Total, 1);
+    var copyrightFiledPercent = Model.Kpis.Total == 0 ? 0 : 100 - patentFiledPercent;
+    var patentProtectedPercent = Model.Kpis.Granted == 0 ? 0 : Math.Round(patentProtected * 100d / Model.Kpis.Granted, 1);
+    var copyrightProtectedPercent = Model.Kpis.Granted == 0 ? 0 : 100 - patentProtectedPercent;
+    var patentPendingPercent = Model.Kpis.Filed == 0 ? 0 : Math.Round(patentPending * 100d / Model.Kpis.Filed, 1);
+    var copyrightPendingPercent = Model.Kpis.Filed == 0 ? 0 : 100 - patentPendingPercent;
 }
 
 @section Styles {
@@ -64,6 +87,12 @@
             </div>
         </div>
         <div class="ipr-register-actions">
+            <button type="button"
+                    class="btn btn-outline-secondary ipr-guidance-trigger"
+                    data-bs-toggle="modal"
+                    data-bs-target="#iprGuidanceModal">
+                <i class="bi bi-info-circle" aria-hidden="true"></i> Patent or copyright?
+            </button>
             <a asp-page="./Index" asp-page-handler="Export" asp-all-route-data="exportRouteValues" class="btn btn-outline-primary">
                 <i class="bi bi-download"></i> Export
             </a>
@@ -97,15 +126,48 @@
     }
 
     <section class="ipr-insight-ribbon" aria-label="IPR operational summary">
-        <a asp-page="./Index" asp-route-tab="records" class="ipr-insight ipr-insight--filed">
-            <span>Total filed</span><strong>@Model.Kpis.Total</strong><small>complete register</small>
-        </a>
-        <a asp-page="./Index" asp-route-tab="records" asp-route-Statuses="Granted" class="ipr-insight ipr-insight--granted">
-            <span>Granted</span><strong>@Model.Kpis.Granted</strong><small>@(Model.GrantRatePercent)% grant rate</small>
-        </a>
-        <a asp-page="./Index" asp-route-tab="records" asp-route-Statuses="Filed" class="ipr-insight ipr-insight--awaiting">
-            <span>Awaiting grant</span><strong>@Model.Kpis.Filed</strong><small>@Model.OverdueAttentionCount over 3 years</small>
-        </a>
+        <article class="ipr-insight ipr-insight--filed">
+            <a asp-page="./Index" asp-route-tab="records" class="ipr-insight__primary">
+                <span>Filed</span><strong>@Model.Kpis.Total</strong><small>all patent and copyright records</small>
+            </a>
+            <div class="ipr-insight__bar" aria-hidden="true">
+                <span class="is-patent" style="width:@(patentFiledPercent)%"></span>
+                <span class="is-copyright" style="width:@(copyrightFiledPercent)%"></span>
+            </div>
+            <div class="ipr-insight__breakdown" aria-label="Filed IPR category split">
+                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Patent"><i class="is-patent"></i>@CountLabel(patentFiled, "patent", "patents")</a>
+                <span aria-hidden="true">·</span>
+                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Copyright"><i class="is-copyright"></i>@CountLabel(copyrightFiled, "copyright", "copyrights")</a>
+            </div>
+        </article>
+        <article class="ipr-insight ipr-insight--granted">
+            <a asp-page="./Index" asp-route-tab="records" asp-route-Statuses="Granted" class="ipr-insight__primary">
+                <span>Protected</span><strong>@Model.Kpis.Granted</strong><small>patents granted and copyrights registered</small>
+            </a>
+            <div class="ipr-insight__bar" aria-hidden="true">
+                <span class="is-patent" style="width:@(patentProtectedPercent)%"></span>
+                <span class="is-copyright" style="width:@(copyrightProtectedPercent)%"></span>
+            </div>
+            <div class="ipr-insight__breakdown" aria-label="Protected IPR category split">
+                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Patent" asp-route-Statuses="Granted"><i class="is-patent"></i>@(patentProtected == 1 ? $"{patentProtected} patent granted" : $"{patentProtected} patents granted")</a>
+                <span aria-hidden="true">·</span>
+                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Copyright" asp-route-Statuses="Granted"><i class="is-copyright"></i>@(copyrightProtected == 1 ? $"{copyrightProtected} copyright registered" : $"{copyrightProtected} copyrights registered")</a>
+            </div>
+        </article>
+        <article class="ipr-insight ipr-insight--awaiting">
+            <a asp-page="./Index" asp-route-tab="records" asp-route-Statuses="Filed" class="ipr-insight__primary">
+                <span>Pending</span><strong>@Model.Kpis.Filed</strong><small>@Model.OverdueAttentionCount pending beyond 3 years</small>
+            </a>
+            <div class="ipr-insight__bar" aria-hidden="true">
+                <span class="is-patent" style="width:@(patentPendingPercent)%"></span>
+                <span class="is-copyright" style="width:@(copyrightPendingPercent)%"></span>
+            </div>
+            <div class="ipr-insight__breakdown" aria-label="Pending IPR category split">
+                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Patent" asp-route-Statuses="Filed"><i class="is-patent"></i>@CountLabel(patentPending, "patent", "patents")</a>
+                <span aria-hidden="true">·</span>
+                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Copyright" asp-route-Statuses="Filed"><i class="is-copyright"></i>@CountLabel(copyrightPending, "copyright", "copyrights")</a>
+            </div>
+        </article>
         <a asp-page="./Index" asp-route-tab="project" class="ipr-insight ipr-insight--projects">
             <span>Projects</span><strong>@Model.ProjectsWithIpr</strong><small>@Model.UnassignedCount unassigned</small>
         </a>
@@ -133,8 +195,8 @@
             <form method="get" class="ipr-filter-bar @(Model.HasAnyFilter ? "has-clear" : string.Empty)" data-ipr-loading-form>
                 <input type="hidden" name="tab" value="records" />
                 <div class="ipr-search-field"><i class="bi bi-search"></i><input asp-for="Query" type="search" placeholder="Search title, filing number or project" /></div>
-                <select name="Types" class="form-select" data-ipr-auto-submit aria-label="Filter by IPR type">
-                    <option value="">All types</option>
+                <select name="Types" class="form-select" data-ipr-auto-submit aria-label="Filter by IPR category">
+                    <option value="">All IPR categories</option>
                     @foreach (var option in Model.TypeOptions)
                     {
                         if (option.Selected) { <option value="@option.Value" selected>@option.Text</option> }
@@ -204,7 +266,7 @@
                                         <th>Project</th>
                                         <th>Filed</th>
                                         <th>Status</th>
-                                        <th>Grant</th>
+                                        <th>Protected</th>
                                         <th class="text-center">Files</th>
                                         @if (Model.CanEdit)
                                         {
@@ -240,7 +302,7 @@
                                             }
                                         </td>
                                         <td class="ipr-nowrap">@(row.FiledOn?.ToString("dd MMM yyyy") ?? "—")</td>
-                                        <td><span class="ipr-status-badge @(row.Status == "Granted" ? "ipr-status-badge--granted" : "ipr-status-badge--filed")">@row.Status</span></td>
+                                        <td><span class="ipr-status-badge @(IsProtectedStatus(row.Status) ? "ipr-status-badge--granted" : "ipr-status-badge--filed")">@row.Status</span></td>
                                         <td class="ipr-nowrap">@(row.GrantedOn?.ToString("dd MMM yyyy") ?? "—")</td>
                                         <td class="text-center">
                                             @if (row.AttachmentCount > 0)
@@ -308,13 +370,13 @@
                             </div>
                             <div class="ipr-inspector-badges">
                                 <span class="ipr-type-badge ipr-type-badge--@selectedRecord.IprType.ToLowerInvariant()" data-ipr-inspector-type>@selectedRecord.IprType</span>
-                                <span class="ipr-status-badge @(selectedRecord.Status == "Granted" ? "ipr-status-badge--granted" : "ipr-status-badge--filed")" data-ipr-inspector-status>@selectedRecord.Status</span>
+                                <span class="ipr-status-badge @(IsProtectedStatus(selectedRecord.Status) ? "ipr-status-badge--granted" : "ipr-status-badge--filed")" data-ipr-inspector-status>@selectedRecord.Status</span>
                             </div>
                             <dl class="ipr-inspector-facts">
                                 <div><dt>Filing number</dt><dd data-ipr-inspector-filing>@selectedRecord.ApplicationNumber</dd></div>
                                 <div><dt>Filed on</dt><dd data-ipr-inspector-filed>@(selectedRecord.FiledOn?.ToString("dd MMM yyyy") ?? "—")</dd></div>
                                 <div><dt>Filed by</dt><dd data-ipr-inspector-filedby>@selectedRecord.FiledBy</dd></div>
-                                <div><dt>Granted on</dt><dd data-ipr-inspector-granted>@(selectedRecord.GrantedOn?.ToString("dd MMM yyyy") ?? "—")</dd></div>
+                                <div><dt data-ipr-inspector-protected-label>@(selectedRecord.IprType == "Copyright" ? "Registered on" : "Granted on")</dt><dd data-ipr-inspector-granted>@(selectedRecord.GrantedOn?.ToString("dd MMM yyyy") ?? "—")</dd></div>
                             </dl>
                             <section class="ipr-inspector-section">
                                 <h3>Project</h3>
@@ -360,7 +422,7 @@
     {
         <section class="ipr-panel ipr-projects-panel">
             <div class="ipr-panel-header ipr-panel-header--toolbar">
-                <div><h2>Project dossiers</h2><p>Each project appears once, with its linked IPR position shown underneath.</p></div>
+                <div><h2>Project dossiers</h2><p>Each project appears once, with its patent and copyright position shown underneath.</p></div>
                 <span class="ipr-result-count">
                     @assignedProjectGroupCount projects@(hasUnassignedProjectGroup ? " + 1 unassigned group" : string.Empty) · @Model.Kpis.Total filings
                 </span>
@@ -369,8 +431,8 @@
                 <div class="ipr-search-field"><i class="bi bi-search"></i><input type="search" placeholder="Search project or IPR title" data-ipr-project-group-search /></div>
                 <select class="form-select" data-ipr-project-group-status aria-label="Filter project dossiers by IPR status">
                     <option value="all">All IPR statuses</option>
-                    <option value="awaiting">Has awaiting grant</option>
-                    <option value="granted">Has granted IPR</option>
+                    <option value="awaiting">Has pending IPR</option>
+                    <option value="granted">Has protected IPR</option>
                     <option value="unassigned">Unassigned records</option>
                 </select>
                 <select class="form-select" data-ipr-project-group-sort aria-label="Sort project dossiers">
@@ -379,8 +441,8 @@
                     <option value="total">Most IPRs</option>
                     <option value="latest">Latest filing</option>
                 </select>
-                <button type="button" class="btn btn-outline-secondary" data-ipr-expand-projects title="Expand visible dossiers that have awaiting filings">
-                    <i class="bi bi-chevron-double-down" aria-hidden="true"></i> Expand awaiting
+                <button type="button" class="btn btn-outline-secondary" data-ipr-expand-projects title="Expand visible dossiers that have pending filings">
+                    <i class="bi bi-chevron-double-down" aria-hidden="true"></i> Expand pending
                 </button>
             </div>
 
@@ -413,18 +475,18 @@
                                     {
                                         <strong class="ipr-project-group__name">@group.ProjectName</strong>
                                     }
-                                    <span>@group.Lifecycle · latest filing @(group.LatestFiledOn?.ToString("dd MMM yyyy") ?? "not recorded")</span>
+                                    <span>@group.Lifecycle · @CountLabel(group.Patents, "patent", "patents") · @CountLabel(group.Copyrights, "copyright", "copyrights") · latest filing @(group.LatestFiledOn?.ToString("dd MMM yyyy") ?? "not recorded")</span>
                                 </div>
                             </div>
                             <div class="ipr-project-group__metrics">
                                 <span><strong>@group.Total</strong> IPR</span>
-                                <span class="is-granted"><strong>@group.Granted</strong> granted</span>
-                                <span class="is-awaiting"><strong>@group.Awaiting</strong> awaiting</span>
+                                <span class="is-granted"><strong>@group.Granted</strong> protected</span>
+                                <span class="is-awaiting"><strong>@group.Awaiting</strong> pending</span>
                                 <i class="bi bi-chevron-down"></i>
                             </div>
                         </summary>
                         <div class="ipr-project-group__body">
-                            <div class="ipr-project-record-head" aria-hidden="true"><span>IPR title</span><span>Type</span><span>Status</span><span>Filed</span><span>Granted</span><span>Files</span><span></span></div>
+                            <div class="ipr-project-record-head" aria-hidden="true"><span>IPR title</span><span>Category</span><span>Position</span><span>Filed</span><span>Protected</span><span>Files</span><span></span></div>
                             @foreach (var item in group.Items)
                             {
                                 var itemEditRoutes = Model.GetRouteValuesForLinks(new { tab = "project", mode = "edit", id = item.Id }, includeModeAndId: false);
@@ -440,7 +502,7 @@
                                         }
                                     </div>
                                     <span><span class="ipr-type-badge ipr-type-badge--@item.Type.ToLowerInvariant()">@item.Type</span></span>
-                                    <span><span class="ipr-status-badge @(item.Position == "Granted" ? "ipr-status-badge--granted" : "ipr-status-badge--filed")">@item.Position</span></span>
+                                    <span><span class="ipr-status-badge @(IsProtectedStatus(item.Position) ? "ipr-status-badge--granted" : "ipr-status-badge--filed")">@item.Position</span></span>
                                     <span class="ipr-nowrap">@(item.FiledOn?.ToString("dd MMM yyyy") ?? "—")</span>
                                     <span class="ipr-nowrap">@(item.GrantedOn?.ToString("dd MMM yyyy") ?? "—")</span>
                                     <span class="ipr-file-count-cell">@(item.AttachmentCount > 0 ? $"{item.AttachmentCount}" : "—")</span>
@@ -553,18 +615,18 @@
             }
             <div class="ipr-analytics-insights">
                 <article><span>Evidence coverage</span><strong>@evidenceCoveragePercent%</strong><small>@recordsWithEvidence of @Model.Kpis.Total filings have supporting files</small></article>
-                <article><span>Median time to grant</span><strong>@(Model.AnalyticsSummary.MedianGrantDays.HasValue ? FormatAge(Model.AnalyticsSummary.MedianGrantDays.Value) : "—")</strong><small>granted cases with both dates</small></article>
-                <article><span>Median pending age</span><strong>@(Model.AnalyticsSummary.MedianAwaitingDays.HasValue ? FormatAge(Model.AnalyticsSummary.MedianAwaitingDays.Value) : "—")</strong><small>currently awaiting grant</small></article>
-                <article class="@(Model.AnalyticsSummary.AwaitingOverThreeYears > 0 ? "has-warning" : string.Empty)"><span>Long pending</span><strong>@Model.AnalyticsSummary.AwaitingOverThreeYears</strong><small>awaiting beyond 3 years</small></article>
+                <article><span>Median time to protection</span><strong>@(Model.AnalyticsSummary.MedianGrantDays.HasValue ? FormatAge(Model.AnalyticsSummary.MedianGrantDays.Value) : "—")</strong><small>protected cases with both dates</small></article>
+                <article><span>Median pending age</span><strong>@(Model.AnalyticsSummary.MedianAwaitingDays.HasValue ? FormatAge(Model.AnalyticsSummary.MedianAwaitingDays.Value) : "—")</strong><small>currently pending</small></article>
+                <article class="@(Model.AnalyticsSummary.AwaitingOverThreeYears > 0 ? "has-warning" : string.Empty)"><span>Long pending</span><strong>@Model.AnalyticsSummary.AwaitingOverThreeYears</strong><small>pending beyond 3 years</small></article>
             </div>
 
             <div class="ipr-analytics-main-grid">
                 <article class="ipr-panel ipr-chart-panel">
-                    <div class="ipr-panel-header"><div><h2>Filing and grant events by year</h2><p>Grant events are counted in the year the grant was received.</p></div></div>
-                    <div class="ipr-chart-canvas"><canvas id="iprEventTrend" data-yearly='@Html.Raw(yearlyJson)' role="img" aria-label="IPR filing and grant events by year"></canvas></div>
+                    <div class="ipr-panel-header"><div><h2>Filing and protection events by year</h2><p>Patent grants and copyright registrations are counted in the year protection was recorded.</p></div></div>
+                    <div class="ipr-chart-canvas"><canvas id="iprEventTrend" data-yearly='@Html.Raw(yearlyJson)' role="img" aria-label="IPR filing and protection events by year"></canvas></div>
                 </article>
                 <article class="ipr-panel ipr-age-panel">
-                    <div class="ipr-panel-header"><div><h2>Age of awaiting filings</h2><p>Distribution of the current follow-up workload.</p></div></div>
+                    <div class="ipr-panel-header"><div><h2>Age of pending filings</h2><p>Distribution of the current follow-up workload.</p></div></div>
                     <div class="ipr-age-bands">
                         @foreach (var band in Model.AwaitingAgeBands)
                         {
@@ -575,10 +637,15 @@
                         }
                     </div>
                     <div class="ipr-type-matrix ipr-type-matrix--compact">
-                        <div class="ipr-type-matrix__head"><span>Type</span><span>Filed</span><span>Granted</span><span>Awaiting</span></div>
+                        <div class="ipr-type-matrix__head"><span>Category</span><span>Filed</span><span>Protected</span><span>Pending</span></div>
                         @foreach (var item in Model.TypeBreakdown)
                         {
-                            <div class="ipr-type-matrix__row"><strong>@item.Type</strong><span>@item.Filed</span><span class="text-success fw-semibold">@item.Granted</span><span class="ipr-awaiting-value fw-semibold">@item.AwaitingGrant</span></div>
+                            <div class="ipr-type-matrix__row">
+                                <strong>@item.TypeLabel</strong>
+                                <span>@item.Filed</span>
+                                <span class="text-success fw-semibold" title="@item.Protected @item.ProtectedVerb">@item.Protected <small>@item.ProtectedVerb</small></span>
+                                <span class="ipr-awaiting-value fw-semibold" title="@item.Pending @item.PendingLabel">@item.Pending <small>pending</small></span>
+                            </div>
                         }
                     </div>
                 </article>
@@ -586,12 +653,12 @@
 
             <article class="ipr-panel ipr-oldest-panel">
                 <div class="ipr-panel-header">
-                    <div><h2>Oldest filings awaiting grant</h2><p>Prioritised by elapsed time since filing.</p></div>
+                    <div><h2>Oldest pending filings</h2><p>Prioritised by elapsed time since filing.</p></div>
                     <a asp-page="./Index" asp-route-tab="followup" class="btn btn-sm btn-outline-secondary">Open follow-up</a>
                 </div>
                 @if (Model.OldestAwaitingGrant.Count == 0)
                 {
-                    <div class="ipr-compact-empty"><i class="bi bi-check-circle"></i><span>No filings are awaiting grant.</span></div>
+                    <div class="ipr-compact-empty"><i class="bi bi-check-circle"></i><span>No filings are pending.</span></div>
                 }
                 else
                 {
@@ -632,7 +699,7 @@
             <div class="offcanvas-header ipr-record-drawer__header">
                 <div>
                     <h2 class="offcanvas-title" id="iprRecordOffcanvasLabel">@(isCreateMode ? "Add IPR record" : "Edit IPR record")</h2>
-                    <p>Capture filing, grant and project details.</p>
+                    <p>Capture filing, protection and project details.</p>
                 </div>
                 <a class="btn-close" asp-page="./Index" asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)" aria-label="Close IPR record form"></a>
             </div>
@@ -641,6 +708,8 @@
             </div>
         </div>
     }
+
+    <partial name="_IprGuidanceModal" />
 </div>
 
 @section Scripts {

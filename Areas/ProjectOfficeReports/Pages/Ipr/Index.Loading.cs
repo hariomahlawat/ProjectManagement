@@ -54,7 +54,7 @@ public sealed partial class IndexModel
             project,
             GetTypeLabel(dto.Type),
             applicationNumber,
-            GetStatusLabel(dto.Status),
+            GetStatusLabel(dto.Status, dto.Type),
             GetStatusChipClass(dto.Status),
             string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes,
             string.IsNullOrWhiteSpace(dto.FiledBy) ? "Not recorded" : dto.FiledBy.Trim(),
@@ -258,8 +258,9 @@ public sealed partial class IndexModel
             .Select(type =>
             {
                 var filed = snapshot.Count(item => item.Type == type);
-                var grantedByType = snapshot.Count(item => item.Type == type && item.Status == IprStatus.Granted);
-                return new TypeBreakdownRow(GetTypeLabel(type), filed, grantedByType, filed - grantedByType);
+                var protectedByType = snapshot.Count(item => item.Type == type && item.Status == IprStatus.Granted);
+                var pendingByType = snapshot.Count(item => item.Type == type && item.Status == IprStatus.Filed);
+                return new TypeBreakdownRow(type, GetTypeLabel(type), filed, protectedByType, pendingByType);
             })
             .ToList();
     }
@@ -300,7 +301,7 @@ public sealed partial class IndexModel
                         item.Id,
                         string.IsNullOrWhiteSpace(item.Title) ? "Untitled IPR record" : item.Title!,
                         GetTypeLabel(item.Type),
-                        item.Status == IprStatus.Granted ? "Granted" : "Awaiting grant",
+                        GetStatusLabel(item.Status, item.Type),
                         ConvertToIstDate(item.FiledAtUtc),
                         ConvertToIstDate(item.GrantedAtUtc),
                         item.AttachmentCount))
@@ -367,14 +368,16 @@ public sealed partial class IndexModel
 
             if (item.Status == IprStatus.Filed && filedOn.HasValue && filedOn.Value.Date <= longPendingCutoff)
             {
-                reasons.Add($"Awaiting grant for {FormatAge(waitingDays ?? 0)}");
+                reasons.Add($"Pending for {FormatAge(waitingDays ?? 0)}");
                 category = "overdue";
                 severity = "critical";
             }
 
             if (item.Status == IprStatus.Granted && !item.GrantedAtUtc.HasValue)
             {
-                reasons.Add("Granted status has no grant date");
+                reasons.Add(item.Type == IprType.Copyright
+                    ? "Copyright is marked registered but has no registration date"
+                    : "Patent is marked granted but has no grant date");
                 category = "data";
                 severity = "critical";
             }
@@ -430,7 +433,7 @@ public sealed partial class IndexModel
             CreateAttentionGroup(
                 "overdue",
                 "Long-pending filings",
-                $"Awaiting grant for more than {LongPendingYears} years.",
+                $"Pending for more than {LongPendingYears} years.",
                 "critical",
                 attentionItems),
             CreateAttentionGroup(
@@ -448,7 +451,7 @@ public sealed partial class IndexModel
             CreateAttentionGroup(
                 "evidence",
                 "Supporting evidence",
-                "Records without an uploaded filing or grant document.",
+                "Records without an uploaded filing or protection document.",
                 "warning",
                 attentionItems)
         }

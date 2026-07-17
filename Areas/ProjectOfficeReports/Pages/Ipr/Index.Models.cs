@@ -19,7 +19,19 @@ public sealed partial class IndexModel
 
     public List<YearlyRow> YearlyStats { get; set; } = new();
 
-    public sealed record TypeBreakdownRow(string Type, int Filed, int Granted, int AwaitingGrant);
+    public sealed record TypeBreakdownRow(
+        IprType Type,
+        string TypeLabel,
+        int Filed,
+        int Protected,
+        int Pending)
+    {
+        public string ProtectedVerb
+            => Type == IprType.Copyright ? "registered" : "granted";
+
+        public string PendingLabel
+            => Type == IprType.Copyright ? "registration pending" : "patent pending";
+    }
 
     public sealed record ProjectPickerOption(
         int Id,
@@ -122,11 +134,11 @@ public sealed partial class IndexModel
         [StringLength(2000)]
         public string? Notes { get; set; }
 
-        [Display(Name = "Type")]
+        [Display(Name = "IPR category")]
         [Required]
         public IprType? Type { get; set; }
 
-        [Display(Name = "Status")]
+        [Display(Name = "IPR position")]
         [Required]
         public IprStatus? Status { get; set; }
 
@@ -139,7 +151,7 @@ public sealed partial class IndexModel
         [DataType(DataType.Date)]
         public DateOnly? FiledOn { get; set; }
 
-        [Display(Name = "Granted on")]
+        [Display(Name = "Protected on")]
         [DataType(DataType.Date)]
         public DateOnly? GrantedOn { get; set; }
 

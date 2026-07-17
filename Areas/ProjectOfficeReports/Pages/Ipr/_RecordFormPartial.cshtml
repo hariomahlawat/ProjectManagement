@@ -1,11 +1,20 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
+@using ProjectManagement.Infrastructure.Data
 @{
     var isCreateMode = string.Equals(Model.Mode, "create", StringComparison.OrdinalIgnoreCase);
     var isEditMode = string.Equals(Model.Mode, "edit", StringComparison.OrdinalIgnoreCase);
     var handler = isCreateMode ? "Create" : "Edit";
     var formId = isCreateMode ? "iprCreateForm" : "iprEditForm";
     var closeRoutes = Model.GetRouteValuesForLinks(includeModeAndId: false);
-    var isGranted = Model.Input.Status == ProjectManagement.Infrastructure.Data.IprStatus.Granted;
+    var isGranted = Model.Input.Status == IprStatus.Granted;
+    var selectedType = Model.Input.Type;
+    var typeGuidanceText = selectedType switch
+    {
+        IprType.Patent => "Use for a new technical product, process, mechanism or technical working arrangement.",
+        IprType.Copyright => "Use for original software, documents, drawings, 3D assets, audiovisual or training content.",
+        _ => "Patent protects a technical invention; copyright protects original software, documents and creative material."
+    };
+    var protectedDateLabel = selectedType == IprType.Copyright ? "Registration date" : "Grant date";
 }
 
 @if (isCreateMode || isEditMode)
@@ -45,11 +54,41 @@
                     <span asp-validation-for="Input.FilingNumber" class="text-danger"></span>
                 </div>
 
-                <div class="ipr-form-field">
-                    <label asp-for="Input.Type" class="form-label"></label>
-                    <select asp-for="Input.Type" asp-items="Model.TypeFormOptions" class="form-select" required>
-                        <option value="" disabled selected="@(Model.Input.Type is null ? "selected" : null)">Select type</option>
+                <div class="ipr-form-field ipr-category-field">
+                    <div class="ipr-field-label-row">
+                        <label asp-for="Input.Type" class="form-label"></label>
+                        <button type="button"
+                                class="ipr-inline-info-button"
+                                data-bs-toggle="modal"
+                                data-bs-target="#iprGuidanceModal"
+                                aria-label="Open patent and copyright guidance"
+                                title="Patent or copyright guidance">
+                            <i class="bi bi-info-circle" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <select asp-for="Input.Type"
+                            asp-items="Model.TypeFormOptions"
+                            class="form-select"
+                            required
+                            data-ipr-type-select>
+                        <option value="" disabled selected="@(Model.Input.Type is null ? "selected" : null)">Select IPR category</option>
                     </select>
+                    <div class="ipr-type-guidance" data-ipr-type-guidance role="note">
+                        <i class="bi bi-lightbulb" aria-hidden="true"></i>
+                        <span>@typeGuidanceText</span>
+                    </div>
+                    <div class="ipr-type-both-note">
+                        <i class="bi bi-intersect" aria-hidden="true"></i>
+                        <span>A project may require both. Create separate patent and copyright records.</span>
+                    </div>
+                    <details class="ipr-decision-aid">
+                        <summary>Not sure? Check in 3 questions</summary>
+                        <ol>
+                            <li>Is there a new technical product, process or working mechanism? <strong>Consider a patent.</strong></li>
+                            <li>Is there original code, documentation, graphics or training content? <strong>Consider copyright.</strong></li>
+                            <li>Are both present? <strong>Create separate records for each protection.</strong></li>
+                        </ol>
+                    </details>
                     <span asp-validation-for="Input.Type" class="text-danger"></span>
                 </div>
 
@@ -83,8 +122,13 @@
                             class="form-select"
                             required
                             data-ipr-status-select>
-                        <option value="" disabled selected="@(Model.Input.Status is null ? "selected" : null)">Select status</option>
+                        <option value="" disabled selected="@(Model.Input.Status is null ? "selected" : null)">Select position</option>
                     </select>
+                    <span class="form-text ipr-position-guidance" data-ipr-position-guidance>
+                        @(selectedType == IprType.Copyright
+                            ? "Registered means the copyright registration has been issued."
+                            : "Granted means the patent grant has been issued.")
+                    </span>
                     <span asp-validation-for="Input.Status" class="text-danger"></span>
                 </div>
 
@@ -97,7 +141,7 @@
                 <div class="ipr-form-field @(isGranted ? string.Empty : "is-hidden")"
                      data-ipr-granted-date-field
                      aria-hidden="@(isGranted ? "false" : "true")">
-                    <label asp-for="Input.GrantedOn" class="form-label"></label>
+                    <label for="@Html.IdFor(model => model.Input.GrantedOn)" class="form-label" data-ipr-protected-date-label>@protectedDateLabel</label>
                     @if (isGranted)
                     {
                         <input asp-for="Input.GrantedOn"
@@ -132,7 +176,7 @@
                               class="form-control"
                               rows="4"
                               maxlength="2000"
-                              placeholder="Add relevant filing, examination or grant notes."></textarea>
+                              placeholder="Add relevant filing, examination, registration or grant notes."></textarea>
                     <span asp-validation-for="Input.Notes" class="text-danger"></span>
                 </div>
             </div>
