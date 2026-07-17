@@ -1,0 +1,126 @@
+@model ProjectManagement.Pages.IndustryPartners.IndexModel
+
+@if (Model.SearchResult.Items.Count == 0)
+{
+    <div class="ip-directory-empty">
+        <div class="ip-empty-icon"><i class="bi bi-building" aria-hidden="true"></i></div>
+        <h2>No organisations found</h2>
+        @if (!string.IsNullOrWhiteSpace(Model.Q))
+        {
+            <p>No directory record matches “@Model.Q”. Try a shorter organisation name, contact detail or project reference.</p>
+            <a asp-page="./Index" asp-route-filter="@Model.Filter" asp-route-projectId="@Model.ContextProjectId" class="btn btn-outline-secondary btn-sm">Clear search</a>
+        }
+        else
+        {
+            <p>Add an organisation when its contact details or JDP association need to be retained.</p>
+            @if (Model.CanManage)
+            {
+                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addOrganisationModal">Add organisation</button>
+            }
+        }
+    </div>
+}
+else
+{
+    <div class="table-responsive ip-directory-table-wrap">
+        <table class="table ip-directory-table align-middle mb-0">
+            <thead>
+                <tr>
+                    <th scope="col">Organisation</th>
+                    <th scope="col">Contact</th>
+                    <th scope="col">JDP history</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="text-end">Updated</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.SearchResult.Items)
+                {
+                    var detailUrl = Model.BuildDirectoryUrl(item.Id, Model.ProjectContext is null ? "overview" : "projects");
+                    <tr class="ip-directory-row">
+                        <td data-label="Organisation">
+                            <div class="ip-organisation-cell">
+                                <div class="ip-org-avatar" aria-hidden="true">@item.Name.Trim()[0].ToString().ToUpperInvariant()</div>
+                                <div class="min-w-0">
+                                    <a href="@detailUrl" class="ip-organisation-link">@item.Name</a>
+                                    <div class="ip-row-meta">
+                                        <i class="bi bi-geo-alt" aria-hidden="true"></i>
+                                        <span>@(string.IsNullOrWhiteSpace(item.Location) ? "Location not added" : item.Location)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td data-label="Contact">
+                            @if (!string.IsNullOrWhiteSpace(item.PrimaryContactName))
+                            {
+                                <div class="ip-contact-name">@item.PrimaryContactName</div>
+                            }
+                            else
+                            {
+                                <div class="ip-contact-name ip-muted">General contact</div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(item.ContactPhone))
+                            {
+                                <div class="ip-row-meta"><i class="bi bi-telephone" aria-hidden="true"></i> @item.ContactPhone</div>
+                            }
+                            else if (!string.IsNullOrWhiteSpace(item.ContactEmail))
+                            {
+                                <div class="ip-row-meta ip-truncate"><i class="bi bi-envelope" aria-hidden="true"></i> @item.ContactEmail</div>
+                            }
+                            else
+                            {
+                                <div class="ip-row-meta ip-muted">No phone or email</div>
+                            }
+                        </td>
+                        <td data-label="JDP history">
+                            @if (item.ProjectCount == 0)
+                            {
+                                <span class="ip-project-count ip-muted">No JDP association</span>
+                            }
+                            else
+                            {
+                                <span class="ip-project-count"><strong>@item.ProjectCount</strong> @(item.ProjectCount == 1 ? "project" : "projects")</span>
+                                @if (item.ActiveProjectCount > 0)
+                                {
+                                    <div class="ip-row-meta">@item.ActiveProjectCount ongoing</div>
+                                }
+                            }
+                        </td>
+                        <td data-label="Status">
+                            <span class="ip-status-badge ip-status-@item.StatusKey">@item.StatusLabel</span>
+                        </td>
+                        <td data-label="Updated" class="text-end">
+                            <span class="ip-updated-date">@item.LastUpdatedUtc.LocalDateTime.ToString("dd MMM yyyy")</span>
+                            <a href="@detailUrl" class="ip-row-open" aria-label="Open @item.Name">
+                                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                            </a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.SearchResult.TotalPages > 1)
+    {
+        <nav class="ip-pagination" aria-label="Directory pages">
+            <span>Page @Model.SearchResult.Page of @Model.SearchResult.TotalPages</span>
+            <div class="btn-group btn-group-sm" role="group">
+                <a class="btn btn-outline-secondary @(Model.SearchResult.HasPrevious ? null : "disabled")"
+                   asp-page="./Index"
+                   asp-route-q="@Model.Q"
+                   asp-route-filter="@Model.Filter"
+                   asp-route-p="@(Model.PageNumber - 1)"
+                   asp-route-projectId="@Model.ContextProjectId"
+                   aria-disabled="@(!Model.SearchResult.HasPrevious)">Previous</a>
+                <a class="btn btn-outline-secondary @(Model.SearchResult.HasNext ? null : "disabled")"
+                   asp-page="./Index"
+                   asp-route-q="@Model.Q"
+                   asp-route-filter="@Model.Filter"
+                   asp-route-p="@(Model.PageNumber + 1)"
+                   asp-route-projectId="@Model.ContextProjectId"
+                   aria-disabled="@(!Model.SearchResult.HasNext)">Next</a>
+            </div>
+        </nav>
+    }
+}

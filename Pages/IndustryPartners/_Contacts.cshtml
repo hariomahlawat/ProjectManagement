@@ -1,55 +1,156 @@
 @model ProjectManagement.Pages.IndustryPartners.IndexModel
-@{ var p = Model.SelectedPartner!; }
-<div class="ip-section">
-    <div class="ip-section-header">
-        <h3 class="ip-section-title">Contacts</h3>
-        <small class="ip-section-note">People and communication details.</small>
+@{
+    var partner = Model.SelectedPartner!;
+    var showAddForm = partner.Contacts.Count == 0 && Model.CanManage;
+}
+
+<div class="ip-section-heading">
+    <div>
+        <h3>Contacts</h3>
+        <p>Add only the details normally needed to reach the person or office.</p>
     </div>
-    <div class="ip-section-body">
-        <div class="table-responsive">
-            <table class="table table-sm align-middle ip-table">
-                <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th></th></tr></thead>
-                <tbody>
-                @foreach (var c in p.Contacts)
-                {
-                    var hasSignificantInfo = !string.IsNullOrWhiteSpace(c.Email) || (!string.IsNullOrWhiteSpace(c.Phone) && c.Phone!.Trim().Length > 5);
-                    <tr>
-                        <td>@c.Name</td><td>@c.Phone</td><td>@c.Email</td>
-                        <td class="text-end">
-                            @if (Model.CanManage)
-                            {
-                                <form method="post" asp-page-handler="DeleteContact" class="d-inline" data-contact-delete-form>
-                                    @Html.AntiForgeryToken()
-                                    <input type="hidden" name="partnerId" value="@p.Id" />
-                                    <input type="hidden" name="contactId" value="@c.Id" />
-                                    <button class="ip-btn-compact-danger" type="submit" data-confirm="@(hasSignificantInfo ? "true" : "false")">Delete</button>
-                                </form>
-                            }
-                        </td>
-                    </tr>
-                }
-                @if (!p.Contacts.Any())
-                {
-                    <tr>
-                        <td colspan="4" class="ip-empty-text">No contacts added yet.</td>
-                    </tr>
-                }
-                </tbody>
-            </table>
+    @if (Model.CanManage)
+    {
+        <button type="button" class="btn btn-sm btn-primary" data-toggle-panel="contact-add-panel" aria-expanded="@showAddForm.ToString().ToLowerInvariant()">
+            <i class="bi bi-person-plus" aria-hidden="true"></i> Add contact
+        </button>
+    }
+</div>
+
+@if (Model.CanManage)
+{
+    <div class="ip-inline-create @(showAddForm ? null : "d-none")" data-collapsible-panel="contact-add-panel">
+        <div class="ip-inline-create-title">
+            <strong>New contact</strong>
+            <span>Name is optional; phone or email is required.</span>
         </div>
-        @if (Model.CanManage)
-        {
-            <form method="post" asp-page-handler="AddContact" class="row g-2" data-add-contact-form>
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="partnerId" value="@p.Id" />
-                <div class="col-md-4"><input class="form-control form-control-sm ip-input" name="name" placeholder="Name" data-contact-name /></div>
-                <div class="col-md-3"><input class="form-control form-control-sm ip-input" name="phone" placeholder="Phone" data-contact-phone /></div>
-                <div class="col-md-4"><input class="form-control form-control-sm ip-input" name="email" placeholder="Email" data-contact-email /></div>
-                <div class="col-md-1"><button class="btn btn-sm btn-primary w-100" type="submit">Add</button></div>
-                <div class="col-12">
-                    <div class="form-text text-danger d-none" data-contact-error>Provide at least a phone number or an email address.</div>
+        <form method="post" asp-page-handler="AddContact" data-contact-form>
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="partnerId" value="@partner.Id" />
+            <input type="hidden" name="q" value="@Model.Q" />
+            <input type="hidden" name="filter" value="@Model.Filter" />
+            <input type="hidden" name="p" value="@Model.PageNumber" />
+            <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
+            <div class="row g-2">
+                <div class="col-md-4">
+                    <label class="form-label" for="newContactName">Name / office</label>
+                    <input id="newContactName" name="name" class="form-control" maxlength="200" autocomplete="name" />
                 </div>
-            </form>
+                <div class="col-md-4">
+                    <label class="form-label" for="newContactPhone">Phone</label>
+                    <input id="newContactPhone" name="phone" class="form-control" maxlength="64" autocomplete="tel" data-contact-phone />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="newContactEmail">Email</label>
+                    <input id="newContactEmail" name="email" type="email" class="form-control" maxlength="256" autocomplete="email" data-contact-email />
+                </div>
+            </div>
+            <div class="ip-inline-error d-none" data-contact-error>Add at least a phone number or an email address.</div>
+            <div class="ip-form-actions ip-form-actions-compact">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-hide-panel="contact-add-panel">Cancel</button>
+                <button type="submit" class="btn btn-sm btn-primary" data-submit-once>Add contact</button>
+            </div>
+        </form>
+    </div>
+}
+
+@if (partner.Contacts.Count == 0)
+{
+    <div class="ip-tab-empty">
+        <div class="ip-empty-icon"><i class="bi bi-person-lines-fill" aria-hidden="true"></i></div>
+        <h4>No contacts added</h4>
+        <p>Add a phone number or email when it becomes available. The organisation record can exist without a contact.</p>
+    </div>
+}
+else
+{
+    <div class="ip-contact-list">
+        @for (var index = 0; index < partner.Contacts.Count; index++)
+        {
+            var contact = partner.Contacts[index];
+            var contactLabel = string.IsNullOrWhiteSpace(contact.Name) ? "General contact" : contact.Name;
+            <article class="ip-contact-card" data-contact-card="@contact.Id">
+                <div class="ip-contact-read" data-contact-read="@contact.Id">
+                    <div class="ip-contact-avatar" aria-hidden="true">@contactLabel.Trim()[0].ToString().ToUpperInvariant()</div>
+                    <div class="min-w-0 flex-grow-1">
+                        <div class="ip-contact-title-row">
+                            <h4>@contactLabel</h4>
+                            @if (index == 0)
+                            {
+                                <span class="ip-primary-badge"><i class="bi bi-star-fill" aria-hidden="true"></i> Main</span>
+                            }
+                        </div>
+                        <div class="ip-contact-links">
+                            @if (!string.IsNullOrWhiteSpace(contact.Phone))
+                            {
+                                <a href="tel:@contact.Phone"><i class="bi bi-telephone" aria-hidden="true"></i>@contact.Phone</a>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(contact.Email))
+                            {
+                                <a href="mailto:@contact.Email"><i class="bi bi-envelope" aria-hidden="true"></i>@contact.Email</a>
+                            }
+                        </div>
+                    </div>
+
+                    @if (Model.CanManage)
+                    {
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-light ip-more-button" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @contactLabel">
+                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><button type="button" class="dropdown-item" data-edit-contact="@contact.Id"><i class="bi bi-pencil" aria-hidden="true"></i> Edit</button></li>
+                                <li><hr class="dropdown-divider" /></li>
+                                <li>
+                                    <form method="post" asp-page-handler="DeleteContact" data-confirm-form="Remove @contactLabel from this organisation?">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="partnerId" value="@partner.Id" />
+                                        <input type="hidden" name="contactId" value="@contact.Id" />
+                                        <input type="hidden" name="q" value="@Model.Q" />
+                                        <input type="hidden" name="filter" value="@Model.Filter" />
+                                        <input type="hidden" name="p" value="@Model.PageNumber" />
+                                        <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
+                                        <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash" aria-hidden="true"></i> Remove contact</button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </div>
+                    }
+                </div>
+
+                @if (Model.CanManage)
+                {
+                    <form method="post" asp-page-handler="UpdateContact" class="ip-contact-edit d-none" data-contact-edit="@contact.Id" data-contact-form>
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="partnerId" value="@partner.Id" />
+                        <input type="hidden" name="contactId" value="@contact.Id" />
+                        <input type="hidden" name="rowVersion" value="@contact.RowVersion" />
+                        <input type="hidden" name="q" value="@Model.Q" />
+                        <input type="hidden" name="filter" value="@Model.Filter" />
+                        <input type="hidden" name="p" value="@Model.PageNumber" />
+                        <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label">Name / office</label>
+                                <input name="name" class="form-control form-control-sm" value="@contact.Name" maxlength="200" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Phone</label>
+                                <input name="phone" class="form-control form-control-sm" value="@contact.Phone" maxlength="64" data-contact-phone />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Email</label>
+                                <input name="email" type="email" class="form-control form-control-sm" value="@contact.Email" maxlength="256" data-contact-email />
+                            </div>
+                        </div>
+                        <div class="ip-inline-error d-none" data-contact-error>Add at least a phone number or an email address.</div>
+                        <div class="ip-form-actions ip-form-actions-compact">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-cancel-contact="@contact.Id">Cancel</button>
+                            <button type="submit" class="btn btn-sm btn-primary" data-submit-once>Save</button>
+                        </div>
+                    </form>
+                }
+            </article>
         }
     </div>
-</div>
+}

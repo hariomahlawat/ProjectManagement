@@ -24,7 +24,7 @@
             @if (canManageIndustryPartners)
             {
                 <li>
-                    <a class="dropdown-item" asp-page="/IndustryPartners/Index">
+                    <a class="dropdown-item" asp-page="/IndustryPartners/Index" asp-route-projectId="@Model.Project.Id">
                         Manage links
                     </a>
                 </li>
@@ -32,7 +32,7 @@
             @if (primaryPartner is not null)
             {
                 <li>
-                    <a class="dropdown-item" href="/IndustryPartners?id=@primaryPartner.Id">
+                    <a class="dropdown-item" href="/IndustryPartners?id=@primaryPartner.Id&amp;projectId=@Model.Project.Id&amp;tab=projects">
                         Open partner
                     </a>
                 </li>

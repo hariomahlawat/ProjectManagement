@@ -1,0 +1,153 @@
+@model ProjectManagement.Pages.IndustryPartners.IndexModel
+@{
+    var partner = Model.SelectedPartner!;
+    var primary = partner.PrimaryContact;
+}
+
+@if (Model.Edit && Model.CanManage)
+{
+    <form method="post" asp-page-handler="UpdatePartner" class="ip-edit-form" data-update-organisation-form>
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="partnerId" value="@partner.Id" />
+        <input type="hidden" name="rowVersion" value="@partner.RowVersion" />
+        <input type="hidden" name="q" value="@Model.Q" />
+        <input type="hidden" name="filter" value="@Model.Filter" />
+        <input type="hidden" name="p" value="@Model.PageNumber" />
+        <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
+
+        <div class="ip-section-heading">
+            <div>
+                <h3>Edit organisation</h3>
+                <p>Update the directory record, then save all changes together.</p>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="partnerName">Organisation name</label>
+            <input id="partnerName" name="name" class="form-control" value="@partner.Name" maxlength="200" required />
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="partnerLocation">City / location / address</label>
+            <textarea id="partnerLocation" name="location" class="form-control" rows="2" maxlength="2000">@partner.Location</textarea>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="partnerRemarks">Notes</label>
+            <textarea id="partnerRemarks" name="remarks" class="form-control" rows="4" maxlength="4000">@partner.Remarks</textarea>
+            <div class="form-text">Keep only durable information that helps future engagement with the organisation.</div>
+        </div>
+        <div class="ip-form-actions">
+            <a href="@Model.BuildDirectoryUrl(partner.Id, "overview")" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary" data-submit-once>Save changes</button>
+        </div>
+    </form>
+}
+else
+{
+    @if (primary is not null)
+    {
+        <article class="ip-primary-contact-card">
+            <div class="ip-primary-contact-icon"><i class="bi bi-person" aria-hidden="true"></i></div>
+            <div class="min-w-0 flex-grow-1">
+                <div class="ip-card-label">Main contact</div>
+                <h3>@(string.IsNullOrWhiteSpace(primary.Name) ? "General contact" : primary.Name)</h3>
+                <div class="ip-contact-links">
+                    @if (!string.IsNullOrWhiteSpace(primary.Phone))
+                    {
+                        <a href="tel:@primary.Phone"><i class="bi bi-telephone" aria-hidden="true"></i>@primary.Phone</a>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(primary.Email))
+                    {
+                        <a href="mailto:@primary.Email"><i class="bi bi-envelope" aria-hidden="true"></i>@primary.Email</a>
+                    }
+                </div>
+            </div>
+            @if (partner.Contacts.Count > 1)
+            {
+                <button type="button" class="ip-text-button" data-open-tab="contacts">+@(partner.Contacts.Count - 1) more</button>
+            }
+        </article>
+    }
+    else if (Model.CanManage)
+    {
+        <button type="button" class="ip-primary-contact-card ip-primary-contact-empty" data-open-tab="contacts" data-show-panel="contact-add-panel">
+            <div class="ip-primary-contact-icon"><i class="bi bi-person-plus" aria-hidden="true"></i></div>
+            <div>
+                <div class="ip-card-label">Contact</div>
+                <h3>Add the first contact</h3>
+                <p>Only a phone number or email is required.</p>
+            </div>
+            <i class="bi bi-chevron-right ms-auto" aria-hidden="true"></i>
+        </button>
+    }
+
+    <div class="ip-overview-grid">
+        <article class="ip-info-card">
+            <div class="ip-card-label">Location</div>
+            @if (!string.IsNullOrWhiteSpace(partner.Location))
+            {
+                <p class="ip-preserve-lines mb-0">@partner.Location</p>
+            }
+            else
+            {
+                <p class="ip-muted mb-0">Not added</p>
+            }
+        </article>
+
+        <article class="ip-info-card">
+            <div class="ip-card-label">Directory position</div>
+            <dl class="ip-detail-list">
+                <div>
+                    <dt>Contacts</dt>
+                    <dd>@partner.Contacts.Count</dd>
+                </div>
+                <div>
+                    <dt>JDP projects</dt>
+                    <dd>@partner.LinkedProjects.Count</dd>
+                </div>
+                <div>
+                    <dt>Files</dt>
+                    <dd>@partner.Attachments.Count</dd>
+                </div>
+            </dl>
+        </article>
+    </div>
+
+    <article class="ip-info-card">
+        <div class="ip-card-heading-row">
+            <div class="ip-card-label">JDP history</div>
+            <button type="button" class="ip-text-button" data-open-tab="projects">View all</button>
+        </div>
+        @if (partner.LinkedProjects.Count == 0)
+        {
+            <div class="ip-compact-empty">
+                <span>No JDP association recorded.</span>
+                @if (Model.CanManage)
+                {
+                    <button type="button" class="ip-text-button" data-open-tab="projects" data-show-panel="project-add-panel">Link project</button>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="ip-project-preview-list">
+                @foreach (var project in partner.LinkedProjects.Take(3))
+                {
+                    <div>
+                        <span class="ip-project-preview-name">@project.ProjectName</span>
+                        <span class="ip-project-preview-meta">JDP · @project.ProjectStatusLabel</span>
+                    </div>
+                }
+            </div>
+        }
+    </article>
+
+    @if (!string.IsNullOrWhiteSpace(partner.Remarks))
+    {
+        <article class="ip-info-card">
+            <div class="ip-card-label">Notes</div>
+            <p class="ip-preserve-lines mb-0">@partner.Remarks</p>
+        </article>
+    }
+
+    <div class="ip-record-meta">Last updated @partner.LastUpdatedUtc.LocalDateTime.ToString("dd MMM yyyy, HH:mm")</div>
+}

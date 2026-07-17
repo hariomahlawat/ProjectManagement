@@ -47,7 +47,7 @@ public sealed class IndustryPartnersIndexPageAttachmentUploadTests
         // SECTION: Assert
         var redirect = Assert.IsType<RedirectToPageResult>(result);
         Assert.Equal(42, redirect.RouteValues?["id"]);
-        Assert.Equal("Attachment uploaded.", page.TempData["Message"]);
+        Assert.Equal("File added.", page.TempData["Message"]);
 
         var uploaded = Assert.Single(attachmentManager.UploadedFiles);
         Assert.Equal("partner-notes.txt", uploaded.File.FileName);
@@ -98,22 +98,36 @@ public sealed class IndustryPartnersIndexPageAttachmentUploadTests
 
     private sealed class StubIndustryPartnerService : IIndustryPartnerService
     {
-        public Task<IndustryPartnerSearchResult> SearchAsync(string? query, int page, int pageSize, CancellationToken cancellationToken = default)
+        public Task<IndustryPartnerSearchResult> SearchAsync(
+            string? query,
+            IndustryPartnerDirectoryFilter filter,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<IndustryPartnerDuplicateSuggestion>> FindDuplicateSuggestionsAsync(
+            string? name,
+            int take = 5,
+            CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
         public Task<IndustryPartnerDto?> GetAsync(int id, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task<int> CreateAsync(CreateIndustryPartnerRequest req, ClaimsPrincipal user, CancellationToken cancellationToken = default)
+        public Task<IndustryPartnerProjectContextDto?> GetProjectContextAsync(int projectId, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task UpdateFieldAsync(int id, string field, string? value, ClaimsPrincipal user, CancellationToken cancellationToken = default)
+        public Task<int> CreateAsync(CreateIndustryPartnerRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task<int> AddContactAsync(int partnerId, ContactRequest req, ClaimsPrincipal user, CancellationToken cancellationToken = default)
+        public Task UpdateAsync(int id, UpdateIndustryPartnerRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task UpdateContactAsync(int partnerId, int contactId, ContactRequest req, ClaimsPrincipal user, CancellationToken cancellationToken = default)
+        public Task<int> AddContactAsync(int partnerId, ContactRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task UpdateContactAsync(int partnerId, int contactId, ContactRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
         public Task DeleteContactAsync(int partnerId, int contactId, ClaimsPrincipal user, CancellationToken cancellationToken = default)

@@ -1,82 +1,194 @@
 @page
 @model ProjectManagement.Pages.IndustryPartners.IndexModel
 @{
-    ViewData["Title"] = "Industry partners";
+    ViewData["Title"] = "Industry Directory";
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/industry-partners.css" asp-append-version="true" />
 }
 
-<div class="container-fluid py-3 ip-page" data-industry-partners-root>
-    <div class="d-flex justify-content-between align-items-center ip-page-header">
-        <h1 class="h4 mb-0">Industry partners</h1>
+<div class="container-fluid ip-directory" data-industry-partners-root data-active-tab="@Model.ActiveTab">
+    <header class="ip-directory-header">
+        <div>
+            <div class="ip-eyebrow">Projects</div>
+            <h1>Industry Directory</h1>
+            <p>Find organisations, contact details and Joint Development Partner history quickly.</p>
+        </div>
         @if (Model.CanManage)
         {
-            <form method="post" asp-page-handler="CreatePartner" class="d-flex gap-2">
-                @Html.AntiForgeryToken()
-                <input name="name" class="form-control form-control-sm ip-input" placeholder="New partner name" required />
-                <button type="submit" class="btn btn-sm btn-primary">Create</button>
-            </form>
+            <button type="button" class="btn btn-primary ip-primary-action" data-bs-toggle="modal" data-bs-target="#addOrganisationModal">
+                <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                Add organisation
+            </button>
         }
-    </div>
+    </header>
 
-    @if (TempData["Error"] is string err)
+    @if (Model.ProjectContext is not null)
     {
-        <div class="alert alert-danger">@err</div>
+        <section class="ip-context-banner" aria-label="JDP association mode">
+            <div class="ip-context-icon"><i class="bi bi-link-45deg" aria-hidden="true"></i></div>
+            <div class="flex-grow-1 min-w-0">
+                <strong>Select or add the JDP for @Model.ProjectContext.Name</strong>
+                <span>
+                    @(string.IsNullOrWhiteSpace(Model.ProjectContext.CaseFileNumber)
+                        ? "The project is already selected. Open an organisation and link it directly."
+                        : $"{Model.ProjectContext.CaseFileNumber} · The project is already selected. Open an organisation and link it directly.")
+                </span>
+            </div>
+            <a asp-page="./Index" class="btn btn-sm btn-outline-secondary">Exit JDP mode</a>
+        </section>
     }
-    @if (TempData["Message"] is string msg)
+
+    @if (TempData["Error"] is string error)
     {
-        <div class="alert alert-success">@msg</div>
+        <div class="alert alert-danger ip-alert" role="alert">
+            <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+            <span>@error</span>
+        </div>
+    }
+    @if (TempData["Message"] is string message)
+    {
+        <div class="alert alert-success ip-alert" role="status">
+            <i class="bi bi-check-circle" aria-hidden="true"></i>
+            <span>@message</span>
+        </div>
     }
 
-    <div id="industryPartnerToken" class="d-none">@Html.AntiForgeryToken()</div>
+    <section class="ip-directory-card">
+        <div class="ip-toolbar">
+            <form method="get" class="ip-search-form" role="search" data-directory-search-form>
+                <input type="hidden" name="filter" value="@Model.Filter" />
+                @if (Model.ContextProjectId.HasValue)
+                {
+                    <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
+                }
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <input type="search"
+                       class="form-control"
+                       name="q"
+                       value="@Model.Q"
+                       placeholder="Search organisation, contact, phone, email, project or file number"
+                       autocomplete="off"
+                       data-directory-search />
+                @if (!string.IsNullOrWhiteSpace(Model.Q))
+                {
+                    <a class="ip-search-clear"
+                       asp-page="./Index"
+                       asp-route-filter="@Model.Filter"
+                       asp-route-projectId="@Model.ContextProjectId"
+                       aria-label="Clear search">
+                        <i class="bi bi-x-lg" aria-hidden="true"></i>
+                    </a>
+                }
+            </form>
 
-    <div class="ip-grid">
-        <div>
-            <div class="ip-panel ip-sticky">
-                <div class="ip-panel-body">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h2 class="h6 mb-0">Partners</h2>
-                        <span class="ip-count-badge" title="Visible vs total partners">
-                            <span>@Model.SearchResult.Items.Count</span>/<span>@Model.SearchResult.Total</span>
-                        </span>
-                    </div>
-                    <form method="get" class="ip-list-search">
-                        <input class="form-control form-control-sm ip-input" name="q" value="@Model.Q" placeholder="Search by partner, contact, email, remarks, location, or project" />
-                    </form>
-                    <div class="ip-list">
-                        @foreach (var item in Model.SearchResult.Items)
-                        {
-                            var isActive = Model.Id == item.Id;
-                            <a asp-page="./Index"
-                               asp-route-id="@item.Id"
-                               asp-route-q="@Model.Q"
-                               class="ip-list-item @(isActive ? "is-active" : string.Empty)"
-                               aria-current="@(isActive ? "true" : "false")">
-                                <div class="ip-list-item-title">@item.Name</div>
-                                <div class="ip-list-item-sub">@(string.IsNullOrWhiteSpace(item.Location) ? "Location not set" : item.Location)</div>
-                            </a>
-                        }
-                    </div>
-                </div>
+            <div class="ip-result-count">
+                <strong>@Model.SearchResult.Total</strong>
+                <span>@(Model.SearchResult.Total == 1 ? "organisation" : "organisations")</span>
             </div>
         </div>
 
-        <div class="min-w-0">
-            @if (Model.SelectedPartner is null)
-            {
-                <div class="ip-panel"><div class="ip-panel-body text-muted">Select a partner to begin.</div></div>
-            }
-            else
-            {
-                <partial name="_PartnerPanel" model="Model" />
-                <partial name="_Contacts" model="Model" />
-                <partial name="_Attachments" model="Model" />
-                <partial name="_LinkedProjects" model="Model" />
-            }
+        <nav class="ip-filter-tabs" aria-label="Directory filters">
+            <a class="@(Model.Filter == "all" ? "is-active" : null)"
+               asp-page="./Index" asp-route-q="@Model.Q" asp-route-filter="all" asp-route-projectId="@Model.ContextProjectId">All</a>
+            <a class="@(Model.Filter == "contact" ? "is-active" : null)"
+               asp-page="./Index" asp-route-q="@Model.Q" asp-route-filter="contact" asp-route-projectId="@Model.ContextProjectId">Contact only</a>
+            <a class="@(Model.Filter == "associated" ? "is-active" : null)"
+               asp-page="./Index" asp-route-q="@Model.Q" asp-route-filter="associated" asp-route-projectId="@Model.ContextProjectId">JDP associated</a>
+            <a class="@(Model.Filter == "current" ? "is-active" : null)"
+               asp-page="./Index" asp-route-q="@Model.Q" asp-route-filter="current" asp-route-projectId="@Model.ContextProjectId">Current JDP</a>
+            <a class="@(Model.Filter == "past" ? "is-active" : null)"
+               asp-page="./Index" asp-route-q="@Model.Q" asp-route-filter="past" asp-route-projectId="@Model.ContextProjectId">Past JDP</a>
+        </nav>
+
+        <partial name="_DirectoryTable" model="Model" />
+    </section>
+
+    @if (Model.CanManage)
+    {
+        <div class="modal fade" id="addOrganisationModal" tabindex="-1" aria-labelledby="addOrganisationModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content ip-modal-content">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title fs-5" id="addOrganisationModalLabel">Add organisation</h2>
+                            <p class="mb-0">Add the organisation and, when available, one useful contact.</p>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="post" asp-page-handler="CreatePartner" data-create-organisation-form data-contact-form data-contact-optional="true">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="q" value="@Model.Q" />
+                        <input type="hidden" name="filter" value="@Model.Filter" />
+                        <input type="hidden" name="p" value="@Model.PageNumber" />
+                        @if (Model.ContextProjectId.HasValue)
+                        {
+                            <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
+                        }
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label" for="newOrganisationName">Organisation name <span aria-hidden="true">*</span></label>
+                                <input id="newOrganisationName" name="name" class="form-control" maxlength="200" required autocomplete="organization" data-duplicate-name-input />
+                                <div class="form-text">Use the recognised company or organisation name.</div>
+                            </div>
+
+                            <div class="ip-duplicate-suggestions d-none" data-duplicate-suggestions aria-live="polite"></div>
+
+                            <div class="mb-3">
+                                <label class="form-label" for="newOrganisationLocation">City / location</label>
+                                <input id="newOrganisationLocation" name="location" class="form-control" maxlength="2000" autocomplete="address-level2" />
+                            </div>
+
+                            <div class="ip-modal-section">
+                                <div class="ip-modal-section-heading">
+                                    <strong>First contact</strong>
+                                    <span>Optional. More contacts can be added later.</span>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <label class="form-label" for="newOrganisationContactName">Name / office</label>
+                                        <input id="newOrganisationContactName" name="contactName" class="form-control" maxlength="200" autocomplete="name" />
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <label class="form-label" for="newOrganisationContactPhone">Phone</label>
+                                        <input id="newOrganisationContactPhone" name="contactPhone" class="form-control" maxlength="64" autocomplete="tel" data-contact-phone />
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <label class="form-label" for="newOrganisationContactEmail">Email</label>
+                                        <input id="newOrganisationContactEmail" name="contactEmail" type="email" class="form-control" maxlength="256" autocomplete="email" data-contact-email />
+                                    </div>
+                                </div>
+                                <div class="invalid-feedback d-none" data-contact-error>Add a phone number or email when adding a first contact.</div>
+                            </div>
+
+                            @if (Model.ProjectContext is not null)
+                            {
+                                <div class="ip-modal-context-association">
+                                    <div class="ip-modal-context-heading">
+                                        <i class="bi bi-link-45deg" aria-hidden="true"></i>
+                                        <div>
+                                            <strong>Link as JDP to @Model.ProjectContext.Name</strong>
+                                            <span>The organisation and JDP association will be created together.</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary" data-submit-once>Add organisation</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
-    </div>
+    }
+
+    @if (Model.SelectedPartner is not null)
+    {
+        <partial name="_PartnerDrawer" model="Model" />
+    }
 </div>
 
 @section Scripts {
