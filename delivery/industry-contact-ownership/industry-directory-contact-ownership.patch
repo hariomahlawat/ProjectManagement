@@ -1,0 +1,669 @@
+diff --git a/Configuration/Policies.cs b/Configuration/Policies.cs
+--- a/Configuration/Policies.cs
++++ b/Configuration/Policies.cs
+@@ -84,11 +84,19 @@ public static class Policies
+         };
+ 
+         public static readonly string[] DeleteAllowedRoles =
+         {
+             RoleNames.Admin,
+             RoleNames.HoD
+         };
++
++        // These command roles may correct or remove any contact record.
++        // All other authenticated users may manage only contacts they created.
++        public static readonly string[] ContactOverrideAllowedRoles =
++        {
++            RoleNames.Admin,
++            RoleNames.HoD,
++            RoleNames.Comdt
++        };
+     }
+ 
+     public static class Ipr
+diff --git a/Models/IndustryPartners/IndustryPartnerContact.cs b/Models/IndustryPartners/IndustryPartnerContact.cs
+--- a/Models/IndustryPartners/IndustryPartnerContact.cs
++++ b/Models/IndustryPartners/IndustryPartnerContact.cs
+@@ -12,6 +12,7 @@ public class IndustryPartnerContact
+     [MaxLength(200)] public string? Name { get; set; }
+     [MaxLength(64)] public string? Phone { get; set; }
+     [MaxLength(256)] public string? Email { get; set; }
++    [MaxLength(450)] public string? CreatedByUserId { get; set; }
+     public DateTimeOffset CreatedUtc { get; set; } = DateTimeOffset.UtcNow;
+     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+ }
+diff --git a/Services/IndustryPartners/IndustryPartnerAuthorizationException.cs b/Services/IndustryPartners/IndustryPartnerAuthorizationException.cs
+new file mode 100644
+--- /dev/null
++++ b/Services/IndustryPartners/IndustryPartnerAuthorizationException.cs
+@@ -0,0 +1,11 @@
++namespace ProjectManagement.Services.IndustryPartners;
++
++/// <summary>
++/// Raised when an authenticated user attempts to modify an industry-directory
++/// resource that they do not own and for which they have no command override.
++/// </summary>
++public sealed class IndustryPartnerAuthorizationException : Exception
++{
++    public IndustryPartnerAuthorizationException(string message) : base(message) { }
++}
+diff --git a/Services/IndustryPartners/IIndustryPartnerService.cs b/Services/IndustryPartners/IIndustryPartnerService.cs
+--- a/Services/IndustryPartners/IIndustryPartnerService.cs
++++ b/Services/IndustryPartners/IIndustryPartnerService.cs
+@@ -121,6 +121,7 @@ public sealed record IndustryPartnerContactDto(
+     string? Phone,
+     string? Email,
+     DateTimeOffset CreatedUtc,
++    string? CreatedByUserId,
+     string RowVersion);
+ 
+ public sealed record IndustryPartnerAttachmentDto(
+diff --git a/Services/IndustryPartners/IndustryPartnerService.cs b/Services/IndustryPartners/IndustryPartnerService.cs
+--- a/Services/IndustryPartners/IndustryPartnerService.cs
++++ b/Services/IndustryPartners/IndustryPartnerService.cs
+@@ -4,6 +4,7 @@ using System.Security.Claims;
+ using System.Text.RegularExpressions;
+ using Microsoft.EntityFrameworkCore;
++using ProjectManagement.Configuration;
+ using ProjectManagement.Data;
+ using ProjectManagement.Models;
+ using ProjectManagement.Models.IndustryPartners;
+@@ -247,6 +248,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
+                 contact.Phone,
+                 contact.Email,
+                 contact.CreatedUtc,
++                contact.CreatedByUserId,
+                 Convert.ToBase64String(contact.RowVersion)))
+             .ToList();
+@@ -390,6 +392,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
+                 Name = contact.Value.Name,
+                 Phone = contact.Value.Phone,
+                 Email = contact.Value.Email,
++                CreatedByUserId = userId,
+                 CreatedUtc = now
+             });
+         }
+@@ -463,6 +466,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
+             Name = contactValue.Name,
+             Phone = contactValue.Phone,
+             Email = contactValue.Email,
++            CreatedByUserId = GetUserId(user),
+             CreatedUtc = DateTimeOffset.UtcNow
+         };
+@@ -496,6 +500,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
+             .FirstOrDefaultAsync(item => item.Id == contactId && item.IndustryPartnerId == partnerId, cancellationToken)
+             ?? throw new KeyNotFoundException("Contact not found.");
+ 
++        EnsureCanManageContact(contact, user);
+         ApplyConcurrencyToken(contact, request.RowVersion);
+         var contactValue = ValidateContact(request);
+ 
+@@ -525,6 +530,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
+             .FirstOrDefaultAsync(item => item.Id == contactId && item.IndustryPartnerId == partnerId, cancellationToken)
+             ?? throw new KeyNotFoundException("Contact not found.");
+ 
++        EnsureCanManageContact(contact, user);
+         _db.IndustryPartnerContacts.Remove(contact);
+         Touch(partner, user);
+         await _db.SaveChangesAsync(cancellationToken);
+@@ -806,6 +812,28 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
+         partner.UpdatedByUserId = GetUserId(user);
+     }
+ 
++    private static void EnsureCanManageContact(
++        IndustryPartnerContact contact,
++        ClaimsPrincipal user)
++    {
++        if (Policies.IndustryPartners.ContactOverrideAllowedRoles.Any(user.IsInRole))
++        {
++            return;
++        }
++
++        var currentUserId = user.FindFirstValue(ClaimTypes.NameIdentifier);
++        if (!string.IsNullOrWhiteSpace(currentUserId) &&
++            !string.IsNullOrWhiteSpace(contact.CreatedByUserId) &&
++            string.Equals(contact.CreatedByUserId, currentUserId, StringComparison.Ordinal))
++        {
++            return;
++        }
++
++        throw new IndustryPartnerAuthorizationException(
++            "You may edit or remove only contacts that you created.");
++    }
++
+     private static string GetUserId(ClaimsPrincipal user) =>
+         user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "system";
+ 
+diff --git a/Pages/IndustryPartners/Index.cshtml.cs b/Pages/IndustryPartners/Index.cshtml.cs
+--- a/Pages/IndustryPartners/Index.cshtml.cs
++++ b/Pages/IndustryPartners/Index.cshtml.cs
+@@ -1,3 +1,4 @@
++using System.Security.Claims;
+ using Microsoft.AspNetCore.Authorization;
+ using Microsoft.AspNetCore.Mvc;
+ using Microsoft.AspNetCore.Mvc.RazorPages;
+@@ -62,8 +63,25 @@ public sealed class IndexModel : PageModel
+     public IndustryPartnerDirectoryFilter SelectedFilter { get; private set; }
+     public bool CanManage { get; private set; }
+     public bool CanDelete { get; private set; }
++    public bool CanManageAnyContact { get; private set; }
++
++    public bool CanAddContact => User.Identity?.IsAuthenticated == true;
+ 
+     public string ActiveTab => NormalizeTab(Tab, ProjectContext is not null);
++
++    public bool CanEditContact(IndustryPartnerContactDto contact) =>
++        CanManageAnyContact || IsContactAuthor(contact);
++
++    public bool CanDeleteContact(IndustryPartnerContactDto contact) =>
++        CanManageAnyContact || IsContactAuthor(contact);
++
++    private bool IsContactAuthor(IndustryPartnerContactDto contact)
++    {
++        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
++        return !string.IsNullOrWhiteSpace(currentUserId) &&
++               !string.IsNullOrWhiteSpace(contact.CreatedByUserId) &&
++               string.Equals(contact.CreatedByUserId, currentUserId, StringComparison.Ordinal);
++    }
+ 
+     public async Task OnGetAsync(CancellationToken cancellationToken)
+     {
+@@ -71,6 +89,8 @@ public sealed class IndexModel : PageModel
+         CanManage = (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.Manage)).Succeeded;
+         CanDelete = (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.Delete)).Succeeded;
++        CanManageAnyContact = Policies.IndustryPartners.ContactOverrideAllowedRoles
++            .Any(User.IsInRole);
+         SelectedFilter = ParseFilter(Filter);
+         Filter = ToFilterKey(SelectedFilter);
+         PageNumber = Math.Max(1, PageNumber);
+@@ -211,11 +231,6 @@ public sealed class IndexModel : PageModel
+         [FromForm] string? email,
+         CancellationToken cancellationToken)
+     {
+-        if (!await CanManageAsync())
+-        {
+-            return Forbid();
+-        }
+-
+         try
+         {
+             await _service.AddContactAsync(
+@@ -249,11 +264,6 @@ public sealed class IndexModel : PageModel
+         [FromForm] string? rowVersion,
+         CancellationToken cancellationToken)
+     {
+-        if (!await CanManageAsync())
+-        {
+-            return Forbid();
+-        }
+-
+         try
+         {
+             await _service.UpdateContactAsync(
+@@ -267,6 +277,10 @@ public sealed class IndexModel : PageModel
+         {
+             SetError(exception);
+         }
++        catch (IndustryPartnerAuthorizationException)
++        {
++            return Forbid();
++        }
+ 
+         return RedirectToDirectory(partnerId, "contacts");
+     }
+@@ -278,11 +292,6 @@ public sealed class IndexModel : PageModel
+         [FromForm] int contactId,
+         CancellationToken cancellationToken)
+     {
+-        if (!await CanManageAsync())
+-        {
+-            return Forbid();
+-        }
+-
+         try
+         {
+             await _service.DeleteContactAsync(partnerId, contactId, User, cancellationToken);
+@@ -293,6 +302,10 @@ public sealed class IndexModel : PageModel
+         {
+             SetError(exception);
+         }
++        catch (IndustryPartnerAuthorizationException)
++        {
++            return Forbid();
++        }
+ 
+         return RedirectToDirectory(partnerId, "contacts");
+     }
+diff --git a/Pages/IndustryPartners/_Contacts.cshtml b/Pages/IndustryPartners/_Contacts.cshtml
+--- a/Pages/IndustryPartners/_Contacts.cshtml
++++ b/Pages/IndustryPartners/_Contacts.cshtml
+@@ -2,7 +2,7 @@
+ @{
+     var partner = Model.SelectedPartner!;
+-    var showAddForm = partner.Contacts.Count == 0 && Model.CanManage;
++    var showAddForm = partner.Contacts.Count == 0 && Model.CanAddContact;
+ }
+ 
+ <div class="ip-section-heading">
+@@ -11,20 +11,12 @@
+         <h3>Contacts</h3>
+         <p>Add only the details normally needed to reach the person or office.</p>
+     </div>
+-    @if (Model.CanManage)
+-    {
+-        <button type="button" class="btn btn-sm btn-primary" data-toggle-panel="contact-add-panel" aria-expanded="@showAddForm.ToString().ToLowerInvariant()">
+-            <i class="bi bi-person-plus" aria-hidden="true"></i> Add contact
+-        </button>
+-    }
+ </div>
+ 
+-@if (Model.CanManage)
++@if (Model.CanAddContact)
+ {
+     <div class="ip-inline-create @(showAddForm ? null : "d-none")" data-collapsible-panel="contact-add-panel">
+         <div class="ip-inline-create-title">
+             <strong>New contact</strong>
+@@ -38,17 +30,19 @@
+             <input type="hidden" name="p" value="@Model.PageNumber" />
+             <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
+             <div class="row g-2">
+-                <div class="col-md-4">
++                <div class="col-12">
+                     <label class="form-label" for="newContactName">Contact person or office</label>
+                     <input id="newContactName" name="name" class="form-control" maxlength="200" autocomplete="name" placeholder="e.g. Mr Arun Sharma or Business Development Office" />
+                 </div>
+-                <div class="col-md-4">
++                <div class="col-md-6">
+                     <label class="form-label" for="newContactPhone">Phone</label>
+                     <input id="newContactPhone" name="phone" class="form-control" maxlength="64" autocomplete="tel" data-contact-phone />
+                 </div>
+-                <div class="col-md-4">
++                <div class="col-md-6">
+                     <label class="form-label" for="newContactEmail">Email</label>
+                     <input id="newContactEmail" name="email" type="email" class="form-control" maxlength="256" autocomplete="email" data-contact-email />
+                 </div>
+@@ -76,6 +70,8 @@ else
+         {
+             var contact = partner.Contacts[index];
+             var contactLabel = string.IsNullOrWhiteSpace(contact.Name) ? "General contact" : contact.Name;
++            var canEdit = Model.CanEditContact(contact);
++            var canDelete = Model.CanDeleteContact(contact);
+             <article class="ip-contact-card" data-contact-card="@contact.Id">
+                 <div class="ip-contact-read" data-contact-read="@contact.Id">
+                     <div class="ip-contact-avatar" aria-hidden="true">@contactLabel.Trim()[0].ToString().ToUpperInvariant()</div>
+@@ -85,7 +81,7 @@ else
+                             <h4>@contactLabel</h4>
+                             @if (index == 0)
+                             {
+-                                <span class="ip-primary-badge"><i class="bi bi-star-fill" aria-hidden="true"></i> Main</span>
++                                <span class="ip-primary-badge"><i class="bi bi-star-fill" aria-hidden="true"></i> Primary</span>
+                             }
+                         </div>
+                         <div class="ip-contact-links">
+@@ -104,7 +100,7 @@ else
+                         </div>
+                     </div>
+ 
+-                    @if (Model.CanManage)
++                    @if (canEdit || canDelete)
+                     {
+                         <div class="dropdown">
+                             <button class="btn btn-sm btn-light ip-more-button" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @contactLabel">
+@@ -112,11 +108,18 @@ else
+                             </button>
+                             <ul class="dropdown-menu dropdown-menu-end">
+-                                <li><button type="button" class="dropdown-item" data-edit-contact="@contact.Id"><i class="bi bi-pencil" aria-hidden="true"></i> Edit</button></li>
+-                                <li><hr class="dropdown-divider" /></li>
+-                                <li>
++                                @if (canEdit)
++                                {
++                                    <li><button type="button" class="dropdown-item" data-edit-contact="@contact.Id"><i class="bi bi-pencil" aria-hidden="true"></i> Edit</button></li>
++                                }
++                                @if (canEdit && canDelete)
++                                {
++                                    <li><hr class="dropdown-divider" /></li>
++                                }
++                                @if (canDelete)
++                                {
++                                    <li>
+                                     <form method="post" asp-page-handler="DeleteContact" data-confirm-form="Remove @contactLabel from this organisation?">
+                                         @Html.AntiForgeryToken()
+                                         <input type="hidden" name="partnerId" value="@partner.Id" />
+@@ -129,14 +132,15 @@ else
+                                         <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash" aria-hidden="true"></i> Remove contact</button>
+                                     </form>
+-                                </li>
++                                    </li>
++                                }
+                             </ul>
+                         </div>
+                     }
+                 </div>
+ 
+-                @if (Model.CanManage)
++                @if (canEdit)
+                 {
+                     <form method="post" asp-page-handler="UpdateContact" class="ip-contact-edit d-none" data-contact-edit="@contact.Id" data-contact-form>
+@@ -151,15 +155,15 @@ else
+                         <input type="hidden" name="p" value="@Model.PageNumber" />
+                         <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
+                         <div class="row g-2">
+-                            <div class="col-md-4">
++                            <div class="col-12">
+                                 <label class="form-label">Contact person or office</label>
+                                 <input name="name" class="form-control form-control-sm" value="@contact.Name" maxlength="200" placeholder="Person or office" />
+                             </div>
+-                            <div class="col-md-4">
++                            <div class="col-md-6">
+                                 <label class="form-label">Phone</label>
+                                 <input name="phone" class="form-control form-control-sm" value="@contact.Phone" maxlength="64" data-contact-phone />
+                             </div>
+-                            <div class="col-md-4">
++                            <div class="col-md-6">
+                                 <label class="form-label">Email</label>
+                                 <input name="email" type="email" class="form-control form-control-sm" value="@contact.Email" maxlength="256" data-contact-email />
+diff --git a/Pages/IndustryPartners/_PartnerDrawer.cshtml b/Pages/IndustryPartners/_PartnerDrawer.cshtml
+--- a/Pages/IndustryPartners/_PartnerDrawer.cshtml
++++ b/Pages/IndustryPartners/_PartnerDrawer.cshtml
+@@ -6,6 +6,8 @@
+     var hasContextualAssociation = Model.ProjectContext is not null &&
+         partner.LinkedProjects.Any(link => link.ProjectId == Model.ProjectContext.Id);
+     var statusKey = partner.LinkedProjects.Count == 0 ? "contact" : partner.ActiveProjectCount > 0 ? "current" : "past";
++    var contactAddPanelOpen = Model.ActiveTab == "contacts" &&
++        partner.Contacts.Count == 0 && Model.CanAddContact;
+ }
+@@ -64,22 +66,32 @@
+     </div>
+ 
+     <div class="ip-drawer-actions">
+-        @if (Model.CanManage)
++        @if (!Model.Edit)
+         {
+-            <a href="@Model.BuildDirectoryUrl(partner.Id, "overview", edit: true)" class="btn btn-sm btn-outline-secondary">
+-                <i class="bi bi-pencil" aria-hidden="true"></i> Edit
+-            </a>
+-            <button type="button" class="btn btn-sm btn-outline-secondary" data-open-tab="contacts" data-show-panel="contact-add-panel">
+-                <i class="bi bi-person-plus" aria-hidden="true"></i> Add contact
+-            </button>
+-            @if (hasContextualAssociation)
++            @if (Model.CanManage)
+             {
+-                <button type="button" class="btn btn-sm btn-outline-primary" data-open-tab="projects">
+-                    <i class="bi bi-check2-circle" aria-hidden="true"></i> JDP linked
+-                </button>
++                <a href="@Model.BuildDirectoryUrl(partner.Id, "overview", edit: true)" class="btn btn-sm btn-outline-secondary">
++                    <i class="bi bi-pencil" aria-hidden="true"></i> Edit
++                </a>
+             }
+-            else if (Model.ProjectContext is null)
++
++            @if (Model.CanAddContact)
+             {
+-                <button type="button" class="btn btn-sm btn-primary" data-open-tab="projects" data-show-panel="project-add-panel" data-project-toolbar-action>
+-                    <i class="bi bi-link-45deg" aria-hidden="true"></i> Link project
++                <button type="button"
++                        class="btn btn-sm btn-outline-secondary @(contactAddPanelOpen ? "d-none" : null)"
++                        data-open-tab="contacts"
++                        data-show-panel="contact-add-panel"
++                        data-contact-toolbar-action>
++                    <i class="bi bi-person-plus" aria-hidden="true"></i> Add contact
+                 </button>
+             }
++
++            @if (Model.CanManage)
++            {
++                @if (hasContextualAssociation)
++                {
++                    <button type="button" class="btn btn-sm btn-outline-primary" data-open-tab="projects">
++                        <i class="bi bi-check2-circle" aria-hidden="true"></i> JDP linked
++                    </button>
++                }
++                else if (Model.ProjectContext is null)
++                {
++                    <button type="button" class="btn btn-sm btn-primary" data-open-tab="projects" data-show-panel="project-add-panel" data-project-toolbar-action>
++                        <i class="bi bi-link-45deg" aria-hidden="true"></i> Link project
++                    </button>
++                }
++            }
+         }
+ 
+         @if (Model.CanDelete && partner.LinkedProjects.Count == 0)
+diff --git a/wwwroot/js/pages/industry-partners.js b/wwwroot/js/pages/industry-partners.js
+--- a/wwwroot/js/pages/industry-partners.js
++++ b/wwwroot/js/pages/industry-partners.js
+@@ -35,6 +35,12 @@
+         button.classList.toggle('d-none', visible);
+       });
+     }
++
++    if (panelName === 'contact-add-panel') {
++      root.querySelectorAll('[data-contact-toolbar-action]').forEach((button) => {
++        button.classList.toggle('d-none', visible);
++      });
++    }
+ 
+     if (visible) {
+       const focusTarget = panel.querySelector('input:not([type="hidden"]), select, textarea, button');
+@@ -81,6 +87,10 @@
+       setPanelVisible('project-add-panel', false);
+     }
++
++    if (safeTab !== 'contacts') {
++      setPanelVisible('contact-add-panel', false);
++    }
+ 
+     if (updateUrl) {
+       const url = new URL(window.location.href);
+diff --git a/wwwroot/css/pages/industry-partners.css b/wwwroot/css/pages/industry-partners.css
+--- a/wwwroot/css/pages/industry-partners.css
++++ b/wwwroot/css/pages/industry-partners.css
+@@ -378,8 +378,8 @@
+ }
+ 
+ .ip-directory-empty {
+-  min-height: 330px;
+-  padding: 42px 24px;
++  min-height: 290px;
++  padding: 32px 24px;
+ }
+ 
+ .ip-directory-empty h2,
+diff --git a/Migrations/20260718003500_AddIndustryPartnerContactOwnership.cs b/Migrations/20260718003500_AddIndustryPartnerContactOwnership.cs
+new file mode 100644
+--- /dev/null
++++ b/Migrations/20260718003500_AddIndustryPartnerContactOwnership.cs
+@@ -0,0 +1,52 @@
++using Microsoft.EntityFrameworkCore.Infrastructure;
++using Microsoft.EntityFrameworkCore.Migrations;
++using ProjectManagement.Data;
++
++#nullable disable
++
++namespace ProjectManagement.Migrations;
++
++[DbContext(typeof(ApplicationDbContext))]
++[Migration("20260718003500_AddIndustryPartnerContactOwnership")]
++public partial class AddIndustryPartnerContactOwnership : Migration
++{
++    protected override void Up(MigrationBuilder migrationBuilder)
++    {
++        migrationBuilder.AddColumn<string>(
++            name: "CreatedByUserId",
++            table: "IndustryPartnerContacts",
++            type: "character varying(450)",
++            maxLength: 450,
++            nullable: true);
++
++        migrationBuilder.CreateIndex(
++            name: "IX_IndustryPartnerContacts_CreatedByUserId",
++            table: "IndustryPartnerContacts",
++            column: "CreatedByUserId");
++    }
++
++    protected override void Down(MigrationBuilder migrationBuilder)
++    {
++        migrationBuilder.DropIndex(
++            name: "IX_IndustryPartnerContacts_CreatedByUserId",
++            table: "IndustryPartnerContacts");
++
++        migrationBuilder.DropColumn(
++            name: "CreatedByUserId",
++            table: "IndustryPartnerContacts");
++    }
++}
+diff --git a/Migrations/ApplicationDbContextModelSnapshot.cs b/Migrations/ApplicationDbContextModelSnapshot.cs
+--- a/Migrations/ApplicationDbContextModelSnapshot.cs
++++ b/Migrations/ApplicationDbContextModelSnapshot.cs
+@@ -3705,6 +3705,10 @@ namespace ProjectManagement.Migrations
+                     b.Property<DateTimeOffset>("CreatedUtc")
+                         .HasColumnType("timestamp with time zone");
+ 
++                    b.Property<string>("CreatedByUserId")
++                        .HasMaxLength(450)
++                        .HasColumnType("character varying(450)");
++
+                     b.Property<string>("Email")
+                         .HasMaxLength(256)
+                         .HasColumnType("character varying(256)");
+@@ -3728,6 +3732,8 @@ namespace ProjectManagement.Migrations
+ 
+                     b.HasKey("Id");
+ 
++                    b.HasIndex("CreatedByUserId");
++
+                     b.HasIndex("IndustryPartnerId");
+ 
+                     b.ToTable("IndustryPartnerContacts", null, t =>
+diff --git a/ProjectManagement.Tests/IndustryPartners/IndustryPartnerRulesTests.cs b/ProjectManagement.Tests/IndustryPartners/IndustryPartnerRulesTests.cs
+--- a/ProjectManagement.Tests/IndustryPartners/IndustryPartnerRulesTests.cs
++++ b/ProjectManagement.Tests/IndustryPartners/IndustryPartnerRulesTests.cs
+@@ -5,6 +5,7 @@ using System.Security.Claims;
+ using System.Linq;
+ using Microsoft.EntityFrameworkCore;
++using ProjectManagement.Configuration;
+ using ProjectManagement.Data;
+ using ProjectManagement.Models;
+ using ProjectManagement.Models.Execution;
+@@ -126,16 +127,119 @@ public sealed class IndustryPartnerRulesTests
+         await Assert.ThrowsAsync<IndustryPartnerValidationException>(() => service.AddContactAsync(id, new ContactRequest("A", null, "badmail"), user));
+     }
+ 
++    [Fact]
++    public async Task ContactAuthor_CanUpdateAndDeleteOwnContact()
++    {
++        await using var db = CreateDb();
++        var service = new IndustryPartnerService(db);
++        var author = User("author-1");
++        var partnerId = await service.CreateAsync(new CreateIndustryPartnerRequest("Author Partner", null), author);
++        var contactId = await service.AddContactAsync(
++            partnerId,
++            new ContactRequest("Author Contact", "1234567890", null),
++            author);
++
++        await service.UpdateContactAsync(
++            partnerId,
++            contactId,
++            new ContactRequest("Updated Contact", "1234567890", null),
++            author);
++
++        Assert.Equal("Updated Contact", (await db.IndustryPartnerContacts.FindAsync(contactId))!.Name);
++
++        await service.DeleteContactAsync(partnerId, contactId, author);
++        Assert.Null(await db.IndustryPartnerContacts.FindAsync(contactId));
++    }
++
++    [Fact]
++    public async Task NonAuthor_CannotUpdateOrDeleteAnotherUsersContact()
++    {
++        await using var db = CreateDb();
++        var service = new IndustryPartnerService(db);
++        var author = User("author-1");
++        var otherUser = User("user-2");
++        var partnerId = await service.CreateAsync(new CreateIndustryPartnerRequest("Protected Partner", null), author);
++        var contactId = await service.AddContactAsync(
++            partnerId,
++            new ContactRequest("Protected Contact", "1234567890", null),
++            author);
++
++        await Assert.ThrowsAsync<IndustryPartnerAuthorizationException>(() =>
++            service.UpdateContactAsync(
++                partnerId,
++                contactId,
++                new ContactRequest("Unauthorised change", "1234567890", null),
++                otherUser));
++
++        await Assert.ThrowsAsync<IndustryPartnerAuthorizationException>(() =>
++            service.DeleteContactAsync(partnerId, contactId, otherUser));
++    }
++
++    [Theory]
++    [InlineData(RoleNames.Admin)]
++    [InlineData(RoleNames.HoD)]
++    [InlineData(RoleNames.Comdt)]
++    public async Task CommandOverrideRoles_CanManageAnyContact(string role)
++    {
++        await using var db = CreateDb();
++        var service = new IndustryPartnerService(db);
++        var author = User("author-1");
++        var privilegedUser = User("command-user", role);
++        var partnerId = await service.CreateAsync(new CreateIndustryPartnerRequest("Command Partner", null), author);
++        var contactId = await service.AddContactAsync(
++            partnerId,
++            new ContactRequest("Command Contact", "1234567890", null),
++            author);
++
++        await service.UpdateContactAsync(
++            partnerId,
++            contactId,
++            new ContactRequest("Corrected Contact", "1234567890", null),
++            privilegedUser);
++
++        await service.DeleteContactAsync(partnerId, contactId, privilegedUser);
++        Assert.Null(await db.IndustryPartnerContacts.FindAsync(contactId));
++    }
++
++    [Fact]
++    public async Task LegacyContactWithoutAuthor_IsRestrictedToCommandOverrideRoles()
++    {
++        await using var db = CreateDb();
++        var service = new IndustryPartnerService(db);
++        var creator = User("creator");
++        var normalUser = User("normal-user");
++        var admin = User("admin-user", RoleNames.Admin);
++        var partnerId = await service.CreateAsync(new CreateIndustryPartnerRequest("Legacy Partner", null), creator);
++
++        var legacy = new IndustryPartnerContact
++        {
++            IndustryPartnerId = partnerId,
++            Name = "Legacy Contact",
++            Phone = "1234567890",
++            CreatedByUserId = null
++        };
++        db.IndustryPartnerContacts.Add(legacy);
++        await db.SaveChangesAsync();
++
++        await Assert.ThrowsAsync<IndustryPartnerAuthorizationException>(() =>
++            service.DeleteContactAsync(partnerId, legacy.Id, normalUser));
++
++        await service.DeleteContactAsync(partnerId, legacy.Id, admin);
++        Assert.Null(await db.IndustryPartnerContacts.FindAsync(legacy.Id));
++    }
++
+     private static ApplicationDbContext CreateDb()
+     {
+         var opts = new DbContextOptionsBuilder<ApplicationDbContext>()
+             .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
+             .Options;
+         return new ApplicationDbContext(opts);
+     }
+ 
+-    private static ClaimsPrincipal User()
++    private static ClaimsPrincipal User(string userId = "u1", params string[] roles)
+     {
+-        var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, "u1") }, "test");
++        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
++        claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
++        var identity = new ClaimsIdentity(claims, "test");
+         return new ClaimsPrincipal(identity);
+     }
+ }
