@@ -74,3 +74,38 @@ test('IPR filter selects auto-submit while retaining an accessible hidden submit
   assert.match(source, /\[data-ipr-auto-submit\]/);
   assert.match(source, /form\.requestSubmit\(\)/);
 });
+
+
+test('IPR register uses a row-based workbench with a persistent inspector', () => {
+  const pageSource = fs.readFileSync(
+    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
+    'utf8'
+  );
+  assert.match(pageSource, /ipr-record-workbench/);
+  assert.match(pageSource, /data-ipr-record-inspector/);
+  assert.match(pageSource, /id="iprRecordData"/);
+  assert.match(source, /initialiseRecordInspector/);
+  assert.match(source, /sessionStorage\.setItem/);
+  assert.match(cssSource, /\.ipr-register-table thead\s*\{[\s\S]*position:\s*sticky/);
+});
+
+test('IPR project view is grouped into expandable project dossiers', () => {
+  const pageSource = fs.readFileSync(
+    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
+    'utf8'
+  );
+  assert.match(pageSource, /data-ipr-project-group/);
+  assert.match(pageSource, /Project dossiers/);
+  assert.match(source, /initialiseProjectGroups/);
+  assert.match(source, /Expand all/);
+});
+
+test('IPR module provides an operational follow-up view and compact insight ribbon', () => {
+  const pageSource = fs.readFileSync(
+    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
+    'utf8'
+  );
+  assert.match(pageSource, /ipr-insight-ribbon/);
+  assert.match(pageSource, /IPR follow-up/);
+  assert.match(pageSource, /ipr-followup-group/);
+});

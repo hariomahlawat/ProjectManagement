@@ -235,10 +235,12 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
             return AdminOperationResult<Guid>.Failure("Spouse name must be 120 characters or fewer.", "CelebrationSpouseNameTooLong");
         }
 
-        Celebration? entity;
+        Celebration entity;
         object? before = null;
-        var created = command.Id is null;
-        if (command.Id is not Guid celebrationId)
+        var requestedCelebrationId = command.Id;
+        var created = !requestedCelebrationId.HasValue;
+
+        if (created)
         {
             entity = new Celebration
             {
@@ -246,18 +248,28 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
                 CreatedById = command.ActorUserId,
                 CreatedUtc = _time.UtcNow
             };
+
             _db.Celebrations.Add(entity);
         }
         else
         {
-            entity = await _db.Celebrations.SingleOrDefaultAsync(
+            // GetValueOrDefault is deliberate here: the branch above has already
+            // established that this is an update, and it avoids nullable-flow
+            // ambiguity in Visual Studio/Roslyn analyzers.
+            var celebrationId = requestedCelebrationId.GetValueOrDefault();
+            var existing = await _db.Celebrations.SingleOrDefaultAsync(
                 item => item.Id == celebrationId && item.DeletedUtc == null,
                 cancellationToken);
-            if (entity is null)
+
+            if (existing is null)
             {
-                return AdminOperationResult<Guid>.Failure("The celebration could not be found.", "CelebrationNotFound");
+                return AdminOperationResult<Guid>.Failure(
+                    "The celebration could not be found.",
+                    "CelebrationNotFound");
             }
-            before = Snapshot(entity);
+
+            entity = existing;
+            before = Snapshot(existing);
         }
 
         entity.EventType = command.EventType;

@@ -1,16 +1,21 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
 @{
-    var selectedProject = Model.Input.ProjectId.HasValue
-        ? Model.ProjectPickerOptions.FirstOrDefault(project => project.Id == Model.Input.ProjectId.Value)
+    var selectedProjectId = Model.Input.ProjectId;
+    var selectedProject = selectedProjectId is int projectId
+        ? Model.ProjectPickerOptions.FirstOrDefault(project => project.Id == projectId)
         : null;
     var projectFieldName = "Input.ProjectId";
     var hasProjectError = ViewData.ModelState.TryGetValue(projectFieldName, out var projectModelState) &&
         projectModelState.Errors.Count > 0;
-    var selectedProjectUnavailable = Model.Input.ProjectId.HasValue && selectedProject is null;
+    var selectedProjectUnavailable = selectedProjectId.HasValue && selectedProject is null;
     var selectedName = selectedProject?.Name ??
-        (selectedProjectUnavailable ? $"Unavailable project #{Model.Input.ProjectId.Value}" : string.Empty);
+        (selectedProjectId is int unavailableProjectId
+            ? $"Unavailable project #{unavailableProjectId}"
+            : string.Empty);
     var selectedSecondary = selectedProject?.SecondaryText ??
-        (selectedProjectUnavailable ? "This project is no longer available. Select another project." : string.Empty);
+        (selectedProjectUnavailable
+            ? "This project is no longer available. Select another project."
+            : string.Empty);
 }
 
 <div class="ipr-form-field ipr-form-field--wide">

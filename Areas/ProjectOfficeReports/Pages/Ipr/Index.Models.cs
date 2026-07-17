@@ -34,16 +34,36 @@ public sealed partial class IndexModel
             => string.Join(" ", new[] { Name, Code, Lifecycle }.Where(value => !string.IsNullOrWhiteSpace(value)));
     }
 
-    public sealed record ProjectIprLinkRow(
+    public sealed record ProjectIprItem(
         int Id,
-        int? ProjectId,
-        string ProjectName,
         string Title,
         string Type,
         string Position,
         DateTime? FiledOn,
         DateTime? GrantedOn,
-        int ProjectIprCount);
+        int AttachmentCount);
+
+    public sealed record ProjectIprGroup(
+        int? ProjectId,
+        string ProjectName,
+        string Lifecycle,
+        int Total,
+        int Granted,
+        int Awaiting,
+        int Patents,
+        int Copyrights,
+        DateTime? LatestFiledOn,
+        bool IsUnassigned,
+        IReadOnlyList<ProjectIprItem> Items)
+    {
+        public string SearchText
+            => string.Join(" ", new[]
+            {
+                ProjectName,
+                Lifecycle,
+                string.Join(" ", Items.Select(item => item.Title))
+            });
+    }
 
     public sealed record AwaitingGrantRow(
         int Id,
@@ -53,6 +73,35 @@ public sealed partial class IndexModel
         string Type,
         DateTime? FiledOn,
         int WaitingDays);
+
+    public sealed record AttentionItem(
+        int Id,
+        string Title,
+        string ProjectName,
+        string Type,
+        string Category,
+        string Severity,
+        DateTime? FiledOn,
+        int? WaitingDays,
+        int AttachmentCount,
+        IReadOnlyList<string> Reasons);
+
+    public sealed record AttentionGroup(
+        string Key,
+        string Title,
+        string Description,
+        string Tone,
+        IReadOnlyList<AttentionItem> Items);
+
+    public sealed record AgeBandRow(string Label, int Count, int Percentage, string Tone);
+
+    public sealed record AnalyticsSummaryModel(
+        int GrantRatePercent,
+        int? MedianGrantDays,
+        int? MedianAwaitingDays,
+        int AwaitingOverThreeYears,
+        int Unassigned,
+        int MissingAttachments);
 
     public sealed class RecordInput
     {

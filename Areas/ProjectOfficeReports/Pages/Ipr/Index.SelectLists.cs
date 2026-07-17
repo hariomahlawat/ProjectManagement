@@ -139,6 +139,7 @@ public sealed partial class IndexModel
         Tab = Tab?.Trim().ToLowerInvariant() switch
         {
             "project" => "project",
+            "followup" => "followup",
             "analytics" => "analytics",
             _ => "records"
         };

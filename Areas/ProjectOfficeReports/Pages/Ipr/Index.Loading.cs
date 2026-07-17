@@ -14,6 +14,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr;
 
 public sealed partial class IndexModel
 {
+    private const int LongPendingYears = 3;
+
     public string FormatFileSize(long bytes)
     {
         if (bytes < 1024)
@@ -36,10 +38,7 @@ public sealed partial class IndexModel
 
     private IprRecordRowViewModel CreateRowViewModel(IprListRowDto dto)
     {
-        if (dto is null)
-        {
-            throw new ArgumentNullException(nameof(dto));
-        }
+        ArgumentNullException.ThrowIfNull(dto);
 
         var title = string.IsNullOrWhiteSpace(dto.Title) ? "Untitled record" : dto.Title!;
         var project = string.IsNullOrWhiteSpace(dto.ProjectName) ? "Unassigned project" : dto.ProjectName!;
@@ -58,6 +57,7 @@ public sealed partial class IndexModel
             GetStatusLabel(dto.Status),
             GetStatusChipClass(dto.Status),
             string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes,
+            string.IsNullOrWhiteSpace(dto.FiledBy) ? "Not recorded" : dto.FiledBy.Trim(),
             ConvertToIstDate(dto.FiledAtUtc),
             ConvertToIstDate(dto.GrantedAtUtc),
             attachments,
@@ -82,8 +82,7 @@ public sealed partial class IndexModel
             return null;
         }
 
-        var converted = TimeZoneInfo.ConvertTimeFromUtc(value.Value.UtcDateTime, IstTimeZone);
-        return converted;
+        return TimeZoneInfo.ConvertTimeFromUtc(value.Value.UtcDateTime, IstTimeZone);
     }
 
     public string FormatAttachmentTimestamp(DateTimeOffset value)
@@ -152,7 +151,10 @@ public sealed partial class IndexModel
         switch (Tab)
         {
             case "project":
-                await LoadProjectLinksAsync(cancellationToken);
+                await LoadProjectGroupsAsync(cancellationToken);
+                break;
+            case "followup":
+                await LoadAttentionAsync(cancellationToken);
                 break;
             case "analytics":
                 await LoadAnalyticsAsync(cancellationToken);
@@ -204,58 +206,65 @@ public sealed partial class IndexModel
 
     private async Task LoadRegisterOverviewAsync(CancellationToken cancellationToken)
     {
-        var query = BuildPublicRegisterQuery();
-
-        var grouped = await query
-            .GroupBy(record => new
+        var snapshot = await BuildPublicRegisterQuery()
+            .Select(record => new
             {
+                record.Id,
                 record.Type,
-                Status = record.Status == IprStatus.FilingUnderProcess
-                    ? IprStatus.Filed
-                    : record.Status
-            })
-            .Select(group => new
-            {
-                group.Key.Type,
-                group.Key.Status,
-                Count = group.Count()
+                Status = record.Status == IprStatus.FilingUnderProcess ? IprStatus.Filed : record.Status,
+                record.ProjectId,
+                record.IprFilingNumber,
+                record.FiledAtUtc,
+                record.GrantedAtUtc,
+                AttachmentCount = record.Attachments.Count(attachment => !attachment.IsArchived)
             })
             .ToListAsync(cancellationToken);
 
-        var granted = grouped
-            .Where(item => item.Status == IprStatus.Granted)
-            .Sum(item => item.Count);
-        var awaiting = grouped
-            .Where(item => item.Status == IprStatus.Filed)
-            .Sum(item => item.Count);
-        Kpis = new IprKpis(awaiting + granted, 0, awaiting, granted, 0, 0);
+        var granted = snapshot.Count(item => item.Status == IprStatus.Granted);
+        var awaiting = snapshot.Count(item => item.Status == IprStatus.Filed);
+        Kpis = new IprKpis(snapshot.Count, 0, awaiting, granted, 0, 0);
 
-        ProjectsWithIpr = await query
-            .Where(record => record.ProjectId.HasValue)
-            .Select(record => record.ProjectId!.Value)
+        ProjectsWithIpr = snapshot
+            .Where(item => item.ProjectId.HasValue)
+            .Select(item => item.ProjectId!.Value)
             .Distinct()
-            .CountAsync(cancellationToken);
+            .Count();
+
+        GrantRatePercent = snapshot.Count == 0
+            ? 0
+            : (int)Math.Round(granted * 100d / snapshot.Count, MidpointRounding.AwayFromZero);
+
+        var todayIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IstTimeZone).Date;
+        var longPendingCutoff = todayIst.AddYears(-LongPendingYears);
+
+        UnassignedCount = snapshot.Count(item => !item.ProjectId.HasValue);
+        MissingAttachmentCount = snapshot.Count(item => item.AttachmentCount == 0);
+        OverdueAttentionCount = snapshot.Count(item =>
+            item.Status == IprStatus.Filed &&
+            ConvertToIstDate(item.FiledAtUtc) is DateTime filedOn &&
+            filedOn.Date <= longPendingCutoff);
+
+        AttentionRecordCount = snapshot.Count(item =>
+            !item.ProjectId.HasValue ||
+            item.AttachmentCount == 0 ||
+            string.IsNullOrWhiteSpace(item.IprFilingNumber) ||
+            !item.FiledAtUtc.HasValue ||
+            (item.Status == IprStatus.Filed &&
+             ConvertToIstDate(item.FiledAtUtc) is DateTime filedOn &&
+             filedOn.Date <= longPendingCutoff) ||
+            (item.Status == IprStatus.Granted && !item.GrantedAtUtc.HasValue));
 
         TypeBreakdown = new[] { IprType.Patent, IprType.Copyright }
             .Select(type =>
             {
-                var filed = grouped
-                    .Where(item => item.Type == type)
-                    .Sum(item => item.Count);
-                var grantedByType = grouped
-                    .Where(item => item.Type == type && item.Status == IprStatus.Granted)
-                    .Sum(item => item.Count);
-
-                return new TypeBreakdownRow(
-                    GetTypeLabel(type),
-                    filed,
-                    grantedByType,
-                    filed - grantedByType);
+                var filed = snapshot.Count(item => item.Type == type);
+                var grantedByType = snapshot.Count(item => item.Type == type && item.Status == IprStatus.Granted);
+                return new TypeBreakdownRow(GetTypeLabel(type), filed, grantedByType, filed - grantedByType);
             })
             .ToList();
     }
 
-    private async Task LoadProjectLinksAsync(CancellationToken cancellationToken)
+    private async Task LoadProjectGroupsAsync(CancellationToken cancellationToken)
     {
         var snapshot = await BuildPublicRegisterQuery()
             .Select(record => new
@@ -263,37 +272,207 @@ public sealed partial class IndexModel
                 record.Id,
                 record.Title,
                 record.Type,
-                Status = record.Status == IprStatus.FilingUnderProcess
-                    ? IprStatus.Filed
-                    : record.Status,
+                Status = record.Status == IprStatus.FilingUnderProcess ? IprStatus.Filed : record.Status,
                 record.FiledAtUtc,
                 record.GrantedAtUtc,
                 record.ProjectId,
-                ProjectName = record.Project != null
-                    ? record.Project.Name
-                    : "Unassigned project"
+                ProjectName = record.Project != null ? record.Project.Name : "Unassigned project",
+                ProjectLifecycle = record.Project != null ? (ProjectLifecycleStatus?)record.Project.LifecycleStatus : null,
+                ProjectArchived = record.Project != null && record.Project.IsArchived,
+                AttachmentCount = record.Attachments.Count(attachment => !attachment.IsArchived)
             })
             .ToListAsync(cancellationToken);
 
-        var projectCounts = snapshot
-            .GroupBy(item => item.ProjectId ?? 0)
-            .ToDictionary(group => group.Key, group => group.Count());
-
-        ProjectIprLinks = snapshot
-            .OrderBy(item => item.ProjectName)
-            .ThenBy(item => item.Type)
-            .ThenBy(item => item.Title)
-            .Select(item => new ProjectIprLinkRow(
-                item.Id,
+        ProjectIprGroups = snapshot
+            .GroupBy(item => new
+            {
                 item.ProjectId,
                 item.ProjectName,
-                string.IsNullOrWhiteSpace(item.Title) ? "Untitled IPR record" : item.Title!,
-                GetTypeLabel(item.Type),
-                item.Status == IprStatus.Granted ? "Granted" : "Awaiting grant",
-                ConvertToIstDate(item.FiledAtUtc),
-                ConvertToIstDate(item.GrantedAtUtc),
-                projectCounts.TryGetValue(item.ProjectId ?? 0, out var count) ? count : 1))
+                item.ProjectLifecycle,
+                item.ProjectArchived
+            })
+            .Select(group =>
+            {
+                var items = group
+                    .OrderByDescending(item => item.FiledAtUtc ?? DateTimeOffset.MinValue)
+                    .ThenBy(item => item.Title)
+                    .Select(item => new ProjectIprItem(
+                        item.Id,
+                        string.IsNullOrWhiteSpace(item.Title) ? "Untitled IPR record" : item.Title!,
+                        GetTypeLabel(item.Type),
+                        item.Status == IprStatus.Granted ? "Granted" : "Awaiting grant",
+                        ConvertToIstDate(item.FiledAtUtc),
+                        ConvertToIstDate(item.GrantedAtUtc),
+                        item.AttachmentCount))
+                    .ToList();
+
+                var lifecycle = group.Key.ProjectLifecycle.HasValue
+                    ? GetProjectLifecycleLabel(group.Key.ProjectLifecycle.Value, group.Key.ProjectArchived)
+                    : "Needs assignment";
+
+                return new ProjectIprGroup(
+                    group.Key.ProjectId,
+                    group.Key.ProjectName,
+                    lifecycle,
+                    group.Count(),
+                    group.Count(item => item.Status == IprStatus.Granted),
+                    group.Count(item => item.Status == IprStatus.Filed),
+                    group.Count(item => item.Type == IprType.Patent),
+                    group.Count(item => item.Type == IprType.Copyright),
+                    items
+                        .Where(item => item.FiledOn.HasValue)
+                        .Select(item => item.FiledOn)
+                        .OrderByDescending(date => date)
+                        .FirstOrDefault(),
+                    !group.Key.ProjectId.HasValue,
+                    items);
+            })
+            .OrderByDescending(group => group.IsUnassigned)
+            .ThenByDescending(group => group.Awaiting)
+            .ThenBy(group => group.ProjectName)
             .ToList();
+    }
+
+    private async Task LoadAttentionAsync(CancellationToken cancellationToken)
+    {
+        var snapshot = await BuildPublicRegisterQuery()
+            .Select(record => new
+            {
+                record.Id,
+                record.Title,
+                record.IprFilingNumber,
+                record.Type,
+                Status = record.Status == IprStatus.FilingUnderProcess ? IprStatus.Filed : record.Status,
+                record.FiledAtUtc,
+                record.GrantedAtUtc,
+                record.ProjectId,
+                ProjectName = record.Project != null ? record.Project.Name : "Unassigned project",
+                AttachmentCount = record.Attachments.Count(attachment => !attachment.IsArchived)
+            })
+            .ToListAsync(cancellationToken);
+
+        var todayIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IstTimeZone).Date;
+        var longPendingCutoff = todayIst.AddYears(-LongPendingYears);
+        var attentionItems = new List<AttentionItem>();
+
+        foreach (var item in snapshot)
+        {
+            var filedOn = ConvertToIstDate(item.FiledAtUtc);
+            var waitingDays = item.Status == IprStatus.Filed && filedOn.HasValue
+                ? Math.Max(0, (todayIst - filedOn.Value.Date).Days)
+                : (int?)null;
+            var reasons = new List<string>();
+            var category = string.Empty;
+            var severity = "info";
+
+            if (item.Status == IprStatus.Filed && filedOn.HasValue && filedOn.Value.Date <= longPendingCutoff)
+            {
+                reasons.Add($"Awaiting grant for {FormatAge(waitingDays ?? 0)}");
+                category = "overdue";
+                severity = "critical";
+            }
+
+            if (item.Status == IprStatus.Granted && !item.GrantedAtUtc.HasValue)
+            {
+                reasons.Add("Granted status has no grant date");
+                category = "data";
+                severity = "critical";
+            }
+
+            if (string.IsNullOrWhiteSpace(item.IprFilingNumber))
+            {
+                reasons.Add("Filing number is missing");
+                category = string.IsNullOrEmpty(category) ? "data" : category;
+                severity = severity == "critical" ? severity : "warning";
+            }
+
+            if (!filedOn.HasValue)
+            {
+                reasons.Add("Filing date is missing");
+                category = string.IsNullOrEmpty(category) ? "data" : category;
+                severity = severity == "critical" ? severity : "warning";
+            }
+
+            if (!item.ProjectId.HasValue)
+            {
+                reasons.Add("No project is linked");
+                category = string.IsNullOrEmpty(category) ? "linkage" : category;
+                severity = severity == "critical" ? severity : "warning";
+            }
+
+            if (item.AttachmentCount == 0)
+            {
+                reasons.Add("No supporting attachment is available");
+                category = string.IsNullOrEmpty(category) ? "evidence" : category;
+                severity = severity == "critical" ? severity : "warning";
+            }
+
+            if (reasons.Count == 0)
+            {
+                continue;
+            }
+
+            attentionItems.Add(new AttentionItem(
+                item.Id,
+                string.IsNullOrWhiteSpace(item.Title) ? "Untitled IPR record" : item.Title!,
+                item.ProjectName,
+                GetTypeLabel(item.Type),
+                category,
+                severity,
+                filedOn,
+                waitingDays,
+                item.AttachmentCount,
+                reasons));
+        }
+
+        AttentionGroups = new[]
+        {
+            CreateAttentionGroup(
+                "overdue",
+                "Long-pending filings",
+                $"Awaiting grant for more than {LongPendingYears} years.",
+                "critical",
+                attentionItems),
+            CreateAttentionGroup(
+                "data",
+                "Data inconsistencies",
+                "Status or mandatory filing information requires correction.",
+                "critical",
+                attentionItems),
+            CreateAttentionGroup(
+                "linkage",
+                "Project linkage",
+                "Records not yet connected to a project.",
+                "warning",
+                attentionItems),
+            CreateAttentionGroup(
+                "evidence",
+                "Supporting evidence",
+                "Records without an uploaded filing or grant document.",
+                "warning",
+                attentionItems)
+        }
+        .Where(group => group.Items.Count > 0)
+        .ToList();
+    }
+
+    private static AttentionGroup CreateAttentionGroup(
+        string key,
+        string title,
+        string description,
+        string tone,
+        IEnumerable<AttentionItem> items)
+    {
+        return new AttentionGroup(
+            key,
+            title,
+            description,
+            tone,
+            items
+                .Where(item => string.Equals(item.Category, key, StringComparison.Ordinal))
+                .OrderByDescending(item => item.WaitingDays ?? -1)
+                .ThenBy(item => item.Title)
+                .ToList());
     }
 
     private async Task LoadAnalyticsAsync(CancellationToken cancellationToken)
@@ -304,36 +483,24 @@ public sealed partial class IndexModel
                 record.Id,
                 record.Title,
                 record.Type,
-                Status = record.Status == IprStatus.FilingUnderProcess
-                    ? IprStatus.Filed
-                    : record.Status,
+                Status = record.Status == IprStatus.FilingUnderProcess ? IprStatus.Filed : record.Status,
                 record.FiledAtUtc,
                 record.GrantedAtUtc,
-                FiledYear = record.FiledAtUtc.HasValue
-                    ? (int?)record.FiledAtUtc.Value.Year
-                    : null,
-                GrantedYear = record.GrantedAtUtc.HasValue
-                    ? (int?)record.GrantedAtUtc.Value.Year
-                    : null,
+                FiledYear = record.FiledAtUtc.HasValue ? (int?)record.FiledAtUtc.Value.Year : null,
+                GrantedYear = record.GrantedAtUtc.HasValue ? (int?)record.GrantedAtUtc.Value.Year : null,
                 record.ProjectId,
-                ProjectName = record.Project != null
-                    ? record.Project.Name
-                    : "Unassigned project"
+                ProjectName = record.Project != null ? record.Project.Name : "Unassigned project",
+                AttachmentCount = record.Attachments.Count(attachment => !attachment.IsArchived)
             })
             .ToListAsync(cancellationToken);
 
         var todayIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IstTimeZone).Date;
-        OldestAwaitingGrant = snapshot
-            .Where(item => item.Status == IprStatus.Filed)
-            .OrderBy(item => item.FiledAtUtc ?? DateTimeOffset.MaxValue)
-            .Take(5)
+        var waitingRows = snapshot
+            .Where(item => item.Status == IprStatus.Filed && item.FiledAtUtc.HasValue)
             .Select(item =>
             {
-                var filedOn = ConvertToIstDate(item.FiledAtUtc);
-                var waitingDays = filedOn.HasValue
-                    ? Math.Max(0, (todayIst - filedOn.Value.Date).Days)
-                    : 0;
-
+                var filedOn = ConvertToIstDate(item.FiledAtUtc)!.Value;
+                var waitingDays = Math.Max(0, (todayIst - filedOn.Date).Days);
                 return new AwaitingGrantRow(
                     item.Id,
                     item.ProjectId,
@@ -343,7 +510,34 @@ public sealed partial class IndexModel
                     filedOn,
                     waitingDays);
             })
+            .OrderByDescending(item => item.WaitingDays)
             .ToList();
+
+        OldestAwaitingGrant = waitingRows.Take(8).ToList();
+
+        var grantDurations = snapshot
+            .Where(item => item.Status == IprStatus.Granted && item.FiledAtUtc.HasValue && item.GrantedAtUtc.HasValue)
+            .Select(item =>
+            {
+                var filedOn = ConvertToIstDate(item.FiledAtUtc)!.Value.Date;
+                var grantedOn = ConvertToIstDate(item.GrantedAtUtc)!.Value.Date;
+                return Math.Max(0, (grantedOn - filedOn).Days);
+            })
+            .OrderBy(days => days)
+            .ToList();
+
+        var waitingDurations = waitingRows.Select(item => item.WaitingDays).OrderBy(days => days).ToList();
+        var overThreeYears = waitingRows.Count(item => item.FiledOn.HasValue && item.FiledOn.Value.Date <= todayIst.AddYears(-LongPendingYears));
+
+        AnalyticsSummary = new AnalyticsSummaryModel(
+            GrantRatePercent,
+            Median(grantDurations),
+            Median(waitingDurations),
+            overThreeYears,
+            snapshot.Count(item => !item.ProjectId.HasValue),
+            snapshot.Count(item => item.AttachmentCount == 0));
+
+        AwaitingAgeBands = BuildAgeBands(waitingRows);
 
         var years = snapshot
             .SelectMany(item => new[] { item.FiledYear, item.GrantedYear })
@@ -358,11 +552,42 @@ public sealed partial class IndexModel
             {
                 Year = year,
                 Filed = snapshot.Count(item => item.FiledYear == year),
-                Granted = snapshot.Count(item =>
-                    item.Status == IprStatus.Granted &&
-                    item.GrantedYear == year)
+                Granted = snapshot.Count(item => item.Status == IprStatus.Granted && item.GrantedYear == year)
             })
             .ToList();
+    }
+
+    private static IReadOnlyList<AgeBandRow> BuildAgeBands(IReadOnlyCollection<AwaitingGrantRow> rows)
+    {
+        var total = rows.Count;
+        var bands = new[]
+        {
+            (Label: "Under 1 year", Count: rows.Count(item => item.WaitingDays < 365), Tone: "fresh"),
+            (Label: "1–3 years", Count: rows.Count(item => item.WaitingDays >= 365 && item.WaitingDays < 1095), Tone: "watch"),
+            (Label: "3–5 years", Count: rows.Count(item => item.WaitingDays >= 1095 && item.WaitingDays < 1825), Tone: "late"),
+            (Label: "Over 5 years", Count: rows.Count(item => item.WaitingDays >= 1825), Tone: "critical")
+        };
+
+        return bands
+            .Select(band => new AgeBandRow(
+                band.Label,
+                band.Count,
+                total == 0 ? 0 : (int)Math.Round(band.Count * 100d / total, MidpointRounding.AwayFromZero),
+                band.Tone))
+            .ToList();
+    }
+
+    private static int? Median(IReadOnlyList<int> values)
+    {
+        if (values.Count == 0)
+        {
+            return null;
+        }
+
+        var middle = values.Count / 2;
+        return values.Count % 2 == 1
+            ? values[middle]
+            : (int)Math.Round((values[middle - 1] + values[middle]) / 2d, MidpointRounding.AwayFromZero);
     }
 
     private IQueryable<IprRecord> BuildPublicRegisterQuery()
@@ -374,7 +599,6 @@ public sealed partial class IndexModel
                 record.Status == IprStatus.Filed ||
                 record.Status == IprStatus.Granted);
     }
-
 
     private async Task<IprRecord?> LoadRecordAsync(int id, CancellationToken cancellationToken, bool overwriteInput)
     {
@@ -409,8 +633,6 @@ public sealed partial class IndexModel
         }
         else
         {
-            // Preserve the user's submitted values, but refresh the concurrency token so
-            // the form can be reviewed and submitted again after a validation/conflict response.
             Input.RowVersion = rowVersion;
         }
 
@@ -426,15 +648,15 @@ public sealed partial class IndexModel
         };
 
         Attachments = record.Attachments
-            .Where(a => !a.IsArchived)
-            .OrderByDescending(a => a.UploadedAtUtc)
-            .Select(a => new AttachmentViewModel(
-                a.Id,
-                a.OriginalFileName,
-                a.FileSize,
-                FormatUserDisplay(a.UploadedByUser, a.UploadedByUserId),
-                a.UploadedAtUtc,
-                Convert.ToBase64String(a.RowVersion)))
+            .Where(attachment => !attachment.IsArchived)
+            .OrderByDescending(attachment => attachment.UploadedAtUtc)
+            .Select(attachment => new AttachmentViewModel(
+                attachment.Id,
+                attachment.OriginalFileName,
+                attachment.FileSize,
+                FormatUserDisplay(attachment.UploadedByUser, attachment.UploadedByUserId),
+                attachment.UploadedAtUtc,
+                Convert.ToBase64String(attachment.RowVersion)))
             .ToList();
 
         return record;
@@ -454,5 +676,4 @@ public sealed partial class IndexModel
 
         return fallback;
     }
-
 }

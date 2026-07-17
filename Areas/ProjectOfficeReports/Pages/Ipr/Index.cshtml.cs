@@ -131,11 +131,27 @@ public sealed partial class IndexModel : PageModel
 
     public IReadOnlyList<TypeBreakdownRow> TypeBreakdown { get; private set; } = Array.Empty<TypeBreakdownRow>();
 
-    public IReadOnlyList<ProjectIprLinkRow> ProjectIprLinks { get; private set; } = Array.Empty<ProjectIprLinkRow>();
+    public IReadOnlyList<ProjectIprGroup> ProjectIprGroups { get; private set; } = Array.Empty<ProjectIprGroup>();
+
+    public IReadOnlyList<AttentionGroup> AttentionGroups { get; private set; } = Array.Empty<AttentionGroup>();
 
     public IReadOnlyList<AwaitingGrantRow> OldestAwaitingGrant { get; private set; } = Array.Empty<AwaitingGrantRow>();
 
+    public IReadOnlyList<AgeBandRow> AwaitingAgeBands { get; private set; } = Array.Empty<AgeBandRow>();
+
+    public AnalyticsSummaryModel AnalyticsSummary { get; private set; } = new(0, null, null, 0, 0, 0);
+
     public int ProjectsWithIpr { get; private set; }
+
+    public int AttentionRecordCount { get; private set; }
+
+    public int OverdueAttentionCount { get; private set; }
+
+    public int UnassignedCount { get; private set; }
+
+    public int MissingAttachmentCount { get; private set; }
+
+    public int GrantRatePercent { get; private set; }
 
     public IReadOnlyList<AttachmentViewModel> Attachments { get; private set; } = Array.Empty<AttachmentViewModel>();
 
@@ -156,6 +172,34 @@ public sealed partial class IndexModel : PageModel
             || Year.HasValue;
 
     public IReadOnlyList<string> ActiveFilterChips { get; private set; } = Array.Empty<string>();
+
+    public static string FormatAge(int days)
+    {
+        if (days <= 0)
+        {
+            return "Less than a day";
+        }
+
+        if (days < 30)
+        {
+            return days == 1 ? "1 day" : $"{days} days";
+        }
+
+        if (days < 365)
+        {
+            var months = Math.Max(1, days / 30);
+            return months == 1 ? "1 month" : $"{months} months";
+        }
+
+        var years = days / 365;
+        var remainingMonths = (days % 365) / 30;
+        if (remainingMonths <= 0)
+        {
+            return years == 1 ? "1 year" : $"{years} years";
+        }
+
+        return $"{years}y {remainingMonths}m";
+    }
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {

@@ -26,7 +26,7 @@
       if (fieldName) {
         const escapedName = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
           ? CSS.escape(fieldName)
-          : fieldName.replace(/([\.\[\]])/g, '\\$1');
+          : fieldName.replace(/([.\[\]])/g, '\\$1');
         const field = container.querySelector(`[name="${escapedName}"]`);
         field?.scrollIntoView?.({ block: 'center' });
         field?.focus?.({ preventScroll: true });
@@ -47,105 +47,34 @@
       return;
     }
 
-    const recordForm = container.matches?.('[data-ipr-record-form]')
+    const form = container.matches?.('[data-ipr-record-form]')
       ? container
       : container.querySelector('[data-ipr-record-form]');
-    const htmlInvalid = recordForm?.querySelector(':invalid');
-    if (htmlInvalid) {
-      htmlInvalid.scrollIntoView?.({ block: 'center' });
-      htmlInvalid.focus?.({ preventScroll: true });
-    }
+    const htmlInvalid = form?.querySelector(':invalid');
+    htmlInvalid?.scrollIntoView?.({ block: 'center' });
+    htmlInvalid?.focus?.({ preventScroll: true });
   };
 
   const initialiseOffcanvas = () => {
-    const offcanvasElement = document.getElementById('iprRecordOffcanvas');
-    if (!offcanvasElement || typeof bootstrap === 'undefined' || !bootstrap.Offcanvas) return;
+    const element = document.getElementById('iprRecordOffcanvas');
+    if (!element || typeof bootstrap === 'undefined' || !bootstrap.Offcanvas) return;
 
-    const mode = (offcanvasElement.getAttribute('data-ipr-mode') || '').toLowerCase();
-    const hasForm = (offcanvasElement.getAttribute('data-ipr-has-form') || '').toLowerCase() === 'true';
-    const shouldShowOffcanvas = mode === 'create' || mode === 'edit';
-    const supportsUrlApi = typeof URL === 'function' && URL.prototype && 'searchParams' in URL.prototype;
+    const mode = (element.dataset.iprMode || '').toLowerCase();
+    const hasForm = (element.dataset.iprHasForm || '').toLowerCase() === 'true';
+    const shouldShow = mode === 'create' || mode === 'edit';
+    const instance = bootstrap.Offcanvas.getOrCreateInstance(element);
 
-    const parseSearchParams = () => {
-      const search = window.location.search ? window.location.search.substring(1) : '';
-      if (!search) return {};
-
-      return search.split('&').reduce((accumulator, part) => {
-        if (!part) return accumulator;
-        const [rawKey, rawValue = ''] = part.split('=');
-        const key = decodeURIComponent(rawKey.replace(/\+/g, ' '));
-        const value = decodeURIComponent(rawValue.replace(/\+/g, ' '));
-        accumulator[key] = value;
-        return accumulator;
-      }, {});
-    };
-
-    const getQueryParam = key => {
-      if (supportsUrlApi) {
-        return new URL(window.location.href).searchParams.get(key);
-      }
-
-      const params = parseSearchParams();
-      return Object.prototype.hasOwnProperty.call(params, key) ? params[key] : null;
-    };
-
-    const buildUrlWithoutModeAndId = () => {
-      if (supportsUrlApi) {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('mode');
-        url.searchParams.delete('id');
-        return url.toString();
-      }
-
-      const location = window.location;
-      const origin = location.origin || `${location.protocol}//${location.host}`;
-      const base = `${origin}${location.pathname}`;
-      const params = parseSearchParams();
-      delete params.mode;
-      delete params.id;
-
-      const query = Object.keys(params)
-        .map(paramKey => `${encodeURIComponent(paramKey)}=${encodeURIComponent(params[paramKey])}`)
-        .join('&');
-      const hash = location.hash || '';
-      return query ? `${base}?${query}${hash}` : `${base}${hash}`;
-    };
-
-    const updateTriggerStates = (nextMode, nextId) => {
-      document.querySelectorAll('[data-ipr-offcanvas-trigger]').forEach(button => {
-        const triggerMode = (button.getAttribute('data-ipr-offcanvas-trigger') || '').toLowerCase();
-        const triggerId = button.getAttribute('data-ipr-record-id') || '';
-        const expanded =
-          (triggerMode === 'create' && nextMode === 'create') ||
-          (triggerMode === 'edit' && nextMode === 'edit' && triggerId === nextId && nextId !== '');
-        button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-      });
-    };
-
-    const instance = bootstrap.Offcanvas.getOrCreateInstance(offcanvasElement);
-    const currentId = (getQueryParam('id') || '').toString();
-
-    offcanvasElement.addEventListener('shown.bs.offcanvas', () => {
-      if (hasForm) {
-        focusFirstFormError(offcanvasElement);
-      }
+    element.addEventListener('shown.bs.offcanvas', () => {
+      if (hasForm) focusFirstFormError(element);
     });
 
-    if (shouldShowOffcanvas) {
-      instance.show();
-      updateTriggerStates(mode, currentId);
-    } else {
-      updateTriggerStates('', '');
-    }
+    if (shouldShow) instance.show();
 
-    offcanvasElement.addEventListener('hidden.bs.offcanvas', () => {
-      const nextUrl = buildUrlWithoutModeAndId();
-      if (typeof history !== 'undefined' && typeof history.replaceState === 'function') {
-        history.replaceState({}, document.title, nextUrl);
-      } else {
-        window.location.assign(nextUrl);
-      }
-      updateTriggerStates('', '');
+    element.addEventListener('hidden.bs.offcanvas', () => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('mode');
+      url.searchParams.delete('id');
+      history.replaceState({}, document.title, url.toString());
     });
 
     if (!hasForm) return;
@@ -220,7 +149,10 @@
       this.input.addEventListener('keydown', event => this.onKeyDown(event));
       this.input.addEventListener('blur', () => {
         window.setTimeout(() => {
-          if (!this.root.contains(document.activeElement)) this.commitOrRejectTypedText({ focus: false });
+          if (!this.root.contains(document.activeElement)) {
+            this.commitOrRejectTypedText({ focus: false });
+            this.close();
+          }
         }, 0);
       });
       this.clearButton?.addEventListener('click', () => this.clear());
@@ -238,6 +170,7 @@
       const query = showAll && this.input.value === this.committedText
         ? ''
         : normalizeText(this.input.value);
+
       const ranked = this.options
         .map(option => {
           const haystack = normalizeText(option.dataset.projectSearch || option.dataset.projectLabel || '');
@@ -245,31 +178,23 @@
           let rank = 4;
           if (!query) rank = option.dataset.projectId === this.committedId ? 0 : 3;
           else if (label === query) rank = 0;
-          else if (label.startsWith(query) || haystack.startsWith(query)) rank = 1;
-          else if (haystack.split(' ').some(word => word.startsWith(query))) rank = 2;
-          else if (haystack.includes(query)) rank = 3;
-          else rank = Number.POSITIVE_INFINITY;
-          return { option, rank, label };
+          else if (label.startsWith(query)) rank = 1;
+          else if (haystack.includes(query)) rank = 2;
+          return { option, rank };
         })
-        .filter(item => Number.isFinite(item.rank))
-        .sort((left, right) => left.rank - right.rank || left.label.localeCompare(right.label));
+        .filter(item => item.rank < 4)
+        .sort((a, b) => a.rank - b.rank || (a.option.dataset.projectLabel || '').localeCompare(b.option.dataset.projectLabel || ''));
 
-      const visibleLimit = 12;
-      const visibleSet = new Set(ranked.slice(0, visibleLimit).map(item => item.option));
-      this.options.forEach(option => option.classList.toggle('d-none', !visibleSet.has(option)));
-      this.visibleOptions = ranked.slice(0, visibleLimit).map(item => item.option);
-      this.empty?.classList.toggle('d-none', ranked.length > 0);
-      this.setStatus(ranked.length === 0
-        ? 'No matching project found.'
-        : ranked.length > visibleLimit
-          ? `${ranked.length} matching projects. Showing the first ${visibleLimit}.`
-          : `${ranked.length} matching project${ranked.length === 1 ? '' : 's'}.`);
-
+      const visible = new Set(ranked.map(item => item.option));
+      this.options.forEach(option => option.classList.toggle('d-none', !visible.has(option)));
+      this.visibleOptions = ranked.map(item => item.option);
+      this.empty?.classList.toggle('d-none', this.visibleOptions.length > 0);
       this.activeIndex = this.visibleOptions.length > 0 ? 0 : -1;
       this.applyActiveOption();
       this.panel.classList.remove('d-none');
       this.input.setAttribute('aria-expanded', 'true');
       this.isOpen = true;
+      this.setStatus(`${this.visibleOptions.length} project option${this.visibleOptions.length === 1 ? '' : 's'} available.`);
     }
 
     onKeyDown(event) {
@@ -347,15 +272,18 @@
     }
 
     clear() {
+      const allOption = this.options.find(option => !option.dataset.projectId);
+      if (allOption) {
+        this.select(allOption);
+        return;
+      }
+
       this.valueInput.value = '';
       this.selectedId = '';
       this.committedId = '';
       this.committedText = '';
       this.committedSecondary = '';
       this.input.value = '';
-      this.clearValidationFeedback();
-      this.setValidity('');
-      this.options.forEach(option => option.setAttribute('aria-selected', 'false'));
       this.setSelectionMeta('');
       this.updateClearButton();
       this.valueInput.dispatchEvent(new Event('change', { bubbles: true }));
@@ -372,14 +300,13 @@
         return;
       }
 
-      const exact = this.options.find(option =>
-        normalizeText(option.dataset.projectLabel || '') === normalizeText(typed));
+      const exact = this.options.find(option => normalizeText(option.dataset.projectLabel || '') === normalizeText(typed));
       if (exact) {
         this.select(exact, { focus });
         return;
       }
 
-      this.setValidity('Select a project from the search results, or clear the field to leave it unassigned.');
+      this.setValidity('Select a project from the search results, or clear the field.');
     }
 
     clearWithoutOpening() {
@@ -389,7 +316,7 @@
       this.committedId = '';
       this.committedText = '';
       this.committedSecondary = '';
-      this.options.forEach(option => option.setAttribute('aria-selected', 'false'));
+      this.options.forEach(option => option.setAttribute('aria-selected', option.dataset.projectId ? 'false' : 'true'));
       this.setSelectionMeta('');
       this.updateClearButton();
       if (changed) this.valueInput.dispatchEvent(new Event('change', { bubbles: true }));
@@ -399,12 +326,10 @@
       this.valueInput.value = this.committedId;
       this.selectedId = this.committedId;
       this.input.value = this.committedText;
-      this.options.forEach(option =>
-        option.setAttribute('aria-selected', option.dataset.projectId === this.committedId ? 'true' : 'false'));
+      this.options.forEach(option => option.setAttribute('aria-selected', option.dataset.projectId === this.committedId ? 'true' : 'false'));
       this.setSelectionMeta(this.committedSecondary);
       this.updateClearButton();
     }
-
 
     clearValidationFeedback() {
       this.input.classList.remove('is-invalid');
@@ -425,7 +350,7 @@
     }
 
     updateClearButton() {
-      this.clearButton?.classList.toggle('d-none', !this.input.value);
+      this.clearButton?.classList.toggle('d-none', !this.input.value && !this.valueInput.value);
     }
 
     setStatus(message) {
@@ -446,23 +371,226 @@
     document.querySelectorAll('[data-ipr-project-picker]').forEach(root => new IprProjectPicker(root));
   };
 
-  const initialiseFilterModal = () => {
-    const modal = document.getElementById('iprFiltersModal');
-    const trigger = document.querySelector('[data-ipr-filter-trigger]');
-    if (!modal || !trigger || typeof bootstrap === 'undefined' || !bootstrap.Modal) return;
+  const formatDate = value => {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(date);
+  };
 
-    modal.addEventListener('show.bs.modal', () => trigger.setAttribute('aria-expanded', 'true'));
-    modal.addEventListener('shown.bs.modal', () => modal.querySelector('[data-ipr-filter-initial-focus]')?.focus());
-    modal.addEventListener('hidden.bs.modal', () => {
-      trigger.setAttribute('aria-expanded', 'false');
-      trigger.focus();
+  const initialiseRecordInspector = () => {
+    const inspector = document.querySelector('[data-ipr-record-inspector]');
+    const dataElement = document.getElementById('iprRecordData');
+    if (!inspector || !dataElement) return;
+
+    let records = [];
+    try {
+      records = JSON.parse(dataElement.textContent || '[]');
+    } catch {
+      records = [];
+    }
+    if (!Array.isArray(records) || records.length === 0) return;
+
+    const byId = new Map(records.map(record => [String(record.Id ?? record.id), record]));
+    const rows = Array.from(document.querySelectorAll('[data-ipr-record-row]'));
+    const projectBaseUrl = inspector.dataset.iprProjectBaseUrl || '/Projects/Overview';
+    const storageKey = `ipr:selected:${window.location.pathname}:${new URL(window.location.href).searchParams.get('page') || '1'}`;
+
+    const setText = (selector, value) => {
+      const element = inspector.querySelector(selector);
+      if (element) element.textContent = value ?? '';
+    };
+
+    const setBadge = (selector, value, baseClass, modifier) => {
+      const element = inspector.querySelector(selector);
+      if (!element) return;
+      element.className = `${baseClass} ${baseClass}--${modifier}`;
+      element.textContent = value;
+    };
+
+    const replaceProject = record => {
+      const current = inspector.querySelector('[data-ipr-inspector-project]');
+      if (!current) return;
+      const projectId = record.ProjectId ?? record.projectId;
+      const projectName = record.ProjectName ?? record.projectName ?? 'Unassigned project';
+      const replacement = document.createElement(projectId ? 'a' : 'span');
+      replacement.dataset.iprInspectorProject = '';
+      replacement.textContent = projectName;
+      if (projectId) {
+        const separator = projectBaseUrl.includes('?') ? '&' : '?';
+        replacement.href = `${projectBaseUrl}${separator}id=${encodeURIComponent(projectId)}`;
+      } else {
+        replacement.className = 'ipr-inspector-unassigned';
+      }
+      current.replaceWith(replacement);
+    };
+
+    const renderAttachments = record => {
+      const container = inspector.querySelector('[data-ipr-inspector-attachments]');
+      if (!container) return;
+      container.replaceChildren();
+      const attachments = record.Attachments ?? record.attachments ?? [];
+      setText('[data-ipr-inspector-file-count]', String(record.AttachmentCount ?? record.attachmentCount ?? attachments.length));
+
+      if (!attachments.length) {
+        const empty = document.createElement('div');
+        empty.className = 'ipr-inspector-empty-file';
+        empty.innerHTML = '<i class="bi bi-paperclip" aria-hidden="true"></i><span>No attachment available</span>';
+        container.append(empty);
+        return;
+      }
+
+      const basePath = window.location.pathname.replace(/\/$/, '');
+      attachments.forEach(attachment => {
+        const link = document.createElement('a');
+        const recordId = record.Id ?? record.id;
+        const attachmentId = attachment.Id ?? attachment.id;
+        link.href = `${basePath}/Download?iprRecordId=${encodeURIComponent(recordId)}&attachmentId=${encodeURIComponent(attachmentId)}`;
+        link.target = '_blank';
+        link.rel = 'noopener';
+
+        const icon = document.createElement('i');
+        icon.className = 'bi bi-file-earmark-pdf';
+        icon.setAttribute('aria-hidden', 'true');
+        const content = document.createElement('span');
+        const name = document.createElement('strong');
+        name.textContent = attachment.FileName ?? attachment.fileName ?? 'Attachment';
+        const meta = document.createElement('small');
+        meta.textContent = `${attachment.FileSize ?? attachment.fileSize ?? ''} · ${attachment.UploadedAt ?? attachment.uploadedAt ?? ''}`;
+        content.append(name, meta);
+        link.append(icon, content);
+        container.append(link);
+      });
+    };
+
+    const selectRecord = id => {
+      const record = byId.get(String(id));
+      if (!record) return;
+
+      rows.forEach(row => row.classList.toggle('is-selected', row.dataset.recordId === String(id)));
+      setText('[data-ipr-inspector-title]', record.Title ?? record.title ?? 'Untitled record');
+      setText('[data-ipr-inspector-filing]', record.ApplicationNumber ?? record.applicationNumber ?? '—');
+      setText('[data-ipr-inspector-filed]', formatDate(record.FiledOn ?? record.filedOn));
+      setText('[data-ipr-inspector-filedby]', record.FiledBy ?? record.filedBy ?? 'Not recorded');
+      setText('[data-ipr-inspector-granted]', formatDate(record.GrantedOn ?? record.grantedOn));
+      setText('[data-ipr-inspector-notes]', record.ExternalRemark ?? record.externalRemark ?? 'No notes recorded.');
+
+      const type = record.IprType ?? record.iprType ?? 'Patent';
+      const status = record.Status ?? record.status ?? 'Awaiting grant';
+      setBadge('[data-ipr-inspector-type]', type, 'ipr-type-badge', normalizeText(type));
+      setBadge('[data-ipr-inspector-status]', status, 'ipr-status-badge', status === 'Granted' ? 'granted' : 'filed');
+      replaceProject(record);
+      renderAttachments(record);
+
+      const selectedRow = rows.find(row => row.dataset.recordId === String(id));
+      const editLink = inspector.querySelector('[data-ipr-inspector-edit]');
+      const rowEdit = selectedRow?.querySelector('.ipr-row-edit-link');
+      if (editLink && rowEdit) editLink.href = rowEdit.href;
+
+      try { sessionStorage.setItem(storageKey, String(id)); } catch { /* storage is optional */ }
+    };
+
+    document.querySelectorAll('[data-ipr-select-record]').forEach(button => {
+      button.addEventListener('click', () => selectRecord(button.dataset.recordId));
+    });
+
+    rows.forEach(row => {
+      row.addEventListener('click', event => {
+        if (event.target.closest('a, button, input, select, textarea')) return;
+        selectRecord(row.dataset.recordId);
+      });
+    });
+
+    let initialId = rows[0]?.dataset.recordId;
+    try {
+      const saved = sessionStorage.getItem(storageKey);
+      if (saved && byId.has(saved)) initialId = saved;
+    } catch { /* storage is optional */ }
+    if (initialId) selectRecord(initialId);
+  };
+
+  const initialiseDensity = () => {
+    const root = document.querySelector('[data-ipr-density-root]');
+    const buttons = Array.from(document.querySelectorAll('[data-ipr-density]'));
+    if (!root || buttons.length === 0) return;
+
+    const apply = density => {
+      const resolved = density === 'comfortable' ? 'comfortable' : 'compact';
+      root.classList.toggle('density-comfortable', resolved === 'comfortable');
+      buttons.forEach(button => button.classList.toggle('is-active', button.dataset.iprDensity === resolved));
+      try { localStorage.setItem('ipr:table-density', resolved); } catch { /* optional */ }
+    };
+
+    let saved = 'compact';
+    try { saved = localStorage.getItem('ipr:table-density') || 'compact'; } catch { /* optional */ }
+    apply(saved);
+    buttons.forEach(button => button.addEventListener('click', () => apply(button.dataset.iprDensity)));
+  };
+
+  const initialisePageSize = () => {
+    const select = document.querySelector('[data-ipr-page-size]');
+    if (!select) return;
+    select.addEventListener('change', () => {
+      const url = new URL(window.location.href);
+      url.searchParams.set('pageSize', select.value);
+      url.searchParams.set('page', '1');
+      url.searchParams.delete('mode');
+      url.searchParams.delete('id');
+      window.location.assign(url.toString());
+    });
+  };
+
+  const initialiseProjectGroups = () => {
+    const groups = Array.from(document.querySelectorAll('[data-ipr-project-group]'));
+    if (groups.length === 0) return;
+
+    const search = document.querySelector('[data-ipr-project-group-search]');
+    const status = document.querySelector('[data-ipr-project-group-status]');
+    const expand = document.querySelector('[data-ipr-expand-projects]');
+    const empty = document.querySelector('[data-ipr-project-groups-empty]');
+
+    groups.forEach(group => {
+      group.querySelector('.ipr-project-group__name[href]')?.addEventListener('click', event => event.stopPropagation());
+    });
+
+    const filter = () => {
+      const query = normalizeText(search?.value || '');
+      const position = status?.value || 'all';
+      let visible = 0;
+
+      groups.forEach(group => {
+        const matchesText = !query || normalizeText(group.dataset.search || '').includes(query);
+        const matchesPosition = position === 'all' ||
+          (position === 'awaiting' && group.dataset.awaiting === 'true') ||
+          (position === 'granted' && group.dataset.granted === 'true') ||
+          (position === 'unassigned' && group.dataset.unassigned === 'true');
+        const show = matchesText && matchesPosition;
+        group.classList.toggle('d-none', !show);
+        if (show) {
+          visible += 1;
+          if (query) group.open = true;
+        }
+      });
+
+      empty?.classList.toggle('d-none', visible > 0);
+    };
+
+    search?.addEventListener('input', filter);
+    status?.addEventListener('change', filter);
+    expand?.addEventListener('click', () => {
+      const visibleGroups = groups.filter(group => !group.classList.contains('d-none'));
+      const shouldOpen = visibleGroups.some(group => !group.open);
+      visibleGroups.forEach(group => { group.open = shouldOpen; });
+      expand.innerHTML = shouldOpen
+        ? '<i class="bi bi-arrows-collapse" aria-hidden="true"></i> Collapse all'
+        : '<i class="bi bi-arrows-expand" aria-hidden="true"></i> Expand all';
     });
   };
 
   const initialiseConfirmations = () => {
     document.querySelectorAll('form[data-ipr-confirm]').forEach(form => {
       form.addEventListener('submit', event => {
-        const message = form.getAttribute('data-ipr-confirm') || 'Are you sure?';
+        const message = form.dataset.iprConfirm || 'Are you sure?';
         if (!window.confirm(message)) {
           event.preventDefault();
           event.stopImmediatePropagation();
@@ -475,21 +603,6 @@
     const container = document.getElementById('iprToastContainer');
     if (!container || typeof bootstrap === 'undefined' || !bootstrap.Toast) return;
     container.querySelectorAll('.toast').forEach(element => bootstrap.Toast.getOrCreateInstance(element).show());
-  };
-
-  const initialiseLoadingState = () => {
-    const skeleton = document.querySelector('[data-ipr-loading-skeleton]');
-    const contentTargets = document.querySelectorAll('[data-ipr-table-content]');
-    if (!skeleton || contentTargets.length === 0) return;
-
-    const showSkeleton = () => {
-      skeleton.classList.remove('d-none');
-      contentTargets.forEach(element => element.classList.add('d-none'));
-    };
-    skeleton.classList.add('d-none');
-    contentTargets.forEach(element => element.classList.remove('d-none'));
-    document.querySelectorAll('form[data-ipr-loading-form]').forEach(form => form.addEventListener('submit', showSkeleton));
-    document.querySelectorAll('[data-ipr-loading-link]').forEach(link => link.addEventListener('click', showSkeleton));
   };
 
   const initialiseAutoSubmitFilters = () => {
@@ -536,10 +649,12 @@
 
   initialiseProjectPickers();
   initialiseOffcanvas();
-  initialiseFilterModal();
+  initialiseRecordInspector();
+  initialiseDensity();
+  initialisePageSize();
+  initialiseProjectGroups();
   initialiseConfirmations();
   initialiseToasts();
-  initialiseLoadingState();
   initialiseAutoSubmitFilters();
   initialiseGrantedDate();
   initialiseAttachmentUpload();

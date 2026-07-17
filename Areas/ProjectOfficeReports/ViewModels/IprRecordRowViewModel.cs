@@ -20,6 +20,7 @@ public sealed record IprRecordRowViewModel(
     string Status,
     string StatusChipClass,
     string? ExternalRemark,
+    string FiledBy,
     DateTime? FiledOn,
     DateTime? GrantedOn,
     IReadOnlyList<IprRecordAttachmentViewModel> Attachments,
