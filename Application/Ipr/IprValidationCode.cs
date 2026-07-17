@@ -10,5 +10,6 @@ public enum IprValidationCode
     GrantDateRequired = 6,
     GrantDateInFuture = 7,
     GrantDateWithoutFilingDate = 8,
-    GrantDateBeforeFilingDate = 9
+    GrantDateBeforeFilingDate = 9,
+    ProjectNotAvailable = 10
 }

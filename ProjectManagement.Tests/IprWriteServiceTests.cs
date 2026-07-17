@@ -13,6 +13,7 @@ using ProjectManagement.Application.Ipr;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Data;
+using ProjectManagement.Models;
 using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Storage;
 using ProjectManagement.Tests.Fakes;
@@ -175,6 +176,157 @@ public sealed class IprWriteServiceTests
             Assert.Equal("IPR 200", created.IprFilingNumber);
             Assert.Null(created.ProjectId);
             var stored = await db.IprRecords.AsNoTracking().SingleAsync(r => r.Id == created.Id);
+            Assert.Null(stored.ProjectId);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+
+    [Fact]
+    public async Task CreateAsync_AssignsExistingProject()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero));
+        var (service, root) = CreateService(db, clock);
+
+        try
+        {
+            var project = new Project
+            {
+                Name = "AURA",
+                CreatedByUserId = "test-user",
+                LifecycleStatus = ProjectLifecycleStatus.Active
+            };
+            db.Projects.Add(project);
+            await db.SaveChangesAsync();
+
+            var record = ValidRecord(clock, "IPR-PROJECT-001");
+            record.ProjectId = project.Id;
+
+            var created = await service.CreateAsync(record);
+
+            Assert.Equal(project.Id, created.ProjectId);
+            var stored = await db.IprRecords.AsNoTracking().SingleAsync(item => item.Id == created.Id);
+            Assert.Equal(project.Id, stored.ProjectId);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_RejectsUnknownProject()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero));
+        var (service, root) = CreateService(db, clock);
+
+        try
+        {
+            var record = ValidRecord(clock, "IPR-PROJECT-UNKNOWN");
+            record.ProjectId = 987654;
+
+            var exception = await Assert.ThrowsAsync<IprValidationException>(() => service.CreateAsync(record));
+
+            Assert.Equal(IprValidationCode.ProjectNotAvailable, exception.Code);
+            Assert.Equal("The selected project is no longer available. Select another project.", exception.Message);
+            Assert.Equal(0, await db.IprRecords.CountAsync());
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_RejectsSoftDeletedProject()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero));
+        var (service, root) = CreateService(db, clock);
+
+        try
+        {
+            var project = new Project
+            {
+                Name = "Deleted project",
+                CreatedByUserId = "test-user",
+                IsDeleted = true
+            };
+            db.Projects.Add(project);
+            await db.SaveChangesAsync();
+
+            var record = ValidRecord(clock, "IPR-PROJECT-002");
+            record.ProjectId = project.Id;
+
+            var exception = await Assert.ThrowsAsync<IprValidationException>(() => service.CreateAsync(record));
+
+            Assert.Equal(IprValidationCode.ProjectNotAvailable, exception.Code);
+            Assert.Equal("The selected project is no longer available. Select another project.", exception.Message);
+            Assert.Equal(0, await db.IprRecords.CountAsync());
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task UpdateAsync_AssignsReassignsAndRemovesProject()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero));
+        var (service, root) = CreateService(db, clock);
+
+        try
+        {
+            var firstProject = new Project
+            {
+                Name = "First project",
+                CreatedByUserId = "test-user",
+                LifecycleStatus = ProjectLifecycleStatus.Active
+            };
+            var archivedProject = new Project
+            {
+                Name = "Archived project",
+                CreatedByUserId = "test-user",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                IsArchived = true
+            };
+            db.Projects.AddRange(firstProject, archivedProject);
+            await db.SaveChangesAsync();
+
+            var created = await service.CreateAsync(ValidRecord(clock, "IPR-PROJECT-003"));
+
+            var assign = ValidRecord(clock, created.IprFilingNumber);
+            assign.Id = created.Id;
+            assign.RowVersion = created.RowVersion;
+            assign.ProjectId = firstProject.Id;
+            var assigned = await service.UpdateAsync(assign);
+            Assert.NotNull(assigned);
+            Assert.Equal(firstProject.Id, assigned!.ProjectId);
+
+            var reassign = ValidRecord(clock, assigned.IprFilingNumber);
+            reassign.Id = assigned.Id;
+            reassign.RowVersion = assigned.RowVersion;
+            reassign.ProjectId = archivedProject.Id;
+            var reassigned = await service.UpdateAsync(reassign);
+            Assert.NotNull(reassigned);
+            Assert.Equal(archivedProject.Id, reassigned!.ProjectId);
+
+            var remove = ValidRecord(clock, reassigned.IprFilingNumber);
+            remove.Id = reassigned.Id;
+            remove.RowVersion = reassigned.RowVersion;
+            remove.ProjectId = null;
+            var unassigned = await service.UpdateAsync(remove);
+            Assert.NotNull(unassigned);
+            Assert.Null(unassigned!.ProjectId);
+
+            var stored = await db.IprRecords.AsNoTracking().SingleAsync(item => item.Id == created.Id);
             Assert.Null(stored.ProjectId);
         }
         finally

@@ -1,0 +1,25 @@
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
+
+@if (!string.IsNullOrWhiteSpace(Model.Query))
+{
+    <input type="hidden" name="Query" value="@Model.Query" />
+}
+@foreach (var type in Model.Types)
+{
+    <input type="hidden" name="Types" value="@type" />
+}
+@foreach (var status in Model.Statuses)
+{
+    <input type="hidden" name="Statuses" value="@status" />
+}
+@if (Model.ProjectId.HasValue)
+{
+    <input type="hidden" name="ProjectId" value="@Model.ProjectId.Value" />
+}
+@if (Model.Year.HasValue)
+{
+    <input type="hidden" name="Year" value="@Model.Year.Value" />
+}
+<input type="hidden" name="Tab" value="@Model.Tab" />
+<input type="hidden" name="page" value="@Model.PageNumber" />
+<input type="hidden" name="PageSize" value="@Model.PageSize" />

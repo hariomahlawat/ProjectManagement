@@ -53,6 +53,7 @@ public sealed class IprWriteService : IIprWriteService
         ArgumentNullException.ThrowIfNull(record);
 
         var normalized = NormalizeRecord(record);
+        await EnsureProjectAvailableAsync(normalized.ProjectId, cancellationToken);
         await EnsureUniqueFilingNumberAsync(normalized.IprFilingNumber, normalized.Type, null, cancellationToken);
         ValidateStatus(normalized.Status, normalized.FiledAtUtc, normalized.GrantedAtUtc);
 
@@ -93,6 +94,7 @@ public sealed class IprWriteService : IIprWriteService
         }
 
         var normalized = NormalizeRecord(record);
+        await EnsureProjectAvailableAsync(normalized.ProjectId, cancellationToken);
         await EnsureUniqueFilingNumberAsync(normalized.IprFilingNumber, normalized.Type, record.Id, cancellationToken);
         ValidateStatus(normalized.Status, normalized.FiledAtUtc, normalized.GrantedAtUtc);
 
@@ -338,6 +340,25 @@ public sealed class IprWriteService : IIprWriteService
 
         var message = exception.InnerException?.Message ?? exception.Message;
         return message.IndexOf(FilingNumberUniqueConstraintName, StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private async Task EnsureProjectAvailableAsync(int? projectId, CancellationToken cancellationToken)
+    {
+        if (!projectId.HasValue)
+        {
+            return;
+        }
+
+        var exists = await _db.Projects
+            .AsNoTracking()
+            .AnyAsync(project => project.Id == projectId.Value && !project.IsDeleted, cancellationToken);
+
+        if (!exists)
+        {
+            throw new IprValidationException(
+                IprValidationCode.ProjectNotAvailable,
+                "The selected project is no longer available. Select another project.");
+        }
     }
 
     private void ValidateStatus(IprStatus status, DateTimeOffset? filedAtUtc, DateTimeOffset? grantedAtUtc)

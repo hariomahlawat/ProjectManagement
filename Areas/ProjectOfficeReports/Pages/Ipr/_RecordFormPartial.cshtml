@@ -4,11 +4,6 @@
     var isEditMode = string.Equals(Model.Mode, "edit", StringComparison.OrdinalIgnoreCase);
     var handler = isCreateMode ? "Create" : "Edit";
     var formId = isCreateMode ? "iprCreateForm" : "iprEditForm";
-    var formRoutes = Model.GetRouteValuesForLinks(
-        isCreateMode
-            ? new { mode = "create" }
-            : new { mode = "edit", id = Model.Input.Id },
-        includeModeAndId: false);
     var closeRoutes = Model.GetRouteValuesForLinks(includeModeAndId: false);
     var isGranted = Model.Input.Status == ProjectManagement.Infrastructure.Data.IprStatus.Granted;
 }
@@ -16,22 +11,27 @@
 @if (isCreateMode || isEditMode)
 {
     <form method="post"
+          asp-page="./Index"
           asp-page-handler="@handler"
-          asp-all-route-data="formRoutes"
           class="ipr-drawer-form"
           id="@formId"
           data-ipr-record-form>
+        <partial name="_RegisterStateFields" model="Model" />
+
         @if (isEditMode)
         {
             <input type="hidden" asp-for="Input.Id" />
             <input type="hidden" asp-for="Input.RowVersion" />
         }
 
-        <div asp-validation-summary="ModelOnly" class="ipr-form-summary text-danger" role="alert"></div>
+        <div asp-validation-summary="ModelOnly"
+             class="ipr-form-summary text-danger"
+             role="alert"
+             data-ipr-form-summary></div>
 
         <section class="ipr-form-section" aria-labelledby="iprRecordDetailsHeading">
             <header class="ipr-form-section__header">
-                <span>Record details</span>
+                <span id="iprRecordDetailsHeading">Record details</span>
                 <small>Fields marked required must be completed.</small>
             </header>
             <div class="ipr-form-grid">
@@ -72,7 +72,7 @@
 
         <section class="ipr-form-section" aria-labelledby="iprStatusDatesHeading">
             <header class="ipr-form-section__header">
-                <span>Status and dates</span>
+                <span id="iprStatusDatesHeading">Status and dates</span>
                 <small>Dates are recorded as Indian calendar dates.</small>
             </header>
             <div class="ipr-form-grid">
@@ -117,17 +117,13 @@
                     <span asp-validation-for="Input.GrantedOn" class="text-danger"></span>
                 </div>
 
-                <div class="ipr-form-field">
-                    <label asp-for="Input.ProjectId" class="form-label"></label>
-                    <select asp-for="Input.ProjectId" asp-items="Model.ProjectFormOptions" class="form-select"></select>
-                    <span asp-validation-for="Input.ProjectId" class="text-danger"></span>
-                </div>
+                <partial name="_ProjectSearchPicker" model="Model" />
             </div>
         </section>
 
         <section class="ipr-form-section" aria-labelledby="iprAdditionalInformationHeading">
             <header class="ipr-form-section__header">
-                <span>Additional information</span>
+                <span id="iprAdditionalInformationHeading">Additional information</span>
             </header>
             <div class="ipr-form-grid">
                 <div class="ipr-form-field ipr-form-field--wide">
@@ -146,8 +142,11 @@
             <a class="btn btn-outline-secondary"
                asp-page="./Index"
                asp-all-route-data="closeRoutes">Cancel</a>
-            <button type="submit" class="btn btn-primary">
-                @(isCreateMode ? "Create record" : "Save changes")
+            <button type="submit"
+                    class="btn btn-primary"
+                    data-ipr-submit-button
+                    data-submitting-text="@(isCreateMode ? "Creating…" : "Saving…")">
+                <span data-ipr-submit-label>@(isCreateMode ? "Create record" : "Save changes")</span>
             </button>
         </footer>
     </form>
@@ -191,9 +190,10 @@
                                 </span>
                             </a>
                             <form method="post"
+                                  asp-page="./Index"
                                   asp-page-handler="RemoveAttachment"
-                                  asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "edit", id = Model.Input.Id }, includeModeAndId: false)"
                                   data-ipr-confirm="Remove this attachment?">
+                                <partial name="_RegisterStateFields" model="Model" />
                                 <input type="hidden" name="RemoveAttachment.AttachmentId" value="@attachment.Id" />
                                 <input type="hidden" name="RemoveAttachment.RecordId" value="@Model.Input.Id" />
                                 <input type="hidden" name="RemoveAttachment.RowVersion" value="@attachment.RowVersion" />
@@ -210,11 +210,12 @@
             }
 
             <form method="post"
+                  asp-page="./Index"
                   asp-page-handler="Attach"
-                  asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "edit", id = Model.Input.Id }, includeModeAndId: false)"
                   enctype="multipart/form-data"
                   class="ipr-attachment-upload"
                   id="iprAttachmentForm">
+                <partial name="_RegisterStateFields" model="Model" />
                 <input type="hidden" asp-for="UploadInput.RecordId" />
                 <div class="ipr-form-field">
                     <label asp-for="UploadInput.File" class="form-label">Add PDF attachment</label>
@@ -239,10 +240,11 @@
                 <p>Permanently removes this IPR record and all its attachments.</p>
             </div>
             <form method="post"
+                  asp-page="./Index"
                   asp-page-handler="Delete"
-                  asp-all-route-data="closeRoutes"
                   id="iprDeleteForm"
                   data-ipr-confirm="This will permanently delete the IPR record and all its attachments. Continue?">
+                <partial name="_RegisterStateFields" model="Model" />
                 <input type="hidden" asp-for="DeleteRequest.Id" />
                 <input type="hidden" asp-for="DeleteRequest.RowVersion" />
                 <button type="submit" class="btn btn-outline-danger">Delete record</button>
