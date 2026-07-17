@@ -467,7 +467,12 @@
       const record = byId.get(String(id));
       if (!record) return;
 
-      rows.forEach(row => row.classList.toggle('is-selected', row.dataset.recordId === String(id)));
+      rows.forEach(row => {
+        const selected = row.dataset.recordId === String(id);
+        row.classList.toggle('is-selected', selected);
+        row.setAttribute('aria-selected', selected ? 'true' : 'false');
+        row.tabIndex = selected ? 0 : -1;
+      });
       setText('[data-ipr-inspector-title]', record.Title ?? record.title ?? 'Untitled record');
       setText('[data-ipr-inspector-filing]', record.ApplicationNumber ?? record.applicationNumber ?? '—');
       setText('[data-ipr-inspector-filed]', formatDate(record.FiledOn ?? record.filedOn));
@@ -499,6 +504,23 @@
         if (event.target.closest('a, button, input, select, textarea')) return;
         selectRecord(row.dataset.recordId);
       });
+      row.addEventListener('keydown', event => {
+        if (event.target.closest('a, button, input, select, textarea')) return;
+        const currentIndex = rows.indexOf(row);
+        let nextIndex = currentIndex;
+
+        if (event.key === 'ArrowDown') nextIndex = Math.min(rows.length - 1, currentIndex + 1);
+        else if (event.key === 'ArrowUp') nextIndex = Math.max(0, currentIndex - 1);
+        else if (event.key === 'Home') nextIndex = 0;
+        else if (event.key === 'End') nextIndex = rows.length - 1;
+        else if (event.key !== 'Enter' && event.key !== ' ') return;
+
+        event.preventDefault();
+        const targetRow = rows[nextIndex];
+        selectRecord(targetRow.dataset.recordId);
+        targetRow.focus({ preventScroll: true });
+        targetRow.scrollIntoView?.({ block: 'nearest' });
+      });
     });
 
     let initialId = rows[0]?.dataset.recordId;
@@ -509,6 +531,95 @@
     if (initialId) selectRecord(initialId);
   };
 
+  const initialiseInspectorResize = () => {
+    const workbench = document.querySelector('.ipr-record-workbench');
+    const handle = document.querySelector('[data-ipr-inspector-resize]');
+    if (!workbench || !handle) return;
+
+    const storageKey = 'ipr:inspector-width';
+    const cssDefaultWidth = Number.parseInt(getComputedStyle(workbench).getPropertyValue('--ipr-inspector-width'), 10);
+    const defaultWidth = Number.isFinite(cssDefaultWidth) ? cssDefaultWidth : 400;
+    const getLimits = () => {
+      const available = workbench.getBoundingClientRect().width;
+      return {
+        min: 340,
+        max: Math.max(340, Math.min(520, Math.round(available * 0.42)))
+      };
+    };
+    const clampWidth = width => {
+      const limits = getLimits();
+      return Math.min(limits.max, Math.max(limits.min, Math.round(width)));
+    };
+    const applyWidth = (width, persist = false) => {
+      const resolved = clampWidth(width);
+      workbench.style.setProperty('--ipr-inspector-width', `${resolved}px`);
+      handle.setAttribute('aria-valuemin', String(getLimits().min));
+      handle.setAttribute('aria-valuemax', String(getLimits().max));
+      handle.setAttribute('aria-valuenow', String(resolved));
+      if (persist) {
+        try { localStorage.setItem(storageKey, String(resolved)); } catch { /* optional */ }
+      }
+      return resolved;
+    };
+
+    let initialWidth = defaultWidth;
+    try {
+      const saved = Number.parseInt(localStorage.getItem(storageKey) || '', 10);
+      if (Number.isFinite(saved)) initialWidth = saved;
+    } catch { /* optional */ }
+    applyWidth(initialWidth);
+
+    let dragging = false;
+    const onPointerMove = event => {
+      if (!dragging) return;
+      const rect = workbench.getBoundingClientRect();
+      applyWidth(rect.right - event.clientX);
+    };
+    const stopDragging = () => {
+      if (!dragging) return;
+      dragging = false;
+      handle.classList.remove('is-dragging');
+      document.body.style.removeProperty('cursor');
+      document.body.style.removeProperty('user-select');
+      const current = Number.parseInt(getComputedStyle(workbench).getPropertyValue('--ipr-inspector-width'), 10);
+      if (Number.isFinite(current)) applyWidth(current, true);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', stopDragging);
+      window.removeEventListener('pointercancel', stopDragging);
+    };
+
+    handle.addEventListener('pointerdown', event => {
+      if (window.matchMedia('(max-width: 1050px)').matches) return;
+      event.preventDefault();
+      dragging = true;
+      handle.classList.add('is-dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      handle.setPointerCapture?.(event.pointerId);
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', stopDragging);
+      window.addEventListener('pointercancel', stopDragging);
+    });
+
+    handle.addEventListener('keydown', event => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home') return;
+      event.preventDefault();
+      const current = Number.parseInt(getComputedStyle(workbench).getPropertyValue('--ipr-inspector-width'), 10) || defaultWidth;
+      if (event.key === 'Home') {
+        applyWidth(defaultWidth, true);
+        return;
+      }
+      const delta = event.key === 'ArrowLeft' ? 20 : -20;
+      applyWidth(current + delta, true);
+    });
+
+    handle.addEventListener('dblclick', () => applyWidth(defaultWidth, true));
+    window.addEventListener('resize', () => {
+      const current = Number.parseInt(getComputedStyle(workbench).getPropertyValue('--ipr-inspector-width'), 10) || defaultWidth;
+      applyWidth(current);
+    });
+  };
+
   const initialiseDensity = () => {
     const root = document.querySelector('[data-ipr-density-root]');
     const buttons = Array.from(document.querySelectorAll('[data-ipr-density]'));
@@ -517,7 +628,11 @@
     const apply = density => {
       const resolved = density === 'comfortable' ? 'comfortable' : 'compact';
       root.classList.toggle('density-comfortable', resolved === 'comfortable');
-      buttons.forEach(button => button.classList.toggle('is-active', button.dataset.iprDensity === resolved));
+      buttons.forEach(button => {
+        const active = button.dataset.iprDensity === resolved;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
       try { localStorage.setItem('ipr:table-density', resolved); } catch { /* optional */ }
     };
 
@@ -541,17 +656,53 @@
   };
 
   const initialiseProjectGroups = () => {
+    const container = document.querySelector('[data-ipr-project-groups]');
     const groups = Array.from(document.querySelectorAll('[data-ipr-project-group]'));
-    if (groups.length === 0) return;
+    if (!container || groups.length === 0) return;
 
     const search = document.querySelector('[data-ipr-project-group-search]');
     const status = document.querySelector('[data-ipr-project-group-status]');
+    const sort = document.querySelector('[data-ipr-project-group-sort]');
     const expand = document.querySelector('[data-ipr-expand-projects]');
     const empty = document.querySelector('[data-ipr-project-groups-empty]');
 
     groups.forEach(group => {
       group.querySelector('.ipr-project-group__name[href]')?.addEventListener('click', event => event.stopPropagation());
     });
+
+    const compare = (left, right, mode) => {
+      const leftName = normalizeText(left.dataset.projectName || '');
+      const rightName = normalizeText(right.dataset.projectName || '');
+      const leftUnassigned = left.dataset.unassigned === 'true' ? 1 : 0;
+      const rightUnassigned = right.dataset.unassigned === 'true' ? 1 : 0;
+      const leftAwaiting = Number.parseInt(left.dataset.awaiting === 'true' ? '1' : '0', 10);
+      const rightAwaiting = Number.parseInt(right.dataset.awaiting === 'true' ? '1' : '0', 10);
+      const leftTotal = Number.parseInt(left.dataset.total || '0', 10);
+      const rightTotal = Number.parseInt(right.dataset.total || '0', 10);
+      const leftLatest = Date.parse(left.dataset.latest || '') || 0;
+      const rightLatest = Date.parse(right.dataset.latest || '') || 0;
+
+      if (mode === 'name') return leftName.localeCompare(rightName);
+      if (mode === 'total') return rightTotal - leftTotal || leftName.localeCompare(rightName);
+      if (mode === 'latest') return rightLatest - leftLatest || leftName.localeCompare(rightName);
+      return rightUnassigned - leftUnassigned || rightAwaiting - leftAwaiting || leftName.localeCompare(rightName);
+    };
+
+    const sortGroups = () => {
+      const mode = sort?.value || 'attention';
+      [...groups]
+        .sort((left, right) => compare(left, right, mode))
+        .forEach(group => container.insertBefore(group, empty || null));
+    };
+
+    const updateExpansionButton = () => {
+      if (!expand) return;
+      const visibleGroups = groups.filter(group => !group.classList.contains('d-none'));
+      const anyOpen = visibleGroups.some(group => group.open);
+      expand.innerHTML = anyOpen
+        ? '<i class="bi bi-arrows-collapse" aria-hidden="true"></i> Collapse all'
+        : '<i class="bi bi-chevron-double-down" aria-hidden="true"></i> Expand awaiting';
+    };
 
     const filter = () => {
       const query = normalizeText(search?.value || '');
@@ -573,18 +724,29 @@
       });
 
       empty?.classList.toggle('d-none', visible > 0);
+      updateExpansionButton();
     };
 
+    groups.forEach(group => group.addEventListener('toggle', updateExpansionButton));
     search?.addEventListener('input', filter);
     status?.addEventListener('change', filter);
+    sort?.addEventListener('change', sortGroups);
     expand?.addEventListener('click', () => {
       const visibleGroups = groups.filter(group => !group.classList.contains('d-none'));
-      const shouldOpen = visibleGroups.some(group => !group.open);
-      visibleGroups.forEach(group => { group.open = shouldOpen; });
-      expand.innerHTML = shouldOpen
-        ? '<i class="bi bi-arrows-collapse" aria-hidden="true"></i> Collapse all'
-        : '<i class="bi bi-arrows-expand" aria-hidden="true"></i> Expand all';
+      const anyOpen = visibleGroups.some(group => group.open);
+      if (anyOpen) {
+        visibleGroups.forEach(group => { group.open = false; });
+        updateExpansionButton();
+        return;
+      }
+
+      const targets = visibleGroups.filter(group => group.dataset.awaiting === 'true' || group.dataset.unassigned === 'true');
+      (targets.length > 0 ? targets : visibleGroups).forEach(group => { group.open = true; });
+      updateExpansionButton();
     });
+
+    sortGroups();
+    filter();
   };
 
   const initialiseConfirmations = () => {
@@ -650,6 +812,7 @@
   initialiseProjectPickers();
   initialiseOffcanvas();
   initialiseRecordInspector();
+  initialiseInspectorResize();
   initialiseDensity();
   initialisePageSize();
   initialiseProjectGroups();

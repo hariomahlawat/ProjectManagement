@@ -177,28 +177,24 @@ public sealed partial class IndexModel : PageModel
     {
         if (days <= 0)
         {
-            return "Less than a day";
+            return "<1d";
         }
 
         if (days < 30)
         {
-            return days == 1 ? "1 day" : $"{days} days";
+            return $"{days}d";
         }
 
         if (days < 365)
         {
-            var months = Math.Max(1, days / 30);
-            return months == 1 ? "1 month" : $"{months} months";
+            return $"{Math.Max(1, days / 30)}m";
         }
 
         var years = days / 365;
         var remainingMonths = (days % 365) / 30;
-        if (remainingMonths <= 0)
-        {
-            return years == 1 ? "1 year" : $"{years} years";
-        }
-
-        return $"{years}y {remainingMonths}m";
+        return remainingMonths == 0
+            ? $"{years}y"
+            : $"{years}y {remainingMonths}m";
     }
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)

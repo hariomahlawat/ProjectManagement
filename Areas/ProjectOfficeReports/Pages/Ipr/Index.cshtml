@@ -1,34 +1,30 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
 @using System.Text.Json
+@using System.Linq
 @functions {
     private static string FormatAge(int days)
     {
         if (days <= 0)
         {
-            return "Less than a day";
+            return "<1d";
         }
 
         if (days < 30)
         {
-            return days == 1 ? "1 day" : $"{days} days";
+            return $"{days}d";
         }
 
         if (days < 365)
         {
-            var months = Math.Max(1, days / 30);
-            return months == 1 ? "1 month" : $"{months} months";
+            return $"{Math.Max(1, days / 30)}m";
         }
 
         var years = days / 365;
         var remainingMonths = (days % 365) / 30;
-
-        if (remainingMonths == 0)
-        {
-            return years == 1 ? "1 year" : $"{years} years";
-        }
-
-        return $"{years}y {remainingMonths}m";
+        return remainingMonths == 0
+            ? $"{years}y"
+            : $"{years}y {remainingMonths}m";
     }
 }
 @{
@@ -50,6 +46,8 @@
     var projectRoutes = Model.GetRouteValuesForLinks(new { tab = "project", page = 1 }, includePage: false, includeModeAndId: false);
     var followupRoutes = Model.GetRouteValuesForLinks(new { tab = "followup", page = 1 }, includePage: false, includeModeAndId: false);
     var analyticsRoutes = Model.GetRouteValuesForLinks(new { tab = "analytics", page = 1 }, includePage: false, includeModeAndId: false);
+    var assignedProjectGroupCount = Model.ProjectIprGroups.Count(group => !group.IsUnassigned);
+    var hasUnassignedProjectGroup = Model.ProjectIprGroups.Any(group => group.IsUnassigned);
 }
 
 @section Styles {
@@ -176,9 +174,16 @@
                             }
                         </select>
                     </label>
-                    <div class="ipr-density-toggle" role="group" aria-label="Table density">
-                        <button type="button" class="btn is-active" data-ipr-density="compact" title="Compact density"><i class="bi bi-list"></i></button>
-                        <button type="button" class="btn" data-ipr-density="comfortable" title="Comfortable density"><i class="bi bi-list-ul"></i></button>
+                    <div class="ipr-density-control">
+                        <span>Density</span>
+                        <div class="ipr-density-toggle" role="group" aria-label="Table density">
+                            <button type="button" class="btn is-active" data-ipr-density="compact" aria-pressed="true">
+                                <i class="bi bi-list" aria-hidden="true"></i><span>Compact</span>
+                            </button>
+                            <button type="button" class="btn" data-ipr-density="comfortable" aria-pressed="false">
+                                <i class="bi bi-list-ul" aria-hidden="true"></i><span>Comfortable</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -192,7 +197,7 @@
                 <div class="ipr-record-workbench">
                     <div class="ipr-register-grid-wrap">
                         <div class="table-responsive ipr-register-scroll">
-                            <table class="table ipr-register-table align-middle mb-0">
+                            <table class="table ipr-register-table align-middle mb-0" role="grid" aria-label="IPR records">
                                 <thead>
                                     <tr>
                                         <th>IPR record</th>
@@ -214,9 +219,12 @@
                                     var editRoutes = Model.GetRouteValuesForLinks(new { mode = "edit", id = row.Id }, includeModeAndId: false);
                                     <tr class="ipr-record-row @(index == 0 ? "is-selected" : string.Empty)"
                                         data-ipr-record-row
-                                        data-record-id="@row.Id">
+                                        data-record-id="@row.Id"
+                                        tabindex="@(index == 0 ? "0" : "-1")"
+                                        aria-selected="@(index == 0 ? "true" : "false")"
+                                        aria-controls="iprRecordInspector">
                                         <td>
-                                            <button type="button" class="ipr-record-title" data-ipr-select-record data-record-id="@row.Id" title="Inspect @row.Title">
+                                            <button type="button" class="ipr-record-title" data-ipr-select-record data-record-id="@row.Id" title="Inspect @row.Title" tabindex="-1">
                                                 <span>@row.Title</span>
                                                 <small><span class="ipr-type-dot ipr-type-dot--@row.IprType.ToLowerInvariant()"></span>@row.IprType · @row.ApplicationNumber</small>
                                             </button>
@@ -273,7 +281,15 @@
                         }
                     </div>
 
+                    <div class="ipr-inspector-resize-handle"
+                         data-ipr-inspector-resize
+                         role="separator"
+                         aria-orientation="vertical"
+                         aria-label="Resize filing details panel"
+                         tabindex="0"></div>
+
                     <aside class="ipr-record-inspector"
+                           id="iprRecordInspector"
                            data-ipr-record-inspector
                            data-ipr-project-base-url="@Url.Content("~/Projects/Overview")"
                            aria-live="polite">
@@ -345,17 +361,27 @@
         <section class="ipr-panel ipr-projects-panel">
             <div class="ipr-panel-header ipr-panel-header--toolbar">
                 <div><h2>Project dossiers</h2><p>Each project appears once, with its linked IPR position shown underneath.</p></div>
-                <span class="ipr-result-count">@Model.ProjectIprGroups.Count groups · @Model.Kpis.Total filings</span>
+                <span class="ipr-result-count">
+                    @assignedProjectGroupCount projects@(hasUnassignedProjectGroup ? " + 1 unassigned group" : string.Empty) · @Model.Kpis.Total filings
+                </span>
             </div>
             <div class="ipr-project-toolbar">
                 <div class="ipr-search-field"><i class="bi bi-search"></i><input type="search" placeholder="Search project or IPR title" data-ipr-project-group-search /></div>
-                <select class="form-select" data-ipr-project-group-status aria-label="Filter project groups by status">
-                    <option value="all">All positions</option>
+                <select class="form-select" data-ipr-project-group-status aria-label="Filter project dossiers by IPR status">
+                    <option value="all">All IPR statuses</option>
                     <option value="awaiting">Has awaiting grant</option>
                     <option value="granted">Has granted IPR</option>
                     <option value="unassigned">Unassigned records</option>
                 </select>
-                <button type="button" class="btn btn-outline-secondary" data-ipr-expand-projects><i class="bi bi-arrows-expand"></i> Expand all</button>
+                <select class="form-select" data-ipr-project-group-sort aria-label="Sort project dossiers">
+                    <option value="attention">Attention first</option>
+                    <option value="name">Project name</option>
+                    <option value="total">Most IPRs</option>
+                    <option value="latest">Latest filing</option>
+                </select>
+                <button type="button" class="btn btn-outline-secondary" data-ipr-expand-projects title="Expand visible dossiers that have awaiting filings">
+                    <i class="bi bi-chevron-double-down" aria-hidden="true"></i> Expand awaiting
+                </button>
             </div>
 
             <div class="ipr-project-groups" data-ipr-project-groups>
@@ -365,12 +391,16 @@
                 }
                 @foreach (var group in Model.ProjectIprGroups)
                 {
+                    var groupLatestSort = group.LatestFiledOn?.ToString("yyyy-MM-dd") ?? string.Empty;
                     <details class="ipr-project-group @(group.IsUnassigned ? "ipr-project-group--unassigned" : string.Empty)"
                              data-ipr-project-group
                              data-search="@group.SearchText"
                              data-awaiting="@(group.Awaiting > 0 ? "true" : "false")"
                              data-granted="@(group.Granted > 0 ? "true" : "false")"
-                             data-unassigned="@(group.IsUnassigned ? "true" : "false")">
+                             data-unassigned="@(group.IsUnassigned ? "true" : "false")"
+                             data-project-name="@group.ProjectName"
+                             data-total="@group.Total"
+                             data-latest="@groupLatestSort">
                         <summary>
                             <div class="ipr-project-group__identity">
                                 <span class="ipr-project-group__icon"><i class="bi @(group.IsUnassigned ? "bi-exclamation-triangle" : "bi-building")"></i></span>
@@ -435,7 +465,11 @@
     {
         <section class="ipr-followup-view">
             <div class="ipr-followup-header">
-                <div><h2>IPR follow-up</h2><p>Exceptions and long-pending cases that require administrative attention.</p></div>
+                <div>
+                    <h2>IPR follow-up</h2>
+                    <p>Exceptions and long-pending cases that require administrative attention.</p>
+                    <small>Each record is listed once under its highest-priority issue; all detected issues remain visible as labels.</small>
+                </div>
                 <span>@($"{Model.AttentionRecordCount} unique {(Model.AttentionRecordCount == 1 ? "record" : "records")}")</span>
             </div>
 
@@ -448,7 +482,7 @@
                 <div class="ipr-followup-groups">
                     @foreach (var group in Model.AttentionGroups)
                     {
-                        <article class="ipr-followup-group ipr-followup-group--@group.Tone">
+                        <article class="ipr-followup-group ipr-followup-group--@group.Tone @(group.Key == "overdue" ? "ipr-followup-group--wide" : string.Empty)">
                             <header>
                                 <div>
                                     <span class="ipr-followup-group__icon"><i class="bi @(group.Key == "overdue" ? "bi-hourglass-split" : group.Key == "data" ? "bi-exclamation-octagon" : group.Key == "linkage" ? "bi-link-45deg" : "bi-paperclip")"></i></span>
@@ -491,7 +525,12 @@
                                             }
                                             @if (Model.CanEdit)
                                             {
-                                                <a asp-page="./Index" asp-all-route-data="attentionEditRoutes" class="btn btn-sm btn-outline-secondary">Review</a>
+                                                <a asp-page="./Index"
+                                                   asp-all-route-data="attentionEditRoutes"
+                                                   class="ipr-followup-card__open"
+                                                   aria-label="Open @item.Title">
+                                                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                                                </a>
                                             }
                                         </div>
                                     </div>
@@ -506,8 +545,14 @@
     else
     {
         <section class="ipr-analytics-view">
+            @{
+                var recordsWithEvidence = Math.Max(0, Model.Kpis.Total - Model.AnalyticsSummary.MissingAttachments);
+                var evidenceCoveragePercent = Model.Kpis.Total == 0
+                    ? 100
+                    : (int)Math.Round(recordsWithEvidence * 100d / Model.Kpis.Total, MidpointRounding.AwayFromZero);
+            }
             <div class="ipr-analytics-insights">
-                <article><span>Grant rate</span><strong>@(Model.AnalyticsSummary.GrantRatePercent)%</strong><small>@Model.Kpis.Granted of @Model.Kpis.Total filings</small></article>
+                <article><span>Evidence coverage</span><strong>@evidenceCoveragePercent%</strong><small>@recordsWithEvidence of @Model.Kpis.Total filings have supporting files</small></article>
                 <article><span>Median time to grant</span><strong>@(Model.AnalyticsSummary.MedianGrantDays.HasValue ? FormatAge(Model.AnalyticsSummary.MedianGrantDays.Value) : "—")</strong><small>granted cases with both dates</small></article>
                 <article><span>Median pending age</span><strong>@(Model.AnalyticsSummary.MedianAwaitingDays.HasValue ? FormatAge(Model.AnalyticsSummary.MedianAwaitingDays.Value) : "—")</strong><small>currently awaiting grant</small></article>
                 <article class="@(Model.AnalyticsSummary.AwaitingOverThreeYears > 0 ? "has-warning" : string.Empty)"><span>Long pending</span><strong>@Model.AnalyticsSummary.AwaitingOverThreeYears</strong><small>awaiting beyond 3 years</small></article>

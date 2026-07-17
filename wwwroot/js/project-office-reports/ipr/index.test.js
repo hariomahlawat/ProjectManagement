@@ -97,7 +97,7 @@ test('IPR project view is grouped into expandable project dossiers', () => {
   assert.match(pageSource, /data-ipr-project-group/);
   assert.match(pageSource, /Project dossiers/);
   assert.match(source, /initialiseProjectGroups/);
-  assert.match(source, /Expand all/);
+  assert.match(source, /Expand awaiting/);
 });
 
 test('IPR module provides an operational follow-up view and compact insight ribbon', () => {
@@ -108,4 +108,52 @@ test('IPR module provides an operational follow-up view and compact insight ribb
   assert.match(pageSource, /ipr-insight-ribbon/);
   assert.match(pageSource, /IPR follow-up/);
   assert.match(pageSource, /ipr-followup-group/);
+});
+
+
+test('IPR records workbench exposes clear selection, keyboard access and a resizable inspector', () => {
+  const pageSource = fs.readFileSync(
+    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
+    'utf8'
+  );
+  assert.match(pageSource, /data-ipr-inspector-resize/);
+  assert.match(pageSource, /aria-selected=/);
+  assert.match(source, /initialiseInspectorResize/);
+  assert.match(source, /aria-valuenow/);
+  assert.match(source, /event\.key !== 'Enter'/);
+  assert.match(cssSource, /--ipr-inspector-width:\s*400px/);
+  assert.match(cssSource, /\.ipr-row-edit-link\s*\{[\s\S]*opacity:\s*0/);
+});
+
+test('IPR project dossiers provide explicit status filtering, operational sorting and targeted expansion', () => {
+  const pageSource = fs.readFileSync(
+    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
+    'utf8'
+  );
+  assert.match(pageSource, /All IPR statuses/);
+  assert.match(pageSource, /data-ipr-project-group-sort/);
+  assert.match(pageSource, /Attention first/);
+  assert.match(pageSource, /Expand awaiting/);
+  assert.match(source, /sortGroups/);
+  assert.match(source, /group\.dataset\.awaiting === 'true'/);
+});
+
+test('IPR follow-up uses a full-width priority queue and explains issue deduplication', () => {
+  const pageSource = fs.readFileSync(
+    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
+    'utf8'
+  );
+  assert.match(pageSource, /highest-priority issue/);
+  assert.match(pageSource, /ipr-followup-group--wide/);
+  assert.match(cssSource, /\.ipr-followup-group--wide\s*\{\s*grid-column:\s*1\s*\/\s*-1/);
+  assert.doesNotMatch(pageSource, />Review<\/a>/);
+});
+
+test('IPR analytics replaces the repeated grant-rate tile with evidence coverage', () => {
+  const pageSource = fs.readFileSync(
+    path.resolve(__dirname, '../../../../Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml'),
+    'utf8'
+  );
+  assert.match(pageSource, /Evidence coverage/);
+  assert.match(pageSource, /recordsWithEvidence/);
 });
