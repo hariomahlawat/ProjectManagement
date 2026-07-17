@@ -11,14 +11,8 @@
 <div class="ip-section-heading">
     <div>
         <h3>JDP history</h3>
-        <p>Link current or past projects where this organisation was the Joint Development Partner.</p>
+        <p>Current, completed and archived projects can be linked.</p>
     </div>
-    @if (Model.CanManage && contextualProject is null)
-    {
-        <button type="button" class="btn btn-sm btn-primary" data-toggle-panel="project-add-panel" aria-expanded="false">
-            <i class="bi bi-link-45deg" aria-hidden="true"></i> Link project
-        </button>
-    }
 </div>
 
 @if (contextualProject is not null)
@@ -50,7 +44,10 @@
     <div class="ip-inline-create @(showAddForm ? null : "d-none")" data-collapsible-panel="project-add-panel">
         <div class="ip-inline-create-title">
             <strong>New JDP association</strong>
-            <span>Completed and archived projects are included in project search.</span>
+            @if (contextualProject is null)
+            {
+                <span>Select a project to add to this organisation's JDP history.</span>
+            }
         </div>
         <form method="post" asp-page-handler="LinkProject" data-project-association-form>
             @Html.AntiForgeryToken()
@@ -101,7 +98,7 @@
                 }
                 else
                 {
-                    <button type="submit" class="btn btn-sm btn-primary" data-project-link-submit>Link as JDP</button>
+                    <button type="submit" class="btn btn-sm btn-primary" data-project-link-submit data-submit-once>Link as JDP</button>
                 }
             </div>
         </form>
@@ -140,13 +137,19 @@ else
                             <span>Linked @link.LinkedUtc.LocalDateTime.ToString("dd MMM yyyy")</span>
                         </div>
                     </div>
-                    @if (Model.CanManage)
-                    {
-                        <div class="dropdown">
-                            <button class="btn btn-sm btn-light ip-more-button" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="JDP association actions">
-                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-light ip-more-button" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @link.ProjectName">
+                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a asp-page="/Projects/Overview" asp-route-id="@link.ProjectId" class="dropdown-item">
+                                    <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Open project
+                                </a>
+                            </li>
+                            @if (Model.CanManage)
+                            {
+                                <li><hr class="dropdown-divider" /></li>
                                 <li>
                                     <form method="post" asp-page-handler="UnlinkProject" data-confirm-form="Remove this JDP association? The organisation and project will remain in PRISM.">
                                         @Html.AntiForgeryToken()
@@ -156,12 +159,14 @@ else
                                         <input type="hidden" name="q" value="@Model.Q" />
                                         <input type="hidden" name="filter" value="@Model.Filter" />
                                         <input type="hidden" name="p" value="@Model.PageNumber" />
-                                        <button type="submit" class="dropdown-item text-danger"><i class="bi bi-link-45deg" aria-hidden="true"></i> Remove JDP link</button>
+                                        <button type="submit" class="dropdown-item text-danger">
+                                            <i class="bi bi-link-45deg" aria-hidden="true"></i> Remove JDP association
+                                        </button>
                                     </form>
                                 </li>
-                            </ul>
-                        </div>
-                    }
+                            }
+                        </ul>
+                    </div>
                 </div>
             </article>
         }

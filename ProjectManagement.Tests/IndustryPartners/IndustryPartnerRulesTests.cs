@@ -111,6 +111,43 @@ public sealed class IndustryPartnerRulesTests
         Assert.True(linked);
     }
 
+
+    [Fact]
+    public async Task CurrentAndPastFilters_AreInclusiveForMixedJdpHistory()
+    {
+        await using var db = CreateDb();
+        var currentProject = new Project
+        {
+            Name = "Current project",
+            CreatedByUserId = "u1",
+            WorkflowVersion = "v1",
+            LifecycleStatus = ProjectLifecycleStatus.Active
+        };
+        var completedProject = new Project
+        {
+            Name = "Completed project",
+            CreatedByUserId = "u1",
+            WorkflowVersion = "v1",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
+        };
+
+        db.Projects.AddRange(currentProject, completedProject);
+        await db.SaveChangesAsync();
+
+        var service = new IndustryPartnerService(db);
+        var user = User();
+        var partnerId = await service.CreateAsync(new CreateIndustryPartnerRequest("Mixed History Partner", null), user);
+        await service.LinkProjectAsync(partnerId, currentProject.Id, user);
+        await service.LinkProjectAsync(partnerId, completedProject.Id, user);
+
+        var current = await service.SearchAsync(null, IndustryPartnerDirectoryFilter.CurrentJdp, 1, 25);
+        var past = await service.SearchAsync(null, IndustryPartnerDirectoryFilter.PastJdp, 1, 25);
+
+        Assert.Contains(current.Items, item => item.Id == partnerId);
+        Assert.Contains(past.Items, item => item.Id == partnerId);
+        Assert.Equal("Current JDP", current.Items.Single(item => item.Id == partnerId).StatusLabel);
+    }
+
     [Fact]
     public async Task ContactValidation_RejectsMissingAndInvalidEmail()
     {

@@ -354,6 +354,34 @@
   font-weight: 620;
 }
 
+.ip-row-contact-channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+  margin-top: 2px;
+}
+
+.ip-row-contact-channels a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  color: #526baf;
+  text-decoration: none;
+  font-size: 0.71rem;
+}
+
+.ip-row-contact-channels a:hover {
+  color: var(--ip-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ip-row-contact-channels i {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+}
+
 .ip-truncate {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -724,53 +752,46 @@ button.ip-primary-contact-card {
   text-decoration: underline;
 }
 
-.ip-overview-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
 .ip-info-card {
   margin-bottom: 12px;
   padding: 13px 14px;
 }
 
-.ip-overview-grid .ip-info-card {
-  margin-bottom: 0;
+.ip-organisation-details-card {
+  padding-bottom: 10px;
 }
 
-.ip-detail-list {
-  margin: 6px 0 0;
+.ip-overview-details {
+  margin: 7px 0 0;
 }
 
-.ip-detail-list > div {
+.ip-overview-details > div {
   display: grid;
-  grid-template-columns: 82px minmax(0, 1fr);
-  gap: 8px;
-  padding: 5px 0;
-  border-bottom: 1px solid #f0f2f6;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid #eef1f5;
 }
 
-.ip-detail-list > div:last-child {
+.ip-overview-details > div:last-child {
   border-bottom: 0;
 }
 
-.ip-detail-list dt {
+.ip-overview-details dt {
   color: var(--ip-muted);
   font-size: 0.71rem;
-  font-weight: 550;
+  font-weight: 600;
 }
 
-.ip-detail-list dd {
+.ip-overview-details dd {
   overflow-wrap: anywhere;
   margin: 0;
-  font-size: 0.74rem;
+  color: var(--ip-text);
+  font-size: 0.75rem;
 }
 
-.ip-detail-list a {
-  color: #3557ae;
-  text-decoration: none;
+.ip-overview-notes dd {
+  line-height: 1.5;
 }
 
 .ip-card-heading-row {
@@ -818,10 +839,18 @@ button.ip-primary-contact-card {
 
 .ip-project-preview-name {
   overflow: hidden;
+  color: var(--ip-text);
+  text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.75rem;
-  font-weight: 620;
+  font-weight: 650;
+}
+
+.ip-project-preview-name:hover {
+  color: var(--ip-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .ip-project-preview-meta {
@@ -1456,8 +1485,9 @@ button.ip-primary-contact-card {
     padding: 14px 12px 24px;
   }
 
-  .ip-overview-grid {
+  .ip-overview-details > div {
     grid-template-columns: 1fr;
+    gap: 3px;
   }
 
   .ip-inline-create-title,

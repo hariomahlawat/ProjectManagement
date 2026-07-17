@@ -95,11 +95,11 @@
             <a class="@(Model.Filter == "contact" ? "is-active" : null)"
                asp-page="./Index" asp-route-q="@Model.Q" asp-route-filter="contact" asp-route-projectId="@Model.ContextProjectId">Contact only</a>
             <a class="@(Model.Filter == "associated" ? "is-active" : null)"
-               asp-page="./Index" asp-route-q="@Model.Q" asp-route-filter="associated" asp-route-projectId="@Model.ContextProjectId">JDP associated</a>
+               asp-page="./Index" asp-route-q="@Model.Q" asp-route-filter="associated" asp-route-projectId="@Model.ContextProjectId">All JDPs</a>
             <a class="@(Model.Filter == "current" ? "is-active" : null)"
-               asp-page="./Index" asp-route-q="@Model.Q" asp-route-filter="current" asp-route-projectId="@Model.ContextProjectId">Current JDP</a>
+               asp-page="./Index" asp-route-q="@Model.Q" asp-route-filter="current" asp-route-projectId="@Model.ContextProjectId">Current JDPs</a>
             <a class="@(Model.Filter == "past" ? "is-active" : null)"
-               asp-page="./Index" asp-route-q="@Model.Q" asp-route-filter="past" asp-route-projectId="@Model.ContextProjectId">Past JDP</a>
+               asp-page="./Index" asp-route-q="@Model.Q" asp-route-filter="past" asp-route-projectId="@Model.ContextProjectId">Past JDPs</a>
         </nav>
 
         <partial name="_DirectoryTable" model="Model" />
@@ -147,8 +147,8 @@
                                 </div>
                                 <div class="row g-3">
                                     <div class="col-12">
-                                        <label class="form-label" for="newOrganisationContactName">Name / office</label>
-                                        <input id="newOrganisationContactName" name="contactName" class="form-control" maxlength="200" autocomplete="name" />
+                                        <label class="form-label" for="newOrganisationContactName">Contact person or office</label>
+                                        <input id="newOrganisationContactName" name="contactName" class="form-control" maxlength="200" autocomplete="name" placeholder="e.g. Mr Arun Sharma or Business Development Office" />
                                     </div>
                                     <div class="col-sm-6">
                                         <label class="form-label" for="newOrganisationContactPhone">Phone</label>

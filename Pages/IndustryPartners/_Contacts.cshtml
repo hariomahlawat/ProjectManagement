@@ -33,8 +33,8 @@
             <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
             <div class="row g-2">
                 <div class="col-md-4">
-                    <label class="form-label" for="newContactName">Name / office</label>
-                    <input id="newContactName" name="name" class="form-control" maxlength="200" autocomplete="name" />
+                    <label class="form-label" for="newContactName">Contact person or office</label>
+                    <input id="newContactName" name="name" class="form-control" maxlength="200" autocomplete="name" placeholder="e.g. Mr Arun Sharma or Business Development Office" />
                 </div>
                 <div class="col-md-4">
                     <label class="form-label" for="newContactPhone">Phone</label>
@@ -131,8 +131,8 @@ else
                         <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
                         <div class="row g-2">
                             <div class="col-md-4">
-                                <label class="form-label">Name / office</label>
-                                <input name="name" class="form-control form-control-sm" value="@contact.Name" maxlength="200" />
+                                <label class="form-label">Contact person or office</label>
+                                <input name="name" class="form-control form-control-sm" value="@contact.Name" maxlength="200" placeholder="Person or office" />
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Phone</label>

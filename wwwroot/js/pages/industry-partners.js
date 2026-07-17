@@ -30,6 +30,12 @@
       button.setAttribute('aria-expanded', visible ? 'true' : 'false');
     });
 
+    if (panelName === 'project-add-panel') {
+      root.querySelectorAll('[data-project-toolbar-action]').forEach((button) => {
+        button.classList.toggle('d-none', visible);
+      });
+    }
+
     if (visible) {
       const focusTarget = panel.querySelector('input:not([type="hidden"]), select, textarea, button');
       window.setTimeout(() => focusTarget?.focus(), 80);
@@ -70,6 +76,10 @@
     root.querySelectorAll('[data-tab-panel]').forEach((panel) => {
       panel.classList.toggle('is-active', panel.dataset.tabPanel === safeTab);
     });
+
+    if (safeTab !== 'projects') {
+      setPanelVisible('project-add-panel', false);
+    }
 
     if (updateUrl) {
       const url = new URL(window.location.href);
@@ -381,6 +391,12 @@
         error.textContent = 'Select a project from the search results.';
         error.classList.remove('d-none');
         input.focus();
+        return;
+      }
+
+      if (submit) {
+        submit.disabled = true;
+        submit.textContent = 'Linking…';
       }
     });
 

@@ -56,30 +56,15 @@
             <button type="button" class="btn btn-sm btn-outline-secondary" data-open-tab="contacts" data-show-panel="contact-add-panel">
                 <i class="bi bi-person-plus" aria-hidden="true"></i> Add contact
             </button>
-            @if (Model.ProjectContext is not null && !hasContextualAssociation)
-            {
-                <form method="post" asp-page-handler="LinkProject" class="d-inline">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="partnerId" value="@partner.Id" />
-                    <input type="hidden" name="associationProjectId" value="@Model.ProjectContext.Id" />
-                    <input type="hidden" name="q" value="@Model.Q" />
-                    <input type="hidden" name="filter" value="@Model.Filter" />
-                    <input type="hidden" name="p" value="@Model.PageNumber" />
-                    <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
-                    <button type="submit" class="btn btn-sm btn-primary" data-submit-once>
-                        <i class="bi bi-link-45deg" aria-hidden="true"></i> Link as JDP
-                    </button>
-                </form>
-            }
-            else if (hasContextualAssociation)
+            @if (hasContextualAssociation)
             {
                 <button type="button" class="btn btn-sm btn-outline-primary" data-open-tab="projects">
                     <i class="bi bi-check2-circle" aria-hidden="true"></i> JDP linked
                 </button>
             }
-            else
+            else if (Model.ProjectContext is null)
             {
-                <button type="button" class="btn btn-sm btn-primary" data-open-tab="projects" data-show-panel="project-add-panel">
+                <button type="button" class="btn btn-sm btn-primary" data-open-tab="projects" data-show-panel="project-add-panel" data-project-toolbar-action>
                     <i class="bi bi-link-45deg" aria-hidden="true"></i> Link project
                 </button>
             }
@@ -88,7 +73,7 @@
         @if (Model.CanDelete && partner.LinkedProjects.Count == 0)
         {
             <div class="dropdown ms-auto">
-                <button class="btn btn-sm btn-light ip-more-button" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions">
+                <button class="btn btn-sm btn-light ip-more-button" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions for @partner.Name">
                     <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end">
@@ -100,7 +85,7 @@
                             <input type="hidden" name="filter" value="@Model.Filter" />
                             <input type="hidden" name="p" value="@Model.PageNumber" />
                             <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
-                            <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash" aria-hidden="true"></i> Delete permanently</button>
+                            <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash" aria-hidden="true"></i> Delete organisation</button>
                         </form>
                     </li>
                 </ul>

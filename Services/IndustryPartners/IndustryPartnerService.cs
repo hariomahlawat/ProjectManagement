@@ -60,12 +60,10 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
                     link.Project.LifecycleStatus == activeStatus)),
 
             IndustryPartnerDirectoryFilter.PastJdp =>
-                partners.Where(partner =>
-                    partner.PartnerProjects.Any() &&
-                    !partner.PartnerProjects.Any(link =>
-                        !link.Project.IsDeleted &&
-                        !link.Project.IsArchived &&
-                        link.Project.LifecycleStatus == activeStatus)),
+                partners.Where(partner => partner.PartnerProjects.Any(link =>
+                    link.Project.IsDeleted ||
+                    link.Project.IsArchived ||
+                    link.Project.LifecycleStatus != activeStatus)),
 
             _ => partners
         };
@@ -220,6 +218,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
                 !link.Project.IsDeleted &&
                 !link.Project.IsArchived &&
                 link.Project.LifecycleStatus == ProjectLifecycleStatus.Active)
+            .ThenByDescending(link => link.LinkedUtc)
             .ThenBy(link => link.Project.Name)
             .Select(link => new IndustryPartnerProjectDto(
                 link.ProjectId,

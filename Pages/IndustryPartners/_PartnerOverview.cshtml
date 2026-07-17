@@ -74,80 +74,66 @@ else
             <div>
                 <div class="ip-card-label">Contact</div>
                 <h3>Add the first contact</h3>
-                <p>Only a phone number or email is required.</p>
+                <p>Only a phone number or email address is required.</p>
             </div>
             <i class="bi bi-chevron-right ms-auto" aria-hidden="true"></i>
         </button>
     }
 
-    <div class="ip-overview-grid">
-        <article class="ip-info-card">
-            <div class="ip-card-label">Location</div>
-            @if (!string.IsNullOrWhiteSpace(partner.Location))
-            {
-                <p class="ip-preserve-lines mb-0">@partner.Location</p>
-            }
-            else
-            {
-                <p class="ip-muted mb-0">Not added</p>
-            }
-        </article>
-
-        <article class="ip-info-card">
-            <div class="ip-card-label">Directory position</div>
-            <dl class="ip-detail-list">
-                <div>
-                    <dt>Contacts</dt>
-                    <dd>@partner.Contacts.Count</dd>
-                </div>
-                <div>
-                    <dt>JDP projects</dt>
-                    <dd>@partner.LinkedProjects.Count</dd>
-                </div>
-                <div>
-                    <dt>Files</dt>
-                    <dd>@partner.Attachments.Count</dd>
-                </div>
+    <article class="ip-info-card ip-organisation-details-card">
+        <div class="ip-card-label">Organisation details</div>
+        @if (string.IsNullOrWhiteSpace(partner.Location) && string.IsNullOrWhiteSpace(partner.Remarks))
+        {
+            <p class="ip-muted mb-0">No location or notes added.</p>
+        }
+        else
+        {
+            <dl class="ip-overview-details">
+                @if (!string.IsNullOrWhiteSpace(partner.Location))
+                {
+                    <div>
+                        <dt>Location</dt>
+                        <dd class="ip-preserve-lines">@partner.Location</dd>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(partner.Remarks))
+                {
+                    <div class="ip-overview-notes">
+                        <dt>Notes</dt>
+                        <dd class="ip-preserve-lines">@partner.Remarks</dd>
+                    </div>
+                }
             </dl>
-        </article>
-    </div>
+        }
+    </article>
 
     <article class="ip-info-card">
         <div class="ip-card-heading-row">
-            <div class="ip-card-label">JDP history</div>
-            <button type="button" class="ip-text-button" data-open-tab="projects">View all</button>
+            <div class="ip-card-label">Recent JDP projects</div>
+            @if (partner.LinkedProjects.Count > 0)
+            {
+                <button type="button" class="ip-text-button" data-open-tab="projects">View all</button>
+            }
         </div>
         @if (partner.LinkedProjects.Count == 0)
         {
             <div class="ip-compact-empty">
-                <span>No JDP association recorded.</span>
-                @if (Model.CanManage)
-                {
-                    <button type="button" class="ip-text-button" data-open-tab="projects" data-show-panel="project-add-panel">Link project</button>
-                }
+                <span>No JDP association recorded. This organisation remains available as a contact.</span>
             </div>
         }
         else
         {
             <div class="ip-project-preview-list">
-                @foreach (var project in partner.LinkedProjects.Take(3))
+                @foreach (var project in partner.LinkedProjects.Take(2))
                 {
                     <div>
-                        <span class="ip-project-preview-name">@project.ProjectName</span>
-                        <span class="ip-project-preview-meta">JDP · @project.ProjectStatusLabel</span>
+                        <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId" class="ip-project-preview-name">@project.ProjectName</a>
+                        <span class="ip-status-badge ip-status-@(project.ProjectStatusLabel == "Ongoing" ? "current" : "past")">@project.ProjectStatusLabel</span>
                     </div>
                 }
             </div>
         }
     </article>
-
-    @if (!string.IsNullOrWhiteSpace(partner.Remarks))
-    {
-        <article class="ip-info-card">
-            <div class="ip-card-label">Notes</div>
-            <p class="ip-preserve-lines mb-0">@partner.Remarks</p>
-        </article>
-    }
 
     <div class="ip-record-meta">Last updated @partner.LastUpdatedUtc.LocalDateTime.ToString("dd MMM yyyy, HH:mm")</div>
 }
