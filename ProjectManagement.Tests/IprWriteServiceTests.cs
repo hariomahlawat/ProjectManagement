@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data.Common;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -12,16 +13,16 @@ using ProjectManagement.Application.Ipr;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Data;
-using ProjectManagement.Tests.Fakes;
 using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Storage;
+using ProjectManagement.Tests.Fakes;
 
 namespace ProjectManagement.Tests;
 
 public sealed class IprWriteServiceTests
 {
     [Fact]
-    public async Task CreateAsync_RequiresFiledDateWhenStatusNotFilingUnderProcess()
+    public async Task CreateAsync_RequiresTitle()
     {
         await using var db = CreateDbContext();
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
@@ -29,15 +30,12 @@ public sealed class IprWriteServiceTests
 
         try
         {
-            var record = new IprRecord
-            {
-                IprFilingNumber = "IPR-001",
-                Status = IprStatus.Filed,
-                Type = IprType.Patent
-            };
+            var record = ValidRecord(clock, "IPR-000");
+            record.Title = "  ";
 
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(record));
-            Assert.Equal("Filed date is required once the record is not under filing.", ex.Message);
+            var ex = await Assert.ThrowsAsync<IprValidationException>(() => service.CreateAsync(record));
+            Assert.Equal(IprValidationCode.TitleRequired, ex.Code);
+            Assert.Equal("Title is required.", ex.Message);
         }
         finally
         {
@@ -46,7 +44,7 @@ public sealed class IprWriteServiceTests
     }
 
     [Fact]
-    public async Task CreateAsync_RejectsFutureFiledDate()
+    public async Task CreateAsync_RequiresFiledDate()
     {
         await using var db = CreateDbContext();
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
@@ -54,15 +52,33 @@ public sealed class IprWriteServiceTests
 
         try
         {
-            var record = new IprRecord
-            {
-                IprFilingNumber = "IPR-002",
-                Status = IprStatus.Filed,
-                Type = IprType.Patent,
-                FiledAtUtc = clock.UtcNow.AddDays(1)
-            };
+            var record = ValidRecord(clock, "IPR-001");
+            record.FiledAtUtc = null;
 
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(record));
+            var ex = await Assert.ThrowsAsync<IprValidationException>(() => service.CreateAsync(record));
+            Assert.Equal(IprValidationCode.FiledDateRequired, ex.Code);
+            Assert.Equal("Filed date is required.", ex.Message);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_RejectsFutureFiledDateByIstCalendarDate()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 1, 1, 20, 0, 0, TimeSpan.Zero)); // 02 Jan 2024, 01:30 IST
+        var (service, root) = CreateService(db, clock);
+
+        try
+        {
+            var record = ValidRecord(clock, "IPR-002");
+            record.FiledAtUtc = new DateTimeOffset(2024, 1, 3, 0, 0, 0, TimeSpan.Zero);
+
+            var ex = await Assert.ThrowsAsync<IprValidationException>(() => service.CreateAsync(record));
+            Assert.Equal(IprValidationCode.FiledDateInFuture, ex.Code);
             Assert.Equal("Filed date cannot be in the future.", ex.Message);
         }
         finally
@@ -72,31 +88,20 @@ public sealed class IprWriteServiceTests
     }
 
     [Fact]
-    public async Task CreateAsync_RejectsDuplicateFilingNumbersWithinType()
+    public async Task CreateAsync_AcceptsCurrentIstDateBefore0530Ist()
     {
         await using var db = CreateDbContext();
-        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 1, 1, 20, 0, 0, TimeSpan.Zero)); // 02 Jan 2024, 01:30 IST
         var (service, root) = CreateService(db, clock);
 
         try
         {
-            db.IprRecords.Add(new IprRecord
-            {
-                IprFilingNumber = "IPR-100",
-                Type = IprType.Copyright,
-                Status = IprStatus.FilingUnderProcess
-            });
-            await db.SaveChangesAsync();
+            var record = ValidRecord(clock, "IPR-003");
+            record.FiledAtUtc = new DateTimeOffset(2024, 1, 2, 0, 0, 0, TimeSpan.Zero);
 
-            var duplicate = new IprRecord
-            {
-                IprFilingNumber = " IPR-100 ",
-                Type = IprType.Copyright,
-                Status = IprStatus.FilingUnderProcess
-            };
+            var created = await service.CreateAsync(record);
 
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(duplicate));
-            Assert.Equal("An IPR with the same filing number and type already exists.", ex.Message);
+            Assert.Equal(new DateTimeOffset(2024, 1, 2, 0, 0, 0, TimeSpan.Zero), created.FiledAtUtc);
         }
         finally
         {
@@ -105,7 +110,31 @@ public sealed class IprWriteServiceTests
     }
 
     [Fact]
-    public async Task CreateAsync_WhenUniqueConstraintThrownDuringSave_RaisesInvalidOperation()
+    public async Task CreateAsync_RejectsDuplicateFilingNumbersCaseInsensitivelyWithinType()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var (service, root) = CreateService(db, clock);
+
+        try
+        {
+            db.IprRecords.Add(ValidRecord(clock, "ipr-100", IprType.Copyright));
+            await db.SaveChangesAsync();
+
+            var duplicate = ValidRecord(clock, " IPR-100 ", IprType.Copyright);
+
+            var ex = await Assert.ThrowsAsync<IprValidationException>(() => service.CreateAsync(duplicate));
+            Assert.Equal(IprValidationCode.DuplicateFilingNumber, ex.Code);
+            Assert.Equal("An IPR record with the same filing number and type already exists.", ex.Message);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenUniqueConstraintThrownDuringSave_RaisesTypedValidationError()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -117,15 +146,11 @@ public sealed class IprWriteServiceTests
 
         try
         {
-            var record = new IprRecord
-            {
-                IprFilingNumber = "IPR-UNIQUE",
-                Type = IprType.Patent,
-                Status = IprStatus.FilingUnderProcess
-            };
+            var ex = await Assert.ThrowsAsync<IprValidationException>(() =>
+                service.CreateAsync(ValidRecord(clock, "IPR-UNIQUE")));
 
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(record));
-            Assert.Equal("An IPR with the same filing number and type already exists.", ex.Message);
+            Assert.Equal(IprValidationCode.DuplicateFilingNumber, ex.Code);
+            Assert.Equal("An IPR record with the same filing number and type already exists.", ex.Message);
         }
         finally
         {
@@ -134,7 +159,7 @@ public sealed class IprWriteServiceTests
     }
 
     [Fact]
-    public async Task CreateAsync_StoresNullProjectWhenProjectIdIsZero()
+    public async Task CreateAsync_NormalizesFilingNumberAndStoresNullProjectWhenProjectIdIsZero()
     {
         await using var db = CreateDbContext();
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
@@ -142,17 +167,13 @@ public sealed class IprWriteServiceTests
 
         try
         {
-            var record = new IprRecord
-            {
-                IprFilingNumber = "IPR-200",
-                Type = IprType.Patent,
-                Status = IprStatus.FilingUnderProcess,
-                ProjectId = 0
-            };
+            var record = ValidRecord(clock, "  ipr   200  ");
+            record.ProjectId = 0;
 
             var created = await service.CreateAsync(record);
-            Assert.Null(created.ProjectId);
 
+            Assert.Equal("IPR 200", created.IprFilingNumber);
+            Assert.Null(created.ProjectId);
             var stored = await db.IprRecords.AsNoTracking().SingleAsync(r => r.Id == created.Id);
             Assert.Null(stored.ProjectId);
         }
@@ -163,44 +184,43 @@ public sealed class IprWriteServiceTests
     }
 
     [Fact]
-    public async Task AddAttachmentAsync_PersistsAttachmentWhenContentTypeAllowed()
+    public async Task AddAttachmentAsync_PersistsValidatedPdfUsingShortStorageKey()
     {
         await using var db = CreateDbContext();
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 3, 15, 10, 30, 0, TimeSpan.Zero));
-        var options = new IprAttachmentOptions
-        {
-            MaxFileSizeBytes = 1024,
-            AllowedContentTypes = new List<string>
-            {
-                "application/pdf"
-            }
-        };
-
+        var options = CreateAttachmentOptions(maxFileSizeBytes: 64 * 1024);
         var root = CreateTempRoot();
+
         try
         {
-            var optionWrapper = Options.Create(options);
-            var storage = CreateStorage(root, optionWrapper);
-            var ingestion = new StubDocRepoIngestionService();
-            var service = new IprWriteService(db, clock, storage, optionWrapper, ingestion, NullLogger<IprWriteService>.Instance);
+            var storage = CreateStorage(root, options);
+            var service = new IprWriteService(
+                db,
+                clock,
+                storage,
+                options,
+                new StubDocRepoIngestionService(),
+                NullLogger<IprWriteService>.Instance);
 
-            var record = new IprRecord
-            {
-                IprFilingNumber = "ATT-001",
-                Type = IprType.Patent,
-                Status = IprStatus.FilingUnderProcess
-            };
+            var record = ValidRecord(clock, "ATT-001");
             db.IprRecords.Add(record);
             await db.SaveChangesAsync();
 
-            await using var content = new MemoryStream(new byte[] { 1, 2, 3, 4 });
-            var attachment = await service.AddAttachmentAsync(record.Id, content, " specification.pdf ", "application/pdf", " user-1 ");
+            await using var content = CreateValidPdfStream();
+            var attachment = await service.AddAttachmentAsync(
+                record.Id,
+                content,
+                " specification.pdf ",
+                "application/pdf",
+                " user-1 ");
 
             Assert.Equal("user-1", attachment.UploadedByUserId);
             Assert.Equal(clock.UtcNow, attachment.UploadedAtUtc);
             Assert.Equal("application/pdf", attachment.ContentType);
             Assert.Equal("specification.pdf", attachment.OriginalFileName);
-            Assert.True(attachment.FileSize > 0);
+            Assert.EndsWith(".pdf", attachment.StorageKey, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("specification", attachment.StorageKey, StringComparison.OrdinalIgnoreCase);
+            Assert.True(attachment.StorageKey.Length < 100);
 
             var saved = await db.IprAttachments.AsNoTracking().SingleAsync(a => a.Id == attachment.Id);
             Assert.Equal(record.Id, saved.IprRecordId);
@@ -221,37 +241,65 @@ public sealed class IprWriteServiceTests
     {
         await using var db = CreateDbContext();
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 4, 10, 8, 0, 0, TimeSpan.Zero));
-        var options = new IprAttachmentOptions
-        {
-            MaxFileSizeBytes = 1024,
-            AllowedContentTypes = new List<string>
-            {
-                "application/pdf"
-            }
-        };
-
+        var options = CreateAttachmentOptions();
         var root = CreateTempRoot();
+
         try
         {
-            var optionWrapper = Options.Create(options);
-            var storage = CreateStorage(root, optionWrapper);
-            var ingestion = new StubDocRepoIngestionService();
-            var service = new IprWriteService(db, clock, storage, optionWrapper, ingestion, NullLogger<IprWriteService>.Instance);
+            var storage = CreateStorage(root, options);
+            var service = new IprWriteService(
+                db,
+                clock,
+                storage,
+                options,
+                new StubDocRepoIngestionService(),
+                NullLogger<IprWriteService>.Instance);
 
-            var record = new IprRecord
-            {
-                IprFilingNumber = "ATT-002",
-                Type = IprType.Patent,
-                Status = IprStatus.FilingUnderProcess
-            };
+            var record = ValidRecord(clock, "ATT-002");
             db.IprRecords.Add(record);
             await db.SaveChangesAsync();
 
-            await using var content = new MemoryStream(new byte[] { 1, 2, 3 });
+            await using var content = new MemoryStream(Encoding.UTF8.GetBytes("not a PDF"));
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 service.AddAttachmentAsync(record.Id, content, "notes.txt", "text/plain", "user-2"));
 
-            Assert.Equal("Attachments of type 'text/plain' are not allowed.", ex.Message);
+            Assert.Equal("Only PDF attachments are allowed.", ex.Message);
+            Assert.Equal(0, await db.IprAttachments.CountAsync());
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task AddAttachmentAsync_RejectsForgedPdfContent()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 4, 10, 8, 0, 0, TimeSpan.Zero));
+        var options = CreateAttachmentOptions();
+        var root = CreateTempRoot();
+
+        try
+        {
+            var storage = CreateStorage(root, options);
+            var service = new IprWriteService(
+                db,
+                clock,
+                storage,
+                options,
+                new StubDocRepoIngestionService(),
+                NullLogger<IprWriteService>.Instance);
+
+            var record = ValidRecord(clock, "ATT-003");
+            db.IprRecords.Add(record);
+            await db.SaveChangesAsync();
+
+            await using var content = new MemoryStream(Encoding.UTF8.GetBytes("plain text pretending to be a PDF"));
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                service.AddAttachmentAsync(record.Id, content, "forged.pdf", "application/pdf", "user-3"));
+
+            Assert.Equal("The selected file is not a valid PDF document.", ex.Message);
             Assert.Equal(0, await db.IprAttachments.CountAsync());
         }
         finally
@@ -265,35 +313,27 @@ public sealed class IprWriteServiceTests
     {
         await using var db = CreateDbContext();
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 5, 12, 0, 0, TimeSpan.Zero));
-        var options = new IprAttachmentOptions
-        {
-            MaxFileSizeBytes = 5,
-            AllowedContentTypes = new List<string>
-            {
-                "application/pdf"
-            }
-        };
-
+        var options = CreateAttachmentOptions(maxFileSizeBytes: 5);
         var root = CreateTempRoot();
+
         try
         {
-            var optionWrapper = Options.Create(options);
-            var storage = CreateStorage(root, optionWrapper);
-            var ingestion = new StubDocRepoIngestionService();
-            var service = new IprWriteService(db, clock, storage, optionWrapper, ingestion, NullLogger<IprWriteService>.Instance);
+            var storage = CreateStorage(root, options);
+            var service = new IprWriteService(
+                db,
+                clock,
+                storage,
+                options,
+                new StubDocRepoIngestionService(),
+                NullLogger<IprWriteService>.Instance);
 
-            var record = new IprRecord
-            {
-                IprFilingNumber = "ATT-003",
-                Type = IprType.Patent,
-                Status = IprStatus.FilingUnderProcess
-            };
+            var record = ValidRecord(clock, "ATT-004");
             db.IprRecords.Add(record);
             await db.SaveChangesAsync();
 
             await using var content = new MemoryStream(Enumerable.Repeat((byte)1, 16).ToArray());
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                service.AddAttachmentAsync(record.Id, content, "oversized.pdf", "application/pdf", "user-3"));
+                service.AddAttachmentAsync(record.Id, content, "oversized.pdf", "application/pdf", "user-4"));
 
             Assert.Equal("Attachment exceeds maximum allowed size of 5 bytes.", ex.Message);
             Assert.Equal(0, await db.IprAttachments.CountAsync());
@@ -302,6 +342,19 @@ public sealed class IprWriteServiceTests
         {
             CleanupRoot(root);
         }
+    }
+
+    private static IprRecord ValidRecord(FakeClock clock, string filingNumber, IprType type = IprType.Patent)
+    {
+        return new IprRecord
+        {
+            IprFilingNumber = filingNumber,
+            Title = "Test IPR record",
+            Type = type,
+            Status = IprStatus.Filed,
+            FiledAtUtc = new DateTimeOffset(
+                DateOnly.FromDateTime(clock.UtcNow.UtcDateTime).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
+        };
     }
 
     private static ApplicationDbContext CreateDbContext()
@@ -344,12 +397,27 @@ public sealed class IprWriteServiceTests
 
     private static (IprWriteService Service, string Root) CreateService(ApplicationDbContext db, FakeClock clock)
     {
-        var options = Options.Create(new IprAttachmentOptions());
+        var options = CreateAttachmentOptions();
         var root = CreateTempRoot();
         var storage = CreateStorage(root, options);
-        var ingestion = new StubDocRepoIngestionService();
-        var service = new IprWriteService(db, clock, storage, options, ingestion, NullLogger<IprWriteService>.Instance);
+        var service = new IprWriteService(
+            db,
+            clock,
+            storage,
+            options,
+            new StubDocRepoIngestionService(),
+            NullLogger<IprWriteService>.Instance);
         return (service, root);
+    }
+
+    private static IOptions<IprAttachmentOptions> CreateAttachmentOptions(long maxFileSizeBytes = 1024 * 1024)
+    {
+        return Options.Create(new IprAttachmentOptions
+        {
+            MaxFileSizeBytes = maxFileSizeBytes,
+            AllowedContentTypes = new List<string> { "application/pdf" },
+            AllowedExtensions = new List<string> { ".pdf" }
+        });
     }
 
     private static string CreateTempRoot()
@@ -380,9 +448,54 @@ public sealed class IprWriteServiceTests
         return new IprAttachmentStorage(provider, resolver, options);
     }
 
+    private static MemoryStream CreateValidPdfStream()
+    {
+        var stream = new MemoryStream();
+        var offsets = new List<long>();
+
+        static byte[] Bytes(string value) => Encoding.ASCII.GetBytes(value);
+        void Write(string value)
+        {
+            var bytes = Bytes(value);
+            stream.Write(bytes, 0, bytes.Length);
+        }
+
+        Write("%PDF-1.4\n");
+        var objects = new[]
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> /Contents 4 0 R >>",
+            "<< /Length 0 >>\nstream\n\nendstream"
+        };
+
+        for (var index = 0; index < objects.Length; index++)
+        {
+            offsets.Add(stream.Position);
+            Write($"{index + 1} 0 obj\n{objects[index]}\nendobj\n");
+        }
+
+        var xrefOffset = stream.Position;
+        Write($"xref\n0 {objects.Length + 1}\n");
+        Write("0000000000 65535 f \n");
+        foreach (var offset in offsets)
+        {
+            Write($"{offset:0000000000} 00000 n \n");
+        }
+
+        Write($"trailer\n<< /Size {objects.Length + 1} /Root 1 0 R >>\nstartxref\n{xrefOffset}\n%%EOF\n");
+        stream.Position = 0;
+        return stream;
+    }
+
     private sealed class StubDocRepoIngestionService : IDocRepoIngestionService
     {
-        public Task<Guid> IngestExternalPdfAsync(Stream pdfStream, string originalFileName, string sourceModule, string sourceItemId, CancellationToken cancellationToken = default)
+        public Task<Guid> IngestExternalPdfAsync(
+            Stream pdfStream,
+            string originalFileName,
+            string sourceModule,
+            string sourceItemId,
+            CancellationToken cancellationToken = default)
         {
             return Task.FromResult(Guid.NewGuid());
         }

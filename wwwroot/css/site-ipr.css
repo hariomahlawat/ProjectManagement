@@ -66,7 +66,11 @@
 .ipr-tabs i { margin-right: 6px; }
 
 .ipr-panel { overflow: hidden; }
-.ipr-filter-bar { display: grid; grid-template-columns: minmax(260px, 1.5fr) repeat(4, minmax(130px, .75fr)) auto auto; gap: 10px; padding: 16px; border-bottom: 1px solid var(--ipr-border); background: #fbfcff; }
+.ipr-filter-bar { display: grid; grid-template-columns: minmax(260px, 1.5fr) repeat(4, minmax(130px, .75fr)); gap: 10px; padding: 16px; border-bottom: 1px solid var(--ipr-border); background: #fbfcff; }
+.ipr-filter-bar.has-clear {
+    grid-template-columns: minmax(260px, 1.5fr) repeat(4, minmax(130px, .75fr)) auto;
+}
+
 .ipr-search-field { position: relative; }
 .ipr-search-field i { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: #8290a6; }
 .ipr-search-field input { width: 100%; height: 38px; padding: 0 12px 0 38px; border: 1px solid #d8e0ec; border-radius: 9px; background: white; }
@@ -81,7 +85,16 @@
 .ipr-project-table td { padding: 13px 14px; border-color: #edf1f6; font-size: .86rem; }
 .ipr-register-table tbody tr:hover,
 .ipr-project-table tbody tr:hover { background: #f9fbff; }
-.ipr-title-link { color: #1553c7; font-weight: 650; text-decoration: none; }
+.ipr-title-link {
+    display: -webkit-box;
+    max-width: 34rem;
+    overflow: hidden;
+    color: #1553c7;
+    font-weight: 650;
+    text-decoration: none;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
 .ipr-title-link:hover { text-decoration: underline; }
 .ipr-project-name { color: #315da8; font-weight: 600; }
 .ipr-type-badge,
@@ -96,7 +109,7 @@
 
 .ipr-analytics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .ipr-chart-canvas { height: 390px; padding: 18px; }
-.ipr-record-drawer { width: min(560px, 100vw); }
+.ipr-record-drawer { width: min(680px, 100vw); }
 
 @media (max-width: 1280px) {
     .ipr-summary-grid { grid-template-columns: repeat(2, 1fr); }
@@ -217,4 +230,371 @@
     .ipr-analytics-side { grid-template-columns: 1fr; }
     .ipr-type-summary__columns,
     .ipr-type-summary__row { grid-template-columns: 1fr 48px 62px 66px; }
+}
+
+
+/* IPR drawer and form */
+.ipr-record-drawer {
+    --ipr-drawer-surface: #fff;
+    --ipr-drawer-subtle: #f7f9fc;
+    --ipr-drawer-border: #dfe6f1;
+    background: var(--ipr-drawer-surface);
+}
+
+.ipr-record-drawer__header {
+    min-height: 78px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--ipr-drawer-border);
+    background: var(--ipr-drawer-surface);
+}
+
+.ipr-record-drawer__header h2 {
+    margin: 0;
+    color: var(--ipr-navy, #10213f);
+    font-size: 1.05rem;
+    font-weight: 750;
+}
+
+.ipr-record-drawer__header p {
+    margin: 3px 0 0;
+    color: #687892;
+    font-size: .8rem;
+}
+
+.ipr-record-drawer__body {
+    padding: 0;
+    background: var(--ipr-drawer-subtle);
+}
+
+.ipr-drawer-form {
+    background: var(--ipr-drawer-surface);
+}
+
+.ipr-form-summary {
+    margin: 0;
+    padding: 0 20px;
+}
+
+.ipr-form-summary:not(:empty) {
+    padding-top: 14px;
+    padding-bottom: 2px;
+}
+
+.ipr-form-summary ul {
+    margin-bottom: 0;
+    padding-left: 1.1rem;
+}
+
+.ipr-form-section {
+    padding: 18px 20px 20px;
+    border-bottom: 1px solid var(--ipr-drawer-border);
+}
+
+.ipr-form-section__header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.ipr-form-section__header span {
+    color: #53637d;
+    font-size: .7rem;
+    font-weight: 800;
+    letter-spacing: .065em;
+    text-transform: uppercase;
+}
+
+.ipr-form-section__header small {
+    color: #7a879c;
+    font-size: .7rem;
+}
+
+.ipr-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 15px 16px;
+}
+
+.ipr-form-field {
+    min-width: 0;
+}
+
+.ipr-form-field--wide {
+    grid-column: 1 / -1;
+}
+
+.ipr-form-field.is-hidden {
+    display: none;
+}
+
+.ipr-form-field .form-label {
+    margin-bottom: 6px;
+    color: #263854;
+    font-size: .78rem;
+    font-weight: 650;
+}
+
+.ipr-form-field .form-control,
+.ipr-form-field .form-select {
+    min-width: 0;
+    height: 42px;
+    border-color: #d7e0ec;
+    border-radius: 9px;
+    font-size: .9rem;
+}
+
+.ipr-form-field textarea.form-control {
+    min-height: 104px;
+    height: auto;
+    resize: vertical;
+}
+
+.ipr-form-field .text-danger {
+    display: block;
+    margin-top: 4px;
+    font-size: .72rem;
+}
+
+.ipr-drawer-form__actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 13px 20px;
+    border-top: 1px solid var(--ipr-drawer-border);
+    background: rgba(255, 255, 255, .97);
+    box-shadow: 0 -8px 20px rgba(16, 33, 63, .05);
+    backdrop-filter: blur(8px);
+}
+
+.ipr-attachment-section,
+.ipr-danger-zone {
+    margin-top: 12px;
+    padding: 18px 20px 20px;
+    border-top: 1px solid var(--ipr-drawer-border);
+    border-bottom: 1px solid var(--ipr-drawer-border);
+    background: var(--ipr-drawer-surface);
+}
+
+.ipr-attachment-section__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+.ipr-attachment-section__header h3,
+.ipr-danger-zone h3 {
+    margin: 0 0 3px;
+    color: #20324f;
+    font-size: .9rem;
+    font-weight: 750;
+}
+
+.ipr-attachment-section__header p,
+.ipr-danger-zone p {
+    margin: 0;
+    color: #6e7d94;
+    font-size: .76rem;
+}
+
+.ipr-file-policy {
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    border: 1px solid #dbe3ef;
+    border-radius: 999px;
+    background: #f7f9fc;
+    color: #65758d;
+    font-size: .68rem;
+    font-weight: 650;
+}
+
+.ipr-attachment-empty {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 56px;
+    padding: 12px 14px;
+    border: 1px dashed #d8e0ec;
+    border-radius: 10px;
+    color: #75839a;
+    font-size: .8rem;
+}
+
+.ipr-attachment-list {
+    display: grid;
+    gap: 8px;
+    margin: 0 0 14px;
+    padding: 0;
+    list-style: none;
+}
+
+.ipr-attachment-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px;
+    border: 1px solid #e0e7f0;
+    border-radius: 10px;
+    background: #fbfcff;
+}
+
+.ipr-attachment-row__main {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+}
+
+.ipr-attachment-row__icon {
+    display: grid;
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border-radius: 8px;
+    background: #eef3ff;
+    color: #3f6ee8;
+}
+
+.ipr-attachment-row__content {
+    display: block;
+    min-width: 0;
+}
+
+.ipr-attachment-row__content strong,
+.ipr-attachment-row__content small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ipr-attachment-row__content strong {
+    color: #174fae;
+    font-size: .78rem;
+}
+
+.ipr-attachment-row__content small {
+    margin-top: 2px;
+    color: #75839a;
+    font-size: .67rem;
+}
+
+.ipr-attachment-row__remove {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+}
+
+.ipr-attachment-upload {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 10px;
+    padding-top: 2px;
+}
+
+.ipr-attachment-upload .form-text {
+    font-size: .68rem;
+}
+
+.ipr-attachment-upload .btn {
+    min-height: 42px;
+}
+
+.ipr-danger-zone {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.ipr-filter-bar .btn-outline-secondary {
+    min-width: 74px;
+}
+
+.ipr-register-table td:first-child {
+    min-width: 240px;
+}
+
+@media (max-width: 1180px) {
+    .ipr-filter-bar,
+    .ipr-filter-bar.has-clear {
+        grid-template-columns: minmax(240px, 1fr) repeat(2, minmax(150px, .6fr));
+    }
+
+    .ipr-filter-bar > :nth-child(n + 4) {
+        grid-column: auto;
+    }
+}
+
+@media (max-width: 720px) {
+    .ipr-record-drawer {
+        width: 100vw;
+    }
+
+    .ipr-form-grid,
+    .ipr-attachment-upload {
+        grid-template-columns: 1fr;
+    }
+
+    .ipr-form-field--wide {
+        grid-column: auto;
+    }
+
+    .ipr-form-section__header,
+    .ipr-attachment-section__header,
+    .ipr-danger-zone {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .ipr-file-policy {
+        align-self: flex-start;
+    }
+
+    .ipr-drawer-form__actions {
+        padding-bottom: max(13px, env(safe-area-inset-bottom));
+    }
+}
+
+[data-bs-theme="dark"] .ipr-record-drawer {
+    --ipr-drawer-surface: #172033;
+    --ipr-drawer-subtle: #111827;
+    --ipr-drawer-border: #2d3a50;
+}
+
+[data-bs-theme="dark"] .ipr-record-drawer__header h2,
+[data-bs-theme="dark"] .ipr-form-field .form-label,
+[data-bs-theme="dark"] .ipr-attachment-section__header h3,
+[data-bs-theme="dark"] .ipr-danger-zone h3 {
+    color: #e6edf7;
+}
+
+[data-bs-theme="dark"] .ipr-drawer-form__actions {
+    background: rgba(23, 32, 51, .97);
+}
+
+[data-bs-theme="dark"] .ipr-form-field .form-control,
+[data-bs-theme="dark"] .ipr-form-field .form-select,
+[data-bs-theme="dark"] .ipr-attachment-row,
+[data-bs-theme="dark"] .ipr-attachment-empty,
+[data-bs-theme="dark"] .ipr-file-policy {
+    border-color: #34425a;
+    background: #1d293d;
+    color: #e6edf7;
+}
+
+[data-bs-theme="dark"] .ipr-attachment-row__content strong {
+    color: #9cb9ff;
 }

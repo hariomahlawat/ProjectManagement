@@ -14,6 +14,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Services;
 using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Application.Ipr;
 
@@ -67,7 +68,10 @@ public sealed class IprWriteService : IIprWriteService
         }
         catch (DbUpdateException ex) when (IsFilingNumberUniqueConstraintViolation(ex))
         {
-            throw new InvalidOperationException("An IPR with the same filing number and type already exists.", ex);
+            throw new IprValidationException(
+                IprValidationCode.DuplicateFilingNumber,
+                "An IPR record with the same filing number and type already exists.",
+                ex);
         }
 
         return normalized.Entity;
@@ -115,7 +119,10 @@ public sealed class IprWriteService : IIprWriteService
         }
         catch (DbUpdateException ex) when (IsFilingNumberUniqueConstraintViolation(ex))
         {
-            throw new InvalidOperationException("An IPR with the same filing number and type already exists.", ex);
+            throw new IprValidationException(
+                IprValidationCode.DuplicateFilingNumber,
+                "An IPR record with the same filing number and type already exists.",
+                ex);
         }
 
         return existing;
@@ -180,23 +187,37 @@ public sealed class IprWriteService : IIprWriteService
         var normalizedContentType = NormalizeContentType(contentType);
         EnsureContentTypeAllowed(normalizedContentType);
 
-        var storageResult = await _storage.SaveAsync(iprRecordId, content, originalFileName, _options.MaxFileSizeBytes, cancellationToken);
+        var storageResult = await _storage.SaveAsync(
+            iprRecordId,
+            content,
+            originalFileName,
+            normalizedContentType,
+            _options.MaxFileSizeBytes,
+            cancellationToken);
 
         var attachment = new IprAttachment
         {
             IprRecordId = record.Id,
             StorageKey = storageResult.StorageKey,
             OriginalFileName = storageResult.FileName,
-            ContentType = normalizedContentType,
+            ContentType = storageResult.ContentType,
             FileSize = storageResult.FileSize,
             UploadedByUserId = uploadedByUserId,
             UploadedAtUtc = _clock.UtcNow,
         };
 
         _db.IprAttachments.Add(attachment);
-        await _db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            _storage.Delete(storageResult.StorageKey);
+            throw;
+        }
 
-        if (string.Equals(normalizedContentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(storageResult.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
         {
             try
             {
@@ -250,13 +271,20 @@ public sealed class IprWriteService : IIprWriteService
 
     private async Task EnsureUniqueFilingNumberAsync(string filingNumber, IprType type, int? excludeId, CancellationToken cancellationToken)
     {
+        var canonical = filingNumber.ToUpperInvariant();
         var exists = await _db.IprRecords
             .AsNoTracking()
-            .AnyAsync(x => x.IprFilingNumber == filingNumber && x.Type == type && (!excludeId.HasValue || x.Id != excludeId.Value), cancellationToken);
+            .AnyAsync(
+                x => x.IprFilingNumber.ToUpper() == canonical &&
+                     x.Type == type &&
+                     (!excludeId.HasValue || x.Id != excludeId.Value),
+                cancellationToken);
 
         if (exists)
         {
-            throw new InvalidOperationException("An IPR with the same filing number and type already exists.");
+            throw new IprValidationException(
+                IprValidationCode.DuplicateFilingNumber,
+                "An IPR record with the same filing number and type already exists.");
         }
     }
 
@@ -314,43 +342,61 @@ public sealed class IprWriteService : IIprWriteService
 
     private void ValidateStatus(IprStatus status, DateTimeOffset? filedAtUtc, DateTimeOffset? grantedAtUtc)
     {
-        var now = _clock.UtcNow;
-        if (filedAtUtc.HasValue && filedAtUtc.Value > now)
+        var todayIst = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, TimeZoneHelper.GetIst()).DateTime);
+        var filedDate = filedAtUtc.HasValue
+            ? DateOnly.FromDateTime(filedAtUtc.Value.UtcDateTime)
+            : (DateOnly?)null;
+        var grantedDate = grantedAtUtc.HasValue
+            ? DateOnly.FromDateTime(grantedAtUtc.Value.UtcDateTime)
+            : (DateOnly?)null;
+
+        if (!filedDate.HasValue)
         {
-            throw new InvalidOperationException("Filed date cannot be in the future.");
+            throw new IprValidationException(
+                IprValidationCode.FiledDateRequired,
+                "Filed date is required.");
         }
 
-        if (grantedAtUtc.HasValue && grantedAtUtc.Value > now)
+        if (filedDate.Value > todayIst)
         {
-            throw new InvalidOperationException("Grant date cannot be in the future.");
+            throw new IprValidationException(
+                IprValidationCode.FiledDateInFuture,
+                "Filed date cannot be in the future.");
         }
 
-        if (filedAtUtc is null)
+        if (status == IprStatus.Granted && !grantedDate.HasValue)
         {
-            throw new InvalidOperationException("Filed date is required.");
+            throw new IprValidationException(
+                IprValidationCode.GrantDateRequired,
+                "Grant date is required once the record is granted.");
         }
 
-        if (status == IprStatus.Granted && grantedAtUtc is null)
+        if (grantedDate.HasValue && grantedDate.Value > todayIst)
         {
-            throw new InvalidOperationException("Grant date is required once the record is granted.");
+            throw new IprValidationException(
+                IprValidationCode.GrantDateInFuture,
+                "Grant date cannot be in the future.");
         }
 
-        if (grantedAtUtc.HasValue && filedAtUtc is null)
+        if (grantedDate.HasValue && grantedDate.Value < filedDate.Value)
         {
-            throw new InvalidOperationException("Grant date cannot be provided without a filing date.");
-        }
-
-        if (grantedAtUtc.HasValue && filedAtUtc.HasValue && grantedAtUtc.Value < filedAtUtc.Value)
-        {
-            throw new InvalidOperationException("Grant date cannot be earlier than the filing date.");
+            throw new IprValidationException(
+                IprValidationCode.GrantDateBeforeFilingDate,
+                "Grant date cannot be earlier than the filing date.");
         }
     }
 
     private void EnsureContentTypeAllowed(string contentType)
     {
-        if (_options.AllowedContentTypes is { Count: > 0 } allowed && !allowed.Contains(contentType))
+        if (string.Equals(contentType, "application/octet-stream", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException($"Attachments of type '{contentType}' are not allowed.");
+            return;
+        }
+
+        if (_options.AllowedContentTypes is { Count: > 0 } allowed &&
+            !allowed.Any(item => string.Equals(item, contentType, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException("Only PDF attachments are allowed.");
         }
     }
 
@@ -368,13 +414,15 @@ public sealed class IprWriteService : IIprWriteService
         {
             Id = source.Id,
             IprFilingNumber = NormalizeFilingNumber(source.IprFilingNumber),
-            Title = string.IsNullOrWhiteSpace(source.Title) ? null : source.Title.Trim(),
+            Title = NormalizeTitle(source.Title),
             Notes = string.IsNullOrWhiteSpace(source.Notes) ? null : source.Notes.Trim(),
             Type = source.Type,
             Status = source.Status == IprStatus.FilingUnderProcess ? IprStatus.Filed : source.Status,
             FiledBy = string.IsNullOrWhiteSpace(source.FiledBy) ? null : source.FiledBy.Trim(),
             FiledAtUtc = source.FiledAtUtc?.ToUniversalTime(),
-            GrantedAtUtc = source.GrantedAtUtc?.ToUniversalTime(),
+            GrantedAtUtc = source.Status == IprStatus.Granted
+                ? source.GrantedAtUtc?.ToUniversalTime()
+                : null,
             ProjectId = source.ProjectId > 0 ? source.ProjectId : null,
             RowVersion = source.RowVersion ?? Array.Empty<byte>(),
         };
@@ -386,10 +434,28 @@ public sealed class IprWriteService : IIprWriteService
     {
         if (string.IsNullOrWhiteSpace(filingNumber))
         {
-            throw new InvalidOperationException("Filing number is required.");
+            throw new IprValidationException(
+                IprValidationCode.FilingNumberRequired,
+                "Filing number is required.");
         }
 
-        return filingNumber.Trim();
+        var segments = filingNumber
+            .Trim()
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+
+        return string.Join(' ', segments).ToUpperInvariant();
+    }
+
+    private static string NormalizeTitle(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            throw new IprValidationException(
+                IprValidationCode.TitleRequired,
+                "Title is required.");
+        }
+
+        return title.Trim();
     }
 
     private sealed class NormalizedRecord

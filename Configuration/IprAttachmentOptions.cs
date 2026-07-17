@@ -16,4 +16,9 @@ public sealed class IprAttachmentOptions
     {
         "application/pdf"
     };
+
+    public IList<string> AllowedExtensions { get; set; } = new List<string>
+    {
+        ".pdf"
+    };
 }

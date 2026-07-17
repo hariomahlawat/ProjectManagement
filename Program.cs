@@ -484,7 +484,7 @@ builder.Services.Configure<FileDownloadOptions>(
     builder.Configuration.GetSection("FileDownload"));
 builder.Services.Configure<CompendiumPdfOptions>(
     builder.Configuration.GetSection("CompendiumPdf"));
-builder.Services.AddSingleton<IprAttachmentStorage>();
+builder.Services.AddScoped<IprAttachmentStorage>();
 builder.Services.AddScoped<IFileSecurityValidator, FileSecurityValidator>();
 builder.Services.AddScoped<IFfcAttachmentStorage, FfcAttachmentStorage>();
 builder.Services.AddScoped<IIprReadService, IprReadService>();
@@ -593,10 +593,12 @@ builder.Services.AddHostedService<ProjectRetentionWorker>();
 builder.Services.AddScoped<PlanDraftService>();
 builder.Services.AddScoped<PlanApprovalService>();
 builder.Services.AddScoped<INavigationProvider, RoleBasedNavigationProvider>();
+
+// SECTION: Proliferation read-model services
+// Shared aggregate reader used by overview, tracker, summary and export services.
 builder.Services.AddScoped<ProliferationAggregateReadService>();
 builder.Services.AddScoped<ProliferationOverviewService>();
 builder.Services.AddScoped<IProliferationSummaryReadService, ProliferationSummaryReadService>();
-builder.Services.AddScoped<IProliferationProjectReadService, ProliferationProjectReadService>();
 
 // SECTION: Simulators Compendium (Projects module)
 builder.Services.AddScoped<ICompendiumReadService, CompendiumReadService>();
@@ -604,7 +606,6 @@ builder.Services.AddScoped<ICompendiumExportService, CompendiumExportService>();
 builder.Services.AddScoped<ICompendiumPdfReportBuilder, CompendiumPdfReportBuilder>();
 builder.Services.AddScoped<ProliferationSubmissionService>();
 builder.Services.AddScoped<ProliferationManageService>();
-builder.Services.AddScoped<ProliferationDataQualityService>();
 // SECTION: Proliferation reports services
 builder.Services.AddScoped<ProliferationReportsService>();
 builder.Services.AddSingleton<IWorkflowStageMetadataProvider, WorkflowStageMetadataProvider>();

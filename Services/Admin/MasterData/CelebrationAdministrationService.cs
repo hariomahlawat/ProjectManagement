@@ -237,8 +237,8 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
 
         Celebration? entity;
         object? before = null;
-        var created = !command.Id.HasValue;
-        if (created)
+        var created = command.Id is null;
+        if (command.Id is not Guid celebrationId)
         {
             entity = new Celebration
             {
@@ -251,7 +251,7 @@ public sealed class CelebrationAdministrationService : ICelebrationAdministratio
         else
         {
             entity = await _db.Celebrations.SingleOrDefaultAsync(
-                item => item.Id == command.Id.Value && item.DeletedUtc == null,
+                item => item.Id == celebrationId && item.DeletedUtc == null,
                 cancellationToken);
             if (entity is null)
             {

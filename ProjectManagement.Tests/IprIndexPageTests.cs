@@ -44,7 +44,7 @@ public sealed class IprIndexPageTests
         using var userManager = CreateUserManager(db);
         var exportService = new StubIprExportService();
 
-        var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService);
+        var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService, CreateAttachmentOptions());
         ConfigurePageContext(page, CreatePrincipal("viewer", "Viewer"));
         page.Mode = "create";
 
@@ -65,7 +65,7 @@ public sealed class IprIndexPageTests
         using var userManager = CreateUserManager(db);
         var exportService = new StubIprExportService();
 
-        var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService)
+        var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService, CreateAttachmentOptions())
         {
             Input = new IndexModel.RecordInput
             {
@@ -94,11 +94,12 @@ public sealed class IprIndexPageTests
 
         try
         {
-            var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService)
+            var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService, CreateAttachmentOptions())
             {
                 Input = new IndexModel.RecordInput
                 {
                     FilingNumber = "IPR-600",
+                    Title = "Copyright training package",
                     Type = IprType.Copyright,
                     Status = IprStatus.Granted,
                     FiledBy = "  Analyst  ",
@@ -142,11 +143,12 @@ public sealed class IprIndexPageTests
 
         try
         {
-            var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService)
+            var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService, CreateAttachmentOptions())
             {
                 Input = new IndexModel.RecordInput
                 {
                     FilingNumber = "IPR-700",
+                    Title = "Filed patent",
                     Type = IprType.Patent,
                     Status = IprStatus.Filed
                 }
@@ -161,7 +163,7 @@ public sealed class IprIndexPageTests
             var key = $"{nameof(IndexModel.Input)}.{nameof(IndexModel.RecordInput.FiledOn)}";
             Assert.True(page.ModelState.TryGetValue(key, out var entry));
             var message = Assert.Single(entry.Errors).ErrorMessage;
-            Assert.Equal("Filed date is required once the record is not under filing.", message);
+            Assert.Equal("Filed date is required.", message);
             Assert.False(page.ModelState.TryGetValue(string.Empty, out _));
         }
         finally
@@ -182,11 +184,12 @@ public sealed class IprIndexPageTests
 
         try
         {
-            var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService)
+            var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService, CreateAttachmentOptions())
             {
                 Input = new IndexModel.RecordInput
                 {
                     FilingNumber = "IPR-710",
+                    Title = "Granted patent",
                     Type = IprType.Patent,
                     Status = IprStatus.Granted,
                     FiledOn = new DateOnly(2024, 4, 10),
@@ -226,7 +229,7 @@ public sealed class IprIndexPageTests
         using var userManager = CreateUserManager(db);
         var exportService = new StubIprExportService();
 
-        var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService);
+        var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService, CreateAttachmentOptions());
         ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.EditAllowedRoles[0]));
 
         var result = await page.OnGetAsync(CancellationToken.None);
@@ -294,17 +297,23 @@ public sealed class IprIndexPageTests
             NullLogger<UserManager<ApplicationUser>>.Instance);
     }
 
+    private static IOptions<IprAttachmentOptions> CreateAttachmentOptions()
+    {
+        return Options.Create(new IprAttachmentOptions
+        {
+            MaxFileSizeBytes = 1024 * 1024,
+            AllowedContentTypes = new List<string> { "application/pdf" },
+            AllowedExtensions = new List<string> { ".pdf" }
+        });
+    }
+
     private static (IIprWriteService Service, string RootPath) CreateWriteService(ApplicationDbContext db, DateTimeOffset? now = null)
     {
         var clock = FakeClock.AtUtc(now ?? new DateTimeOffset(2024, 5, 1, 0, 0, 0, TimeSpan.Zero));
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
 
-        var options = Options.Create(new IprAttachmentOptions
-        {
-            MaxFileSizeBytes = 1024 * 1024,
-            AllowedContentTypes = new List<string> { "application/pdf" }
-        });
+        var options = CreateAttachmentOptions();
 
         var uploadRootProvider = new TestUploadRootProvider(root);
         var pathResolver = new UploadPathResolver(uploadRootProvider);

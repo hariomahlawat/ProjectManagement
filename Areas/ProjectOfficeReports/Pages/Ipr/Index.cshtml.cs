@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Application.Ipr;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.ViewModels;
@@ -27,17 +28,18 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr;
 [Authorize(Policy = Policies.Ipr.View)]
 public sealed class IndexModel : PageModel
 {
-    private static readonly IReadOnlyDictionary<string, string[]> ValidationErrorFieldMap =
-        new Dictionary<string, string[]>(StringComparer.Ordinal)
+    private static readonly IReadOnlyDictionary<IprValidationCode, string[]> ValidationErrorFieldMap =
+        new Dictionary<IprValidationCode, string[]>
         {
-            ["Filed date cannot be in the future."] = new[] { nameof(RecordInput.FiledOn) },
-            ["Grant date cannot be in the future."] = new[] { nameof(RecordInput.GrantedOn) },
-            ["Filed date is required."] = new[] { nameof(RecordInput.FiledOn) },
-            ["Grant date is required once the record is granted."] = new[] { nameof(RecordInput.GrantedOn) },
-            ["Grant date cannot be provided without a filing date."] = new[] { nameof(RecordInput.FiledOn), nameof(RecordInput.GrantedOn) },
-            ["Grant date cannot be earlier than the filing date."] = new[] { nameof(RecordInput.FiledOn), nameof(RecordInput.GrantedOn) },
-            ["A patent record with the same filing number and type already exists."] = new[] { nameof(RecordInput.FilingNumber) },
-            ["Filing number is required."] = new[] { nameof(RecordInput.FilingNumber) }
+            [IprValidationCode.FilingNumberRequired] = new[] { nameof(RecordInput.FilingNumber) },
+            [IprValidationCode.TitleRequired] = new[] { nameof(RecordInput.Title) },
+            [IprValidationCode.DuplicateFilingNumber] = new[] { nameof(RecordInput.FilingNumber) },
+            [IprValidationCode.FiledDateRequired] = new[] { nameof(RecordInput.FiledOn) },
+            [IprValidationCode.FiledDateInFuture] = new[] { nameof(RecordInput.FiledOn) },
+            [IprValidationCode.GrantDateRequired] = new[] { nameof(RecordInput.GrantedOn) },
+            [IprValidationCode.GrantDateInFuture] = new[] { nameof(RecordInput.GrantedOn) },
+            [IprValidationCode.GrantDateWithoutFilingDate] = new[] { nameof(RecordInput.FiledOn), nameof(RecordInput.GrantedOn) },
+            [IprValidationCode.GrantDateBeforeFilingDate] = new[] { nameof(RecordInput.FiledOn), nameof(RecordInput.GrantedOn) }
         };
 
     private readonly ApplicationDbContext _db;
@@ -46,6 +48,7 @@ public sealed class IndexModel : PageModel
     private readonly IAuthorizationService _authorizationService;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IIprExportService _exportService;
+    private readonly IprAttachmentOptions _attachmentOptions;
 
     private string? _query;
     private string? _mode;
@@ -56,7 +59,8 @@ public sealed class IndexModel : PageModel
         IIprWriteService writeService,
         IAuthorizationService authorizationService,
         UserManager<ApplicationUser> userManager,
-        IIprExportService exportService)
+        IIprExportService exportService,
+        IOptions<IprAttachmentOptions> attachmentOptions)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
@@ -64,6 +68,7 @@ public sealed class IndexModel : PageModel
         _authorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
+        _attachmentOptions = attachmentOptions?.Value ?? throw new ArgumentNullException(nameof(attachmentOptions));
     }
 
     [BindProperty(SupportsGet = true)]
@@ -187,6 +192,9 @@ public sealed class IndexModel : PageModel
 
     public bool CanEdit { get; private set; }
 
+    public string AttachmentUploadHint
+        => $"PDF only · Maximum {FormatFileSize(_attachmentOptions.MaxFileSizeBytes)}";
+
     public bool HasAnyFilter
         => !string.IsNullOrWhiteSpace(Query)
             || Types.Count > 0
@@ -243,14 +251,14 @@ public sealed class IndexModel : PageModel
 
         if (Input.Type is null)
         {
-            ModelState.AddModelError(nameof(Input.Type), "Select a type.");
+            ModelState.AddModelError($"{nameof(Input)}.{nameof(RecordInput.Type)}", "Select a type.");
             await LoadPageAsync(cancellationToken, loadRecordInput: false);
             return Page();
         }
 
         if (Input.Status is null)
         {
-            ModelState.AddModelError(nameof(Input.Status), "Select a status.");
+            ModelState.AddModelError($"{nameof(Input)}.{nameof(RecordInput.Status)}", "Select a status.");
             await LoadPageAsync(cancellationToken, loadRecordInput: false);
             return Page();
         }
@@ -259,16 +267,18 @@ public sealed class IndexModel : PageModel
         {
             var entity = ToEntity(Input);
             var created = await _writeService.CreateAsync(entity, cancellationToken);
-            TempData["ToastMessage"] = "Patent record created.";
+            TempData["ToastMessage"] = "IPR record created.";
             return RedirectToPage(null, GetRouteValues(new { mode = "edit", id = created.Id }, includePage: true, includeModeAndId: false));
+        }
+        catch (IprValidationException ex)
+        {
+            AddInputValidationErrors(ex);
+            await LoadPageAsync(cancellationToken, loadRecordInput: false);
+            return Page();
         }
         catch (InvalidOperationException ex)
         {
-            if (!TryAddInputValidationErrors(ex.Message))
-            {
-                ModelState.AddModelError(string.Empty, ex.Message);
-            }
-
+            ModelState.AddModelError(string.Empty, ex.Message);
             await LoadPageAsync(cancellationToken, loadRecordInput: false);
             return Page();
         }
@@ -324,16 +334,18 @@ public sealed class IndexModel : PageModel
                 return Page();
             }
 
-            TempData["ToastMessage"] = "Patent record updated.";
+            TempData["ToastMessage"] = "IPR record updated.";
             return RedirectToPage(null, GetRouteValues(new { mode = "edit", id = updated.Id }, includePage: true, includeModeAndId: false));
+        }
+        catch (IprValidationException ex)
+        {
+            AddInputValidationErrors(ex);
+            await LoadPageAsync(cancellationToken, loadRecordInput: false);
+            return Page();
         }
         catch (InvalidOperationException ex)
         {
-            if (!TryAddInputValidationErrors(ex.Message))
-            {
-                ModelState.AddModelError(string.Empty, ex.Message);
-            }
-
+            ModelState.AddModelError(string.Empty, ex.Message);
             await LoadPageAsync(cancellationToken, loadRecordInput: false);
             return Page();
         }
@@ -362,7 +374,7 @@ public sealed class IndexModel : PageModel
             var deleted = await _writeService.DeleteAsync(DeleteRequest.Id, rowVersion, cancellationToken);
             if (deleted)
             {
-                TempData["ToastMessage"] = "Patent record deleted.";
+                TempData["ToastMessage"] = "IPR record deleted.";
             }
             else
             {
@@ -405,7 +417,7 @@ public sealed class IndexModel : PageModel
 
         if (UploadInput.File is null || UploadInput.File.Length == 0)
         {
-            ModelState.AddModelError(nameof(UploadInput.File), "Choose a file to upload.");
+            ModelState.AddModelError($"{nameof(UploadInput)}.{nameof(UploadAttachmentInput.File)}", "Choose a file to upload.");
             await LoadPageAsync(cancellationToken, loadRecordInput: false);
             return Page();
         }
@@ -515,6 +527,11 @@ public sealed class IndexModel : PageModel
         if (Year.HasValue)
         {
             values["year"] = Year.Value;
+        }
+
+        if (!string.IsNullOrWhiteSpace(Tab))
+        {
+            values["tab"] = Tab;
         }
 
         if (includePage)
@@ -728,23 +745,27 @@ public sealed class IndexModel : PageModel
     private async Task LoadPageAsync(CancellationToken cancellationToken, bool loadRecordInput)
     {
         NormalizePaging();
+        await LoadRegisterOverviewAsync(cancellationToken);
 
-        var filter = BuildFilter();
-        var result = await _readService.SearchAsync(filter, cancellationToken);
-        Records = result.Items.Select(CreateRowViewModel).ToList();
-        TotalCount = result.Total;
-        PageNumber = result.Page;
-        PageSize = result.PageSize;
-        TotalPages = PageSize > 0 ? (int)Math.Ceiling(result.Total / (double)PageSize) : 0;
-
-        Kpis = await _readService.GetKpisAsync(filter, cancellationToken);
+        switch (Tab)
+        {
+            case "project":
+                await LoadProjectLinksAsync(cancellationToken);
+                break;
+            case "analytics":
+                await LoadAnalyticsAsync(cancellationToken);
+                break;
+            default:
+                await LoadRecordsAsync(cancellationToken);
+                break;
+        }
 
         if (string.Equals(Mode, "edit", StringComparison.OrdinalIgnoreCase) && Id.HasValue && CanEdit)
         {
             var record = await LoadRecordAsync(Id.Value, cancellationToken, loadRecordInput);
             if (record is null)
             {
-                TempData["ToastError"] = "The selected patent record could not be found.";
+                TempData["ToastError"] = "The selected IPR record could not be found.";
                 Mode = null;
                 Id = null;
                 Attachments = Array.Empty<AttachmentViewModel>();
@@ -764,137 +785,192 @@ public sealed class IndexModel : PageModel
         }
 
         await PopulateSelectListsAsync(cancellationToken);
-
-        await LoadRegisterAnalyticsAsync(cancellationToken);
-
         ActiveFilterChips = BuildActiveFilterChips();
     }
 
-    // SECTION: Register analytics. A granted record contributes both a filing
-    // event in its filing year and a grant event in its grant year.
-    private async Task LoadRegisterAnalyticsAsync(CancellationToken cancellationToken)
+    private async Task LoadRecordsAsync(CancellationToken cancellationToken)
     {
-        var query = _db.IprRecords.AsNoTracking()
-            .Where(r => r.Status == IprStatus.FilingUnderProcess || r.Status == IprStatus.Filed || r.Status == IprStatus.Granted);
+        var result = await _readService.SearchAsync(BuildFilter(), cancellationToken);
+        Records = result.Items.Select(CreateRowViewModel).ToList();
+        TotalCount = result.Total;
+        PageNumber = result.Page;
+        PageSize = result.PageSize;
+        TotalPages = PageSize > 0
+            ? (int)Math.Ceiling(result.Total / (double)PageSize)
+            : 0;
+    }
 
-        if (!string.IsNullOrWhiteSpace(Query))
-        {
-            var term = Query.Trim().ToLowerInvariant();
-            query = query.Where(r => r.IprFilingNumber.ToLower().Contains(term) ||
-                                     (r.Title != null && r.Title.ToLower().Contains(term)) ||
-                                     (r.Project != null && r.Project.Name.ToLower().Contains(term)));
-        }
+    private async Task LoadRegisterOverviewAsync(CancellationToken cancellationToken)
+    {
+        var query = BuildPublicRegisterQuery();
 
-        if (Types.Count > 0)
-        {
-            query = query.Where(r => Types.Contains(r.Type));
-        }
+        var grouped = await query
+            .GroupBy(record => new
+            {
+                record.Type,
+                Status = record.Status == IprStatus.FilingUnderProcess
+                    ? IprStatus.Filed
+                    : record.Status
+            })
+            .Select(group => new
+            {
+                group.Key.Type,
+                group.Key.Status,
+                Count = group.Count()
+            })
+            .ToListAsync(cancellationToken);
 
-        if (Statuses.Count > 0)
-        {
-            var wantsFiled = Statuses.Contains(IprStatus.Filed);
-            var wantsGranted = Statuses.Contains(IprStatus.Granted);
-            query = query.Where(r =>
-                (wantsFiled && (r.Status == IprStatus.FilingUnderProcess || r.Status == IprStatus.Filed)) ||
-                (wantsGranted && r.Status == IprStatus.Granted));
-        }
+        var granted = grouped
+            .Where(item => item.Status == IprStatus.Granted)
+            .Sum(item => item.Count);
+        var awaiting = grouped
+            .Where(item => item.Status == IprStatus.Filed)
+            .Sum(item => item.Count);
+        Kpis = new IprKpis(awaiting + granted, 0, awaiting, granted, 0, 0);
 
-        if (ProjectId.HasValue)
-        {
-            query = query.Where(r => r.ProjectId == ProjectId.Value);
-        }
-
-        if (Year.HasValue)
-        {
-            var start = new DateTimeOffset(new DateTime(Year.Value, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-            var end = new DateTimeOffset(new DateTime(Year.Value, 12, 31, 23, 59, 59, DateTimeKind.Utc));
-            query = query.Where(r => r.FiledAtUtc >= start && r.FiledAtUtc <= end);
-        }
-
-        var snapshot = await query.Select(r => new
-        {
-            r.Id,
-            r.Title,
-            r.Type,
-            Status = r.Status == IprStatus.FilingUnderProcess ? IprStatus.Filed : r.Status,
-            r.FiledAtUtc,
-            r.GrantedAtUtc,
-            FiledYear = r.FiledAtUtc.HasValue ? (int?)r.FiledAtUtc.Value.Year : null,
-            GrantedYear = r.GrantedAtUtc.HasValue ? (int?)r.GrantedAtUtc.Value.Year : null,
-            r.ProjectId,
-            ProjectName = r.Project != null ? r.Project.Name : "Unassigned"
-        }).ToListAsync(cancellationToken);
-
-        ProjectsWithIpr = snapshot.Where(x => x.ProjectId.HasValue).Select(x => x.ProjectId).Distinct().Count();
+        ProjectsWithIpr = await query
+            .Where(record => record.ProjectId.HasValue)
+            .Select(record => record.ProjectId!.Value)
+            .Distinct()
+            .CountAsync(cancellationToken);
 
         TypeBreakdown = new[] { IprType.Patent, IprType.Copyright }
             .Select(type =>
             {
-                var rows = snapshot.Where(x => x.Type == type).ToList();
-                var filed = rows.Count;
-                var granted = rows.Count(x => x.Status == IprStatus.Granted);
-                var awaiting = filed - granted;
-                return new TypeBreakdownRow(GetTypeLabel(type), filed, granted, awaiting);
-            }).ToList();
+                var filed = grouped
+                    .Where(item => item.Type == type)
+                    .Sum(item => item.Count);
+                var grantedByType = grouped
+                    .Where(item => item.Type == type && item.Status == IprStatus.Granted)
+                    .Sum(item => item.Count);
+
+                return new TypeBreakdownRow(
+                    GetTypeLabel(type),
+                    filed,
+                    grantedByType,
+                    filed - grantedByType);
+            })
+            .ToList();
+    }
+
+    private async Task LoadProjectLinksAsync(CancellationToken cancellationToken)
+    {
+        var snapshot = await BuildPublicRegisterQuery()
+            .Select(record => new
+            {
+                record.Id,
+                record.Title,
+                record.Type,
+                Status = record.Status == IprStatus.FilingUnderProcess
+                    ? IprStatus.Filed
+                    : record.Status,
+                record.FiledAtUtc,
+                record.GrantedAtUtc,
+                record.ProjectId,
+                ProjectName = record.Project != null
+                    ? record.Project.Name
+                    : "Unassigned project"
+            })
+            .ToListAsync(cancellationToken);
 
         var projectCounts = snapshot
-            .GroupBy(x => x.ProjectId ?? 0)
-            .ToDictionary(g => g.Key, g => g.Count());
+            .GroupBy(item => item.ProjectId ?? 0)
+            .ToDictionary(group => group.Key, group => group.Count());
 
         ProjectIprLinks = snapshot
-            .OrderBy(x => x.ProjectName)
-            .ThenBy(x => x.Type)
-            .ThenBy(x => x.Title)
-            .Select(x => new ProjectIprLinkRow(
-                x.Id,
-                x.ProjectId,
-                x.ProjectName,
-                string.IsNullOrWhiteSpace(x.Title) ? "Untitled IPR record" : x.Title!,
-                GetTypeLabel(x.Type),
-                x.Status == IprStatus.Granted ? "Granted" : "Awaiting grant",
-                ConvertToIstDate(x.FiledAtUtc),
-                ConvertToIstDate(x.GrantedAtUtc),
-                projectCounts.TryGetValue(x.ProjectId ?? 0, out var count) ? count : 1))
+            .OrderBy(item => item.ProjectName)
+            .ThenBy(item => item.Type)
+            .ThenBy(item => item.Title)
+            .Select(item => new ProjectIprLinkRow(
+                item.Id,
+                item.ProjectId,
+                item.ProjectName,
+                string.IsNullOrWhiteSpace(item.Title) ? "Untitled IPR record" : item.Title!,
+                GetTypeLabel(item.Type),
+                item.Status == IprStatus.Granted ? "Granted" : "Awaiting grant",
+                ConvertToIstDate(item.FiledAtUtc),
+                ConvertToIstDate(item.GrantedAtUtc),
+                projectCounts.TryGetValue(item.ProjectId ?? 0, out var count) ? count : 1))
             .ToList();
+    }
+
+    private async Task LoadAnalyticsAsync(CancellationToken cancellationToken)
+    {
+        var snapshot = await BuildPublicRegisterQuery()
+            .Select(record => new
+            {
+                record.Id,
+                record.Title,
+                record.Type,
+                Status = record.Status == IprStatus.FilingUnderProcess
+                    ? IprStatus.Filed
+                    : record.Status,
+                record.FiledAtUtc,
+                record.GrantedAtUtc,
+                FiledYear = record.FiledAtUtc.HasValue
+                    ? (int?)record.FiledAtUtc.Value.Year
+                    : null,
+                GrantedYear = record.GrantedAtUtc.HasValue
+                    ? (int?)record.GrantedAtUtc.Value.Year
+                    : null,
+                record.ProjectId,
+                ProjectName = record.Project != null
+                    ? record.Project.Name
+                    : "Unassigned project"
+            })
+            .ToListAsync(cancellationToken);
 
         var todayIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IstTimeZone).Date;
         OldestAwaitingGrant = snapshot
-            .Where(x => x.Status == IprStatus.Filed)
-            .OrderBy(x => x.FiledAtUtc ?? DateTimeOffset.MaxValue)
+            .Where(item => item.Status == IprStatus.Filed)
+            .OrderBy(item => item.FiledAtUtc ?? DateTimeOffset.MaxValue)
             .Take(5)
-            .Select(x =>
+            .Select(item =>
             {
-                var filedOn = ConvertToIstDate(x.FiledAtUtc);
+                var filedOn = ConvertToIstDate(item.FiledAtUtc);
                 var waitingDays = filedOn.HasValue
                     ? Math.Max(0, (todayIst - filedOn.Value.Date).Days)
                     : 0;
 
                 return new AwaitingGrantRow(
-                    x.Id,
-                    x.ProjectId,
-                    x.ProjectName,
-                    string.IsNullOrWhiteSpace(x.Title) ? "Untitled IPR record" : x.Title!,
-                    GetTypeLabel(x.Type),
+                    item.Id,
+                    item.ProjectId,
+                    item.ProjectName,
+                    string.IsNullOrWhiteSpace(item.Title) ? "Untitled IPR record" : item.Title!,
+                    GetTypeLabel(item.Type),
                     filedOn,
                     waitingDays);
             })
             .ToList();
 
         var years = snapshot
-            .SelectMany(x => new[] { x.FiledYear, x.GrantedYear })
-            .Where(x => x.HasValue)
-            .Select(x => x!.Value)
+            .SelectMany(item => new[] { item.FiledYear, item.GrantedYear })
+            .Where(year => year.HasValue)
+            .Select(year => year!.Value)
             .Distinct()
-            .OrderBy(x => x)
+            .OrderBy(year => year)
             .ToList();
 
-        YearlyStats = years.Select(year => new YearlyRow
-        {
-            Year = year,
-            Filed = snapshot.Count(x => x.FiledYear == year),
-            Granted = snapshot.Count(x => x.Status == IprStatus.Granted && x.GrantedYear == year)
-        }).ToList();
+        YearlyStats = years
+            .Select(year => new YearlyRow
+            {
+                Year = year,
+                Filed = snapshot.Count(item => item.FiledYear == year),
+                Granted = snapshot.Count(item =>
+                    item.Status == IprStatus.Granted &&
+                    item.GrantedYear == year)
+            })
+            .ToList();
+    }
 
+    private IQueryable<IprRecord> BuildPublicRegisterQuery()
+    {
+        return _db.IprRecords
+            .AsNoTracking()
+            .Where(record =>
+                record.Status == IprStatus.FilingUnderProcess ||
+                record.Status == IprStatus.Filed ||
+                record.Status == IprStatus.Granted);
     }
 
     private async Task PopulateSelectListsAsync(CancellationToken cancellationToken)
@@ -1192,7 +1268,7 @@ public sealed class IndexModel : PageModel
         {
             Id = input.Id ?? 0,
             IprFilingNumber = input.FilingNumber?.Trim() ?? string.Empty,
-            Title = string.IsNullOrWhiteSpace(input.Title) ? null : input.Title.Trim(),
+            Title = input.Title?.Trim(),
             Notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim(),
             Type = input.Type ?? IprType.Patent,
             Status = input.Status == IprStatus.Granted ? IprStatus.Granted : IprStatus.Filed,
@@ -1200,7 +1276,7 @@ public sealed class IndexModel : PageModel
             FiledAtUtc = input.FiledOn.HasValue
                 ? new DateTimeOffset(input.FiledOn.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
                 : null,
-            GrantedAtUtc = input.GrantedOn.HasValue
+            GrantedAtUtc = input.Status == IprStatus.Granted && input.GrantedOn.HasValue
                 ? new DateTimeOffset(input.GrantedOn.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
                 : null,
             ProjectId = input.ProjectId
@@ -1243,6 +1319,7 @@ public sealed class IndexModel : PageModel
         public string? FilingNumber { get; set; }
 
         [Display(Name = "Title")]
+        [Required]
         [StringLength(256)]
         public string? Title { get; set; }
 
@@ -1263,6 +1340,7 @@ public sealed class IndexModel : PageModel
         public string? FiledBy { get; set; }
 
         [Display(Name = "Filed on")]
+        [Required]
         [DataType(DataType.Date)]
         public DateOnly? FiledOn { get; set; }
 
@@ -1276,24 +1354,18 @@ public sealed class IndexModel : PageModel
         public string? RowVersion { get; set; }
     }
 
-    private bool TryAddInputValidationErrors(string? message)
+    private void AddInputValidationErrors(IprValidationException exception)
     {
-        if (string.IsNullOrWhiteSpace(message))
+        if (!ValidationErrorFieldMap.TryGetValue(exception.Code, out var fields))
         {
-            return false;
-        }
-
-        if (!ValidationErrorFieldMap.TryGetValue(message, out var fields))
-        {
-            return false;
+            ModelState.AddModelError(string.Empty, exception.Message);
+            return;
         }
 
         foreach (var field in fields)
         {
-            ModelState.AddModelError($"{nameof(Input)}.{field}", message);
+            ModelState.AddModelError($"{nameof(Input)}.{field}", exception.Message);
         }
-
-        return true;
     }
 
     public sealed class DeleteInput

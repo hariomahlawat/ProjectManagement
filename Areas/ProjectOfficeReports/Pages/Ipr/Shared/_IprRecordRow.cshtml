@@ -79,8 +79,10 @@
             <li>
                 <a class="dropdown-item"
                    asp-area="ProjectOfficeReports"
-                   asp-page="/Ipr/Manage"
-                   asp-route-editId="@Model.Id">
+                   asp-page="/Ipr/Index"
+                   asp-route-tab="records"
+                   asp-route-mode="edit"
+                   asp-route-id="@Model.Id">
                     Manage record
                 </a>
             </li>

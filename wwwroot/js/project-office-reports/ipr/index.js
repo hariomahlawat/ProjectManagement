@@ -216,3 +216,45 @@
     control.addEventListener('change', () => form.requestSubmit());
   });
 })();
+
+(() => {
+  const forms = document.querySelectorAll('[data-ipr-record-form]');
+  if (forms.length === 0) return;
+
+  forms.forEach(form => {
+    const status = form.querySelector('[data-ipr-status-select]');
+    const grantedField = form.querySelector('[data-ipr-granted-date-field]');
+    const grantedInput = form.querySelector('[data-ipr-granted-date]');
+
+    if (!status || !grantedField || !grantedInput) return;
+
+    const syncGrantedDate = clearWhenHidden => {
+      const granted = status.value.toLowerCase() === 'granted';
+      grantedField.classList.toggle('is-hidden', !granted);
+      grantedField.setAttribute('aria-hidden', granted ? 'false' : 'true');
+      grantedInput.disabled = !granted;
+      grantedInput.required = granted;
+
+      if (!granted && clearWhenHidden) {
+        grantedInput.value = '';
+      }
+    };
+
+    syncGrantedDate(false);
+    status.addEventListener('change', () => syncGrantedDate(true));
+  });
+})();
+
+(() => {
+  const uploadForm = document.getElementById('iprAttachmentForm');
+  if (!uploadForm) return;
+
+  uploadForm.addEventListener('submit', () => {
+    const button = uploadForm.querySelector('button[type="submit"]');
+    if (!button || !uploadForm.checkValidity()) return;
+
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    button.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Uploading';
+  });
+})();
