@@ -240,14 +240,18 @@
 .ipr-record-workbench {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 8px minmax(340px, var(--ipr-inspector-width));
-    height: clamp(320px, calc(100dvh - 445px), 680px);
+    align-items: start;
+    height: auto;
     min-height: 0;
 }
-.ipr-register-grid-wrap { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
-.ipr-register-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.ipr-register-grid-wrap { display: block; min-width: 0; min-height: 0; }
+.ipr-register-scroll { min-height: 0; overflow: visible; }
 .ipr-register-table { min-width: 850px; }
-.ipr-register-table thead { position: sticky; top: 0; z-index: 4; }
+.ipr-register-table thead { position: static; }
 .ipr-register-table thead th {
+    position: sticky;
+    top: 52px;
+    z-index: 5;
     padding: 10px 12px;
     border-bottom: 1px solid var(--ipr-border-strong);
     background: #f4f7fb;
@@ -293,7 +297,7 @@
 .ipr-register-page.density-comfortable .ipr-register-table td { padding-top: 14px; padding-bottom: 14px; }
 .ipr-register-page.density-comfortable .ipr-record-title > span { font-size: .87rem; }
 
-.ipr-pagination-bar { flex: 0 0 auto; justify-content: space-between; gap: 16px; min-height: 48px; padding: 9px 13px; border-top: 1px solid var(--ipr-border); color: var(--ipr-muted); font-size: .76rem; }
+.ipr-pagination-bar { justify-content: space-between; gap: 16px; min-height: 48px; padding: 9px 13px; border-top: 1px solid var(--ipr-border); color: var(--ipr-muted); font-size: .76rem; }
 
 /* Persistent record inspector */
 .ipr-inspector-resize-handle { position: relative; z-index: 2; cursor: col-resize; background: #f4f7fb; touch-action: none; }
@@ -302,7 +306,7 @@
 .ipr-inspector-resize-handle:focus-visible::before,
 .ipr-inspector-resize-handle.is-dragging::before { height: 70px; background: var(--ipr-blue); }
 .ipr-inspector-resize-handle:focus-visible { outline: 2px solid rgba(63, 110, 232, .38); outline-offset: -2px; }
-.ipr-record-inspector { min-width: 0; height: 100%; overflow-y: auto; background: #fbfcfe; }
+.ipr-record-inspector { min-width: 0; height: auto; overflow: visible; background: #fbfcfe; }
 .ipr-inspector-header { justify-content: space-between; gap: 12px; padding: 17px 17px 10px; }
 .ipr-inspector-eyebrow { display: block; margin-bottom: 3px; color: var(--ipr-blue); font-size: .66rem; font-weight: 760; letter-spacing: .06em; text-transform: uppercase; }
 .ipr-inspector-header h2 { margin: 0; font-size: 1rem; font-weight: 760; line-height: 1.35; }
@@ -524,8 +528,8 @@
     .ipr-record-workbench { grid-template-columns: 1fr; height: auto; }
     .ipr-inspector-resize-handle { display: none; }
     .ipr-register-grid-wrap { border-right: 0; }
-    .ipr-register-scroll { max-height: 520px; }
-    .ipr-record-inspector { height: auto; max-height: none; border-top: 1px solid var(--ipr-border); }
+    .ipr-register-scroll { max-height: none; overflow-x: auto; overflow-y: visible; }
+    .ipr-record-inspector { height: auto; max-height: none; overflow: visible; border-top: 1px solid var(--ipr-border); }
     .ipr-inspector-facts { grid-template-columns: repeat(4, 1fr); }
     .ipr-inspector-facts > div { border-right: 1px solid var(--ipr-border); border-bottom: 0; }
     .ipr-inspector-facts > div:last-child { border-right: 0; }
@@ -536,6 +540,7 @@
 }
 
 @media (max-width: 768px) {
+    .ipr-register-table thead th { top: 50px; }
     .ipr-register-page { padding: 14px 12px 26px; }
     .ipr-register-header { align-items: flex-start; flex-direction: column; }
     .ipr-register-actions { width: 100%; }
@@ -548,9 +553,9 @@
     .ipr-record-toolbar { align-items: flex-start; flex-direction: column; }
     .ipr-record-toolbar__actions { width: 100%; justify-content: space-between; flex-wrap: wrap; }
     .ipr-density-control { width: 100%; justify-content: space-between; }
-    .ipr-register-scroll { max-height: none; }
+    .ipr-register-scroll { max-height: none; overflow-x: auto; overflow-y: visible; }
     .ipr-register-table { min-width: 790px; }
-    .ipr-record-inspector { max-height: none; }
+    .ipr-record-inspector { max-height: none; overflow: visible; }
     .ipr-inspector-facts { grid-template-columns: 1fr 1fr; }
     .ipr-inspector-facts > div:nth-child(2) { border-right: 0; }
     .ipr-inspector-facts > div:nth-child(-n+2) { border-bottom: 1px solid var(--ipr-border); }

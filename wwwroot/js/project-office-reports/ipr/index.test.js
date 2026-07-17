@@ -86,7 +86,7 @@ test('IPR register uses a row-based workbench with a persistent inspector', () =
   assert.match(pageSource, /id="iprRecordData"/);
   assert.match(source, /initialiseRecordInspector/);
   assert.match(source, /sessionStorage\.setItem/);
-  assert.match(cssSource, /\.ipr-register-table thead\s*\{[\s\S]*position:\s*sticky/);
+  assert.match(cssSource, /\.ipr-register-table thead th\s*\{[\s\S]*position:\s*sticky/);
 });
 
 test('IPR project view is grouped into expandable project dossiers', () => {
@@ -156,4 +156,13 @@ test('IPR analytics replaces the repeated grant-rate tile with evidence coverage
   );
   assert.match(pageSource, /Evidence coverage/);
   assert.match(pageSource, /recordsWithEvidence/);
+});
+
+
+test('IPR records page uses natural browser scrolling without nested vertical scroll areas', () => {
+  assert.match(cssSource, /\.ipr-record-workbench\s*\{[\s\S]*height:\s*auto/);
+  assert.match(cssSource, /\.ipr-register-scroll\s*\{[\s\S]*overflow:\s*visible/);
+  assert.match(cssSource, /\.ipr-record-inspector\s*\{[\s\S]*height:\s*auto;[\s\S]*overflow:\s*visible/);
+  assert.doesNotMatch(cssSource, /\.ipr-record-workbench\s*\{[\s\S]*height:\s*clamp\(/);
+  assert.doesNotMatch(cssSource, /\.ipr-record-inspector\s*\{[^}]*overflow-y:\s*auto/);
 });

@@ -83,7 +83,7 @@ public sealed partial class IndexModel : PageModel
     public int PageNumber { get; set; } = 1;
 
     [BindProperty(SupportsGet = true)]
-    public int PageSize { get; set; } = 25;
+    public int PageSize { get; set; } = 15;
 
     [BindProperty(SupportsGet = true)]
     public string? Mode

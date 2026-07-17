@@ -116,6 +116,7 @@ public sealed partial class IndexModel
         PageSizeOptions = new List<SelectListItem>
         {
             new("10", "10") { Selected = PageSize == 10 },
+            new("15", "15") { Selected = PageSize == 15 },
             new("25", "25") { Selected = PageSize == 25 },
             new("50", "50") { Selected = PageSize == 50 }
         };
@@ -183,9 +184,9 @@ public sealed partial class IndexModel
             PageNumber = 1;
         }
 
-        if (PageSize is not (10 or 25 or 50))
+        if (PageSize is not (10 or 15 or 25 or 50))
         {
-            PageSize = 25;
+            PageSize = 15;
         }
     }
 
