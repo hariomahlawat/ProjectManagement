@@ -319,6 +319,15 @@ public sealed class NotebookService : INotebookService
         }
 
         var now = _clock.UtcNow;
+        if (input.Type == NotebookItemType.Reminder && input.ReminderAtUtc is null)
+        {
+            throw new NotebookValidationException("Choose a reminder date and time.");
+        }
+        if (input.Type == NotebookItemType.Reminder && input.ReminderAtUtc.HasValue && input.ReminderAtUtc.Value <= now)
+        {
+            throw new NotebookValidationException("Choose a future reminder date and time.");
+        }
+
         var initialSortOrder = await GetTopSortOrderAsync(ownerId, input.IsPinned, ct);
         var item = new NotebookItem
         {

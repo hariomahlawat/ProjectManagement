@@ -3083,3 +3083,171 @@ body.notebook-confirm-open { overflow: hidden; }
     .notebook-collaborator-role-control { display: block; grid-column: 2; justify-self: start; }
     .notebook-collaborator-row > .notebook-dialog-icon { grid-column: 3; grid-row: 1 / span 2; }
 }
+
+/* SECTION: Resilient reminder creation and scheduling */
+.notebook-reminder-scheduler[hidden],
+.notebook-create-discard[hidden] {
+    display: none !important;
+}
+
+.notebook-modal.is-create-mode[data-direct-reminder="true"] .notebook-create-details__grid {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 22rem;
+}
+
+.notebook-reminder-scheduler {
+    display: grid;
+    gap: .75rem;
+    margin-bottom: .85rem;
+    padding: .85rem;
+    border: 1px solid #d8e2f0;
+    border-radius: .8rem;
+    background: #fff;
+}
+
+.notebook-reminder-scheduler__heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.notebook-reminder-scheduler__heading > div {
+    display: grid;
+    gap: .12rem;
+}
+
+.notebook-reminder-scheduler__heading strong {
+    color: #172033;
+    font-size: .9rem;
+}
+
+.notebook-reminder-scheduler__heading span:not(.notebook-reminder-scheduler__zone) {
+    color: #758297;
+    font-size: .74rem;
+    font-weight: 500;
+}
+
+.notebook-reminder-scheduler__zone {
+    flex: 0 0 auto;
+    padding: .2rem .45rem;
+    border-radius: 999px;
+    background: #eef3fb;
+    color: #50627d;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .05em;
+}
+
+.notebook-reminder-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .42rem;
+}
+
+.notebook-reminder-presets button {
+    min-height: 2rem;
+    padding: .36rem .62rem;
+    border: 1px solid #cfdaea;
+    border-radius: 999px;
+    background: #f8faff;
+    color: #315fba;
+    font-size: .73rem;
+    font-weight: 700;
+}
+
+.notebook-reminder-presets button:hover,
+.notebook-reminder-presets button:focus-visible {
+    border-color: #9fb7e1;
+    background: #eef5ff;
+    outline: none;
+}
+
+.notebook-reminder-presets button:disabled {
+    cursor: not-allowed;
+    opacity: .48;
+}
+
+.notebook-reminder-date-time {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(130px, .7fr);
+    gap: .7rem;
+}
+
+.notebook-reminder-date-time input[aria-invalid="true"] {
+    border-color: #dc6777;
+    box-shadow: 0 0 0 2px rgba(220, 103, 119, .12);
+}
+
+.notebook-reminder-summary,
+.notebook-reminder-error {
+    margin: 0;
+    font-size: .76rem;
+}
+
+.notebook-reminder-summary {
+    color: #315fba;
+    font-weight: 700;
+}
+
+.notebook-reminder-error {
+    color: #a61b33;
+    font-weight: 650;
+}
+
+.notebook-create-discard {
+    margin-right: auto;
+    border: 0;
+    background: transparent;
+    color: #9f2941;
+    font-weight: 700;
+}
+
+.notebook-create-discard:hover,
+.notebook-create-discard:focus-visible {
+    background: #fff1f3;
+    color: #861b31;
+    outline: none;
+}
+
+.notebook-create-draft-status {
+    min-width: 0;
+    color: #64748b;
+    font-size: .72rem;
+    font-weight: 650;
+}
+
+.notebook-modal.is-create-mode .notebook-modal__backdrop {
+    cursor: default;
+}
+
+.notebook-modal.is-create-mode .notebook-modal__dialog:focus {
+    outline: none;
+}
+
+@media (max-width: 640px) {
+    .notebook-reminder-date-time {
+        grid-template-columns: 1fr;
+    }
+
+    .notebook-reminder-presets {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .notebook-reminder-presets button {
+        width: 100%;
+        border-radius: .58rem;
+        text-align: left;
+    }
+
+    .notebook-modal.is-create-mode footer {
+        flex-wrap: wrap;
+    }
+
+    .notebook-create-draft-status {
+        order: 4;
+        flex-basis: 100%;
+        text-align: right;
+    }
+}

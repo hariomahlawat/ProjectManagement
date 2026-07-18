@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Mvc;
 using ProjectManagement.Contracts.Notebook;
 using ProjectManagement.Models;
+using ProjectManagement.Services;
 using ProjectManagement.Services.Notebook;
 using ProjectManagement.ViewModels.Notebook;
 
@@ -23,6 +24,7 @@ public sealed class NotebookController : Controller
     private readonly INotebookCardModelFactory _cardModelFactory;
     private readonly IWebHostEnvironment _environment;
     private readonly UserManager<ApplicationUser> _users;
+    private readonly IClock _clock;
     private readonly ILogger<NotebookController> _logger;
 
     public NotebookController(
@@ -31,6 +33,7 @@ public sealed class NotebookController : Controller
         INotebookCardModelFactory cardModelFactory,
         IWebHostEnvironment environment,
         UserManager<ApplicationUser> users,
+        IClock clock,
         ILogger<NotebookController> logger)
     {
         _notebook = notebook;
@@ -38,6 +41,7 @@ public sealed class NotebookController : Controller
         _cardModelFactory = cardModelFactory;
         _environment = environment;
         _users = users;
+        _clock = clock;
         _logger = logger;
     }
 
@@ -502,6 +506,8 @@ public sealed class NotebookController : Controller
         var hasBody = !string.IsNullOrWhiteSpace(request.Body);
         var rows = request.ChecklistRows.Where(row => !string.IsNullOrWhiteSpace(row.Text)).ToArray();
         if (!Enum.IsDefined(request.Type) || !Enum.IsDefined(request.Priority)) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "type", "Invalid notebook type or priority."));
+        if (request.Type == NotebookItemType.Reminder && request.ReminderAtUtc is null) return BadRequest(ApiError("notebook_validation_failed", "The reminder is incomplete.", "reminderAtUtc", "Choose a reminder date and time."));
+        if (request.Type == NotebookItemType.Reminder && request.ReminderAtUtc.HasValue && request.ReminderAtUtc.Value <= _clock.UtcNow) return BadRequest(ApiError("notebook_validation_failed", "The reminder time is invalid.", "reminderAtUtc", "Choose a future reminder date and time."));
         if (!hasTitle && !hasBody && rows.Length == 0) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "content", "Add a title, body, or checklist item before saving."));
         if ((request.Title?.Length ?? 0) > NotebookLimits.TitleMaxLength) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "title", $"Title cannot exceed {NotebookLimits.TitleMaxLength} characters."));
         if ((request.Body?.Length ?? 0) > NotebookLimits.BodyMaxLength) return BadRequest(ApiError("notebook_validation_failed", "The notebook item is invalid.", "body", $"Body cannot exceed {NotebookLimits.BodyMaxLength} characters."));

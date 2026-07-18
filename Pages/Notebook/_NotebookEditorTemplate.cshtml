@@ -6,7 +6,7 @@
          aria-modal="true"
          aria-labelledby="notebook-modal-title">
         <div class="notebook-modal__backdrop" data-close></div>
-        <section class="notebook-modal__dialog">
+        <section class="notebook-modal__dialog" tabindex="-1">
             <header class="notebook-modal__header">
                 <input id="notebook-modal-title"
                        data-modal-title
@@ -70,18 +70,44 @@
             <section class="notebook-create-details"
                      data-notebook-create-details
                      hidden>
+                <section class="notebook-reminder-scheduler"
+                         data-reminder-scheduler
+                         aria-labelledby="notebook-reminder-when-title"
+                         hidden>
+                    <div class="notebook-reminder-scheduler__heading">
+                        <div>
+                            <strong id="notebook-reminder-when-title">When</strong>
+                            <span>Choose a quick option or set a precise time.</span>
+                        </div>
+                        <span class="notebook-reminder-scheduler__zone">IST</span>
+                    </div>
+                    <div class="notebook-reminder-presets" aria-label="Quick reminder times">
+                        <button type="button" data-reminder-preset="later-today">Later today</button>
+                        <button type="button" data-reminder-preset="tomorrow-morning">Tomorrow 09:00</button>
+                        <button type="button" data-reminder-preset="next-monday">Next Monday 09:00</button>
+                    </div>
+                    <div class="notebook-reminder-date-time">
+                        <label>
+                            <span>Date</span>
+                            <input type="date" data-reminder-date autocomplete="off" />
+                        </label>
+                        <label>
+                            <span>Time</span>
+                            <input type="time" data-reminder-time step="900" autocomplete="off" />
+                        </label>
+                    </div>
+                    <p class="notebook-reminder-summary" data-reminder-summary hidden></p>
+                    <p class="notebook-reminder-error" data-reminder-error role="alert" hidden></p>
+                </section>
+
                 <div class="notebook-create-details__grid">
-                    <label>
+                    <label data-create-type-field>
                         <span>Type</span>
                         <select data-create-type>
                             <option value="Note">Note</option>
                             <option value="Checklist">Checklist</option>
                             <option value="Reminder">Reminder</option>
                         </select>
-                    </label>
-                    <label data-create-reminder-field>
-                        <span>Reminder (IST)</span>
-                        <input type="datetime-local" data-create-reminder />
                     </label>
                     <label>
                         <span>Priority</span>
@@ -92,7 +118,6 @@
                             <option value="Critical">Critical</option>
                         </select>
                     </label>
-
                 </div>
             </section>
 
@@ -145,6 +170,13 @@
             </section>
 
             <footer>
+                <button type="button"
+                        class="btn btn-sm notebook-create-discard"
+                        data-notebook-create-discard
+                        hidden>
+                    Discard draft
+                </button>
+                <span class="notebook-create-draft-status" data-notebook-create-draft-status aria-live="polite"></span>
                 <button type="button"
                         class="btn btn-sm btn-primary notebook-create-submit"
                         data-notebook-create-submit
