@@ -252,6 +252,10 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(Policies.IndustryPartners.ManageAllowedRoles));
     options.AddPolicy(Policies.IndustryPartners.Delete, policy =>
         policy.RequireRole(Policies.IndustryPartners.DeleteAllowedRoles));
+    options.AddPolicy(Policies.IndustryPartners.AddContact, policy =>
+        policy.RequireAuthenticatedUser());
+    options.AddPolicy(Policies.IndustryPartners.ManageAnyContact, policy =>
+        policy.RequireRole(Policies.IndustryPartners.ContactOverrideRoles));
     options.AddPolicy("DocRepo.View", policy =>
     policy.RequireAuthenticatedUser());
 

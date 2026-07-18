@@ -2,7 +2,9 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Helpers;
 using ProjectManagement.Models;
 using ProjectManagement.Models.IndustryPartners;
 
@@ -199,6 +201,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
                 contact.Name,
                 contact.Phone,
                 contact.Email,
+                contact.CreatedByUserId,
                 contact.CreatedUtc,
                 Convert.ToBase64String(contact.RowVersion)))
             .ToList();
@@ -297,6 +300,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
                 Name = contact.Value.Name,
                 Phone = contact.Value.Phone,
                 Email = contact.Value.Email,
+                CreatedByUserId = userId,
                 CreatedUtc = now
             });
         }
@@ -361,6 +365,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
             Name = contactValue.Name,
             Phone = contactValue.Phone,
             Email = contactValue.Email,
+            CreatedByUserId = GetUserId(user),
             CreatedUtc = DateTimeOffset.UtcNow
         };
 
@@ -385,6 +390,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
             .FirstOrDefaultAsync(item => item.Id == contactId && item.IndustryPartnerId == partnerId, cancellationToken)
             ?? throw new KeyNotFoundException("Contact not found.");
 
+        EnsureCanModifyContact(contact, user);
         ApplyConcurrencyToken(contact, request.RowVersion);
         var contactValue = ValidateContact(request);
 
@@ -410,6 +416,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
             .FirstOrDefaultAsync(item => item.Id == contactId && item.IndustryPartnerId == partnerId, cancellationToken)
             ?? throw new KeyNotFoundException("Contact not found.");
 
+        EnsureCanModifyContact(contact, user);
         _db.IndustryPartnerContacts.Remove(contact);
         Touch(partner, user);
         await _db.SaveChangesAsync(cancellationToken);
@@ -501,6 +508,20 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         foreach (var storageKey in storageKeys)
         {
             await _attachmentStorage.DeleteAsync(storageKey, cancellationToken);
+        }
+    }
+
+    private static void EnsureCanModifyContact(IndustryPartnerContact contact, ClaimsPrincipal user)
+    {
+        var currentUserId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        var canManageAny = Policies.IndustryPartners.ContactOverrideRoles.Any(user.IsInRole);
+        var isAuthor = !string.IsNullOrWhiteSpace(currentUserId) &&
+                       !string.IsNullOrWhiteSpace(contact.CreatedByUserId) &&
+                       string.Equals(contact.CreatedByUserId, currentUserId, StringComparison.Ordinal);
+
+        if (!canManageAny && !isAuthor)
+        {
+            throw new ForbiddenException("You can edit or remove only contacts that you created.");
         }
     }
 

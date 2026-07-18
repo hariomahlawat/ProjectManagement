@@ -77,6 +77,8 @@ public static class Policies
         public const string View = "IndustryPartners.View";
         public const string Manage = "IndustryPartners.Manage";
         public const string Delete = "IndustryPartners.Delete";
+        public const string AddContact = "IndustryPartners.Contact.Add";
+        public const string ManageAnyContact = "IndustryPartners.Contact.ManageAny";
 
         public static readonly string[] ViewAllowedRoles =
         {
@@ -100,6 +102,13 @@ public static class Policies
         {
             RoleNames.Admin,
             RoleNames.HoD
+        };
+
+        public static readonly string[] ContactOverrideRoles =
+        {
+            RoleNames.Admin,
+            RoleNames.HoD,
+            RoleNames.Comdt
         };
     }
 

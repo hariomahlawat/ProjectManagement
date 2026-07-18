@@ -4,7 +4,7 @@
     var primary = partner.PrimaryContact;
 }
 
-@if (Model.Edit && Model.CanManage)
+@if (Model.Edit && Model.CanManageOrganisation)
 {
     <form method="post" asp-page-handler="UpdatePartner" class="ip-edit-form" data-update-organisation-form>
         @Html.AntiForgeryToken()
@@ -48,8 +48,8 @@ else
         <article class="ip-primary-contact-card">
             <div class="ip-primary-contact-icon"><i class="bi bi-person" aria-hidden="true"></i></div>
             <div class="min-w-0 flex-grow-1">
-                <div class="ip-card-label">Main contact</div>
-                <h3>@(string.IsNullOrWhiteSpace(primary.Name) ? "General contact" : primary.Name)</h3>
+                <div class="ip-card-label">Primary contact</div>
+                <h3>@primary.DisplayName</h3>
                 <div class="ip-contact-links">
                     @if (!string.IsNullOrWhiteSpace(primary.Phone))
                     {
@@ -67,7 +67,7 @@ else
             }
         </article>
     }
-    else if (Model.CanManage)
+    else if (Model.CanAddContact)
     {
         <button type="button" class="ip-primary-contact-card ip-primary-contact-empty" data-open-tab="contacts" data-show-panel="contact-add-panel">
             <div class="ip-primary-contact-icon"><i class="bi bi-person-plus" aria-hidden="true"></i></div>

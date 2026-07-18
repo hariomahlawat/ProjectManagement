@@ -92,8 +92,12 @@ public sealed record IndustryPartnerContactDto(
     string? Name,
     string? Phone,
     string? Email,
+    string? CreatedByUserId,
     DateTimeOffset CreatedUtc,
-    string RowVersion);
+    string RowVersion)
+{
+    public string DisplayName => string.IsNullOrWhiteSpace(Name) ? "General contact" : Name.Trim();
+}
 
 public sealed record IndustryPartnerAttachmentDto(
     Guid Id,

@@ -21,6 +21,27 @@
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
+  function closeContactEditors(exceptId = null) {
+    root.querySelectorAll('[data-contact-edit]').forEach((editor) => {
+      const id = editor.dataset.contactEdit;
+      if (exceptId !== null && String(id) === String(exceptId)) return;
+      editor.classList.add('d-none');
+      root.querySelector(`[data-contact-read="${escapeSelector(id)}"]`)?.classList.remove('d-none');
+    });
+  }
+
+  function syncContactToolbar() {
+    const panel = root.querySelector('[data-collapsible-panel="contact-add-panel"]');
+    const contactsTab = panel?.closest('[data-tab-panel="contacts"]');
+    const addFormOpen = Boolean(panel && !panel.classList.contains('d-none') && contactsTab?.classList.contains('is-active'));
+    const editorOpen = Boolean(root.querySelector('[data-contact-edit]:not(.d-none)'));
+
+    root.querySelectorAll('[data-contact-toolbar-action]').forEach((button) => {
+      button.classList.toggle('d-none', addFormOpen || editorOpen);
+      button.disabled = addFormOpen || editorOpen;
+    });
+  }
+
   const setPanelVisible = (panelName, visible) => {
     const panel = root.querySelector(`[data-collapsible-panel="${escapeSelector(panelName)}"]`);
     if (!panel) return;
@@ -34,6 +55,11 @@
       root.querySelectorAll('[data-project-toolbar-action]').forEach((button) => {
         button.classList.toggle('d-none', visible);
       });
+    }
+
+    if (panelName === 'contact-add-panel') {
+      if (visible) closeContactEditors();
+      syncContactToolbar();
     }
 
     if (visible) {
@@ -80,6 +106,11 @@
     if (safeTab !== 'projects') {
       setPanelVisible('project-add-panel', false);
     }
+    if (safeTab !== 'contacts') {
+      setPanelVisible('contact-add-panel', false);
+      closeContactEditors();
+    }
+    syncContactToolbar();
 
     if (updateUrl) {
       const url = new URL(window.location.href);
@@ -123,9 +154,12 @@
     root.querySelectorAll('[data-edit-contact]').forEach((button) => {
       button.addEventListener('click', () => {
         const id = button.dataset.editContact;
+        setPanelVisible('contact-add-panel', false);
+        closeContactEditors(id);
         root.querySelector(`[data-contact-read="${escapeSelector(id)}"]`)?.classList.add('d-none');
         const editor = root.querySelector(`[data-contact-edit="${escapeSelector(id)}"]`);
         editor?.classList.remove('d-none');
+        syncContactToolbar();
         editor?.querySelector('input:not([type="hidden"])')?.focus();
       });
     });
@@ -135,9 +169,18 @@
         const id = button.dataset.cancelContact;
         root.querySelector(`[data-contact-read="${escapeSelector(id)}"]`)?.classList.remove('d-none');
         root.querySelector(`[data-contact-edit="${escapeSelector(id)}"]`)?.classList.add('d-none');
+        syncContactToolbar();
       });
     });
 
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      closeContactEditors();
+      setPanelVisible('contact-add-panel', false);
+      syncContactToolbar();
+    });
+
+    syncContactToolbar();
   }
 
   function initContactValidation() {

@@ -1,7 +1,7 @@
 @model ProjectManagement.Pages.IndustryPartners.IndexModel
 @{
     var partner = Model.SelectedPartner!;
-    var showAddForm = partner.Contacts.Count == 0 && Model.CanManage;
+    var showAddForm = partner.Contacts.Count == 0 && Model.CanAddContact;
 }
 
 <div class="ip-section-heading">
@@ -9,20 +9,14 @@
         <h3>Contacts</h3>
         <p>Add only the details normally needed to reach the person or office.</p>
     </div>
-    @if (Model.CanManage)
-    {
-        <button type="button" class="btn btn-sm btn-primary" data-toggle-panel="contact-add-panel" aria-expanded="@showAddForm.ToString().ToLowerInvariant()">
-            <i class="bi bi-person-plus" aria-hidden="true"></i> Add contact
-        </button>
-    }
 </div>
 
-@if (Model.CanManage)
+@if (Model.CanAddContact)
 {
     <div class="ip-inline-create @(showAddForm ? null : "d-none")" data-collapsible-panel="contact-add-panel">
         <div class="ip-inline-create-title">
             <strong>New contact</strong>
-            <span>Name is optional; phone or email is required.</span>
+            <span>Name is optional; phone or email is required. Unnamed entries display as General contact.</span>
         </div>
         <form method="post" asp-page-handler="AddContact" data-contact-form>
             @Html.AntiForgeryToken()
@@ -32,15 +26,15 @@
             <input type="hidden" name="p" value="@Model.PageNumber" />
             <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
             <div class="row g-2">
-                <div class="col-md-4">
+                <div class="col-12">
                     <label class="form-label" for="newContactName">Contact person or office</label>
                     <input id="newContactName" name="name" class="form-control" maxlength="200" autocomplete="name" placeholder="e.g. Mr Arun Sharma or Business Development Office" />
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-6">
                     <label class="form-label" for="newContactPhone">Phone</label>
                     <input id="newContactPhone" name="phone" class="form-control" maxlength="64" autocomplete="tel" data-contact-phone />
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-6">
                     <label class="form-label" for="newContactEmail">Email</label>
                     <input id="newContactEmail" name="email" type="email" class="form-control" maxlength="256" autocomplete="email" data-contact-email />
                 </div>
@@ -68,7 +62,8 @@ else
         @for (var index = 0; index < partner.Contacts.Count; index++)
         {
             var contact = partner.Contacts[index];
-            var contactLabel = string.IsNullOrWhiteSpace(contact.Name) ? "General contact" : contact.Name;
+            var contactLabel = contact.DisplayName;
+            var canModifyContact = Model.CanModifyContact(contact);
             <article class="ip-contact-card" data-contact-card="@contact.Id">
                 <div class="ip-contact-read" data-contact-read="@contact.Id">
                     <div class="ip-contact-avatar" aria-hidden="true">@contactLabel.Trim()[0].ToString().ToUpperInvariant()</div>
@@ -77,7 +72,7 @@ else
                             <h4>@contactLabel</h4>
                             @if (index == 0)
                             {
-                                <span class="ip-primary-badge"><i class="bi bi-star-fill" aria-hidden="true"></i> Main</span>
+                                <span class="ip-primary-badge"><i class="bi bi-star-fill" aria-hidden="true"></i> Primary</span>
                             }
                         </div>
                         <div class="ip-contact-links">
@@ -92,7 +87,7 @@ else
                         </div>
                     </div>
 
-                    @if (Model.CanManage)
+                    @if (canModifyContact)
                     {
                         <div class="dropdown">
                             <button class="btn btn-sm btn-light ip-more-button" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @contactLabel">
@@ -118,7 +113,7 @@ else
                     }
                 </div>
 
-                @if (Model.CanManage)
+                @if (canModifyContact)
                 {
                     <form method="post" asp-page-handler="UpdateContact" class="ip-contact-edit d-none" data-contact-edit="@contact.Id" data-contact-form>
                         @Html.AntiForgeryToken()
@@ -130,15 +125,15 @@ else
                         <input type="hidden" name="p" value="@Model.PageNumber" />
                         <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
                         <div class="row g-2">
-                            <div class="col-md-4">
+                            <div class="col-12">
                                 <label class="form-label">Contact person or office</label>
                                 <input name="name" class="form-control form-control-sm" value="@contact.Name" maxlength="200" placeholder="Person or office" />
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <label class="form-label">Phone</label>
                                 <input name="phone" class="form-control form-control-sm" value="@contact.Phone" maxlength="64" data-contact-phone />
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <label class="form-label">Email</label>
                                 <input name="email" type="email" class="form-control form-control-sm" value="@contact.Email" maxlength="256" data-contact-email />
                             </div>

@@ -11,6 +11,7 @@ public class IndustryPartnerContact
     [MaxLength(200)] public string? Name { get; set; }
     [MaxLength(64)] public string? Phone { get; set; }
     [MaxLength(256)] public string? Email { get; set; }
+    [MaxLength(450)] public string? CreatedByUserId { get; set; }
     public DateTimeOffset CreatedUtc { get; set; } = DateTimeOffset.UtcNow;
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }

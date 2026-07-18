@@ -3226,6 +3226,7 @@ namespace ProjectManagement.Data
                 entity.Property(x => x.Name).HasMaxLength(200);
                 entity.Property(x => x.Phone).HasMaxLength(64);
                 entity.Property(x => x.Email).HasMaxLength(256);
+                entity.Property(x => x.CreatedByUserId).HasMaxLength(450);
                 entity.HasOne(x => x.IndustryPartner)
                     .WithMany(x => x.Contacts)
                     .HasForeignKey(x => x.IndustryPartnerId)

@@ -5,7 +5,7 @@
     var contextualLink = contextualProject is null
         ? null
         : partner.LinkedProjects.FirstOrDefault(link => link.ProjectId == contextualProject.Id);
-    var showAddForm = Model.CanManage && contextualProject is not null && contextualLink is null;
+    var showAddForm = Model.CanManageOrganisation && contextualProject is not null && contextualLink is null;
 }
 
 <div class="ip-section-heading">
@@ -27,7 +27,7 @@
             </div>
         </div>
     }
-    else if (Model.CanManage)
+    else if (Model.CanManageOrganisation)
     {
         <div class="ip-context-result">
             <i class="bi bi-link-45deg" aria-hidden="true"></i>
@@ -39,7 +39,7 @@
     }
 }
 
-@if (Model.CanManage)
+@if (Model.CanManageOrganisation)
 {
     <div class="ip-inline-create @(showAddForm ? null : "d-none")" data-collapsible-panel="project-add-panel">
         <div class="ip-inline-create-title">
@@ -147,7 +147,7 @@ else
                                     <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Open project
                                 </a>
                             </li>
-                            @if (Model.CanManage)
+                            @if (Model.CanManageOrganisation)
                             {
                                 <li><hr class="dropdown-divider" /></li>
                                 <li>

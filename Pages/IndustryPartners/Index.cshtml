@@ -15,7 +15,7 @@
             <h1>Industry Directory</h1>
             <p>Find organisations, contact details and Joint Development Partner history quickly.</p>
         </div>
-        @if (Model.CanManage)
+        @if (Model.CanManageOrganisation)
         {
             <button type="button" class="btn btn-primary ip-primary-action" data-bs-toggle="modal" data-bs-target="#addOrganisationModal">
                 <i class="bi bi-plus-lg" aria-hidden="true"></i>
@@ -105,7 +105,7 @@
         <partial name="_DirectoryTable" model="Model" />
     </section>
 
-    @if (Model.CanManage)
+    @if (Model.CanManageOrganisation)
     {
         <div class="modal fade" id="addOrganisationModal" tabindex="-1" aria-labelledby="addOrganisationModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">

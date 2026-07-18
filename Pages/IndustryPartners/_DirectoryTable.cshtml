@@ -74,7 +74,7 @@
                asp-route-projectId="@Model.ContextProjectId"
                class="btn btn-outline-secondary btn-sm">View all organisations</a>
         }
-        else if (showAddAction && Model.CanManage)
+        else if (showAddAction && Model.CanManageOrganisation)
         {
             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addOrganisationModal">Add organisation</button>
         }

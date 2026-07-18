@@ -3720,6 +3720,10 @@ namespace ProjectManagement.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
                     b.Property<DateTimeOffset>("CreatedUtc")
                         .HasColumnType("timestamp with time zone");
 

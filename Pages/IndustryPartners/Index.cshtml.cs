@@ -1,7 +1,9 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Configuration;
+using ProjectManagement.Helpers;
 using ProjectManagement.Services.IndustryPartners;
 
 namespace ProjectManagement.Pages.IndustryPartners;
@@ -51,15 +53,21 @@ public sealed class IndexModel : PageModel
     public IndustryPartnerDto? SelectedPartner { get; private set; }
     public IndustryPartnerProjectContextDto? ProjectContext { get; private set; }
     public IndustryPartnerDirectoryFilter SelectedFilter { get; private set; }
-    public bool CanManage { get; private set; }
-    public bool CanDelete { get; private set; }
+    public bool CanManageOrganisation { get; private set; }
+    public bool CanDeleteOrganisation { get; private set; }
+    public bool CanAddContact { get; private set; }
+    public bool CanManageAnyContact { get; private set; }
+    public string? CurrentUserId { get; private set; }
 
     public string ActiveTab => NormalizeTab(Tab, ProjectContext is not null);
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        CanManage = (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.Manage)).Succeeded;
-        CanDelete = (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.Delete)).Succeeded;
+        CanManageOrganisation = (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.Manage)).Succeeded;
+        CanDeleteOrganisation = (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.Delete)).Succeeded;
+        CanAddContact = (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.AddContact)).Succeeded;
+        CanManageAnyContact = (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.ManageAnyContact)).Succeeded;
+        CurrentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         SelectedFilter = ParseFilter(Filter);
         Filter = ToFilterKey(SelectedFilter);
         PageNumber = Math.Max(1, PageNumber);
@@ -106,7 +114,7 @@ public sealed class IndexModel : PageModel
         [FromForm] string? contactEmail,
         CancellationToken cancellationToken)
     {
-        if (!await CanManageAsync())
+        if (!await CanManageOrganisationAsync())
         {
             return Forbid();
         }
@@ -144,7 +152,7 @@ public sealed class IndexModel : PageModel
         [FromForm] string? rowVersion,
         CancellationToken cancellationToken)
     {
-        if (!await CanManageAsync())
+        if (!await CanManageOrganisationAsync())
         {
             return Forbid();
         }
@@ -174,7 +182,7 @@ public sealed class IndexModel : PageModel
         [FromForm] string? email,
         CancellationToken cancellationToken)
     {
-        if (!await CanManageAsync())
+        if (!await CanAddContactAsync())
         {
             return Forbid();
         }
@@ -205,11 +213,6 @@ public sealed class IndexModel : PageModel
         [FromForm] string? rowVersion,
         CancellationToken cancellationToken)
     {
-        if (!await CanManageAsync())
-        {
-            return Forbid();
-        }
-
         try
         {
             await _service.UpdateContactAsync(
@@ -219,6 +222,10 @@ public sealed class IndexModel : PageModel
                 User,
                 cancellationToken);
             TempData["Message"] = "Contact updated.";
+        }
+        catch (ForbiddenException)
+        {
+            return Forbid();
         }
         catch (IndustryPartnerValidationException exception)
         {
@@ -233,15 +240,14 @@ public sealed class IndexModel : PageModel
         [FromForm] int contactId,
         CancellationToken cancellationToken)
     {
-        if (!await CanManageAsync())
-        {
-            return Forbid();
-        }
-
         try
         {
             await _service.DeleteContactAsync(partnerId, contactId, User, cancellationToken);
             TempData["Message"] = "Contact removed.";
+        }
+        catch (ForbiddenException)
+        {
+            return Forbid();
         }
         catch (IndustryPartnerValidationException exception)
         {
@@ -255,7 +261,7 @@ public sealed class IndexModel : PageModel
         [FromForm] int partnerId,
         CancellationToken cancellationToken)
     {
-        if (!await CanManageAsync())
+        if (!await CanManageOrganisationAsync())
         {
             return Forbid();
         }
@@ -285,7 +291,7 @@ public sealed class IndexModel : PageModel
         [FromForm] Guid attachmentId,
         CancellationToken cancellationToken)
     {
-        if (!await CanManageAsync())
+        if (!await CanManageOrganisationAsync())
         {
             return Forbid();
         }
@@ -317,7 +323,7 @@ public sealed class IndexModel : PageModel
         [FromForm(Name = "associationProjectId")] int projectId,
         CancellationToken cancellationToken)
     {
-        if (!await CanManageAsync())
+        if (!await CanManageOrganisationAsync())
         {
             return Forbid();
         }
@@ -340,7 +346,7 @@ public sealed class IndexModel : PageModel
         [FromForm(Name = "associationProjectId")] int projectId,
         CancellationToken cancellationToken)
     {
-        if (!await CanManageAsync())
+        if (!await CanManageOrganisationAsync())
         {
             return Forbid();
         }
@@ -408,8 +414,23 @@ public sealed class IndexModel : PageModel
         });
     }
 
-    private async Task<bool> CanManageAsync() =>
+    public bool CanModifyContact(IndustryPartnerContactDto contact)
+    {
+        if (CanManageAnyContact)
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(CurrentUserId) &&
+               !string.IsNullOrWhiteSpace(contact.CreatedByUserId) &&
+               string.Equals(contact.CreatedByUserId, CurrentUserId, StringComparison.Ordinal);
+    }
+
+    private async Task<bool> CanManageOrganisationAsync() =>
         (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.Manage)).Succeeded;
+
+    private async Task<bool> CanAddContactAsync() =>
+        (await _authorizationService.AuthorizeAsync(User, Policies.IndustryPartners.AddContact)).Succeeded;
 
     private void SetError(IndustryPartnerValidationException exception)
     {

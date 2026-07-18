@@ -8,7 +8,7 @@
         <h3>Files</h3>
         <p>Optional brochures, catalogues or company information. A directory record is complete without files.</p>
     </div>
-    @if (Model.CanManage)
+    @if (Model.CanManageOrganisation)
     {
         <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle-panel="file-add-panel" aria-expanded="false">
             <i class="bi bi-paperclip" aria-hidden="true"></i> Add file
@@ -16,7 +16,7 @@
     }
 </div>
 
-@if (Model.CanManage)
+@if (Model.CanManageOrganisation)
 {
     <div class="ip-inline-create d-none" data-collapsible-panel="file-add-panel">
         <div class="ip-inline-create-title">
@@ -78,7 +78,7 @@ else
                        aria-label="Download @attachment.OriginalFileName">
                         <i class="bi bi-download" aria-hidden="true"></i>
                     </a>
-                    @if (Model.CanManage)
+                    @if (Model.CanManageOrganisation)
                     {
                         <form method="post" asp-page-handler="DeleteAttachment" data-confirm-form="Remove this file from the organisation record?">
                             @Html.AntiForgeryToken()

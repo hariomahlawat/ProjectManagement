@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Security.Claims;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Helpers;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
@@ -160,6 +162,129 @@ public sealed class IndustryPartnerRulesTests
         await Assert.ThrowsAsync<IndustryPartnerValidationException>(() => service.AddContactAsync(id, new ContactRequest("A", null, "badmail"), user));
     }
 
+
+    [Fact]
+    public async Task ContactCreation_RecordsAuthor_AndUnnamedContactGetsStableDisplayLabel()
+    {
+        await using var db = CreateDb();
+        var service = new IndustryPartnerService(db);
+        var author = User("author-1");
+        var partnerId = await service.CreateAsync(new CreateIndustryPartnerRequest("Acme", null), author);
+
+        await service.AddContactAsync(partnerId, new ContactRequest(null, "12345", null), author);
+
+        var contact = (await service.GetAsync(partnerId))!.Contacts.Single();
+        Assert.Equal("author-1", contact.CreatedByUserId);
+        Assert.Equal("General contact", contact.DisplayName);
+    }
+
+    [Fact]
+    public async Task ContactAuthor_CanEditAndDeleteOwnContact()
+    {
+        await using var db = CreateDb();
+        var service = new IndustryPartnerService(db);
+        var author = User("author-1");
+        var partnerId = await service.CreateAsync(new CreateIndustryPartnerRequest("Acme", null), author);
+        var contactId = await service.AddContactAsync(partnerId, new ContactRequest("Office", "12345", null), author);
+        var rowVersion = (await service.GetAsync(partnerId))!.Contacts.Single().RowVersion;
+
+        await service.UpdateContactAsync(
+            partnerId,
+            contactId,
+            new ContactRequest("Business Office", "67890", null, rowVersion),
+            author);
+
+        var updated = (await service.GetAsync(partnerId))!.Contacts.Single();
+        Assert.Equal("Business Office", updated.DisplayName);
+
+        await service.DeleteContactAsync(partnerId, contactId, author);
+        Assert.Empty((await service.GetAsync(partnerId))!.Contacts);
+    }
+
+    [Fact]
+    public async Task NonAuthor_CannotEditOrDeleteAnotherUsersContact()
+    {
+        await using var db = CreateDb();
+        var service = new IndustryPartnerService(db);
+        var author = User("author-1");
+        var other = User("author-2");
+        var partnerId = await service.CreateAsync(new CreateIndustryPartnerRequest("Acme", null), author);
+        var contactId = await service.AddContactAsync(partnerId, new ContactRequest("Office", "12345", null), author);
+        var rowVersion = (await service.GetAsync(partnerId))!.Contacts.Single().RowVersion;
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.UpdateContactAsync(
+            partnerId,
+            contactId,
+            new ContactRequest("Changed", "67890", null, rowVersion),
+            other));
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.DeleteContactAsync(partnerId, contactId, other));
+    }
+
+    [Theory]
+    [InlineData(RoleNames.Admin)]
+    [InlineData(RoleNames.HoD)]
+    [InlineData(RoleNames.Comdt)]
+    public async Task ContactOverrideRoles_CanEditAndDeleteAnyContact(string role)
+    {
+        await using var db = CreateDb();
+        var service = new IndustryPartnerService(db);
+        var author = User("author-1");
+        var privileged = User("privileged-user", role);
+        var partnerId = await service.CreateAsync(new CreateIndustryPartnerRequest($"Acme {role}", null), author);
+        var contactId = await service.AddContactAsync(partnerId, new ContactRequest("Office", "12345", null), author);
+        var rowVersion = (await service.GetAsync(partnerId))!.Contacts.Single().RowVersion;
+
+        await service.UpdateContactAsync(
+            partnerId,
+            contactId,
+            new ContactRequest("Updated Office", "67890", null, rowVersion),
+            privileged);
+        await service.DeleteContactAsync(partnerId, contactId, privileged);
+
+        Assert.Empty((await service.GetAsync(partnerId))!.Contacts);
+    }
+
+    [Fact]
+    public async Task LegacyContactWithoutAuthor_IsRestrictedToOverrideRoles()
+    {
+        await using var db = CreateDb();
+        var service = new IndustryPartnerService(db);
+        var creator = User("creator");
+        var ordinary = User("ordinary");
+        var admin = User("admin", RoleNames.Admin);
+        var partnerId = await service.CreateAsync(new CreateIndustryPartnerRequest("Legacy Partner", null), creator);
+        var partner = await db.IndustryPartners.SingleAsync(item => item.Id == partnerId);
+        var legacy = new IndustryPartnerContact
+        {
+            IndustryPartnerId = partnerId,
+            Name = "Legacy Office",
+            Phone = "12345",
+            CreatedByUserId = null
+        };
+        db.IndustryPartnerContacts.Add(legacy);
+        await db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => service.DeleteContactAsync(partnerId, legacy.Id, ordinary));
+        await service.DeleteContactAsync(partnerId, legacy.Id, admin);
+        Assert.False(await db.IndustryPartnerContacts.AnyAsync(item => item.Id == legacy.Id));
+    }
+
+    [Fact]
+    public async Task DeletingPrimaryContact_PromotesNextContact()
+    {
+        await using var db = CreateDb();
+        var service = new IndustryPartnerService(db);
+        var author = User("author-1");
+        var partnerId = await service.CreateAsync(new CreateIndustryPartnerRequest("Acme", null), author);
+        var firstId = await service.AddContactAsync(partnerId, new ContactRequest("First", "111", null), author);
+        await service.AddContactAsync(partnerId, new ContactRequest("Second", "222", null), author);
+
+        await service.DeleteContactAsync(partnerId, firstId, author);
+
+        var partner = await service.GetAsync(partnerId);
+        Assert.Equal("Second", partner!.PrimaryContact!.DisplayName);
+    }
+
     private static ApplicationDbContext CreateDb()
     {
         var opts = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -168,9 +293,15 @@ public sealed class IndustryPartnerRulesTests
         return new ApplicationDbContext(opts);
     }
 
-    private static ClaimsPrincipal User()
+    private static ClaimsPrincipal User(string userId = "u1", string? role = null)
     {
-        var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, "u1") }, "test");
+        var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, userId) };
+        if (!string.IsNullOrWhiteSpace(role))
+        {
+            claims.Add(new Claim(ClaimTypes.Role, role));
+        }
+
+        var identity = new ClaimsIdentity(claims, "test", ClaimTypes.Name, ClaimTypes.Role);
         return new ClaimsPrincipal(identity);
     }
 }
