@@ -280,3 +280,23 @@ test('reorderItems sends one batch order mutation', async () => {
     items: [{ id: '11111111-1111-4111-8111-111111111111', version: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }]
   });
 });
+
+
+test('collaborator mutations send explicit role names and concurrency versions', async () => {
+  const { NotebookApi } = await loadApiModule();
+  const calls = [];
+  global.fetch = async (url, options) => {
+    calls.push({ url, options });
+    return jsonResponse(200, mutationResponse());
+  };
+
+  await NotebookApi.addCollaborator('note-1', 'user-2', 'Viewer', 'version-1');
+  await NotebookApi.updateCollaboratorRole('note-1', 'user-2', 'Editor', 'version-2');
+
+  assert.equal(calls[0].url, '/api/notebook/items/note-1/collaborators');
+  assert.equal(calls[0].options.method, 'POST');
+  assert.deepEqual(JSON.parse(calls[0].options.body), { userId: 'user-2', role: 'Viewer', version: 'version-1' });
+  assert.equal(calls[1].url, '/api/notebook/items/note-1/collaborators/user-2');
+  assert.equal(calls[1].options.method, 'PATCH');
+  assert.deepEqual(JSON.parse(calls[1].options.body), { role: 'Editor', version: 'version-2' });
+});

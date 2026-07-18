@@ -59,6 +59,7 @@ public static class NotificationPresentationCatalog
                 NotificationKind.NotebookShared => new("Notebook", "bi bi-journal-arrow-down", "High", true),
                 NotificationKind.NotebookAccessRemoved => new("Notebook", "bi bi-person-x", "High", false),
                 NotificationKind.NotebookCollaborationLeft => new("Notebook", "bi bi-box-arrow-left", "Normal", false),
+                NotificationKind.NotebookAccessChanged => new("Notebook", "bi bi-shield-check", "Normal", false),
 
                 _ => Default(module, eventType),
             };

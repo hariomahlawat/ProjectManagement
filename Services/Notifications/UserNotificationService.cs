@@ -71,6 +71,7 @@ public sealed class UserNotificationService
         NotificationKind.NotebookShared,
         NotificationKind.NotebookAccessRemoved,
         NotificationKind.NotebookCollaborationLeft,
+        NotificationKind.NotebookAccessChanged,
     };
 
     private static readonly NotificationKind[] AssignmentKinds =

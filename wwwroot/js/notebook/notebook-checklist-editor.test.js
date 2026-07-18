@@ -199,3 +199,26 @@ test('reconcileRows preserves checkbox changed after dispatch', async () => {
 
   assert.equal(editor.getRows()[0].isDone, true);
 });
+
+
+test('setReadOnly disables checklist mutation controls without hiding content', async () => {
+  let changes = 0;
+  const { editor, root } = await createEditor(() => { changes += 1; });
+  editor.setRows([{ id: 1, text: 'Visible task', isDone: false, sortOrder: 0 }]);
+  editor.setReadOnly(true);
+
+  const text = root.querySelector('[data-checklist-text]');
+  const done = root.querySelector('[data-checklist-done]');
+  assert.equal(text.value, 'Visible task');
+  assert.equal(text.readOnly, true);
+  assert.equal(done.disabled, true);
+  assert.equal(root.querySelector('[data-checklist-remove]').hidden, true);
+  assert.equal(root.querySelector('[data-checklist-add]').hidden, true);
+
+  text.value = 'Attempted change';
+  text.dispatchEvent(new window.Event('input', { bubbles: true }));
+  done.checked = true;
+  done.dispatchEvent(new window.Event('change', { bubbles: true }));
+  assert.equal(changes, 0);
+  assert.equal(editor.addRow(), null);
+});

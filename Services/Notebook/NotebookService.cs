@@ -392,7 +392,7 @@ public sealed class NotebookService : INotebookService
 
     public async Task<NotebookItemDetailVm> UpdateAsync(string ownerId, Guid id, NotebookUpdateInput input, Guid expectedVersion, CancellationToken ct = default)
     {
-        var item = await LoadAccessibleForUpdate(ownerId, id, expectedVersion, NotebookAccessLevel.Editor, ct);
+        var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
         item.Title = CleanTitle(input.Title);
         item.BodyMarkdown = input.BodyMarkdown;
         item.Priority = input.Priority ?? item.Priority;
@@ -750,14 +750,14 @@ public sealed class NotebookService : INotebookService
 
     public async Task<NotebookItemDetailVm> CompleteAsync(string ownerId, Guid id, bool isComplete, Guid expectedVersion, CancellationToken ct = default)
     {
-        var item = await LoadAccessibleForUpdate(ownerId, id, expectedVersion, NotebookAccessLevel.Editor, ct);
+        var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
         await CompleteLoadedAsync(item, isComplete, ct);
         return MapDetail(item, ownerId);
     }
 
     public async Task<NotebookItemDetailVm> ConvertTypeAsync(string ownerId, Guid id, NotebookItemType newType, Guid expectedVersion, CancellationToken ct = default)
     {
-        var item = await LoadAccessibleForUpdate(ownerId, id, expectedVersion, NotebookAccessLevel.Editor, ct);
+        var item = await LoadOwnedForUpdate(ownerId, id, expectedVersion, ct);
         if (item.Type == newType)
         {
             return MapDetail(item, ownerId);
@@ -931,6 +931,56 @@ public sealed class NotebookService : INotebookService
             ["Role"] = role.ToString(),
             ["CollaborationVersion"] = collaboration.Version.ToString("D")
         });
+        return MapDetail(item, ownerId);
+    }
+
+    public async Task<NotebookItemDetailVm> UpdateCollaboratorRoleAsync(
+        string ownerId,
+        Guid itemId,
+        string collaboratorUserId,
+        NotebookCollaborationRole role,
+        Guid expectedVersion,
+        CancellationToken ct = default)
+    {
+        if (!Enum.IsDefined(role))
+        {
+            throw new NotebookValidationException("Invalid collaborator role.");
+        }
+
+        if (string.IsNullOrWhiteSpace(collaboratorUserId))
+        {
+            throw new NotebookValidationException("Select a valid collaborator.");
+        }
+
+        var item = await LoadOwnedForUpdate(ownerId, itemId, expectedVersion, ct);
+        var collaboration = item.Collaborators.FirstOrDefault(row => row.UserId == collaboratorUserId)
+            ?? throw new KeyNotFoundException("The collaborator could not be found.");
+
+        if (collaboration.Role == role)
+        {
+            return MapDetail(item, ownerId);
+        }
+
+        var previousRole = collaboration.Role;
+        collaboration.Role = role;
+        collaboration.Version = Guid.NewGuid();
+        Touch(item, _clock.UtcNow);
+
+        if (_notifications is not null)
+        {
+            await _notifications.QueueRoleChangedAsync(item, collaboration, previousRole, ownerId, ct);
+        }
+
+        // Permission change and its durable notification dispatch share one transaction boundary.
+        await _db.SaveChangesAsync(ct);
+        await TryWriteAuditAsync("Notebook.CollaboratorRoleChanged", ownerId, item.Id, ct, new Dictionary<string, string?>
+        {
+            ["CollaboratorUserId"] = collaboratorUserId,
+            ["PreviousRole"] = previousRole.ToString(),
+            ["Role"] = role.ToString(),
+            ["CollaborationVersion"] = collaboration.Version.ToString("D")
+        });
+
         return MapDetail(item, ownerId);
     }
 

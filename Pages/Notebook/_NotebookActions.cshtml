@@ -16,33 +16,41 @@
 }
 else
 {
-    @if (Model.Item.AccessLevel == ProjectManagement.ViewModels.Notebook.NotebookAccessLevel.Owner)
+    @if (Model.Item.CanManageMetadata)
     {
         <button title="@(Model.Item.IsPinned ? "Unpin" : "Pin")" aria-label="@(Model.Item.IsPinned ? "Unpin note" : "Pin note")" type="button" class="notebook-action-icon notebook-action-pin" data-action="pin-note" data-is-pinned="@Model.Item.IsPinned.ToString().ToLowerInvariant()"><i class="bi @(Model.Item.IsPinned ? "bi-pin-angle-fill" : "bi-pin-angle")"></i></button>
     }
-    @if (Model.Item.CanEdit && Model.Item.Status != NotebookItemStatus.Completed && (Model.Item.Type == NotebookItemType.Reminder || Model.Item.ReminderAtUtc is not null)) { <button type="button" data-action="complete-note" class="notebook-action-done">Done</button> }
-    @if (Model.Item.CanEdit)
+    @if (Model.Item.CanManageLifecycle && Model.Item.Status != NotebookItemStatus.Completed && (Model.Item.Type == NotebookItemType.Reminder || Model.Item.ReminderAtUtc is not null))
+    {
+        <button type="button" data-action="complete-note" class="notebook-action-done">Done</button>
+    }
+    @if (Model.Item.CanManageMetadata)
     {
         <partial name="~/Pages/Notebook/_NotebookColourPicker.cshtml" model="Model.Item.ColorKey ?? string.Empty" />
     }
-    @if (Model.Item.AccessLevel == ProjectManagement.ViewModels.Notebook.NotebookAccessLevel.Owner)
-    {
-        <button type="button" class="notebook-action-icon" data-action="share-note" title="Manage collaborators" aria-label="Manage collaborators"><i class="bi bi-person-plus"></i></button>
-    }
-    else
-    {
-        <button type="button" class="notebook-action-icon" data-action="share-note" title="View collaborators" aria-label="View collaborators"><i class="bi bi-people"></i></button>
-    }
+    <button type="button"
+            class="notebook-action-icon"
+            data-action="share-note"
+            title="@(Model.Item.CanManageCollaborators ? "Manage collaborators" : "View collaborators")"
+            aria-label="@(Model.Item.CanManageCollaborators ? "Manage collaborators" : "View collaborators")">
+        <i class="bi @(Model.Item.CanManageCollaborators ? "bi-person-plus" : "bi-people")"></i>
+    </button>
     <details class="notebook-card-more">
         <summary class="notebook-action-button" aria-label="More actions" aria-expanded="false"><i class="bi bi-three-dots"></i></summary>
         <div class="notebook-card-more__menu" role="menu">
-            @if (Model.Item.AccessLevel == ProjectManagement.ViewModels.Notebook.NotebookAccessLevel.Owner)
+            @if (Model.Item.CanManageMetadata)
             {
                 <button type="button" role="menuitem" data-action="label-note"><i class="bi bi-tag"></i><span>Add label</span></button>
             }
-            <button type="button" role="menuitem" data-action="duplicate-note">Make a copy</button>
-            @if (Model.Item.CanEdit && Model.Item.Status != NotebookItemStatus.Completed && (Model.Item.Type == NotebookItemType.Note || Model.Item.Type == NotebookItemType.Checklist)) { <button type="button" role="menuitem" data-action="convert-note" data-convert-to="@(Model.Item.Type == NotebookItemType.Checklist ? NotebookItemType.Note : NotebookItemType.Checklist)">@(Model.Item.Type == NotebookItemType.Checklist ? "Hide checkboxes" : "Show checkboxes")</button> }
-            @if (Model.Item.AccessLevel == ProjectManagement.ViewModels.Notebook.NotebookAccessLevel.Owner)
+            @if (Model.Item.CanDuplicate)
+            {
+                <button type="button" role="menuitem" data-action="duplicate-note">Make a copy</button>
+            }
+            @if (Model.Item.CanManageLifecycle && Model.Item.Status != NotebookItemStatus.Completed && (Model.Item.Type == NotebookItemType.Note || Model.Item.Type == NotebookItemType.Checklist))
+            {
+                <button type="button" role="menuitem" data-action="convert-note" data-convert-to="@(Model.Item.Type == NotebookItemType.Checklist ? NotebookItemType.Note : NotebookItemType.Checklist)">@(Model.Item.Type == NotebookItemType.Checklist ? "Hide checkboxes" : "Show checkboxes")</button>
+            }
+            @if (Model.Item.CanManageLifecycle)
             {
                 @if (Model.Item.Status == NotebookItemStatus.Archived) { <button type="button" role="menuitem" data-action="restore-note">Restore</button> }
                 else if (Model.Item.Status == NotebookItemStatus.Completed) { <button type="button" role="menuitem" data-action="reopen-note">Reopen</button> }
@@ -50,7 +58,7 @@ else
                 <span class="notebook-menu-separator" aria-hidden="true"></span>
                 <button class="text-danger" type="button" role="menuitem" data-action="delete-note">Move to trash</button>
             }
-            else
+            else if (Model.Item.CanLeave)
             {
                 <span class="notebook-menu-separator" aria-hidden="true"></span>
                 <button type="button" role="menuitem" data-action="leave-note">Leave shared note</button>

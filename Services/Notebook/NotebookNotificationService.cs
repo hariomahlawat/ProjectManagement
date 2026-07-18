@@ -54,6 +54,46 @@ public sealed class NotebookNotificationService : INotebookNotificationService
             cancellationToken);
     }
 
+    public Task QueueRoleChangedAsync(
+        NotebookItem item,
+        NotebookItemCollaborator collaboration,
+        NotebookCollaborationRole previousRole,
+        string actorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(collaboration);
+
+        var title = DisplayTitle(item);
+        var accessLabel = collaboration.Role == NotebookCollaborationRole.Viewer ? "View only" : "Can edit";
+        var summary = collaboration.Role == NotebookCollaborationRole.Viewer
+            ? $"Your access to “{title}” was changed to View only."
+            : $"You can now edit “{title}”.";
+
+        return _outbox.QueueAsync(
+            NotificationKind.NotebookAccessChanged,
+            new[] { collaboration.UserId },
+            new NotebookCollaborationPermissionChangedPayload(
+                item.Id,
+                title,
+                item.OwnerId,
+                collaboration.UserId,
+                previousRole.ToString(),
+                collaboration.Role.ToString(),
+                collaboration.Version),
+            module: ModuleName,
+            eventType: "NotebookAccessChanged",
+            scopeType: ScopeType,
+            scopeId: item.Id.ToString("D", CultureInfo.InvariantCulture),
+            projectId: null,
+            actorUserId: actorUserId,
+            route: BuildSharedRoute(item.Id),
+            title: "Shared note permission changed",
+            summary: summary,
+            fingerprint: BuildFingerprint($"access-{accessLabel.ToLowerInvariant().Replace(' ', '-')}", item.Id, collaboration.UserId, collaboration.Version),
+            cancellationToken);
+    }
+
     public Task QueueAccessRemovedAsync(
         NotebookItem item,
         NotebookItemCollaborator collaboration,
@@ -172,5 +212,14 @@ public sealed class NotebookNotificationService : INotebookNotificationService
         string OwnerUserId,
         string CollaboratorUserId,
         string CollaborationRole,
+        Guid CollaborationEventId);
+
+    private sealed record NotebookCollaborationPermissionChangedPayload(
+        Guid NotebookItemId,
+        string NotebookTitle,
+        string OwnerUserId,
+        string CollaboratorUserId,
+        string PreviousRole,
+        string NewRole,
         Guid CollaborationEventId);
 }

@@ -132,7 +132,7 @@ export function initNotebookApp() {
   applyBoardView(localStorage.getItem(storageKey) || shell.dataset.boardView || 'grid');
   const masonryGrid = initNotebookMasonryGrid(shell);
   const dragOrder = initNotebookDragOrder(shell, board, { api: NotebookApi, showError: showGlobalError, showToast: showNotebookToast });
-  const collaborators = initNotebookCollaborators(document, { board, view, applyCounts, showError: showGlobalError });
+  const collaborators = initNotebookCollaborators(document, { board, view, applyCounts, showError: showGlobalError, onItemUpdated: (updated) => editor.syncExternalUpdate?.(updated) });
 
   // SECTION: Accessible, single-open card action menus
   const closeNotebookMenus = (except = null, { restoreFocus = false } = {}) => {

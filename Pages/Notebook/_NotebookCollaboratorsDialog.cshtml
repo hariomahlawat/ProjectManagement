@@ -5,17 +5,41 @@
         <header class="notebook-collaborators-dialog__header">
             <div>
                 <h2 id="notebook-collaborators-title">Collaborators</h2>
-                <p>Share this note with other PRISM users.</p>
+                <p data-collaborators-intro>Share this note with other PRISM users.</p>
             </div>
             <button type="button" class="notebook-dialog-icon" data-collaborators-close aria-label="Close collaborators"><i class="bi bi-x-lg"></i></button>
         </header>
         <div class="notebook-collaborators-dialog__body">
-            <div class="notebook-collaborators-search" data-collaborators-search-wrap>
-                <i class="bi bi-person-plus" aria-hidden="true"></i>
-                <input type="search" data-collaborator-search placeholder="Search by name, rank or email" autocomplete="off" aria-label="Search PRISM users" />
-                <span class="spinner-border spinner-border-sm" data-collaborator-search-spinner hidden aria-hidden="true"></span>
+            <div data-collaborators-management>
+                <div class="notebook-collaborators-search" data-collaborators-search-wrap>
+                    <i class="bi bi-person-plus" aria-hidden="true"></i>
+                    <input type="search" data-collaborator-search placeholder="Search by name, rank or email" autocomplete="off" aria-label="Search PRISM users" />
+                    <span class="spinner-border spinner-border-sm" data-collaborator-search-spinner hidden aria-hidden="true"></span>
+                </div>
+                <div class="notebook-collaborator-search-results" data-collaborator-search-results hidden></div>
+
+                <section class="notebook-collaborator-share-panel" data-collaborator-share-panel hidden aria-label="Share selected note">
+                    <div class="notebook-collaborator-share-panel__person">
+                        <span class="notebook-collaborator-avatar" data-share-avatar aria-hidden="true"></span>
+                        <span class="notebook-collaborator-identity">
+                            <strong data-share-name></strong>
+                            <small data-share-email></small>
+                        </span>
+                    </div>
+                    <label class="notebook-collaborator-permission">
+                        <span>Permission</span>
+                        <select data-share-role aria-label="Permission for selected collaborator">
+                            <option value="Viewer" selected>View only</option>
+                            <option value="Editor">Can edit</option>
+                        </select>
+                    </label>
+                    <div class="notebook-collaborator-share-panel__actions">
+                        <button type="button" class="btn btn-sm btn-light" data-share-cancel>Cancel</button>
+                        <button type="button" class="btn btn-sm btn-primary" data-share-confirm>Share</button>
+                    </div>
+                </section>
             </div>
-            <div class="notebook-collaborator-search-results" data-collaborator-search-results hidden></div>
+
             <div class="notebook-collaborator-list" data-collaborator-list></div>
             <div class="notebook-collaborators-empty" data-collaborators-empty hidden>
                 <i class="bi bi-people"></i>

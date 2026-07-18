@@ -285,6 +285,15 @@ namespace ProjectManagement.Tests
                 CancellationToken ct = default) =>
                 throw new NotImplementedException();
 
+            public Task<NotebookItemDetailVm> UpdateCollaboratorRoleAsync(
+                string ownerId,
+                Guid itemId,
+                string collaboratorUserId,
+                NotebookCollaborationRole role,
+                Guid expectedVersion,
+                CancellationToken ct = default) =>
+                throw new NotImplementedException();
+
             public Task<NotebookItemDetailVm> RemoveCollaboratorAsync(
                 string ownerId,
                 Guid itemId,

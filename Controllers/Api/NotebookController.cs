@@ -415,9 +415,37 @@ public sealed class NotebookController : Controller
     [HttpPost("{id:guid}/collaborators")]
     public async Task<IActionResult> AddCollaborator(Guid id, [FromBody] AddNotebookCollaboratorRequest request, CancellationToken ct)
     {
-        if (request.Version == Guid.Empty || string.IsNullOrWhiteSpace(request.UserId))
-            return BadRequest(ApiError("notebook_validation_failed", "The collaborator could not be added.", "userId", "Select a valid user."));
+        if (request.Version == Guid.Empty || string.IsNullOrWhiteSpace(request.UserId) || !Enum.IsDefined(request.Role))
+            return BadRequest(ApiError("notebook_validation_failed", "The collaborator could not be added.", "userId", "Select a valid user and permission."));
         var item = await _notebook.AddCollaboratorAsync(CurrentUserId(), id, request.UserId, request.Role, request.Version, ct);
+        return Ok(await BuildMutationResponseAsync(item, includeCard: true, ct));
+    }
+
+    [Consumes("application/json")]
+    [HttpPatch("{id:guid}/collaborators/{collaboratorUserId}")]
+    public async Task<IActionResult> UpdateCollaboratorRole(
+        Guid id,
+        string collaboratorUserId,
+        [FromBody] UpdateNotebookCollaboratorRoleRequest request,
+        CancellationToken ct)
+    {
+        if (request.Version == Guid.Empty || string.IsNullOrWhiteSpace(collaboratorUserId) || !Enum.IsDefined(request.Role))
+        {
+            return BadRequest(ApiError(
+                "notebook_validation_failed",
+                "The collaborator permission could not be changed.",
+                "role",
+                "Select a valid permission."));
+        }
+
+        var item = await _notebook.UpdateCollaboratorRoleAsync(
+            CurrentUserId(),
+            id,
+            collaboratorUserId,
+            request.Role,
+            request.Version,
+            ct);
+
         return Ok(await BuildMutationResponseAsync(item, includeCard: true, ct));
     }
 
@@ -722,6 +750,13 @@ public sealed class NotebookController : Controller
         OwnerDisplayName = item.OwnerDisplayName,
         AccessLevel = item.AccessLevel.ToString(),
         IsShared = item.IsShared,
+        CanEditContent = item.CanEditContent,
+        CanToggleChecklist = item.CanToggleChecklist,
+        CanManageMetadata = item.CanManageMetadata,
+        CanManageLifecycle = item.CanManageLifecycle,
+        CanManageCollaborators = item.CanManageCollaborators,
+        CanDuplicate = item.CanDuplicate,
+        CanLeave = item.CanLeave,
         Collaborators = item.Collaborators.Select(ToCollaboratorResponse).ToList(),
         ChecklistRows = item.ChecklistItems.Select(row => new NotebookChecklistRowResponse { Id = row.Id, ClientKey = row.ClientKey, Text = row.Text, IsDone = row.IsDone, SortOrder = row.SortOrder }).ToList(),
         Labels = item.Tags.Select(tag => new NotebookLabelResponse { Name = tag }).ToList()

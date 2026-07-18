@@ -207,6 +207,13 @@ public sealed class NotebookItemResponse
     public string OwnerDisplayName { get; set; } = string.Empty;
     public string AccessLevel { get; set; } = "Owner";
     public bool IsShared { get; set; }
+    public bool CanEditContent { get; set; }
+    public bool CanToggleChecklist { get; set; }
+    public bool CanManageMetadata { get; set; }
+    public bool CanManageLifecycle { get; set; }
+    public bool CanManageCollaborators { get; set; }
+    public bool CanDuplicate { get; set; }
+    public bool CanLeave { get; set; }
     public List<NotebookCollaboratorResponse> Collaborators { get; set; } = [];
 }
 
@@ -244,7 +251,12 @@ public sealed class AddNotebookCollaboratorRequest : NotebookVersionedRequest
     [Required]
     public string UserId { get; set; } = string.Empty;
 
-    public NotebookCollaborationRole Role { get; set; } = NotebookCollaborationRole.Editor;
+    public NotebookCollaborationRole Role { get; set; } = NotebookCollaborationRole.Viewer;
+}
+
+public sealed class UpdateNotebookCollaboratorRoleRequest : NotebookVersionedRequest
+{
+    public NotebookCollaborationRole Role { get; set; } = NotebookCollaborationRole.Viewer;
 }
 
 public sealed class RemoveNotebookCollaboratorRequest : NotebookVersionedRequest

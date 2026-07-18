@@ -119,8 +119,22 @@ public class NotebookItemListVm
     public string OwnerDisplayName { get; set; } = string.Empty;
     public NotebookAccessLevel AccessLevel { get; set; } = NotebookAccessLevel.Owner;
     public bool IsShared { get; set; }
-    public bool CanEdit => AccessLevel >= NotebookAccessLevel.Editor;
+
+    // SECTION: Centralised Notebook capabilities
+    // Razor views, API responses and client code should consume these capabilities instead of
+    // independently interpreting AccessLevel. This keeps UI affordances aligned with service rules.
+    public bool CanEditContent => AccessLevel >= NotebookAccessLevel.Editor;
+    public bool CanToggleChecklist => AccessLevel >= NotebookAccessLevel.Editor;
+    public bool CanManageMetadata => AccessLevel == NotebookAccessLevel.Owner;
+    public bool CanManageLifecycle => AccessLevel == NotebookAccessLevel.Owner;
     public bool CanManageCollaborators => AccessLevel == NotebookAccessLevel.Owner;
+    public bool CanDuplicate => AccessLevel >= NotebookAccessLevel.Viewer;
+    public bool CanLeave => AccessLevel is NotebookAccessLevel.Viewer or NotebookAccessLevel.Editor;
+
+    // Compatibility alias for existing partials and extensions. New code should use the
+    // capability that corresponds to the operation being rendered.
+    public bool CanEdit => CanEditContent;
+
     public IReadOnlyList<NotebookCollaboratorVm> Collaborators { get; set; } = Array.Empty<NotebookCollaboratorVm>();
 }
 
