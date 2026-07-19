@@ -52,6 +52,39 @@ public sealed class FfcSlideComposerTests
         Assert.DoesNotContain("OVERALL POSITION", allSlideXml, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Compose_GlobalFootprintListsAllElevenCountriesWithoutPerRowQtySuffix()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "Ffc", "PresentationRoot");
+        var composer = new FfcSlideComposer(new StubMapRenderer(), new TestEnvironment(root));
+
+        var (content, _) = composer.Compose(BuildGlobalFootprintData());
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var presentationPart = Assert.IsType<PresentationPart>(document.PresentationPart);
+        var slideIds = Assert.IsType<SlideIdList>(presentationPart.Presentation.SlideIdList)
+            .Elements<SlideId>()
+            .ToArray();
+        var footprintSlide = Assert.IsType<SlidePart>(
+            presentationPart.GetPartById(slideIds[2].RelationshipId!.Value!));
+        var xml = footprintSlide.Slide?.OuterXml ?? string.Empty;
+
+        foreach (var expected in new[]
+                 {
+                     "Ethiopia", "Myanmar", "Sri Lanka", "Bangladesh", "Namibia",
+                     "Nepal", "Nigeria", "Cambodia", "France", "Mozambique", "Tanzania"
+                 })
+        {
+            Assert.Contains(expected, xml, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("COUNTRY", xml, StringComparison.Ordinal);
+        Assert.Contains("QTY", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("+ 2 more countries", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Qty<", xml, StringComparison.Ordinal);
+    }
+
     private static FfcPresentationData BuildData()
     {
         var record = new FfcPresentationRecord(
@@ -107,6 +140,51 @@ public sealed class FfcSlideComposerTests
             IncludeAttachmentRegister: false,
             new FfcFootprintSummary(1, 1, 1, 0, 0, 1),
             new[] { country });
+    }
+
+    private static FfcPresentationData BuildGlobalFootprintData()
+    {
+        var now = new DateTimeOffset(2026, 7, 19, 10, 0, 0, TimeSpan.Zero);
+        var source = new[]
+        {
+            (1L, "Ethiopia", "ETH", 13),
+            (2L, "Myanmar", "MMR", 10),
+            (3L, "Sri Lanka", "LKA", 7),
+            (4L, "Bangladesh", "BGD", 3),
+            (5L, "Namibia", "NAM", 2),
+            (6L, "Nepal", "NPL", 2),
+            (7L, "Nigeria", "NGA", 2),
+            (8L, "Cambodia", "KHM", 1),
+            (9L, "France", "FRA", 1),
+            (10L, "Mozambique", "MOZ", 1),
+            (11L, "Tanzania, United Republic of", "TZA", 1)
+        };
+        var countries = source
+            .Select(item => new FfcPresentationCountry(
+                item.Item1,
+                item.Item2,
+                item.Item3,
+                1,
+                1,
+                0,
+                0,
+                item.Item4,
+                now,
+                Array.Empty<FfcPresentationRecord>()))
+            .ToArray();
+
+        return new FfcPresentationData(
+            "FFC Global Portfolio",
+            "Position as at 19 Jul 2026",
+            null,
+            now,
+            FfcPresentationType.ExecutiveBrief,
+            IncludeProjects: false,
+            IncludeProgress: false,
+            IncludeMilestoneRemarks: false,
+            IncludeAttachmentRegister: false,
+            new FfcFootprintSummary(11, 11, 11, 0, 0, 43),
+            countries);
     }
 
     private sealed class StubMapRenderer : IFfcPresentationMapRenderer

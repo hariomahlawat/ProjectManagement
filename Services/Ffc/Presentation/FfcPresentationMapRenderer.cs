@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -10,6 +11,49 @@ namespace ProjectManagement.Services.Ffc.Presentation;
 
 public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
 {
+    private static readonly SKColor[] ActiveBandColors =
+    {
+        SKColor.Parse("#D7DEFF"),
+        SKColor.Parse("#B9C4F5"),
+        SKColor.Parse("#8799E8"),
+        SKColor.Parse("#4A63D8")
+    };
+
+    private static readonly SKPoint[] GenericLabelOffsets =
+    {
+        new(0, 0),
+        new(0, -42),
+        new(0, 42),
+        new(54, 0),
+        new(-54, 0),
+        new(48, -34),
+        new(-48, -34),
+        new(48, 34),
+        new(-48, 34),
+        new(78, 0),
+        new(-78, 0),
+        new(70, -50),
+        new(-70, -50),
+        new(70, 50),
+        new(-70, 50)
+    };
+
+    private static readonly IReadOnlyDictionary<string, SKPoint[]> PreferredLabelOffsets =
+        new Dictionary<string, SKPoint[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["FRA"] = new[] { new SKPoint(0, -38), new SKPoint(-42, -30) },
+            ["NGA"] = new[] { new SKPoint(-48, -28), new SKPoint(42, -30) },
+            ["ETH"] = new[] { new SKPoint(48, -28), new SKPoint(-45, -30) },
+            ["TZA"] = new[] { new SKPoint(48, 28), new SKPoint(-44, 28) },
+            ["MOZ"] = new[] { new SKPoint(48, 38), new SKPoint(-45, 38) },
+            ["NAM"] = new[] { new SKPoint(-40, 30), new SKPoint(42, 30) },
+            ["NPL"] = new[] { new SKPoint(-56, -34), new SKPoint(-72, -48) },
+            ["BGD"] = new[] { new SKPoint(58, -34), new SKPoint(76, -46) },
+            ["MMR"] = new[] { new SKPoint(62, 10), new SKPoint(72, 30) },
+            ["LKA"] = new[] { new SKPoint(16, 58), new SKPoint(-32, 58) },
+            ["KHM"] = new[] { new SKPoint(62, 36), new SKPoint(76, 48) }
+        };
+
     private readonly Lazy<IReadOnlyList<MapFeature>> _features;
 
     public FfcPresentationMapRenderer(IWebHostEnvironment environment)
@@ -132,79 +176,134 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
             TextAlign = SKTextAlign.Center,
             FakeBoldText = true
         };
-        using var subPaint = new SKPaint
-        {
-            Color = SKColor.Parse("#40536D"),
-            TextSize = 17,
-            Typeface = SKTypeface.Default,
-            IsAntialias = true,
-            TextAlign = SKTextAlign.Center
-        };
         using var haloPaint = new SKPaint
         {
-            Color = new SKColor(255, 255, 255, 225),
+            Color = new SKColor(255, 255, 255, 235),
             Style = SKPaintStyle.Fill,
+            IsAntialias = true
+        };
+        using var haloBorder = new SKPaint
+        {
+            Color = SKColor.Parse("#CBD5E1"),
+            Style = SKPaintStyle.Stroke,
+            StrokeWidth = 1.1f,
             IsAntialias = true
         };
         using var leaderPaint = new SKPaint
         {
             Color = SKColor.Parse("#64748B"),
             Style = SKPaintStyle.Stroke,
-            StrokeWidth = 1.4f,
+            StrokeWidth = 1.35f,
             IsAntialias = true
         };
 
         var occupied = new List<SKRect>();
-        var candidates = new[]
-        {
-            new SKPoint(0, 0),
-            new SKPoint(0, -58),
-            new SKPoint(0, 58),
-            new SKPoint(88, 0),
-            new SKPoint(-88, 0),
-            new SKPoint(82, -48),
-            new SKPoint(-82, -48),
-            new SKPoint(82, 48),
-            new SKPoint(-82, 48)
-        };
-
         foreach (var feature in activeFeatures
-                     .OrderByDescending(feature => activeByIso[feature.Iso3].TotalUnits)
+                     .OrderBy(feature => feature.Bounds.LongitudeSpan * feature.Bounds.LatitudeSpan)
+                     .ThenByDescending(feature => activeByIso[feature.Iso3].TotalUnits)
                      .Take(18))
         {
-            var country = activeByIso[feature.Iso3];
             var anchor = Project(feature.LabelPoint, bounds, frame);
-            var labelWidth = Math.Max(
-                labelPaint.MeasureText(feature.Iso3),
-                subPaint.MeasureText($"Qty {country.TotalUnits}")) + 22;
-            const float labelHeight = 54;
+            var labelWidth = Math.Max(48, labelPaint.MeasureText(feature.Iso3) + 22);
+            const float labelHeight = 34;
+            var placement = FindBestLabelPlacement(
+                feature.Iso3,
+                anchor,
+                labelWidth,
+                labelHeight,
+                frame,
+                occupied);
 
-            var chosenCenter = anchor;
-            var chosenRect = BuildLabelRect(chosenCenter, labelWidth, labelHeight);
-            foreach (var offset in candidates)
+            if (Math.Abs(placement.Center.X - anchor.X) > 8 || Math.Abs(placement.Center.Y - anchor.Y) > 8)
             {
-                var center = new SKPoint(anchor.X + offset.X, anchor.Y + offset.Y);
-                var candidate = BuildLabelRect(center, labelWidth, labelHeight);
-                if (!ContainsRect(frame, candidate) || occupied.Any(existing => IntersectsWithMargin(existing, candidate, 8)))
-                {
-                    continue;
-                }
-
-                chosenCenter = center;
-                chosenRect = candidate;
-                break;
+                var lineEnd = NearestPointOnRect(placement.Rect, anchor);
+                canvas.DrawLine(anchor.X, anchor.Y, lineEnd.X, lineEnd.Y, leaderPaint);
             }
 
-            if (Math.Abs(chosenCenter.X - anchor.X) > 8 || Math.Abs(chosenCenter.Y - anchor.Y) > 8)
-            {
-                canvas.DrawLine(anchor.X, anchor.Y, chosenCenter.X, chosenCenter.Y, leaderPaint);
-            }
-
-            canvas.DrawRoundRect(chosenRect, 8, 8, haloPaint);
-            canvas.DrawText(feature.Iso3, chosenCenter.X, chosenCenter.Y - 5, labelPaint);
-            canvas.DrawText($"Qty {country.TotalUnits}", chosenCenter.X, chosenCenter.Y + 18, subPaint);
-            occupied.Add(chosenRect);
+            canvas.DrawRoundRect(placement.Rect, 8, 8, haloPaint);
+            canvas.DrawRoundRect(placement.Rect, 8, 8, haloBorder);
+            canvas.DrawText(feature.Iso3, placement.Center.X, placement.Center.Y + 7, labelPaint);
+            occupied.Add(placement.Rect);
         }
+    }
+
+    private static LabelPlacement FindBestLabelPlacement(
+        string isoCode,
+        SKPoint anchor,
+        float labelWidth,
+        float labelHeight,
+        SKRect frame,
+        IReadOnlyList<SKRect> occupied)
+    {
+        LabelPlacement? best = null;
+        var bestScore = double.MaxValue;
+
+        foreach (var offset in LabelOffsets(isoCode))
+        {
+            var centre = new SKPoint(anchor.X + offset.X, anchor.Y + offset.Y);
+            centre = ClampLabelCentre(centre, labelWidth, labelHeight, frame);
+            var candidate = BuildLabelRect(centre, labelWidth, labelHeight);
+            var overlap = occupied.Sum(existing => IntersectionArea(ExpandRect(existing, 7), candidate));
+            var distance = Math.Sqrt((offset.X * offset.X) + (offset.Y * offset.Y));
+            var score = (overlap * 10_000d) + distance;
+
+            if (overlap <= 0.01f)
+            {
+                return new LabelPlacement(centre, candidate);
+            }
+
+            if (score < bestScore)
+            {
+                bestScore = score;
+                best = new LabelPlacement(centre, candidate);
+            }
+        }
+
+        return best ?? new LabelPlacement(
+            ClampLabelCentre(anchor, labelWidth, labelHeight, frame),
+            BuildLabelRect(ClampLabelCentre(anchor, labelWidth, labelHeight, frame), labelWidth, labelHeight));
+    }
+
+    private static IEnumerable<SKPoint> LabelOffsets(string isoCode)
+    {
+        if (PreferredLabelOffsets.TryGetValue(isoCode, out var preferred))
+        {
+            foreach (var offset in preferred)
+            {
+                yield return offset;
+            }
+        }
+
+        foreach (var offset in GenericLabelOffsets)
+        {
+            yield return offset;
+        }
+    }
+
+    private static SKPoint ClampLabelCentre(
+        SKPoint centre,
+        float width,
+        float height,
+        SKRect frame)
+        => new(
+            Math.Clamp(centre.X, frame.Left + (width / 2) + 3, frame.Right - (width / 2) - 3),
+            Math.Clamp(centre.Y, frame.Top + (height / 2) + 3, frame.Bottom - (height / 2) - 3));
+
+    private static SKPoint NearestPointOnRect(SKRect rect, SKPoint point)
+        => new(
+            Math.Clamp(point.X, rect.Left, rect.Right),
+            Math.Clamp(point.Y, rect.Top, rect.Bottom));
+
+    private static SKRect ExpandRect(SKRect rect, float margin)
+        => new(rect.Left - margin, rect.Top - margin, rect.Right + margin, rect.Bottom + margin);
+
+    private static float IntersectionArea(SKRect first, SKRect second)
+    {
+        var left = Math.Max(first.Left, second.Left);
+        var top = Math.Max(first.Top, second.Top);
+        var right = Math.Min(first.Right, second.Right);
+        var bottom = Math.Min(first.Bottom, second.Bottom);
+        return right <= left || bottom <= top ? 0 : (right - left) * (bottom - top);
     }
 
     private static SKRect BuildLabelRect(SKPoint center, float width, float height)
@@ -214,18 +313,6 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
             center.X + width / 2,
             center.Y + height / 2);
 
-    private static bool ContainsRect(SKRect outer, SKRect inner)
-        => inner.Left >= outer.Left &&
-           inner.Top >= outer.Top &&
-           inner.Right <= outer.Right &&
-           inner.Bottom <= outer.Bottom;
-
-    private static bool IntersectsWithMargin(SKRect first, SKRect second, float margin)
-        => !(first.Right + margin < second.Left ||
-             first.Left - margin > second.Right ||
-             first.Bottom + margin < second.Top ||
-             first.Top - margin > second.Bottom);
-
     private static void DrawLegend(
         SKCanvas canvas,
         IReadOnlyList<FfcPresentationCountry> countries,
@@ -233,7 +320,7 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
         int height,
         int maximumUnits)
     {
-        var legend = new SKRect(68, height - 220, 350, height - 68);
+        var legend = new SKRect(68, height - 252, 365, height - 68);
         using var background = new SKPaint { Color = new SKColor(255, 255, 255, 235), Style = SKPaintStyle.Fill, IsAntialias = true };
         using var border = new SKPaint { Color = SKColor.Parse("#CBD5E1"), Style = SKPaintStyle.Stroke, StrokeWidth = 1.2f, IsAntialias = true };
         using var title = new SKPaint { Color = SKColor.Parse("#12223A"), TextSize = 21, FakeBoldText = true, IsAntialias = true };
@@ -241,10 +328,10 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
 
         canvas.DrawRoundRect(legend, 14, 14, background);
         canvas.DrawRoundRect(legend, 14, 14, border);
-        canvas.DrawText("Total FFC quantity", legend.Left + 18, legend.Top + 31, title);
+        canvas.DrawText("Total quantity", legend.Left + 18, legend.Top + 31, title);
 
         var ranges = BuildLegendRanges(maximumUnits);
-        var y = legend.Top + 57;
+        var y = legend.Top + 58;
         foreach (var range in ranges)
         {
             using var sample = new SKPaint { Color = ActiveShade(range.End, maximumUnits), Style = SKPaintStyle.Fill, IsAntialias = true };
@@ -254,43 +341,57 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
         }
 
         var total = countries.Sum(country => country.TotalUnits);
-        canvas.DrawText($"{countries.Count} countries · Qty {total}", legend.Left + 18, legend.Bottom - 13, text);
+        canvas.DrawText($"{countries.Count} countries · Total {total}", legend.Left + 18, legend.Bottom - 13, text);
     }
 
     private static IReadOnlyList<LegendRange> BuildLegendRanges(int maximum)
     {
-        if (maximum <= 1)
+        maximum = Math.Max(1, maximum);
+        var bandCount = Math.Min(4, maximum);
+        var ranges = new List<LegendRange>(bandCount);
+        var start = 1;
+
+        for (var index = 0; index < bandCount; index++)
         {
-            return new[] { new LegendRange(1, 1, "Qty 1") };
+            var remainingValues = maximum - start + 1;
+            var remainingBands = bandCount - index;
+            var width = index == bandCount - 1
+                ? remainingValues
+                : Math.Max(1, remainingValues / remainingBands);
+            var end = index == bandCount - 1
+                ? maximum
+                : Math.Min(maximum, start + width - 1);
+            ranges.Add(new LegendRange(
+                start,
+                end,
+                start == end
+                    ? start.ToString(CultureInfo.InvariantCulture)
+                    : $"{start.ToString(CultureInfo.InvariantCulture)}–{end.ToString(CultureInfo.InvariantCulture)}"));
+            start = end + 1;
         }
 
-        var first = Math.Max(1, (int)Math.Ceiling(maximum / 3d));
-        var second = Math.Max(first + 1, (int)Math.Ceiling(maximum * 2d / 3d));
-        var ranges = new List<LegendRange>
-        {
-            new(1, first, first == 1 ? "Qty 1" : $"Qty 1–{first}")
-        };
-        if (second > first)
-        {
-            ranges.Add(new LegendRange(first + 1, second, $"Qty {first + 1}–{second}"));
-        }
-        if (maximum > second)
-        {
-            ranges.Add(new LegendRange(second + 1, maximum, $"Qty {second + 1}–{maximum}"));
-        }
         return ranges;
     }
 
     private static SKColor ActiveShade(int value, int maximum)
     {
-        var ratio = Math.Clamp(value / (double)Math.Max(1, maximum), 0, 1);
-        var light = SKColor.Parse("#CDD7FF");
-        var dark = SKColor.Parse("#4A63D8");
-        return new SKColor(
-            (byte)(light.Red + ((dark.Red - light.Red) * ratio)),
-            (byte)(light.Green + ((dark.Green - light.Green) * ratio)),
-            (byte)(light.Blue + ((dark.Blue - light.Blue) * ratio)),
-            255);
+        var ranges = BuildLegendRanges(maximum);
+        var bandIndex = 0;
+        for (var index = 0; index < ranges.Count; index++)
+        {
+            if (value >= ranges[index].Start && value <= ranges[index].End)
+            {
+                bandIndex = index;
+                break;
+            }
+        }
+
+        var paletteIndex = ranges.Count <= 1
+            ? 0
+            : (int)Math.Round(
+                bandIndex * (ActiveBandColors.Length - 1d) / (ranges.Count - 1d),
+                MidpointRounding.AwayFromZero);
+        return ActiveBandColors[Math.Clamp(paletteIndex, 0, ActiveBandColors.Length - 1)];
     }
 
     private static SKPath BuildPath(
@@ -518,6 +619,8 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
                  MaximumLatitude < other.MinimumLatitude ||
                  MinimumLatitude > other.MaximumLatitude);
     }
+
+    private readonly record struct LabelPlacement(SKPoint Center, SKRect Rect);
 
     private sealed record LegendRange(int Start, int End, string Label);
 }

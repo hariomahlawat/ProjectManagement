@@ -1,5 +1,8 @@
 using System;
+using System.Collections;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.FileProviders;
 using ProjectManagement.Services.Ffc.Presentation;
@@ -29,6 +32,23 @@ public sealed class FfcPresentationMapRendererTests
         Assert.NotNull(bitmap);
         Assert.Equal(1200, bitmap!.Width);
         Assert.Equal(760, bitmap.Height);
+    }
+
+    [Fact]
+    public void BuildLegendRanges_CreatesFourBalancedBandsForCurrentPortfolioMaximum()
+    {
+        var method = typeof(FfcPresentationMapRenderer).GetMethod(
+            "BuildLegendRanges",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+
+        var result = Assert.IsAssignableFrom<IEnumerable>(method!.Invoke(null, new object[] { 13 }));
+        var labels = result
+            .Cast<object>()
+            .Select(item => item.GetType().GetProperty("Label")?.GetValue(item)?.ToString())
+            .ToArray();
+
+        Assert.Equal(new[] { "1–3", "4–6", "7–9", "10–13" }, labels);
     }
 
     private static FfcPresentationCountry Country(

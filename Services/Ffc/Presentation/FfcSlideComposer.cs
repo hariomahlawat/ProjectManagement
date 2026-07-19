@@ -225,26 +225,64 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
         AddSlideTitle(canvas, "Global footprint", "Country distribution by total quantity");
         canvas.AddImage(mapImage, .55, 1.28, 8.55, 5.62, "FFC global footprint map");
         canvas.AddRoundedRect(9.3, 1.28, 3.42, 5.62, CardBackground, Border, .08);
-        canvas.AddText(9.58, 1.58, 2.8, .32, "COUNTRY / QTY", 12, Muted, true, "l");
+        canvas.AddText(9.58, 1.57, 2.05, .28, "COUNTRY", 11, Muted, true, "l");
+        canvas.AddText(11.78, 1.57, .68, .28, "QTY", 11, Muted, true, "r");
+        canvas.AddLine(9.58, 1.94, 12.46, 1.94, Border, .8);
 
-        var rows = data.Countries.Take(9).ToArray();
-        var y = 2.05;
+        // The ranked panel is deliberately sized to show the complete current FFC footprint
+        // (11 countries) rather than hiding the final entries behind a “more countries” label.
+        const int maximumVisibleCountries = 11;
+        var rows = data.Countries.Take(maximumVisibleCountries).ToArray();
+        const double firstRowY = 2.08;
+        const double listBottomY = 6.38;
+        var rowStep = rows.Length <= 1
+            ? .42
+            : Math.Min(.43, (listBottomY - firstRowY) / (rows.Length - 1));
+
         for (var index = 0; index < rows.Length; index++)
         {
             var country = rows[index];
-            canvas.AddText(9.58, y, 2.12, .28, country.CountryName, 13, Text, true, "l");
-            canvas.AddText(11.78, y, .52, .28, country.TotalUnits.ToString(CultureInfo.InvariantCulture), 13, Text, true, "r");
-            canvas.AddText(12.18, y, .32, .28, "Qty", 8, Muted, false, "l");
+            var y = firstRowY + (index * rowStep);
+            canvas.AddText(
+                9.58,
+                y,
+                2.08,
+                .27,
+                FootprintCountryDisplayName(country.CountryName),
+                11.5,
+                Text,
+                true,
+                "l");
+            canvas.AddText(
+                11.78,
+                y,
+                .68,
+                .27,
+                country.TotalUnits.ToString(CultureInfo.InvariantCulture),
+                12,
+                Text,
+                true,
+                "r");
+
             if (index < rows.Length - 1)
             {
-                canvas.AddLine(9.58, y + .39, 12.46, y + .39, Border, .6);
+                canvas.AddLine(9.58, y + .31, 12.46, y + .31, Border, .55);
             }
-            y += .48;
         }
 
-        if (data.Countries.Count > rows.Length)
+        if (data.Countries.Count > maximumVisibleCountries)
         {
-            canvas.AddText(9.58, 6.48, 2.8, .25, $"+ {data.Countries.Count - rows.Length} more countr{(data.Countries.Count - rows.Length == 1 ? "y" : "ies")}", 10, Muted, false, "l");
+            var remaining = data.Countries.Count - maximumVisibleCountries;
+            canvas.AddText(
+                9.58,
+                6.55,
+                2.88,
+                .22,
+                $"+ {remaining} more countr{(remaining == 1 ? "y" : "ies")}",
+                9,
+                Muted,
+                false,
+                "l");
         }
     }
 
@@ -838,6 +876,23 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
         };
 
     private static string Plural(int count) => count == 1 ? string.Empty : "s";
+
+    private static string FootprintCountryDisplayName(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var normalized = string.Join(" ", value.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        var commaIndex = normalized.IndexOf(',', StringComparison.Ordinal);
+        if (commaIndex > 0)
+        {
+            normalized = normalized[..commaIndex];
+        }
+
+        return Truncate(normalized, 24) ?? normalized;
+    }
 
     private static string? Truncate(string? value, int maximum)
     {
