@@ -21,8 +21,7 @@ public sealed class MapModel : PageModel
         short? year = null,
         long? countryId = null,
         string? q = null,
-        string? metric = null,
-        string? focus = null)
+        string? metric = null)
         => RedirectToPage(
             "/FFC/Footprint",
             new
@@ -32,8 +31,7 @@ public sealed class MapModel : PageModel
                 year,
                 countryId,
                 q,
-                metric,
-                focus
+                metric
             });
 
     // Retained for one compatibility cycle for older clients that requested the former map data endpoint.

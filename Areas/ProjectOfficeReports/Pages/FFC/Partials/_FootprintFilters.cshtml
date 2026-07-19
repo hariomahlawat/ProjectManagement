@@ -3,8 +3,6 @@
 
 <form method="get" asp-page="/FFC/Footprint" class="ffc-footprint-filters" role="search">
     <input type="hidden" name="view" value="@Model.ViewMode" />
-    <input type="hidden" name="presentation" value="@(Model.Presentation ? "true" : null)" />
-    <input type="hidden" name="focus" value="@Model.Focus" />
 
     <div class="ffc-footprint-filters__search">
         <label class="visually-hidden" for="ffcFootprintSearch">Search country or project</label>

@@ -19,7 +19,7 @@ public sealed class FfcFootprintContractTests
     }
 
     [Fact]
-    public void Footprint_ProvidesMapCardsPresentationAndAccessibleCountryPanel()
+    public void Footprint_ProvidesMapCardsPowerPointExportAndAccessibleCountryPanel()
     {
         var page = Read("Footprint.cshtml");
         var cards = Read("Partials/_FootprintCountryCards.cshtml");
@@ -27,11 +27,35 @@ public sealed class FfcFootprintContractTests
 
         Assert.Contains("data-view=\"@Model.ViewMode\"", page, StringComparison.Ordinal);
         Assert.Contains("world-countries-simplified.geojson", page, StringComparison.Ordinal);
-        Assert.Contains("Presentation", page, StringComparison.Ordinal);
+        Assert.Contains("Download PowerPoint", page, StringComparison.Ordinal);
+        Assert.Contains("_PowerPointExportDrawer.cshtml", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Presentation mode", page, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("South Asia", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Africa", page, StringComparison.Ordinal);
         Assert.Contains("data-ffc-map-error", page, StringComparison.Ordinal);
         Assert.Contains("data-ffc-country-trigger", cards, StringComparison.Ordinal);
         Assert.Contains("offcanvas", panel, StringComparison.Ordinal);
         Assert.Contains("aria-labelledby=\"ffcCountryPanelTitle\"", panel, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public void PowerPointExport_UsesLocalStructuredGenerationAndRemovesBrowserPresentationMode()
+    {
+        var page = Read("Footprint.cshtml");
+        var drawer = Read("Partials/_PowerPointExportDrawer.cshtml");
+        var exportScript = Read("ffc-powerpoint-export.js");
+
+        Assert.Contains("ExportPowerPoint", drawer, StringComparison.Ordinal);
+        Assert.Contains("Executive brief", drawer, StringComparison.Ordinal);
+        Assert.Contains("Full portfolio", drawer, StringComparison.Ordinal);
+        Assert.Contains("Handling/classification marking", drawer, StringComparison.Ordinal);
+        Assert.Contains("Generated locally from PRISM", drawer, StringComparison.Ordinal);
+        Assert.Contains("fetch(form.action", exportScript, StringComparison.Ordinal);
+        Assert.Contains("application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            Read("Presentation/FfcPowerPointExportService.cs"), StringComparison.Ordinal);
+        Assert.DoesNotContain("presentation=true", page, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-ffc-focus", page, StringComparison.Ordinal);
     }
 
     [Fact]

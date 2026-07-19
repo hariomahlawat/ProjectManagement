@@ -66,6 +66,7 @@ using ProjectManagement.Services.Dashboard;
 using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Documents;
 using ProjectManagement.Services.Ffc;
+using ProjectManagement.Services.Ffc.Presentation;
 using ProjectManagement.Services.IndustryPartners;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Notifications;
@@ -718,6 +719,10 @@ builder.Services.AddScoped<ITrainingNotificationService, TrainingNotificationSer
 builder.Services.AddScoped<ITrainingExportService, TrainingExportService>();
 builder.Services.AddScoped<IFfcPortfolioService, FfcPortfolioService>();
 builder.Services.AddScoped<IFfcFootprintService, FfcFootprintService>();
+builder.Services.AddScoped<IFfcPresentationDataService, FfcPresentationDataService>();
+builder.Services.AddScoped<IFfcPowerPointExportService, FfcPowerPointExportService>();
+builder.Services.AddSingleton<IFfcPresentationMapRenderer, FfcPresentationMapRenderer>();
+builder.Services.AddSingleton<IFfcSlideComposer, FfcSlideComposer>();
 builder.Services.AddScoped<IFfcProgressService, FfcProgressService>();
 builder.Services.AddScoped<IFfcQueryService, FfcQueryService>();
 builder.Services.AddScoped<IFfcRecordWorkspaceService, FfcRecordWorkspaceService>();

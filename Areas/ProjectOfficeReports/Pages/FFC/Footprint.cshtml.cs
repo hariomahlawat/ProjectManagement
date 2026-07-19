@@ -1,13 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Services.Ffc;
+using ProjectManagement.Services.Ffc.Presentation;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 
@@ -15,10 +19,17 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 public sealed class FootprintModel : PageModel
 {
     private readonly IFfcFootprintService _footprintService;
+    private readonly IFfcPowerPointExportService _powerPointExportService;
+    private readonly ILogger<FootprintModel> _logger;
 
-    public FootprintModel(IFfcFootprintService footprintService)
+    public FootprintModel(
+        IFfcFootprintService footprintService,
+        IFfcPowerPointExportService powerPointExportService,
+        ILogger<FootprintModel> logger)
     {
         _footprintService = footprintService ?? throw new ArgumentNullException(nameof(footprintService));
+        _powerPointExportService = powerPointExportService ?? throw new ArgumentNullException(nameof(powerPointExportService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     [BindProperty(SupportsGet = true, Name = "view")]
@@ -39,14 +50,11 @@ public sealed class FootprintModel : PageModel
     [BindProperty(SupportsGet = true, Name = "sort")]
     public string? SortValue { get; set; }
 
-    [BindProperty(SupportsGet = true, Name = "focus")]
-    public string? Focus { get; set; }
-
-    [BindProperty(SupportsGet = true, Name = "presentation")]
-    public bool Presentation { get; set; }
-
     [BindProperty(SupportsGet = true, Name = "selectedCountryId")]
     public long? SelectedCountryId { get; set; }
+
+    [BindProperty]
+    public FfcPowerPointExportInput PowerPoint { get; set; } = new();
 
     public FfcFootprintResult Result { get; private set; } = FfcFootprintResult.Empty();
 
@@ -61,7 +69,7 @@ public sealed class FootprintModel : PageModel
     public bool HasActiveFilters => Year.HasValue || CountryId.HasValue || !string.IsNullOrWhiteSpace(Query);
 
     public DateTimeOffset PositionDate => Result.Countries.Count == 0
-        ? DateTimeOffset.UtcNow
+        ? DateTimeOffset.Now
         : Result.Countries.Max(country => country.LastUpdated);
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
@@ -70,15 +78,10 @@ public sealed class FootprintModel : PageModel
 
         ViewData["Title"] = "FFC Proposals – Global footprint";
         ViewData["UseFullWidth"] = true;
-        ViewData["PresentationMode"] = Presentation;
-
-        if (!Presentation)
-        {
-            FfcBreadcrumbs.Set(
-                ViewData,
-                ("FFC Proposals", Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
-                ("Global footprint", null));
-        }
+        FfcBreadcrumbs.Set(
+            ViewData,
+            ("FFC Proposals", Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
+            ("Global footprint", null));
 
         Result = await _footprintService.GetAsync(
             new FfcFootprintRequest(
@@ -93,13 +96,45 @@ public sealed class FootprintModel : PageModel
         {
             SelectedCountryId = null;
         }
+
+        InitialisePowerPointInput();
+    }
+
+    public async Task<IActionResult> OnPostExportPowerPointAsync(CancellationToken cancellationToken)
+    {
+        var reference = $"FFC-PPT-{HttpContext.TraceIdentifier}";
+        try
+        {
+            var request = BuildPowerPointRequest();
+            var result = await _powerPointExportService.GenerateAsync(request, cancellationToken);
+            Response.Headers["X-FFC-Presentation-Slides"] = result.SlideCount.ToString(CultureInfo.InvariantCulture);
+            return File(result.Content, result.ContentType, result.FileName);
+        }
+        catch (ArgumentException exception)
+        {
+            return ExportProblem(StatusCodes.Status400BadRequest, exception.Message);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return ExportProblem(StatusCodes.Status400BadRequest, exception.Message);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "FFC PowerPoint export failed. Reference {Reference}.", reference);
+            return ExportProblem(
+                StatusCodes.Status500InternalServerError,
+                $"The PowerPoint could not be prepared. Reference: {reference}");
+        }
     }
 
     public Dictionary<string, string?> BuildRoute(
         string? view = null,
         string? metric = null,
         string? sort = null,
-        bool? presentation = null,
         long? selectedCountryId = null,
         bool clearSelectedCountry = false,
         bool clearFilters = false)
@@ -112,8 +147,6 @@ public sealed class FootprintModel : PageModel
             ["q"] = clearFilters || string.IsNullOrWhiteSpace(Query) ? null : Query.Trim(),
             ["metric"] = metric ?? MetricValue,
             ["sort"] = sort ?? SortValue,
-            ["focus"] = Focus,
-            ["presentation"] = (presentation ?? Presentation) ? "true" : null,
             ["selectedCountryId"] = clearSelectedCountry
                 ? null
                 : (selectedCountryId ?? SelectedCountryId)?.ToString(CultureInfo.InvariantCulture)
@@ -174,13 +207,91 @@ public sealed class FootprintModel : PageModel
         };
         SortValue = SortQueryValue(Sort);
 
-        Focus = (Focus ?? string.Empty).Trim().ToLowerInvariant() switch
+        Query = string.IsNullOrWhiteSpace(Query) ? null : Query.Trim();
+    }
+
+    private void InitialisePowerPointInput()
+    {
+        PowerPoint = new FfcPowerPointExportInput
         {
-            "africa" => "africa",
-            "southasia" => "southasia",
-            _ => "world"
+            Scope = "current",
+            PresentationType = "executive",
+            IncludeProjects = true,
+            IncludeProgress = true,
+            Title = "FFC Global Portfolio",
+            Subtitle = $"Position as at {PositionDate:dd MMM yyyy}",
+            CurrentYear = Year,
+            CurrentCountryId = CountryId,
+            CurrentSearch = Query
+        };
+    }
+
+    private FfcPowerPointExportRequest BuildPowerPointRequest()
+    {
+        var scope = PowerPoint.Scope?.Trim().ToLowerInvariant() switch
+        {
+            "complete" => FfcExportScope.CompletePortfolio,
+            "selected" => FfcExportScope.SelectedCountries,
+            _ => FfcExportScope.CurrentFilteredPortfolio
+        };
+        var presentationType = string.Equals(
+            PowerPoint.PresentationType,
+            "full",
+            StringComparison.OrdinalIgnoreCase)
+            ? FfcPresentationType.FullPortfolio
+            : FfcPresentationType.ExecutiveBrief;
+
+        var includePortfolioDetails = presentationType == FfcPresentationType.FullPortfolio;
+        var includeProjects = includePortfolioDetails && PowerPoint.IncludeProjects;
+
+        return new FfcPowerPointExportRequest(
+            scope,
+            presentationType,
+            scope == FfcExportScope.CompletePortfolio ? null : PowerPoint.CurrentYear,
+            scope == FfcExportScope.CurrentFilteredPortfolio ? PowerPoint.CurrentCountryId : null,
+            scope == FfcExportScope.CompletePortfolio ? null : PowerPoint.CurrentSearch,
+            PowerPoint.SelectedCountryIds?.ToArray() ?? Array.Empty<long>(),
+            includeProjects,
+            includeProjects && PowerPoint.IncludeProgress,
+            includePortfolioDetails && PowerPoint.IncludeMilestoneRemarks,
+            includePortfolioDetails && PowerPoint.IncludeAttachmentRegister,
+            PowerPoint.Title?.Trim() ?? string.Empty,
+            PowerPoint.Subtitle?.Trim(),
+            PowerPoint.HandlingMarking?.Trim(),
+            DateTimeOffset.Now);
+    }
+
+    private JsonResult ExportProblem(int statusCode, string message)
+        => new(new
+        {
+            title = "PowerPoint export could not be completed",
+            detail = message
+        })
+        {
+            StatusCode = statusCode
         };
 
-        Query = string.IsNullOrWhiteSpace(Query) ? null : Query.Trim();
+    public sealed class FfcPowerPointExportInput
+    {
+        public string Scope { get; set; } = "current";
+        public string PresentationType { get; set; } = "executive";
+        public short? CurrentYear { get; set; }
+        public long? CurrentCountryId { get; set; }
+        public string? CurrentSearch { get; set; }
+        public List<long> SelectedCountryIds { get; set; } = new();
+        public bool IncludeProjects { get; set; } = true;
+        public bool IncludeProgress { get; set; } = true;
+        public bool IncludeMilestoneRemarks { get; set; }
+        public bool IncludeAttachmentRegister { get; set; }
+
+        [Required]
+        [StringLength(120)]
+        public string? Title { get; set; }
+
+        [StringLength(180)]
+        public string? Subtitle { get; set; }
+
+        [StringLength(80)]
+        public string? HandlingMarking { get; set; }
     }
 }

@@ -33,7 +33,7 @@ function createDom(view = 'cards', selectedCountryId = '') {
   }];
 
   const dom = new JSDOM(`<!doctype html><html><body>
-    <main data-ffc-footprint data-view="${view}" data-metric="total" data-focus="world" data-selected-country-id="${selectedCountryId}" data-geo-url="/map.geojson">
+    <main data-ffc-footprint data-view="${view}" data-metric="total" data-selected-country-id="${selectedCountryId}" data-geo-url="/map.geojson">
       <button data-ffc-country-trigger data-country-id="7">Myanmar</button>
       <div class="offcanvas" id="ffcCountryPanel">
         <button class="btn-close"></button>
