@@ -849,14 +849,14 @@
         state.controls = captureControlState(form);
     };
 
-    const markBaseline = (form, { preserveValidationErrors = true } = {}) => {
+    const markBaseline = form => {
         formState.set(form, {
             baseline: serializeForm(form),
             controls: captureControlState(form),
             submitting: false,
             allowClose: false,
             confirmPending: false,
-            forceDirty: preserveValidationErrors && hasValidationErrors(form)
+            forceDirty: false
         });
     };
 
@@ -874,7 +874,7 @@
         const forms = [...root.querySelectorAll("[data-ffc-dirty-form]")];
         forms.forEach(form => {
             markBaseline(form);
-            form.addEventListener("ffc:form-reset", () => markBaseline(form, { preserveValidationErrors: false }));
+            form.addEventListener("ffc:form-reset", () => markBaseline(form));
         });
 
         document.querySelectorAll(".ffc-workspace-drawer").forEach(drawer => {
@@ -883,7 +883,7 @@
 
             drawer.addEventListener("shown.bs.offcanvas", () => {
                 const current = formState.get(form);
-                if (!current?.forceDirty) markBaseline(form, { preserveValidationErrors: false });
+                if (!current?.forceDirty) markBaseline(form);
             });
 
             drawer.addEventListener("hide.bs.offcanvas", event => {
@@ -1122,9 +1122,29 @@
         });
     };
 
+    const focusValidationErrors = container => {
+        if (!container) return;
+        const summary = container.querySelector(".validation-summary-errors");
+        const field = container.querySelector(
+            ".input-validation-error, .field-validation-error:not(:empty), .is-invalid");
+        const target = summary || field;
+        if (!target) return;
+
+        if (summary) {
+            summary.tabIndex = -1;
+        }
+
+        target.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        window.setTimeout(() => target.focus?.({ preventScroll: true }), 80);
+    };
+
     const autoOpenEditor = () => {
         const workspaceRoot = document.querySelector("[data-ffc-workspace]");
-        if (!workspaceRoot || !window.bootstrap?.Offcanvas) return;
+        if (!workspaceRoot || !window.bootstrap?.Offcanvas) {
+            focusValidationErrors(root);
+            return;
+        }
+
         const editor = String(workspaceRoot.dataset.openEditor || "").toLowerCase();
         const target = editor === "record"
             ? document.getElementById("ffcRecordEditor")
@@ -1133,7 +1153,10 @@
                 : editor === "attachment"
                     ? document.getElementById("ffcAttachmentEditor")
                     : null;
-        if (target) window.bootstrap.Offcanvas.getOrCreateInstance(target).show();
+
+        if (!target) return;
+        target.addEventListener("shown.bs.offcanvas", () => focusValidationErrors(target), { once: true });
+        window.bootstrap.Offcanvas.getOrCreateInstance(target).show();
     };
 
     initMilestones();

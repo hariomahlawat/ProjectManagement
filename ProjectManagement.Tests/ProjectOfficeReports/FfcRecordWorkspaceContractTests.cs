@@ -46,6 +46,19 @@ public sealed class FfcRecordWorkspaceContractTests
     }
 
     [Fact]
+    public void WorkspaceSummary_UsesAccurateMilestoneDateSemanticsAndContextualEmptyActions()
+    {
+        var summary = ReadRecord("_WorkspaceSummary.cshtml");
+        var projects = ReadRecord("_WorkspaceProjects.cshtml");
+
+        Assert.Contains("Model.Workspace.Ipa.IsCompleted", summary, StringComparison.Ordinal);
+        Assert.Contains("Model.Workspace.Gsl.IsCompleted", summary, StringComparison.Ordinal);
+        Assert.Contains("Completion date missing", summary, StringComparison.Ordinal);
+        Assert.DoesNotContain("No date recorded", summary, StringComparison.Ordinal);
+        Assert.Contains("Model.CanManage && Model.Workspace.Projects.Count > 0", projects, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WorkspaceScript_UsesStyledConfirmationAndReliableInteractionContracts()
     {
         var script = ReadRecord("ffc-record-workspace.js");
@@ -60,6 +73,8 @@ public sealed class FfcRecordWorkspaceContractTests
         Assert.Contains("ffcSubmitLocked", script, StringComparison.Ordinal);
         Assert.Contains("setCustomValidity", script, StringComparison.Ordinal);
         Assert.Contains("ffc-project-editor-data", script, StringComparison.Ordinal);
+        Assert.Contains("focusValidationErrors", script, StringComparison.Ordinal);
+        Assert.Contains("forceDirty: false", script, StringComparison.Ordinal);
         Assert.DoesNotContain("window.confirm", script, StringComparison.Ordinal);
     }
 

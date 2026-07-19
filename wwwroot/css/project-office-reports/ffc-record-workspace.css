@@ -1192,3 +1192,26 @@ button[data-ffc-submitting-text]:disabled {
         grid-template-columns: 1fr;
     }
 }
+
+/* Phase 5: data-completeness and compact action refinements */
+.ffc-workspace-metric__detail--warning {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    color: #a16207;
+    font-weight: 600;
+}
+
+.ffc-editor-page__actions {
+    margin-inline: auto;
+    width: min(100%, 1240px);
+    padding: .55rem .65rem;
+    border-radius: .7rem;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, .09);
+}
+
+.ffc-workspace-drawer .validation-summary-errors:focus,
+.ffc-record-create .validation-summary-errors:focus {
+    outline: 3px solid rgba(37, 99, 235, .25);
+    outline-offset: 2px;
+}

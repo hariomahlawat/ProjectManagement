@@ -85,6 +85,12 @@
     <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\Records\Partials\_WorkspaceProjects.cshtml"
           Link="TestData\Ffc\Records\_WorkspaceProjects.cshtml"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\Records\Partials\_WorkspaceSummary.cshtml"
+          Link="TestData\Ffc\Records\_WorkspaceSummary.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\Records\Partials\_WorkspaceAttachments.cshtml"
+          Link="TestData\Ffc\Records\_WorkspaceAttachments.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\Records\Partials\_ProjectEditor.cshtml"
           Link="TestData\Ffc\Records\_ProjectEditor.cshtml"
           CopyToOutputDirectory="PreserveNewest" />

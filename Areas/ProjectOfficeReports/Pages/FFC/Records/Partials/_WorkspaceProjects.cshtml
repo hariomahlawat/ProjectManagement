@@ -32,7 +32,7 @@
             <h2 id="ffc-workspace-projects-title">Projects</h2>
             <p>Project-level quantity, delivery, installation and current progress for this country-year record.</p>
         </div>
-        @if (Model.CanManage)
+        @if (Model.CanManage && Model.Workspace.Projects.Count > 0)
         {
             <button type="button" class="btn btn-primary btn-sm" data-ffc-new-project>
                 <span class="bi bi-plus-lg" aria-hidden="true"></span>

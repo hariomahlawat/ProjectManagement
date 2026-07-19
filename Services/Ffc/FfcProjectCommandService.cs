@@ -6,11 +6,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
+using ProjectManagement.Services.Remarks;
 
 namespace ProjectManagement.Services.Ffc;
 
@@ -200,11 +201,9 @@ public sealed class FfcProjectCommandService : IFfcProjectCommandService
         entity.Remarks = linkedProjectId.HasValue ? null : normalizedProgress;
         entity.UpdatedAt = DateTimeOffset.UtcNow;
 
-        IDbContextTransaction? transaction = null;
-        if (_db.Database.IsRelational())
-        {
-            transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
-        }
+        await using var transaction = await RelationalTransactionScope.CreateAsync(
+            _db.Database,
+            cancellationToken);
 
         try
         {
@@ -222,26 +221,17 @@ public sealed class FfcProjectCommandService : IFfcProjectCommandService
                     cancellationToken);
             }
 
-            if (transaction is not null)
-            {
-                await transaction.CommitAsync(cancellationToken);
-            }
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
-            if (transaction is not null)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-            }
+            await RollbackAndResetAsync(transaction);
             return FfcCommandResult.Conflict(
                 "This project entry was modified by another user. Reload the workspace, review the latest values and save again.");
         }
         catch (DbUpdateException exception) when (IsConstraintViolation(exception, UniqueLinkedProjectConstraint))
         {
-            if (transaction is not null)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-            }
+            await RollbackAndResetAsync(transaction);
             return FfcCommandResult.Invalid(
                 fieldErrors: Error(
                     "LinkedProjectId",
@@ -249,27 +239,18 @@ public sealed class FfcProjectCommandService : IFfcProjectCommandService
         }
         catch (FfcProgressValidationException exception)
         {
-            if (transaction is not null)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-            }
+            await RollbackAndResetAsync(transaction);
             return FfcCommandResult.Invalid(
                 fieldErrors: Error("ProgressText", exception.Message));
         }
         catch (FfcProgressNotFoundException exception)
         {
-            if (transaction is not null)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-            }
+            await RollbackAndResetAsync(transaction);
             return FfcCommandResult.Invalid(exception.Message);
         }
         catch (UnauthorizedAccessException exception)
         {
-            if (transaction is not null)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-            }
+            await RollbackAndResetAsync(transaction);
 
             _logger.LogWarning(
                 exception,
@@ -279,27 +260,45 @@ public sealed class FfcProjectCommandService : IFfcProjectCommandService
             return FfcCommandResult.Invalid(
                 "You are not authorised to update the linked Project progress remark.");
         }
-        catch (Exception exception)
+        catch (InvalidOperationException exception)
+            when (string.Equals(exception.Message, RemarkService.PermissionDeniedMessage, StringComparison.Ordinal))
         {
-            if (transaction is not null)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-            }
-
-            _logger.LogError(
+            await RollbackAndResetAsync(transaction);
+            return FfcCommandResult.Invalid(
+                "You are not authorised to update the linked Project progress remark.");
+        }
+        catch (InvalidOperationException exception)
+            when (string.Equals(exception.Message, RemarkService.ConcurrencyConflictMessage, StringComparison.Ordinal) ||
+                  string.Equals(exception.Message, RemarkService.RowVersionRequiredMessage, StringComparison.Ordinal))
+        {
+            await RollbackAndResetAsync(transaction);
+            return FfcCommandResult.Conflict(
+                "The linked Project progress was changed by another user. Reload the workspace and review the latest update.");
+        }
+        catch (DbUpdateException exception)
+        {
+            await RollbackAndResetAsync(transaction);
+            _logger.LogWarning(
                 exception,
-                "Failed to save FFC project {ProjectId} in record {RecordId}.",
+                "Database constraint failure while saving FFC project {ProjectId} in record {RecordId}.",
                 command.ProjectId,
                 command.RecordId);
             return FfcCommandResult.Invalid(
-                "The project entry could not be saved. No changes were committed.");
+                "The project data is inconsistent and could not be saved. Review the selected project, quantity, position and dates.");
         }
-        finally
+        catch (Exception exception)
         {
-            if (transaction is not null)
-            {
-                await transaction.DisposeAsync();
-            }
+            await RollbackAndResetAsync(transaction);
+            var reference = BuildFailureReference();
+
+            _logger.LogError(
+                exception,
+                "Failed to save FFC project {ProjectId} in record {RecordId}. Reference={Reference}",
+                command.ProjectId,
+                command.RecordId,
+                reference);
+            return FfcCommandResult.Invalid(
+                $"The project entry could not be saved. No changes were committed. Reference: {reference}");
         }
 
         await TryAuditAsync(
@@ -436,6 +435,48 @@ public sealed class FfcProjectCommandService : IFfcProjectCommandService
         return errors.Count == 0
             ? null
             : FfcCommandResult.Invalid(fieldErrors: errors);
+    }
+
+    private async Task RollbackAndResetAsync(RelationalTransactionScope transaction)
+    {
+        try
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+        }
+        catch (Exception rollbackException)
+        {
+            _logger.LogError(
+                rollbackException,
+                "Failed to roll back an FFC project transaction. The DbContext will be cleared before returning.");
+        }
+        finally
+        {
+            // A database rollback does not restore EF Core's tracked states. Clear
+            // generated identifiers and modified entities so the PageModel can reload
+            // an authoritative workspace after a failed composed operation.
+            _db.ChangeTracker.Clear();
+        }
+    }
+
+    private string BuildFailureReference()
+    {
+        var traceIdentifier = _httpContextAccessor.HttpContext?.TraceIdentifier;
+        var source = string.IsNullOrWhiteSpace(traceIdentifier)
+            ? Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture)
+            : traceIdentifier;
+
+        var safe = new string(source.Where(char.IsLetterOrDigit).ToArray());
+        if (safe.Length > 12)
+        {
+            safe = safe[^12..];
+        }
+
+        if (safe.Length == 0)
+        {
+            safe = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture)[..12];
+        }
+
+        return $"FFC-{safe.ToUpperInvariant()}";
     }
 
     private async Task TryAuditAsync(

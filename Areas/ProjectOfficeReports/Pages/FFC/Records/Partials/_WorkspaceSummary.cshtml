@@ -26,9 +26,22 @@
             <span class="ffc-workspace-status @(Model.Workspace.Ipa.IsCompleted ? "is-complete" : "is-pending")">
                 @(Model.Workspace.Ipa.IsCompleted ? "Completed" : "Pending")
             </span>
-            <span class="ffc-workspace-metric__detail">
-                @(Model.Workspace.Ipa.CompletedOn?.ToString("d MMM yyyy", CultureInfo.InvariantCulture) ?? "No date recorded")
-            </span>
+            @if (Model.Workspace.Ipa.IsCompleted)
+            {
+                if (Model.Workspace.Ipa.CompletedOn.HasValue)
+                {
+                    <span class="ffc-workspace-metric__detail">
+                        @Model.Workspace.Ipa.CompletedOn.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture)
+                    </span>
+                }
+                else
+                {
+                    <span class="ffc-workspace-metric__detail ffc-workspace-metric__detail--warning">
+                        <span class="bi bi-exclamation-circle" aria-hidden="true"></span>
+                        Completion date missing
+                    </span>
+                }
+            }
         </div>
 
         <div class="ffc-workspace-metric">
@@ -36,9 +49,22 @@
             <span class="ffc-workspace-status @(Model.Workspace.Gsl.IsCompleted ? "is-complete" : "is-pending")">
                 @(Model.Workspace.Gsl.IsCompleted ? "Completed" : "Pending")
             </span>
-            <span class="ffc-workspace-metric__detail">
-                @(Model.Workspace.Gsl.CompletedOn?.ToString("d MMM yyyy", CultureInfo.InvariantCulture) ?? "No date recorded")
-            </span>
+            @if (Model.Workspace.Gsl.IsCompleted)
+            {
+                if (Model.Workspace.Gsl.CompletedOn.HasValue)
+                {
+                    <span class="ffc-workspace-metric__detail">
+                        @Model.Workspace.Gsl.CompletedOn.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture)
+                    </span>
+                }
+                else
+                {
+                    <span class="ffc-workspace-metric__detail ffc-workspace-metric__detail--warning">
+                        <span class="bi bi-exclamation-circle" aria-hidden="true"></span>
+                        Completion date missing
+                    </span>
+                }
+            }
         </div>
 
         <div class="ffc-workspace-metric ffc-workspace-metric--units">
