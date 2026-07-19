@@ -719,6 +719,10 @@ builder.Services.AddScoped<ITrainingExportService, TrainingExportService>();
 builder.Services.AddScoped<IFfcPortfolioService, FfcPortfolioService>();
 builder.Services.AddScoped<IFfcProgressService, FfcProgressService>();
 builder.Services.AddScoped<IFfcQueryService, FfcQueryService>();
+builder.Services.AddScoped<IFfcRecordWorkspaceService, FfcRecordWorkspaceService>();
+builder.Services.AddScoped<IFfcRecordCommandService, FfcRecordCommandService>();
+builder.Services.AddScoped<IFfcProjectCommandService, FfcProjectCommandService>();
+builder.Services.AddScoped<IFfcAttachmentCommandService, FfcAttachmentCommandService>();
 builder.Services.AddScoped<IProgressReviewService, ProgressReviewService>();
 builder.Services.AddSingleton<ITrainingExcelWorkbookBuilder, TrainingExcelWorkbookBuilder>();
 builder.Services.AddOptions<ProjectPhotoOptions>()

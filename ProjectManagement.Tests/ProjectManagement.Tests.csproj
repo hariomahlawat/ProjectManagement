@@ -70,6 +70,33 @@
     <None Include="..\wwwroot\js\pages\project-office-reports\ffc\ffc-portfolio.js"
           Link="TestData\Ffc\ffc-portfolio.js"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\Records\Create.cshtml"
+          Link="TestData\Ffc\Records\Create.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\Records\Details.cshtml"
+          Link="TestData\Ffc\Records\Details.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\Records\Archived.cshtml"
+          Link="TestData\Ffc\Records\Archived.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\Records\Partials\_RecordEditor.cshtml"
+          Link="TestData\Ffc\Records\_RecordEditor.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\Records\Partials\_WorkspaceProjects.cshtml"
+          Link="TestData\Ffc\Records\_WorkspaceProjects.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\Records\Partials\_ProjectEditor.cshtml"
+          Link="TestData\Ffc\Records\_ProjectEditor.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\Records\Partials\_AttachmentUploader.cshtml"
+          Link="TestData\Ffc\Records\_AttachmentUploader.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\wwwroot\css\project-office-reports\ffc-record-workspace.css"
+          Link="TestData\Ffc\Records\ffc-record-workspace.css"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\wwwroot\js\pages\project-office-reports\ffc\ffc-record-workspace.js"
+          Link="TestData\Ffc\Records\ffc-record-workspace.js"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -57,10 +57,18 @@ public class UploadModel(
             return NotFound();
         }
 
-        ConfigureBreadcrumb();
-        await LoadAttachmentItemsAsync(recordId);
+        var url = Url.Page(
+            "/FFC/Records/Details",
+            pageHandler: null,
+            values: new
+            {
+                area = "ProjectOfficeReports",
+                id = recordId
+            },
+            protocol: null);
 
-        return Page();
+        var target = url ?? $"/ProjectOfficeReports/FFC/Records/Details/{recordId}";
+        return Redirect($"{target}#attachments");
     }
 
     public async Task<IActionResult> OnPostUploadAsync(long recordId)

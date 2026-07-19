@@ -1,0 +1,120 @@
+@using System.Globalization
+@using ProjectManagement.Helpers
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.DetailsModel
+
+<section class="ffc-workspace-section" id="attachments" aria-labelledby="ffc-workspace-attachments-title">
+    <div class="ffc-workspace-section__heading">
+        <div>
+            <h2 id="ffc-workspace-attachments-title">Attachments</h2>
+            <p>Supporting PDFs and images linked to this country-year record.</p>
+        </div>
+        @if (Model.CanManage)
+        {
+            <button type="button"
+                    class="btn btn-outline-primary btn-sm"
+                    data-bs-toggle="offcanvas"
+                    data-bs-target="#ffcAttachmentEditor"
+                    aria-controls="ffcAttachmentEditor">
+                <span class="bi bi-paperclip" aria-hidden="true"></span>
+                Add attachment
+            </button>
+        }
+    </div>
+
+    @if (Model.Workspace.Attachments.Count == 0)
+    {
+        <div class="ffc-workspace-empty ffc-workspace-empty--compact">
+            <span class="bi bi-paperclip" aria-hidden="true"></span>
+            <div>
+                <h3>No supporting files</h3>
+                <p>PDFs and images added to this record will be available here.</p>
+            </div>
+            @if (Model.CanManage)
+            {
+                <button type="button"
+                        class="btn btn-outline-primary btn-sm"
+                        data-bs-toggle="offcanvas"
+                        data-bs-target="#ffcAttachmentEditor">
+                    Upload file
+                </button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="ffc-attachment-list">
+            @foreach (var attachment in Model.Workspace.Attachments)
+            {
+                <article class="ffc-attachment-item">
+                    <div class="ffc-attachment-item__icon" aria-hidden="true">
+                        <span class="bi @(attachment.Kind == ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcAttachmentKind.Pdf ? "bi-file-earmark-pdf" : "bi-file-earmark-image")"></span>
+                    </div>
+                    <div class="ffc-attachment-item__body">
+                        <a asp-area="ProjectOfficeReports"
+                           asp-page="/FFC/Attachments/View"
+                           asp-route-id="@attachment.Id"
+                           target="_blank"
+                           rel="noopener"
+                           class="ffc-attachment-item__title">
+                            @attachment.Label
+                        </a>
+                        <div class="ffc-attachment-item__meta">
+                            <span>@attachment.Kind</span>
+                            <span aria-hidden="true">·</span>
+                            <span>@FileSizeFormatter.FormatFileSize(attachment.SizeBytes)</span>
+                            <span aria-hidden="true">·</span>
+                            <span>@attachment.UploadedAt.ToString("d MMM yyyy", CultureInfo.InvariantCulture)</span>
+                        </div>
+                    </div>
+                    <div class="ffc-attachment-item__actions">
+                        <a asp-area="ProjectOfficeReports"
+                           asp-page="/FFC/Attachments/View"
+                           asp-route-id="@attachment.Id"
+                           target="_blank"
+                           rel="noopener"
+                           class="btn btn-light btn-sm"
+                           aria-label="Open @attachment.Label">
+                            <span class="bi bi-box-arrow-up-right" aria-hidden="true"></span>
+                        </a>
+                        @if (Model.CanManage)
+                        {
+                            <button type="button"
+                                    class="btn btn-light btn-sm text-danger"
+                                    data-ffc-delete-attachment
+                                    data-attachment-id="@attachment.Id"
+                                    data-attachment-label="@attachment.Label"
+                                    aria-label="Delete @attachment.Label">
+                                <span class="bi bi-trash" aria-hidden="true"></span>
+                            </button>
+                        }
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</section>
+
+@if (Model.CanManage)
+{
+    <div class="modal fade" id="ffcDeleteAttachmentModal" tabindex="-1" aria-labelledby="ffcDeleteAttachmentModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="ffcDeleteAttachmentModalLabel">Delete attachment?</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">The file <strong data-ffc-delete-attachment-label></strong> will be removed from this FFC record.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form method="post" asp-page-handler="DeleteAttachment" asp-route-id="@Model.Workspace.RecordId">
+                        <input type="hidden" name="attachmentId" data-ffc-delete-attachment-id />
+                        <input type="hidden" asp-for="ReturnUrl" />
+                        <button type="submit" class="btn btn-danger">Delete attachment</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}

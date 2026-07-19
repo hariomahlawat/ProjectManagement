@@ -1,0 +1,186 @@
+@using System.Linq
+@using ProjectManagement.Services.Ffc
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.DetailsModel
+@{
+    var selectedProject = Model.ProjectInput.LinkedProjectId.HasValue
+        ? Model.ProjectOptions.FirstOrDefault(project => project.Id == Model.ProjectInput.LinkedProjectId.Value)
+        : null;
+}
+
+<div class="offcanvas offcanvas-end ffc-workspace-drawer"
+     tabindex="-1"
+     id="ffcProjectEditor"
+     aria-labelledby="ffcProjectEditorLabel"
+     data-bs-backdrop="static"
+     data-bs-keyboard="false">
+    <div class="offcanvas-header ffc-workspace-drawer__header">
+        <div>
+            <div class="ffc-workspace-drawer__eyebrow">@Model.Workspace.CountryName · @Model.Workspace.Year</div>
+            <h2 class="offcanvas-title" id="ffcProjectEditorLabel" data-ffc-project-editor-title>
+                @(Model.ProjectInput.Id.HasValue ? "Edit project" : "Add project")
+            </h2>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+
+    <form method="post"
+          asp-page-handler="SaveProject"
+          asp-route-id="@Model.Workspace.RecordId"
+          class="ffc-workspace-drawer__form"
+          data-ffc-dirty-form
+          data-ffc-project-form>
+        <input type="hidden" asp-for="ProjectInput.Id" data-ffc-project-id-input />
+        <input type="hidden" asp-for="ProjectInput.RowVersion" data-ffc-project-version-input />
+        <input type="hidden" asp-for="ProjectInput.LinkedProjectId" data-ffc-project-value />
+        <input type="hidden" asp-for="ReturnUrl" />
+
+        <div class="offcanvas-body ffc-workspace-drawer__body">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+            <section class="ffc-drawer-section">
+                <h3>Project source</h3>
+                <div class="ffc-source-choice" role="radiogroup" aria-label="Project source">
+                    <label class="ffc-source-choice__option">
+                        <input type="radio"
+                               asp-for="ProjectInput.IsLinkedProject"
+                               value="true"
+                               data-ffc-project-source="linked" />
+                        <span>
+                            <strong>Link an existing PRISM Project</strong>
+                            <small>Progress remains shared with the Project external remark.</small>
+                        </span>
+                    </label>
+                    <label class="ffc-source-choice__option">
+                        <input type="radio"
+                               asp-for="ProjectInput.IsLinkedProject"
+                               value="false"
+                               data-ffc-project-source="unlinked" />
+                        <span>
+                            <strong>Add an unlinked FFC item</strong>
+                            <small>Use when no matching Project exists in PRISM.</small>
+                        </span>
+                    </label>
+                </div>
+            </section>
+
+            <section class="ffc-drawer-section" data-ffc-linked-project-section>
+                <label for="ffc-linked-project-search" class="form-label">PRISM Project</label>
+                <div class="ffc-project-picker" data-ffc-project-picker>
+                    <span class="bi bi-search ffc-project-picker__icon" aria-hidden="true"></span>
+                    <input id="ffc-linked-project-search"
+                           type="search"
+                           class="form-control ffc-project-picker__input"
+                           value="@selectedProject?.Name"
+                           placeholder="Search project name"
+                           autocomplete="off"
+                           spellcheck="false"
+                           role="combobox"
+                           aria-autocomplete="list"
+                           aria-expanded="false"
+                           aria-controls="ffc-project-picker-results"
+                           data-ffc-project-search />
+                    <button type="button"
+                            class="ffc-project-picker__clear"
+                            aria-label="Clear selected project"
+                            data-ffc-project-clear>
+                        <span class="bi bi-x-lg" aria-hidden="true"></span>
+                    </button>
+                    <div id="ffc-project-picker-results"
+                         class="ffc-project-picker__results"
+                         role="listbox"
+                         hidden
+                         data-ffc-project-results></div>
+                </div>
+                <div class="ffc-project-picker__selected" data-ffc-project-selected-meta>
+                    @selectedProject?.SecondaryText
+                </div>
+                <span asp-validation-for="ProjectInput.LinkedProjectId" class="text-danger"></span>
+            </section>
+
+            <section class="ffc-drawer-section">
+                <label asp-for="ProjectInput.DisplayName" class="form-label" data-ffc-project-name-label>
+                    FFC display title
+                </label>
+                <input asp-for="ProjectInput.DisplayName"
+                       class="form-control"
+                       placeholder="Country/year-specific project description"
+                       data-ffc-project-name-input />
+                <div class="form-text" data-ffc-project-name-help>
+                    Defaults to the linked Project name and may be adjusted for the FFC-specific quantity or scope.
+                </div>
+                <span asp-validation-for="ProjectInput.DisplayName" class="text-danger"></span>
+            </section>
+
+            <section class="ffc-drawer-section">
+                <label asp-for="ProjectInput.Quantity" class="form-label">Quantity</label>
+                <input asp-for="ProjectInput.Quantity"
+                       type="number"
+                       min="1"
+                       class="form-control"
+                       data-ffc-project-quantity />
+                <span asp-validation-for="ProjectInput.Quantity" class="text-danger"></span>
+            </section>
+
+            <section class="ffc-drawer-section">
+                <h3>Current position</h3>
+                <div class="ffc-position-choice" role="radiogroup" aria-label="Current project position">
+                    <label>
+                        <input type="radio"
+                               asp-for="ProjectInput.Position"
+                               value="@FfcUnitPosition.Planned"
+                               data-ffc-position-option />
+                        <span>Planned</span>
+                    </label>
+                    <label>
+                        <input type="radio"
+                               asp-for="ProjectInput.Position"
+                               value="@FfcUnitPosition.DeliveredAwaitingInstallation"
+                               data-ffc-position-option />
+                        <span>Delivered</span>
+                    </label>
+                    <label>
+                        <input type="radio"
+                               asp-for="ProjectInput.Position"
+                               value="@FfcUnitPosition.Installed"
+                               data-ffc-position-option />
+                        <span>Installed</span>
+                    </label>
+                </div>
+                <span asp-validation-for="ProjectInput.Position" class="text-danger"></span>
+
+                <div class="row g-3 mt-1">
+                    <div class="col-md-6" data-ffc-delivery-date-field>
+                        <label asp-for="ProjectInput.DeliveredOn" class="form-label">Delivered on</label>
+                        <input asp-for="ProjectInput.DeliveredOn" type="date" class="form-control" />
+                        <span asp-validation-for="ProjectInput.DeliveredOn" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6" data-ffc-installation-date-field>
+                        <label asp-for="ProjectInput.InstalledOn" class="form-label">Installed on</label>
+                        <input asp-for="ProjectInput.InstalledOn" type="date" class="form-control" />
+                        <span asp-validation-for="ProjectInput.InstalledOn" class="text-danger"></span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="ffc-drawer-section">
+                <label asp-for="ProjectInput.ProgressText" class="form-label">Current progress</label>
+                <textarea asp-for="ProjectInput.ProgressText"
+                          class="form-control"
+                          rows="5"
+                          placeholder="Enter the latest progress, dependency or next action."
+                          data-ffc-project-progress></textarea>
+                <div class="form-text" data-ffc-progress-help>
+                    For linked projects, this is the same canonical external remark shown in the Project module and Detailed Table.
+                </div>
+                <span asp-validation-for="ProjectInput.ProgressText" class="text-danger"></span>
+            </section>
+        </div>
+
+        <div class="ffc-workspace-drawer__footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+            <button type="submit" class="btn btn-primary" data-ffc-project-submit>
+                @(Model.ProjectInput.Id.HasValue ? "Save changes" : "Add project")
+            </button>
+        </div>
+    </form>
+</div>

@@ -58,6 +58,10 @@
     var overallPosition = string.IsNullOrWhiteSpace(Model.OverallRemarks)
         ? "No overall remarks recorded."
         : Model.OverallRemarks.Trim();
+    var hasMilestoneRemarks = !string.IsNullOrWhiteSpace(Model.Ipa.Remarks) ||
+                              !string.IsNullOrWhiteSpace(Model.Gsl.Remarks);
+    var request = ViewContext.HttpContext.Request;
+    var currentReturnUrl = $"{request.PathBase}{request.Path}{request.QueryString}";
 }
 
 <article class="ffc-portfolio-row" data-ffc-record-id="@Model.RecordId">
@@ -65,7 +69,14 @@
         <summary class="ffc-portfolio-row__summary" aria-controls="@detailsId-panel">
             <div class="ffc-portfolio-row__identity">
                 <div class="ffc-portfolio-row__country-line">
-                    <span class="ffc-portfolio-row__country">@Model.CountryName</span>
+                    <a asp-area="ProjectOfficeReports"
+                       asp-page="/FFC/Records/Details"
+                       asp-route-id="@Model.RecordId"
+                       asp-route-returnUrl="@currentReturnUrl"
+                       class="ffc-portfolio-row__country"
+                       data-ffc-row-link>
+                        @Model.CountryName
+                    </a>
                     <span class="ffc-portfolio-row__iso">@Model.IsoCode</span>
                     <span class="ffc-portfolio-row__year">@Model.Year</span>
                 </div>
@@ -141,16 +152,25 @@
         </summary>
 
         <div class="ffc-portfolio-row__expanded" id="@detailsId-panel">
-            <div class="ffc-record-detail-strip">
-                <div>
-                    <span class="ffc-record-detail-strip__label">IPA remarks</span>
-                    <span>@(string.IsNullOrWhiteSpace(Model.Ipa.Remarks) ? "No remarks recorded." : Model.Ipa.Remarks)</span>
+            @if (hasMilestoneRemarks)
+            {
+                <div class="ffc-record-detail-strip">
+                    @if (!string.IsNullOrWhiteSpace(Model.Ipa.Remarks))
+                    {
+                        <div>
+                            <span class="ffc-record-detail-strip__label">IPA remarks</span>
+                            <span>@Model.Ipa.Remarks</span>
+                        </div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.Gsl.Remarks))
+                    {
+                        <div>
+                            <span class="ffc-record-detail-strip__label">GSL remarks</span>
+                            <span>@Model.Gsl.Remarks</span>
+                        </div>
+                    }
                 </div>
-                <div>
-                    <span class="ffc-record-detail-strip__label">GSL remarks</span>
-                    <span>@(string.IsNullOrWhiteSpace(Model.Gsl.Remarks) ? "No remarks recorded." : Model.Gsl.Remarks)</span>
-                </div>
-            </div>
+            }
 
             <div class="ffc-project-rollup" aria-label="Projects for @Model.CountryName @Model.Year">
                 <div class="ffc-project-rollup__header">
@@ -249,22 +269,37 @@
             <span class="bi bi-three-dots-vertical" aria-hidden="true"></span>
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+                <a asp-area="ProjectOfficeReports"
+                   asp-page="/FFC/Records/Details"
+                   asp-route-id="@Model.RecordId"
+                   asp-route-returnUrl="@currentReturnUrl"
+                   class="dropdown-item">
+                    <span class="bi bi-box-arrow-in-right" aria-hidden="true"></span>
+                    Open record
+                </a>
+            </li>
             @if (canManage)
             {
                 <li>
                     <a asp-area="ProjectOfficeReports"
-                       asp-page="/FFC/Records/Manage"
-                       asp-route-editId="@Model.RecordId"
+                       asp-page="/FFC/Records/Details"
+                       asp-route-id="@Model.RecordId"
+                       asp-route-editor="record"
+                       asp-route-returnUrl="@currentReturnUrl"
                        class="dropdown-item">
                         <span class="bi bi-pencil-square" aria-hidden="true"></span>
                         Edit record
                     </a>
                 </li>
             }
+            <li><hr class="dropdown-divider" /></li>
             <li>
                 <a asp-area="ProjectOfficeReports"
-                   asp-page="/FFC/Records/Projects/Manage"
-                   asp-route-recordId="@Model.RecordId"
+                   asp-page="/FFC/Records/Details"
+                   asp-route-id="@Model.RecordId"
+                   asp-route-returnUrl="@currentReturnUrl"
+                   asp-fragment="projects"
                    class="dropdown-item">
                     <span class="bi bi-folder2-open" aria-hidden="true"></span>
                     Projects
@@ -272,8 +307,10 @@
             </li>
             <li>
                 <a asp-area="ProjectOfficeReports"
-                   asp-page="/FFC/Records/Attachments/Upload"
-                   asp-route-recordId="@Model.RecordId"
+                   asp-page="/FFC/Records/Details"
+                   asp-route-id="@Model.RecordId"
+                   asp-route-returnUrl="@currentReturnUrl"
+                   asp-fragment="attachments"
                    class="dropdown-item">
                     <span class="bi bi-paperclip" aria-hidden="true"></span>
                     Attachments

@@ -28,6 +28,11 @@ public sealed class FfcDataIntegrityModelTests
             index.GetDatabaseName() == "UX_FfcProjects_Record_LinkedProject"));
         Assert.True(linkedProjectIndex.IsUnique);
         Assert.Equal("\"LinkedProjectId\" IS NOT NULL", linkedProjectIndex.GetFilter());
+
+        var rowVersion = projectType.FindProperty(nameof(FfcProject.RowVersion));
+        Assert.NotNull(rowVersion);
+        Assert.True(rowVersion!.IsConcurrencyToken);
+        Assert.False(rowVersion.IsNullable);
     }
 
     [Fact]

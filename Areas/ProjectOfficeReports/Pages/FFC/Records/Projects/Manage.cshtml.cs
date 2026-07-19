@@ -56,39 +56,20 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
             return NotFound();
         }
 
-        ConfigureBreadcrumb("Projects");
-
-        if (id.HasValue)
-        {
-            var project = await _db.FfcProjects
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == id.Value && x.FfcRecordId == RecordId);
-            if (project is null)
+        var url = Url.Page(
+            "/FFC/Records/Details",
+            pageHandler: null,
+            values: new
             {
-                return NotFound();
-            }
+                area = "ProjectOfficeReports",
+                id = recordId,
+                editor = id.HasValue ? "project" : null,
+                projectId = id
+            },
+            protocol: null);
 
-            Input = new()
-            {
-                Id = project.Id,
-                Name = project.Name,
-                Remarks = project.Remarks,
-                LinkedProjectId = project.LinkedProjectId,
-                Quantity = project.Quantity,
-                IsDelivered = project.IsDelivered,
-                DeliveredOn = project.DeliveredOn,
-                IsInstalled = project.IsInstalled,
-                InstalledOn = project.InstalledOn
-            };
-        }
-        else
-        {
-            Input = new();
-        }
-
-        await LoadPageDataAsync(recordId, Input.LinkedProjectId);
-
-        return Page();
+        var target = url ?? $"/ProjectOfficeReports/FFC/Records/Details/{recordId}";
+        return Redirect($"{target}#projects");
     }
 
     public async Task<IActionResult> OnPostCreateAsync(long recordId)

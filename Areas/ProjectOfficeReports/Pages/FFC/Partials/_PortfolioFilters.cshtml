@@ -46,13 +46,7 @@
                 Apply
             </button>
 
-            @if (Model.HasActiveFilters)
-            {
-                <a asp-page="./Index" class="btn btn-link ffc-portfolio-filters__clear">Clear</a>
-            }
-        </div>
-
-        <details class="ffc-advanced-filters"
+            <details class="ffc-advanced-filters"
                  data-ffc-advanced-filters
                  data-active="@(Model.HasAdvancedFilters ? "true" : "false")">
             <summary class="ffc-advanced-filters__summary">
@@ -147,6 +141,12 @@
                 </div>
             </div>
         </details>
+
+            @if (Model.HasActiveFilters)
+            {
+                <a asp-page="./Index" class="btn btn-link ffc-portfolio-filters__clear">Clear</a>
+            }
+        </div>
     </form>
 
     @if (Model.HasActiveFilters)

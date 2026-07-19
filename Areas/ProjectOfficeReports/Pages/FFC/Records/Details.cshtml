@@ -1,0 +1,174 @@
+@page "{id:long}"
+@using System.Linq
+@using System.Text.Json
+@using ProjectManagement.Models
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.DetailsModel
+@{
+    ViewData["Title"] = $"FFC Proposals – {Model.Workspace.CountryName} {Model.Workspace.Year}";
+    ViewData["UseFullWidth"] = true;
+
+    var projectOptionsJson = JsonSerializer.Serialize(Model.ProjectOptions.Select(project => new
+    {
+        id = project.Id,
+        name = project.Name,
+        lifecycle = project.LifecycleStatus.ToString(),
+        secondary = project.SecondaryText,
+        available = project.IsAvailable
+    }));
+}
+
+@section Styles {
+    <link rel="stylesheet"
+          href="~/css/project-office-reports/ffc-record-workspace.css"
+          asp-append-version="true" />
+}
+
+<div class="container-fluid px-3 px-lg-4 py-2 ffc-workspace"
+     data-ffc-workspace
+     data-open-editor="@Model.Editor">
+    <header class="ffc-workspace-header">
+        <div class="ffc-workspace-header__copy">
+            <div class="ffc-workspace-header__eyebrow">FFC country-year workspace</div>
+            <div class="ffc-workspace-header__title-line">
+                <h1>@Model.Workspace.CountryName <span>· @Model.Workspace.Year</span></h1>
+                <span class="ffc-workspace-header__iso">@Model.Workspace.IsoCode</span>
+            </div>
+            <p>
+                @Model.Workspace.ProjectCount project@(Model.Workspace.ProjectCount == 1 ? string.Empty : "s")
+                · @Model.Workspace.UnitSummary.TotalUnits unit@(Model.Workspace.UnitSummary.TotalUnits == 1 ? string.Empty : "s")
+                · @Model.Workspace.AttachmentCount attachment@(Model.Workspace.AttachmentCount == 1 ? string.Empty : "s")
+            </p>
+        </div>
+
+        <div class="ffc-workspace-header__actions">
+            <a href="@Model.SafeReturnUrl" class="btn btn-outline-secondary btn-sm">
+                <span class="bi bi-arrow-left" aria-hidden="true"></span>
+                Portfolio
+            </a>
+
+            @if (Model.CanManage)
+            {
+                <button type="button"
+                        class="btn btn-outline-primary btn-sm"
+                        data-bs-toggle="offcanvas"
+                        data-bs-target="#ffcRecordEditor"
+                        aria-controls="ffcRecordEditor">
+                    <span class="bi bi-pencil-square" aria-hidden="true"></span>
+                    Edit record
+                </button>
+                <button type="button"
+                        class="btn btn-primary btn-sm"
+                        data-ffc-new-project>
+                    <span class="bi bi-plus-lg" aria-hidden="true"></span>
+                    Add project
+                </button>
+                <button type="button"
+                        class="btn btn-outline-primary btn-sm"
+                        data-bs-toggle="offcanvas"
+                        data-bs-target="#ffcAttachmentEditor"
+                        aria-controls="ffcAttachmentEditor">
+                    <span class="bi bi-paperclip" aria-hidden="true"></span>
+                    Add attachment
+                </button>
+            }
+
+            <div class="dropdown">
+                <button type="button"
+                        class="btn btn-light btn-sm"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false"
+                        aria-label="More record actions">
+                    <span class="bi bi-three-dots" aria-hidden="true"></span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                        <a asp-area="ProjectOfficeReports"
+                           asp-page="/FFC/MapTableDetailed"
+                           class="dropdown-item">
+                            <span class="bi bi-table" aria-hidden="true"></span>
+                            Open Detailed Table
+                        </a>
+                    </li>
+                    <li>
+                        <a asp-area="ProjectOfficeReports"
+                           asp-page="/FFC/Map"
+                           class="dropdown-item">
+                            <span class="bi bi-geo-alt" aria-hidden="true"></span>
+                            Open footprint
+                        </a>
+                    </li>
+                    @if (Model.CanManage)
+                    {
+                        <li><hr class="dropdown-divider" /></li>
+                        <li>
+                            <button type="button"
+                                    class="dropdown-item text-danger"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#ffcArchiveRecordModal">
+                                <span class="bi bi-archive" aria-hidden="true"></span>
+                                Archive record
+                            </button>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </header>
+
+    <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
+
+    <partial name="~/Areas/ProjectOfficeReports/Pages/FFC/Records/Partials/_WorkspaceSummary.cshtml"
+             model="Model" />
+
+    <partial name="~/Areas/ProjectOfficeReports/Pages/FFC/Records/Partials/_WorkspaceProjects.cshtml"
+             model="Model" />
+
+    <partial name="~/Areas/ProjectOfficeReports/Pages/FFC/Records/Partials/_WorkspaceAttachments.cshtml"
+             model="Model" />
+
+    @if (Model.CanManage)
+    {
+        <partial name="~/Areas/ProjectOfficeReports/Pages/FFC/Records/Partials/_RecordEditor.cshtml"
+                 model="Model" />
+        <partial name="~/Areas/ProjectOfficeReports/Pages/FFC/Records/Partials/_ProjectEditor.cshtml"
+                 model="Model" />
+        <partial name="~/Areas/ProjectOfficeReports/Pages/FFC/Records/Partials/_AttachmentUploader.cshtml"
+                 model="Model" />
+
+        <div class="modal fade" id="ffcArchiveRecordModal" tabindex="-1" aria-labelledby="ffcArchiveRecordModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title fs-5" id="ffcArchiveRecordModalLabel">Archive this FFC record?</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-2">
+                            <strong>@Model.Workspace.CountryName · @Model.Workspace.Year</strong> will be removed from normal FFC views.
+                        </p>
+                        <p class="text-body-secondary mb-0">
+                            Its projects and attachments are retained. This action does not delete any linked PRISM Project.
+                        </p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <form method="post" asp-page-handler="Archive" asp-route-id="@Model.Workspace.RecordId">
+                            <input type="hidden" name="rowVersion" value="@Model.Workspace.RowVersion" />
+                            <input type="hidden" asp-for="ReturnUrl" />
+                            <button type="submit" class="btn btn-danger">Archive record</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <script type="application/json" id="ffc-project-options">@Html.Raw(projectOptionsJson)</script>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/pages/project-office-reports/ffc/ffc-record-workspace.js"
+            asp-append-version="true"
+            defer></script>
+}

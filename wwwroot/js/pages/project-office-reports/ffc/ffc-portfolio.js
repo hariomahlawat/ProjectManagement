@@ -40,6 +40,11 @@
         }
     };
 
+    pageRoot.querySelectorAll("[data-ffc-row-link]").forEach((link) => {
+        link.addEventListener("click", (event) => event.stopPropagation());
+        link.addEventListener("keydown", (event) => event.stopPropagation());
+    });
+
     const openIds = readOpenIds();
     recordDetails.forEach((details) => {
         const recordId = details.closest("[data-ffc-record-id]")?.dataset.ffcRecordId;

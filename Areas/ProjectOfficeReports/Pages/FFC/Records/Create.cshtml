@@ -1,0 +1,190 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.CreateModel
+@{
+    ViewData["Title"] = "FFC Proposals – New record";
+    ViewData["UseFullWidth"] = true;
+}
+
+@section Styles {
+    <link rel="stylesheet"
+          href="~/css/project-office-reports/ffc-record-workspace.css"
+          asp-append-version="true" />
+}
+
+<div class="container-fluid px-3 px-lg-4 py-2 ffc-workspace ffc-record-create">
+    <header class="ffc-workspace-header">
+        <div>
+            <div class="ffc-workspace-header__eyebrow">FFC Proposals</div>
+            <h1>New country-year record</h1>
+            <p>Create the record once, then add its projects and supporting documents from the workspace.</p>
+        </div>
+        <a href="@Model.SafeReturnUrl"
+           class="btn btn-outline-secondary btn-sm">
+            <span class="bi bi-arrow-left" aria-hidden="true"></span>
+            Back to portfolio
+        </a>
+    </header>
+
+    <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
+
+    <form method="post"
+          class="ffc-editor-page"
+          data-ffc-dirty-form
+          data-ffc-record-form>
+        <input type="hidden" asp-for="ReturnUrl" />
+
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+        <section class="ffc-editor-section" aria-labelledby="ffc-create-identity-title">
+            <div class="ffc-editor-section__heading">
+                <div>
+                    <h2 id="ffc-create-identity-title">Record identity</h2>
+                    <p>Each active country and year can have only one FFC record.</p>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-lg-8">
+                    <label asp-for="Input.CountryId" class="form-label">Country</label>
+                    <select asp-for="Input.CountryId"
+                            class="form-select"
+                            data-ffc-search-select
+                            data-placeholder="Search or select country">
+                        <option value="">Select country</option>
+                        @foreach (var country in Model.Countries)
+                        {
+                            <option value="@country.Id" data-secondary="@country.IsoCode">
+                                @country.Name@(country.IsActive ? string.Empty : " (inactive)")
+                            </option>
+                        }
+                    </select>
+                    <span asp-validation-for="Input.CountryId" class="text-danger"></span>
+                </div>
+                <div class="col-lg-4">
+                    <label asp-for="Input.Year" class="form-label">Year</label>
+                    <input asp-for="Input.Year"
+                           type="number"
+                           min="2000"
+                           max="2100"
+                           inputmode="numeric"
+                           class="form-control" />
+                    <span asp-validation-for="Input.Year" class="text-danger"></span>
+                </div>
+            </div>
+        </section>
+
+        <section class="ffc-editor-section" aria-labelledby="ffc-create-milestones-title">
+            <div class="ffc-editor-section__heading">
+                <div>
+                    <h2 id="ffc-create-milestones-title">Milestones</h2>
+                    <p>Record IPA and GSL status with the supporting date and remarks.</p>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-xl-6">
+                    <div class="ffc-milestone-editor" data-ffc-milestone-editor>
+                        <div class="ffc-milestone-editor__topline">
+                            <div>
+                                <div class="ffc-milestone-editor__title">IPA</div>
+                                <div class="ffc-milestone-editor__hint">In-Principle Approval</div>
+                            </div>
+                            <div class="ffc-status-choice" role="radiogroup" aria-label="IPA status">
+                                <input class="btn-check"
+                                       type="radio"
+                                       asp-for="Input.IpaCompleted"
+                                       value="false"
+                                       id="create-ipa-pending" />
+                                <label class="btn btn-sm btn-outline-secondary" for="create-ipa-pending">Pending</label>
+                                <input class="btn-check"
+                                       type="radio"
+                                       asp-for="Input.IpaCompleted"
+                                       value="true"
+                                       id="create-ipa-completed" />
+                                <label class="btn btn-sm btn-outline-success" for="create-ipa-completed">Completed</label>
+                            </div>
+                        </div>
+                        <div class="ffc-milestone-editor__details">
+                            <div data-ffc-milestone-date>
+                                <label asp-for="Input.IpaDate" class="form-label">Completion date</label>
+                                <input asp-for="Input.IpaDate" type="date" class="form-control" />
+                                <span asp-validation-for="Input.IpaDate" class="text-danger"></span>
+                            </div>
+                            <label asp-for="Input.IpaRemarks" class="form-label mt-3">Remarks</label>
+                            <textarea asp-for="Input.IpaRemarks" class="form-control" rows="3"></textarea>
+                            <span asp-validation-for="Input.IpaRemarks" class="text-danger"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-xl-6">
+                    <div class="ffc-milestone-editor" data-ffc-milestone-editor>
+                        <div class="ffc-milestone-editor__topline">
+                            <div>
+                                <div class="ffc-milestone-editor__title">GSL</div>
+                                <div class="ffc-milestone-editor__hint">Government Sanction Letter</div>
+                            </div>
+                            <div class="ffc-status-choice" role="radiogroup" aria-label="GSL status">
+                                <input class="btn-check"
+                                       type="radio"
+                                       asp-for="Input.GslCompleted"
+                                       value="false"
+                                       id="create-gsl-pending" />
+                                <label class="btn btn-sm btn-outline-secondary" for="create-gsl-pending">Pending</label>
+                                <input class="btn-check"
+                                       type="radio"
+                                       asp-for="Input.GslCompleted"
+                                       value="true"
+                                       id="create-gsl-completed" />
+                                <label class="btn btn-sm btn-outline-success" for="create-gsl-completed">Completed</label>
+                            </div>
+                        </div>
+                        <div class="ffc-milestone-editor__details">
+                            <div data-ffc-milestone-date>
+                                <label asp-for="Input.GslDate" class="form-label">Completion date</label>
+                                <input asp-for="Input.GslDate" type="date" class="form-control" />
+                                <span asp-validation-for="Input.GslDate" class="text-danger"></span>
+                            </div>
+                            <label asp-for="Input.GslRemarks" class="form-label mt-3">Remarks</label>
+                            <textarea asp-for="Input.GslRemarks" class="form-control" rows="3"></textarea>
+                            <span asp-validation-for="Input.GslRemarks" class="text-danger"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="ffc-editor-section" aria-labelledby="ffc-create-overall-title">
+            <div class="ffc-editor-section__heading">
+                <div>
+                    <h2 id="ffc-create-overall-title">Overall position</h2>
+                    <p>Capture the current country-level position. Project-specific progress is recorded after creation.</p>
+                </div>
+            </div>
+            <label asp-for="Input.OverallRemarks" class="visually-hidden">Overall remarks</label>
+            <textarea asp-for="Input.OverallRemarks"
+                      class="form-control"
+                      rows="5"
+                      placeholder="Enter the present overall position, key dependency or next action."></textarea>
+            <span asp-validation-for="Input.OverallRemarks" class="text-danger"></span>
+        </section>
+
+        <div class="ffc-editor-page__actions">
+            <a href="@Model.SafeReturnUrl"
+               class="btn btn-outline-secondary"
+               data-ffc-cancel-link>
+                Cancel
+            </a>
+            <button type="submit" class="btn btn-primary">
+                Create record
+            </button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/pages/project-office-reports/ffc/ffc-record-workspace.js"
+            asp-append-version="true"
+            defer></script>
+}

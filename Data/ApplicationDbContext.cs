@@ -964,6 +964,7 @@ namespace ProjectManagement.Data
 
             builder.Entity<FfcProject>(entity =>
             {
+                ConfigureRowVersion(entity);
                 entity.ToTable("FfcProjects");
                 entity.Property(x => x.Name).HasMaxLength(256).IsRequired();
                 entity.Property(x => x.Remarks).HasColumnType("text");

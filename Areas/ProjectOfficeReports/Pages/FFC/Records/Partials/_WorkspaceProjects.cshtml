@@ -1,0 +1,252 @@
+@using System.Globalization
+@using ProjectManagement.Models
+@using ProjectManagement.Services.Ffc
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.DetailsModel
+@{
+    static string PositionLabel(FfcUnitPosition position) => position switch
+    {
+        FfcUnitPosition.Installed => "Installed",
+        FfcUnitPosition.DeliveredAwaitingInstallation => "Delivered",
+        _ => "Planned"
+    };
+
+    static string PositionClass(FfcUnitPosition position) => position switch
+    {
+        FfcUnitPosition.Installed => "is-installed",
+        FfcUnitPosition.DeliveredAwaitingInstallation => "is-delivered",
+        _ => "is-planned"
+    };
+
+    static string LifecycleLabel(ProjectLifecycleStatus? status) => status switch
+    {
+        ProjectLifecycleStatus.Completed => "Completed",
+        ProjectLifecycleStatus.Cancelled => "Cancelled",
+        ProjectLifecycleStatus.Active => "Active",
+        _ => string.Empty
+    };
+}
+
+<section class="ffc-workspace-section" id="projects" aria-labelledby="ffc-workspace-projects-title">
+    <div class="ffc-workspace-section__heading">
+        <div>
+            <h2 id="ffc-workspace-projects-title">Projects</h2>
+            <p>Project-level quantity, delivery, installation and current progress for this country-year record.</p>
+        </div>
+        @if (Model.CanManage)
+        {
+            <button type="button" class="btn btn-primary btn-sm" data-ffc-new-project>
+                <span class="bi bi-plus-lg" aria-hidden="true"></span>
+                Add project
+            </button>
+        }
+    </div>
+
+    @if (Model.Workspace.Projects.Count == 0)
+    {
+        <div class="ffc-workspace-empty">
+            <span class="bi bi-folder2-open" aria-hidden="true"></span>
+            <div>
+                <h3>No projects added</h3>
+                <p>Add the first project or unlinked FFC item to begin unit tracking.</p>
+            </div>
+            @if (Model.CanManage)
+            {
+                <button type="button" class="btn btn-outline-primary btn-sm" data-ffc-new-project>Add project</button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="ffc-workspace-project-table" role="table" aria-label="FFC projects">
+            <div class="ffc-workspace-project-table__head" role="row">
+                <div role="columnheader">Project</div>
+                <div role="columnheader">Qty</div>
+                <div role="columnheader">Position</div>
+                <div role="columnheader">Delivery / installation</div>
+                <div role="columnheader">Current progress</div>
+                <div role="columnheader" class="text-end">Actions</div>
+            </div>
+
+            @foreach (var project in Model.Workspace.Projects)
+            {
+                var namesDiffer = !string.Equals(project.DisplayName, project.FfcName, StringComparison.OrdinalIgnoreCase);
+                <div class="ffc-workspace-project-table__row" role="row">
+                    <div class="ffc-workspace-project-table__project" role="cell" data-label="Project">
+                        <div class="ffc-workspace-project-table__title-line">
+                            @if (project.LinkedProjectId.HasValue)
+                            {
+                                <a asp-area=""
+                                   asp-page="/Projects/Overview"
+                                   asp-route-id="@project.LinkedProjectId.Value">
+                                    @project.DisplayName
+                                </a>
+                                <span class="ffc-workspace-lifecycle">@LifecycleLabel(project.LifecycleStatus)</span>
+                            }
+                            else
+                            {
+                                <span>@project.DisplayName</span>
+                                <span class="ffc-workspace-lifecycle is-unlinked">Unlinked FFC item</span>
+                            }
+                        </div>
+                        @if (namesDiffer)
+                        {
+                            <div class="ffc-workspace-project-table__secondary">FFC entry: @project.FfcName</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(project.StageSummary))
+                        {
+                            <div class="ffc-workspace-project-table__secondary">@project.StageSummary</div>
+                        }
+                    </div>
+
+                    <div role="cell" data-label="Quantity" class="ffc-workspace-project-table__qty">
+                        @project.Quantity
+                    </div>
+
+                    <div role="cell" data-label="Position">
+                        <span class="ffc-workspace-position @PositionClass(project.Position)">
+                            @PositionLabel(project.Position)
+                        </span>
+                    </div>
+
+                    <div role="cell" data-label="Dates" class="ffc-workspace-project-table__dates">
+                        @if (project.DeliveredOn.HasValue)
+                        {
+                            <span>Delivered @project.DeliveredOn.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture)</span>
+                        }
+                        else if (project.Position != FfcUnitPosition.Planned)
+                        {
+                            <span>Delivery date not recorded</span>
+                        }
+
+                        @if (project.InstalledOn.HasValue)
+                        {
+                            <span>Installed @project.InstalledOn.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture)</span>
+                        }
+                        else if (project.Position == FfcUnitPosition.Installed)
+                        {
+                            <span>Installation date not recorded</span>
+                        }
+
+                        @if (project.Position == FfcUnitPosition.Planned)
+                        {
+                            <span class="text-body-secondary">Not yet delivered</span>
+                        }
+                    </div>
+
+                    <div role="cell" data-label="Current progress" class="ffc-workspace-project-table__progress">
+                        @if (string.IsNullOrWhiteSpace(project.CurrentProgress))
+                        {
+                            <span class="text-body-secondary">No progress recorded.</span>
+                        }
+                        else
+                        {
+                            <p>@project.CurrentProgress</p>
+                        }
+                        @if (project.LinkedProjectId.HasValue)
+                        {
+                            <span class="ffc-workspace-project-table__shared-note">
+                                <span class="bi bi-arrow-repeat" aria-hidden="true"></span>
+                                Shared with the linked Project external remark
+                            </span>
+                        }
+                    </div>
+
+                    <div role="cell" data-label="Actions" class="ffc-workspace-project-table__actions">
+                        @if (Model.CanManage || project.LinkedProjectId.HasValue)
+                        {
+                        <div class="dropdown">
+                            <button type="button"
+                                    class="btn btn-light btn-sm"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false"
+                                    aria-label="Actions for @project.DisplayName">
+                                <span class="bi bi-three-dots-vertical" aria-hidden="true"></span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                @if (Model.CanManage)
+                                {
+                                    <li>
+                                        <button type="button"
+                                                class="dropdown-item"
+                                                data-ffc-edit-project
+                                                data-project-id="@project.Id"
+                                                data-project-linked="@(project.LinkedProjectId.HasValue ? "true" : "false")"
+                                                data-project-linked-id="@project.LinkedProjectId"
+                                                data-project-linked-name="@project.DisplayName"
+                                                data-project-name="@project.FfcName"
+                                                data-project-quantity="@project.Quantity"
+                                                data-project-position="@((int)project.Position)"
+                                                data-project-delivered-on="@project.DeliveredOn?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
+                                                data-project-installed-on="@project.InstalledOn?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
+                                                data-project-progress="@project.CurrentProgress"
+                                                data-project-row-version="@project.RowVersion">
+                                            <span class="bi bi-pencil-square" aria-hidden="true"></span>
+                                            Edit
+                                        </button>
+                                    </li>
+                                }
+                                @if (project.LinkedProjectId.HasValue)
+                                {
+                                    <li>
+                                        <a asp-area=""
+                                           asp-page="/Projects/Overview"
+                                           asp-route-id="@project.LinkedProjectId.Value"
+                                           class="dropdown-item">
+                                            <span class="bi bi-box-arrow-up-right" aria-hidden="true"></span>
+                                            Open linked Project
+                                        </a>
+                                    </li>
+                                }
+                                @if (Model.CanManage)
+                                {
+                                    <li><hr class="dropdown-divider" /></li>
+                                    <li>
+                                        <button type="button"
+                                                class="dropdown-item text-danger"
+                                                data-ffc-delete-project
+                                                data-project-id="@project.Id"
+                                                data-project-name="@project.DisplayName"
+                                                data-project-quantity="@project.Quantity"
+                                                data-project-linked-name="@(project.LinkedProjectId.HasValue ? project.DisplayName : string.Empty)"
+                                                data-project-row-version="@project.RowVersion">
+                                            <span class="bi bi-trash" aria-hidden="true"></span>
+                                            Delete
+                                        </button>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</section>
+
+@if (Model.CanManage)
+{
+    <div class="modal fade" id="ffcDeleteProjectModal" tabindex="-1" aria-labelledby="ffcDeleteProjectModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="ffcDeleteProjectModalLabel">Remove project from FFC?</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2"><strong data-ffc-delete-project-name></strong></p>
+                    <p class="text-body-secondary mb-0" data-ffc-delete-project-detail></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <form method="post" asp-page-handler="DeleteProject" asp-route-id="@Model.Workspace.RecordId">
+                        <input type="hidden" name="projectId" data-ffc-delete-project-id />
+                        <input type="hidden" name="rowVersion" data-ffc-delete-project-version />
+                        <input type="hidden" asp-for="ReturnUrl" />
+                        <button type="submit" class="btn btn-danger">Remove project</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}

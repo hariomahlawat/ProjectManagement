@@ -4,6 +4,8 @@
 @{
     ViewData["Title"] = "FFC Proposals";
     ViewData["UseFullWidth"] = true;
+    var request = ViewContext.HttpContext.Request;
+    var currentReturnUrl = $"{request.PathBase}{request.Path}{request.QueryString}";
 }
 
 @section Styles {
@@ -17,7 +19,7 @@
         <div class="ffc-portfolio-header__copy">
             <div class="ffc-portfolio-header__eyebrow">FFC Proposals</div>
             <div class="ffc-portfolio-header__title-line">
-                <h1>Country-year portfolio</h1>
+                <h1>FFC Portfolio Overview</h1>
                 @if (Model.TotalCount > 0)
                 {
                     <span class="ffc-portfolio-header__result-count" role="status" aria-live="polite">
@@ -39,7 +41,8 @@
             @if (Model.CanManageRecords)
             {
                 <a asp-area="ProjectOfficeReports"
-                   asp-page="/FFC/Records/Manage"
+                   asp-page="/FFC/Records/Create"
+                   asp-route-returnUrl="@currentReturnUrl"
                    class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-2">
                     <span class="bi bi-plus-lg" aria-hidden="true"></span>
                     <span>New record</span>
@@ -76,10 +79,20 @@
                         <li><hr class="dropdown-divider" /></li>
                         <li>
                             <a asp-area="ProjectOfficeReports"
-                               asp-page="/FFC/Records/Manage"
+                               asp-page="/FFC/Records/Create"
+                               asp-route-returnUrl="@currentReturnUrl"
                                class="dropdown-item">
-                                <span class="bi bi-clipboard-data" aria-hidden="true"></span>
-                                Manage records
+                                <span class="bi bi-plus-circle" aria-hidden="true"></span>
+                                Create record
+                            </a>
+                        </li>
+                        <li>
+                            <a asp-area="ProjectOfficeReports"
+                               asp-page="/FFC/Records/Archived"
+                               asp-route-returnUrl="@currentReturnUrl"
+                               class="dropdown-item">
+                                <span class="bi bi-archive" aria-hidden="true"></span>
+                                Archived records
                             </a>
                         </li>
                         <li>
@@ -87,7 +100,7 @@
                                asp-page="/FFC/Countries/Manage"
                                class="dropdown-item">
                                 <span class="bi bi-globe2" aria-hidden="true"></span>
-                                Manage countries
+                                Country settings
                             </a>
                         </li>
                     }

@@ -73,16 +73,27 @@ public class ManageModel : FfcRecordListPageModel
 
     public async Task<IActionResult> OnGetAsync()
     {
-        ConfigureBreadcrumb();
-        var editId = EditId;
-        await LoadPageAsync(editId);
-        if (editId.HasValue)
+        if (EditId.HasValue)
         {
-            var r = await Db.FfcRecords.AsNoTracking().FirstOrDefaultAsync(x => x.Id == editId.Value);
-            if (r is null) return NotFound();
-            Input = MapToInput(r);
+            var exists = await Db.FfcRecords
+                .AsNoTracking()
+                .AnyAsync(record => record.Id == EditId.Value && !record.IsDeleted);
+            if (!exists)
+            {
+                return NotFound();
+            }
+
+            return RedirectToPage(
+                "/FFC/Records/Details",
+                new
+                {
+                    area = "ProjectOfficeReports",
+                    id = EditId.Value,
+                    editor = "record"
+                });
         }
-        return Page();
+
+        return RedirectToPage("/FFC/Index", new { area = "ProjectOfficeReports" });
     }
 
     public async Task<IActionResult> OnPostCreateAsync()

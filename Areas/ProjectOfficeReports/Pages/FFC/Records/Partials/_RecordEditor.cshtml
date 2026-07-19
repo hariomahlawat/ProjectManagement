@@ -1,0 +1,145 @@
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.DetailsModel
+
+<div class="offcanvas offcanvas-end ffc-workspace-drawer"
+     tabindex="-1"
+     id="ffcRecordEditor"
+     aria-labelledby="ffcRecordEditorLabel"
+     data-bs-backdrop="static"
+     data-bs-keyboard="false">
+    <div class="offcanvas-header ffc-workspace-drawer__header">
+        <div>
+            <div class="ffc-workspace-drawer__eyebrow">@Model.Workspace.CountryName · @Model.Workspace.Year</div>
+            <h2 class="offcanvas-title" id="ffcRecordEditorLabel">Edit record</h2>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+
+    <form method="post"
+          asp-page-handler="UpdateRecord"
+          asp-route-id="@Model.Workspace.RecordId"
+          class="ffc-workspace-drawer__form"
+          data-ffc-dirty-form
+          data-ffc-record-form>
+        <input type="hidden" asp-for="RecordInput.Id" />
+        <input type="hidden" asp-for="RecordInput.RowVersion" />
+        <input type="hidden" asp-for="ReturnUrl" />
+
+        <div class="offcanvas-body ffc-workspace-drawer__body">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+            <section class="ffc-drawer-section">
+                <h3>Record identity</h3>
+                <div class="row g-3">
+                    <div class="col-8">
+                        <label asp-for="RecordInput.CountryId" class="form-label">Country</label>
+                        <select asp-for="RecordInput.CountryId"
+                                class="form-select"
+                                data-ffc-search-select
+                                data-placeholder="Search or select country">
+                            <option value="">Select country</option>
+                            @foreach (var country in Model.Countries)
+                            {
+                                <option value="@country.Id" data-secondary="@country.IsoCode">@country.Name@(country.IsActive ? string.Empty : " (inactive)")</option>
+                            }
+                        </select>
+                        <span asp-validation-for="RecordInput.CountryId" class="text-danger"></span>
+                    </div>
+                    <div class="col-4">
+                        <label asp-for="RecordInput.Year" class="form-label">Year</label>
+                        <input asp-for="RecordInput.Year"
+                               type="number"
+                               min="2000"
+                               max="2100"
+                               class="form-control" />
+                        <span asp-validation-for="RecordInput.Year" class="text-danger"></span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="ffc-drawer-section">
+                <div class="ffc-milestone-editor" data-ffc-milestone-editor>
+                    <div class="ffc-milestone-editor__topline">
+                        <div>
+                            <div class="ffc-milestone-editor__title">IPA</div>
+                            <div class="ffc-milestone-editor__hint">In-Principle Approval</div>
+                        </div>
+                        <div class="ffc-status-choice" role="radiogroup" aria-label="IPA status">
+                            <input class="btn-check"
+                                   type="radio"
+                                   asp-for="RecordInput.IpaCompleted"
+                                   value="false"
+                                   id="record-ipa-pending" />
+                            <label class="btn btn-sm btn-outline-secondary" for="record-ipa-pending">Pending</label>
+                            <input class="btn-check"
+                                   type="radio"
+                                   asp-for="RecordInput.IpaCompleted"
+                                   value="true"
+                                   id="record-ipa-completed" />
+                            <label class="btn btn-sm btn-outline-success" for="record-ipa-completed">Completed</label>
+                        </div>
+                    </div>
+                    <div class="ffc-milestone-editor__details">
+                        <div data-ffc-milestone-date>
+                            <label asp-for="RecordInput.IpaDate" class="form-label">Completion date</label>
+                            <input asp-for="RecordInput.IpaDate" type="date" class="form-control" />
+                            <span asp-validation-for="RecordInput.IpaDate" class="text-danger"></span>
+                        </div>
+                        <label asp-for="RecordInput.IpaRemarks" class="form-label mt-3">Remarks</label>
+                        <textarea asp-for="RecordInput.IpaRemarks" class="form-control" rows="3"></textarea>
+                        <span asp-validation-for="RecordInput.IpaRemarks" class="text-danger"></span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="ffc-drawer-section">
+                <div class="ffc-milestone-editor" data-ffc-milestone-editor>
+                    <div class="ffc-milestone-editor__topline">
+                        <div>
+                            <div class="ffc-milestone-editor__title">GSL</div>
+                            <div class="ffc-milestone-editor__hint">Government Sanction Letter</div>
+                        </div>
+                        <div class="ffc-status-choice" role="radiogroup" aria-label="GSL status">
+                            <input class="btn-check"
+                                   type="radio"
+                                   asp-for="RecordInput.GslCompleted"
+                                   value="false"
+                                   id="record-gsl-pending" />
+                            <label class="btn btn-sm btn-outline-secondary" for="record-gsl-pending">Pending</label>
+                            <input class="btn-check"
+                                   type="radio"
+                                   asp-for="RecordInput.GslCompleted"
+                                   value="true"
+                                   id="record-gsl-completed" />
+                            <label class="btn btn-sm btn-outline-success" for="record-gsl-completed">Completed</label>
+                        </div>
+                    </div>
+                    <div class="ffc-milestone-editor__details">
+                        <div data-ffc-milestone-date>
+                            <label asp-for="RecordInput.GslDate" class="form-label">Completion date</label>
+                            <input asp-for="RecordInput.GslDate" type="date" class="form-control" />
+                            <span asp-validation-for="RecordInput.GslDate" class="text-danger"></span>
+                        </div>
+                        <label asp-for="RecordInput.GslRemarks" class="form-label mt-3">Remarks</label>
+                        <textarea asp-for="RecordInput.GslRemarks" class="form-control" rows="3"></textarea>
+                        <span asp-validation-for="RecordInput.GslRemarks" class="text-danger"></span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="ffc-drawer-section">
+                <h3>Overall position</h3>
+                <label asp-for="RecordInput.OverallRemarks" class="visually-hidden">Overall remarks</label>
+                <textarea asp-for="RecordInput.OverallRemarks"
+                          class="form-control"
+                          rows="5"
+                          placeholder="Enter the current country-level position."></textarea>
+                <span asp-validation-for="RecordInput.OverallRemarks" class="text-danger"></span>
+            </section>
+        </div>
+
+        <div class="ffc-workspace-drawer__footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save changes</button>
+        </div>
+    </form>
+</div>

@@ -28,6 +28,7 @@ public sealed class ApplicationDatabaseMigrationsTests
         Assert.Contains("20261201180000_AdminPhaseASafetyHardening", migrations);
         Assert.Contains("20261201190000_AdminPhaseB3MasterDataHardening", migrations);
         Assert.Contains("20261201260000_HardenFfcFoundation", migrations);
+        Assert.Contains("20261201270000_AddFfcProjectConcurrency", migrations);
         Assert.Equal(migrations.Length, migrations.Distinct(StringComparer.Ordinal).Count());
     }
 
@@ -131,7 +132,7 @@ public sealed class ApplicationDatabaseMigrationsTests
             migrations.OrderBy(id => id, StringComparer.Ordinal).ToArray(),
             migrations);
         Assert.Equal(
-            "20261201260000_HardenFfcFoundation",
+            "20261201270000_AddFfcProjectConcurrency",
             migrations[^1]);
     }
 
