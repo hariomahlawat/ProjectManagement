@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 
 namespace ProjectManagement.Services.Ffc;
 
@@ -22,6 +24,13 @@ public enum FfcCompletionState
     Pending = 0,
     Partial = 1,
     Complete = 2
+}
+
+public enum FfcUnitPosition
+{
+    Planned = 0,
+    DeliveredAwaitingInstallation = 1,
+    Installed = 2
 }
 
 public sealed record FfcPortfolioFilter(
@@ -54,13 +63,93 @@ public sealed record FfcPortfolioSummary(
         ? 0
         : (int)Math.Round(InstalledUnits * 100d / TotalUnits, MidpointRounding.AwayFromZero);
 
+    public double InstalledShare => ResolveShare(InstalledUnits);
+
+    public double DeliveredNotInstalledShare => ResolveShare(DeliveredNotInstalledUnits);
+
+    public double PlannedShare => ResolveShare(PlannedUnits);
+
     public static FfcPortfolioSummary Empty { get; } = new(0, 0, 0, 0, 0, 0, 0);
+
+    private double ResolveShare(int value) => TotalUnits == 0 ? 0d : value * 100d / TotalUnits;
+}
+
+public sealed record FfcMilestoneSnapshot(
+    bool IsCompleted,
+    DateOnly? CompletedOn,
+    string? Remarks);
+
+public sealed record FfcPortfolioProjectRow(
+    long FfcProjectId,
+    long FfcRecordId,
+    int? LinkedProjectId,
+    string DisplayName,
+    string FfcName,
+    int Quantity,
+    FfcUnitPosition Position,
+    ProjectLifecycleStatus? LifecycleStatus,
+    string? StageSummary,
+    string? CurrentProgress);
+
+public sealed record FfcPortfolioRecordRow(
+    long RecordId,
+    long CountryId,
+    string CountryName,
+    string IsoCode,
+    short Year,
+    FfcMilestoneSnapshot Ipa,
+    FfcMilestoneSnapshot Gsl,
+    FfcCompletionState DeliveryState,
+    FfcCompletionState InstallationState,
+    int ProjectCount,
+    int AttachmentCount,
+    int InstalledUnits,
+    int DeliveredNotInstalledUnits,
+    int PlannedUnits,
+    string? OverallRemarks,
+    DateTimeOffset UpdatedAt,
+    IReadOnlyList<FfcPortfolioProjectRow> Projects)
+{
+    public int TotalUnits => InstalledUnits + DeliveredNotInstalledUnits + PlannedUnits;
+
+    public double InstalledShare => ResolveShare(InstalledUnits);
+
+    public double DeliveredNotInstalledShare => ResolveShare(DeliveredNotInstalledUnits);
+
+    public double PlannedShare => ResolveShare(PlannedUnits);
+
+    private double ResolveShare(int value) => TotalUnits == 0 ? 0d : value * 100d / TotalUnits;
+}
+
+public sealed record FfcPortfolioPageRequest(
+    FfcPortfolioFilter Filter,
+    int PageNumber = 1,
+    int PageSize = 25);
+
+public sealed record FfcPortfolioPageResult(
+    FfcPortfolioSummary Summary,
+    IReadOnlyList<FfcPortfolioRecordRow> Records,
+    int TotalRecordCount,
+    int PageNumber,
+    int PageSize)
+{
+    public int TotalPages => Math.Max(1, (int)Math.Ceiling(TotalRecordCount / (double)Math.Max(1, PageSize)));
+
+    public int FirstItemNumber => TotalRecordCount == 0 ? 0 : ((PageNumber - 1) * PageSize) + 1;
+
+    public int LastItemNumber => TotalRecordCount == 0
+        ? 0
+        : Math.Min(TotalRecordCount, PageNumber * PageSize);
 }
 
 public interface IFfcPortfolioService
 {
     Task<FfcPortfolioSummary> GetSummaryAsync(
         FfcPortfolioFilter filter,
+        CancellationToken cancellationToken = default);
+
+    Task<FfcPortfolioPageResult> GetPageAsync(
+        FfcPortfolioPageRequest request,
         CancellationToken cancellationToken = default);
 }
 
@@ -117,6 +206,18 @@ public static class FfcPortfolioQuery
     {
         ArgumentNullException.ThrowIfNull(summary);
         return ResolveState(summary.Installed, summary.Total);
+    }
+
+    public static FfcUnitPosition ResolvePosition(bool isInstalled, bool isDelivered)
+    {
+        if (isInstalled)
+        {
+            return FfcUnitPosition.Installed;
+        }
+
+        return isDelivered
+            ? FfcUnitPosition.DeliveredAwaitingInstallation
+            : FfcUnitPosition.Planned;
     }
 
     private static IQueryable<FfcRecord> ApplyBooleanMilestoneFilter(
@@ -201,14 +302,20 @@ public static class FfcPortfolioQuery
     }
 }
 
-// SECTION: Portfolio aggregation service
+// SECTION: Portfolio aggregation and page service
 public sealed class FfcPortfolioService : IFfcPortfolioService
 {
-    private readonly ApplicationDbContext _db;
+    private const int MaximumPageSize = 100;
 
-    public FfcPortfolioService(ApplicationDbContext db)
+    private readonly ApplicationDbContext _db;
+    private readonly IFfcProgressService _progressService;
+
+    public FfcPortfolioService(
+        ApplicationDbContext db,
+        IFfcProgressService progressService)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _progressService = progressService ?? throw new ArgumentNullException(nameof(progressService));
     }
 
     public async Task<FfcPortfolioSummary> GetSummaryAsync(
@@ -217,12 +324,7 @@ public sealed class FfcPortfolioService : IFfcPortfolioService
     {
         ArgumentNullException.ThrowIfNull(filter);
 
-        var records = FfcPortfolioQuery.ApplyFilters(
-            _db.FfcRecords
-                .AsNoTracking()
-                .Where(record => !record.IsDeleted),
-            filter);
-
+        var records = BuildFilteredRecords(filter);
         var recordCount = await records.CountAsync(cancellationToken);
         if (recordCount == 0)
         {
@@ -259,4 +361,221 @@ public sealed class FfcPortfolioService : IFfcPortfolioService
             DeliveredNotInstalledUnits: projectAggregate?.DeliveredNotInstalledUnits ?? 0,
             PlannedUnits: projectAggregate?.PlannedUnits ?? 0);
     }
+
+    public async Task<FfcPortfolioPageResult> GetPageAsync(
+        FfcPortfolioPageRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Filter);
+
+        var pageSize = Math.Clamp(request.PageSize, 1, MaximumPageSize);
+        var requestedPage = Math.Max(1, request.PageNumber);
+        var summary = await GetSummaryAsync(request.Filter, cancellationToken);
+        var totalPages = Math.Max(1, (int)Math.Ceiling(summary.RecordCount / (double)pageSize));
+        var pageNumber = Math.Min(requestedPage, totalPages);
+
+        if (summary.RecordCount == 0)
+        {
+            return new FfcPortfolioPageResult(
+                Summary: summary,
+                Records: Array.Empty<FfcPortfolioRecordRow>(),
+                TotalRecordCount: 0,
+                PageNumber: 1,
+                PageSize: pageSize);
+        }
+
+        var recordProjections = await BuildFilteredRecords(request.Filter)
+            .OrderByDescending(record => record.Year)
+            .ThenBy(record => record.Country.Name)
+            .ThenBy(record => record.Id)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(record => new RecordProjection(
+                record.Id,
+                record.CountryId,
+                record.Country.Name,
+                record.Country.IsoCode,
+                record.Year,
+                record.IpaYes,
+                record.IpaDate,
+                record.IpaRemarks,
+                record.GslYes,
+                record.GslDate,
+                record.GslRemarks,
+                record.Projects.Count,
+                record.Attachments.Count,
+                record.Projects.Sum(project => project.IsInstalled ? project.Quantity : 0),
+                record.Projects.Sum(project => project.IsDelivered && !project.IsInstalled ? project.Quantity : 0),
+                record.Projects.Sum(project => !project.IsDelivered && !project.IsInstalled ? project.Quantity : 0),
+                record.OverallRemarks,
+                record.UpdatedAt))
+            .ToListAsync(cancellationToken);
+
+        var recordIds = recordProjections.Select(record => record.RecordId).ToArray();
+        var projectProjections = await _db.FfcProjects
+            .AsNoTracking()
+            .Where(project => recordIds.Contains(project.FfcRecordId))
+            .OrderBy(project => project.FfcRecordId)
+            .ThenBy(project => project.Id)
+            .Select(project => new ProjectProjection(
+                project.Id,
+                project.FfcRecordId,
+                project.Name,
+                project.Remarks,
+                project.LinkedProjectId,
+                project.Quantity,
+                project.IsDelivered,
+                project.IsInstalled,
+                project.LinkedProject == null ? null : project.LinkedProject.Name,
+                project.LinkedProject == null
+                    ? null
+                    : (ProjectLifecycleStatus?)project.LinkedProject.LifecycleStatus))
+            .ToListAsync(cancellationToken);
+
+        var linkedProjectIds = projectProjections
+            .Where(project => project.LinkedProjectId.HasValue)
+            .Select(project => project.LinkedProjectId!.Value)
+            .Distinct()
+            .ToArray();
+
+        var stageSummaryByProjectId = new Dictionary<int, string?>();
+        if (linkedProjectIds.Length > 0)
+        {
+            var stageRows = await _db.ProjectStages
+                .AsNoTracking()
+                .Where(stage => linkedProjectIds.Contains(stage.ProjectId))
+                .Select(stage => new FfcProjectStageSnapshot(
+                    stage.ProjectId,
+                    stage.StageCode,
+                    stage.SortOrder,
+                    stage.Status,
+                    stage.CompletedOn))
+                .ToListAsync(cancellationToken);
+
+            stageSummaryByProjectId = stageRows
+                .GroupBy(stage => stage.ProjectId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => FfcProjectStageSummaryFormatter.Format(group));
+        }
+
+        var progressByFfcProjectId = await _progressService.GetCurrentProgressAsync(
+            projectProjections
+                .Select(project => new FfcProgressTarget(
+                    project.FfcProjectId,
+                    project.LinkedProjectId,
+                    project.FfcRemarks))
+                .ToArray(),
+            cancellationToken);
+
+        var projectsByRecord = projectProjections
+            .Select(project =>
+            {
+                progressByFfcProjectId.TryGetValue(project.FfcProjectId, out var progress);
+                var displayName = string.IsNullOrWhiteSpace(project.LinkedProjectName)
+                    ? project.FfcName
+                    : project.LinkedProjectName;
+
+                string? stageSummary = null;
+                if (project.LinkedProjectId.HasValue)
+                {
+                    stageSummaryByProjectId.TryGetValue(project.LinkedProjectId.Value, out stageSummary);
+                }
+
+                return new FfcPortfolioProjectRow(
+                    FfcProjectId: project.FfcProjectId,
+                    FfcRecordId: project.FfcRecordId,
+                    LinkedProjectId: project.LinkedProjectId,
+                    DisplayName: displayName,
+                    FfcName: project.FfcName,
+                    Quantity: project.Quantity,
+                    Position: FfcPortfolioQuery.ResolvePosition(project.IsInstalled, project.IsDelivered),
+                    LifecycleStatus: project.LinkedProjectLifecycleStatus,
+                    StageSummary: stageSummary,
+                    CurrentProgress: progress?.Text);
+            })
+            .GroupBy(project => project.FfcRecordId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<FfcPortfolioProjectRow>)group.ToList());
+
+        var rows = recordProjections
+            .Select(record =>
+            {
+                projectsByRecord.TryGetValue(record.RecordId, out var projects);
+                projects ??= Array.Empty<FfcPortfolioProjectRow>();
+
+                var quantitySummary = new FfcProjectQuantitySummary(
+                    record.InstalledUnits,
+                    record.DeliveredNotInstalledUnits,
+                    record.PlannedUnits);
+
+                return new FfcPortfolioRecordRow(
+                    RecordId: record.RecordId,
+                    CountryId: record.CountryId,
+                    CountryName: record.CountryName,
+                    IsoCode: record.IsoCode,
+                    Year: record.Year,
+                    Ipa: new FfcMilestoneSnapshot(record.IpaYes, record.IpaDate, record.IpaRemarks),
+                    Gsl: new FfcMilestoneSnapshot(record.GslYes, record.GslDate, record.GslRemarks),
+                    DeliveryState: FfcPortfolioQuery.ResolveDeliveryState(quantitySummary),
+                    InstallationState: FfcPortfolioQuery.ResolveInstallationState(quantitySummary),
+                    ProjectCount: record.ProjectCount,
+                    AttachmentCount: record.AttachmentCount,
+                    InstalledUnits: record.InstalledUnits,
+                    DeliveredNotInstalledUnits: record.DeliveredNotInstalledUnits,
+                    PlannedUnits: record.PlannedUnits,
+                    OverallRemarks: record.OverallRemarks,
+                    UpdatedAt: record.UpdatedAt,
+                    Projects: projects);
+            })
+            .ToList();
+
+        return new FfcPortfolioPageResult(
+            Summary: summary,
+            Records: rows,
+            TotalRecordCount: summary.RecordCount,
+            PageNumber: pageNumber,
+            PageSize: pageSize);
+    }
+
+    private IQueryable<FfcRecord> BuildFilteredRecords(FfcPortfolioFilter filter)
+        => FfcPortfolioQuery.ApplyFilters(
+            _db.FfcRecords
+                .AsNoTracking()
+                .Where(record => !record.IsDeleted),
+            filter);
+
+    private sealed record RecordProjection(
+        long RecordId,
+        long CountryId,
+        string CountryName,
+        string IsoCode,
+        short Year,
+        bool IpaYes,
+        DateOnly? IpaDate,
+        string? IpaRemarks,
+        bool GslYes,
+        DateOnly? GslDate,
+        string? GslRemarks,
+        int ProjectCount,
+        int AttachmentCount,
+        int InstalledUnits,
+        int DeliveredNotInstalledUnits,
+        int PlannedUnits,
+        string? OverallRemarks,
+        DateTimeOffset UpdatedAt);
+
+    private sealed record ProjectProjection(
+        long FfcProjectId,
+        long FfcRecordId,
+        string FfcName,
+        string? FfcRemarks,
+        int? LinkedProjectId,
+        int Quantity,
+        bool IsDelivered,
+        bool IsInstalled,
+        string? LinkedProjectName,
+        ProjectLifecycleStatus? LinkedProjectLifecycleStatus);
 }

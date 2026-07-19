@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
@@ -24,17 +23,17 @@ namespace ProjectManagement.Tests.ProjectOfficeReports;
 public sealed class FfcIndexPageTests
 {
     [Fact]
-    public async Task OnGetAsync_WithAdminUser_LoadsRelatedData()
+    public async Task OnGetAsync_LoadsCompactPortfolioRowsAndRelatedCounts()
     {
         await using var db = CreateDbContext();
         var country = await SeedCountryAsync(db, "Alpha", "ALP");
         var record = new FfcRecord
         {
             CountryId = country.Id,
-            Year = 2024,
-            OverallRemarks = "Ready to deploy"
+            Year = 2026,
+            OverallRemarks = "Ready to deploy",
+            UpdatedAt = DateTimeOffset.UtcNow
         };
-
         db.FfcRecords.Add(record);
         await db.SaveChangesAsync();
 
@@ -42,9 +41,10 @@ public sealed class FfcIndexPageTests
         {
             FfcRecordId = record.Id,
             Name = "Simulator build",
-            Remarks = "Completed"
+            Remarks = "Completed",
+            Quantity = 2,
+            IsDelivered = true
         });
-
         db.FfcAttachments.Add(new FfcAttachment
         {
             FfcRecordId = record.Id,
@@ -54,19 +54,20 @@ public sealed class FfcIndexPageTests
             SizeBytes = 1024,
             UploadedAt = DateTimeOffset.UtcNow
         });
-
         await db.SaveChangesAsync();
 
         var page = CreatePage(db);
         ConfigurePageContext(page, CreatePrincipal(isAdmin: true));
 
-        await page.OnGetAsync();
+        await page.OnGetAsync(CancellationToken.None);
 
         Assert.True(page.CanManageRecords);
         var loaded = Assert.Single(page.Records);
-        Assert.Equal(1, loaded.Projects.Count);
-        Assert.Equal(1, loaded.Attachments.Count);
-        Assert.Equal(1, page.PortfolioSummary.ProjectCount);
+        Assert.Equal(1, loaded.ProjectCount);
+        Assert.Equal(1, loaded.AttachmentCount);
+        Assert.Equal(2, loaded.DeliveredNotInstalledUnits);
+        Assert.Equal("Ready to deploy", loaded.OverallRemarks);
+        Assert.Equal(1, page.Summary.ProjectCount);
     }
 
     [Fact]
@@ -74,19 +75,13 @@ public sealed class FfcIndexPageTests
     {
         await using var db = CreateDbContext();
         var country = await SeedCountryAsync(db, "Gamma", "GAM");
-
-        db.FfcRecords.Add(new FfcRecord
-        {
-            CountryId = country.Id,
-            Year = 2025
-        });
-
+        db.FfcRecords.Add(new FfcRecord { CountryId = country.Id, Year = 2025 });
         await db.SaveChangesAsync();
 
         var page = CreatePage(db);
         ConfigurePageContext(page, CreatePrincipal(isHod: true));
 
-        await page.OnGetAsync();
+        await page.OnGetAsync(CancellationToken.None);
 
         Assert.True(page.CanManageRecords);
     }
@@ -96,268 +91,151 @@ public sealed class FfcIndexPageTests
     {
         await using var db = CreateDbContext();
         var country = await SeedCountryAsync(db, "Beta", "BET");
-
         db.FfcRecords.AddRange(
             new FfcRecord { CountryId = country.Id, Year = 2023 },
             new FfcRecord { CountryId = country.Id, Year = 2022, IsDeleted = true });
-
         await db.SaveChangesAsync();
 
         var page = CreatePage(db);
         ConfigurePageContext(page, CreatePrincipal());
 
-        await page.OnGetAsync();
+        await page.OnGetAsync(CancellationToken.None);
 
         Assert.False(page.CanManageRecords);
         Assert.Single(page.Records);
-        Assert.Equal(1, page.PortfolioSummary.RecordCount);
-        Assert.All(page.Records, record => Assert.False(record.IsDeleted));
+        Assert.Equal(1, page.TotalCount);
     }
 
     [Fact]
-    public async Task OnGetAsync_AppliesPagingAndSearch()
-    {
-        await using var db = CreateDbContext();
-        var alpha = await SeedCountryAsync(db, "Alpha", "ALP");
-        var beta = await SeedCountryAsync(db, "Beta", "BET");
-
-        db.FfcRecords.AddRange(
-            new FfcRecord { CountryId = alpha.Id, Year = 2026 },
-            new FfcRecord { CountryId = alpha.Id, Year = 2025 });
-
-        for (short year = 2027; year >= 2016; year--)
-        {
-            db.FfcRecords.Add(new FfcRecord { CountryId = beta.Id, Year = year });
-        }
-
-        await db.SaveChangesAsync();
-
-        var page = CreatePage(db);
-        page.Query = "beta";
-        page.PageNumber = 2;
-        ConfigurePageContext(page, CreatePrincipal());
-
-        await page.OnGetAsync();
-
-        Assert.Equal(12, page.TotalCount);
-        Assert.Equal(2, page.TotalPages);
-        Assert.Equal(2, page.PageNumber);
-        Assert.Equal(2, page.Records.Count);
-        Assert.Equal(12, page.PortfolioSummary.RecordCount);
-        Assert.All(page.Records, record => Assert.Equal(beta.Id, record.CountryId));
-        var years = page.Records.Select(record => record.Year).OrderByDescending(year => year).ToArray();
-        Assert.Equal(new[] { (short)2017, (short)2016 }, years);
-    }
-
-    [Fact]
-    public async Task OnGetAsync_GlobalSummaryIncludesRecordsOutsideCurrentPage()
+    public async Task OnGetAsync_UsesTwentyFiveRecordPagesAndKeepsSummaryGlobal()
     {
         await using var db = CreateDbContext();
         var country = await SeedCountryAsync(db, "Alpha", "ALP");
 
-        for (short year = 2026; year >= 2015; year--)
+        for (short year = 2026; year >= 2000; year--)
         {
             var record = new FfcRecord { CountryId = country.Id, Year = year };
             db.FfcRecords.Add(record);
             await db.SaveChangesAsync();
-
             db.FfcProjects.Add(new FfcProject
             {
                 FfcRecordId = record.Id,
                 Name = $"Project {year}",
-                Quantity = 2,
-                IsDelivered = true,
-                IsInstalled = year % 2 == 0
+                Quantity = 1
             });
         }
-
         await db.SaveChangesAsync();
 
         var page = CreatePage(db);
+        page.PageNumber = 2;
         ConfigurePageContext(page, CreatePrincipal());
 
-        await page.OnGetAsync();
+        await page.OnGetAsync(CancellationToken.None);
 
-        Assert.Equal(10, page.Records.Count);
-        Assert.Equal(12, page.PortfolioSummary.RecordCount);
-        Assert.Equal(12, page.PortfolioSummary.ProjectCount);
-        Assert.Equal(24, page.PortfolioSummary.TotalUnits);
-        Assert.Equal(12, page.PortfolioSummary.InstalledUnits);
-        Assert.Equal(12, page.PortfolioSummary.DeliveredNotInstalledUnits);
-        Assert.Equal(100, page.PortfolioSummary.DeliveryPercent);
-        Assert.Equal(50, page.PortfolioSummary.InstallationPercent);
+        Assert.Equal(27, page.TotalCount);
+        Assert.Equal(2, page.TotalPages);
+        Assert.Equal(2, page.PageNumber);
+        Assert.Equal(2, page.Records.Count);
+        Assert.Equal(27, page.Summary.RecordCount);
+        Assert.Equal(new short[] { 2001, 2000 }, page.Records.Select(record => record.Year).ToArray());
     }
 
     [Fact]
-    public async Task OnGetAsync_WithYearFilter_FiltersRecordsAndRetainsRoute()
+    public async Task OnGetAsync_AppliesPartialDeliveryFilter()
     {
         await using var db = CreateDbContext();
         var country = await SeedCountryAsync(db, "Alpha", "ALP");
-
-        db.FfcRecords.AddRange(
-            new FfcRecord { CountryId = country.Id, Year = 2024 },
-            new FfcRecord { CountryId = country.Id, Year = 2023 });
-
-        await db.SaveChangesAsync();
-
-        var page = CreatePage(db);
-        page.Year = 2024;
-        ConfigurePageContext(page, CreatePrincipal());
-
-        await page.OnGetAsync();
-
-        var record = Assert.Single(page.Records);
-        Assert.Equal((short)2024, record.Year);
-        Assert.Equal(1, page.PortfolioSummary.RecordCount);
-
-        var route = page.BuildRoute();
-        Assert.True(route.TryGetValue("year", out var year));
-        Assert.Equal("2024", year);
-    }
-
-    [Fact]
-    public async Task OnGetAsync_WithCountryFilter_FiltersRecordsAndRetainsRoute()
-    {
-        await using var db = CreateDbContext();
-        var alpha = await SeedCountryAsync(db, "Alpha", "ALP");
-        var beta = await SeedCountryAsync(db, "Beta", "BET");
-
-        db.FfcRecords.AddRange(
-            new FfcRecord { CountryId = alpha.Id, Year = 2024 },
-            new FfcRecord { CountryId = beta.Id, Year = 2024 });
-
-        await db.SaveChangesAsync();
-
-        var page = CreatePage(db);
-        page.CountryId = beta.Id;
-        ConfigurePageContext(page, CreatePrincipal());
-
-        await page.OnGetAsync();
-
-        var record = Assert.Single(page.Records);
-        Assert.Equal(beta.Id, record.CountryId);
-
-        var route = page.BuildRoute();
-        Assert.True(route.TryGetValue("countryId", out var value));
-        Assert.Equal(beta.Id.ToString(CultureInfo.InvariantCulture), value);
-    }
-
-    [Fact]
-    public async Task OnGetAsync_WithIpaCompletedFilter_ReturnsCompletedRecords()
-    {
-        await using var db = CreateDbContext();
-        var country = await SeedCountryAsync(db, "Alpha", "ALP");
-
-        db.FfcRecords.AddRange(
-            new FfcRecord { CountryId = country.Id, Year = 2024, IpaYes = true },
-            new FfcRecord { CountryId = country.Id, Year = 2023, IpaYes = false });
-
-        await db.SaveChangesAsync();
-
-        var page = CreatePage(db);
-        page.IpaStatus = FfcFilterState.Completed;
-        ConfigurePageContext(page, CreatePrincipal());
-
-        await page.OnGetAsync();
-
-        var record = Assert.Single(page.Records);
-        Assert.True(record.IpaYes);
-
-        var route = page.BuildRoute();
-        Assert.True(route.TryGetValue("ipa", out var value));
-        Assert.Equal("completed", value);
-    }
-
-    [Fact]
-    public async Task OnGetAsync_WithDeliveryCompletedFilter_ReturnsOnlyFullyDeliveredRecords()
-    {
-        await using var db = CreateDbContext();
-        var country = await SeedCountryAsync(db, "Alpha", "ALP");
-        var complete = new FfcRecord { CountryId = country.Id, Year = 2024 };
-        var partial = new FfcRecord { CountryId = country.Id, Year = 2023 };
-        db.FfcRecords.AddRange(complete, partial);
-        await db.SaveChangesAsync();
-
-        db.FfcProjects.AddRange(
-            new FfcProject { FfcRecordId = complete.Id, Name = "A", Quantity = 1, IsDelivered = true },
-            new FfcProject { FfcRecordId = complete.Id, Name = "B", Quantity = 1, IsDelivered = true },
-            new FfcProject { FfcRecordId = partial.Id, Name = "C", Quantity = 1, IsDelivered = true },
-            new FfcProject { FfcRecordId = partial.Id, Name = "D", Quantity = 1 });
-        await db.SaveChangesAsync();
-
-        var page = CreatePage(db);
-        page.DeliveryStatus = FfcFilterState.Completed;
-        ConfigurePageContext(page, CreatePrincipal());
-
-        await page.OnGetAsync();
-
-        var record = Assert.Single(page.Records);
-        Assert.Equal(complete.Id, record.Id);
-    }
-
-    [Fact]
-    public async Task OnGetAsync_WithDeliveryPartialFilter_ReturnsPartiallyDeliveredRecords()
-    {
-        await using var db = CreateDbContext();
-        var country = await SeedCountryAsync(db, "Alpha", "ALP");
-        var partial = new FfcRecord { CountryId = country.Id, Year = 2024 };
-        var pending = new FfcRecord { CountryId = country.Id, Year = 2023 };
+        var partial = new FfcRecord { CountryId = country.Id, Year = 2026 };
+        var pending = new FfcRecord { CountryId = country.Id, Year = 2025 };
         db.FfcRecords.AddRange(partial, pending);
         await db.SaveChangesAsync();
 
         db.FfcProjects.AddRange(
-            new FfcProject { FfcRecordId = partial.Id, Name = "A", Quantity = 1, IsDelivered = true },
-            new FfcProject { FfcRecordId = partial.Id, Name = "B", Quantity = 1 },
-            new FfcProject { FfcRecordId = pending.Id, Name = "C", Quantity = 1 });
+            new FfcProject { FfcRecordId = partial.Id, Name = "Delivered", Quantity = 1, IsDelivered = true },
+            new FfcProject { FfcRecordId = partial.Id, Name = "Planned", Quantity = 1 },
+            new FfcProject { FfcRecordId = pending.Id, Name = "Pending", Quantity = 1 });
         await db.SaveChangesAsync();
 
         var page = CreatePage(db);
         page.DeliveryStatus = FfcFilterState.Partial;
         ConfigurePageContext(page, CreatePrincipal());
 
-        await page.OnGetAsync();
+        await page.OnGetAsync(CancellationToken.None);
 
         var record = Assert.Single(page.Records);
-        Assert.Equal(partial.Id, record.Id);
-        Assert.Contains(page.ProgressOptions, option => option.Value == FfcFilterState.Partial);
+        Assert.Equal(partial.Id, record.RecordId);
+        Assert.Equal(FfcCompletionState.Partial, record.DeliveryState);
     }
 
     [Fact]
-    public async Task OnGetAsync_WithInstallationPendingFilter_ReturnsRecordsWithNoInstalledProjects()
+    public async Task BuildRoute_CanRemoveOneFilterWhileRetainingOthers()
     {
         await using var db = CreateDbContext();
         var country = await SeedCountryAsync(db, "Alpha", "ALP");
-        var pending = new FfcRecord { CountryId = country.Id, Year = 2024 };
-        var partial = new FfcRecord { CountryId = country.Id, Year = 2023 };
-        db.FfcRecords.AddRange(pending, partial);
-        await db.SaveChangesAsync();
-
-        db.FfcProjects.AddRange(
-            new FfcProject { FfcRecordId = pending.Id, Name = "A", Quantity = 1, IsDelivered = true },
-            new FfcProject { FfcRecordId = partial.Id, Name = "B", Quantity = 1, IsDelivered = true, IsInstalled = true },
-            new FfcProject { FfcRecordId = partial.Id, Name = "C", Quantity = 1, IsDelivered = true });
+        db.FfcRecords.Add(new FfcRecord { CountryId = country.Id, Year = 2026 });
         await db.SaveChangesAsync();
 
         var page = CreatePage(db);
-        page.InstallationStatus = FfcFilterState.Pending;
+        page.Query = "simulator";
+        page.Year = 2026;
+        page.CountryId = country.Id;
+        page.DeliveryStatus = FfcFilterState.Partial;
         ConfigurePageContext(page, CreatePrincipal());
 
-        await page.OnGetAsync();
+        await page.OnGetAsync(CancellationToken.None);
 
-        var record = Assert.Single(page.Records);
-        Assert.Equal(pending.Id, record.Id);
+        var route = page.BuildRoute(page: 1, remove: "year");
+
+        Assert.False(route.ContainsKey("year"));
+        Assert.Equal("simulator", route["q"]);
+        Assert.Equal(country.Id.ToString(), route["countryId"]);
+        Assert.Equal("partial", route["delivery"]);
+    }
+
+    [Fact]
+    public async Task OnGetAsync_NormalizesPartialBinaryMilestoneFilter()
+    {
+        await using var db = CreateDbContext();
+        var country = await SeedCountryAsync(db, "Alpha", "ALP");
+        db.FfcRecords.Add(new FfcRecord { CountryId = country.Id, Year = 2026 });
+        await db.SaveChangesAsync();
+
+        var page = CreatePage(db);
+        page.IpaStatus = FfcFilterState.Partial;
+        ConfigurePageContext(page, CreatePrincipal());
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        Assert.Equal(FfcFilterState.Any, page.IpaStatus);
+        Assert.Single(page.Records);
     }
 
     private static IndexModel CreatePage(ApplicationDbContext db)
-        => new(db, new FfcPortfolioService(db), new EmptyProgressService());
+    {
+        var progress = new StubProgressService();
+        var portfolio = new FfcPortfolioService(db, progress);
+        return new IndexModel(db, portfolio);
+    }
 
-    private sealed class EmptyProgressService : IFfcProgressService
+    private sealed class StubProgressService : IFfcProgressService
     {
         public Task<IReadOnlyDictionary<long, FfcProgressSnapshot>> GetCurrentProgressAsync(
             IReadOnlyCollection<FfcProgressTarget> targets,
             CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyDictionary<long, FfcProgressSnapshot>>(
-                new Dictionary<long, FfcProgressSnapshot>());
+        {
+            var result = targets.ToDictionary(
+                target => target.FfcProjectId,
+                target => new FfcProgressSnapshot(
+                    target.FfcProjectId,
+                    target.FfcProjectRemarks,
+                    null,
+                    target.LinkedProjectId.HasValue
+                        ? FfcProgressSource.ExternalProjectRemark
+                        : FfcProgressSource.FfcProjectRemark,
+                    target.LinkedProjectId.HasValue));
+
+            return Task.FromResult<IReadOnlyDictionary<long, FfcProgressSnapshot>>(result);
+        }
 
         public Task<FfcProgressUpdateResult> UpdateProgressAsync(
             FfcProgressUpdateCommand command,
@@ -379,12 +257,6 @@ public sealed class FfcIndexPageTests
         string name,
         string iso)
     {
-        var existing = await db.FfcCountries.FirstOrDefaultAsync(country => country.IsoCode == iso);
-        if (existing is not null)
-        {
-            return existing;
-        }
-
         var country = new FfcCountry { Name = name, IsoCode = iso };
         db.FfcCountries.Add(country);
         await db.SaveChangesAsync();

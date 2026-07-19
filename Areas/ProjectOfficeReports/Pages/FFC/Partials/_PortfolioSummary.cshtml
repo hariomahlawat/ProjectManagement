@@ -1,0 +1,74 @@
+@using System.Globalization
+@using ProjectManagement.Services.Ffc
+@model FfcPortfolioSummary
+@{
+    static string Percent(double value) => value.ToString("0.###", CultureInfo.InvariantCulture) + "%";
+}
+
+<section class="ffc-portfolio-summary" aria-labelledby="ffc-portfolio-summary-title">
+    <h2 id="ffc-portfolio-summary-title" class="visually-hidden">Filtered portfolio summary</h2>
+
+    <div class="ffc-portfolio-summary__metrics">
+        <div class="ffc-portfolio-metric">
+            <span class="ffc-portfolio-metric__value">@Model.CountryCount</span>
+            <span class="ffc-portfolio-metric__label">Countries</span>
+        </div>
+        <div class="ffc-portfolio-metric">
+            <span class="ffc-portfolio-metric__value">@Model.RecordCount</span>
+            <span class="ffc-portfolio-metric__label">Records</span>
+        </div>
+        <div class="ffc-portfolio-metric">
+            <span class="ffc-portfolio-metric__value">@Model.ProjectCount</span>
+            <span class="ffc-portfolio-metric__label">Projects</span>
+        </div>
+        <div class="ffc-portfolio-metric">
+            <span class="ffc-portfolio-metric__value">@Model.TotalUnits</span>
+            <span class="ffc-portfolio-metric__label">Total units</span>
+        </div>
+    </div>
+
+    <div class="ffc-portfolio-distribution">
+        <div class="ffc-portfolio-distribution__header">
+            <div>
+                <div class="ffc-portfolio-distribution__title">Unit position</div>
+                <div class="ffc-portfolio-distribution__caption">Across the complete filtered portfolio</div>
+            </div>
+            <div class="ffc-portfolio-distribution__percentages" aria-label="Delivery and installation percentages">
+                <span><strong>@Model.DeliveryPercent%</strong> delivered</span>
+                <span><strong>@Model.InstallationPercent%</strong> installed</span>
+            </div>
+        </div>
+
+        <div class="ffc-segmented-bar"
+             role="img"
+             aria-label="@Model.InstalledUnits installed, @Model.DeliveredNotInstalledUnits delivered awaiting installation, and @Model.PlannedUnits planned units">
+            @if (Model.TotalUnits > 0)
+            {
+                <span class="ffc-segmented-bar__segment ffc-segmented-bar__segment--installed"
+                      style="width: @Percent(Model.InstalledShare)"></span>
+                <span class="ffc-segmented-bar__segment ffc-segmented-bar__segment--delivered"
+                      style="width: @Percent(Model.DeliveredNotInstalledShare)"></span>
+                <span class="ffc-segmented-bar__segment ffc-segmented-bar__segment--planned"
+                      style="width: @Percent(Model.PlannedShare)"></span>
+            }
+        </div>
+
+        <div class="ffc-portfolio-distribution__legend">
+            <span class="ffc-unit-legend ffc-unit-legend--installed">
+                <span class="ffc-unit-legend__dot" aria-hidden="true"></span>
+                <span>Installed</span>
+                <strong>@Model.InstalledUnits</strong>
+            </span>
+            <span class="ffc-unit-legend ffc-unit-legend--delivered">
+                <span class="ffc-unit-legend__dot" aria-hidden="true"></span>
+                <span>Delivered, awaiting installation</span>
+                <strong>@Model.DeliveredNotInstalledUnits</strong>
+            </span>
+            <span class="ffc-unit-legend ffc-unit-legend--planned">
+                <span class="ffc-unit-legend__dot" aria-hidden="true"></span>
+                <span>Planned</span>
+                <strong>@Model.PlannedUnits</strong>
+            </span>
+        </div>
+    </div>
+</section>

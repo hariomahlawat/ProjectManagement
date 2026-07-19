@@ -55,6 +55,21 @@
     <None Include="..\wwwroot\js\pages\project-office-reports\ffc\ffc-map-table-detailed-inline-edit.js"
           Link="TestData\Ffc\ffc-map-table-detailed-inline-edit.js"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\Index.cshtml"
+          Link="TestData\Ffc\Index.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\Partials\_PortfolioFilters.cshtml"
+          Link="TestData\Ffc\_PortfolioFilters.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Areas\ProjectOfficeReports\Pages\FFC\Partials\_PortfolioRow.cshtml"
+          Link="TestData\Ffc\_PortfolioRow.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\wwwroot\css\project-office-reports\ffc-portfolio.css"
+          Link="TestData\Ffc\ffc-portfolio.css"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\wwwroot\js\pages\project-office-reports\ffc\ffc-portfolio.js"
+          Link="TestData\Ffc\ffc-portfolio.js"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

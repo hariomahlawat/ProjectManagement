@@ -1,0 +1,237 @@
+@using ProjectManagement.Services.Ffc
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.IndexModel
+
+<section class="ffc-portfolio-filters" aria-labelledby="ffc-portfolio-filters-title">
+    <h2 id="ffc-portfolio-filters-title" class="visually-hidden">Filter FFC records</h2>
+
+    <form method="get" class="ffc-portfolio-filters__form" data-ffc-filter-form>
+        <input type="hidden" name="page" value="1" />
+
+        <div class="ffc-portfolio-filters__primary">
+            <div class="ffc-filter-search">
+                <label class="visually-hidden" for="ffc-filter-search">Search country, ISO code or project</label>
+                <span class="bi bi-search ffc-filter-search__icon" aria-hidden="true"></span>
+                <input type="search"
+                       class="form-control"
+                       id="ffc-filter-search"
+                       name="q"
+                       value="@Model.Query"
+                       placeholder="Search country, ISO code or project"
+                       autocomplete="off" />
+            </div>
+
+            <div class="ffc-filter-select">
+                <label class="visually-hidden" for="ffc-filter-year">Year</label>
+                <select class="form-select" id="ffc-filter-year" name="year" aria-label="Filter by year">
+                    <option value="">All years</option>
+                    @foreach (var option in Model.YearOptions)
+                    {
+                        <option value="@option.Value" selected="@(option.Selected ? "selected" : null)">@option.Text</option>
+                    }
+                </select>
+            </div>
+
+            <div class="ffc-filter-select ffc-filter-select--country">
+                <label class="visually-hidden" for="ffc-filter-country">Country</label>
+                <select class="form-select" id="ffc-filter-country" name="countryId" aria-label="Filter by country">
+                    <option value="">All countries</option>
+                    @foreach (var option in Model.CountryOptions)
+                    {
+                        <option value="@option.Value" selected="@(option.Selected ? "selected" : null)">@option.Text</option>
+                    }
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary ffc-portfolio-filters__apply">
+                Apply
+            </button>
+
+            @if (Model.HasActiveFilters)
+            {
+                <a asp-page="./Index" class="btn btn-link ffc-portfolio-filters__clear">Clear</a>
+            }
+        </div>
+
+        <details class="ffc-advanced-filters"
+                 data-ffc-advanced-filters
+                 data-active="@(Model.HasAdvancedFilters ? "true" : "false")">
+            <summary class="ffc-advanced-filters__summary">
+                <span class="bi bi-sliders" aria-hidden="true"></span>
+                <span>More filters</span>
+                @if (Model.HasAdvancedFilters)
+                {
+                    <span class="ffc-advanced-filters__count" aria-label="Advanced filters active">Active</span>
+                }
+                <span class="bi bi-chevron-down ffc-advanced-filters__chevron" aria-hidden="true"></span>
+            </summary>
+
+            <div class="ffc-advanced-filters__body">
+                <fieldset class="ffc-filter-group">
+                    <legend>IPA</legend>
+                    <div class="ffc-filter-choice-set">
+                        @foreach (var option in Model.MilestoneOptions)
+                        {
+                            var inputId = $"ffc-filter-ipa-{option.QueryValue}";
+                            <input class="btn-check"
+                                   type="radio"
+                                   name="ipa"
+                                   id="@inputId"
+                                   value="@option.QueryValue"
+                                   autocomplete="off"
+                                   checked="@(option.Value == Model.IpaStatus ? "checked" : null)" />
+                            <label class="btn btn-sm btn-outline-secondary" for="@inputId">@option.Label</label>
+                        }
+                    </div>
+                </fieldset>
+
+                <fieldset class="ffc-filter-group">
+                    <legend>GSL</legend>
+                    <div class="ffc-filter-choice-set">
+                        @foreach (var option in Model.MilestoneOptions)
+                        {
+                            var inputId = $"ffc-filter-gsl-{option.QueryValue}";
+                            <input class="btn-check"
+                                   type="radio"
+                                   name="gsl"
+                                   id="@inputId"
+                                   value="@option.QueryValue"
+                                   autocomplete="off"
+                                   checked="@(option.Value == Model.GslStatus ? "checked" : null)" />
+                            <label class="btn btn-sm btn-outline-secondary" for="@inputId">@option.Label</label>
+                        }
+                    </div>
+                </fieldset>
+
+                <fieldset class="ffc-filter-group">
+                    <legend>Delivery</legend>
+                    <div class="ffc-filter-choice-set">
+                        @foreach (var option in Model.ProgressOptions)
+                        {
+                            var inputId = $"ffc-filter-delivery-{option.QueryValue}";
+                            <input class="btn-check"
+                                   type="radio"
+                                   name="delivery"
+                                   id="@inputId"
+                                   value="@option.QueryValue"
+                                   autocomplete="off"
+                                   checked="@(option.Value == Model.DeliveryStatus ? "checked" : null)" />
+                            <label class="btn btn-sm btn-outline-secondary" for="@inputId">@option.Label</label>
+                        }
+                    </div>
+                </fieldset>
+
+                <fieldset class="ffc-filter-group">
+                    <legend>Installation</legend>
+                    <div class="ffc-filter-choice-set">
+                        @foreach (var option in Model.ProgressOptions)
+                        {
+                            var inputId = $"ffc-filter-installation-{option.QueryValue}";
+                            <input class="btn-check"
+                                   type="radio"
+                                   name="installation"
+                                   id="@inputId"
+                                   value="@option.QueryValue"
+                                   autocomplete="off"
+                                   checked="@(option.Value == Model.InstallationStatus ? "checked" : null)" />
+                            <label class="btn btn-sm btn-outline-secondary" for="@inputId">@option.Label</label>
+                        }
+                    </div>
+                </fieldset>
+
+                <div class="ffc-advanced-filters__actions">
+                    @if (Model.HasActiveFilters)
+                    {
+                        <a asp-page="./Index" class="btn btn-link btn-sm">Reset all</a>
+                    }
+                    <button type="submit" class="btn btn-primary btn-sm">Apply filters</button>
+                </div>
+            </div>
+        </details>
+    </form>
+
+    @if (Model.HasActiveFilters)
+    {
+        <div class="ffc-active-filters" aria-label="Active filters">
+            <span class="ffc-active-filters__label">Active filters</span>
+
+            @if (Model.HasQuery)
+            {
+                <a asp-page="./Index"
+                   asp-all-route-data='Model.BuildRoute(page: 1, remove: "q")'
+                   class="ffc-filter-chip"
+                   title="Remove search filter">
+                    <span>Search: <strong>@Model.Query</strong></span>
+                    <span class="bi bi-x" aria-hidden="true"></span>
+                </a>
+            }
+
+            @if (Model.Year.HasValue)
+            {
+                <a asp-page="./Index"
+                   asp-all-route-data='Model.BuildRoute(page: 1, remove: "year")'
+                   class="ffc-filter-chip"
+                   title="Remove year filter">
+                    <span>Year: <strong>@Model.Year</strong></span>
+                    <span class="bi bi-x" aria-hidden="true"></span>
+                </a>
+            }
+
+            @if (Model.CountryId.HasValue)
+            {
+                <a asp-page="./Index"
+                   asp-all-route-data='Model.BuildRoute(page: 1, remove: "countryId")'
+                   class="ffc-filter-chip"
+                   title="Remove country filter">
+                    <span>Country: <strong>@Model.SelectedCountryLabel</strong></span>
+                    <span class="bi bi-x" aria-hidden="true"></span>
+                </a>
+            }
+
+            @if (Model.IpaStatus != FfcFilterState.Any)
+            {
+                <a asp-page="./Index"
+                   asp-all-route-data='Model.BuildRoute(page: 1, remove: "ipa")'
+                   class="ffc-filter-chip"
+                   title="Remove IPA filter">
+                    <span>IPA: <strong>@Model.GetFilterLabel(Model.IpaStatus, false)</strong></span>
+                    <span class="bi bi-x" aria-hidden="true"></span>
+                </a>
+            }
+
+            @if (Model.GslStatus != FfcFilterState.Any)
+            {
+                <a asp-page="./Index"
+                   asp-all-route-data='Model.BuildRoute(page: 1, remove: "gsl")'
+                   class="ffc-filter-chip"
+                   title="Remove GSL filter">
+                    <span>GSL: <strong>@Model.GetFilterLabel(Model.GslStatus, false)</strong></span>
+                    <span class="bi bi-x" aria-hidden="true"></span>
+                </a>
+            }
+
+            @if (Model.DeliveryStatus != FfcFilterState.Any)
+            {
+                <a asp-page="./Index"
+                   asp-all-route-data='Model.BuildRoute(page: 1, remove: "delivery")'
+                   class="ffc-filter-chip"
+                   title="Remove delivery filter">
+                    <span>Delivery: <strong>@Model.GetFilterLabel(Model.DeliveryStatus, true)</strong></span>
+                    <span class="bi bi-x" aria-hidden="true"></span>
+                </a>
+            }
+
+            @if (Model.InstallationStatus != FfcFilterState.Any)
+            {
+                <a asp-page="./Index"
+                   asp-all-route-data='Model.BuildRoute(page: 1, remove: "installation")'
+                   class="ffc-filter-chip"
+                   title="Remove installation filter">
+                    <span>Installation: <strong>@Model.GetFilterLabel(Model.InstallationStatus, true)</strong></span>
+                    <span class="bi bi-x" aria-hidden="true"></span>
+                </a>
+            }
+
+            <a asp-page="./Index" class="ffc-active-filters__clear">Clear all</a>
+        </div>
+    }
+</section>
