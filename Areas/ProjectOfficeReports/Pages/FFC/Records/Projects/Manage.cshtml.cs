@@ -23,6 +23,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
     private readonly ApplicationDbContext _db = db;
     private readonly IAuditService _audit = audit;
     private readonly ILogger<ManageModel> _logger = logger;
+    private const string UniqueLinkedProjectConstraint = "UX_FfcProjects_Record_LinkedProject";
 
     [FromQuery] public long RecordId { get; set; }
     public FfcRecord Record { get; private set; } = default!;
@@ -104,7 +105,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         if (string.IsNullOrWhiteSpace(Input.Name))
             ModelState.AddModelError(nameof(Input.Name), "Name is required.");
 
-        ValidateProjectInput();
+        await ValidateProjectInputAsync(recordId, Input.Id);
 
         if (!ModelState.IsValid)
         {
@@ -125,7 +126,20 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
             InstalledOn = Input.InstalledOn
         };
         _db.FfcProjects.Add(entity);
-        await _db.SaveChangesAsync();
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IsConstraintViolation(ex, UniqueLinkedProjectConstraint))
+        {
+            _db.Entry(entity).State = EntityState.Detached;
+            ModelState.AddModelError(
+                nameof(Input.LinkedProjectId),
+                "This PRISM project is already linked to the selected FFC record.");
+            await LoadPageDataAsync(recordId, Input.LinkedProjectId);
+            return Page();
+        }
 
         await TryLogAsync("ProjectOfficeReports.FFC.RecordProjectCreated", BuildProjectData(entity, "After"));
 
@@ -148,7 +162,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         if (string.IsNullOrWhiteSpace(Input.Name))
             ModelState.AddModelError(nameof(Input.Name), "Name is required.");
 
-        ValidateProjectInput();
+        await ValidateProjectInputAsync(recordId, Input.Id);
 
         if (!ModelState.IsValid)
         {
@@ -170,7 +184,19 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         p.IsInstalled = Input.IsInstalled;
         p.InstalledOn = Input.InstalledOn;
 
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IsConstraintViolation(ex, UniqueLinkedProjectConstraint))
+        {
+            ModelState.AddModelError(
+                nameof(Input.LinkedProjectId),
+                "This PRISM project is already linked to the selected FFC record.");
+            await _db.Entry(p).ReloadAsync();
+            await LoadPageDataAsync(recordId, Input.LinkedProjectId);
+            return Page();
+        }
 
         var data = new Dictionary<string, string?>(before);
         foreach (var kvp in BuildProjectData(p, "After"))
@@ -295,7 +321,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         LinkedProjects = new SelectList(linkedProjects, "Id", "Name", selectedLinkedProjectId);
     }
 
-    private void ValidateProjectInput()
+    private async Task ValidateProjectInputAsync(long recordId, long? currentProjectId)
     {
         if (Input.Quantity < 1)
         {
@@ -321,5 +347,26 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         {
             ModelState.AddModelError(nameof(Input.InstalledOn), "Installation date cannot be earlier than delivery date.");
         }
+
+        if (Input.LinkedProjectId.HasValue)
+        {
+            var duplicateExists = await _db.FfcProjects
+                .AsNoTracking()
+                .AnyAsync(project =>
+                    project.FfcRecordId == recordId &&
+                    project.LinkedProjectId == Input.LinkedProjectId.Value &&
+                    (!currentProjectId.HasValue || project.Id != currentProjectId.Value));
+
+            if (duplicateExists)
+            {
+                ModelState.AddModelError(
+                    nameof(Input.LinkedProjectId),
+                    "This PRISM project is already linked to the selected FFC record.");
+            }
+        }
     }
+
+    private static bool IsConstraintViolation(DbUpdateException exception, string constraintName)
+        => exception.InnerException is Npgsql.PostgresException postgresException
+           && string.Equals(postgresException.ConstraintName, constraintName, StringComparison.Ordinal);
 }

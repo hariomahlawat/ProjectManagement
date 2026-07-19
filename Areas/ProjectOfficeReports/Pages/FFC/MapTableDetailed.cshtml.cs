@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Linq;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -14,7 +13,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
-using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services.Ffc;
@@ -28,7 +26,7 @@ public class MapTableDetailedModel : PageModel
 {
     private readonly ApplicationDbContext _db;
     private readonly IFfcQueryService _ffcQueryService;
-    private readonly IRemarkService _remarkService;
+    private readonly IFfcProgressService _ffcProgressService;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<MapTableDetailedModel> _logger;
 
@@ -36,13 +34,13 @@ public class MapTableDetailedModel : PageModel
     public MapTableDetailedModel(
         ApplicationDbContext db,
         IFfcQueryService ffcQueryService,
-        IRemarkService remarkService,
+        IFfcProgressService ffcProgressService,
         UserManager<ApplicationUser> userManager,
         ILogger<MapTableDetailedModel> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _ffcQueryService = ffcQueryService ?? throw new ArgumentNullException(nameof(ffcQueryService));
-        _remarkService = remarkService ?? throw new ArgumentNullException(nameof(remarkService));
+        _ffcProgressService = ffcProgressService ?? throw new ArgumentNullException(nameof(ffcProgressService));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -244,173 +242,62 @@ public class MapTableDetailedModel : PageModel
             return BadRequest(new { message = "Request payload is missing." });
         }
 
-        if (request.FfcProjectId <= 0)
+        var actor = await BuildRemarkActorContextAsync(cancellationToken);
+
+        try
         {
-            return BadRequest(new { message = "Invalid project identifier." });
-        }
+            var result = await _ffcProgressService.UpdateProgressAsync(
+                new FfcProgressUpdateCommand(
+                    FfcProjectId: request.FfcProjectId,
+                    RequestedLinkedProjectId: request.LinkedProjectId,
+                    ExternalRemarkId: request.ExternalRemarkId,
+                    ProgressText: request.ProgressText,
+                    Actor: actor),
+                cancellationToken);
 
-        var normalized = NormalizeRemark(request.ProgressText);
-        if (normalized.Length > ProgressMaxLength)
-        {
-            return BadRequest(new { message = $"Progress text must be {ProgressMaxLength} characters or fewer." });
-        }
-
-        var project = await _db.FfcProjects
-            .FirstOrDefaultAsync(item => item.Id == request.FfcProjectId, cancellationToken);
-
-        if (project is null)
-        {
-            return NotFound(new { message = "Project row not found." });
-        }
-
-        // SECTION: Request sanitisation
-        var requestedLinkedProjectId = NormalizeOptionalId(request.LinkedProjectId);
-        var externalRemarkId = NormalizeOptionalId(request.ExternalRemarkId);
-        var projectLinkedProjectId = NormalizeOptionalId(project.LinkedProjectId);
-
-        if (requestedLinkedProjectId.HasValue && projectLinkedProjectId != requestedLinkedProjectId)
-        {
-            return BadRequest(new { message = "Linked project reference does not match the selected row." });
-        }
-
-        if (projectLinkedProjectId.HasValue)
-        {
-            var linkedProjectExists = await _db.Projects
-                .AsNoTracking()
-                .AnyAsync(item => item.Id == projectLinkedProjectId.Value, cancellationToken);
-
-            if (!linkedProjectExists)
+            return new JsonResult(new
             {
-                return BadRequest(new { message = "Linked project not found. Please fix the linkage." });
-            }
+                ok = true,
+                progressText = result.ProgressText,
+                renderedProgressText = FormatRemarkForDisplay(result.ProgressText),
+                updatedAtUtc = result.UpdatedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
+                updatedBy = User.Identity?.Name,
+                externalRemarkId = result.ExternalRemarkId
+            });
         }
-
-        string? updatedBy = User.Identity?.Name;
-        DateTimeOffset updatedAt = DateTimeOffset.UtcNow;
-
-        if (projectLinkedProjectId is int resolvedLinkedProjectId)
+        catch (FfcProgressNotFoundException ex)
         {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(normalized))
-                {
-                    return BadRequest(new { message = "Progress text cannot be empty for linked projects." });
-                }
-
-                var actor = await BuildRemarkActorContextAsync(cancellationToken);
-                if (actor is null)
-                {
-                    return Forbid();
-                }
-
-                // SECTION: Resolve remark for edit (latest external remark preferred)
-                var existingRemark = await ResolveExternalRemarkAsync(
-                    resolvedLinkedProjectId,
-                    externalRemarkId,
-                    cancellationToken);
-
-                if (existingRemark is not null)
-                {
-                    try
-                    {
-                        var updatedRemark = await _remarkService.EditRemarkAsync(existingRemark.Id, new EditRemarkRequest(
-                            Actor: actor,
-                            Body: normalized,
-                            Scope: existingRemark.Scope,
-                            EventDate: existingRemark.EventDate,
-                            StageRef: existingRemark.StageRef,
-                            StageNameSnapshot: existingRemark.StageNameSnapshot,
-                            Meta: BuildFfcMeta("progress", project.FfcRecordId, project.Id, resolvedLinkedProjectId),
-                            RowVersion: existingRemark.RowVersion), cancellationToken);
-
-                        if (updatedRemark is null)
-                        {
-                            return NotFound(new { message = "External remark not found." });
-                        }
-
-                        updatedAt = updatedRemark.LastEditedAtUtc.HasValue
-                            ? new DateTimeOffset(updatedRemark.LastEditedAtUtc.Value, TimeSpan.Zero)
-                            : new DateTimeOffset(updatedRemark.CreatedAtUtc, TimeSpan.Zero);
-
-                        return new JsonResult(new
-                        {
-                            ok = true,
-                            progressText = normalized,
-                            renderedProgressText = FormatRemarkForDisplay(normalized),
-                            updatedAtUtc = updatedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
-                            updatedBy,
-                            externalRemarkId = updatedRemark.Id
-                        });
-                    }
-                    catch (InvalidOperationException)
-                    {
-                        throw;
-                    }
-                    catch (Exception ex)
-                    {
-                        // SECTION: Fallback to new remark when edit fails unexpectedly
-                        _logger.LogWarning(
-                            ex,
-                            "Failed to edit external remark for linked project. LinkedProjectId={LinkedProjectId}, ExternalRemarkId={ExternalRemarkId}",
-                            resolvedLinkedProjectId,
-                            existingRemark.Id);
-                    }
-                }
-
-                var createdRemark = await _remarkService.CreateRemarkAsync(new CreateRemarkRequest(
-                    ProjectId: resolvedLinkedProjectId,
-                    Actor: actor,
-                    Type: RemarkType.External,
-                    Scope: RemarkScope.General,
-                    Body: normalized,
-                    EventDate: DateOnly.FromDateTime(IstClock.ToIst(DateTime.UtcNow)),
-                    StageRef: null,
-                    StageNameSnapshot: null,
-                    Meta: BuildFfcMeta("progress", project.FfcRecordId, project.Id, resolvedLinkedProjectId)), cancellationToken);
-
-                updatedAt = new DateTimeOffset(createdRemark.CreatedAtUtc, TimeSpan.Zero);
-
-                return new JsonResult(new
-                {
-                    ok = true,
-                    progressText = normalized,
-                    renderedProgressText = FormatRemarkForDisplay(normalized),
-                    updatedAtUtc = updatedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
-                    updatedBy,
-                    externalRemarkId = createdRemark.Id
-                });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                LogProgressUpdateFailure(ex, request, resolvedLinkedProjectId);
-                return BadRequest(new { message = "Unable to save progress due to a database constraint. See server logs for details." });
-            }
-            catch (Exception ex)
-            {
-                LogProgressUpdateFailure(ex, request, resolvedLinkedProjectId);
-                return StatusCode(500, new { ok = false, message = "Unable to save. See server logs for details." });
-            }
+            return NotFound(new { message = ex.Message });
         }
-        else
+        catch (UnauthorizedAccessException)
         {
-            project.Remarks = string.IsNullOrWhiteSpace(normalized) ? null : normalized;
-            project.UpdatedAt = updatedAt;
-            await _db.SaveChangesAsync(cancellationToken);
+            return Forbid();
         }
-
-        return new JsonResult(new
+        catch (FfcProgressValidationException ex)
         {
-            ok = true,
-            progressText = normalized,
-            renderedProgressText = FormatRemarkForDisplay(normalized),
-            updatedAtUtc = updatedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
-            updatedBy,
-            externalRemarkId
-        });
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (DbUpdateException ex)
+        {
+            LogProgressUpdateFailure(ex, request, request.LinkedProjectId);
+            return BadRequest(new
+            {
+                message = "Unable to save progress due to a database constraint. See server logs for details."
+            });
+        }
+        catch (Exception ex)
+        {
+            LogProgressUpdateFailure(ex, request, request.LinkedProjectId);
+            return StatusCode(500, new
+            {
+                ok = false,
+                message = "Unable to save. See server logs for details."
+            });
+        }
     }
 
     // SECTION: Helper methods
@@ -475,7 +362,6 @@ public class MapTableDetailedModel : PageModel
     }
 
     // SECTION: Inline editing helpers
-    private const int ProgressMaxLength = 2000;
     private const int OverallRemarksMaxLength = 4000;
 
     private static string NormalizeRemark(string? value)
@@ -503,25 +389,6 @@ public class MapTableDetailedModel : PageModel
 
         const int limit = 200;
         return text.Length <= limit ? text : string.Concat(text.AsSpan(0, limit), "…");
-    }
-
-    // SECTION: Identifier helpers
-    private static int? NormalizeOptionalId(int? value)
-    {
-        return value.HasValue && value.Value > 0 ? value : null;
-    }
-
-    // SECTION: Metadata helpers
-    private static string BuildFfcMeta(string kind, long ffcRecordId, long ffcProjectId, int linkedProjectId)
-    {
-        return JsonSerializer.Serialize(new
-        {
-            source = "ProjectOfficeReports.FFC.MapTableDetailed",
-            kind,
-            ffcRecordId,
-            ffcProjectId,
-            linkedProjectId
-        });
     }
 
     private Task<RemarkActorContext?> BuildRemarkActorContextAsync(CancellationToken cancellationToken)
@@ -557,73 +424,7 @@ public class MapTableDetailedModel : PageModel
         return Task.FromResult<RemarkActorContext?>(new RemarkActorContext(userId, primary, roles));
     }
 
-    // SECTION: External remark helpers
-    private async Task<ExternalRemarkSnapshot?> ResolveExternalRemarkAsync(
-        int linkedProjectId,
-        int? externalRemarkId,
-        CancellationToken cancellationToken)
-    {
-        if (externalRemarkId.HasValue && externalRemarkId.Value > 0)
-        {
-            var byId = await LoadExternalRemarkByIdAsync(linkedProjectId, externalRemarkId.Value, cancellationToken);
-            if (byId is not null)
-            {
-                return byId;
-            }
-        }
-
-        return await LoadLatestExternalRemarkAsync(linkedProjectId, cancellationToken);
-    }
-
-    private Task<ExternalRemarkSnapshot?> LoadExternalRemarkByIdAsync(
-        int linkedProjectId,
-        int externalRemarkId,
-        CancellationToken cancellationToken)
-    {
-        return _db.Remarks
-            .AsNoTracking()
-            .Where(item => item.Id == externalRemarkId
-                && item.ProjectId == linkedProjectId
-                && !item.IsDeleted
-                && item.Type == RemarkType.External)
-            .Select(item => new ExternalRemarkSnapshot(
-                item.Id,
-                item.ProjectId,
-                item.Scope,
-                item.EventDate,
-                item.StageRef,
-                item.StageNameSnapshot,
-                item.RowVersion,
-                item.CreatedAtUtc,
-                item.LastEditedAtUtc))
-            .FirstOrDefaultAsync(cancellationToken);
-    }
-
-    private Task<ExternalRemarkSnapshot?> LoadLatestExternalRemarkAsync(
-        int linkedProjectId,
-        CancellationToken cancellationToken)
-    {
-        return _db.Remarks
-            .AsNoTracking()
-            .Where(item => item.ProjectId == linkedProjectId
-                && !item.IsDeleted
-                && item.Type == RemarkType.External)
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .ThenByDescending(item => item.Id)
-            .Select(item => new ExternalRemarkSnapshot(
-                item.Id,
-                item.ProjectId,
-                item.Scope,
-                item.EventDate,
-                item.StageRef,
-                item.StageNameSnapshot,
-                item.RowVersion,
-                item.CreatedAtUtc,
-                item.LastEditedAtUtc))
-            .FirstOrDefaultAsync(cancellationToken);
-    }
-
-    private void LogProgressUpdateFailure(Exception ex, UpdateProgressRequest request, int linkedProjectId)
+    private void LogProgressUpdateFailure(Exception ex, UpdateProgressRequest request, int? linkedProjectId)
     {
         var userId = _userManager.GetUserId(User);
         var roles = new List<string>();
@@ -677,14 +478,4 @@ public class MapTableDetailedModel : PageModel
         public int? ExternalRemarkId { get; set; }
     }
 
-    private sealed record ExternalRemarkSnapshot(
-        int Id,
-        int ProjectId,
-        RemarkScope Scope,
-        DateOnly EventDate,
-        string? StageRef,
-        string? StageNameSnapshot,
-        byte[] RowVersion,
-        DateTime CreatedAtUtc,
-        DateTime? LastEditedAtUtc);
 }

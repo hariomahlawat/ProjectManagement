@@ -24,6 +24,7 @@ public class ManageModel : FfcRecordListPageModel
     private readonly ILogger<ManageModel> _logger;
     private const string ConcurrencyReloadMessage =
         "The record was modified by another user. The latest values have been loaded; please review and try again.";
+    private const string ActiveCountryYearConstraint = "UX_FfcRecords_CountryId_Year_Active";
     private readonly Dictionary<long, FfcProjectQuantitySummary> _projectSummaryCache = new();
 
     public bool CanManageRecords => User.IsInRole("Admin") || User.IsInRole("HoD");
@@ -96,7 +97,20 @@ public class ManageModel : FfcRecordListPageModel
 
         var entity = MapToEntity(Input, new FfcRecord());
         Db.FfcRecords.Add(entity);
-        await Db.SaveChangesAsync();
+
+        try
+        {
+            await Db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IsConstraintViolation(ex, ActiveCountryYearConstraint))
+        {
+            Db.Entry(entity).State = EntityState.Detached;
+            ModelState.AddModelError(
+                nameof(Input) + "." + nameof(Input.Year),
+                "An active FFC record already exists for the selected country and year.");
+            await LoadPageAsync();
+            return Page();
+        }
 
         var data = BuildRecordData(entity, "After");
         data["RecordId"] = entity.Id.ToString();
@@ -140,6 +154,15 @@ public class ManageModel : FfcRecordListPageModel
         try
         {
             await Db.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex) when (IsConstraintViolation(ex, ActiveCountryYearConstraint))
+        {
+            ModelState.AddModelError(
+                nameof(Input) + "." + nameof(Input.Year),
+                "An active FFC record already exists for the selected country and year.");
+            await Db.Entry(entity).ReloadAsync();
+            await LoadPageAsync(Input.Id);
+            return Page();
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -317,6 +340,24 @@ public class ManageModel : FfcRecordListPageModel
         if (i.Year is < 2000 or > 2100)
             ModelState.AddModelError(nameof(Input) + "." + nameof(Input.Year), "Year must be between 2000 and 2100.");
 
+        if (!i.IsDeleted && i.CountryId > 0 && i.Year is >= 2000 and <= 2100)
+        {
+            var duplicateExists = await Db.FfcRecords
+                .AsNoTracking()
+                .AnyAsync(record =>
+                    !record.IsDeleted &&
+                    record.CountryId == i.CountryId &&
+                    record.Year == i.Year &&
+                    (!i.Id.HasValue || record.Id != i.Id.Value));
+
+            if (duplicateExists)
+            {
+                ModelState.AddModelError(
+                    nameof(Input) + "." + nameof(Input.Year),
+                    "An active FFC record already exists for the selected country and year.");
+            }
+        }
+
         if (i.IpaDate.HasValue && !i.IpaYes)
             ModelState.AddModelError(nameof(Input) + "." + nameof(Input.IpaDate), "IPA date requires IPA = Yes.");
         if (i.GslDate.HasValue && !i.GslYes)
@@ -370,6 +411,10 @@ public class ManageModel : FfcRecordListPageModel
             [$"{prefix}.IsDeleted"] = record.IsDeleted.ToString()
         };
     }
+
+    private static bool IsConstraintViolation(DbUpdateException exception, string constraintName)
+        => exception.InnerException is Npgsql.PostgresException postgresException
+           && string.Equals(postgresException.ConstraintName, constraintName, StringComparison.Ordinal);
 
     public FfcProjectQuantitySummary GetProjectSummary(FfcRecord record)
     {

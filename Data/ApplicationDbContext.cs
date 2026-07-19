@@ -928,8 +928,13 @@ namespace ProjectManagement.Data
                     entity.Property(x => x.UpdatedAt).HasColumnType("timestamp with time zone");
                 }
 
-                entity.HasIndex(x => new { x.CountryId, x.Year })
-                    .HasDatabaseName("IX_FfcRecords_CountryId_Year");
+                var activeCountryYearIndex = entity.HasIndex(x => new { x.CountryId, x.Year })
+                    .IsUnique()
+                    .HasDatabaseName("UX_FfcRecords_CountryId_Year_Active");
+
+                activeCountryYearIndex.HasFilter(Database.IsNpgsql()
+                    ? "\"IsDeleted\" = FALSE"
+                    : "\"IsDeleted\" = 0");
                 entity.HasIndex(x => new { x.IpaYes, x.GslYes, x.DeliveryYes, x.InstallationYes })
                     .HasDatabaseName("IX_FfcRecords_StatusFlags");
 
@@ -979,6 +984,11 @@ namespace ProjectManagement.Data
                 entity.HasIndex(x => x.LinkedProjectId)
                     .HasDatabaseName("IX_FfcProjects_LinkedProjectId");
 
+                entity.HasIndex(x => new { x.FfcRecordId, x.LinkedProjectId })
+                    .IsUnique()
+                    .HasFilter("\"LinkedProjectId\" IS NOT NULL")
+                    .HasDatabaseName("UX_FfcProjects_Record_LinkedProject");
+
                 entity.HasOne(x => x.Record)
                     .WithMany(x => x.Projects)
                     .HasForeignKey(x => x.FfcRecordId)
@@ -998,6 +1008,12 @@ namespace ProjectManagement.Data
                     tb.HasCheckConstraint(
                         "CK_FfcProjects_InstalledOn_RequiresFlag",
                         "\"InstalledOn\" IS NULL OR \"IsInstalled\" = TRUE");
+                    tb.HasCheckConstraint(
+                        "CK_FfcProjects_Installed_RequiresDelivered",
+                        "\"IsInstalled\" = FALSE OR \"IsDelivered\" = TRUE");
+                    tb.HasCheckConstraint(
+                        "CK_FfcProjects_InstallationDate_NotBeforeDeliveryDate",
+                        "\"DeliveredOn\" IS NULL OR \"InstalledOn\" IS NULL OR \"InstalledOn\" >= \"DeliveredOn\"");
                 });
             });
 

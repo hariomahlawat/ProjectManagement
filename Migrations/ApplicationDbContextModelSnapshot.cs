@@ -553,11 +553,20 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("LinkedProjectId")
                         .HasDatabaseName("IX_FfcProjects_LinkedProjectId");
 
+                    b.HasIndex("FfcRecordId", "LinkedProjectId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_FfcProjects_Record_LinkedProject")
+                        .HasFilter("\"LinkedProjectId\" IS NOT NULL");
+
                     b.ToTable("FfcProjects", null, t =>
                         {
                             t.HasCheckConstraint("CK_FfcProjects_DeliveredOn_RequiresFlag", "\"DeliveredOn\" IS NULL OR \"IsDelivered\" = TRUE");
 
                             t.HasCheckConstraint("CK_FfcProjects_InstalledOn_RequiresFlag", "\"InstalledOn\" IS NULL OR \"IsInstalled\" = TRUE");
+
+                            t.HasCheckConstraint("CK_FfcProjects_Installed_RequiresDelivered", "\"IsInstalled\" = FALSE OR \"IsDelivered\" = TRUE");
+
+                            t.HasCheckConstraint("CK_FfcProjects_InstallationDate_NotBeforeDeliveryDate", "\"DeliveredOn\" IS NULL OR \"InstalledOn\" IS NULL OR \"InstalledOn\" >= \"DeliveredOn\"");
 
                             t.HasCheckConstraint("CK_FfcProjects_Quantity_Positive", "\"Quantity\" > 0");
                         });
@@ -651,7 +660,9 @@ namespace ProjectManagement.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CountryId", "Year")
-                        .HasDatabaseName("IX_FfcRecords_CountryId_Year");
+                        .IsUnique()
+                        .HasDatabaseName("UX_FfcRecords_CountryId_Year_Active")
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.HasIndex("IpaYes", "GslYes", "DeliveryYes", "InstallationYes")
                         .HasDatabaseName("IX_FfcRecords_StatusFlags");

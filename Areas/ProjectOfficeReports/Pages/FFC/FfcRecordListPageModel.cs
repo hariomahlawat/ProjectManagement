@@ -2,22 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
+using ProjectManagement.Services.Ffc;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
-
-public enum MilestoneFilterState
-{
-    Any,
-    Completed,
-    Pending
-}
 
 public abstract class FfcRecordListPageModel : PageModel
 {
@@ -44,13 +37,13 @@ public abstract class FfcRecordListPageModel : PageModel
 
     [FromQuery(Name = "countryId")] public long? CountryId { get; set; }
 
-    [FromQuery(Name = "ipa")] public MilestoneFilterState IpaStatus { get; set; } = MilestoneFilterState.Any;
+    [FromQuery(Name = "ipa")] public FfcFilterState IpaStatus { get; set; } = FfcFilterState.Any;
 
-    [FromQuery(Name = "gsl")] public MilestoneFilterState GslStatus { get; set; } = MilestoneFilterState.Any;
+    [FromQuery(Name = "gsl")] public FfcFilterState GslStatus { get; set; } = FfcFilterState.Any;
 
-    [FromQuery(Name = "delivery")] public MilestoneFilterState DeliveryStatus { get; set; } = MilestoneFilterState.Any;
+    [FromQuery(Name = "delivery")] public FfcFilterState DeliveryStatus { get; set; } = FfcFilterState.Any;
 
-    [FromQuery(Name = "installation")] public MilestoneFilterState InstallationStatus { get; set; } = MilestoneFilterState.Any;
+    [FromQuery(Name = "installation")] public FfcFilterState InstallationStatus { get; set; } = FfcFilterState.Any;
 
     public int TotalCount { get; private set; }
 
@@ -65,35 +58,23 @@ public abstract class FfcRecordListPageModel : PageModel
     public bool HasActiveFilters =>
         Year.HasValue ||
         CountryId.HasValue ||
-        IpaStatus != MilestoneFilterState.Any ||
-        GslStatus != MilestoneFilterState.Any ||
-        DeliveryStatus != MilestoneFilterState.Any ||
-        InstallationStatus != MilestoneFilterState.Any ||
+        IpaStatus != FfcFilterState.Any ||
+        GslStatus != FfcFilterState.Any ||
+        DeliveryStatus != FfcFilterState.Any ||
+        InstallationStatus != FfcFilterState.Any ||
         HasQuery;
 
     protected async Task LoadRecordsAsync()
     {
-        Query = string.IsNullOrWhiteSpace(Query) ? null : Query!.Trim();
+        NormalizeFilterState();
+        Query = string.IsNullOrWhiteSpace(Query) ? null : Query.Trim();
 
         var queryable = Db.FfcRecords
-            .Include(x => x.Country)
-            .Include(x => x.Projects)
-                .ThenInclude(p => p.LinkedProject)
-            .Include(x => x.Attachments)
+            .AsNoTracking()
             .AsQueryable();
 
-        queryable = ApplyRecordFilters(ApplyMilestoneFilters(ApplyScalarFilters(queryable)));
-
-        if (!string.IsNullOrWhiteSpace(Query))
-        {
-            var term = Query.ToLowerInvariant();
-            var hasYear = short.TryParse(Query, out var year);
-
-            queryable = queryable.Where(x =>
-                x.Country.Name.ToLower().Contains(term) ||
-                (hasYear && x.Year == year));
-        }
-
+        queryable = ApplyRecordFilters(queryable);
+        queryable = FfcPortfolioQuery.ApplyFilters(queryable, BuildPortfolioFilter());
         queryable = ApplyOrdering(queryable);
 
         TotalCount = await queryable.CountAsync();
@@ -108,15 +89,47 @@ public abstract class FfcRecordListPageModel : PageModel
             PageNumber = TotalPages;
         }
 
-        Records = await queryable
-            .AsSplitQuery()
-            .AsNoTracking()
+        var pageIds = await queryable
+            .Select(record => record.Id)
             .Skip((PageNumber - 1) * PageSize)
             .Take(PageSize)
             .ToListAsync();
+
+        if (pageIds.Count == 0)
+        {
+            Records = [];
+            return;
+        }
+
+        var records = await Db.FfcRecords
+            .AsNoTracking()
+            .Where(record => pageIds.Contains(record.Id))
+            .Include(record => record.Country)
+            .Include(record => record.Projects)
+                .ThenInclude(project => project.LinkedProject)
+            .Include(record => record.Attachments)
+            .AsSplitQuery()
+            .ToListAsync();
+
+        var recordsById = records.ToDictionary(record => record.Id);
+        Records = pageIds
+            .Where(recordsById.ContainsKey)
+            .Select(id => recordsById[id])
+            .ToList();
     }
 
-    protected virtual IQueryable<FfcRecord> ApplyRecordFilters(IQueryable<FfcRecord> queryable) => queryable;
+    protected virtual IQueryable<FfcRecord> ApplyRecordFilters(IQueryable<FfcRecord> queryable)
+        => queryable;
+
+    protected FfcPortfolioFilter BuildPortfolioFilter()
+        => new(
+            Query: Query,
+            Year: Year,
+            CountryId: CountryId,
+            IpaStatus: IpaStatus,
+            GslStatus: GslStatus,
+            DeliveryStatus: DeliveryStatus,
+            InstallationStatus: InstallationStatus);
 
     public Dictionary<string, string?> BuildRoute(
         int? page = null,
@@ -125,10 +138,10 @@ public abstract class FfcRecordListPageModel : PageModel
         string? query = null,
         short? year = null,
         long? countryId = null,
-        MilestoneFilterState? ipa = null,
-        MilestoneFilterState? gsl = null,
-        MilestoneFilterState? delivery = null,
-        MilestoneFilterState? installation = null)
+        FfcFilterState? ipa = null,
+        FfcFilterState? gsl = null,
+        FfcFilterState? delivery = null,
+        FfcFilterState? installation = null)
     {
         var effectiveQuery = query ?? Query;
         var effectiveYear = year.HasValue ? year : Year;
@@ -161,10 +174,10 @@ public abstract class FfcRecordListPageModel : PageModel
             values["countryId"] = effectiveCountryId.Value.ToString(CultureInfo.InvariantCulture);
         }
 
-        AddMilestoneRouteValue(values, "ipa", effectiveIpa);
-        AddMilestoneRouteValue(values, "gsl", effectiveGsl);
-        AddMilestoneRouteValue(values, "delivery", effectiveDelivery);
-        AddMilestoneRouteValue(values, "installation", effectiveInstallation);
+        AddFilterRouteValue(values, "ipa", effectiveIpa);
+        AddFilterRouteValue(values, "gsl", effectiveGsl);
+        AddFilterRouteValue(values, "delivery", effectiveDelivery);
+        AddFilterRouteValue(values, "installation", effectiveInstallation);
 
         return values;
     }
@@ -185,11 +198,11 @@ public abstract class FfcRecordListPageModel : PageModel
         return sort switch
         {
             "country" => descending
-                ? queryable.OrderByDescending(x => x.Country.Name).ThenByDescending(x => x.Year)
-                : queryable.OrderBy(x => x.Country.Name).ThenByDescending(x => x.Year),
+                ? queryable.OrderByDescending(record => record.Country.Name).ThenByDescending(record => record.Year)
+                : queryable.OrderBy(record => record.Country.Name).ThenByDescending(record => record.Year),
             _ => descending
-                ? queryable.OrderByDescending(x => x.Year).ThenBy(x => x.Country.Name)
-                : queryable.OrderBy(x => x.Year).ThenBy(x => x.Country.Name)
+                ? queryable.OrderByDescending(record => record.Year).ThenBy(record => record.Country.Name)
+                : queryable.OrderBy(record => record.Year).ThenBy(record => record.Country.Name)
         };
     }
 
@@ -197,7 +210,9 @@ public abstract class FfcRecordListPageModel : PageModel
     {
         if (string.Equals(CurrentSort, column, StringComparison.OrdinalIgnoreCase))
         {
-            return string.Equals(CurrentSortDirection, "desc", StringComparison.OrdinalIgnoreCase) ? "asc" : "desc";
+            return string.Equals(CurrentSortDirection, "desc", StringComparison.OrdinalIgnoreCase)
+                ? "asc"
+                : "desc";
         }
 
         return column == "year" ? "desc" : "asc";
@@ -215,61 +230,32 @@ public abstract class FfcRecordListPageModel : PageModel
             : "bi bi-arrow-up";
     }
 
-    private IQueryable<FfcRecord> ApplyScalarFilters(IQueryable<FfcRecord> queryable)
+    private void NormalizeFilterState()
     {
-        if (Year.HasValue)
+        // IPA and GSL are binary milestones. Partial is meaningful only for
+        // delivery and installation, which aggregate multiple project rows.
+        if (IpaStatus == FfcFilterState.Partial)
         {
-            queryable = queryable.Where(record => record.Year == Year.Value);
+            IpaStatus = FfcFilterState.Any;
         }
 
-        if (CountryId.HasValue)
+        if (GslStatus == FfcFilterState.Partial)
         {
-            queryable = queryable.Where(record => record.CountryId == CountryId.Value);
+            GslStatus = FfcFilterState.Any;
         }
-
-        return queryable;
     }
 
-    private IQueryable<FfcRecord> ApplyMilestoneFilters(IQueryable<FfcRecord> queryable)
-    {
-        queryable = ApplyMilestoneFilter(queryable, IpaStatus, record => record.IpaYes);
-        queryable = ApplyMilestoneFilter(queryable, GslStatus, record => record.GslYes);
-        queryable = ApplyMilestoneFilter(queryable, DeliveryStatus, record => record.Projects.Any(project => project.IsDelivered));
-        queryable = ApplyMilestoneFilter(queryable, InstallationStatus, record => record.Projects.Any(project => project.IsInstalled));
-        return queryable;
-    }
-
-    private static IQueryable<FfcRecord> ApplyMilestoneFilter(
-        IQueryable<FfcRecord> queryable,
-        MilestoneFilterState state,
-        Expression<Func<FfcRecord, bool>> predicate)
-    {
-        return state switch
-        {
-            MilestoneFilterState.Completed => queryable.Where(predicate),
-            MilestoneFilterState.Pending => queryable.Where(Negate(predicate)),
-            _ => queryable
-        };
-    }
-
-    private static void AddMilestoneRouteValue(
+    private static void AddFilterRouteValue(
         IDictionary<string, string?> values,
         string key,
-        MilestoneFilterState state)
+        FfcFilterState state)
     {
-        if (state == MilestoneFilterState.Any)
+        if (state == FfcFilterState.Any)
         {
             values.Remove(key);
             return;
         }
 
         values[key] = state.ToString().ToLowerInvariant();
-    }
-
-    private static Expression<Func<FfcRecord, bool>> Negate(Expression<Func<FfcRecord, bool>> predicate)
-    {
-        var parameter = predicate.Parameters[0];
-        var negatedBody = Expression.Not(predicate.Body);
-        return Expression.Lambda<Func<FfcRecord, bool>>(negatedBody, parameter);
     }
 }

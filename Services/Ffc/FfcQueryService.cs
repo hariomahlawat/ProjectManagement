@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
-using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Services.Ffc;
@@ -48,23 +47,21 @@ public sealed record FfcDetailedRowVm(
     FfcProgressSource ProgressSource,
     bool IsProgressEditable);
 
-public enum FfcProgressSource
-{
-    ExternalProjectRemark = 0,
-    FfcProjectRemark = 1,
-    Computed = 2
-}
-
 // SECTION: Query service
 public sealed class FfcQueryService : IFfcQueryService
 {
     private readonly ApplicationDbContext _db;
     private readonly IProjectCostResolver _costResolver;
+    private readonly IFfcProgressService _progressService;
 
-    public FfcQueryService(ApplicationDbContext db, IProjectCostResolver costResolver)
+    public FfcQueryService(
+        ApplicationDbContext db,
+        IProjectCostResolver costResolver,
+        IFfcProgressService progressService)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _costResolver = costResolver ?? throw new ArgumentNullException(nameof(costResolver));
+        _progressService = progressService ?? throw new ArgumentNullException(nameof(progressService));
     }
 
     public async Task<IReadOnlyList<FfcDetailedGroupVm>> GetDetailedGroupsAsync(
@@ -124,11 +121,23 @@ public sealed class FfcQueryService : IFfcQueryService
                 .ToDictionary(x => x.Id, x => x.Name ?? string.Empty);
 
             // SECTION: Resolve project costs (CostLakhs -> PNC -> L1 -> AON -> IPA)
-            var costResolutions = await _costResolver.ResolveCostInCrAsync(linkedProjectIds, cancellationToken);
+            var costResolutions = await _costResolver.ResolveCostInCrAsync(
+                linkedProjectIds,
+                cancellationToken);
+
             projectCostMap = costResolutions
                 .ToDictionary(entry => entry.Key, entry => entry.Value.CostInCr);
-
         }
+
+        var progressByFfcProject = await _progressService.GetCurrentProgressAsync(
+            projects
+                .Where(project => project.LinkedProjectId.HasValue)
+                .Select(project => new FfcProgressTarget(
+                    FfcProjectId: project.Id,
+                    LinkedProjectId: project.LinkedProjectId,
+                    FfcProjectRemarks: project.Remarks))
+                .ToArray(),
+            cancellationToken);
 
         var groups = projects
             .GroupBy(project => new
@@ -156,17 +165,19 @@ public sealed class FfcQueryService : IFfcQueryService
             for (var index = 0; index < orderedProjects.Count; index++)
             {
                 var project = orderedProjects[index];
-                var (bucket, quantity) = FfcProjectBucketHelper.Classify(project.IsInstalled, project.IsDelivered, project.Quantity);
+                var (bucket, quantity) = FfcProjectBucketHelper.Classify(
+                    project.IsInstalled,
+                    project.IsDelivered,
+                    project.Quantity);
+
                 var bucketLabel = FfcProjectBucketHelper.GetBucketLabel(bucket);
                 var effectiveName = ResolveProjectName(project, projectNameMap);
                 var costInCr = ResolveProjectCost(project.LinkedProjectId, projectCostMap);
-                var remarkProjectId = project.LinkedProjectId;
-                var progressText = remarkProjectId.HasValue
-                    ? await FetchLatestRemarkAsync(remarkProjectId.Value, RemarkType.External, cancellationToken)
-                    : null;
-                var latestExternalRemarkId = remarkProjectId.HasValue
-                    ? await FetchLatestRemarkIdAsync(remarkProjectId.Value, RemarkType.External, cancellationToken)
-                    : null;
+                FfcProgressSnapshot? progress = null;
+                if (project.LinkedProjectId.HasValue)
+                {
+                    progressByFfcProject.TryGetValue(project.Id, out progress);
+                }
 
                 projectRows.Add(new FfcDetailedRowVm(
                     FfcProjectId: project.Id,
@@ -176,18 +187,20 @@ public sealed class FfcQueryService : IFfcQueryService
                     CostInCr: costInCr,
                     Quantity: quantity,
                     Status: bucketLabel,
-                    ProgressText: progressText,
-                    ProgressTextRaw: progressText,
-                    ExternalRemarkId: latestExternalRemarkId,
-                    ProgressSource: FfcProgressSource.ExternalProjectRemark,
-                    IsProgressEditable: project.LinkedProjectId.HasValue
-                ));
+                    ProgressText: progress?.Text,
+                    ProgressTextRaw: progress?.Text,
+                    ExternalRemarkId: progress?.ExternalRemarkId,
+                    ProgressSource: project.LinkedProjectId.HasValue
+                        ? progress?.Source ?? FfcProgressSource.ExternalProjectRemark
+                        : FfcProgressSource.FfcProjectRemark,
+                    IsProgressEditable: progress?.IsEditable ?? false));
             }
 
             if (projectRows.Count == 0)
             {
                 continue;
             }
+
             if (incompleteOnly && !hasIncomplete)
             {
                 continue;
@@ -208,13 +221,16 @@ public sealed class FfcQueryService : IFfcQueryService
     }
 
     // SECTION: Query builders
-    private IQueryable<FfcProject> BuildBaseQuery(DateOnly from, DateOnly to, long? countryId, short? year, bool applyYearFilter)
+    private IQueryable<FfcProject> BuildBaseQuery(
+        DateOnly from,
+        DateOnly to,
+        long? countryId,
+        short? year,
+        bool applyYearFilter)
     {
         var queryable = _db.FfcProjects
             .AsNoTracking()
             .Where(project => !project.Record.IsDeleted && project.Record.Country.IsActive)
-            .Include(project => project.Record)
-                .ThenInclude(record => record.Country)
             .AsQueryable();
 
         if (countryId.HasValue)
@@ -224,7 +240,9 @@ public sealed class FfcQueryService : IFfcQueryService
 
         if (applyYearFilter)
         {
-            queryable = queryable.Where(project => project.Record.Year >= from.Year && project.Record.Year <= to.Year);
+            queryable = queryable.Where(project =>
+                project.Record.Year >= from.Year &&
+                project.Record.Year <= to.Year);
         }
 
         if (year.HasValue)
@@ -236,12 +254,15 @@ public sealed class FfcQueryService : IFfcQueryService
     }
 
     // SECTION: Projection helpers
-    private static string ResolveProjectName(FfcProjectProjection project, IReadOnlyDictionary<int, string> projectNameMap)
+    private static string ResolveProjectName(
+        FfcProjectProjection project,
+        IReadOnlyDictionary<int, string> projectNameMap)
     {
         var displayName = project.Name ?? string.Empty;
         if (project.LinkedProjectId is int linkedId)
         {
-            if (projectNameMap.TryGetValue(linkedId, out var linkedName) && !string.IsNullOrWhiteSpace(linkedName))
+            if (projectNameMap.TryGetValue(linkedId, out var linkedName) &&
+                !string.IsNullOrWhiteSpace(linkedName))
             {
                 return linkedName;
             }
@@ -255,7 +276,9 @@ public sealed class FfcQueryService : IFfcQueryService
         return displayName;
     }
 
-    private static decimal? ResolveProjectCost(int? linkedProjectId, IReadOnlyDictionary<int, decimal?> costMap)
+    private static decimal? ResolveProjectCost(
+        int? linkedProjectId,
+        IReadOnlyDictionary<int, decimal?> costMap)
     {
         if (linkedProjectId is not int id)
         {
@@ -264,17 +287,6 @@ public sealed class FfcQueryService : IFfcQueryService
 
         return costMap.TryGetValue(id, out var cost) ? cost : null;
     }
-
-    private static string? NormalizeRemarkBody(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        return value.Trim();
-    }
-
 
     private static string FormatRemark(string? remark)
     {
@@ -288,7 +300,9 @@ public sealed class FfcQueryService : IFfcQueryService
             .Replace("\n", " ", StringComparison.Ordinal);
 
         const int limit = 200;
-        return text.Length <= limit ? text : string.Concat(text.AsSpan(0, limit), "…");
+        return text.Length <= limit
+            ? text
+            : string.Concat(text.AsSpan(0, limit), "…");
     }
 
     // SECTION: Data transfers
@@ -308,70 +322,4 @@ public sealed class FfcQueryService : IFfcQueryService
         string? OverallRemarks,
         string? CountryIso3,
         string? CountryName);
-
-    // SECTION: External remarks
-    private async Task<string?> FetchLatestRemarkAsync(
-        int projectId,
-        RemarkType remarkType,
-        CancellationToken cancellationToken)
-    {
-        var latest = await _db.Remarks
-            .AsNoTracking()
-            .Where(remark => remark.ProjectId == projectId
-                && !remark.IsDeleted
-                && remark.Type == remarkType
-                && remark.Body != null)
-            .Select(remark => new
-            {
-                remark.Body,
-                SortTimestamp = remark.LastEditedAtUtc ?? remark.CreatedAtUtc,
-                remark.Id
-            })
-            .OrderByDescending(remark => remark.SortTimestamp)
-            .ThenByDescending(remark => remark.Id)
-            .ToListAsync(cancellationToken);
-
-        foreach (var item in latest)
-        {
-            var normalized = NormalizeRemarkBody(item.Body);
-            if (!string.IsNullOrWhiteSpace(normalized))
-            {
-                return normalized;
-            }
-        }
-
-        return null;
-    }
-
-    private async Task<int?> FetchLatestRemarkIdAsync(
-        int projectId,
-        RemarkType remarkType,
-        CancellationToken cancellationToken)
-    {
-        var latest = await _db.Remarks
-            .AsNoTracking()
-            .Where(remark => remark.ProjectId == projectId
-                && !remark.IsDeleted
-                && remark.Type == remarkType
-                && remark.Body != null)
-            .Select(remark => new
-            {
-                remark.Id,
-                remark.Body,
-                SortTimestamp = remark.LastEditedAtUtc ?? remark.CreatedAtUtc
-            })
-            .OrderByDescending(remark => remark.SortTimestamp)
-            .ThenByDescending(remark => remark.Id)
-            .ToListAsync(cancellationToken);
-
-        foreach (var item in latest)
-        {
-            if (!string.IsNullOrWhiteSpace(NormalizeRemarkBody(item.Body)))
-            {
-                return item.Id;
-            }
-        }
-
-        return null;
-    }
 }

@@ -9,18 +9,26 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
-using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Ffc;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 
 [Authorize]
 public class IndexModel : FfcRecordListPageModel
 {
-    public IndexModel(ApplicationDbContext db)
+    private readonly IFfcPortfolioService _portfolioService;
+    private readonly IFfcProgressService _progressService;
+
+    public IndexModel(
+        ApplicationDbContext db,
+        IFfcPortfolioService portfolioService,
+        IFfcProgressService progressService)
         : base(db)
     {
+        _portfolioService = portfolioService ?? throw new ArgumentNullException(nameof(portfolioService));
+        _progressService = progressService ?? throw new ArgumentNullException(nameof(progressService));
     }
 
     public bool CanManageRecords { get; private set; }
@@ -29,7 +37,11 @@ public class IndexModel : FfcRecordListPageModel
 
     public IReadOnlyList<SelectListItem> YearOptions { get; private set; } = Array.Empty<SelectListItem>();
 
-    public IReadOnlyList<MilestoneFilterOption> MilestoneOptions { get; private set; } = Array.Empty<MilestoneFilterOption>();
+    public IReadOnlyList<FilterOption> MilestoneOptions { get; private set; } = Array.Empty<FilterOption>();
+
+    public IReadOnlyList<FilterOption> ProgressOptions { get; private set; } = Array.Empty<FilterOption>();
+
+    public FfcPortfolioSummary PortfolioSummary { get; private set; } = FfcPortfolioSummary.Empty;
 
     public IReadOnlyDictionary<int, ProjectLifecycleStatus> RollupProjectStatus { get; private set; }
         = new Dictionary<int, ProjectLifecycleStatus>();
@@ -45,6 +57,7 @@ public class IndexModel : FfcRecordListPageModel
         CanManageRecords = User.IsInRole("Admin") || User.IsInRole("HoD");
         await LoadFilterOptionsAsync();
         await LoadRecordsAsync();
+        PortfolioSummary = await _portfolioService.GetSummaryAsync(BuildPortfolioFilter());
 
         await LoadProjectRollupMetadataAsync();
         FfcBreadcrumbs.Set(ViewData, ("FFC Proposals", null));
@@ -55,7 +68,6 @@ public class IndexModel : FfcRecordListPageModel
 
     protected override IQueryable<FfcRecord> ApplyOrdering(IQueryable<FfcRecord> queryable)
     {
-
         return queryable
             .OrderByDescending(record => record.Year)
             .ThenBy(record => record.Country!.Name);
@@ -66,10 +78,10 @@ public class IndexModel : FfcRecordListPageModel
         string? query = null,
         short? year = null,
         long? countryId = null,
-        MilestoneFilterState? ipa = null,
-        MilestoneFilterState? gsl = null,
-        MilestoneFilterState? delivery = null,
-        MilestoneFilterState? installation = null)
+        FfcFilterState? ipa = null,
+        FfcFilterState? gsl = null,
+        FfcFilterState? delivery = null,
+        FfcFilterState? installation = null)
     {
         var values = BuildRoute(
             page: page,
@@ -89,9 +101,10 @@ public class IndexModel : FfcRecordListPageModel
         return values;
     }
 
-    public string GetMilestoneLabel(MilestoneFilterState state)
+    public string GetMilestoneLabel(FfcFilterState state)
     {
-        var option = MilestoneOptions.FirstOrDefault(item => item.Value == state);
+        var option = ProgressOptions.FirstOrDefault(item => item.Value == state)
+                     ?? MilestoneOptions.FirstOrDefault(item => item.Value == state);
         return option?.Label ?? state.ToString();
     }
 
@@ -145,35 +158,44 @@ public class IndexModel : FfcRecordListPageModel
                     CompletedOn = stage.CompletedOn
                 })));
 
-        var externalRemarks = await Db.Remarks
-            .AsNoTracking()
-            .Where(remark => linkedProjectIds.Contains(remark.ProjectId)
-                             && !remark.IsDeleted
-                             && remark.Type == RemarkType.External)
-            .Select(remark => new { remark.ProjectId, remark.Id, remark.CreatedAtUtc, remark.Body })
-            .ToListAsync();
+        var linkedFfcProjects = Records
+            .SelectMany(record => record.Projects)
+            .Where(project => project.LinkedProjectId.HasValue)
+            .ToArray();
 
-        RollupProjectExternalRemark = externalRemarks
-            .GroupBy(remark => remark.ProjectId)
+        var progressByFfcProject = await _progressService.GetCurrentProgressAsync(
+            linkedFfcProjects
+                .Select(project => new FfcProgressTarget(
+                    FfcProjectId: project.Id,
+                    LinkedProjectId: project.LinkedProjectId,
+                    FfcProjectRemarks: project.Remarks))
+                .ToArray());
+
+        RollupProjectExternalRemark = linkedFfcProjects
+            .GroupBy(project => project.LinkedProjectId!.Value)
             .ToDictionary(
                 group => group.Key,
                 group =>
                 {
-                    var last = group
-                        .OrderByDescending(item => item.CreatedAtUtc)
-                        .ThenByDescending(item => item.Id)
-                        .First();
+                    foreach (var project in group)
+                    {
+                        if (!progressByFfcProject.TryGetValue(project.Id, out var progress) ||
+                            string.IsNullOrWhiteSpace(progress.Text))
+                        {
+                            continue;
+                        }
 
-                    var body = (last.Body ?? string.Empty).Trim()
-                        .Replace("\r", " ", StringComparison.Ordinal)
-                        .Replace("\n", " ", StringComparison.Ordinal);
+                        var body = progress.Text
+                            .Replace("\r", " ", StringComparison.Ordinal)
+                            .Replace("\n", " ", StringComparison.Ordinal);
 
-                    const int limit = 120;
-                    string? summary = body.Length <= limit
-                        ? body
-                        : string.Concat(body.AsSpan(0, limit), "…");
+                        const int limit = 120;
+                        return body.Length <= limit
+                            ? body
+                            : string.Concat(body.AsSpan(0, limit), "…");
+                    }
 
-                    return (string?)summary;
+                    return null;
                 });
     }
 
@@ -293,17 +315,27 @@ public class IndexModel : FfcRecordListPageModel
             .ToList();
 
         MilestoneOptions = BuildMilestoneOptions();
+        ProgressOptions = BuildProgressOptions();
     }
 
-    private static IReadOnlyList<MilestoneFilterOption> BuildMilestoneOptions()
-        => new List<MilestoneFilterOption>
+    private static IReadOnlyList<FilterOption> BuildMilestoneOptions()
+        => new List<FilterOption>
         {
-            new(MilestoneFilterState.Any, "Any status"),
-            new(MilestoneFilterState.Completed, "Completed"),
-            new(MilestoneFilterState.Pending, "Pending")
+            new(FfcFilterState.Any, "Any status"),
+            new(FfcFilterState.Completed, "Completed"),
+            new(FfcFilterState.Pending, "Pending")
         };
 
-    public sealed record MilestoneFilterOption(MilestoneFilterState Value, string Label)
+    private static IReadOnlyList<FilterOption> BuildProgressOptions()
+        => new List<FilterOption>
+        {
+            new(FfcFilterState.Any, "Any status"),
+            new(FfcFilterState.Completed, "Completed"),
+            new(FfcFilterState.Partial, "Partial"),
+            new(FfcFilterState.Pending, "Pending")
+        };
+
+    public sealed record FilterOption(FfcFilterState Value, string Label)
     {
         public string QueryValue => Value.ToString().ToLowerInvariant();
     }

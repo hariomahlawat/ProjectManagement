@@ -6,6 +6,7 @@
 @using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC
 @using ProjectManagement.Areas.ProjectOfficeReports.Domain
 @using ProjectManagement.Models
+@using ProjectManagement.Services.Ffc
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.IndexModel
 @{
     ViewData["Title"] = "FFC Proposals";
@@ -14,28 +15,7 @@
 @{
     var recordsOnPage = Model.Records;
     var visibleRecordCount = recordsOnPage.Count;
-    var visibleCountryCount = recordsOnPage
-        .Select(record => record.Country?.Name ?? "Unassigned")
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .Count();
-
-    int SumQuantity(Func<FfcProject, bool> predicate)
-    {
-        return recordsOnPage.Sum(record =>
-        {
-            var projects = record.Projects ?? Enumerable.Empty<FfcProject>();
-            return projects
-                .Where(predicate)
-                .Sum(project => Math.Max(1, project.Quantity));
-        });
-    }
-
-    var totalProjects = recordsOnPage.Sum(record => record.Projects?.Count ?? 0);
-    var totalUnits = SumQuantity(_ => true);
-    var deliveredUnits = SumQuantity(project => project.IsDelivered);
-    var installedUnits = SumQuantity(project => project.IsInstalled);
-    var deliveryPercent = totalUnits == 0 ? 0 : (int)Math.Round(deliveredUnits * 100d / totalUnits);
-    var installPercent = totalUnits == 0 ? 0 : (int)Math.Round(installedUnits * 100d / totalUnits);
+    var summary = Model.PortfolioSummary;
 
     var selectedCountryLabel = Model.CountryOptions.FirstOrDefault(option => option.Selected)?.Text;
     var selectedYearLabel = Model.Year?.ToString(CultureInfo.InvariantCulture);
@@ -74,18 +54,18 @@
                 <!-- very slim stats strip -->
                 <div class="d-flex flex-wrap gap-3 small text-muted">
                     <span>
-                        <strong>@Model.TotalCount</strong> record@(Model.TotalCount == 1 ? string.Empty : "s")
+                        <strong>@summary.RecordCount</strong> record@(summary.RecordCount == 1 ? string.Empty : "s")
                     </span>
                     <span>
-                        <strong>@visibleCountryCount</strong> countr@(visibleCountryCount == 1 ? "y" : "ies") in view
+                        <strong>@summary.CountryCount</strong> countr@(summary.CountryCount == 1 ? "y" : "ies")
                     </span>
                     <span>
-                        <strong>@totalProjects</strong> linked project@(totalProjects == 1 ? string.Empty : "s")
-                        (@totalUnits unit@(totalUnits == 1 ? string.Empty : "s"))
+                        <strong>@summary.ProjectCount</strong> project@(summary.ProjectCount == 1 ? string.Empty : "s")
+                        (@summary.TotalUnits unit@(summary.TotalUnits == 1 ? string.Empty : "s"))
                     </span>
                     <span>
-                        <strong>@deliveryPercent%</strong> units delivered,
-                        <strong>@installPercent%</strong> installed
+                        <strong>@summary.DeliveryPercent%</strong> units delivered,
+                        <strong>@summary.InstallationPercent%</strong> installed
                     </span>
                 </div>
             </div>
@@ -177,7 +157,7 @@
                     }
                     @foreach (var milestone in milestoneFilters)
                     {
-                        if (milestone.Value != MilestoneFilterState.Any)
+                        if (milestone.Value != FfcFilterState.Any)
                         {
                             <span class="badge rounded-pill text-bg-light">
                                 @milestone.Label: <strong>@Model.GetMilestoneLabel(milestone.Value)</strong>
@@ -323,11 +303,15 @@
                             _ => Model.InstallationStatus
                         };
 
+                        var filterOptions = milestone is "delivery" or "installation"
+                            ? Model.ProgressOptions
+                            : Model.MilestoneOptions;
+
                         <div class="col-md-6">
                             <fieldset class="ffc-filter-fieldset">
                                 <legend class="ffc-filter-fieldset__legend">@title status</legend>
                                 <div class="d-flex flex-wrap gap-2">
-                                    @foreach (var option in Model.MilestoneOptions)
+                                    @foreach (var option in filterOptions)
                                     {
                                         var inputId = $"ffc-filter-{milestone}-{option.QueryValue}";
                                         <div class="form-check form-check-inline">
