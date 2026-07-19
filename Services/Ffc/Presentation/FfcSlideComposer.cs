@@ -361,35 +361,30 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
                 ? $"Milestone status across country-year records · {page} of {totalPages}"
                 : "Milestone status across country-year records");
 
-        var x = .65;
         var widths = new[] { 2.8, .75, 2.35, 2.35, .8, 3.25 };
-        var headers = new[] { "COUNTRY", "YEAR", "IPA", "GSL", "QTY", "OVERALL STATUS" };
-        var currentX = x;
-        for (var index = 0; index < headers.Length; index++)
+        var tableRows = new List<IReadOnlyList<NativeTableCell>>
         {
-            canvas.AddRect(currentX, 1.25, widths[index], .42, Navy);
-            canvas.AddText(currentX + .08, 1.34, widths[index] - .16, .22, headers[index], 9, "FFFFFF", true, index == 4 ? "r" : "l");
-            currentX += widths[index];
+            HeaderRow("COUNTRY", "YEAR", "IPA", "GSL", "QTY", "OVERALL STATUS")
+        };
+        var heights = new List<double> { .42 };
+
+        for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
+        {
+            var item = rows[rowIndex];
+            var fill = rowIndex % 2 == 0 ? "FFFFFF" : "F7F9FC";
+            tableRows.Add(new[]
+            {
+                Cell(item.Country.CountryName, 10, Text, true, "l", fill),
+                Cell(item.Record.Year.ToString(CultureInfo.InvariantCulture), 10, Text, false, "ctr", fill),
+                Cell(MilestoneShort(item.Record.IpaCompleted, item.Record.IpaDate), 9, MilestoneColor(item.Record.IpaCompleted, item.Record.IpaDate), true, "l", fill),
+                Cell(MilestoneShort(item.Record.GslCompleted, item.Record.GslDate), 9, MilestoneColor(item.Record.GslCompleted, item.Record.GslDate), true, "l", fill),
+                Cell(item.Record.TotalUnits.ToString(CultureInfo.InvariantCulture), 10, Text, true, "r", fill),
+                Cell(Truncate(item.Record.OverallPosition, 58) ?? "—", 9, Muted, false, "l", fill)
+            });
+            heights.Add(.43);
         }
 
-        var y = 1.67;
-        foreach (var item in rows)
-        {
-            var fill = ((int)Math.Round((y - 1.67) / .43)) % 2 == 0 ? "FFFFFF" : "F7F9FC";
-            currentX = x;
-            foreach (var width in widths)
-            {
-                canvas.AddRect(currentX, y, width, .43, fill, Border, .5);
-                currentX += width;
-            }
-            canvas.AddText(x + .08, y + .09, widths[0] - .16, .23, item.Country.CountryName, 10, Text, true, "l");
-            canvas.AddText(x + widths[0], y + .09, widths[1], .23, item.Record.Year.ToString(CultureInfo.InvariantCulture), 10, Text, false, "ctr");
-            AddMilestoneCell(canvas, x + widths[0] + widths[1], y, widths[2], item.Record.IpaCompleted, item.Record.IpaDate);
-            AddMilestoneCell(canvas, x + widths[0] + widths[1] + widths[2], y, widths[3], item.Record.GslCompleted, item.Record.GslDate);
-            canvas.AddText(x + widths.Take(4).Sum(), y + .09, widths[4] - .08, .23, item.Record.TotalUnits.ToString(CultureInfo.InvariantCulture), 10, Text, true, "r");
-            canvas.AddText(x + widths.Take(5).Sum() + .08, y + .07, widths[5] - .16, .28, Truncate(item.Record.OverallPosition, 58) ?? "—", 9, Muted, false, "l");
-            y += .43;
-        }
+        canvas.AddNativeTable(.65, 1.25, widths, heights, tableRows, "IPA and GSL status table");
 
         if (data.IncludeMilestoneRemarks)
         {
@@ -522,34 +517,27 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
             ? new[] { .8, 3.55, .65, 1.25, 5.68 }
             : new[] { .8, 5.2, .75, 1.45, 3.73 };
         var headers = new[] { "YEAR", "PROJECT", "QTY", "STATUS", data.IncludeProgress ? "CURRENT PROGRESS" : "CURRENT STAGE" };
-        var x = .65;
-        var currentX = x;
-        for (var index = 0; index < headers.Length; index++)
-        {
-            canvas.AddRect(currentX, 1.25, widths[index], .42, Navy);
-            canvas.AddText(currentX + .08, 1.34, widths[index] - .16, .22, headers[index], 9, "FFFFFF", true, index == 2 ? "r" : "l");
-            currentX += widths[index];
-        }
+        var tableRows = new List<IReadOnlyList<NativeTableCell>> { HeaderRow(headers) };
+        var heights = new List<double> { .42 };
 
-        var y = 1.67;
         foreach (var row in rows)
         {
-            currentX = x;
-            foreach (var width in widths)
-            {
-                canvas.AddRect(currentX, y, width, .82, "FFFFFF", Border, .55);
-                currentX += width;
-            }
-            canvas.AddText(x + .08, y + .24, widths[0] - .16, .3, row.Record.Year.ToString(CultureInfo.InvariantCulture), 10, Text, false, "l");
-            canvas.AddText(x + widths[0] + .08, y + .13, widths[1] - .16, .58, Truncate(row.Project.Name, 66) ?? "FFC project", 11, Text, true, "l");
-            canvas.AddText(x + widths[0] + widths[1], y + .24, widths[2] - .08, .3, row.Project.Quantity.ToString(CultureInfo.InvariantCulture), 11, Text, true, "r");
-            canvas.AddText(x + widths.Take(3).Sum() + .08, y + .22, widths[3] - .16, .34, PositionLabel(row.Project.Position), 10, PositionColor(row.Project.Position), true, "l");
             var narrative = data.IncludeProgress
                 ? row.Project.CurrentProgress ?? row.Project.StageSummary
                 : row.Project.StageSummary;
-            canvas.AddText(x + widths.Take(4).Sum() + .08, y + .13, widths[4] - .16, .58, Truncate(narrative, 150) ?? "No current progress recorded.", 10, Muted, false, "l");
-            y += .82;
+
+            tableRows.Add(new[]
+            {
+                Cell(row.Record.Year.ToString(CultureInfo.InvariantCulture), 10),
+                Cell(Truncate(row.Project.Name, 66) ?? "FFC project", 11, Text, true),
+                Cell(row.Project.Quantity.ToString(CultureInfo.InvariantCulture), 11, Text, true, "r"),
+                Cell(PositionLabel(row.Project.Position), 10, PositionColor(row.Project.Position), true),
+                Cell(Truncate(narrative, 150) ?? "No current progress recorded.", 10, Muted)
+            });
+            heights.Add(.82);
         }
+
+        canvas.AddNativeTable(.65, 1.25, widths, heights, tableRows, $"{country.CountryName} project status table");
     }
 
     private static void AddAttachmentSlides(
@@ -580,32 +568,29 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
     {
         AddSlideTitle(canvas, $"{country.CountryName} · attachment register", pages > 1 ? $"Supporting files · {page} of {pages}" : "Supporting files");
         var widths = new[] { .8, 5.1, 1.15, 1.15, 2.3, 1.5 };
-        var headers = new[] { "YEAR", "FILE / CAPTION", "KIND", "SIZE", "UPLOADED", "STATUS" };
-        var x = .65;
-        var currentX = x;
-        for (var index = 0; index < headers.Length; index++)
+        var tableRows = new List<IReadOnlyList<NativeTableCell>>
         {
-            canvas.AddRect(currentX, 1.25, widths[index], .42, Navy);
-            canvas.AddText(currentX + .08, 1.34, widths[index] - .16, .22, headers[index], 9, "FFFFFF", true, "l");
-            currentX += widths[index];
-        }
-        var y = 1.67;
-        foreach (var row in rows)
+            HeaderRow("YEAR", "FILE / CAPTION", "KIND", "SIZE", "UPLOADED", "STATUS")
+        };
+        var heights = new List<double> { .42 };
+
+        for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
         {
-            currentX = x;
-            foreach (var width in widths)
+            var row = rows[rowIndex];
+            var fill = rowIndex % 2 == 0 ? "FFFFFF" : "F7F9FC";
+            tableRows.Add(new[]
             {
-                canvas.AddRect(currentX, y, width, .48, "FFFFFF", Border, .5);
-                currentX += width;
-            }
-            canvas.AddText(x + .08, y + .12, widths[0] - .16, .24, row.Record.Year.ToString(CultureInfo.InvariantCulture), 9, Text, false, "l");
-            canvas.AddText(x + widths[0] + .08, y + .1, widths[1] - .16, .27, Truncate(row.Attachment.DisplayName, 75) ?? "Supporting file", 9, Text, true, "l");
-            canvas.AddText(x + widths.Take(2).Sum() + .08, y + .12, widths[2] - .16, .24, row.Attachment.Kind, 9, Muted, false, "l");
-            canvas.AddText(x + widths.Take(3).Sum() + .08, y + .12, widths[3] - .16, .24, FormatBytes(row.Attachment.SizeBytes), 9, Muted, false, "l");
-            canvas.AddText(x + widths.Take(4).Sum() + .08, y + .12, widths[4] - .16, .24, row.Attachment.UploadedAt.ToString("dd MMM yyyy", CultureInfo.InvariantCulture), 9, Muted, false, "l");
-            canvas.AddText(x + widths.Take(5).Sum() + .08, y + .12, widths[5] - .16, .24, "Available in PRISM", 8, Green, true, "l");
-            y += .48;
+                Cell(row.Record.Year.ToString(CultureInfo.InvariantCulture), 9, Text, false, "l", fill),
+                Cell(Truncate(row.Attachment.DisplayName, 75) ?? "Supporting file", 9, Text, true, "l", fill),
+                Cell(row.Attachment.Kind, 9, Muted, false, "l", fill),
+                Cell(FormatBytes(row.Attachment.SizeBytes), 9, Muted, false, "l", fill),
+                Cell(row.Attachment.UploadedAt.ToString("dd MMM yyyy", CultureInfo.InvariantCulture), 9, Muted, false, "l", fill),
+                Cell("Available in PRISM", 8, Green, true, "l", fill)
+            });
+            heights.Add(.48);
         }
+
+        canvas.AddNativeTable(.65, 1.25, widths, heights, tableRows, $"{country.CountryName} attachment register table");
     }
 
     private static void AddAppendixSlides(List<SlidePlan> plans, FfcPresentationData data)
@@ -634,44 +619,32 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
     {
         AddSlideTitle(canvas, "Appendix · consolidated record summary", pages > 1 ? $"Country-year reference · {page} of {pages}" : "Country-year reference");
         var widths = new[] { 2.65, .7, .8, .85, .85, .85, 1.35, 1.35, 3.05 };
-        var headers = new[] { "COUNTRY", "YEAR", "PROJ", "INST", "DEL", "PLAN", "IPA", "GSL", "STATUS" };
-        var x = .65;
-        var currentX = x;
-        for (var index = 0; index < headers.Length; index++)
+        var tableRows = new List<IReadOnlyList<NativeTableCell>>
         {
-            canvas.AddRect(currentX, 1.25, widths[index], .4, Navy);
-            canvas.AddText(currentX + .06, 1.33, widths[index] - .12, .22, headers[index], 8, "FFFFFF", true, index is 2 or 3 or 4 or 5 ? "r" : "l");
-            currentX += widths[index];
-        }
-        var y = 1.65;
-        foreach (var item in rows)
+            HeaderRow("COUNTRY", "YEAR", "PROJ", "INST", "DEL", "PLAN", "IPA", "GSL", "STATUS")
+        };
+        var heights = new List<double> { .4 };
+
+        for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
         {
-            currentX = x;
-            foreach (var width in widths)
+            var item = rows[rowIndex];
+            var fill = rowIndex % 2 == 0 ? "FFFFFF" : "F7F9FC";
+            tableRows.Add(new[]
             {
-                canvas.AddRect(currentX, y, width, .39, "FFFFFF", Border, .45);
-                currentX += width;
-            }
-            var values = new[]
-            {
-                item.Country.CountryName,
-                item.Record.Year.ToString(CultureInfo.InvariantCulture),
-                item.Record.ProjectCount.ToString(CultureInfo.InvariantCulture),
-                item.Record.InstalledUnits.ToString(CultureInfo.InvariantCulture),
-                item.Record.DeliveredNotInstalledUnits.ToString(CultureInfo.InvariantCulture),
-                item.Record.PlannedUnits.ToString(CultureInfo.InvariantCulture),
-                MilestoneShort(item.Record.IpaCompleted, item.Record.IpaDate),
-                MilestoneShort(item.Record.GslCompleted, item.Record.GslDate),
-                Truncate(item.Record.OverallPosition, 45) ?? "—"
-            };
-            currentX = x;
-            for (var index = 0; index < values.Length; index++)
-            {
-                canvas.AddText(currentX + .06, y + .09, widths[index] - .12, .21, values[index], 8, index == 0 ? Text : Muted, index == 0, index is 2 or 3 or 4 or 5 ? "r" : "l");
-                currentX += widths[index];
-            }
-            y += .39;
+                Cell(item.Country.CountryName, 8, Text, true, "l", fill),
+                Cell(item.Record.Year.ToString(CultureInfo.InvariantCulture), 8, Muted, false, "l", fill),
+                Cell(item.Record.ProjectCount.ToString(CultureInfo.InvariantCulture), 8, Muted, false, "r", fill),
+                Cell(item.Record.InstalledUnits.ToString(CultureInfo.InvariantCulture), 8, Muted, false, "r", fill),
+                Cell(item.Record.DeliveredNotInstalledUnits.ToString(CultureInfo.InvariantCulture), 8, Muted, false, "r", fill),
+                Cell(item.Record.PlannedUnits.ToString(CultureInfo.InvariantCulture), 8, Muted, false, "r", fill),
+                Cell(MilestoneShort(item.Record.IpaCompleted, item.Record.IpaDate), 8, Muted, false, "l", fill),
+                Cell(MilestoneShort(item.Record.GslCompleted, item.Record.GslDate), 8, Muted, false, "l", fill),
+                Cell(Truncate(item.Record.OverallPosition, 45) ?? "—", 8, Muted, false, "l", fill)
+            });
+            heights.Add(.39);
         }
+
+        canvas.AddNativeTable(.65, 1.25, widths, heights, tableRows, "Consolidated country-year record summary table");
     }
 
     private static void AddStandardFooter(
@@ -805,6 +778,28 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
         canvas.AddText(1.55, 3.0, 10.2, .6, message, 18, Muted, false, "ctr");
     }
 
+    private static IReadOnlyList<NativeTableCell> HeaderRow(params string[] values)
+        => values.Select(value => Cell(value, 8.5, "FFFFFF", true, IsNumericHeader(value) ? "r" : "l", Navy)).ToArray();
+
+    private static bool IsNumericHeader(string value)
+        => string.Equals(value, "QTY", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(value, "PROJ", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(value, "INST", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(value, "DEL", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(value, "PLAN", StringComparison.OrdinalIgnoreCase);
+
+    private static NativeTableCell Cell(
+        string? value,
+        double fontSize = 9,
+        string color = Text,
+        bool bold = false,
+        string align = "l",
+        string fill = "FFFFFF")
+        => new(value ?? string.Empty, fontSize, color, bold, align, fill);
+
+    private static string MilestoneColor(bool completed, DateOnly? date)
+        => !completed ? Muted : date.HasValue ? Green : Amber;
+
     private static string MilestoneShort(bool completed, DateOnly? date)
         => !completed
             ? "Pending"
@@ -877,6 +872,14 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
         }
     }
 
+    private sealed record NativeTableCell(
+        string Value,
+        double FontSize,
+        string Color,
+        bool Bold,
+        string Align,
+        string Fill);
+
     private sealed record SlidePlan(
         bool IsCover,
         Action<SlideCanvas, byte[], byte[]?> Render);
@@ -944,6 +947,70 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
             bool bold,
             string align)
             => AddShape(x, y, width, height, null, null, 0, "rect", text, fontSize, color, bold, align);
+
+        public void AddNativeTable(
+            double x,
+            double y,
+            IReadOnlyList<double> widths,
+            IReadOnlyList<double> heights,
+            IReadOnlyList<IReadOnlyList<NativeTableCell>> rows,
+            string name)
+        {
+            if (widths.Count == 0 || rows.Count == 0)
+            {
+                return;
+            }
+
+            if (heights.Count != rows.Count)
+            {
+                throw new ArgumentException("A native PowerPoint table requires one row height per row.", nameof(heights));
+            }
+
+            if (rows.Any(row => row.Count != widths.Count))
+            {
+                throw new ArgumentException("Every native PowerPoint table row must contain one cell per column.", nameof(rows));
+            }
+
+            var id = _nextShapeId++;
+            var tableWidth = widths.Sum();
+            var tableHeight = heights.Sum();
+            var columnXml = string.Join(string.Empty, widths.Select(width => $"<a:gridCol w=\"{Emu(width)}\"/>"));
+            var rowXml = new StringBuilder();
+
+            for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
+            {
+                rowXml.Append($"<a:tr h=\"{Emu(heights[rowIndex])}\">");
+                foreach (var cell in rows[rowIndex])
+                {
+                    rowXml.Append($"""
+<a:tc>
+  {BuildTableTextBody(cell)}
+  <a:tcPr marL="45720" marR="45720" marT="22860" marB="22860" anchor="ctr">
+    <a:solidFill><a:srgbClr val="{CleanColor(cell.Fill)}"/></a:solidFill>
+    {TableBorders()}
+  </a:tcPr>
+</a:tc>
+""");
+                }
+                rowXml.Append("</a:tr>");
+            }
+
+            _elements.Add($"""
+<p:graphicFrame>
+  <p:nvGraphicFramePr><p:cNvPr id="{id}" name="{Escape(name)}"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>
+  <p:xfrm><a:off x="{Emu(x)}" y="{Emu(y)}"/><a:ext cx="{Emu(tableWidth)}" cy="{Emu(tableHeight)}"/></p:xfrm>
+  <a:graphic>
+    <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">
+      <a:tbl>
+        <a:tblPr firstRow="1" bandRow="1"/>
+        <a:tblGrid>{columnXml}</a:tblGrid>
+        {rowXml}
+      </a:tbl>
+    </a:graphicData>
+  </a:graphic>
+</p:graphicFrame>
+""");
+        }
 
         public void AddImage(
             byte[] content,
@@ -1025,6 +1092,38 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
   {textXml}
 </p:sp>
 """);
+        }
+
+        private static string BuildTableTextBody(NativeTableCell cell)
+        {
+            var alignment = cell.Align switch
+            {
+                "ctr" => "ctr",
+                "r" => "r",
+                _ => "l"
+            };
+
+            var paragraphs = cell.Value
+                .Replace("\r", string.Empty, StringComparison.Ordinal)
+                .Split('\n')
+                .Select(line => $"""
+<a:p><a:pPr algn="{alignment}"/><a:r><a:rPr lang="en-US" sz="{FontSize(cell.FontSize)}" b="{(cell.Bold ? 1 : 0)}"><a:solidFill><a:srgbClr val="{CleanColor(cell.Color)}"/></a:solidFill><a:latin typeface="Aptos"/></a:rPr><a:t xml:space="preserve">{Escape(line)}</a:t></a:r><a:endParaRPr lang="en-US" sz="{FontSize(cell.FontSize)}"/></a:p>
+""");
+
+            return $"""
+<a:txBody><a:bodyPr wrap="square" lIns="0" rIns="0" tIns="0" bIns="0" anchor="ctr"/><a:lstStyle/>{string.Join(string.Empty, paragraphs)}</a:txBody>
+""";
+        }
+
+        private static string TableBorders()
+        {
+            var line = $"<a:solidFill><a:srgbClr val=\"{Border}\"/></a:solidFill><a:prstDash val=\"solid\"/>";
+            return $"""
+<a:lnL w="6350">{line}</a:lnL>
+<a:lnR w="6350">{line}</a:lnR>
+<a:lnT w="6350">{line}</a:lnT>
+<a:lnB w="6350">{line}</a:lnB>
+""";
         }
 
         private static string BuildTextBody(
