@@ -62,7 +62,7 @@
         const years = panelElement.querySelector('[data-ffc-panel-years]');
 
         title.textContent = country.name || 'Country footprint';
-        iso.textContent = `${country.iso3 || ''} · ${formatNumber(country.total)} units · ${formatNumber(country.recordCount)} record${Number(country.recordCount) === 1 ? '' : 's'}`;
+        iso.textContent = `${country.iso3 || ''} · Qty ${formatNumber(country.total)} · ${formatNumber(country.recordCount)} record${Number(country.recordCount) === 1 ? '' : 's'}`;
         summary.replaceChildren();
         years.replaceChildren();
 
@@ -75,7 +75,7 @@
             const header = createElement('div', 'ffc-country-panel-year__header');
             const heading = createElement('div');
             heading.append(createElement('h3', null, year.year));
-            heading.append(createElement('small', null, `${formatNumber(year.projectCount)} project${Number(year.projectCount) === 1 ? '' : 's'} · ${formatNumber(year.total)} units`));
+            heading.append(createElement('small', null, `${formatNumber(year.projectCount)} project${Number(year.projectCount) === 1 ? '' : 's'} · Qty ${formatNumber(year.total)}`));
 
             const actions = createElement('div', 'ffc-country-panel-year__actions');
             const workspaceLink = createElement('a', 'btn btn-primary btn-sm', 'Open record');
@@ -97,7 +97,7 @@
                 year.projects.forEach(project => {
                     const row = createElement('div', 'ffc-country-panel-project');
                     row.append(createElement('strong', null, project.name || project.ffcName || 'FFC project'));
-                    row.append(createElement('span', 'ffc-country-panel-project__position', `${formatNumber(project.quantity)} · ${positionLabels[project.position] || project.position || 'Planned'}`));
+                    row.append(createElement('span', 'ffc-country-panel-project__position', `Qty ${formatNumber(project.quantity)} · ${positionLabels[project.position] || project.position || 'Planned'}`));
                     row.append(createElement('p', null, project.progress || project.stageSummary || 'No current progress recorded.'));
                     projectList.append(row);
                 });
@@ -162,11 +162,11 @@
 
     const metric = root.dataset.metric || 'total';
     const metricConfig = {
-        total: { property: 'total', label: 'Total units', color: '#4f63d8' },
-        installed: { property: 'installed', label: 'Installed units', color: '#2f8f57' },
-        delivered: { property: 'delivered', label: 'Delivered, awaiting installation', color: '#3d73e8' },
-        planned: { property: 'planned', label: 'Planned units', color: '#d49424' }
-    }[metric] || { property: 'total', label: 'Total units', color: '#4f63d8' };
+        total: { property: 'total', label: 'Total quantity', color: '#4f63d8' },
+        installed: { property: 'installed', label: 'Installed quantity', color: '#2f8f57' },
+        delivered: { property: 'delivered', label: 'Delivered quantity, awaiting installation', color: '#3d73e8' },
+        planned: { property: 'planned', label: 'Planned quantity', color: '#d49424' }
+    }[metric] || { property: 'total', label: 'Total quantity', color: '#4f63d8' };
 
     function getMetricValue(country) {
         return Number(country?.[metricConfig.property] || 0);
@@ -220,7 +220,7 @@
         legendElement.replaceChildren();
         legendElement.append(createElement('span', 'ffc-footprint-legend__title', metricConfig.label));
         if (scale.length === 0) {
-            legendElement.append(createElement('div', 'ffc-footprint-legend__item', 'No units in this view'));
+            legendElement.append(createElement('div', 'ffc-footprint-legend__item', 'No quantity in this view'));
             return;
         }
         scale.forEach((range, index) => {
@@ -228,15 +228,15 @@
             const sample = createElement('span', 'ffc-footprint-legend__sample');
             sample.style.background = shade(0.28 + index * 0.18);
             const label = range.start === range.end
-                ? `${range.start} unit${range.start === 1 ? '' : 's'}`
-                : `${range.start}–${range.end} units`;
+                ? `Qty ${range.start}`
+                : `Qty ${range.start}–${range.end}`;
             item.append(sample, createElement('span', null, label));
             legendElement.append(item);
         });
         const zero = createElement('div', 'ffc-footprint-legend__item');
         const zeroSample = createElement('span', 'ffc-footprint-legend__sample');
         zeroSample.style.background = '#e7ecf2';
-        zero.append(zeroSample, createElement('span', null, 'Record present, 0 units'));
+        zero.append(zeroSample, createElement('span', null, 'Record present, quantity 0'));
         legendElement.append(zero);
     }
 

@@ -47,7 +47,7 @@
             <span class="bi bi-folder2-open" aria-hidden="true"></span>
             <div>
                 <h3>No projects added</h3>
-                <p>Add the first project or unlinked FFC item to begin unit tracking.</p>
+                <p>Add the first project or unlinked FFC item to begin quantity tracking.</p>
             </div>
             @if (Model.CanManage)
             {
@@ -61,7 +61,7 @@
             <div class="ffc-workspace-project-table__head" role="row">
                 <div role="columnheader">Project</div>
                 <div role="columnheader">Qty</div>
-                <div role="columnheader">Position</div>
+                <div role="columnheader">Status</div>
                 <div role="columnheader">Delivery / installation</div>
                 <div role="columnheader" class="ffc-workspace-progress-heading">
                     <span>Current progress</span>
@@ -106,7 +106,7 @@
                         @project.Quantity
                     </div>
 
-                    <div role="cell" data-label="Position">
+                    <div role="cell" data-label="Status">
                         <span class="ffc-workspace-position @PositionClass(project.Position)">
                             @PositionLabel(project.Position)
                         </span>

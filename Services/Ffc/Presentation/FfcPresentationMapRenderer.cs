@@ -176,7 +176,7 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
             var anchor = Project(feature.LabelPoint, bounds, frame);
             var labelWidth = Math.Max(
                 labelPaint.MeasureText(feature.Iso3),
-                subPaint.MeasureText($"{country.TotalUnits} units")) + 22;
+                subPaint.MeasureText($"Qty {country.TotalUnits}")) + 22;
             const float labelHeight = 54;
 
             var chosenCenter = anchor;
@@ -202,7 +202,7 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
 
             canvas.DrawRoundRect(chosenRect, 8, 8, haloPaint);
             canvas.DrawText(feature.Iso3, chosenCenter.X, chosenCenter.Y - 5, labelPaint);
-            canvas.DrawText($"{country.TotalUnits} units", chosenCenter.X, chosenCenter.Y + 18, subPaint);
+            canvas.DrawText($"Qty {country.TotalUnits}", chosenCenter.X, chosenCenter.Y + 18, subPaint);
             occupied.Add(chosenRect);
         }
     }
@@ -241,7 +241,7 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
 
         canvas.DrawRoundRect(legend, 14, 14, background);
         canvas.DrawRoundRect(legend, 14, 14, border);
-        canvas.DrawText("Total FFC units", legend.Left + 18, legend.Top + 31, title);
+        canvas.DrawText("Total FFC quantity", legend.Left + 18, legend.Top + 31, title);
 
         var ranges = BuildLegendRanges(maximumUnits);
         var y = legend.Top + 57;
@@ -254,29 +254,29 @@ public sealed class FfcPresentationMapRenderer : IFfcPresentationMapRenderer
         }
 
         var total = countries.Sum(country => country.TotalUnits);
-        canvas.DrawText($"{countries.Count} countries · {total} units", legend.Left + 18, legend.Bottom - 13, text);
+        canvas.DrawText($"{countries.Count} countries · Qty {total}", legend.Left + 18, legend.Bottom - 13, text);
     }
 
     private static IReadOnlyList<LegendRange> BuildLegendRanges(int maximum)
     {
         if (maximum <= 1)
         {
-            return new[] { new LegendRange(1, 1, "1 unit") };
+            return new[] { new LegendRange(1, 1, "Qty 1") };
         }
 
         var first = Math.Max(1, (int)Math.Ceiling(maximum / 3d));
         var second = Math.Max(first + 1, (int)Math.Ceiling(maximum * 2d / 3d));
         var ranges = new List<LegendRange>
         {
-            new(1, first, first == 1 ? "1 unit" : $"1–{first} units")
+            new(1, first, first == 1 ? "Qty 1" : $"Qty 1–{first}")
         };
         if (second > first)
         {
-            ranges.Add(new LegendRange(first + 1, second, $"{first + 1}–{second} units"));
+            ranges.Add(new LegendRange(first + 1, second, $"Qty {first + 1}–{second}"));
         }
         if (maximum > second)
         {
-            ranges.Add(new LegendRange(second + 1, maximum, $"{second + 1}–{maximum} units"));
+            ranges.Add(new LegendRange(second + 1, maximum, $"Qty {second + 1}–{maximum}"));
         }
         return ranges;
     }

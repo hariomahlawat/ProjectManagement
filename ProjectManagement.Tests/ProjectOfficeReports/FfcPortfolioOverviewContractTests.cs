@@ -46,6 +46,10 @@ public sealed class FfcPortfolioOverviewContractTests
         Assert.Contains("Project roll-up", row, StringComparison.Ordinal);
         Assert.Contains("/Projects/Overview", row, StringComparison.Ordinal);
         Assert.Contains("Current progress", row, StringComparison.Ordinal);
+        Assert.Contains("Qty @Model.TotalUnits", row, StringComparison.Ordinal);
+        Assert.Contains("Current status", row, StringComparison.Ordinal);
+        Assert.Contains("role=\"columnheader\">Status", row, StringComparison.Ordinal);
+        Assert.DoesNotContain("Current position", row, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -180,19 +180,19 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
         canvas.AddText(9.25, 3.45, 3.25, .5, data.Summary.ProjectCount.ToString(CultureInfo.InvariantCulture), 28, "FFFFFF", true, "l");
         canvas.AddText(9.25, 3.98, 3.25, .35, "PROJECTS", 12, "AFC0D3", true, "l");
         canvas.AddText(9.25, 4.65, 3.25, .5, data.Summary.TotalUnits.ToString(CultureInfo.InvariantCulture), 28, "FFFFFF", true, "l");
-        canvas.AddText(9.25, 5.18, 3.25, .35, "TOTAL UNITS", 12, "AFC0D3", true, "l");
+        canvas.AddText(9.25, 5.18, 3.25, .35, "TOTAL QUANTITY", 12, "AFC0D3", true, "l");
     }
 
     private static void RenderAtAGlance(SlideCanvas canvas, FfcPresentationData data)
     {
-        AddSlideTitle(canvas, "Portfolio at a glance", "Current FFC portfolio scale and unit position");
+        AddSlideTitle(canvas, "Portfolio at a glance", "Current FFC portfolio scale and quantity status");
         var summary = data.Summary;
         var cards = new[]
         {
             ("COUNTRIES", summary.CountryCount),
             ("COUNTRY-YEAR RECORDS", summary.RecordCount),
             ("PROJECTS", summary.ProjectCount),
-            ("TOTAL UNITS", summary.TotalUnits)
+            ("TOTAL QUANTITY", summary.TotalUnits)
         };
 
         for (var index = 0; index < cards.Length; index++)
@@ -203,7 +203,7 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
             canvas.AddText(x + .22, 2.27, 2.25, .3, cards[index].Item1, 11, Muted, true, "l");
         }
 
-        canvas.AddText(.7, 3.28, 5.2, .36, "UNIT POSITION", 12, Muted, true, "l");
+        canvas.AddText(.7, 3.28, 5.2, .36, "QUANTITY STATUS", 12, Muted, true, "l");
         AddSegmentedBar(canvas, .7, 3.82, 11.95, .34, summary.InstalledUnits, summary.DeliveredNotInstalledUnits, summary.PlannedUnits);
 
         AddMetricLegend(canvas, .75, 4.38, "Installed", summary.InstalledUnits, Green);
@@ -214,18 +214,18 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
         var installedPercent = summary.TotalUnits == 0 ? 0 : summary.InstalledUnits * 100d / summary.TotalUnits;
         canvas.AddRoundedRect(.7, 5.2, 5.65, 1.12, "EFF4FF", "D8E7FF", .08);
         canvas.AddText(.95, 5.45, 1.2, .48, $"{deliveredPercent:0}%", 27, Blue, true, "l");
-        canvas.AddText(2.15, 5.48, 3.85, .4, "of all units delivered", 15, Text, true, "l");
+        canvas.AddText(2.15, 5.48, 3.85, .4, "of total quantity delivered", 15, Text, true, "l");
         canvas.AddRoundedRect(6.58, 5.2, 5.65, 1.12, "ECF8F0", "D1EEDD", .08);
         canvas.AddText(6.83, 5.45, 1.2, .48, $"{installedPercent:0}%", 27, Green, true, "l");
-        canvas.AddText(8.03, 5.48, 3.85, .4, "of all units installed", 15, Text, true, "l");
+        canvas.AddText(8.03, 5.48, 3.85, .4, "of total quantity installed", 15, Text, true, "l");
     }
 
     private static void RenderGlobalFootprint(SlideCanvas canvas, FfcPresentationData data, byte[] mapImage)
     {
-        AddSlideTitle(canvas, "Global footprint", "Country distribution by total simulator units");
+        AddSlideTitle(canvas, "Global footprint", "Country distribution by total quantity");
         canvas.AddImage(mapImage, .55, 1.28, 8.55, 5.62, "FFC global footprint map");
         canvas.AddRoundedRect(9.3, 1.28, 3.42, 5.62, CardBackground, Border, .08);
-        canvas.AddText(9.58, 1.58, 2.8, .32, "COUNTRY POSITION", 12, Muted, true, "l");
+        canvas.AddText(9.58, 1.58, 2.8, .32, "COUNTRY / QTY", 12, Muted, true, "l");
 
         var rows = data.Countries.Take(9).ToArray();
         var y = 2.05;
@@ -234,7 +234,7 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
             var country = rows[index];
             canvas.AddText(9.58, y, 2.12, .28, country.CountryName, 13, Text, true, "l");
             canvas.AddText(11.78, y, .52, .28, country.TotalUnits.ToString(CultureInfo.InvariantCulture), 13, Text, true, "r");
-            canvas.AddText(12.32, y, .18, .28, "u", 9, Muted, false, "l");
+            canvas.AddText(12.18, y, .32, .28, "Qty", 8, Muted, false, "l");
             if (index < rows.Length - 1)
             {
                 canvas.AddLine(9.58, y + .39, 12.46, y + .39, Border, .6);
@@ -258,7 +258,7 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
         {
             plans.Add(new SlidePlan(false, (canvas, _, _) =>
             {
-                AddSlideTitle(canvas, "Country-wise unit position", "Installed, delivered and planned quantities by country");
+                AddSlideTitle(canvas, "Country-wise quantity status", "Installed, delivered and planned quantities by country");
                 AddEmptyMessage(canvas, "No country data is available for this export scope.");
             }));
             return;
@@ -283,7 +283,7 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
     {
         AddSlideTitle(
             canvas,
-            "Country-wise unit position",
+            "Country-wise quantity status",
             totalPages > 1
                 ? $"Installed, delivered and planned quantities by country · {page} of {totalPages}"
                 : "Installed, delivered and planned quantities by country");
@@ -331,7 +331,7 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
         {
             plans.Add(new SlidePlan(false, (canvas, _, _) =>
             {
-                AddSlideTitle(canvas, "IPA and GSL position", "Milestone status across country-year records");
+                AddSlideTitle(canvas, "IPA and GSL status", "Milestone status across country-year records");
                 AddEmptyMessage(canvas, "No country-year records are available for this export scope.");
             }));
             return;
@@ -356,14 +356,14 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
     {
         AddSlideTitle(
             canvas,
-            "IPA and GSL position",
+            "IPA and GSL status",
             totalPages > 1
                 ? $"Milestone status across country-year records · {page} of {totalPages}"
                 : "Milestone status across country-year records");
 
         var x = .65;
         var widths = new[] { 2.8, .75, 2.35, 2.35, .8, 3.25 };
-        var headers = new[] { "COUNTRY", "YEAR", "IPA", "GSL", "UNITS", "OVERALL POSITION" };
+        var headers = new[] { "COUNTRY", "YEAR", "IPA", "GSL", "QTY", "OVERALL STATUS" };
         var currentX = x;
         for (var index = 0; index < headers.Length; index++)
         {
@@ -432,7 +432,7 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
 
         AddFocusColumn(canvas, .65, 1.35, 3.9, 4.95, "PLANNED PIPELINE", Blue,
             planned.Select(country => $"{country.CountryName} · {country.PlannedUnits} planned").ToArray(),
-            "No planned units in scope.");
+            "No planned quantity in scope.");
         AddFocusColumn(canvas, 4.72, 1.35, 3.9, 4.95, "MILESTONE ATTENTION", Amber,
             pendingMilestones.Select(item =>
             {
@@ -443,8 +443,8 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
             }).ToArray(),
             "No pending IPA/GSL milestones in scope.");
         AddFocusColumn(canvas, 8.79, 1.35, 3.9, 4.95, "AWAITING INSTALLATION", DeliveredBlue,
-            partial.Select(country => $"{country.CountryName} · {country.DeliveredNotInstalledUnits} units").ToArray(),
-            "No delivered units awaiting installation.");
+            partial.Select(country => $"{country.CountryName} · {country.DeliveredNotInstalledUnits} awaiting installation").ToArray(),
+            "No delivered quantity awaiting installation.");
     }
 
     private static void RenderCountrySummary(
@@ -454,7 +454,7 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
     {
         AddSlideTitle(canvas, country.CountryName.ToUpperInvariant(), $"{country.IsoCode} · {country.RecordCount} record{Plural(country.RecordCount)} · {country.ProjectCount} project{Plural(country.ProjectCount)}");
         canvas.AddText(.68, 1.32, 2.0, .6, country.TotalUnits.ToString(CultureInfo.InvariantCulture), 32, Text, true, "l");
-        canvas.AddText(1.98, 1.52, 1.25, .3, "TOTAL UNITS", 11, Muted, true, "l");
+        canvas.AddText(1.98, 1.52, 1.25, .3, "TOTAL QUANTITY", 11, Muted, true, "l");
         AddSegmentedBar(canvas, 3.4, 1.48, 8.9, .33, country.InstalledUnits, country.DeliveredNotInstalledUnits, country.PlannedUnits);
         AddMetricLegend(canvas, 3.45, 1.95, "Installed", country.InstalledUnits, Green);
         AddMetricLegend(canvas, 6.75, 1.95, "Delivered", country.DeliveredNotInstalledUnits, DeliveredBlue);
@@ -468,11 +468,11 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
             var x = .65 + index * (cardWidth + .2);
             canvas.AddRoundedRect(x, 2.65, cardWidth, 3.58, CardBackground, Border, .08);
             canvas.AddText(x + .22, 2.91, 1.2, .36, record.Year.ToString(CultureInfo.InvariantCulture), 22, Navy, true, "l");
-            canvas.AddText(x + .22, 3.38, cardWidth - .44, .28, $"{record.ProjectCount} projects · {record.TotalUnits} units", 11, Muted, false, "l");
+            canvas.AddText(x + .22, 3.38, cardWidth - .44, .28, $"{record.ProjectCount} projects · Qty {record.TotalUnits}", 11, Muted, false, "l");
             AddMilestoneMini(canvas, x + .22, 3.9, "IPA", record.IpaCompleted, record.IpaDate);
             AddMilestoneMini(canvas, x + .22, 4.36, "GSL", record.GslCompleted, record.GslDate);
-            canvas.AddText(x + .22, 4.95, cardWidth - .44, .26, "OVERALL POSITION", 9, Muted, true, "l");
-            canvas.AddText(x + .22, 5.26, cardWidth - .44, .7, Truncate(record.OverallPosition, cardWidth > 4 ? 150 : 72) ?? "No overall position recorded.", 10, Text, false, "l");
+            canvas.AddText(x + .22, 4.95, cardWidth - .44, .26, "OVERALL STATUS", 9, Muted, true, "l");
+            canvas.AddText(x + .22, 5.26, cardWidth - .44, .7, Truncate(record.OverallPosition, cardWidth > 4 ? 150 : 72) ?? "No overall status recorded.", 10, Text, false, "l");
         }
 
         if (country.Records.Count > records.Length)
@@ -515,13 +515,13 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
     {
         AddSlideTitle(
             canvas,
-            $"{country.CountryName} · project position",
+            $"{country.CountryName} · project status",
             pages > 1 ? $"Project-level quantity and progress · {page} of {pages}" : "Project-level quantity and progress");
 
         var widths = data.IncludeProgress
             ? new[] { .8, 3.55, .65, 1.25, 5.68 }
             : new[] { .8, 5.2, .75, 1.45, 3.73 };
-        var headers = new[] { "YEAR", "PROJECT", "QTY", "POSITION", data.IncludeProgress ? "CURRENT PROGRESS" : "CURRENT STAGE" };
+        var headers = new[] { "YEAR", "PROJECT", "QTY", "STATUS", data.IncludeProgress ? "CURRENT PROGRESS" : "CURRENT STAGE" };
         var x = .65;
         var currentX = x;
         for (var index = 0; index < headers.Length; index++)
@@ -634,7 +634,7 @@ public sealed class FfcSlideComposer : IFfcSlideComposer
     {
         AddSlideTitle(canvas, "Appendix · consolidated record summary", pages > 1 ? $"Country-year reference · {page} of {pages}" : "Country-year reference");
         var widths = new[] { 2.65, .7, .8, .85, .85, .85, 1.35, 1.35, 3.05 };
-        var headers = new[] { "COUNTRY", "YEAR", "PROJ", "INST", "DEL", "PLAN", "IPA", "GSL", "POSITION" };
+        var headers = new[] { "COUNTRY", "YEAR", "PROJ", "INST", "DEL", "PLAN", "IPA", "GSL", "STATUS" };
         var x = .65;
         var currentX = x;
         for (var index = 0; index < headers.Length; index++)

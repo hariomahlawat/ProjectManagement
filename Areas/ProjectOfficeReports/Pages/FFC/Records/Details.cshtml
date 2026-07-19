@@ -54,7 +54,7 @@
             </div>
             <p>
                 @Model.Workspace.ProjectCount project@(Model.Workspace.ProjectCount == 1 ? string.Empty : "s")
-                · @Model.Workspace.UnitSummary.TotalUnits unit@(Model.Workspace.UnitSummary.TotalUnits == 1 ? string.Empty : "s")
+                · Qty @Model.Workspace.UnitSummary.TotalUnits
                 · @Model.Workspace.AttachmentCount attachment@(Model.Workspace.AttachmentCount == 1 ? string.Empty : "s")
             </p>
         </div>

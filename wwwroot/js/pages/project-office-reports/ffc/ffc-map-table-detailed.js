@@ -65,7 +65,7 @@
   // SECTION: Rendering
   function render(groups) {
     if (!Array.isArray(groups) || groups.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-muted text-center">No project units found.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="text-muted text-center">No project quantity data found.</td></tr>';
       return;
     }
 
@@ -117,7 +117,7 @@
     });
 
     if (rows.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-muted text-center">No project units found.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="text-muted text-center">No project quantity data found.</td></tr>';
       return;
     }
 

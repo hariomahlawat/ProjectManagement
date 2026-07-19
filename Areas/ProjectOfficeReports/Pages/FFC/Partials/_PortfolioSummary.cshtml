@@ -23,14 +23,14 @@
         </div>
         <div class="ffc-portfolio-metric">
             <span class="ffc-portfolio-metric__value">@Model.TotalUnits</span>
-            <span class="ffc-portfolio-metric__label">Total units</span>
+            <span class="ffc-portfolio-metric__label">Total quantity</span>
         </div>
     </div>
 
     <div class="ffc-portfolio-distribution">
         <div class="ffc-portfolio-distribution__header">
             <div>
-                <div class="ffc-portfolio-distribution__title">Unit position</div>
+                <div class="ffc-portfolio-distribution__title">Quantity status</div>
                 <div class="ffc-portfolio-distribution__caption">Across the complete filtered portfolio</div>
             </div>
             <div class="ffc-portfolio-distribution__percentages" aria-label="Delivery and installation percentages">
@@ -41,7 +41,7 @@
 
         <div class="ffc-segmented-bar"
              role="img"
-             aria-label="@Model.InstalledUnits installed, @Model.DeliveredNotInstalledUnits delivered awaiting installation, and @Model.PlannedUnits planned units">
+             aria-label="Quantity status: @Model.InstalledUnits installed, @Model.DeliveredNotInstalledUnits delivered awaiting installation, and @Model.PlannedUnits planned">
             @if (Model.TotalUnits > 0)
             {
                 <span class="ffc-segmented-bar__segment ffc-segmented-bar__segment--installed"

@@ -42,6 +42,14 @@ public sealed class FfcSlideComposerTests
         Assert.Contains("Portfolio at a glance", allSlideXml, StringComparison.Ordinal);
         Assert.Contains("Global footprint", allSlideXml, StringComparison.Ordinal);
         Assert.Contains("Myanmar", allSlideXml, StringComparison.Ordinal);
+        Assert.Contains("TOTAL QUANTITY", allSlideXml, StringComparison.Ordinal);
+        Assert.Contains("QUANTITY STATUS", allSlideXml, StringComparison.Ordinal);
+        Assert.Contains("Country-wise quantity status", allSlideXml, StringComparison.Ordinal);
+        Assert.Contains("IPA and GSL status", allSlideXml, StringComparison.Ordinal);
+        Assert.Contains("OVERALL STATUS", allSlideXml, StringComparison.Ordinal);
+        Assert.DoesNotContain("TOTAL UNITS", allSlideXml, StringComparison.Ordinal);
+        Assert.DoesNotContain("UNIT POSITION", allSlideXml, StringComparison.Ordinal);
+        Assert.DoesNotContain("OVERALL POSITION", allSlideXml, StringComparison.Ordinal);
     }
 
     private static FfcPresentationData BuildData()
@@ -89,7 +97,7 @@ public sealed class FfcSlideComposerTests
 
         return new FfcPresentationData(
             "FFC Global Portfolio",
-            "Position as at 19 Jul 2026",
+            "Status as at 19 Jul 2026",
             "OFFICIAL",
             record.UpdatedAt,
             FfcPresentationType.FullPortfolio,

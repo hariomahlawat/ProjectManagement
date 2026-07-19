@@ -153,7 +153,7 @@ public sealed class FfcPresentationDataService : IFfcPresentationDataService
 
         var title = NormalizeText(request.Title, 120) ?? "FFC Global Portfolio";
         var subtitle = NormalizeText(request.Subtitle, 180)
-            ?? $"Position as at {positionDate:dd MMM yyyy}";
+            ?? $"Status as at {positionDate:dd MMM yyyy}";
 
         return new FfcPresentationData(
             title,

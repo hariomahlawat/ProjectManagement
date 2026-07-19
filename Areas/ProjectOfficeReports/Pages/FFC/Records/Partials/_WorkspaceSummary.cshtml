@@ -68,7 +68,7 @@
         </div>
 
         <div class="ffc-workspace-metric ffc-workspace-metric--units">
-            <span class="ffc-workspace-metric__label">Unit position</span>
+            <span class="ffc-workspace-metric__label">Quantity status</span>
             <div class="ffc-workspace-unit-line">
                 <span><strong>@Model.Workspace.UnitSummary.InstalledUnits</strong> installed</span>
                 <span><strong>@Model.Workspace.UnitSummary.DeliveredNotInstalledUnits</strong> delivered</span>
@@ -95,7 +95,7 @@
 
     <div class="ffc-workspace-summary__narrative">
         <div>
-            <span class="ffc-workspace-summary__narrative-label">Overall position</span>
+            <span class="ffc-workspace-summary__narrative-label">Overall status</span>
             @if (string.IsNullOrWhiteSpace(Model.Workspace.OverallRemarks))
             {
                 <p class="text-body-secondary mb-0">No overall remarks recorded.</p>

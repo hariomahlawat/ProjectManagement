@@ -284,7 +284,7 @@ public sealed class FfcProjectCommandService : IFfcProjectCommandService
                 command.ProjectId,
                 command.RecordId);
             return FfcCommandResult.Invalid(
-                "The project data is inconsistent and could not be saved. Review the selected project, quantity, position and dates.");
+                "The project data is inconsistent and could not be saved. Review the selected project, quantity, status and dates.");
         }
         catch (Exception exception)
         {

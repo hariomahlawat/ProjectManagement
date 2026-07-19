@@ -29,7 +29,7 @@
     </div>
     <div class="ffc-footprint-summary__metric">
         <strong>@totalUnits</strong>
-        <span>Total units</span>
+        <span>Total quantity</span>
     </div>
     <div class="ffc-footprint-summary__distribution">
         <div class="ffc-footprint-summary__distribution-labels">
@@ -39,7 +39,7 @@
         </div>
         <div class="ffc-footprint-summary__bar"
              role="img"
-             aria-label="@Model.Result.Summary.InstalledUnits installed, @Model.Result.Summary.DeliveredNotInstalledUnits delivered awaiting installation, and @Model.Result.Summary.PlannedUnits planned units">
+             aria-label="Quantity status: @Model.Result.Summary.InstalledUnits installed, @Model.Result.Summary.DeliveredNotInstalledUnits delivered awaiting installation, and @Model.Result.Summary.PlannedUnits planned">
             @if (totalUnits > 0)
             {
                 <span class="is-installed" style="@installedStyle"></span>

@@ -160,15 +160,15 @@
         <section class="ffc-editor-section" aria-labelledby="ffc-create-overall-title">
             <div class="ffc-editor-section__heading">
                 <div>
-                    <h2 id="ffc-create-overall-title">Overall position</h2>
-                    <p>Capture the current country-level position. Project-specific progress is recorded after creation.</p>
+                    <h2 id="ffc-create-overall-title">Overall status</h2>
+                    <p>Capture the current country-level status. Project-specific progress is recorded after creation.</p>
                 </div>
             </div>
             <label asp-for="Input.OverallRemarks" class="visually-hidden">Overall remarks</label>
             <textarea asp-for="Input.OverallRemarks"
                       class="form-control"
                       rows="5"
-                      placeholder="Enter the present overall position, key dependency or next action."></textarea>
+                      placeholder="Enter the present overall status, key dependency or next action."></textarea>
             <span asp-validation-for="Input.OverallRemarks" class="text-danger"></span>
         </section>
 

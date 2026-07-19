@@ -69,7 +69,7 @@
         <div class="ffc-footprint-header__copy">
             <div class="ffc-footprint-header__eyebrow">FFC Proposals</div>
             <h1>FFC Global Footprint</h1>
-            <p>Explore installed, delivered and planned simulator units by country and year.</p>
+            <p>Explore simulator quantity status by country and year.</p>
         </div>
         <nav class="ffc-footprint-module-nav" aria-label="FFC views">
             <a asp-page="/FFC/Index" class="btn btn-outline-secondary btn-sm">Overview</a>
@@ -164,7 +164,7 @@
             <div class="ffc-footprint-section-heading">
                 <div>
                     <h2 id="ffc-footprint-cards-title">Country footprint</h2>
-                    <p>Select a country to review its year-wise records and project position.</p>
+                    <p>Select a country to review its year-wise records and project status.</p>
                 </div>
                 <span>@Model.Result.Countries.Count countr@(Model.Result.Countries.Count == 1 ? "y" : "ies")</span>
             </div>

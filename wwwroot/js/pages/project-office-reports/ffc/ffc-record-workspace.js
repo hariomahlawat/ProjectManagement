@@ -544,10 +544,10 @@
             const positionRadios = [...projectForm.querySelectorAll("[data-ffc-position-option]")];
             positionRadios.forEach(radio => { radio.disabled = true; });
             const confirmed = await confirmAction({
-                title: "Change project position?",
+                title: "Change project status?",
                 message: "Delivery or installation dates that no longer apply will be cleared.",
-                confirmText: "Change position",
-                cancelText: "Keep current position",
+                confirmText: "Change status",
+                cancelText: "Keep current status",
                 tone: "warning"
             });
             positionRadios.forEach(radio => { radio.disabled = false; });

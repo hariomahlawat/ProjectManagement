@@ -100,7 +100,7 @@ public sealed class FfcPowerPointExportServiceTests
 
         return new FfcPresentationData(
             "FFC Global Portfolio",
-            "Position as at 19 Jul 2026",
+            "Status as at 19 Jul 2026",
             null,
             new DateTimeOffset(2026, 7, 19, 10, 0, 0, TimeSpan.Zero),
             FfcPresentationType.FullPortfolio,

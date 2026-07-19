@@ -167,10 +167,10 @@ public sealed class FootprintModel : PageModel
 
     public static string MetricLabel(FfcFootprintMetric metric) => metric switch
     {
-        FfcFootprintMetric.Installed => "Installed units",
-        FfcFootprintMetric.Delivered => "Delivered, awaiting installation",
-        FfcFootprintMetric.Planned => "Planned units",
-        _ => "Total units"
+        FfcFootprintMetric.Installed => "Installed quantity",
+        FfcFootprintMetric.Delivered => "Delivered quantity, awaiting installation",
+        FfcFootprintMetric.Planned => "Planned quantity",
+        _ => "Total quantity"
     };
 
     public static string SortQueryValue(FfcFootprintSort sort) => sort switch
@@ -219,7 +219,7 @@ public sealed class FootprintModel : PageModel
             IncludeProjects = true,
             IncludeProgress = true,
             Title = "FFC Global Portfolio",
-            Subtitle = $"Position as at {PositionDate:dd MMM yyyy}",
+            Subtitle = $"Status as at {PositionDate:dd MMM yyyy}",
             CurrentYear = Year,
             CurrentCountryId = CountryId,
             CurrentSearch = Query

@@ -83,7 +83,7 @@
                 <div class="ffc-portfolio-row__record-meta">
                     <span>@Model.ProjectCount project@(Model.ProjectCount == 1 ? string.Empty : "s")</span>
                     <span aria-hidden="true">·</span>
-                    <span>@Model.TotalUnits unit@(Model.TotalUnits == 1 ? string.Empty : "s")</span>
+                    <span>Qty @Model.TotalUnits</span>
                     @if (Model.AttachmentCount > 0)
                     {
                         <span aria-hidden="true">·</span>
@@ -123,7 +123,7 @@
                 </div>
                 <div class="ffc-segmented-bar ffc-segmented-bar--row"
                      role="img"
-                     aria-label="@Model.InstalledUnits installed, @Model.DeliveredNotInstalledUnits delivered awaiting installation, and @Model.PlannedUnits planned units">
+                     aria-label="Quantity status: @Model.InstalledUnits installed, @Model.DeliveredNotInstalledUnits delivered awaiting installation, and @Model.PlannedUnits planned">
                     @if (Model.TotalUnits > 0)
                     {
                         <span class="ffc-segmented-bar__segment ffc-segmented-bar__segment--installed"
@@ -141,7 +141,7 @@
             </div>
 
             <div class="ffc-portfolio-row__position">
-                <div class="ffc-portfolio-row__position-label">Current position</div>
+                <div class="ffc-portfolio-row__position-label">Current status</div>
                 <p class="ffc-portfolio-row__remarks">@overallPosition</p>
                 <div class="ffc-portfolio-row__updated">Record updated @Model.UpdatedAt.ToString("d MMM yyyy", CultureInfo.InvariantCulture)</div>
             </div>
@@ -190,7 +190,7 @@
                         <div class="ffc-project-table__head" role="row">
                             <div role="columnheader">Project</div>
                             <div role="columnheader">Qty</div>
-                            <div role="columnheader">Position</div>
+                            <div role="columnheader">Status</div>
                             <div role="columnheader">Current progress</div>
                         </div>
 

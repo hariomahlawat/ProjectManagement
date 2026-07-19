@@ -36,6 +36,11 @@ public sealed class FfcFootprintContractTests
         Assert.Contains("data-ffc-country-trigger", cards, StringComparison.Ordinal);
         Assert.Contains("offcanvas", panel, StringComparison.Ordinal);
         Assert.Contains("aria-labelledby=\"ffcCountryPanelTitle\"", panel, StringComparison.Ordinal);
+        Assert.Contains("simulator quantity status", page, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<small>Qty</small>", cards, StringComparison.Ordinal);
+        Assert.Contains("Total quantity", Read("ffc-footprint.js"), StringComparison.Ordinal);
+        Assert.DoesNotContain("Total units", Read("ffc-footprint.js"), StringComparison.Ordinal);
+        Assert.DoesNotContain("project position", page, StringComparison.OrdinalIgnoreCase);
     }
 
 

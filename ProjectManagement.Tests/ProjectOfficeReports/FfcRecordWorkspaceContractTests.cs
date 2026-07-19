@@ -56,6 +56,11 @@ public sealed class FfcRecordWorkspaceContractTests
         Assert.Contains("Completion date missing", summary, StringComparison.Ordinal);
         Assert.DoesNotContain("No date recorded", summary, StringComparison.Ordinal);
         Assert.Contains("Model.CanManage && Model.Workspace.Projects.Count > 0", projects, StringComparison.Ordinal);
+        Assert.Contains("Quantity status", summary, StringComparison.Ordinal);
+        Assert.Contains("Overall status", summary, StringComparison.Ordinal);
+        Assert.Contains("role=\"columnheader\">Status", projects, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unit position", summary, StringComparison.Ordinal);
+        Assert.DoesNotContain("Overall position", summary, StringComparison.Ordinal);
     }
 
     [Fact]

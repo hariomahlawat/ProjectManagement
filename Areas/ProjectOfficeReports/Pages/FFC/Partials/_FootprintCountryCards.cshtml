@@ -33,7 +33,7 @@ else
                         <strong>@country.CountryName</strong>
                         <small>@country.IsoCode · @country.RecordCount record@(country.RecordCount == 1 ? string.Empty : "s")</small>
                     </span>
-                    <span class="ffc-country-card__total">@country.TotalUnits <small>units</small></span>
+                    <span class="ffc-country-card__total"><small>Qty</small> @country.TotalUnits</span>
                 </span>
 
                 <span class="ffc-country-card__metrics">
