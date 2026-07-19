@@ -38,6 +38,13 @@
                 <span>Detailed table</span>
             </a>
 
+            <a asp-area="ProjectOfficeReports"
+               asp-page="/FFC/Footprint"
+               class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-2">
+                <span class="bi bi-geo-alt" aria-hidden="true"></span>
+                <span>Footprint</span>
+            </a>
+
             @if (Model.CanManageRecords)
             {
                 <a asp-area="ProjectOfficeReports"
@@ -49,43 +56,18 @@
                 </a>
             }
 
-            <div class="dropdown">
-                <button type="button"
-                        class="btn btn-light btn-sm d-inline-flex align-items-center gap-2"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false">
-                    <span>More</span>
-                    <span class="bi bi-chevron-down" aria-hidden="true"></span>
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                    <li>
-                        <a asp-area="ProjectOfficeReports"
-                           asp-page="/FFC/Map"
-                           class="dropdown-item">
-                            <span class="bi bi-geo-alt" aria-hidden="true"></span>
-                            World footprint
-                        </a>
-                    </li>
-                    <li>
-                        <a asp-area="ProjectOfficeReports"
-                           asp-page="/FFC/MapBoard"
-                           class="dropdown-item">
-                            <span class="bi bi-grid" aria-hidden="true"></span>
-                            Country board
-                        </a>
-                    </li>
-                    @if (Model.CanManageRecords)
-                    {
-                        <li><hr class="dropdown-divider" /></li>
-                        <li>
-                            <a asp-area="ProjectOfficeReports"
-                               asp-page="/FFC/Records/Create"
-                               asp-route-returnUrl="@currentReturnUrl"
-                               class="dropdown-item">
-                                <span class="bi bi-plus-circle" aria-hidden="true"></span>
-                                Create record
-                            </a>
-                        </li>
+            @if (Model.CanManageRecords)
+            {
+                <div class="dropdown">
+                    <button type="button"
+                            class="btn btn-light btn-sm d-inline-flex align-items-center gap-2"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false">
+                        <span>More</span>
+                        <span class="bi bi-chevron-down" aria-hidden="true"></span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li class="dropdown-header">Administration</li>
                         <li>
                             <a asp-area="ProjectOfficeReports"
                                asp-page="/FFC/Records/Archived"
@@ -103,9 +85,9 @@
                                 Country settings
                             </a>
                         </li>
-                    }
-                </ul>
-            </div>
+                    </ul>
+                </div>
+            }
         </div>
     </header>
 

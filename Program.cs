@@ -717,6 +717,7 @@ builder.Services.AddScoped<TrainingWriteService>();
 builder.Services.AddScoped<ITrainingNotificationService, TrainingNotificationService>();
 builder.Services.AddScoped<ITrainingExportService, TrainingExportService>();
 builder.Services.AddScoped<IFfcPortfolioService, FfcPortfolioService>();
+builder.Services.AddScoped<IFfcFootprintService, FfcFootprintService>();
 builder.Services.AddScoped<IFfcProgressService, FfcProgressService>();
 builder.Services.AddScoped<IFfcQueryService, FfcQueryService>();
 builder.Services.AddScoped<IFfcRecordWorkspaceService, FfcRecordWorkspaceService>();

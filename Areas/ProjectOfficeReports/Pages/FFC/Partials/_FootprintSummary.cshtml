@@ -1,0 +1,51 @@
+@using System.Globalization
+@using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC
+@model FootprintModel
+@{
+    var totalUnits = Model.Result.Summary.TotalUnits;
+    var installedStyle = totalUnits <= 0
+        ? "width:0%"
+        : $"width:{(Model.Result.Summary.InstalledUnits * 100d / totalUnits).ToString("0.###", CultureInfo.InvariantCulture)}%";
+    var deliveredStyle = totalUnits <= 0
+        ? "width:0%"
+        : $"width:{(Model.Result.Summary.DeliveredNotInstalledUnits * 100d / totalUnits).ToString("0.###", CultureInfo.InvariantCulture)}%";
+    var plannedStyle = totalUnits <= 0
+        ? "width:0%"
+        : $"width:{(Model.Result.Summary.PlannedUnits * 100d / totalUnits).ToString("0.###", CultureInfo.InvariantCulture)}%";
+}
+
+<section class="ffc-footprint-summary" aria-label="Filtered FFC footprint summary">
+    <div class="ffc-footprint-summary__metric">
+        <strong>@Model.Result.Summary.CountryCount</strong>
+        <span>Countries</span>
+    </div>
+    <div class="ffc-footprint-summary__metric">
+        <strong>@Model.Result.Summary.RecordCount</strong>
+        <span>Records</span>
+    </div>
+    <div class="ffc-footprint-summary__metric">
+        <strong>@Model.Result.Summary.ProjectCount</strong>
+        <span>Projects</span>
+    </div>
+    <div class="ffc-footprint-summary__metric">
+        <strong>@totalUnits</strong>
+        <span>Total units</span>
+    </div>
+    <div class="ffc-footprint-summary__distribution">
+        <div class="ffc-footprint-summary__distribution-labels">
+            <span><i class="ffc-footprint-dot is-installed" aria-hidden="true"></i>Installed <strong>@Model.Result.Summary.InstalledUnits</strong></span>
+            <span><i class="ffc-footprint-dot is-delivered" aria-hidden="true"></i>Delivered, awaiting installation <strong>@Model.Result.Summary.DeliveredNotInstalledUnits</strong></span>
+            <span><i class="ffc-footprint-dot is-planned" aria-hidden="true"></i>Planned <strong>@Model.Result.Summary.PlannedUnits</strong></span>
+        </div>
+        <div class="ffc-footprint-summary__bar"
+             role="img"
+             aria-label="@Model.Result.Summary.InstalledUnits installed, @Model.Result.Summary.DeliveredNotInstalledUnits delivered awaiting installation, and @Model.Result.Summary.PlannedUnits planned units">
+            @if (totalUnits > 0)
+            {
+                <span class="is-installed" style="@installedStyle"></span>
+                <span class="is-delivered" style="@deliveredStyle"></span>
+                <span class="is-planned" style="@plannedStyle"></span>
+            }
+        </div>
+    </div>
+</section>

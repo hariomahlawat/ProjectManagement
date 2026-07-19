@@ -1,0 +1,81 @@
+@using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC
+@model FootprintModel
+
+<form method="get" asp-page="/FFC/Footprint" class="ffc-footprint-filters" role="search">
+    <input type="hidden" name="view" value="@Model.ViewMode" />
+    <input type="hidden" name="presentation" value="@(Model.Presentation ? "true" : null)" />
+    <input type="hidden" name="focus" value="@Model.Focus" />
+
+    <div class="ffc-footprint-filters__search">
+        <label class="visually-hidden" for="ffcFootprintSearch">Search country or project</label>
+        <span class="bi bi-search" aria-hidden="true"></span>
+        <input id="ffcFootprintSearch"
+               type="search"
+               name="q"
+               value="@Model.Query"
+               placeholder="Search country, ISO code or project"
+               autocomplete="off" />
+    </div>
+
+    <div>
+        <label class="visually-hidden" for="ffcFootprintYear">Year</label>
+        <select id="ffcFootprintYear" name="year" class="form-select form-select-sm">
+            <option value="">All years</option>
+            @foreach (var year in Model.Result.AvailableYears)
+            {
+                <option value="@year" selected="@(Model.Year == year)">@year</option>
+            }
+        </select>
+    </div>
+
+    <div>
+        <label class="visually-hidden" for="ffcFootprintCountry">Country</label>
+        <select id="ffcFootprintCountry" name="countryId" class="form-select form-select-sm">
+            <option value="">All countries</option>
+            @foreach (var country in Model.Result.CountryOptions)
+            {
+                <option value="@country.CountryId" selected="@(Model.CountryId == country.CountryId)">
+                    @country.CountryName (@country.IsoCode)
+                </option>
+            }
+        </select>
+    </div>
+
+    @if (Model.IsMapView)
+    {
+        <div>
+            <label class="visually-hidden" for="ffcFootprintMetric">Map metric</label>
+            <select id="ffcFootprintMetric" name="metric" class="form-select form-select-sm">
+                @foreach (var metric in Enum.GetValues<ProjectManagement.Services.Ffc.FfcFootprintMetric>())
+                {
+                    var value = FootprintModel.MetricQueryValue(metric);
+                    <option value="@value" selected="@(Model.Metric == metric)">@FootprintModel.MetricLabel(metric)</option>
+                }
+            </select>
+        </div>
+        <input type="hidden" name="sort" value="@Model.SortValue" />
+    }
+    else
+    {
+        <input type="hidden" name="metric" value="@Model.MetricValue" />
+        <div>
+            <label class="visually-hidden" for="ffcFootprintSort">Sort countries</label>
+            <select id="ffcFootprintSort" name="sort" class="form-select form-select-sm">
+                <option value="total" selected="@(Model.SortValue == "total")">Total units</option>
+                <option value="country" selected="@(Model.SortValue == "country")">Country name</option>
+                <option value="installed" selected="@(Model.SortValue == "installed")">Installed units</option>
+                <option value="planned" selected="@(Model.SortValue == "planned")">Planned units</option>
+                <option value="recent" selected="@(Model.SortValue == "recent")">Most recent activity</option>
+            </select>
+        </div>
+    }
+
+    <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+
+    @if (Model.HasActiveFilters)
+    {
+        <a asp-page="/FFC/Footprint"
+           asp-all-route-data='Model.BuildRoute(clearSelectedCountry: true, clearFilters: true)'
+           class="btn btn-link btn-sm">Reset</a>
+    }
+</form>

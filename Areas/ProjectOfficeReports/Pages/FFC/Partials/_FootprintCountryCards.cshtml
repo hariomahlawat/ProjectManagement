@@ -1,0 +1,58 @@
+@using System.Globalization
+@using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC
+@model FootprintModel
+@{
+    static string Percentage(int value, int total)
+        => total <= 0
+            ? "0%"
+            : (value * 100d / total).ToString("0.###", CultureInfo.InvariantCulture) + "%";
+}
+
+@if (Model.Result.Countries.Count == 0)
+{
+    <div class="ffc-footprint-empty" role="status">
+        <span class="bi bi-globe2" aria-hidden="true"></span>
+        <div>
+            <h2>No footprint data matches these filters</h2>
+            <p>Adjust the country, year or search criteria.</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="ffc-country-card-grid" aria-label="FFC country footprint cards">
+        @foreach (var country in Model.Result.Countries)
+        {
+            <button type="button"
+                    class="ffc-country-card"
+                    data-ffc-country-trigger
+                    data-country-id="@country.CountryId"
+                    aria-label="Open @country.CountryName footprint details">
+                <span class="ffc-country-card__header">
+                    <span>
+                        <strong>@country.CountryName</strong>
+                        <small>@country.IsoCode · @country.RecordCount record@(country.RecordCount == 1 ? string.Empty : "s")</small>
+                    </span>
+                    <span class="ffc-country-card__total">@country.TotalUnits <small>units</small></span>
+                </span>
+
+                <span class="ffc-country-card__metrics">
+                    <span><span>Installed</span><strong>@country.InstalledUnits</strong></span>
+                    <span><span>Delivered, awaiting installation</span><strong>@country.DeliveredNotInstalledUnits</strong></span>
+                    <span><span>Planned</span><strong>@country.PlannedUnits</strong></span>
+                </span>
+
+                <span class="ffc-country-card__bar" aria-hidden="true">
+                    <i class="is-installed" style="width:@Percentage(country.InstalledUnits, country.TotalUnits)"></i>
+                    <i class="is-delivered" style="width:@Percentage(country.DeliveredNotInstalledUnits, country.TotalUnits)"></i>
+                    <i class="is-planned" style="width:@Percentage(country.PlannedUnits, country.TotalUnits)"></i>
+                </span>
+
+                <span class="ffc-country-card__footer">
+                    <span>@country.ProjectCount project@(country.ProjectCount == 1 ? string.Empty : "s")</span>
+                    <span>Open <span class="bi bi-arrow-right" aria-hidden="true"></span></span>
+                </span>
+            </button>
+        }
+    </div>
+}

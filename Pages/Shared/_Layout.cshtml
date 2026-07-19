@@ -51,7 +51,10 @@
     <meta name="msapplication-TileColor" content="#10213f" />
     <meta name="msapplication-config" content="@Url.Content("~/browserconfig.xml")" />
 </head>
-<body class="d-flex flex-column min-vh-100">
+@{
+    var presentationMode = (ViewData["PresentationMode"] as bool?) == true;
+}
+<body class="d-flex flex-column min-vh-100@(presentationMode ? " pm-presentation-mode" : string.Empty)">
     @{
         var signedIn = SignInManager.IsSignedIn(User);
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
@@ -134,7 +137,7 @@
     <!-- ===========================
          HEADER / TOP BAR
          =========================== -->
-    @if (signedIn)
+    @if (signedIn && !presentationMode)
     {
         <header class="pm-topbar">
             <div class="pm-chrome-shell pm-topbar__inner">
@@ -228,7 +231,7 @@
             </div>
         </header>
     }
-    else
+    else if (!signedIn)
     {
         <header class="public-topbar">
             <div class="public-topbar__inner">
@@ -273,7 +276,7 @@
     <!-- ===========================
          MODULE SUB-NAV
          =========================== -->
-    @if (signedIn && !useAdminModuleShell && !isUsagePage)
+    @if (signedIn && !presentationMode && !useAdminModuleShell && !isUsagePage)
     {
         <div class="pm-module-subnav-wrap">
             <div class="pm-chrome-shell">
@@ -309,7 +312,7 @@
         <main role="main" class="pb-2@(useFullWidth ? " analytics-main" : string.Empty)">
             <div class="@mainContainerClass">
                 @await Html.PartialAsync("_Toasts")
-                @if (breadcrumbModel is not null)
+                @if (!presentationMode && breadcrumbModel is not null)
                 {
                     @await Html.PartialAsync("~/Views/Shared/_Breadcrumbs.cshtml", breadcrumbModel)
                 }
@@ -321,7 +324,7 @@
     <!-- ===========================
          FOOTER
          =========================== -->
-    @if (signedIn)
+    @if (signedIn && !presentationMode)
     {
         <footer class="pm-footer border-top py-2 mt-auto">
             <div class="pm-chrome-shell">
@@ -338,7 +341,7 @@
             </div>
         </footer>
     }
-    else
+    else if (!signedIn)
     {
         <footer class="public-footer">
             <div class="public-footer__inner">

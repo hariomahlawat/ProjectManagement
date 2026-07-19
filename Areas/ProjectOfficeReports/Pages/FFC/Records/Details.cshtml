@@ -96,10 +96,12 @@
                     </li>
                     <li>
                         <a asp-area="ProjectOfficeReports"
-                           asp-page="/FFC/Map"
+                           asp-page="/FFC/Footprint"
+                           asp-route-countryId="@Model.Workspace.CountryId"
+                           asp-route-selectedCountryId="@Model.Workspace.CountryId"
                            class="dropdown-item">
                             <span class="bi bi-geo-alt" aria-hidden="true"></span>
-                            Open footprint
+                            View country on Footprint
                         </a>
                     </li>
                     @if (Model.CanManage)
