@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
@@ -17,7 +18,8 @@ public sealed class FfcFootprintServiceTests
     [Fact]
     public async Task GetAsync_AggregatesMultipleCountryYearsAndBatchResolvesProgress()
     {
-        await using var db = CreateDbContext();
+        await using var scope = await TestDbScope.CreateAsync();
+        var db = scope.Db;
         var country = new FfcCountry { Name = "Myanmar", IsoCode = "MMR", IsActive = true };
         var linked = new Project
         {
@@ -101,7 +103,8 @@ public sealed class FfcFootprintServiceTests
     [Fact]
     public async Task GetAsync_AppliesYearCountryAndProjectSearchFilters()
     {
-        await using var db = CreateDbContext();
+        await using var scope = await TestDbScope.CreateAsync();
+        var db = scope.Db;
         var alpha = new FfcCountry { Name = "Alpha", IsoCode = "ALP", IsActive = true };
         var beta = new FfcCountry { Name = "Beta", IsoCode = "BET", IsActive = true };
         var linked = new Project { Name = "Swarm Algorithm", CreatedByUserId = "user" };
@@ -131,9 +134,33 @@ public sealed class FfcFootprintServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_ReturnsDistinctOrderedCountryOptionsOnRelationalProvider()
+    {
+        await using var scope = await TestDbScope.CreateAsync();
+        var db = scope.Db;
+        var zulu = new FfcCountry { Name = "Zulu", IsoCode = "ZUL", IsActive = true };
+        var alpha = new FfcCountry { Name = "Alpha", IsoCode = "ALP", IsActive = true };
+        db.AddRange(zulu, alpha);
+        await db.SaveChangesAsync();
+
+        db.FfcRecords.AddRange(
+            new FfcRecord { CountryId = zulu.Id, Year = 2026 },
+            new FfcRecord { CountryId = zulu.Id, Year = 2025 },
+            new FfcRecord { CountryId = alpha.Id, Year = 2026 });
+        await db.SaveChangesAsync();
+
+        var service = new FfcFootprintService(db, new StubProgressService());
+        var result = await service.GetAsync(new FfcFootprintRequest());
+
+        Assert.Equal(new[] { "Alpha", "Zulu" }, result.CountryOptions.Select(option => option.CountryName).ToArray());
+        Assert.Equal(2, result.CountryOptions.Count);
+    }
+
+    [Fact]
     public async Task GetAsync_ExcludesArchivedRecordsAndInactiveCountries()
     {
-        await using var db = CreateDbContext();
+        await using var scope = await TestDbScope.CreateAsync();
+        var db = scope.Db;
         var active = new FfcCountry { Name = "Active", IsoCode = "ACT", IsActive = true };
         var inactive = new FfcCountry { Name = "Inactive", IsoCode = "INA", IsActive = false };
         db.AddRange(active, inactive);
@@ -156,14 +183,63 @@ public sealed class FfcFootprintServiceTests
         var country = Assert.Single(result.Countries);
         Assert.Equal("Active", country.CountryName);
         Assert.Equal(1, country.TotalUnits);
+        Assert.Single(result.CountryOptions);
+        Assert.Equal("Active", result.CountryOptions[0].CountryName);
     }
 
-    private static ApplicationDbContext CreateDbContext()
+    [Fact]
+    public async Task GetAsync_ReturnsEmptyFilteredResultButRetainsAvailableFilters()
     {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        return new ApplicationDbContext(options);
+        await using var scope = await TestDbScope.CreateAsync();
+        var db = scope.Db;
+        var country = new FfcCountry { Name = "France", IsoCode = "FRA", IsActive = true };
+        db.FfcCountries.Add(country);
+        await db.SaveChangesAsync();
+        db.FfcRecords.Add(new FfcRecord { CountryId = country.Id, Year = 2026 });
+        await db.SaveChangesAsync();
+
+        var service = new FfcFootprintService(db, new StubProgressService());
+        var result = await service.GetAsync(new FfcFootprintRequest(Search: "does-not-exist"));
+
+        Assert.Empty(result.Countries);
+        Assert.Equal(0, result.Summary.CountryCount);
+        Assert.Equal(new short[] { 2026 }, result.AvailableYears);
+        Assert.Single(result.CountryOptions);
+        Assert.Equal("France", result.CountryOptions[0].CountryName);
+    }
+
+    private sealed class TestDbScope : IAsyncDisposable
+    {
+        private readonly SqliteConnection _connection;
+
+        private TestDbScope(ApplicationDbContext db, SqliteConnection connection)
+        {
+            Db = db;
+            _connection = connection;
+        }
+
+        public ApplicationDbContext Db { get; }
+
+        public static async Task<TestDbScope> CreateAsync()
+        {
+            var connection = new SqliteConnection("Data Source=:memory:");
+            await connection.OpenAsync();
+
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseSqlite(connection)
+                .EnableDetailedErrors()
+                .Options;
+
+            var db = new ApplicationDbContext(options);
+            await db.Database.EnsureCreatedAsync();
+            return new TestDbScope(db, connection);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await Db.DisposeAsync();
+            await _connection.DisposeAsync();
+        }
     }
 
     private sealed class StubProgressService : IFfcProgressService

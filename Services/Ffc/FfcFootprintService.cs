@@ -28,66 +28,134 @@ public sealed class FfcFootprintService : IFfcFootprintService
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var baseRecords = _db.FfcRecords
+        var activeRecords = _db.FfcRecords
             .AsNoTracking()
             .Where(record => !record.IsDeleted && record.Country.IsActive);
 
-        var availableYears = await baseRecords
+        var availableYears = await activeRecords
+            .TagWith("FFC Footprint: available years")
             .Select(record => record.Year)
             .Distinct()
             .OrderByDescending(year => year)
             .ToListAsync(cancellationToken);
 
-        var countryOptions = await baseRecords
-            .Select(record => new FfcFootprintCountryOption(
-                record.CountryId,
-                record.Country.Name,
-                record.Country.IsoCode))
-            .Distinct()
-            .OrderBy(country => country.CountryName)
+        // Query the country table directly. This naturally returns one row per country and
+        // avoids Distinct over a custom DTO constructor, which PostgreSQL cannot translate.
+        var countryOptionRows = await _db.FfcCountries
+            .AsNoTracking()
+            .TagWith("FFC Footprint: country options")
+            .Where(country =>
+                country.IsActive &&
+                _db.FfcRecords.Any(record =>
+                    !record.IsDeleted &&
+                    record.CountryId == country.Id))
+            .OrderBy(country => country.Name)
+            .ThenBy(country => country.IsoCode)
+            .Select(country => new
+            {
+                CountryId = country.Id,
+                CountryName = country.Name,
+                IsoCode = country.IsoCode
+            })
             .ToListAsync(cancellationToken);
 
-        var filteredRecords = ApplyFilters(baseRecords, request);
-        var recordRows = await filteredRecords
+        var countryOptions = countryOptionRows
+            .Select(country => new FfcFootprintCountryOption(
+                country.CountryId,
+                country.CountryName,
+                country.IsoCode))
+            .ToList();
+
+        var filteredRecords = ApplyFilters(activeRecords, request);
+
+        // Keep the SQL projection scalar-only. Materialise first and construct application
+        // DTOs in memory so query translation does not depend on provider support for custom
+        // record constructors.
+        var recordData = await filteredRecords
+            .TagWith("FFC Footprint: filtered country-year records")
             .OrderBy(record => record.Country.Name)
             .ThenByDescending(record => record.Year)
             .ThenBy(record => record.Id)
-            .Select(record => new RecordProjection(
-                record.Id,
+            .Select(record => new
+            {
+                RecordId = record.Id,
                 record.CountryId,
-                record.Country.Name,
-                record.Country.IsoCode,
+                CountryName = record.Country.Name,
+                IsoCode = record.Country.IsoCode,
                 record.Year,
-                record.Projects.Count,
-                record.Projects.Sum(project => project.IsInstalled ? project.Quantity : 0),
-                record.Projects.Sum(project => project.IsDelivered && !project.IsInstalled ? project.Quantity : 0),
-                record.Projects.Sum(project => !project.IsDelivered && !project.IsInstalled ? project.Quantity : 0),
-                record.OverallRemarks,
-                record.UpdatedAt))
+                ProjectCount = record.Projects.Count(),
+                InstalledUnits = record.Projects
+                    .Where(project => project.IsInstalled)
+                    .Sum(project => (int?)project.Quantity) ?? 0,
+                DeliveredNotInstalledUnits = record.Projects
+                    .Where(project => project.IsDelivered && !project.IsInstalled)
+                    .Sum(project => (int?)project.Quantity) ?? 0,
+                PlannedUnits = record.Projects
+                    .Where(project => !project.IsDelivered && !project.IsInstalled)
+                    .Sum(project => (int?)project.Quantity) ?? 0,
+                OverallPosition = record.OverallRemarks,
+                record.UpdatedAt
+            })
             .ToListAsync(cancellationToken);
+
+        var recordRows = recordData
+            .Select(record => new RecordProjection(
+                record.RecordId,
+                record.CountryId,
+                record.CountryName,
+                record.IsoCode,
+                record.Year,
+                record.ProjectCount,
+                record.InstalledUnits,
+                record.DeliveredNotInstalledUnits,
+                record.PlannedUnits,
+                record.OverallPosition,
+                record.UpdatedAt))
+            .ToList();
 
         if (recordRows.Count == 0)
         {
             return FfcFootprintResult.Empty(availableYears, countryOptions);
         }
 
-        var recordIds = recordRows.Select(record => record.RecordId).ToArray();
-        var projectRows = await _db.FfcProjects
+        var recordIds = recordRows
+            .Select(record => record.RecordId)
+            .ToArray();
+
+        var projectData = await _db.FfcProjects
             .AsNoTracking()
+            .TagWith("FFC Footprint: projects for filtered records")
             .Where(project => recordIds.Contains(project.FfcRecordId))
             .OrderBy(project => project.FfcRecordId)
             .ThenBy(project => project.Id)
-            .Select(project => new ProjectProjection(
-                project.Id,
+            .Select(project => new
+            {
+                FfcProjectId = project.Id,
                 project.FfcRecordId,
-                project.Name,
-                project.Remarks,
+                FfcName = project.Name,
+                FfcRemarks = project.Remarks,
                 project.LinkedProjectId,
                 project.Quantity,
                 project.IsDelivered,
                 project.IsInstalled,
-                project.LinkedProject == null ? null : project.LinkedProject.Name))
+                LinkedProjectName = project.LinkedProject == null
+                    ? null
+                    : project.LinkedProject.Name
+            })
             .ToListAsync(cancellationToken);
+
+        var projectRows = projectData
+            .Select(project => new ProjectProjection(
+                project.FfcProjectId,
+                project.FfcRecordId,
+                project.FfcName,
+                project.FfcRemarks,
+                project.LinkedProjectId,
+                project.Quantity,
+                project.IsDelivered,
+                project.IsInstalled,
+                project.LinkedProjectName))
+            .ToList();
 
         var linkedProjectIds = projectRows
             .Where(project => project.LinkedProjectId.HasValue)
@@ -98,16 +166,28 @@ public sealed class FfcFootprintService : IFfcFootprintService
         var stageSummaryByProjectId = new Dictionary<int, string?>();
         if (linkedProjectIds.Length > 0)
         {
-            var stageRows = await _db.ProjectStages
+            var stageData = await _db.ProjectStages
                 .AsNoTracking()
+                .TagWith("FFC Footprint: linked project stages")
                 .Where(stage => linkedProjectIds.Contains(stage.ProjectId))
+                .Select(stage => new
+                {
+                    stage.ProjectId,
+                    stage.StageCode,
+                    stage.SortOrder,
+                    stage.Status,
+                    stage.CompletedOn
+                })
+                .ToListAsync(cancellationToken);
+
+            var stageRows = stageData
                 .Select(stage => new FfcProjectStageSnapshot(
                     stage.ProjectId,
                     stage.StageCode,
                     stage.SortOrder,
                     stage.Status,
                     stage.CompletedOn))
-                .ToListAsync(cancellationToken);
+                .ToList();
 
             stageSummaryByProjectId = stageRows
                 .GroupBy(stage => stage.ProjectId)
@@ -229,7 +309,6 @@ public sealed class FfcFootprintService : IFfcFootprintService
             AvailableYears: availableYears,
             CountryOptions: countryOptions);
     }
-
 
     private static IOrderedEnumerable<FfcFootprintCountry> SortCountries(
         IEnumerable<FfcFootprintCountry> countries,
