@@ -123,7 +123,7 @@ public sealed class FfcProjectCommandService : IFfcProjectCommandService
         var shouldUpdateLinkedProgress = linkedProjectId.HasValue &&
                                          !string.IsNullOrWhiteSpace(normalizedProgress);
 
-        if (shouldUpdateLinkedProgress &&
+        if (linkedProjectId.HasValue &&
             existingEntity is not null &&
             existingLinkedProjectId == linkedProjectId)
         {
@@ -137,13 +137,25 @@ public sealed class FfcProjectCommandService : IFfcProjectCommandService
                 },
                 cancellationToken);
 
-            if (currentProgress.TryGetValue(existingEntity.Id, out var current) &&
-                string.Equals(
-                    Normalize(current.Text),
+            if (currentProgress.TryGetValue(existingEntity.Id, out var current))
+            {
+                var normalizedCurrentProgress = Normalize(current.Text);
+                if (!string.IsNullOrWhiteSpace(normalizedCurrentProgress) &&
+                    string.IsNullOrWhiteSpace(normalizedProgress))
+                {
+                    return FfcCommandResult.Invalid(
+                        fieldErrors: Error(
+                            "ProgressText",
+                            "Current progress is shared with the linked Project and cannot be cleared implicitly. Enter a revised update or manage the external remark from the Project record."));
+                }
+
+                if (string.Equals(
+                    normalizedCurrentProgress,
                     normalizedProgress,
                     StringComparison.Ordinal))
-            {
-                shouldUpdateLinkedProgress = false;
+                {
+                    shouldUpdateLinkedProgress = false;
+                }
             }
         }
 

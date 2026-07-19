@@ -1,0 +1,143 @@
+.prism-confirm-dialog {
+    width: min(460px, calc(100vw - 2rem));
+    max-width: none;
+    padding: 0;
+    overflow: visible;
+    border: 0;
+    border-radius: 1rem;
+    background: transparent;
+    color: var(--bs-body-color, #0f172a);
+}
+
+.prism-confirm-dialog::backdrop {
+    background: rgba(15, 23, 42, .56);
+    backdrop-filter: blur(2px);
+}
+
+.prism-confirm-dialog__surface {
+    position: relative;
+    display: grid;
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: .85rem;
+    padding: 1.15rem;
+    border: 1px solid rgba(15, 23, 42, .1);
+    border-radius: 1rem;
+    background: var(--bs-body-bg, #fff);
+    box-shadow: 0 26px 72px rgba(15, 23, 42, .3);
+}
+
+.prism-confirm-dialog__icon {
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    border-radius: .8rem;
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-size: 1.15rem;
+}
+
+.prism-confirm-dialog[data-tone="warning"] .prism-confirm-dialog__icon {
+    background: #fef3c7;
+    color: #a16207;
+}
+
+.prism-confirm-dialog[data-tone="danger"] .prism-confirm-dialog__icon {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.prism-confirm-dialog__content {
+    min-width: 0;
+    padding-right: 1.5rem;
+}
+
+.prism-confirm-dialog__content h2 {
+    margin: .05rem 0 .35rem;
+    font-size: 1rem;
+    font-weight: 750;
+    letter-spacing: -.01em;
+}
+
+.prism-confirm-dialog__content p {
+    margin: 0;
+    color: var(--bs-secondary-color, #64748b);
+    font-size: .84rem;
+    line-height: 1.55;
+    white-space: pre-line;
+}
+
+.prism-confirm-dialog__detail {
+    margin-top: .5rem !important;
+    padding: .55rem .65rem;
+    border-radius: .55rem;
+    background: var(--bs-tertiary-bg, #f8fafc);
+    font-size: .76rem !important;
+}
+
+.prism-confirm-dialog__close {
+    position: absolute;
+    top: .75rem;
+    right: .75rem;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: .55rem;
+    background: transparent;
+    color: var(--bs-secondary-color, #64748b);
+}
+
+.prism-confirm-dialog__close:hover,
+.prism-confirm-dialog__close:focus-visible {
+    background: var(--bs-tertiary-bg, #f1f5f9);
+    color: var(--bs-body-color, #0f172a);
+}
+
+.prism-confirm-dialog__actions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem;
+    margin-top: .25rem;
+    padding-top: .8rem;
+    border-top: 1px solid rgba(15, 23, 42, .09);
+}
+
+.prism-confirm-dialog[data-tone="danger"] [data-prism-confirm-accept] {
+    --bs-btn-bg: #dc2626;
+    --bs-btn-border-color: #dc2626;
+    --bs-btn-hover-bg: #b91c1c;
+    --bs-btn-hover-border-color: #b91c1c;
+    --bs-btn-active-bg: #991b1b;
+    --bs-btn-active-border-color: #991b1b;
+}
+
+.prism-confirm-dialog[data-tone="warning"] [data-prism-confirm-accept] {
+    --bs-btn-bg: #b45309;
+    --bs-btn-border-color: #b45309;
+    --bs-btn-hover-bg: #92400e;
+    --bs-btn-hover-border-color: #92400e;
+    --bs-btn-active-bg: #78350f;
+    --bs-btn-active-border-color: #78350f;
+}
+
+@media (max-width: 575.98px) {
+    .prism-confirm-dialog__surface {
+        grid-template-columns: 40px minmax(0, 1fr);
+        gap: .7rem;
+        padding: 1rem;
+    }
+
+    .prism-confirm-dialog__icon {
+        width: 40px;
+        height: 40px;
+    }
+
+    .prism-confirm-dialog__actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+}

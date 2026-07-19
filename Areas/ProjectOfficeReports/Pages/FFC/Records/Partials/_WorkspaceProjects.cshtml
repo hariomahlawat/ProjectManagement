@@ -63,7 +63,11 @@
                 <div role="columnheader">Qty</div>
                 <div role="columnheader">Position</div>
                 <div role="columnheader">Delivery / installation</div>
-                <div role="columnheader">Current progress</div>
+                <div role="columnheader" class="ffc-workspace-progress-heading">
+                    <span>Current progress</span>
+                    <span class="bi bi-arrow-repeat" aria-hidden="true" title="Linked entries share the PRISM Project external remark."></span>
+                    <span class="visually-hidden">Linked entries share the PRISM Project external remark.</span>
+                </div>
                 <div role="columnheader" class="text-end">Actions</div>
             </div>
 
@@ -115,7 +119,10 @@
                         }
                         else if (project.Position != FfcUnitPosition.Planned)
                         {
-                            <span>Delivery date not recorded</span>
+                            <span class="ffc-workspace-date-warning">
+                                <span class="bi bi-exclamation-circle" aria-hidden="true"></span>
+                                Delivery date missing
+                            </span>
                         }
 
                         @if (project.InstalledOn.HasValue)
@@ -124,7 +131,10 @@
                         }
                         else if (project.Position == FfcUnitPosition.Installed)
                         {
-                            <span>Installation date not recorded</span>
+                            <span class="ffc-workspace-date-warning">
+                                <span class="bi bi-exclamation-circle" aria-hidden="true"></span>
+                                Installation date missing
+                            </span>
                         }
 
                         @if (project.Position == FfcUnitPosition.Planned)
@@ -141,13 +151,6 @@
                         else
                         {
                             <p>@project.CurrentProgress</p>
-                        }
-                        @if (project.LinkedProjectId.HasValue)
-                        {
-                            <span class="ffc-workspace-project-table__shared-note">
-                                <span class="bi bi-arrow-repeat" aria-hidden="true"></span>
-                                Shared with the linked Project external remark
-                            </span>
                         }
                     </div>
 
@@ -169,17 +172,7 @@
                                         <button type="button"
                                                 class="dropdown-item"
                                                 data-ffc-edit-project
-                                                data-project-id="@project.Id"
-                                                data-project-linked="@(project.LinkedProjectId.HasValue ? "true" : "false")"
-                                                data-project-linked-id="@project.LinkedProjectId"
-                                                data-project-linked-name="@project.DisplayName"
-                                                data-project-name="@project.FfcName"
-                                                data-project-quantity="@project.Quantity"
-                                                data-project-position="@((int)project.Position)"
-                                                data-project-delivered-on="@project.DeliveredOn?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
-                                                data-project-installed-on="@project.InstalledOn?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
-                                                data-project-progress="@project.CurrentProgress"
-                                                data-project-row-version="@project.RowVersion">
+                                                data-project-id="@project.Id">
                                             <span class="bi bi-pencil-square" aria-hidden="true"></span>
                                             Edit
                                         </button>
@@ -243,7 +236,7 @@
                         <input type="hidden" name="projectId" data-ffc-delete-project-id />
                         <input type="hidden" name="rowVersion" data-ffc-delete-project-version />
                         <input type="hidden" asp-for="ReturnUrl" />
-                        <button type="submit" class="btn btn-danger">Remove project</button>
+                        <button type="submit" class="btn btn-danger" data-ffc-submitting-text="Removing…">Remove project</button>
                     </form>
                 </div>
             </div>

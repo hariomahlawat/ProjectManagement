@@ -10,6 +10,9 @@
     <link rel="stylesheet"
           href="~/css/project-office-reports/ffc-record-workspace.css"
           asp-append-version="true" />
+    <link rel="stylesheet"
+          href="~/css/components/prism-confirm-dialog.css"
+          asp-append-version="true" />
 }
 
 <div class="container-fluid px-3 px-lg-4 py-2 ffc-workspace ffc-archived-records"
@@ -82,7 +85,7 @@
                                   data-ffc-restore-record>
                                 <input type="hidden" name="rowVersion" value="@record.RowVersion" />
                                 <input type="hidden" asp-for="ReturnUrl" />
-                                <button type="submit" class="btn btn-outline-primary btn-sm">
+                                <button type="submit" class="btn btn-outline-primary btn-sm" data-ffc-submitting-text="Restoring…">
                                     <span class="bi bi-arrow-counterclockwise" aria-hidden="true"></span>
                                     Restore
                                 </button>
@@ -95,7 +98,12 @@
     </section>
 </div>
 
+<partial name="~/Pages/Shared/_PrismConfirmDialog.cshtml" />
+
 @section Scripts {
+    <script src="~/js/components/prism-confirm-dialog.js"
+            asp-append-version="true"
+            defer></script>
     <script src="~/js/pages/project-office-reports/ffc/ffc-record-workspace.js"
             asp-append-version="true"
             defer></script>

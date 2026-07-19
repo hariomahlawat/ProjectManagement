@@ -178,7 +178,10 @@
 
         <div class="ffc-workspace-drawer__footer">
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
-            <button type="submit" class="btn btn-primary" data-ffc-project-submit>
+            <button type="submit"
+                    class="btn btn-primary"
+                    data-ffc-project-submit
+                    data-ffc-submitting-text="Saving…">
                 @(Model.ProjectInput.Id.HasValue ? "Save changes" : "Add project")
             </button>
         </div>

@@ -134,6 +134,60 @@ public sealed class FfcRecordWorkspaceCommandTests
     }
 
     [Fact]
+    public async Task ProjectSave_DoesNotSilentlyClearExistingCanonicalProgressRemark()
+    {
+        await using var db = CreateDbContext();
+        var record = await SeedRecordAsync(db);
+        var linkedProject = new Project
+        {
+            Name = "Canonical linked project",
+            CreatedByUserId = "admin",
+            LifecycleStatus = ProjectLifecycleStatus.Active
+        };
+        db.Projects.Add(linkedProject);
+        await db.SaveChangesAsync();
+
+        var ffcProject = new FfcProject
+        {
+            FfcRecordId = record.Id,
+            Name = linkedProject.Name,
+            LinkedProjectId = linkedProject.Id,
+            Quantity = 1
+        };
+        db.FfcProjects.Add(ffcProject);
+        await db.SaveChangesAsync();
+
+        var progress = new TrackingProgressService(ffcProject.Id, "Existing canonical progress.");
+        var service = new FfcProjectCommandService(
+            db,
+            progress,
+            new NoOpAuditService(),
+            new HttpContextAccessor(),
+            NullLogger<FfcProjectCommandService>.Instance);
+
+        var result = await service.SaveAsync(new FfcProjectSaveCommand(
+            RecordId: record.Id,
+            ProjectId: ffcProject.Id,
+            IsLinkedProject: true,
+            DisplayName: ffcProject.Name,
+            LinkedProjectId: linkedProject.Id,
+            Quantity: 1,
+            Position: FfcUnitPosition.Planned,
+            DeliveredOn: null,
+            InstalledOn: null,
+            ProgressText: "   ",
+            RowVersion: Convert.ToBase64String(ffcProject.RowVersion),
+            Actor: null));
+
+        Assert.False(result.Success);
+        Assert.NotNull(result.FieldErrors);
+        Assert.Contains("ProgressText", result.FieldErrors!.Keys);
+        Assert.Contains("cannot be cleared implicitly", result.FieldErrors["ProgressText"][0], StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, progress.ReadCount);
+        Assert.Equal(0, progress.UpdateCount);
+    }
+
+    [Fact]
     public async Task ProjectSave_DoesNotRewriteAnUnchangedCanonicalProgressRemark()
     {
         await using var db = CreateDbContext();

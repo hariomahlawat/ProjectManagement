@@ -1121,3 +1121,74 @@
         text-align: start !important;
     }
 }
+
+/* SECTION: Phase 4 interaction hardening */
+.ffc-workspace-progress-heading {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+}
+
+.ffc-workspace-progress-heading .bi {
+    color: var(--ffc-primary);
+    font-size: .75rem;
+}
+
+.ffc-workspace-date-warning {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    color: var(--ffc-warning);
+    font-weight: 600;
+}
+
+.ffc-source-choice {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ffc-search-select__input.is-invalid,
+.ffc-project-picker__input.is-invalid {
+    padding-right: 4rem;
+}
+
+.ffc-search-select__input[aria-invalid="true"],
+.ffc-project-picker__input[aria-invalid="true"] {
+    border-color: var(--bs-form-invalid-border-color, #dc3545);
+}
+
+.ffc-upload-zone.is-invalid {
+    border-color: var(--bs-form-invalid-border-color, #dc3545);
+    background: rgba(254, 226, 226, .45);
+}
+
+.ffc-upload-assurance {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .65rem 1rem;
+    border-radius: 0;
+    background: var(--ffc-surface-soft);
+    color: var(--ffc-muted);
+    font-size: .72rem;
+    line-height: 1.45;
+}
+
+.ffc-upload-assurance .bi {
+    margin: 0;
+    color: var(--ffc-success);
+}
+
+.ffc-workspace-drawer__footer .btn[aria-busy="true"],
+.ffc-editor-page__actions .btn[aria-busy="true"],
+button[data-ffc-submitting-text]:disabled {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+}
+
+@media (max-width: 575.98px) {
+    .ffc-source-choice {
+        grid-template-columns: 1fr;
+    }
+}

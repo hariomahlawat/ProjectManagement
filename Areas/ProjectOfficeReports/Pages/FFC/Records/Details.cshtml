@@ -1,4 +1,5 @@
 @page "{id:long}"
+@using System.Globalization
 @using System.Linq
 @using System.Text.Json
 @using ProjectManagement.Models
@@ -15,11 +16,29 @@
         secondary = project.SecondaryText,
         available = project.IsAvailable
     }));
+
+    var projectEditorDataJson = JsonSerializer.Serialize(Model.Workspace.Projects.Select(project => new
+    {
+        id = project.Id,
+        linked = project.LinkedProjectId.HasValue,
+        linkedProjectId = project.LinkedProjectId,
+        linkedProjectName = project.DisplayName,
+        name = project.FfcName,
+        quantity = project.Quantity,
+        position = (int)project.Position,
+        deliveredOn = project.DeliveredOn?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+        installedOn = project.InstalledOn?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+        progress = project.CurrentProgress,
+        rowVersion = project.RowVersion
+    }));
 }
 
 @section Styles {
     <link rel="stylesheet"
           href="~/css/project-office-reports/ffc-record-workspace.css"
+          asp-append-version="true" />
+    <link rel="stylesheet"
+          href="~/css/components/prism-confirm-dialog.css"
           asp-append-version="true" />
 }
 
@@ -55,20 +74,6 @@
                         aria-controls="ffcRecordEditor">
                     <span class="bi bi-pencil-square" aria-hidden="true"></span>
                     Edit record
-                </button>
-                <button type="button"
-                        class="btn btn-primary btn-sm"
-                        data-ffc-new-project>
-                    <span class="bi bi-plus-lg" aria-hidden="true"></span>
-                    Add project
-                </button>
-                <button type="button"
-                        class="btn btn-outline-primary btn-sm"
-                        data-bs-toggle="offcanvas"
-                        data-bs-target="#ffcAttachmentEditor"
-                        aria-controls="ffcAttachmentEditor">
-                    <span class="bi bi-paperclip" aria-hidden="true"></span>
-                    Add attachment
                 </button>
             }
 
@@ -155,7 +160,7 @@
                         <form method="post" asp-page-handler="Archive" asp-route-id="@Model.Workspace.RecordId">
                             <input type="hidden" name="rowVersion" value="@Model.Workspace.RowVersion" />
                             <input type="hidden" asp-for="ReturnUrl" />
-                            <button type="submit" class="btn btn-danger">Archive record</button>
+                            <button type="submit" class="btn btn-danger" data-ffc-submitting-text="Archiving…">Archive record</button>
                         </form>
                     </div>
                 </div>
@@ -164,10 +169,16 @@
     }
 
     <script type="application/json" id="ffc-project-options">@Html.Raw(projectOptionsJson)</script>
+    <script type="application/json" id="ffc-project-editor-data">@Html.Raw(projectEditorDataJson)</script>
 </div>
+
+<partial name="~/Pages/Shared/_PrismConfirmDialog.cshtml" />
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/components/prism-confirm-dialog.js"
+            asp-append-version="true"
+            defer></script>
     <script src="~/js/pages/project-office-reports/ffc/ffc-record-workspace.js"
             asp-append-version="true"
             defer></script>

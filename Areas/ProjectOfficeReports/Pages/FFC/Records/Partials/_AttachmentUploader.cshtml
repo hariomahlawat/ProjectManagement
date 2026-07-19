@@ -34,6 +34,7 @@
                            type="file"
                            accept="application/pdf,image/jpeg,image/png,image/webp"
                            class="visually-hidden"
+                           data-max-file-size="@Model.MaxFileSizeBytes"
                            data-ffc-upload-input />
                     <span class="bi bi-cloud-arrow-up ffc-upload-zone__icon" aria-hidden="true"></span>
                     <strong>Drop a PDF or image here</strong>
@@ -42,6 +43,7 @@
                     <span class="ffc-upload-zone__selection" data-ffc-upload-selection>No file selected</span>
                 </label>
                 <span asp-validation-for="AttachmentInput.UploadFile" class="text-danger"></span>
+                <span class="text-danger" data-ffc-upload-client-error hidden></span>
             </section>
 
             <section class="ffc-drawer-section">
@@ -53,18 +55,21 @@
                 <span asp-validation-for="AttachmentInput.Caption" class="text-danger"></span>
             </section>
 
-            <div class="ffc-upload-assurance">
+            <div class="ffc-upload-assurance" role="note">
                 <span class="bi bi-shield-check" aria-hidden="true"></span>
-                <div>
-                    <strong>Validated before storage</strong>
-                    <p>Files are security-checked, duplicate-checked and linked to this FFC record.</p>
-                </div>
+                <span>PDF and image files are security-checked and duplicate-checked before storage.</span>
             </div>
         </div>
 
         <div class="ffc-workspace-drawer__footer">
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
-            <button type="submit" class="btn btn-primary">Upload attachment</button>
+            <button type="submit"
+                    class="btn btn-primary"
+                    data-ffc-upload-submit
+                    data-ffc-submitting-text="Uploading…"
+                    disabled>
+                Upload attachment
+            </button>
         </div>
     </form>
 </div>

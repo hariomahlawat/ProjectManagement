@@ -1,0 +1,33 @@
+<dialog class="prism-confirm-dialog"
+        data-prism-confirm-dialog
+        aria-labelledby="prism-confirm-dialog-title"
+        aria-describedby="prism-confirm-dialog-message">
+    <div class="prism-confirm-dialog__surface">
+        <div class="prism-confirm-dialog__icon" data-prism-confirm-icon aria-hidden="true">
+            <span class="bi bi-exclamation-triangle"></span>
+        </div>
+        <div class="prism-confirm-dialog__content">
+            <h2 id="prism-confirm-dialog-title" data-prism-confirm-title>Confirm action</h2>
+            <p id="prism-confirm-dialog-message" data-prism-confirm-message></p>
+            <p class="prism-confirm-dialog__detail" data-prism-confirm-detail hidden></p>
+        </div>
+        <button type="button"
+                class="prism-confirm-dialog__close"
+                data-prism-confirm-cancel
+                aria-label="Close confirmation">
+            <span class="bi bi-x-lg" aria-hidden="true"></span>
+        </button>
+        <div class="prism-confirm-dialog__actions">
+            <button type="button"
+                    class="btn btn-outline-secondary"
+                    data-prism-confirm-cancel>
+                Cancel
+            </button>
+            <button type="button"
+                    class="btn btn-primary"
+                    data-prism-confirm-accept>
+                Confirm
+            </button>
+        </div>
+    </div>
+</dialog>

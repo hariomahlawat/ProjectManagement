@@ -9,6 +9,9 @@
     <link rel="stylesheet"
           href="~/css/project-office-reports/ffc-record-workspace.css"
           asp-append-version="true" />
+    <link rel="stylesheet"
+          href="~/css/components/prism-confirm-dialog.css"
+          asp-append-version="true" />
 }
 
 <div class="container-fluid px-3 px-lg-4 py-2 ffc-workspace ffc-record-create">
@@ -175,15 +178,20 @@
                data-ffc-cancel-link>
                 Cancel
             </a>
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" class="btn btn-primary" data-ffc-submitting-text="Creating…">
                 Create record
             </button>
         </div>
     </form>
 </div>
 
+<partial name="~/Pages/Shared/_PrismConfirmDialog.cshtml" />
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/components/prism-confirm-dialog.js"
+            asp-append-version="true"
+            defer></script>
     <script src="~/js/pages/project-office-reports/ffc/ffc-record-workspace.js"
             asp-append-version="true"
             defer></script>

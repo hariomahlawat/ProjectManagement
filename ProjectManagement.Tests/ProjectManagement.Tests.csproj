@@ -97,6 +97,15 @@
     <None Include="..\wwwroot\js\pages\project-office-reports\ffc\ffc-record-workspace.js"
           Link="TestData\Ffc\Records\ffc-record-workspace.js"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Pages\Shared\_PrismConfirmDialog.cshtml"
+          Link="TestData\Ffc\Shared\_PrismConfirmDialog.cshtml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\wwwroot\js\components\prism-confirm-dialog.js"
+          Link="TestData\Ffc\Shared\prism-confirm-dialog.js"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\wwwroot\css\components\prism-confirm-dialog.css"
+          Link="TestData\Ffc\Shared\prism-confirm-dialog.css"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
