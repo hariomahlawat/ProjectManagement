@@ -1,39 +1,30 @@
-# FFC dashboard module navigation refinement
+# Proliferation submission service — CS0120 correction
 
-Apply this bundle on top of the current **FFC dashboard widget professional refinement**.
+Replace:
 
-## Replace these files
+`Areas/ProjectOfficeReports/Application/ProliferationSubmissionService.cs`
 
-- `Pages/Dashboard/Index.cshtml`
-- `wwwroot/css/pages/dashboard.css`
-- `ProjectManagement.Tests/DashboardFfcWidgetContractTests.cs`
+with the file included in this bundle.
 
-## Implemented
+## Correction
 
-- Retains **Partner countries** without changing its calculation or label.
-- Replaces the single **View full map** header action with the primary **Open FFC portfolio** link.
-- Adds a compact overflow menu containing:
-  - **Full map**
-  - **Detailed table**
-- Uses the existing FFC routes:
-  - `/ProjectOfficeReports/FFC/Index`
-  - `/ProjectOfficeReports/FFC/Map`
-  - `/ProjectOfficeReports/FFC/MapTableDetailed`
-- Keeps administrative actions out of the dashboard card.
-- Shortens the completed-unit breakdown to **awaiting installation** while retaining the full definition in the information tooltip.
-- Adds keyboard focus, hover, expanded-state and responsive styling for the navigation controls.
-- Ensures the dropdown is layered above the interactive map.
-- Adds contract-test coverage for the new navigation structure.
+The validation helpers remain static and pure. The service now passes the injected clock value into them explicitly:
 
-## Verification
+- `ValidateYearlyRequiredFields(dto, _clock.UtcNow)`
+- `ValidatePreferenceRequiredFields(dto, _clock.UtcNow)`
 
-After replacing the files:
+The helpers accept `DateTimeOffset now` and no longer attempt to access the instance field `_clock` from static context.
 
-```powershell
-dotnet build .\ProjectManagement.csproj
-dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
-```
+No migration or package change is required.
 
-Then reload the dashboard with `Ctrl+F5` so the versioned CSS is refreshed.
+## Separate static-file lock
 
-No database migration, service registration, JavaScript or package change is required.
+The `proliferation-manage.js` IOException is not a source-code compilation defect. Another process had the file open while the Static Web Assets task attempted to fingerprint it.
+
+1. Stop debugging and stop the running PRISM application.
+2. Allow any file-copy/extraction operation to finish.
+3. Close any external editor or formatter actively writing `proliferation-manage.js`.
+4. Delete the project `bin` and `obj` folders.
+5. Rebuild.
+
+If the lock remains, use Resource Monitor (`resmon.exe`) → CPU → Associated Handles and search for `proliferation-manage.js`, then close the process holding the handle.

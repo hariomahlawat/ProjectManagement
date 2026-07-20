@@ -351,8 +351,8 @@
           return 'Enter a four-digit year.';
         }
         const value = Number(raw);
-        if (value < 2000 || value > 3000) {
-          return 'Year must be between 2000 and 3000.';
+        if (value < 2000 || value > new Date().getUTCFullYear() + 1) {
+          return `Year must be between 2000 and ${new Date().getUTCFullYear() + 1}.`;
         }
         return '';
       }
@@ -752,9 +752,9 @@
         if (messages.length) return messages.join(' ');
       }
     } catch {
-      // Plain-text error response.
+      // Never surface arbitrary HTML/plain-text server responses.
     }
-    return text || fallback;
+    return response.status >= 500 ? `${fallback} Please try again.` : fallback;
   }
 
   function toast(message, variant = 'success') {
@@ -1981,7 +1981,7 @@
     const year = Number(overridesElements.ruleYear?.value || 0);
     const selectedMode = overridesElements.ruleMode?.value || 'default';
     const reason = overridesElements.ruleReason?.value?.trim() || '';
-    const validScope = Number.isInteger(projectId) && projectId > 0 && [1, 2].includes(source) && Number.isInteger(year) && year >= 2000 && year <= 3000;
+    const validScope = Number.isInteger(projectId) && projectId > 0 && [1, 2].includes(source) && Number.isInteger(year) && year >= 2000 && year <= new Date().getUTCFullYear() + 1;
     const existingOverride = validScope ? findRuleScopeOverride() : null;
     const restoringDefault = selectedMode === 'default';
     const visible = validScope && (!restoringDefault || Boolean(existingOverride));
@@ -2068,7 +2068,7 @@
       overridesElements.ruleSource?.focus();
       return;
     }
-    if (!Number.isInteger(year) || year < 2000 || year > 3000) {
+    if (!Number.isInteger(year) || year < 2000 || year > new Date().getUTCFullYear() + 1) {
       toast('Enter a valid four digit year.', 'warning');
       overridesElements.ruleYear?.focus();
       return;

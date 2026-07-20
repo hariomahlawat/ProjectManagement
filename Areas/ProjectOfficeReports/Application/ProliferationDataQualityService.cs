@@ -54,6 +54,13 @@ public sealed record ProliferationDataQualityResult(
     int PossibleDuplicateCount,
     IReadOnlyList<ProliferationDataQualityIssue> Items);
 
+public sealed record ProliferationDataQualitySummary(
+    int CorrectionRequiredCount,
+    int PossibleDuplicateCount,
+    int InvalidDateOrYearCount,
+    int MissingUnitCount,
+    int InvalidQuantityCount);
+
 public sealed record ProliferationDataQualityCorrection(
     ProliferationRecordKind RecordKind,
     Guid RecordId,
@@ -66,7 +73,6 @@ public sealed record ProliferationDataQualityCorrection(
 
 public sealed class ProliferationDataQualityService
 {
-    private const int MinimumYear = 2000;
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _users;
     private readonly IClock _clock;
@@ -84,15 +90,33 @@ public sealed class ProliferationDataQualityService
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
     }
 
+    public async Task<ProliferationDataQualitySummary> GetSummaryAsync(CancellationToken cancellationToken)
+    {
+        var result = await GetIssuesAsync(
+            new ProliferationDataQualityQuery(null, null, null, 1, 10),
+            cancellationToken);
+
+        var correctionRequired = result.InvalidDateOrYearCount
+            + result.MissingUnitCount
+            + result.InvalidQuantityCount;
+
+        return new ProliferationDataQualitySummary(
+            correctionRequired,
+            result.PossibleDuplicateCount,
+            result.InvalidDateOrYearCount,
+            result.MissingUnitCount,
+            result.InvalidQuantityCount);
+    }
+
     public async Task<ProliferationDataQualityResult> GetIssuesAsync(
         ProliferationDataQualityQuery request,
         CancellationToken cancellationToken)
     {
         var page = Math.Max(1, request.Page);
         var pageSize = Math.Clamp(request.PageSize <= 0 ? 25 : request.PageSize, 10, 100);
-        var maximumYear = _clock.UtcNow.UtcDateTime.Year + 1;
+        var maximumYear = ProliferationYearPolicy.GetMaximumYear(_clock.UtcNow);
         var maximumDate = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime.AddDays(30));
-        var minimumDate = new DateOnly(MinimumYear, 1, 1);
+        var minimumDate = new DateOnly(ProliferationYearPolicy.MinimumYear, 1, 1);
 
         var yearlyRows = await (
                 from record in _db.ProliferationYearlies.AsNoTracking()
@@ -135,7 +159,7 @@ public sealed class ProliferationDataQualityService
 
         var issues = new List<ProliferationDataQualityIssue>();
 
-        foreach (var row in yearlyRows.Where(x => x.Year < MinimumYear || x.Year > maximumYear))
+        foreach (var row in yearlyRows.Where(x => x.Year < ProliferationYearPolicy.MinimumYear || x.Year > maximumYear))
         {
             issues.Add(new ProliferationDataQualityIssue(
                 $"yearly:{row.Id}:invalid-year",
@@ -264,7 +288,7 @@ public sealed class ProliferationDataQualityService
         }
 
         var yearlyDuplicates = yearlyRows
-            .Where(x => x.ApprovalStatus == ApprovalStatus.Approved && x.Year is >= MinimumYear)
+            .Where(x => x.ApprovalStatus == ApprovalStatus.Approved && x.Year >= ProliferationYearPolicy.MinimumYear)
             .GroupBy(x => new { x.ProjectId, x.Source, x.Year })
             .Where(group => group.Count() > 1);
 
@@ -428,12 +452,12 @@ public sealed class ProliferationDataQualityService
             return ServiceResult.Fail("Record not found.");
         }
 
-        var maximumYear = _clock.UtcNow.UtcDateTime.Year + 1;
+        var maximumYear = ProliferationYearPolicy.GetMaximumYear(_clock.UtcNow);
         var correctedYear = correction.CorrectedYear ?? entity.Year;
         var correctedQuantity = correction.CorrectedQuantity ?? entity.TotalQuantity;
-        if (correctedYear is < MinimumYear || correctedYear > maximumYear)
+        if (correctedYear < ProliferationYearPolicy.MinimumYear || correctedYear > maximumYear)
         {
-            return ServiceResult.Fail($"Corrected year must be between {MinimumYear} and {maximumYear}.");
+            return ServiceResult.Fail($"Corrected year must be between {ProliferationYearPolicy.MinimumYear} and {maximumYear}.");
         }
         if (correctedQuantity < 0)
         {
@@ -510,7 +534,7 @@ public sealed class ProliferationDataQualityService
         var correctedDate = correction.CorrectedDate ?? entity.ProliferationDate;
         var correctedUnit = Normalize(correction.CorrectedUnitName ?? entity.UnitName, 200);
         var correctedQuantity = correction.CorrectedQuantity ?? entity.Quantity;
-        var minimumDate = new DateOnly(MinimumYear, 1, 1);
+        var minimumDate = new DateOnly(ProliferationYearPolicy.MinimumYear, 1, 1);
         var maximumDate = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime.AddDays(30));
 
         if (correctedDate < minimumDate || correctedDate > maximumDate)

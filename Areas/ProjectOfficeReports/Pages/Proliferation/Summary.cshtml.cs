@@ -21,17 +21,20 @@ public sealed class SummaryModel : PageModel
     private readonly IProliferationSummaryReadService _summaryService;
     private readonly IProliferationCardExportService _cardExportService;
     private readonly ApplicationDbContext _db;
+    private readonly ProliferationDataQualityService _dataQualityService;
     private readonly IAuthorizationService _authorizationService;
 
     public SummaryModel(
         IProliferationSummaryReadService summaryService,
         IProliferationCardExportService cardExportService,
         ApplicationDbContext db,
+        ProliferationDataQualityService dataQualityService,
         IAuthorizationService authorizationService)
     {
         _summaryService = summaryService ?? throw new ArgumentNullException(nameof(summaryService));
         _cardExportService = cardExportService ?? throw new ArgumentNullException(nameof(cardExportService));
         _db = db ?? throw new ArgumentNullException(nameof(db));
+        _dataQualityService = dataQualityService ?? throw new ArgumentNullException(nameof(dataQualityService));
         _authorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
     }
 
@@ -64,27 +67,9 @@ public sealed class SummaryModel : PageModel
 
         TechnicalCategoryBreakdown = await BuildTechnicalCategoryBreakdownAsync(Summary, cancellationToken);
 
-        var maximumYear = DateTime.UtcNow.Year + 1;
-        var activeProjectIds = _db.Projects
-            .AsNoTracking()
-            .Where(x => !x.IsDeleted && !x.IsArchived)
-            .Select(x => x.Id);
-        var invalidAnnualYears = await _db.ProliferationYearlies
-            .AsNoTracking()
-            .Where(x => activeProjectIds.Contains(x.ProjectId) && x.ApprovalStatus == ApprovalStatus.Approved && (x.Year < 2000 || x.Year > maximumYear))
-            .Select(x => x.Year)
-            .ToListAsync(cancellationToken);
-        var invalidDetailedYears = await _db.ProliferationGranularEntries
-            .AsNoTracking()
-            .Where(x => activeProjectIds.Contains(x.ProjectId) && x.ApprovalStatus == ApprovalStatus.Approved && (x.ProliferationDate.Year < 2000 || x.ProliferationDate.Year > maximumYear))
-            .Select(x => x.ProliferationDate.Year)
-            .ToListAsync(cancellationToken);
-        InvalidYears = invalidAnnualYears
-            .Concat(invalidDetailedYears)
-            .Distinct()
-            .OrderBy(x => x)
-            .ToList();
-        DataQualityIssueCount = invalidAnnualYears.Count + invalidDetailedYears.Count;
+        var qualitySummary = await _dataQualityService.GetSummaryAsync(cancellationToken);
+        DataQualityIssueCount = qualitySummary.CorrectionRequiredCount + qualitySummary.PossibleDuplicateCount;
+        InvalidYears = Array.Empty<int>();
 
         var submitResult = await _authorizationService.AuthorizeAsync(
             User,

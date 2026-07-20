@@ -70,14 +70,19 @@
     }
 
     async function readError(response) {
+        const contentType = response.headers.get("content-type") || "";
         const text = await response.text().catch(() => "");
-        if (!text) return `Request failed (${response.status}).`;
-        try {
-            const json = JSON.parse(text);
-            return json.message || json.detail || json.title || text;
-        } catch {
-            return text;
+        if (contentType.includes("json") && text) {
+            try {
+                const json = JSON.parse(text);
+                return json.message || json.detail || json.title || `Request failed (${response.status}).`;
+            } catch {
+                // Fall through to the controlled message.
+            }
         }
+        return response.status >= 500
+            ? "The requested information could not be loaded. Please try again."
+            : `Request failed (${response.status}).`;
     }
 
     function validateYear() {
@@ -93,9 +98,9 @@
             return false;
         }
         const year = Number(raw);
-        if (year < 2000 || year > 3000) {
+        if (year < 2000 || year > new Date().getUTCFullYear() + 1) {
             el.year.classList.add("is-invalid");
-            el.yearStatus.textContent = "Year must be between 2000 and 3000.";
+            el.yearStatus.textContent = `Year must be between 2000 and ${new Date().getUTCFullYear() + 1}.`;
             return false;
         }
         el.year.classList.remove("is-invalid");
@@ -267,7 +272,7 @@
     function renderItem(item) {
         const details = document.createElement("details");
         const year = Number(item.year);
-        const invalidYear = !Number.isInteger(year) || year < 2000 || year > 3000;
+        const invalidYear = !Number.isInteger(year) || year < 2000 || year > new Date().getUTCFullYear() + 1;
         details.className = `pf-record-group${invalidYear ? " pf-record-group--invalid" : ""}`;
 
         const summary = document.createElement("summary");

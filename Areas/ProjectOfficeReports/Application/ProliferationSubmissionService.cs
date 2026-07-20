@@ -55,7 +55,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             }
 
             // SECTION: Required field validation
-            var requiredError = ValidateYearlyRequiredFields(dto);
+            var requiredError = ValidateYearlyRequiredFields(dto, _clock.UtcNow);
             if (requiredError is not null)
             {
                 return requiredError;
@@ -221,7 +221,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             }
 
             // SECTION: Required field validation
-            var requiredError = ValidatePreferenceRequiredFields(dto);
+            var requiredError = ValidatePreferenceRequiredFields(dto, _clock.UtcNow);
             if (requiredError is not null)
             {
                 return requiredError;
@@ -290,7 +290,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             }
 
             // SECTION: Required field validation
-            var requiredError = ValidateYearlyRequiredFields(dto);
+            var requiredError = ValidateYearlyRequiredFields(dto, _clock.UtcNow);
             if (requiredError is not null)
             {
                 return requiredError;
@@ -723,16 +723,16 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         }
 
         // SECTION: Required field validation helpers
-        private static ServiceResult? ValidateYearlyRequiredFields(ProliferationYearlyCreateDto dto)
+        private static ServiceResult? ValidateYearlyRequiredFields(ProliferationYearlyCreateDto dto, DateTimeOffset now)
         {
             if (dto.ProjectId <= 0)
             {
                 return ServiceResult.Fail("Project is required.");
             }
 
-            if (dto.Year is < 2000 or > 3000)
+            if (!ProliferationYearPolicy.IsValid(dto.Year, now))
             {
-                return ServiceResult.Fail("Year must be between 2000 and 3000.");
+                return ServiceResult.Fail($"Year must be between {ProliferationYearPolicy.MinimumYear} and {ProliferationYearPolicy.GetMaximumYear(now)}.");
             }
 
             if (dto.TotalQuantity < 0)
@@ -763,16 +763,16 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             return null;
         }
 
-        private static ServiceResult? ValidatePreferenceRequiredFields(ProliferationYearPreferenceDto dto)
+        private static ServiceResult? ValidatePreferenceRequiredFields(ProliferationYearPreferenceDto dto, DateTimeOffset now)
         {
             if (dto.ProjectId <= 0)
             {
                 return ServiceResult.Fail("Project is required.");
             }
 
-            if (dto.Year is < 2000 or > 3000)
+            if (!ProliferationYearPolicy.IsValid(dto.Year, now))
             {
-                return ServiceResult.Fail("Year must be between 2000 and 3000.");
+                return ServiceResult.Fail($"Year must be between {ProliferationYearPolicy.MinimumYear} and {ProliferationYearPolicy.GetMaximumYear(now)}.");
             }
 
             if (dto.Source != ProliferationSource.Sdd && dto.Source != ProliferationSource.Abw515)

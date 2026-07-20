@@ -74,15 +74,17 @@
   async function readErrorMessage(response) {
     const contentType = response.headers.get("content-type") || "";
     const text = await response.text().catch(() => "");
-    if (contentType.includes("application/json") && text) {
+    if (contentType.includes("json") && text) {
       try {
         const json = JSON.parse(text);
-        if (json?.message) return json.message;
+        return json?.message || json?.detail || json?.title || "";
       } catch {
-        return text;
+        // Fall through to the controlled message.
       }
     }
-    return text;
+    return response.status >= 500
+      ? "The report information could not be loaded. Please try again."
+      : `Request failed (${response.status}).`;
   }
 
   async function fetchJson(url, signal) {

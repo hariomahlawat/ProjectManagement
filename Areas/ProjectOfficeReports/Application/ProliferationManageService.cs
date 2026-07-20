@@ -71,7 +71,7 @@ public sealed class ProliferationManageService
         var normalizedSource = source.HasValue && Enum.IsDefined(typeof(ProliferationSource), source.Value)
             ? source
             : null;
-        var normalizedYear = year is >= 2000 and <= 3000 ? year : null;
+        var normalizedYear = year.HasValue && ProliferationYearPolicy.IsValid(year.Value, DateTimeOffset.UtcNow) ? year : null;
         var normalizedKind = kind is ProliferationRecordKind.Yearly or ProliferationRecordKind.Granular
             ? kind
             : null;
