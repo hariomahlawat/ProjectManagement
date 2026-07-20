@@ -1,52 +1,39 @@
-# FFC Dashboard Widget — Professional Refinement
+# FFC dashboard module navigation refinement
 
-Replace/add the files in this bundle relative to the folder containing `ProjectManagement.csproj`.
+Apply this bundle on top of the current **FFC dashboard widget professional refinement**.
 
-## Replacement files
+## Replace these files
 
 - `Pages/Dashboard/Index.cshtml`
-- `Areas/Dashboard/Components/FfcSimulatorMap/_Widget.cshtml`
 - `wwwroot/css/pages/dashboard.css`
-- `wwwroot/css/widgets/ffc-simulator-map.css`
-- `wwwroot/js/widgets/ffc-simulator-map.js`
-
-## New test file
-
 - `ProjectManagement.Tests/DashboardFfcWidgetContractTests.cs`
 
-## Implemented behaviour
+## Implemented
 
-- Reduces the dashboard card height while retaining a readable operational overview.
-- Automatically fits the map to active partner-country label points rather than the full world extent.
-- Uses Natural Earth label coordinates where available, with robust ISO fallbacks including `ADM0_A3`.
-- Resolves overlapping markers through deterministic deconfliction and subtle leader lines.
-- Shows completed units in the principal marker value.
-- Shows additional planned units as an amber badge on mixed completed/planned locations.
-- Uses an amber marker value for planned-only countries.
-- Clarifies metrics as Partner countries, Completed units and Planned units.
-- Shows the completed breakdown as installed and delivered/awaiting installation.
-- Qualifies the ranking as Top countries by completed units.
-- Makes map countries, markers, tooltips and ranked country rows open the country-filtered detailed table.
-- Adds keyboard focus and Enter/Space activation for map markers.
-- Preserves normal link navigation for ranked country rows; JavaScript no longer hijacks their click.
-- Uses edge-aware interactive tooltips with a direct View FFC projects action.
-- Improves country-border contrast while retaining a restrained dashboard visual hierarchy.
-- Includes responsive behaviour for desktop, tablet and mobile layouts.
-
-## Scope
-
-- No database migration.
-- No package change.
-- No service-registration change.
-- Existing FFC roll-up business logic is retained.
+- Retains **Partner countries** without changing its calculation or label.
+- Replaces the single **View full map** header action with the primary **Open FFC portfolio** link.
+- Adds a compact overflow menu containing:
+  - **Full map**
+  - **Detailed table**
+- Uses the existing FFC routes:
+  - `/ProjectOfficeReports/FFC/Index`
+  - `/ProjectOfficeReports/FFC/Map`
+  - `/ProjectOfficeReports/FFC/MapTableDetailed`
+- Keeps administrative actions out of the dashboard card.
+- Shortens the completed-unit breakdown to **awaiting installation** while retaining the full definition in the information tooltip.
+- Adds keyboard focus, hover, expanded-state and responsive styling for the navigation controls.
+- Ensures the dropdown is layered above the interactive map.
+- Adds contract-test coverage for the new navigation structure.
 
 ## Verification
 
-After replacement, run:
+After replacing the files:
 
 ```powershell
 dotnet build .\ProjectManagement.csproj
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
 ```
 
-Then hard-refresh the dashboard with `Ctrl+F5` so the revised CSS and JavaScript are loaded.
+Then reload the dashboard with `Ctrl+F5` so the versioned CSS is refreshed.
+
+No database migration, service registration, JavaScript or package change is required.

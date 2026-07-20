@@ -13,11 +13,29 @@ public sealed class DashboardFfcWidgetContractTests
 
         Assert.Contains("Partner countries", markup, StringComparison.Ordinal);
         Assert.Contains("Completed breakdown", markup, StringComparison.Ordinal);
-        Assert.Contains("delivered, awaiting installation", markup, StringComparison.Ordinal);
+        Assert.Contains("@Model.FfcSimulatorMap.TotalDelivered</strong> awaiting installation", markup, StringComparison.Ordinal);
         Assert.Contains("Top countries by completed units", markup, StringComparison.Ordinal);
         Assert.Contains("asp-route-countryId=\"@country.CountryId\"", markup, StringComparison.Ordinal);
         Assert.Contains("DetailsUrl = Url.Page", markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Countries covered", markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DashboardFfcWidget_ProvidesPortfolioFirstModuleNavigation()
+    {
+        var markup = ReadRepoFile("Pages", "Dashboard", "Index.cshtml");
+        var css = ReadRepoFile("wwwroot", "css", "pages", "dashboard.css");
+
+        Assert.Contains("Open FFC portfolio", markup, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"/FFC/Index\"", markup, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"More FFC navigation options\"", markup, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"/FFC/Map\"", markup, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"/FFC/MapTableDetailed\"", markup, StringComparison.Ordinal);
+        Assert.Contains("Full map", markup, StringComparison.Ordinal);
+        Assert.Contains("Detailed table", markup, StringComparison.Ordinal);
+        Assert.Contains(".db-ffc-module-actions", css, StringComparison.Ordinal);
+        Assert.Contains(".db-ffc-nav-menu", css, StringComparison.Ordinal);
+        Assert.DoesNotContain("View full map <i class=\"bi bi-arrow-right\"", markup, StringComparison.Ordinal);
     }
 
     [Fact]

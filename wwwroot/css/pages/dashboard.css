@@ -56,6 +56,92 @@
 .db-text-link { color:var(--db-primary-dark); text-decoration:none; font-size:.72rem; font-weight:720; white-space:nowrap; }
 .db-text-link i,.db-processing-action i { transition:transform 180ms ease; }
 .db-text-link:hover i,.db-processing-action:hover i { transform:translateX(3px); }
+
+/* Compact module navigation used by analytical dashboard cards */
+.db-ffc-module-actions {
+    position:relative;
+    z-index:1100;
+    display:flex;
+    flex:0 0 auto;
+    align-items:center;
+    gap:2px;
+    margin-left:auto;
+}
+.db-ffc-module-actions__primary {
+    display:inline-flex;
+    min-height:30px;
+    align-items:center;
+    gap:5px;
+    padding:5px 7px;
+    border-radius:8px;
+    transition:background-color 160ms ease,color 160ms ease;
+}
+.db-ffc-module-actions__primary:hover,
+.db-ffc-module-actions__primary:focus-visible {
+    color:var(--db-primary-dark);
+    background:var(--db-primary-soft);
+    outline:none;
+}
+.db-ffc-module-actions__primary:focus-visible,
+.db-ffc-module-actions__more:focus-visible {
+    box-shadow:0 0 0 3px rgba(49,100,220,.16);
+}
+.db-ffc-module-actions__more {
+    display:inline-grid;
+    width:30px;
+    height:30px;
+    padding:0;
+    place-items:center;
+    color:#60708a;
+    border:1px solid transparent;
+    border-radius:8px;
+    background:transparent;
+    font-size:.88rem;
+    line-height:1;
+    transition:background-color 160ms ease,border-color 160ms ease,color 160ms ease;
+}
+.db-ffc-module-actions__more:hover,
+.db-ffc-module-actions__more[aria-expanded="true"] {
+    color:var(--db-primary-dark);
+    border-color:#d7e1f1;
+    background:#f7f9fd;
+}
+.db-ffc-nav-menu {
+    min-width:188px;
+    margin-top:6px!important;
+    padding:6px;
+    border:1px solid var(--db-border);
+    border-radius:10px;
+    box-shadow:0 14px 32px rgba(21,37,66,.14);
+    background:#fff;
+}
+.db-ffc-nav-menu .dropdown-item {
+    display:flex;
+    min-height:36px;
+    align-items:center;
+    gap:9px;
+    padding:8px 10px;
+    color:#33445f;
+    border-radius:7px;
+    font-size:.68rem;
+    font-weight:650;
+    line-height:1.2;
+}
+.db-ffc-nav-menu .dropdown-item i {
+    width:16px;
+    color:#74849a;
+    text-align:center;
+    font-size:.78rem;
+}
+.db-ffc-nav-menu .dropdown-item:hover,
+.db-ffc-nav-menu .dropdown-item:focus {
+    color:var(--db-primary-dark);
+    background:var(--db-primary-soft);
+}
+.db-ffc-nav-menu .dropdown-item:hover i,
+.db-ffc-nav-menu .dropdown-item:focus i {
+    color:var(--db-primary);
+}
 .db-context-note { color:#7a899d; font-size:.64rem; }
 
 /* Portfolio pulse */
@@ -427,7 +513,7 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
 }
 @media (prefers-reduced-motion:reduce) {
     .db-reveal,.js .db-reveal,.js .db-reveal.is-visible { opacity:1!important; transform:none!important; transition:none!important; }
-    .db-output-card,.db-stage,.db-text-link i,.db-country-row,.db-recent-row { transition:none!important; }
+    .db-output-card,.db-stage,.db-text-link i,.db-country-row,.db-recent-row,.db-ffc-module-actions__primary,.db-ffc-module-actions__more { transition:none!important; }
 }
 
 @media (max-width:1399.98px) {
@@ -463,6 +549,7 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
     .db-updated { white-space:normal; }
     .db-section-head { align-items:flex-start; min-height:0; padding:14px; }
     .db-section-head>a { align-self:center; }
+    .db-ffc-module-actions { align-self:center; }
     .db-context-note { display:none; }
     .db-pulse-layout { grid-template-columns:1fr; grid-template-areas:"lifecycle" "stages" "classification"; }
     .db-pulse-block--classification { border-left:0; border-top:1px solid var(--db-border-soft); }
@@ -481,6 +568,7 @@ a.db-summary-stat:hover,a.db-summary-stat:focus-visible { color:inherit; transfo
     .db-stage-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .db-completed-summary,.db-idea-summary,.db-activity-kpis { grid-template-columns:1fr 1fr; }
     .db-ffc-primary-stats { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .db-ffc-module-actions__primary { padding-inline:5px; font-size:.67rem; }
     .db-category-row { grid-template-columns:1fr 54px; }
     .db-category-row .db-category-track { grid-column:1/-1; grid-row:2; }
     .db-footer { flex-direction:column; }
