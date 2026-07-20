@@ -16,7 +16,7 @@
 else
 {
     <div class="table-responsive ffc-detailed-table">
-        <table class="table table-sm align-middle ffc-dtable mb-0" id="ffc-detailed-table">
+        <table class="table table-sm ffc-dtable mb-0" id="ffc-detailed-table">
             <colgroup>
                 <col class="ffc-dtable__col-serial" />
                 <col class="ffc-dtable__col-project" />
@@ -78,8 +78,8 @@ else
                         var progressStatusId = $"ffc-progress-{row.FfcProjectId}";
 
                         <tr class="ffc-dtable__project-row">
-                            <td class="text-center text-muted ffc-dtable__number">@row.Serial</td>
-                            <td class="ffc-dtable__project-name">
+                            <td class="text-center text-muted ffc-dtable__number ffc-dtable__serial-cell">@row.Serial</td>
+                            <td class="ffc-dtable__project-name ffc-dtable__project-cell">
                                 @if (row.LinkedProjectId.HasValue)
                                 {
                                     <a asp-page="/Projects/Overview" asp-route-id="@row.LinkedProjectId">@row.ProjectName</a>
@@ -89,7 +89,7 @@ else
                                     @row.ProjectName
                                 }
                             </td>
-                            <td class="text-end ffc-dtable__number">
+                            <td class="text-end ffc-dtable__number ffc-dtable__number-cell">
                                 @if (row.CostInCr.HasValue)
                                 {
                                     var costInLakh = row.CostInCr.Value * 100m;
@@ -100,9 +100,10 @@ else
                                     @:—
                                 }
                             </td>
-                            <td class="text-end ffc-dtable__number">@row.Quantity.ToString("N0")</td>
-                            <td><span class="ffc-dtable__status-label">@row.Status</span></td>
-                            <td data-kind="progress"
+                            <td class="text-end ffc-dtable__number ffc-dtable__number-cell">@row.Quantity.ToString("N0")</td>
+                            <td class="ffc-dtable__status-cell"><span class="ffc-dtable__status-label">@row.Status</span></td>
+                            <td class="ffc-dtable__progress-cell"
+                                data-kind="progress"
                                 data-ffc-project-id="@row.FfcProjectId"
                                 data-linked-project-id="@(row.LinkedProjectId?.ToString() ?? string.Empty)"
                                 data-external-remark-id="@(row.ExternalRemarkId?.ToString() ?? string.Empty)"

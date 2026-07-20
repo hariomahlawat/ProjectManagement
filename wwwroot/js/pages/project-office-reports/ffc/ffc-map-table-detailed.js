@@ -10,7 +10,83 @@
     const expandableSelector = "[data-expandable]";
     const clampSelector = ".ffc-dtable__clamp";
     const buttonSelector = ".js-expand-status";
+    const stickyChromeSelector = ".pm-topbar, .pm-module-subnav-wrap";
+    let stickyResizeObserver = null;
 
+    // SECTION: Sticky table geometry
+    const isRendered = (element) => {
+        const style = window.getComputedStyle(element);
+        if (style.display === "none" || style.visibility === "hidden") {
+            return false;
+        }
+
+        const rect = element.getBoundingClientRect();
+        return rect.height > 0.5 && rect.width > 0.5;
+    };
+
+    const getStickyChromeBottom = () => {
+        let bottom = 0;
+
+        document.querySelectorAll(stickyChromeSelector).forEach((element) => {
+            if (!isRendered(element)) {
+                return;
+            }
+
+            const style = window.getComputedStyle(element);
+            if (style.position !== "sticky" && style.position !== "fixed") {
+                return;
+            }
+
+            const rect = element.getBoundingClientRect();
+            if (rect.bottom <= 0 || rect.top >= window.innerHeight) {
+                return;
+            }
+
+            bottom = Math.max(bottom, rect.bottom);
+        });
+
+        return Math.max(0, Math.ceil(bottom));
+    };
+
+    const syncStickyGeometry = () => {
+        const headerRow = page.querySelector(".ffc-dtable thead tr");
+        const stickyTop = getStickyChromeBottom() || 52;
+        const headerHeight = headerRow
+            ? Math.max(1, Math.ceil(headerRow.getBoundingClientRect().height))
+            : 42;
+
+        page.style.setProperty("--ffc-sticky-top", `${stickyTop}px`);
+        page.style.setProperty("--ffc-column-header-height", `${headerHeight}px`);
+    };
+
+    const initialiseStickyGeometry = () => {
+        let resizeTimer = 0;
+        const scheduleSync = () => {
+            window.clearTimeout(resizeTimer);
+            resizeTimer = window.setTimeout(syncStickyGeometry, 60);
+        };
+
+        window.requestAnimationFrame(syncStickyGeometry);
+        window.addEventListener("resize", scheduleSync, { passive: true });
+        window.addEventListener("orientationchange", scheduleSync, { passive: true });
+        window.addEventListener("pageshow", scheduleSync, { passive: true });
+
+        if (document.fonts?.ready) {
+            document.fonts.ready.then(syncStickyGeometry).catch(() => undefined);
+        }
+
+        if ("ResizeObserver" in window) {
+            stickyResizeObserver = new ResizeObserver(scheduleSync);
+            document.querySelectorAll(stickyChromeSelector).forEach((element) => stickyResizeObserver.observe(element));
+
+            const headerRow = page.querySelector(".ffc-dtable thead tr");
+            if (headerRow) {
+                stickyResizeObserver.observe(headerRow);
+            }
+        }
+    };
+
+    // SECTION: Narrative expansion
     const measureExpandable = (container) => {
         const text = container.querySelector(clampSelector);
         const button = container.querySelector(buttonSelector);
@@ -37,6 +113,7 @@
 
     const measureAll = () => {
         document.querySelectorAll(expandableSelector).forEach(measureExpandable);
+        syncStickyGeometry();
     };
 
     const handleExpand = (event) => {
@@ -72,11 +149,12 @@
         window.addEventListener("resize", () => {
             window.clearTimeout(resizeTimer);
             resizeTimer = window.setTimeout(measureAll, 120);
-        });
+        }, { passive: true });
 
         document.addEventListener("ffc:detailed-table-content-updated", measureAll);
     };
 
+    // SECTION: Word export modal
     const initialiseWordExport = () => {
         const modalElement = document.getElementById("ffcWordExportModal");
         const form = document.querySelector("[data-ffc-word-export-form]");
@@ -116,6 +194,7 @@
         }
     };
 
+    initialiseStickyGeometry();
     initialiseExpanders();
     initialiseWordExport();
 })();

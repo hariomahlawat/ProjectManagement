@@ -95,6 +95,7 @@
     }
 
     .ffc-dtable__group-row td {
+        position: static !important;
         padding: 1.5mm 1.2mm !important;
         border-color: #8b96a3 !important;
         background: #f0f2f5 !important;
@@ -130,7 +131,15 @@
     }
 
     .ffc-dtable td[data-editable="true"] .display-text {
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
         background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .ffc-dtable td[data-editable="true"].is-editing {
+        background: #fff !important;
         box-shadow: none !important;
     }
 

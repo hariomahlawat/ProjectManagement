@@ -96,6 +96,8 @@
         const display = cell.querySelector(selectors.display);
         const editor = cell.querySelector(selectors.editor);
 
+        cell.classList.toggle("is-editing", isEditing);
+
         if (display) {
             display.classList.toggle("d-none", isEditing);
         }
@@ -132,13 +134,16 @@
         const textarea = cell.querySelector(selectors.textarea);
         if (textarea) {
             cell.dataset.originalValue = textarea.value;
-            textarea.focus();
-            textarea.setSelectionRange(textarea.value.length, textarea.value.length);
         }
 
         setError(cell, "");
         setEditorState(cell, true);
         activeCell = cell;
+
+        if (textarea) {
+            textarea.focus();
+            textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        }
     };
 
     const endEdit = (cell, rawValue, displayValue) => {

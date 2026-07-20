@@ -40,6 +40,7 @@ public sealed class FfcDetailedTableContractTests
     {
         var markup = ReadTestData("MapTableDetailed.cshtml");
 
+        Assert.Contains("FFC – Detailed Table", markup, StringComparison.Ordinal);
         Assert.Contains("FFC Projects Update", markup, StringComparison.Ordinal);
         Assert.Contains("Export to Word", markup, StringComparison.Ordinal);
         Assert.Contains("asp-page-handler=\"ExportWord\"", markup, StringComparison.Ordinal);
@@ -58,7 +59,10 @@ public sealed class FfcDetailedTableContractTests
         var script = ReadTestData("ffc-map-table-detailed.js");
 
         Assert.Contains("position: sticky", screenStyles, StringComparison.Ordinal);
-        Assert.Contains("--ffc-sticky-top: 98px", screenStyles, StringComparison.Ordinal);
+        Assert.Contains("--ffc-sticky-top: 52px", screenStyles, StringComparison.Ordinal);
+        Assert.Contains("--ffc-column-header-height", screenStyles, StringComparison.Ordinal);
+        Assert.Contains("ffc-dtable__group-row > td", screenStyles, StringComparison.Ordinal);
+        Assert.Contains("syncStickyGeometry", script, StringComparison.Ordinal);
         Assert.Contains("overflow-y: visible", screenStyles, StringComparison.Ordinal);
         Assert.Contains("ffc-dtable__clamp", screenStyles, StringComparison.Ordinal);
         Assert.Contains("A4 landscape", printStyles, StringComparison.Ordinal);

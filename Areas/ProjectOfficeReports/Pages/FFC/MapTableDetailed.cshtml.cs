@@ -279,7 +279,7 @@ public class MapTableDetailedModel : PageModel
         FfcBreadcrumbs.Set(
             ViewData,
             ("FFC Proposals", Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
-            ("Detailed table", null));
+            ("Detailed Table", null));
     }
 
     private async Task ResolveScopeAsync(
