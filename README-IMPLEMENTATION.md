@@ -1,40 +1,52 @@
-# FFC Projects Update — Ready-to-paste implementation
+# FFC Dashboard Widget — Professional Refinement
 
-This bundle contains complete replacement/new files for the uploaded PRISM ERP source tree.
+Replace/add the files in this bundle relative to the folder containing `ProjectManagement.csproj`.
 
-## Installation
+## Replacement files
 
-1. Take a backup of the current project.
-2. Open this bundle and copy its folders/files into the **project root** (the folder containing `ProjectManagement.csproj`).
-3. Allow Windows to merge folders and replace existing files.
-4. No database migration is required.
-5. Build and test:
+- `Pages/Dashboard/Index.cshtml`
+- `Areas/Dashboard/Components/FfcSimulatorMap/_Widget.cshtml`
+- `wwwroot/css/pages/dashboard.css`
+- `wwwroot/css/widgets/ffc-simulator-map.css`
+- `wwwroot/js/widgets/ffc-simulator-map.js`
+
+## New test file
+
+- `ProjectManagement.Tests/DashboardFfcWidgetContractTests.cs`
+
+## Implemented behaviour
+
+- Reduces the dashboard card height while retaining a readable operational overview.
+- Automatically fits the map to active partner-country label points rather than the full world extent.
+- Uses Natural Earth label coordinates where available, with robust ISO fallbacks including `ADM0_A3`.
+- Resolves overlapping markers through deterministic deconfliction and subtle leader lines.
+- Shows completed units in the principal marker value.
+- Shows additional planned units as an amber badge on mixed completed/planned locations.
+- Uses an amber marker value for planned-only countries.
+- Clarifies metrics as Partner countries, Completed units and Planned units.
+- Shows the completed breakdown as installed and delivered/awaiting installation.
+- Qualifies the ranking as Top countries by completed units.
+- Makes map countries, markers, tooltips and ranked country rows open the country-filtered detailed table.
+- Adds keyboard focus and Enter/Space activation for map markers.
+- Preserves normal link navigation for ranked country rows; JavaScript no longer hijacks their click.
+- Uses edge-aware interactive tooltips with a direct View FFC projects action.
+- Improves country-border contrast while retaining a restrained dashboard visual hierarchy.
+- Includes responsive behaviour for desktop, tablet and mobile layouts.
+
+## Scope
+
+- No database migration.
+- No package change.
+- No service-registration change.
+- Existing FFC roll-up business logic is retained.
+
+## Verification
+
+After replacement, run:
 
 ```powershell
 dotnet build .\ProjectManagement.csproj
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
 ```
 
-## Implemented scope
-
-- Country–year headings link to the corresponding FFC record and preserve a local `returnUrl` back to the detailed table.
-- Compact Export menu with Word and Excel options.
-- Native editable Open XML Word export titled **FFC Projects Update**.
-- A4 landscape Word layout, portfolio summary, real seven-column table, repeating header row, country–year separator rows, full narratives, page fields, PRISM footer and optional authorised handling/classification marking.
-- Professional Excel register with full narratives, numeric cells, auto-filter, frozen panes and landscape print setup.
-- Sticky desktop table header without an inner vertical scroll region.
-- Refined headings: **Current progress** and **Overall status**.
-- Right-aligned cost/quantity with tabular numerals.
-- Full status retained in the page with overflow-aware **Show full... / Show less** controls.
-- Dedicated A4 landscape print stylesheet.
-- Existing inline editing, current route scope and permissions retained.
-- No permanent filter toolbar and no database migration.
-
-## Verification performed in the delivery workspace
-
-- JavaScript syntax validation passed for both detailed-table scripts.
-- Project XML and CSS parsing passed.
-- Static implementation-contract and source-balance checks passed.
-- The delivery workspace did not contain the .NET SDK, so `dotnet build` and `dotnet test` could not be executed there. Run the two commands above after replacement.
-
-`CHANGED-FILES.txt` lists every project file in this bundle. `SHA256SUMS.txt` provides file hashes for integrity checking.
+Then hard-refresh the dashboard with `Ctrl+F5` so the revised CSS and JavaScript are loaded.
