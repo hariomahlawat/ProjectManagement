@@ -24,11 +24,14 @@ public sealed class FfcDetailedTableQueryTests
         db.FfcCountries.Add(country);
         await db.SaveChangesAsync();
 
+        const string overallStatus = "Overall FFC position with complete coordination details that must not be truncated in the web table or exports. "
+            + "This deliberately exceeds the former preview limit and ends with OVERALL-QUERY-END.";
+
         var record = new FfcRecord
         {
             CountryId = country.Id,
             Year = 2025,
-            OverallRemarks = "Overall FFC position"
+            OverallRemarks = overallStatus
         };
         var linkedProject = new Project
         {
@@ -89,7 +92,9 @@ public sealed class FfcDetailedTableQueryTests
         Assert.Equal("Ethiopia", group.CountryName);
         Assert.Equal("ETH", group.CountryCode);
         Assert.Equal(2025, group.Year);
-        Assert.Equal("Overall FFC position", group.OverallRemarks);
+        Assert.Equal(overallStatus, group.OverallRemarks);
+        Assert.Equal(overallStatus, group.OverallRemarksDisplay);
+        Assert.Contains("OVERALL-QUERY-END", group.OverallRemarksDisplay, StringComparison.Ordinal);
         Assert.True(group.HasIncomplete);
         Assert.Equal(2, group.Rows.Count);
 

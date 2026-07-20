@@ -1,132 +1,121 @@
-(function () {
-  // SECTION: DOM references
-  const table = document.getElementById('ffc-dtable');
-  if (!table) {
-    return;
-  }
+/* SECTION: Detailed-table presentation controller */
+(() => {
+    "use strict";
 
-  const tbody = table.tBodies[0];
-  if (!tbody) {
-    return;
-  }
-
-  const sourceUrl = table.dataset.sourceUrl || '?handler=Data';
-
-  // SECTION: Formatting helpers
-  const escapeMap = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  };
-
-  const costFormatter = new Intl.NumberFormat('en-IN', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2
-  });
-
-  const quantityFormatter = new Intl.NumberFormat('en-IN', {
-    maximumFractionDigits: 0
-  });
-
-  function esc(value) {
-    return String(value ?? '').replace(/[&<>"']/g, (match) => escapeMap[match]);
-  }
-
-  function formatCost(value) {
-    if (typeof value !== 'number' || Number.isNaN(value)) {
-      return '—';
-    }
-
-    return costFormatter.format(value);
-  }
-
-  function formatQuantity(value) {
-    if (typeof value !== 'number' || Number.isNaN(value)) {
-      return '';
-    }
-
-    return quantityFormatter.format(value);
-  }
-
-  // SECTION: Data access
-  async function loadGroups() {
-    const response = await fetch(sourceUrl, { credentials: 'same-origin' });
-    if (!response.ok) {
-      throw new Error('Failed to load detailed data');
-    }
-
-    /** @type {{countryName:string,countryIso3:string,year:number,overallRemarks:string|null,projects:{serialNumber:number,projectName:string,costInCr:number|null,quantity:number,bucket:string,progressRemark:string|null}[]}[]} */
-    const groups = await response.json();
-    return groups;
-  }
-
-  // SECTION: Rendering
-  function render(groups) {
-    if (!Array.isArray(groups) || groups.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-muted text-center">No project quantity data found.</td></tr>';
-      return;
-    }
-
-    const rows = [];
-
-    groups.forEach((group) => {
-      const projectRows = Array.isArray(group.projects) ? group.projects : [];
-      if (projectRows.length === 0) {
+    const page = document.querySelector(".ffc-detailed-page");
+    if (!page) {
         return;
-      }
-
-      rows.push(
-        `<tr class="ffc-dtable__group-row">
-          <td colspan="7">
-            <div class="ffc-dtable__group">
-              <div class="ffc-dtable__group-title">${esc(group.countryName)} – ${esc(group.year)}</div>
-              <span class="ffc-dtable__group-iso">${esc(group.countryIso3)}</span>
-            </div>
-          </td>
-        </tr>`
-      );
-
-      const hasRemarks = typeof group.overallRemarks === 'string' && group.overallRemarks.trim().length > 0;
-      const overallRemarks = hasRemarks
-        ? esc(group.overallRemarks)
-        : '<span class="ffc-dtable__remarks-empty">No overall remarks recorded.</span>';
-      const rowspan = projectRows.length;
-
-      projectRows.forEach((project, index) => {
-        const serialNumber = typeof project.serialNumber === 'number' ? project.serialNumber : index + 1;
-        const cost = formatCost(project.costInCr);
-        const qty = formatQuantity(project.quantity);
-        const status = esc(project.bucket || '');
-        const progress = esc(project.progressRemark || '');
-        const name = esc(project.projectName || '');
-
-        rows.push(
-          `<tr>
-            <td class="text-muted">${serialNumber}</td>
-            <td>${name}</td>
-            <td class="text-end">${cost}</td>
-            <td class="text-end">${qty}</td>
-            <td>${status}</td>
-            <td>${progress}</td>
-            ${index === 0 ? `<td rowspan="${rowspan}" class="align-top">${overallRemarks}</td>` : ''}
-          </tr>`
-        );
-      });
-    });
-
-    if (rows.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-muted text-center">No project quantity data found.</td></tr>';
-      return;
     }
 
-    tbody.innerHTML = rows.join('');
-  }
+    const expandableSelector = "[data-expandable]";
+    const clampSelector = ".ffc-dtable__clamp";
+    const buttonSelector = ".js-expand-status";
 
-  loadGroups()
-    .then(render)
-    .catch(() => {
-      tbody.innerHTML = '<tr><td colspan="7" class="text-danger text-center">Failed to load detailed table.</td></tr>';
-    });
+    const measureExpandable = (container) => {
+        const text = container.querySelector(clampSelector);
+        const button = container.querySelector(buttonSelector);
+        if (!text || !button) {
+            return;
+        }
+
+        if (!button.dataset.collapsedLabel) {
+            button.dataset.collapsedLabel = button.textContent.trim();
+            button.dataset.expandedLabel = "Show less";
+        }
+
+        const isExpanded = text.classList.contains("is-expanded");
+        if (isExpanded) {
+            button.classList.remove("d-none");
+            return;
+        }
+
+        const overflows = text.scrollHeight > text.clientHeight + 1;
+        button.classList.toggle("d-none", !overflows);
+        button.setAttribute("aria-expanded", "false");
+        button.textContent = button.dataset.collapsedLabel;
+    };
+
+    const measureAll = () => {
+        document.querySelectorAll(expandableSelector).forEach(measureExpandable);
+    };
+
+    const handleExpand = (event) => {
+        const button = event.currentTarget;
+        event.preventDefault();
+        event.stopPropagation();
+
+        const container = button.closest(expandableSelector);
+        const text = container?.querySelector(clampSelector);
+        if (!container || !text) {
+            return;
+        }
+
+        const willExpand = !text.classList.contains("is-expanded");
+        text.classList.toggle("is-expanded", willExpand);
+        button.setAttribute("aria-expanded", String(willExpand));
+        button.textContent = willExpand
+            ? button.dataset.expandedLabel || "Show less"
+            : button.dataset.collapsedLabel || "Show full status";
+    };
+
+    const initialiseExpanders = () => {
+        document.querySelectorAll(buttonSelector).forEach((button) => {
+            button.addEventListener("click", handleExpand);
+        });
+
+        window.requestAnimationFrame(measureAll);
+        if (document.fonts?.ready) {
+            document.fonts.ready.then(measureAll).catch(() => undefined);
+        }
+
+        let resizeTimer = 0;
+        window.addEventListener("resize", () => {
+            window.clearTimeout(resizeTimer);
+            resizeTimer = window.setTimeout(measureAll, 120);
+        });
+
+        document.addEventListener("ffc:detailed-table-content-updated", measureAll);
+    };
+
+    const initialiseWordExport = () => {
+        const modalElement = document.getElementById("ffcWordExportModal");
+        const form = document.querySelector("[data-ffc-word-export-form]");
+        const submitButton = document.querySelector("[data-ffc-word-export-submit]");
+        if (!modalElement || !form || !window.bootstrap?.Modal) {
+            return;
+        }
+
+        const modal = window.bootstrap.Modal.getOrCreateInstance(modalElement);
+
+        modalElement.addEventListener("shown.bs.modal", () => {
+            modalElement.querySelector("input:not([type='hidden'])")?.focus();
+        });
+
+        form.addEventListener("submit", () => {
+            if (!form.checkValidity()) {
+                return;
+            }
+
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.dataset.originalText = submitButton.innerHTML;
+                submitButton.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Generating…';
+            }
+
+            window.setTimeout(() => modal.hide(), 120);
+            window.setTimeout(() => {
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = submitButton.dataset.originalText || "Generate Word file";
+                }
+            }, 2500);
+        });
+
+        if (page.dataset.openWordExportModal === "true") {
+            modal.show();
+        }
+    };
+
+    initialiseExpanders();
+    initialiseWordExport();
 })();

@@ -3,25 +3,38 @@
 
 @{
     var canEdit = User.IsInRole("HoD") || User.IsInRole("Admin");
+    var returnUrl = $"{Context.Request.PathBase}{Context.Request.Path}{Context.Request.QueryString}";
 }
 
 @if (Model is null || !Model.Any())
 {
-    <p class="text-muted fst-italic mb-0">No project quantity data found.</p>
+    <div class="ffc-detailed-empty" role="status">
+        <i class="bi bi-table" aria-hidden="true"></i>
+        <p class="mb-0">No project quantity data found for the selected scope.</p>
+    </div>
 }
 else
 {
     <div class="table-responsive ffc-detailed-table">
-        <table class="table table-sm align-middle ffc-dtable mb-0">
+        <table class="table table-sm align-middle ffc-dtable mb-0" id="ffc-detailed-table">
+            <colgroup>
+                <col class="ffc-dtable__col-serial" />
+                <col class="ffc-dtable__col-project" />
+                <col class="ffc-dtable__col-cost" />
+                <col class="ffc-dtable__col-quantity" />
+                <col class="ffc-dtable__col-status" />
+                <col class="ffc-dtable__col-progress" />
+                <col class="ffc-dtable__col-overall" />
+            </colgroup>
             <thead>
                 <tr>
-                    <th scope="col" class="pm-util-col-70">S. No.</th>
+                    <th scope="col" class="text-center">S. No.</th>
                     <th scope="col">Project</th>
-                    <th scope="col" class="text-end">Cost (₹ Lakh)</th>
+                    <th scope="col" class="text-end">Cost (₹ lakh)</th>
                     <th scope="col" class="text-end">Quantity</th>
                     <th scope="col">Status</th>
-                    <th scope="col">Progress / present status</th>
-                    <th scope="col">Overall remarks</th>
+                    <th scope="col">Current progress</th>
+                    <th scope="col">Overall status</th>
                 </tr>
             </thead>
             <tbody>
@@ -35,16 +48,25 @@ else
                     <tr class="ffc-dtable__group-row">
                         <td colspan="7">
                             <div class="ffc-dtable__group ffc-detailed-group">
-                                <div class="ffc-dtable__group-title">@group.CountryName – @group.Year</div>
+                                <a asp-area="ProjectOfficeReports"
+                                   asp-page="/FFC/Records/Details"
+                                   asp-route-id="@group.FfcRecordId"
+                                   asp-route-returnUrl="@returnUrl"
+                                   class="ffc-dtable__group-title"
+                                   aria-label="Open @group.CountryName @group.Year FFC record">
+                                    <span>@group.CountryName – @group.Year</span>
+                                    <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                                </a>
                                 <span class="ffc-dtable__group-iso">@group.CountryCode</span>
                             </div>
                         </td>
                     </tr>
 
                     var overallRemarksText = group.OverallRemarks ?? string.Empty;
-                    var overallRemarksDisplay = group.OverallRemarksDisplay ?? string.Empty;
+                    var overallRemarksDisplay = group.OverallRemarksDisplay ?? overallRemarksText;
                     var overallHasRemarks = !string.IsNullOrWhiteSpace(overallRemarksDisplay);
                     var rowSpan = group.Rows.Count;
+                    var overallStatusId = $"ffc-overall-{group.FfcRecordId}";
 
                     for (var index = 0; index < group.Rows.Count; index++)
                     {
@@ -53,10 +75,11 @@ else
                         var progressTextRaw = row.ProgressTextRaw ?? progressText;
                         var progressHasValue = !string.IsNullOrWhiteSpace(progressText);
                         var isProgressEditable = canEdit && row.IsProgressEditable;
-                        <tr>
-                            <td class="text-muted">@row.Serial</td>
-                            <td>
-                                @* SECTION: Project link *@
+                        var progressStatusId = $"ffc-progress-{row.FfcProjectId}";
+
+                        <tr class="ffc-dtable__project-row">
+                            <td class="text-center text-muted ffc-dtable__number">@row.Serial</td>
+                            <td class="ffc-dtable__project-name">
                                 @if (row.LinkedProjectId.HasValue)
                                 {
                                     <a asp-page="/Projects/Overview" asp-route-id="@row.LinkedProjectId">@row.ProjectName</a>
@@ -66,7 +89,7 @@ else
                                     @row.ProjectName
                                 }
                             </td>
-                            <td class="text-end">
+                            <td class="text-end ffc-dtable__number">
                                 @if (row.CostInCr.HasValue)
                                 {
                                     var costInLakh = row.CostInCr.Value * 100m;
@@ -77,9 +100,8 @@ else
                                     @:—
                                 }
                             </td>
-                            <td class="text-end">@row.Quantity</td>
-                            <td>@row.Status</td>
-                            @* SECTION: Progress cell *@
+                            <td class="text-end ffc-dtable__number">@row.Quantity.ToString("N0")</td>
+                            <td><span class="ffc-dtable__status-label">@row.Status</span></td>
                             <td data-kind="progress"
                                 data-ffc-project-id="@row.FfcProjectId"
                                 data-linked-project-id="@(row.LinkedProjectId?.ToString() ?? string.Empty)"
@@ -89,14 +111,21 @@ else
                                 data-empty-text="No progress recorded.">
                                 @if (isProgressEditable)
                                 {
-                                    <div class="display-text">
-                                        <span class="display-value@(progressHasValue ? string.Empty : " text-muted fst-italic")">
+                                    <div class="display-text ffc-dtable__narrative" data-expandable>
+                                        <span id="@progressStatusId"
+                                              class="display-value ffc-dtable__narrative-text ffc-dtable__clamp@(progressHasValue ? string.Empty : " text-muted fst-italic")">
                                             @(progressHasValue ? progressText : "No progress recorded.")
                                         </span>
+                                        <button type="button"
+                                                class="btn btn-link btn-sm p-0 ffc-dtable__expand js-expand-status d-none"
+                                                aria-expanded="false"
+                                                aria-controls="@progressStatusId">
+                                            Show full progress
+                                        </button>
                                         <span class="inline-status text-success small ms-2 d-none" role="status"></span>
                                     </div>
                                     <div class="editor d-none">
-                                        <textarea class="form-control form-control-sm" rows="3" maxlength="2000">@progressTextRaw</textarea>
+                                        <textarea class="form-control form-control-sm" rows="4" maxlength="2000">@progressTextRaw</textarea>
                                         <div class="mt-2 d-flex gap-2">
                                             <button type="button" class="btn btn-sm btn-primary js-inline-save">Save</button>
                                             <button type="button" class="btn btn-sm btn-outline-secondary js-inline-cancel">Cancel</button>
@@ -106,32 +135,47 @@ else
                                 }
                                 else
                                 {
-                                    <span class="@(progressHasValue ? string.Empty : "text-muted fst-italic")">
-                                        @(progressHasValue ? progressText : "No progress recorded.")
-                                    </span>
+                                    <div class="ffc-dtable__narrative" data-expandable>
+                                        <span id="@progressStatusId"
+                                              class="ffc-dtable__narrative-text ffc-dtable__clamp@(progressHasValue ? string.Empty : " text-muted fst-italic")">
+                                            @(progressHasValue ? progressText : "No progress recorded.")
+                                        </span>
+                                        <button type="button"
+                                                class="btn btn-link btn-sm p-0 ffc-dtable__expand js-expand-status d-none"
+                                                aria-expanded="false"
+                                                aria-controls="@progressStatusId">
+                                            Show full progress
+                                        </button>
+                                    </div>
                                 }
                             </td>
                             @if (index == 0)
                             {
                                 var isOverallEditable = canEdit;
-                                @* SECTION: Overall remarks cell *@
                                 <td rowspan="@rowSpan"
-                                    class="align-top"
+                                    class="align-top ffc-dtable__overall-cell"
                                     data-kind="overall"
                                     data-ffc-record-id="@group.FfcRecordId"
                                     data-editable="@isOverallEditable.ToString().ToLowerInvariant()"
                                     data-maxlen="4000"
-                                    data-empty-text="No overall remarks recorded.">
+                                    data-empty-text="No overall status recorded.">
                                     @if (isOverallEditable)
                                     {
-                                        <div class="display-text">
-                                            <span class="display-value@(overallHasRemarks ? string.Empty : " text-muted fst-italic")">
-                                                @(overallHasRemarks ? overallRemarksDisplay : "No overall remarks recorded.")
+                                        <div class="display-text ffc-dtable__narrative" data-expandable>
+                                            <span id="@overallStatusId"
+                                                  class="display-value ffc-dtable__narrative-text ffc-dtable__clamp@(overallHasRemarks ? string.Empty : " text-muted fst-italic")">
+                                                @(overallHasRemarks ? overallRemarksDisplay : "No overall status recorded.")
                                             </span>
+                                            <button type="button"
+                                                    class="btn btn-link btn-sm p-0 ffc-dtable__expand js-expand-status d-none"
+                                                    aria-expanded="false"
+                                                    aria-controls="@overallStatusId">
+                                                Show full status
+                                            </button>
                                             <span class="inline-status text-success small ms-2 d-none" role="status"></span>
                                         </div>
                                         <div class="editor d-none">
-                                            <textarea class="form-control form-control-sm" rows="4" maxlength="4000">@overallRemarksText</textarea>
+                                            <textarea class="form-control form-control-sm" rows="6" maxlength="4000">@overallRemarksText</textarea>
                                             <div class="mt-2 d-flex gap-2">
                                                 <button type="button" class="btn btn-sm btn-primary js-inline-save">Save</button>
                                                 <button type="button" class="btn btn-sm btn-outline-secondary js-inline-cancel">Cancel</button>
@@ -141,9 +185,18 @@ else
                                     }
                                     else
                                     {
-                                        <span class="@(overallHasRemarks ? string.Empty : "text-muted fst-italic")">
-                                            @(overallHasRemarks ? overallRemarksDisplay : "No overall remarks recorded.")
-                                        </span>
+                                        <div class="ffc-dtable__narrative" data-expandable>
+                                            <span id="@overallStatusId"
+                                                  class="ffc-dtable__narrative-text ffc-dtable__clamp@(overallHasRemarks ? string.Empty : " text-muted fst-italic")">
+                                                @(overallHasRemarks ? overallRemarksDisplay : "No overall status recorded.")
+                                            </span>
+                                            <button type="button"
+                                                    class="btn btn-link btn-sm p-0 ffc-dtable__expand js-expand-status d-none"
+                                                    aria-expanded="false"
+                                                    aria-controls="@overallStatusId">
+                                                Show full status
+                                            </button>
+                                        </div>
                                     }
                                 </td>
                             }

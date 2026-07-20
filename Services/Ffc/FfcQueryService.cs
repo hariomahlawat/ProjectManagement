@@ -295,14 +295,9 @@ public sealed class FfcQueryService : IFfcQueryService
             return string.Empty;
         }
 
-        var text = remark.Trim()
-            .Replace("\r", " ", StringComparison.Ordinal)
-            .Replace("\n", " ", StringComparison.Ordinal);
-
-        const int limit = 200;
-        return text.Length <= limit
-            ? text
-            : string.Concat(text.AsSpan(0, limit), "…");
+        return remark.Trim()
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\r", "\n", StringComparison.Ordinal);
     }
 
     // SECTION: Data transfers

@@ -57,6 +57,11 @@
             displayValue.textContent = normalized;
             displayValue.classList.remove("text-muted", "fst-italic");
         }
+
+        displayValue.classList.remove("is-expanded");
+        window.requestAnimationFrame(() => {
+            document.dispatchEvent(new CustomEvent("ffc:detailed-table-content-updated"));
+        });
     };
 
     const showStatus = (cell, message) => {

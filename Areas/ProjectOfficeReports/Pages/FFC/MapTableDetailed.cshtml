@@ -1,34 +1,88 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.MapTableDetailedModel
 @{
-    ViewData["Title"] = "FFC Proposals – Detailed table";
+    ViewData["Title"] = "FFC – Detailed table";
+    ViewData["UseFullWidth"] = true;
 }
 
-<div class="container-xxl py-1">
-    <!-- HEADER: title left, export button right -->
-    <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
-        <h1 class="h4 mb-0">FFC – Detailed table</h1>
+@section Styles
+{
+    <link rel="stylesheet"
+          href="~/css/project-office-reports/ffc-detailed-table.css"
+          asp-append-version="true" />
+}
 
-        <div class="btn-group" role="group" aria-label="Export actions">
-            <a asp-page="./MapTableDetailed"
-               asp-route-handler="Export"
-               asp-route-countryId="@Model.CountryId"
-               asp-route-year="@Model.Year"
-               class="btn btn-primary">
-                Export Excel
-            </a>
+@section PrintStyles
+{
+    <link rel="stylesheet"
+          href="~/css/project-office-reports/ffc-detailed-table.print.css"
+          asp-append-version="true"
+          media="print" />
+}
+
+<div class="ffc-detailed-page"
+     data-open-word-export-modal="@Model.ShowWordExportModal.ToString().ToLowerInvariant()">
+    <header class="ffc-detailed-toolbar" data-hide-in-print>
+        <div>
+            <h1 class="ffc-detailed-toolbar__title">FFC – Detailed table</h1>
+            <p class="ffc-detailed-toolbar__subtitle mb-0">Project-wise portfolio position with current progress and overall status.</p>
         </div>
-    </div>
+
+        <div class="dropdown">
+            <button class="btn btn-primary btn-sm dropdown-toggle ffc-export-menu__trigger"
+                    type="button"
+                    id="ffcExportMenu"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false">
+                <i class="bi bi-download" aria-hidden="true"></i>
+                <span>Export</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby="ffcExportMenu">
+                <li>
+                    <button class="dropdown-item d-flex align-items-start gap-2"
+                            type="button"
+                            data-bs-toggle="modal"
+                            data-bs-target="#ffcWordExportModal">
+                        <i class="bi bi-file-earmark-word mt-1" aria-hidden="true"></i>
+                        <span>
+                            <span class="d-block fw-semibold">Export to Word</span>
+                            <span class="d-block small text-muted">Editable, formatted report</span>
+                        </span>
+                    </button>
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                    <a asp-page="./MapTableDetailed"
+                       asp-page-handler="ExportExcel"
+                       asp-route-countryId="@Model.CountryId"
+                       asp-route-countryIso3="@Model.CountryIso3"
+                       asp-route-year="@Model.Year"
+                       class="dropdown-item d-flex align-items-start gap-2">
+                        <i class="bi bi-file-earmark-excel mt-1" aria-hidden="true"></i>
+                        <span>
+                            <span class="d-block fw-semibold">Export to Excel</span>
+                            <span class="d-block small text-muted">Filterable project register</span>
+                        </span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </header>
+
+    <section class="ffc-detailed-print-heading" aria-hidden="true">
+        <h1>FFC Projects Update</h1>
+        <p>@Model.ExportScopeLabel · Position as at @Model.GeneratedAtIstDisplay</p>
+    </section>
 
     @if (Model.HasFilters && !string.IsNullOrWhiteSpace(Model.FilterSummary))
     {
-        <div class="alert alert-info py-2" role="status">
+        <div class="alert alert-info py-2 ffc-detailed-filter-alert" role="status" data-hide-in-print>
             Showing records for <strong>@Model.FilterSummary</strong>.
-            <a asp-page="./MapTableDetailed" class="alert-link">Reset filters</a>
+            <a asp-page="./MapTableDetailed" class="alert-link">Show complete portfolio</a>
         </div>
     }
 
-    <div class="pm-card pm-card--content">
+    <div class="pm-card pm-card--content ffc-detailed-card">
         <div class="pm-card__body">
             <partial name="_DetailedTablePartial" model="Model.Groups" />
         </div>
@@ -39,7 +93,65 @@
     @Html.AntiForgeryToken()
 </form>
 
+<div class="modal fade"
+     id="ffcWordExportModal"
+     tabindex="-1"
+     aria-labelledby="ffcWordExportModalLabel"
+     aria-hidden="true"
+     data-hide-in-print>
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="post"
+                  asp-page="./MapTableDetailed"
+                  asp-page-handler="ExportWord"
+                  data-ffc-word-export-form>
+                <input type="hidden" name="countryId" value="@Model.CountryId" />
+                <input type="hidden" name="countryIso3" value="@Model.CountryIso3" />
+                <input type="hidden" name="year" value="@Model.Year" />
+
+                <div class="modal-header">
+                    <div>
+                        <h2 class="modal-title fs-5" id="ffcWordExportModalLabel">Export FFC Projects Update</h2>
+                        <p class="small text-muted mb-0">Scope: @Model.ExportScopeLabel</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label asp-for="WordExport.HandlingMarking" class="form-label fw-semibold"></label>
+                        <input asp-for="WordExport.HandlingMarking"
+                               class="form-control"
+                               maxlength="80"
+                               autocomplete="off"
+                               placeholder="Optional, for example: OFFICIAL" />
+                        <span asp-validation-for="WordExport.HandlingMarking" class="text-danger small"></span>
+                        <div class="form-text">
+                            The marking, when entered, is repeated in the Word document header and footer.
+                        </div>
+                    </div>
+
+                    <div class="ffc-export-note" role="note">
+                        <i class="bi bi-shield-check" aria-hidden="true"></i>
+                        <span>PRISM does not assign a classification automatically. Enter a marking only when authorised and applicable.</span>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" data-ffc-word-export-submit>
+                        <i class="bi bi-file-earmark-word" aria-hidden="true"></i>
+                        Generate Word file
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @section Scripts
 {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/pages/project-office-reports/ffc/ffc-map-table-detailed.js" asp-append-version="true"></script>
     <script src="~/js/pages/project-office-reports/ffc/ffc-map-table-detailed-inline-edit.js" asp-append-version="true"></script>
 }

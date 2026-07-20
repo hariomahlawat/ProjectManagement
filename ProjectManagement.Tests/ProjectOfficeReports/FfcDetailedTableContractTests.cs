@@ -15,19 +15,56 @@ public sealed class FfcDetailedTableContractTests
             markup,
             "S. No.",
             "Project",
-            "Cost (₹ Lakh)",
+            "Cost (₹ lakh)",
             "Quantity",
             "Status",
-            "Progress / present status",
-            "Overall remarks");
+            "Current progress",
+            "Overall status");
 
         Assert.Contains("ffc-dtable__group-row", markup, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"/FFC/Records/Details\"", markup, StringComparison.Ordinal);
+        Assert.Contains("asp-route-id=\"@group.FfcRecordId\"", markup, StringComparison.Ordinal);
+        Assert.Contains("asp-route-returnUrl=\"@returnUrl\"", markup, StringComparison.Ordinal);
         Assert.Contains("@group.CountryName – @group.Year", markup, StringComparison.Ordinal);
         Assert.Contains("rowspan=\"@rowSpan\"", markup, StringComparison.Ordinal);
         Assert.Contains("data-kind=\"progress\"", markup, StringComparison.Ordinal);
         Assert.Contains("data-kind=\"overall\"", markup, StringComparison.Ordinal);
+        Assert.Contains("data-expandable", markup, StringComparison.Ordinal);
+        Assert.Contains("js-expand-status", markup, StringComparison.Ordinal);
         Assert.Contains("js-inline-save", markup, StringComparison.Ordinal);
         Assert.Contains("js-inline-cancel", markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DetailedTablePage_ProvidesCompactWordAndExcelExportMenuWithoutPermanentFilters()
+    {
+        var markup = ReadTestData("MapTableDetailed.cshtml");
+
+        Assert.Contains("FFC Projects Update", markup, StringComparison.Ordinal);
+        Assert.Contains("Export to Word", markup, StringComparison.Ordinal);
+        Assert.Contains("asp-page-handler=\"ExportWord\"", markup, StringComparison.Ordinal);
+        Assert.Contains("Export to Excel", markup, StringComparison.Ordinal);
+        Assert.Contains("asp-page-handler=\"ExportExcel\"", markup, StringComparison.Ordinal);
+        Assert.Contains("Handling / classification marking", ReadTestData("MapTableDetailed.cshtml.cs"), StringComparison.Ordinal);
+        Assert.DoesNotContain("form-select", markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("permanent-filter", markup, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void DetailedTablePresentation_ImplementsStickyHeaderExpansionAndLandscapePrint()
+    {
+        var screenStyles = ReadTestData("ffc-detailed-table.css");
+        var printStyles = ReadTestData("ffc-detailed-table.print.css");
+        var script = ReadTestData("ffc-map-table-detailed.js");
+
+        Assert.Contains("position: sticky", screenStyles, StringComparison.Ordinal);
+        Assert.Contains("--ffc-sticky-top: 98px", screenStyles, StringComparison.Ordinal);
+        Assert.Contains("overflow-y: visible", screenStyles, StringComparison.Ordinal);
+        Assert.Contains("ffc-dtable__clamp", screenStyles, StringComparison.Ordinal);
+        Assert.Contains("A4 landscape", printStyles, StringComparison.Ordinal);
+        Assert.Contains("max-height: none", printStyles, StringComparison.Ordinal);
+        Assert.Contains("data-expandable", script, StringComparison.Ordinal);
+        Assert.Contains("ffc:detailed-table-content-updated", script, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -39,6 +76,7 @@ public sealed class FfcDetailedTableContractTests
         Assert.Contains("?handler=UpdateProgress", script, StringComparison.Ordinal);
         Assert.Contains("data-ffc-project-id", ReadTestData("_DetailedTablePartial.cshtml"), StringComparison.Ordinal);
         Assert.Contains("data-external-remark-id", ReadTestData("_DetailedTablePartial.cshtml"), StringComparison.Ordinal);
+        Assert.Contains("ffc:detailed-table-content-updated", script, StringComparison.Ordinal);
     }
 
     private static string ReadTestData(string fileName)

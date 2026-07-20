@@ -41,6 +41,7 @@
     @await RenderSectionAsync("Styles", required: false)
     <link rel="stylesheet" href="~/css/social-media.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/print.css" asp-append-version="true" media="print" />
+    @await RenderSectionAsync("PrintStyles", required: false)
 
     <link rel="icon" type="image/x-icon" href="~/favicon.ico" asp-append-version="true" />
     <link rel="icon" type="image/png" sizes="32x32" href="~/icons/favicon-32x32.png" asp-append-version="true" />
