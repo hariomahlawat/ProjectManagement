@@ -5,9 +5,21 @@
     ViewData["UseFullWidth"] = true;
 }
 
-<div class="container-xxl py-3 pf-shell"
-     data-page="proliferation-reports"
-     data-can-manage-records="@(Model.CanManageRecords ? "true" : "false")">
+<div class="container-xxl py-3 pf-shell pf-analysis-page"
+     data-page="proliferation-analysis"
+     data-analysis-endpoint="/api/proliferation/reports/analysis"
+     data-export-endpoint="/api/proliferation/reports/analysis/export"
+     data-projects-endpoint="/api/proliferation/projects"
+     data-lookups-endpoint="/api/proliferation/lookups"
+     data-project-page-base="/ProjectOfficeReports/Proliferation/Project/"
+     data-minimum-year="@Model.MinimumYear"
+     data-maximum-year="@Model.MaximumYear"
+     data-current-year="@Model.CurrentYear">
+
+    <div class="d-none" id="pf-analysis-antiforgery">
+        @Html.AntiForgeryToken()
+    </div>
+
     <nav aria-label="Breadcrumb" class="mb-2">
         <ol class="breadcrumb mb-0 small">
             <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
@@ -18,247 +30,281 @@
 
     <partial name="_ProliferationNav" model="Model.CanManageRecords" />
 
-    <header class="pf-page-header pf-page-header--compact">
+    <header class="pf-page-header pf-page-header--compact pf-analysis-header">
         <div>
             <h1 class="pf-page-title">Reports</h1>
-            <p class="pf-page-subtitle mb-0">Start with the information you need. Advanced filters remain available when required.</p>
+            <p class="pf-page-subtitle mb-0">Analyse proliferation by period, technical category or selected simulators.</p>
         </div>
-        @if (Model.CanManageRecords)
-        {
-            <div class="pf-page-actions">
-                <a class="btn btn-primary" asp-area="ProjectOfficeReports" asp-page="/Proliferation/Manage">
-                    <i class="bi bi-plus-lg" aria-hidden="true"></i> Add proliferation
-                </a>
-            </div>
-        }
+        <div class="pf-page-actions">
+            <button class="btn btn-outline-success" id="pf-analysis-export" type="button" disabled>
+                <i class="bi bi-download" aria-hidden="true"></i>
+                Export Excel
+            </button>
+        </div>
     </header>
 
-    <section class="pf-project-finder pf-project-finder--compact mb-3" aria-labelledby="report-project-total-heading">
-        <div>
-            <h2 id="report-project-total-heading">Total for a project</h2>
-            <p>Select a project to view its total proliferation, SDD/515 ABW split, year-wise calculation and detailed entries.</p>
-        </div>
-        <div class="position-relative">
-            <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
-                <input class="form-control" id="pf-report-project-total" placeholder="Search project name, acronym or code" autocomplete="off" aria-describedby="pf-report-project-total-status" />
-                <button class="btn btn-outline-secondary d-none pf-project-finder__clear" id="pf-report-project-total-clear" type="button" aria-label="Clear selected project"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
-                <button class="btn btn-primary" id="pf-report-open-project" type="button" disabled>View total</button>
-            </div>
-            <input type="hidden" id="pf-report-project-total-id" />
-            <div class="pf-suggestions d-none" id="pf-report-project-total-suggestions" role="listbox"></div>
-            <div class="form-text" id="pf-report-project-total-status" aria-live="polite"></div>
-        </div>
-    </section>
-
-    <section aria-labelledby="report-type-heading" id="pf-report-chooser-section">
-        <div class="mb-3">
-            <h2 class="h5 mb-1" id="report-type-heading">Detailed reports</h2>
-            <p class="text-muted small mb-0">Choose a report. Only the controls relevant to that report will be shown.</p>
-        </div>
-        <div class="pf-report-chooser" role="list" aria-label="Detailed report types">
-            <button class="pf-report-choice active" type="button" data-report-kind="ProjectToUnits" aria-pressed="true">
-                <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
-                <strong>Units receiving a project</strong>
-                <small>Find where a selected project was proliferated.</small>
-            </button>
-            <button class="pf-report-choice" type="button" aria-pressed="false" data-report-kind="UnitToProjects">
-                <i class="bi bi-building" aria-hidden="true"></i>
-                <strong>Projects received by a unit</strong>
-                <small>Find all detailed project entries for a unit.</small>
-            </button>
-            <button class="pf-report-choice" type="button" aria-pressed="false" data-report-kind="ProjectCoverageSummary">
-                <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
-                <strong>Project coverage</strong>
-                <small>Compare detailed quantity, unit coverage and date range.</small>
-            </button>
-            <button class="pf-report-choice" type="button" aria-pressed="false" data-report-kind="GranularLedger">
-                <i class="bi bi-journal-text" aria-hidden="true"></i>
-                <strong>Detailed records ledger</strong>
-                <small>Review individual approved, pending or rejected entries.</small>
-            </button>
-            @if (Model.CanReviewCalculations)
-            {
-                <button class="pf-report-choice" type="button" aria-pressed="false" data-report-kind="YearlyReconciliation">
-                    <i class="bi bi-calculator" aria-hidden="true"></i>
-                    <strong>Calculation review</strong>
-                    <small>Compare annual, detailed and reported quantities.</small>
-                </button>
-            }
-        </div>
-    </section>
-
-    <div class="pf-selected-report d-none" id="pf-selected-report" aria-live="polite">
-        <div>
-            <span class="text-muted small">Selected report</span>
-            <strong id="pf-selected-report-label">Units receiving a project</strong>
-        </div>
-        <button class="btn btn-sm btn-outline-secondary" id="pf-change-report" type="button">Change report</button>
-    </div>
-
-    <section class="pf-card mt-3" aria-labelledby="report-filters-heading">
+    <section class="pf-card pf-analysis-setup" aria-labelledby="pf-analysis-setup-heading">
         <div class="pf-card__header">
             <div>
-                <h2 class="pf-card__title" id="report-filters-heading">Report options</h2>
-                <p class="pf-card__subtitle" id="rep-hint">Select a project to see the units that received it.</p>
+                <h2 class="pf-card__title" id="pf-analysis-setup-heading">Build report</h2>
+                <p class="pf-card__subtitle">Select what to analyse and the period. Results begin with the total and allow unit-wise detail when required.</p>
             </div>
-            <select class="form-select form-select-sm d-none" id="rep-kind" aria-label="Report type">
-                <option value="ProjectToUnits">Units receiving a project</option>
-                <option value="UnitToProjects">Projects received by a unit</option>
-                <option value="ProjectCoverageSummary">Project coverage</option>
-                <option value="GranularLedger">Detailed records ledger</option>
-                @if (Model.CanReviewCalculations)
-                {
-                    <option value="YearlyReconciliation">Calculation review</option>
-                }
-            </select>
         </div>
 
-        <div class="pf-report-config">
-            <div class="row g-3 align-items-end">
-                <div class="col-12 col-lg-5 position-relative" id="rep-project-wrap">
-                    <label class="form-label" for="rep-project">Project</label>
-                    <input class="form-control" id="rep-project" placeholder="Search project name, acronym or code" autocomplete="off" aria-describedby="rep-project-status" />
-                    <input type="hidden" id="rep-project-id" />
-                    <button class="pf-picker-clear d-none" id="rep-project-clear" type="button" aria-label="Clear selected project"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
-                    <div class="pf-suggestions d-none" id="rep-project-suggest" role="listbox"></div>
-                    <div class="form-text" id="rep-project-status" aria-live="polite"></div>
-                </div>
-                <div class="col-12 col-lg-5 d-none" id="rep-unit-wrap">
-                    <label class="form-label" for="rep-unit">Unit</label>
-                    <input class="form-control" id="rep-unit" placeholder="Type unit name" list="rep-unit-list" />
-                    <datalist id="rep-unit-list"></datalist>
-                </div>
-                <div class="col-6 col-lg-2">
-                    <label class="form-label" for="rep-source">Source</label>
-                    <select class="form-select" id="rep-source">
-                        <option value="">All sources</option>
-                        <option value="1">SDD</option>
-                        <option value="2">515 ABW</option>
-                    </select>
-                </div>
-                <div class="col-6 col-lg-2">
-                    <label class="form-label" for="rep-from">From date</label>
-                    <input class="form-control" type="date" id="rep-from" />
-                </div>
-                <div class="col-6 col-lg-2">
-                    <label class="form-label" for="rep-to">To date</label>
-                    <input class="form-control" type="date" id="rep-to" />
-                </div>
-                <div class="col-12 col-lg-auto d-flex flex-wrap gap-2">
-                    <button class="btn btn-primary" id="rep-run" type="button"><i class="bi bi-play-fill" aria-hidden="true"></i> Generate report</button>
-                    <button class="btn btn-outline-success" id="rep-export" type="button" disabled><i class="bi bi-download" aria-hidden="true"></i> Export Excel</button>
-                </div>
-            </div>
+        <div class="pf-analysis-setup__body">
+            <fieldset class="pf-analysis-step">
+                <legend>
+                    <span class="pf-analysis-step__number">1</span>
+                    What do you want to analyse?
+                </legend>
 
-            <details class="pf-report-advanced">
-                <summary>Advanced filters and saved views</summary>
-                <div class="pf-report-advanced__body">
-                    <div class="row g-3 align-items-end">
+                <div class="pf-analysis-scope-grid" role="radiogroup" aria-label="Analysis scope">
+                    <label class="pf-analysis-choice is-selected">
+                        <input class="visually-hidden" type="radio" name="analysisScope" value="1" checked />
+                        <span class="pf-analysis-choice__icon"><i class="bi bi-bar-chart-line" aria-hidden="true"></i></span>
+                        <span>
+                            <strong>All proliferation</strong>
+                            <small>Total proliferation across all eligible simulators.</small>
+                        </span>
+                    </label>
+
+                    <label class="pf-analysis-choice">
+                        <input class="visually-hidden" type="radio" name="analysisScope" value="2" />
+                        <span class="pf-analysis-choice__icon"><i class="bi bi-diagram-3" aria-hidden="true"></i></span>
+                        <span>
+                            <strong>Technical category</strong>
+                            <small>Total for one technical category and its simulators.</small>
+                        </span>
+                    </label>
+
+                    <label class="pf-analysis-choice">
+                        <input class="visually-hidden" type="radio" name="analysisScope" value="3" />
+                        <span class="pf-analysis-choice__icon"><i class="bi bi-ui-checks-grid" aria-hidden="true"></i></span>
+                        <span>
+                            <strong>Selected simulators</strong>
+                            <small>Compare one or more selected simulators.</small>
+                        </span>
+                    </label>
+                </div>
+            </fieldset>
+
+            <fieldset class="pf-analysis-step">
+                <legend>
+                    <span class="pf-analysis-step__number">2</span>
+                    Select period
+                </legend>
+
+                <div class="row g-3 align-items-end">
+                    <div class="col-12 col-md-4 col-xl-3">
+                        <label class="form-label" for="pf-analysis-period-mode">Period</label>
+                        <select class="form-select" id="pf-analysis-period-mode">
+                            <option value="1">All time</option>
+                            <option value="2">Single year</option>
+                            <option value="3">Year range</option>
+                            <option value="4">Custom dates</option>
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-md-4 col-xl-3 d-none" id="pf-analysis-single-year-wrap">
+                        <label class="form-label" for="pf-analysis-year">Year</label>
+                        <select class="form-select" id="pf-analysis-year"></select>
+                    </div>
+
+                    <div class="col-6 col-md-4 col-xl-3 d-none" id="pf-analysis-from-year-wrap">
+                        <label class="form-label" for="pf-analysis-from-year">From year</label>
+                        <select class="form-select" id="pf-analysis-from-year"></select>
+                    </div>
+
+                    <div class="col-6 col-md-4 col-xl-3 d-none" id="pf-analysis-to-year-wrap">
+                        <label class="form-label" for="pf-analysis-to-year">To year</label>
+                        <select class="form-select" id="pf-analysis-to-year"></select>
+                    </div>
+
+                    <div class="col-12 col-md-4 col-xl-3 d-none" id="pf-analysis-from-date-wrap">
+                        <label class="form-label" for="pf-analysis-from-date">From date</label>
+                        <input class="form-control" type="date" id="pf-analysis-from-date" />
+                    </div>
+
+                    <div class="col-12 col-md-4 col-xl-3 d-none" id="pf-analysis-to-date-wrap">
+                        <label class="form-label" for="pf-analysis-to-date">To date</label>
+                        <input class="form-control" type="date" id="pf-analysis-to-date" />
+                    </div>
+                </div>
+
+                <div class="pf-analysis-date-note d-none" id="pf-analysis-date-note" role="note">
+                    <i class="bi bi-info-circle" aria-hidden="true"></i>
+                    <span>Exact-date reports use approved detailed entries only. Annual quantities cannot be assigned to a specific date within the year.</span>
+                </div>
+            </fieldset>
+
+            <fieldset class="pf-analysis-step d-none" id="pf-analysis-scope-options">
+                <legend>
+                    <span class="pf-analysis-step__number">3</span>
+                    Select scope
+                </legend>
+
+                <div class="d-none" id="pf-analysis-category-wrap">
+                    <label class="form-label" for="pf-analysis-category">Technical category</label>
+                    <select class="form-select pf-analysis-category-select" id="pf-analysis-category">
+                        <option value="">Select technical category</option>
+                    </select>
+                    <div class="form-text">Only completed simulators in the selected category are included.</div>
+                </div>
+
+                <div class="d-none" id="pf-analysis-projects-wrap">
+                    <label class="form-label" for="pf-analysis-project-search">Simulators</label>
+                    <div class="pf-analysis-project-picker">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-search" aria-hidden="true"></i></span>
+                            <input class="form-control"
+                                   id="pf-analysis-project-search"
+                                   autocomplete="off"
+                                   placeholder="Search project name, acronym or code"
+                                   aria-autocomplete="list"
+                                   aria-haspopup="listbox"
+                                   aria-expanded="false"
+                                   aria-controls="pf-analysis-project-suggestions" />
+                        </div>
+                        <div class="pf-analysis-project-suggestions d-none"
+                             id="pf-analysis-project-suggestions"
+                             role="listbox"></div>
+                    </div>
+                    <div class="pf-analysis-project-chips" id="pf-analysis-project-chips" aria-live="polite"></div>
+                    <div class="form-text" id="pf-analysis-project-status">Select one or more simulators.</div>
+                </div>
+            </fieldset>
+
+            <details class="pf-analysis-more">
+                <summary>More options</summary>
+                <div class="pf-analysis-more__body">
+                    <div class="row g-3">
                         <div class="col-12 col-md-4">
-                            <label class="form-label" for="rep-project-category">Project category</label>
-                            <select class="form-select" id="rep-project-category"><option value="">All categories</option></select>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <label class="form-label" for="rep-technical-category">Technical category</label>
-                            <select class="form-select" id="rep-technical-category"><option value="">All categories</option></select>
-                        </div>
-                        <div class="col-6 col-md-2">
-                            <label class="form-label" for="rep-status">Approval status</label>
-                            <select class="form-select" id="rep-status">
-                                <option value="Approved" selected>Approved</option>
-                                <option value="All">All</option>
-                                <option value="Pending">Pending</option>
-                                <option value="Rejected">Rejected</option>
+                            <label class="form-label" for="pf-analysis-source">Source</label>
+                            <select class="form-select" id="pf-analysis-source">
+                                <option value="">All sources</option>
+                                <option value="1">SDD</option>
+                                <option value="2">515 ABW</option>
                             </select>
-                        </div>
-                        <div class="col-6 col-md-2">
-                            <label class="form-label" for="rep-pagesize">Rows per page</label>
-                            <select class="form-select" id="rep-pagesize">
-                                <option value="25">25</option>
-                                <option value="50" selected>50</option>
-                                <option value="100">100</option>
-                                <option value="200">200</option>
-                            </select>
-                        </div>
-                        <div class="col-12 col-lg-6">
-                            <label class="form-label" for="rep-presets">Saved views <span class="text-muted fw-normal">(this browser)</span></label>
-                            <div class="input-group">
-                                <select class="form-select" id="rep-presets"></select>
-                                <button class="btn btn-outline-secondary" id="rep-preset-load" type="button" disabled>Load</button>
-                                <button class="btn btn-outline-danger" id="rep-preset-delete" type="button" disabled>Delete</button>
-                            </div>
-                        </div>
-                        <div class="col-12 col-lg-6 d-flex flex-wrap gap-2">
-                            <button class="btn btn-outline-primary" id="rep-preset-save" type="button" data-bs-toggle="modal" data-bs-target="#rep-preset-modal">Save view</button>
-                            <button class="btn btn-outline-secondary" id="rep-columns" type="button" data-bs-toggle="modal" data-bs-target="#rep-columns-modal">Choose columns</button>
-                            <button class="btn btn-link" id="rep-clear" type="button">Clear filters</button>
                         </div>
                     </div>
                 </div>
             </details>
 
-            <div class="mt-3">
-                <div class="text-muted small" id="reportContext">Not run yet.</div>
-                <div class="d-flex flex-wrap gap-2 mt-2" id="reportChips"></div>
+            <div class="pf-analysis-actions">
+                <button class="btn btn-primary" id="pf-analysis-run" type="button">
+                    <i class="bi bi-play-fill" aria-hidden="true"></i>
+                    Generate report
+                </button>
+                <button class="btn btn-link" id="pf-analysis-clear" type="button">Clear</button>
+                <div class="pf-analysis-status" id="pf-analysis-status" role="status" aria-live="polite"></div>
             </div>
         </div>
     </section>
 
-    <section class="pf-card mt-3" aria-labelledby="report-results-heading">
-        <div class="pf-card__header">
+    <section class="pf-analysis-results d-none" id="pf-analysis-results" aria-labelledby="pf-analysis-results-heading">
+        <div class="pf-analysis-results__heading">
             <div>
-                <h2 class="pf-card__title" id="report-results-heading">Results</h2>
-                <p class="pf-card__subtitle" id="rep-count">No data loaded.</p>
+                <span class="pf-analysis-eyebrow">Generated report</span>
+                <h2 id="pf-analysis-results-heading">Proliferation analysis</h2>
+                <p id="pf-analysis-result-context"></p>
             </div>
-            <div class="btn-group btn-group-sm">
-                <button class="btn btn-outline-secondary" id="rep-prev" type="button" disabled>Previous</button>
-                <button class="btn btn-outline-secondary" id="rep-next" type="button" disabled>Next</button>
+            <button class="btn btn-sm btn-outline-secondary" id="pf-analysis-edit" type="button">
+                <i class="bi bi-sliders" aria-hidden="true"></i>
+                Edit report
+            </button>
+        </div>
+
+        <div class="pf-analysis-summary-grid">
+            <article class="pf-analysis-total-card">
+                <span>Total proliferation</span>
+                <strong id="pf-analysis-total">0</strong>
+                <small id="pf-analysis-basis"></small>
+            </article>
+
+            <article class="pf-analysis-metric-card">
+                <span>SDD</span>
+                <strong id="pf-analysis-sdd">0</strong>
+            </article>
+
+            <article class="pf-analysis-metric-card">
+                <span>515 ABW</span>
+                <strong id="pf-analysis-abw">0</strong>
+            </article>
+
+            <article class="pf-analysis-metric-card">
+                <span>Simulators covered</span>
+                <strong id="pf-analysis-project-count">0</strong>
+            </article>
+
+            <article class="pf-analysis-metric-card">
+                <span>Receiving units recorded</span>
+                <strong id="pf-analysis-unit-count">0</strong>
+            </article>
+        </div>
+
+        <div class="pf-analysis-coverage" id="pf-analysis-coverage" role="note"></div>
+
+        <section class="pf-card pf-analysis-breakdown" aria-labelledby="pf-analysis-project-breakdown-heading">
+            <div class="pf-card__header">
+                <div>
+                    <h3 class="pf-card__title" id="pf-analysis-project-breakdown-heading">Simulator breakdown</h3>
+                    <p class="pf-card__subtitle">Reported proliferation by simulator and source.</p>
+                </div>
             </div>
-        </div>
-        <div class="pf-report-result-summary d-none" id="rep-result-summary" aria-live="polite"></div>
-        <div class="table-responsive">
-            <table class="table table-sm table-hover align-middle mb-0" id="rep-table">
-                <thead><tr id="rep-head"></tr></thead>
-                <tbody id="rep-body"><tr><td class="text-muted p-4">Select report options and generate the report.</td></tr></tbody>
-            </table>
-        </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col">Simulator</th>
+                            <th scope="col">Technical category</th>
+                            <th scope="col" class="text-end">SDD</th>
+                            <th scope="col" class="text-end">515 ABW</th>
+                            <th scope="col" class="text-end">Total proliferation</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pf-analysis-project-body"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="pf-card pf-analysis-breakdown" aria-labelledby="pf-analysis-unit-breakdown-heading">
+            <div class="pf-card__header pf-analysis-unit-header">
+                <div>
+                    <h3 class="pf-card__title" id="pf-analysis-unit-breakdown-heading">Unit-wise breakdown</h3>
+                    <p class="pf-card__subtitle">Receiving-unit names and quantities are available from approved detailed entries.</p>
+                </div>
+                <button class="btn btn-sm btn-outline-primary" id="pf-analysis-load-units" type="button">
+                    Show unit-wise breakdown
+                </button>
+            </div>
+
+            <div class="pf-analysis-unit-placeholder" id="pf-analysis-unit-placeholder">
+                Unit-wise data is loaded only when required.
+            </div>
+
+            <div class="table-responsive d-none" id="pf-analysis-unit-table-wrap">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th scope="col">Receiving unit</th>
+                            <th scope="col">Simulator</th>
+                            <th scope="col">Source</th>
+                            <th scope="col">Period</th>
+                            <th scope="col" class="text-end">Quantity</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pf-analysis-unit-body"></tbody>
+                </table>
+            </div>
+        </section>
     </section>
-</div>
-
-<div class="modal fade" id="rep-columns-modal" tabindex="-1" aria-labelledby="rep-columns-modal-label" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-            <div class="modal-header"><h2 class="modal-title fs-5" id="rep-columns-modal-label">Choose columns</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-            <div class="modal-body">
-                <p class="text-muted small">Select the columns to display and export.</p>
-                <div class="row g-2" id="rep-columns-list"></div>
-                <div class="text-danger small mt-2 d-none" id="rep-columns-warning">Select at least one column.</div>
-            </div>
-            <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" id="rep-columns-reset">Reset</button><button type="button" class="btn btn-primary" id="rep-columns-apply">Apply</button></div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="rep-preset-modal" tabindex="-1" aria-labelledby="rep-preset-modal-label" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header"><h2 class="modal-title fs-5" id="rep-preset-modal-label">Save view</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
-            <div class="modal-body">
-                <label class="form-label" for="rep-preset-name">View name</label>
-                <input class="form-control" id="rep-preset-name" placeholder="Example: Approved SDD entries" />
-                <div class="text-muted small mt-2" id="rep-preset-help">Saved views are stored in this browser only.</div>
-            </div>
-            <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="rep-preset-save-confirm">Save view</button></div>
-        </div>
-    </div>
 </div>
 
 @section Styles {
     <link rel="stylesheet" href="~/css/proliferation.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/proliferation-reports.css" asp-append-version="true" />
 }
+
 @section Scripts {
-    <script src="~/js/components/proliferation-project-picker.js" asp-append-version="true"></script>
-    <script src="~/js/pages/proliferation-report-launcher.js" asp-append-version="true"></script>
     <script src="~/js/pages/proliferation-reports.js" asp-append-version="true"></script>
 }

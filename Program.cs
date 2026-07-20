@@ -615,6 +615,8 @@ builder.Services.AddScoped<ProliferationSubmissionService>();
 builder.Services.AddScoped<ProliferationManageService>();
 // SECTION: Proliferation reports services
 builder.Services.AddScoped<ProliferationReportsService>();
+builder.Services.AddScoped<ProliferationAnalysisService>();
+builder.Services.AddScoped<ProliferationAnalysisExcelBuilder>();
 builder.Services.AddSingleton<IWorkflowStageMetadataProvider, WorkflowStageMetadataProvider>();
 builder.Services.AddSingleton<IWorkflowChecklistProvider, WorkflowChecklistProvider>();
 builder.Services.AddScoped<IProjectStageWorkflowPolicy, ProjectStageWorkflowPolicy>();
