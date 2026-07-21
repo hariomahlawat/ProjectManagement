@@ -4,6 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
 const source = fs.readFileSync(path.resolve(__dirname, 'officer-conference.js'), 'utf8');
+const conferenceCss = fs.readFileSync(path.resolve(__dirname, '../../css/officer-conference.css'), 'utf8');
 
 test('conference editor supports keyboard save and cancel', () => {
     assert.match(source, /event\.key === 'Escape'/);
@@ -155,6 +156,27 @@ test('conference sticky toolbar measures the actual application header and avoid
     assert.match(source, /--oc-topbar-height/);
     assert.match(source, /ResizeObserver/);
     assert.match(source, /window\.addEventListener\('scroll', scheduleStickySync/);
+});
+
+
+test('conference sticky toolbar uses hysteresis and avoids threshold oscillation', () => {
+    assert.match(source, /const stickyEnterOffset = 1/);
+    assert.match(source, /const stickyReleaseOffset = 8/);
+    assert.match(source, /stickyState\s*\?\s*shellTop <= topbarHeight \+ stickyReleaseOffset/);
+    assert.match(source, /shellTop <= topbarHeight \+ stickyEnterOffset/);
+    assert.match(source, /nextStickyState !== stickyState/);
+    assert.match(source, /window\.getComputedStyle\(stickyShell\)\.position === 'sticky'/);
+});
+
+test('conference sticky state preserves header geometry', () => {
+    const stuckRule = conferenceCss.match(/\.oc-sticky-shell\.is-stuck \.oc-header\s*\{([\s\S]*?)\}/)?.[1] ?? '';
+
+    assert.match(stuckRule, /min-height:\s*64px/);
+    assert.match(stuckRule, /padding:\s*8px 12px/);
+    assert.doesNotMatch(conferenceCss, /transition:[^;]*(?:min-height|padding)/);
+    assert.doesNotMatch(conferenceCss, /\.oc-sticky-shell\.is-stuck \.oc-eyebrow\s*\{[^}]*display:\s*none/);
+    assert.doesNotMatch(conferenceCss, /\.oc-sticky-shell\.is-stuck \.oc-avatar\s*\{/);
+    assert.doesNotMatch(conferenceCss, /\.oc-sticky-shell\.is-stuck \.oc-header__metric--tasks\.is-zero\s*\{/);
 });
 
 test('conference rows create column headings when the first idea or task is added', () => {

@@ -1,27 +1,34 @@
-# Proliferation Reports v5 — EF Core translation fix
+# Conference Review sticky-header jitter fix
 
-## Corrected defect
+## Replace these files
 
-`ResolveScopeAsync` projected `Project` rows into the `ProjectInfo` record and then ordered by `ProjectInfo.Name` inside the database query. EF Core/Npgsql could not translate the resulting constructor-member `OrderBy` expression.
+Copy the contents of this package into the project root and replace the matching files:
 
-The query now orders by the mapped entity property `Project.Name` before projecting into `ProjectInfo`:
+- `wwwroot/css/officer-conference.css`
+- `wwwroot/js/pages/officer-conference.js`
+- `wwwroot/js/pages/officer-conference.test.js`
 
-```csharp
-var projects = await query
-    .OrderBy(x => x.Name)
-    .Select(x => new ProjectInfo(
-        x.Id,
-        x.Name,
-        x.CaseFileNumber,
-        x.TechnicalCategoryId,
-        x.TechnicalCategory != null ? x.TechnicalCategory.Name : "Not categorised"))
-    .ToListAsync(cancellationToken);
+## Implemented
+
+- Keeps the officer conference toolbar at one invariant height and padding in both normal and sticky states.
+- Removes sticky-state typography, avatar and visibility changes that altered layout at the release threshold.
+- Restricts the sticky visual transition to non-layout properties: border, radius and shadow.
+- Adds separate enter and release thresholds (hysteresis) to prevent one-pixel/fractional-pixel oscillation.
+- Avoids applying a stale sticky state when the responsive layout changes the toolbar to `position: static`.
+- Avoids redundant CSS custom-property writes during scroll and resize processing.
+- Adds an explicit window-resize synchronisation path in addition to `ResizeObserver`.
+- Adds regression tests for hysteresis and geometry invariance.
+
+## Deployment
+
+Stop the running application before replacing static files, then run:
+
+```powershell
+Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
+npm test
+dotnet build .\ProjectManagement.csproj
 ```
 
-This restores all common report scopes:
+Reload the Conference Review page with `Ctrl+F5`.
 
-- All proliferation
-- Technical category
-- Selected simulators
-
-No database migration, package, route, JavaScript, or service-registration change is required.
+No database migration, package change, service registration or Razor change is required.

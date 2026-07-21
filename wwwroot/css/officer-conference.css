@@ -1343,35 +1343,19 @@
     background: var(--oc-card);
     backdrop-filter: none;
     box-shadow: var(--oc-shadow);
-    transition: min-height .16s ease, padding .16s ease, border-radius .16s ease, box-shadow .16s ease;
+    transition: border-radius .16s ease, box-shadow .16s ease;
 }
 
+/*
+ * Keep the toolbar's geometry invariant when it becomes sticky. Changing height,
+ * padding, typography or child visibility at the sticky threshold causes the
+ * measured element to cross that threshold repeatedly and produces scroll jitter.
+ */
 .oc-sticky-shell.is-stuck .oc-header {
-    min-height: 58px;
-    padding-block: 6px;
+    min-height: 64px;
+    padding: 8px 12px;
     border-radius: 0 0 10px 10px;
     box-shadow: 0 10px 22px rgba(18, 33, 63, .12);
-}
-
-.oc-sticky-shell.is-stuck .oc-eyebrow {
-    display: none;
-}
-
-.oc-sticky-shell.is-stuck .oc-header h1 {
-    font-size: .98rem;
-}
-
-.oc-sticky-shell.is-stuck .oc-header__identity p {
-    margin-top: 2px;
-}
-
-.oc-sticky-shell.is-stuck .oc-avatar {
-    width: 34px;
-    height: 34px;
-}
-
-.oc-sticky-shell.is-stuck .oc-header__metric--tasks.is-zero {
-    display: none;
 }
 
 .oc-header__activity {

@@ -10,6 +10,12 @@ if (root) {
     let openIdeaEditor = null;
     let openTaskEditor = null;
     let stickyFrame = 0;
+    let stickyState = false;
+
+    // Use separate enter and release thresholds so fractional-pixel layout changes near
+    // the sticky boundary cannot repeatedly add and remove the state class.
+    const stickyEnterOffset = 1;
+    const stickyReleaseOffset = 8;
 
     const readElementHeight = (element, fallback) => {
         if (!element) return fallback;
@@ -17,18 +23,40 @@ if (root) {
         return Number.isFinite(height) && height > 0 ? height : fallback;
     };
 
+    const setCssPixelValue = (target, propertyName, value) => {
+        const nextValue = `${value}px`;
+        if (target.style.getPropertyValue(propertyName) !== nextValue) {
+            target.style.setProperty(propertyName, nextValue);
+        }
+    };
+
     const syncStickyHeaderHeight = () => {
         if (!stickyShell || !stickyHeader) return;
 
         const topbarHeight = readElementHeight(applicationTopbar, 52);
         const stickyHeaderHeight = readElementHeight(stickyHeader, 64);
-        root.style.setProperty('--oc-topbar-height', `${topbarHeight}px`);
-        root.style.setProperty('--oc-sticky-header-height', `${stickyHeaderHeight}px`);
-        document.documentElement.style.scrollPaddingTop = `${topbarHeight + stickyHeaderHeight + 12}px`;
+        setCssPixelValue(root, '--oc-topbar-height', topbarHeight);
+        setCssPixelValue(root, '--oc-sticky-header-height', stickyHeaderHeight);
 
+        const scrollPaddingTop = `${topbarHeight + stickyHeaderHeight + 12}px`;
+        if (document.documentElement.style.scrollPaddingTop !== scrollPaddingTop) {
+            document.documentElement.style.scrollPaddingTop = scrollPaddingTop;
+        }
+
+        // The conference toolbar is intentionally non-sticky on narrow layouts. Avoid
+        // applying a stale visual state when the responsive rule changes its position.
+        const stickyLayoutEnabled = window.getComputedStyle(stickyShell).position === 'sticky';
         const shellTop = stickyShell.getBoundingClientRect().top;
-        const isStuck = window.scrollY > 0 && shellTop <= topbarHeight + 1;
-        stickyShell.classList.toggle('is-stuck', isStuck);
+        const nextStickyState = stickyLayoutEnabled && window.scrollY > 0
+            ? stickyState
+                ? shellTop <= topbarHeight + stickyReleaseOffset
+                : shellTop <= topbarHeight + stickyEnterOffset
+            : false;
+
+        if (nextStickyState !== stickyState) {
+            stickyState = nextStickyState;
+            stickyShell.classList.toggle('is-stuck', stickyState);
+        }
     };
 
     const scheduleStickySync = () => {
@@ -42,6 +70,7 @@ if (root) {
     if (stickyShell && stickyHeader) {
         syncStickyHeaderHeight();
         window.addEventListener('scroll', scheduleStickySync, { passive: true });
+        window.addEventListener('resize', scheduleStickySync, { passive: true });
 
         if ('ResizeObserver' in window) {
             const stickyResizeObserver = new ResizeObserver(scheduleStickySync);
