@@ -103,6 +103,70 @@ public sealed class ConferenceModel : PageModel
         return Page();
     }
 
+    public async Task<IActionResult> OnGetDirectionHistoryAsync(
+        string? officerUserId,
+        ConferenceItemKind kind,
+        int itemId,
+        CancellationToken cancellationToken)
+    {
+        var userId = _users.GetUserId(User);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Unauthorized();
+        }
+
+        if (string.IsNullOrWhiteSpace(officerUserId)
+            || itemId <= 0
+            || !Enum.IsDefined(kind))
+        {
+            return JsonError(
+                StatusCodes.Status400BadRequest,
+                "The direction-history request is invalid.");
+        }
+
+        Response.Headers.CacheControl = "no-store, no-cache";
+        Response.Headers.Pragma = "no-cache";
+
+        try
+        {
+            var history = await _readService.GetDirectionHistoryAsync(
+                userId,
+                officerUserId,
+                kind,
+                itemId,
+                cancellationToken);
+
+            if (history is null)
+            {
+                return JsonError(
+                    StatusCodes.Status404NotFound,
+                    "Direction history is unavailable for this item.");
+            }
+
+            return new JsonResult(history);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            var traceId = HttpContext.TraceIdentifier;
+            _logger.LogError(
+                ex,
+                "Conference direction history failed. TraceId={TraceId}, Officer={OfficerUserId}, Kind={Kind}, ItemId={ItemId}",
+                traceId,
+                officerUserId,
+                kind,
+                itemId);
+
+            return JsonError(
+                StatusCodes.Status500InternalServerError,
+                "Direction history could not be loaded.",
+                traceId);
+        }
+    }
+
     public async Task<IActionResult> OnPostAddAsync(
         [FromForm] AddConferenceDirectionInput input,
         CancellationToken cancellationToken)

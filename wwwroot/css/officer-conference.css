@@ -1700,3 +1700,94 @@
 [data-bs-theme="dark"] .oc-landing__empty strong {
     color: #e4eafa;
 }
+
+/* SECTION: On-demand conference-direction history navigation */
+.oc-direction-history {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+    min-height: 25px;
+    margin: -2px 0 3px;
+}
+
+.oc-direction-history__button {
+    width: 26px;
+    height: 26px;
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 26px;
+    padding: 0;
+    border: 1px solid #d8dfeb;
+    border-radius: 7px;
+    background: rgba(255,255,255,.88);
+    color: #61718a;
+    font: inherit;
+    cursor: pointer;
+    transition: border-color .14s ease, background .14s ease, color .14s ease;
+}
+
+.oc-direction-history__button i {
+    font-size: .66rem;
+    line-height: 1;
+}
+
+.oc-direction-history__button:hover:not(:disabled),
+.oc-direction-history__button:focus-visible {
+    border-color: #aebddd;
+    background: #f7f9ff;
+    color: #405b8d;
+    outline: 2px solid rgba(74,111,183,.18);
+    outline-offset: 1px;
+}
+
+.oc-direction-history__button:disabled {
+    opacity: .38;
+    cursor: default;
+}
+
+.oc-direction-history__position {
+    min-width: 92px;
+    color: #718097;
+    font-size: .58rem;
+    font-weight: 750;
+    line-height: 1.15;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.oc-direction-history.is-loading .oc-direction-history__position {
+    color: #596b87;
+}
+
+.oc-item.is-viewing-history .oc-direction-history__position {
+    color: #526986;
+}
+
+@media (max-width: 760px) {
+    .oc-direction-history {
+        justify-content: flex-start;
+    }
+
+    .oc-direction-history__position {
+        min-width: 82px;
+    }
+}
+
+[data-bs-theme="dark"] .oc-direction-history__button {
+    border-color: #40516a;
+    background: #1b2738;
+    color: #aeb9c9;
+}
+
+[data-bs-theme="dark"] .oc-direction-history__button:hover:not(:disabled),
+[data-bs-theme="dark"] .oc-direction-history__button:focus-visible {
+    border-color: #60759a;
+    background: #233249;
+    color: #dce6f6;
+}
+
+[data-bs-theme="dark"] .oc-direction-history__position,
+[data-bs-theme="dark"] .oc-item.is-viewing-history .oc-direction-history__position {
+    color: #aeb9c9;
+}

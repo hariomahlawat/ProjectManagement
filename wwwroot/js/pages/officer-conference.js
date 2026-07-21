@@ -11,6 +11,7 @@ if (root) {
     let openTaskEditor = null;
     let stickyFrame = 0;
     let stickyState = false;
+    const directionHistoryState = new WeakMap();
 
     // Use separate enter and release thresholds so fractional-pixel layout changes near
     // the sticky boundary cannot repeatedly add and remove the state class.
@@ -250,7 +251,7 @@ if (root) {
         const headings = document.createElement('div');
         headings.className = 'oc-column-headings';
         headings.setAttribute('aria-hidden', 'true');
-        [itemLabel, 'Latest direction', 'Progress after direction'].forEach((text) => {
+        [itemLabel, 'Conference direction', 'Progress after direction'].forEach((text) => {
             const span = document.createElement('span');
             span.textContent = text;
             headings.append(span);
@@ -659,12 +660,81 @@ if (root) {
         });
     };
 
-    const buildDirection = (direction, item) => {
+    const readDirectionCount = (item) => {
+        const value = Number.parseInt(item?.dataset.directionCount ?? '0', 10);
+        return Number.isFinite(value) && value > 0 ? value : 0;
+    };
+
+    const buildDirectionHistoryNavigator = ({ sequenceNumber, totalDirections, isLatest }) => {
+        if (totalDirections <= 1) return null;
+
+        const navigator = document.createElement('div');
+        navigator.className = 'oc-direction-history';
+        navigator.dataset.ocDirectionHistory = '';
+        navigator.setAttribute('aria-label', 'Conference direction history navigation');
+
+        const older = document.createElement('button');
+        older.type = 'button';
+        older.className = 'oc-direction-history__button';
+        older.dataset.ocDirectionOlder = '';
+        older.setAttribute('aria-label', 'Show older conference direction');
+        older.title = 'Show older conference direction';
+        older.disabled = sequenceNumber <= 1;
+        const olderIcon = document.createElement('i');
+        olderIcon.className = 'bi bi-chevron-left';
+        olderIcon.setAttribute('aria-hidden', 'true');
+        older.append(olderIcon);
+
+        const position = document.createElement('span');
+        position.className = 'oc-direction-history__position';
+        position.dataset.ocDirectionPosition = '';
+        position.setAttribute('aria-live', 'polite');
+        position.textContent = `${isLatest ? 'Latest' : 'Historical'} · ${sequenceNumber} of ${totalDirections}`;
+
+        const newer = document.createElement('button');
+        newer.type = 'button';
+        newer.className = 'oc-direction-history__button';
+        newer.dataset.ocDirectionNewer = '';
+        newer.setAttribute('aria-label', 'Show newer conference direction');
+        newer.title = 'Show newer conference direction';
+        newer.disabled = sequenceNumber >= totalDirections;
+        const newerIcon = document.createElement('i');
+        newerIcon.className = 'bi bi-chevron-right';
+        newerIcon.setAttribute('aria-hidden', 'true');
+        newer.append(newerIcon);
+
+        navigator.append(older, position, newer);
+        return navigator;
+    };
+
+    const buildDirection = (direction, item, cycle = {}) => {
+        const totalDirections = Number.parseInt(
+            String(cycle.totalDirections ?? readDirectionCount(item) ?? 1),
+            10
+        ) || 1;
+        const sequenceNumber = Number.parseInt(
+            String(cycle.sequenceNumber ?? totalDirections),
+            10
+        ) || totalDirections;
+        const isLatest = cycle.isLatest ?? sequenceNumber === totalDirections;
+
         const wrapper = document.createElement('div');
         wrapper.className = 'oc-direction';
         wrapper.dataset.ocDirectionContent = '';
+        wrapper.dataset.directionSequence = String(sequenceNumber);
+        wrapper.dataset.directionTotal = String(totalDirections);
+        wrapper.dataset.directionLatest = String(isLatest);
+        wrapper.setAttribute(
+            'aria-label',
+            `${isLatest ? 'Latest' : 'Historical'} conference direction, ${sequenceNumber} of ${totalDirections}`
+        );
 
-        wrapper.setAttribute('aria-label', 'Latest conference direction');
+        const navigator = buildDirectionHistoryNavigator({
+            sequenceNumber,
+            totalDirections,
+            isLatest
+        });
+        if (navigator) wrapper.append(navigator);
 
         const instruction = document.createElement('div');
         instruction.className = 'oc-direction__instruction';
@@ -673,7 +743,7 @@ if (root) {
         body.className = 'oc-direction__body';
         body.dataset.ocDirectionBody = '';
         body.id = `oc-direction-body-${item.dataset.itemKind}-${item.dataset.itemId}`;
-        body.textContent = direction.body;
+        body.textContent = direction.body ?? '';
 
         const toggle = document.createElement('button');
         toggle.type = 'button';
@@ -781,10 +851,160 @@ if (root) {
         }
     };
 
-    const applySavedDirection = (item, payload) => {
+
+    const setHistoryNavigatorBusy = (item, busy, message = '') => {
+        const navigator = item?.querySelector('[data-oc-direction-history]');
+        if (!navigator) return;
+
+        navigator.classList.toggle('is-loading', busy);
+        navigator.querySelectorAll('button').forEach((button) => {
+            button.disabled = busy;
+        });
+        const position = navigator.querySelector('[data-oc-direction-position]');
+        if (position && message) position.textContent = message;
+    };
+
+    const renderDirectionCycle = (item, cycle) => {
+        if (!item || !cycle?.direction) return;
+
         const directionHost = item.querySelector('[data-oc-direction]');
         if (directionHost) {
-            const direction = buildDirection(payload.direction, item);
+            const direction = buildDirection(cycle.direction, item, cycle);
+            directionHost.replaceChildren(direction);
+            directionHost.classList.remove('oc-item__direction--empty');
+            configureDirectionToggle(direction);
+        }
+
+        renderProgress(item, cycle);
+        item.classList.toggle('is-viewing-history', !cycle.isLatest);
+        item.dataset.directionView = cycle.isLatest ? 'latest' : 'historical';
+    };
+
+    const loadDirectionHistory = async (item) => {
+        const existing = directionHistoryState.get(item);
+        if (existing?.status === 'loaded') return existing;
+        if (existing?.status === 'loading' && existing.promise) return existing.promise;
+
+        const state = existing ?? {
+            status: 'idle',
+            cycles: [],
+            currentIndex: Math.max(readDirectionCount(item) - 1, 0),
+            promise: null
+        };
+        state.status = 'loading';
+        setHistoryNavigatorBusy(item, true, 'Loading history…');
+
+        state.promise = (async () => {
+            const url = new URL(window.location.pathname, window.location.origin);
+            url.searchParams.set('handler', 'DirectionHistory');
+            url.searchParams.set('officerUserId', item.dataset.officerId ?? '');
+            url.searchParams.set('kind', item.dataset.itemKind ?? '');
+            url.searchParams.set('itemId', item.dataset.itemId ?? '');
+
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: { Accept: 'application/json' },
+                    credentials: 'same-origin',
+                    cache: 'no-store'
+                });
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    const reference = payload.traceId ? ` Reference: ${payload.traceId}.` : '';
+                    throw new Error(`${payload.message || 'Direction history could not be loaded.'}${reference}`);
+                }
+
+                const cycles = Array.isArray(payload.cycles) ? payload.cycles : [];
+                if (cycles.length === 0) {
+                    throw new Error('No conference-direction history is available for this item.');
+                }
+
+                state.status = 'loaded';
+                state.cycles = cycles;
+                state.currentIndex = cycles.length - 1;
+                item.dataset.directionCount = String(cycles.length);
+                setRowStatus(item, '');
+                return state;
+            } catch (error) {
+                state.status = 'error';
+                state.promise = null;
+                const message = error instanceof Error
+                    ? error.message
+                    : 'Direction history could not be loaded.';
+                setHistoryNavigatorBusy(item, false, 'History unavailable');
+                const navigator = item.querySelector('[data-oc-direction-history]');
+                const older = navigator?.querySelector('[data-oc-direction-older]');
+                if (older) {
+                    older.disabled = false;
+                    older.title = 'Retry loading older conference direction';
+                }
+                const newer = navigator?.querySelector('[data-oc-direction-newer]');
+                if (newer) newer.disabled = true;
+                setRowStatus(item, message, true);
+                throw error;
+            }
+        })();
+
+        directionHistoryState.set(item, state);
+        return state.promise;
+    };
+
+    const navigateDirectionHistory = async (item, delta) => {
+        if (!item || !Number.isInteger(delta) || delta === 0) return;
+
+        try {
+            const state = await loadDirectionHistory(item);
+            const nextIndex = Math.min(
+                state.cycles.length - 1,
+                Math.max(0, state.currentIndex + delta)
+            );
+            if (nextIndex === state.currentIndex && item.dataset.directionView) {
+                renderDirectionCycle(item, state.cycles[nextIndex]);
+                return;
+            }
+
+            state.currentIndex = nextIndex;
+            renderDirectionCycle(item, state.cycles[nextIndex]);
+            requestAnimationFrame(() => {
+                const preferredSelector = delta < 0
+                    ? '[data-oc-direction-older]'
+                    : '[data-oc-direction-newer]';
+                const alternateSelector = delta < 0
+                    ? '[data-oc-direction-newer]'
+                    : '[data-oc-direction-older]';
+                const preferred = item.querySelector(preferredSelector);
+                const alternate = item.querySelector(alternateSelector);
+                const focusTarget = preferred && !preferred.disabled ? preferred : alternate;
+                focusTarget?.focus({ preventScroll: true });
+            });
+        } catch {
+            // The row-local status and retry state are applied by loadDirectionHistory.
+        }
+    };
+
+    const returnToLatestDirection = (item) => {
+        const state = directionHistoryState.get(item);
+        if (state?.status !== 'loaded' || state.cycles.length === 0) return;
+
+        state.currentIndex = state.cycles.length - 1;
+        renderDirectionCycle(item, state.cycles[state.currentIndex]);
+    };
+
+    const applySavedDirection = (item, payload) => {
+        const nextDirectionCount = readDirectionCount(item) + 1;
+        item.dataset.directionCount = String(nextDirectionCount);
+        item.dataset.latestDirectionId = String(payload.direction?.id ?? '');
+        item.dataset.directionView = 'latest';
+        item.classList.remove('is-viewing-history');
+        directionHistoryState.delete(item);
+
+        const directionHost = item.querySelector('[data-oc-direction]');
+        if (directionHost) {
+            const direction = buildDirection(payload.direction, item, {
+                sequenceNumber: nextDirectionCount,
+                totalDirections: nextDirectionCount,
+                isLatest: true
+            });
             directionHost.replaceChildren(direction);
             directionHost.classList.remove('oc-item__direction--empty');
             configureDirectionToggle(direction);
@@ -912,6 +1132,18 @@ if (root) {
             return;
         }
 
+        const olderDirectionButton = event.target.closest('[data-oc-direction-older]');
+        if (olderDirectionButton) {
+            void navigateDirectionHistory(olderDirectionButton.closest('[data-oc-item]'), -1);
+            return;
+        }
+
+        const newerDirectionButton = event.target.closest('[data-oc-direction-newer]');
+        if (newerDirectionButton) {
+            void navigateDirectionHistory(newerDirectionButton.closest('[data-oc-item]'), 1);
+            return;
+        }
+
         const directionToggle = event.target.closest('[data-oc-direction-toggle]');
         if (directionToggle) {
             const direction = directionToggle.closest('[data-oc-direction-content]');
@@ -930,7 +1162,9 @@ if (root) {
 
         const addButton = event.target.closest('[data-oc-add]');
         if (addButton) {
-            openInlineEditor(addButton.closest('[data-oc-item]'));
+            const item = addButton.closest('[data-oc-item]');
+            returnToLatestDirection(item);
+            openInlineEditor(item);
             return;
         }
 

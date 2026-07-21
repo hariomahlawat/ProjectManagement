@@ -39,7 +39,7 @@ test('conference save surfaces server trace references and row-local feedback', 
 });
 
 test('conference direction uses a semantic label and simplified metadata', () => {
-    assert.match(source, /aria-label', 'Latest conference direction/);
+    assert.match(source, /Latest' : 'Historical'} conference direction/);
     assert.doesNotMatch(source, /oc-direction__label/);
     assert.doesNotMatch(source, /direction\.authorRole/);
     assert.doesNotMatch(source, /direction\.snapshotLabel/);
@@ -183,4 +183,45 @@ test('conference rows create column headings when the first idea or task is adde
     assert.match(source, /const ensureColumnHeadings/);
     assert.match(source, /ensureColumnHeadings\(section, 'Idea'\)/);
     assert.match(source, /ensureColumnHeadings\(section, 'Task'\)/);
+});
+
+test('conference direction history is loaded lazily and cached per row', () => {
+    assert.match(source, /const directionHistoryState = new WeakMap\(\)/);
+    assert.match(source, /handler', 'DirectionHistory'/);
+    assert.match(source, /directionHistoryState\.get\(item\)/);
+    assert.match(source, /existing\?\.status === 'loaded'/);
+    assert.match(source, /credentials: 'same-origin'/);
+    assert.match(source, /cache: 'no-store'/);
+});
+
+test('conference history navigation updates direction and progress as one cycle', () => {
+    assert.match(source, /const renderDirectionCycle/);
+    assert.match(source, /buildDirection\(cycle\.direction, item, cycle\)/);
+    assert.match(source, /renderProgress\(item, cycle\)/);
+    assert.match(source, /data-oc-direction-older/);
+    assert.match(source, /data-oc-direction-newer/);
+});
+
+test('issuing a further direction returns the row to latest and invalidates cached history', () => {
+    assert.match(source, /returnToLatestDirection\(item\)/);
+    assert.match(source, /directionHistoryState\.delete\(item\)/);
+    assert.match(source, /item\.dataset\.directionView = 'latest'/);
+    assert.match(source, /const nextDirectionCount = readDirectionCount\(item\) \+ 1/);
+});
+
+test('conference history failures remain row-local and retain a retry path', () => {
+    assert.match(source, /History unavailable/);
+    assert.match(source, /Retry loading older conference direction/);
+    assert.match(source, /setRowStatus\(item, message, true\)/);
+});
+
+test('conference column terminology supports historical direction browsing', () => {
+    assert.match(source, /'Conference direction'/);
+    assert.doesNotMatch(source, /\[itemLabel, 'Latest direction'/);
+});
+
+
+test('conference history navigation restores keyboard focus after replacing row controls', () => {
+    assert.match(source, /const preferredSelector = delta < 0/);
+    assert.match(source, /focusTarget\?\.focus\(\{ preventScroll: true \}\)/);
 });

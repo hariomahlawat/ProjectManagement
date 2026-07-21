@@ -66,6 +66,7 @@ public sealed class OfficerConferenceItemVm
     public WorkspaceRecordHealthVm? RecordHealth { get; init; }
 
     public ConferenceDirectionVm? LatestDirection { get; init; }
+    public int DirectionCount { get; init; }
     public IReadOnlyList<ConferenceProgressEntryVm> ProgressEntries { get; init; }
         = Array.Empty<ConferenceProgressEntryVm>();
     public string? EmptyProgressText { get; init; }
@@ -96,6 +97,25 @@ public sealed class ConferenceDirectionVm
     public string SnapshotValue { get; init; } = string.Empty;
 }
 
+
+public sealed class ConferenceDirectionCycleVm
+{
+    public ConferenceDirectionVm Direction { get; init; } = new();
+    public IReadOnlyList<ConferenceProgressEntryVm> ProgressEntries { get; init; }
+        = Array.Empty<ConferenceProgressEntryVm>();
+    public string? EmptyProgressText { get; init; }
+    public int SequenceNumber { get; init; }
+    public int TotalDirections { get; init; }
+    public bool IsLatest { get; init; }
+}
+
+public sealed class ConferenceDirectionHistoryVm
+{
+    public ConferenceItemKind Kind { get; init; }
+    public int ItemId { get; init; }
+    public IReadOnlyList<ConferenceDirectionCycleVm> Cycles { get; init; }
+        = Array.Empty<ConferenceDirectionCycleVm>();
+}
 
 public sealed class AddConferenceDirectionInput
 {

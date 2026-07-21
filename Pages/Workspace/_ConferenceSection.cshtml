@@ -272,7 +272,7 @@
     {
         <div class="oc-column-headings" aria-hidden="true">
             <span>@itemColumnLabel</span>
-            <span>Latest direction</span>
+            <span>Conference direction</span>
             <span>Progress after direction</span>
         </div>
         <div class="oc-item-list" data-oc-item-list>
@@ -292,7 +292,7 @@
     @if (isIdeaSection)
     {
         <template data-oc-idea-item-template>
-            <article class="oc-item" data-oc-item data-officer-id="" data-item-kind="@((int)ConferenceItemKind.ProjectIdea)" data-item-id="">
+            <article class="oc-item" data-oc-item data-officer-id="" data-item-kind="@((int)ConferenceItemKind.ProjectIdea)" data-item-id="" data-direction-count="0" data-latest-direction-id="">
                 <div class="oc-item__main">
                     <div class="oc-item__title-row">
                         <a href="" target="_blank" rel="noopener" title="Open idea" data-oc-new-idea-title></a>
@@ -358,7 +358,7 @@
     @if (isTaskSection)
     {
         <template data-oc-task-item-template>
-            <article class="oc-item" data-oc-item data-officer-id="" data-item-kind="@((int)ConferenceItemKind.ActionTask)" data-item-id="">
+            <article class="oc-item" data-oc-item data-officer-id="" data-item-kind="@((int)ConferenceItemKind.ActionTask)" data-item-id="" data-direction-count="0" data-latest-direction-id="">
                 <div class="oc-item__main">
                     <div class="oc-item__title-row">
                         <a href="" target="_blank" rel="noopener" title="Open task" data-oc-new-task-title></a>

@@ -23,13 +23,16 @@
     var directionCellClass = direction is null
         ? "oc-item__direction oc-item__direction--empty"
         : "oc-item__direction";
+    var directionCount = Math.Max(item.DirectionCount, direction is null ? 0 : 1);
 }
 
 <article class="oc-item @(item.RequiresAttention ? "oc-item--attention" : string.Empty)"
          data-oc-item
          data-officer-id="@Model.OfficerUserId"
          data-item-kind="@((int)item.Kind)"
-         data-item-id="@item.ItemId">
+         data-item-id="@item.ItemId"
+         data-direction-count="@directionCount"
+         data-latest-direction-id="@(direction?.Id.ToString() ?? string.Empty)">
     <div class="oc-item__main">
         <div class="oc-item__title-row">
             <a href="@item.OpenUrl" target="_blank" rel="noopener" title="@openLabel">
@@ -98,7 +101,37 @@
         }
         else
         {
-            <div class="oc-direction" data-oc-direction-content aria-label="Latest conference direction">
+            <div class="oc-direction"
+                 data-oc-direction-content
+                 data-direction-sequence="@directionCount"
+                 data-direction-total="@directionCount"
+                 data-direction-latest="true"
+                 aria-label="Latest conference direction, @directionCount of @directionCount">
+                @if (directionCount > 1)
+                {
+                    <div class="oc-direction-history"
+                         data-oc-direction-history
+                         aria-label="Conference direction history navigation">
+                        <button type="button"
+                                class="oc-direction-history__button"
+                                data-oc-direction-older
+                                aria-label="Show older conference direction"
+                                title="Show older conference direction">
+                            <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                        </button>
+                        <span class="oc-direction-history__position"
+                              data-oc-direction-position
+                              aria-live="polite">Latest · @directionCount of @directionCount</span>
+                        <button type="button"
+                                class="oc-direction-history__button"
+                                data-oc-direction-newer
+                                aria-label="Show newer conference direction"
+                                title="Show newer conference direction"
+                                disabled>
+                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                }
                 <div class="oc-direction__instruction">
                     <p id="@directionBodyId" class="oc-direction__body" data-oc-direction-body>@direction.Body</p>
                     <button type="button"

@@ -13,4 +13,11 @@ public interface IOfficerConferenceReadService
         string requestingUserId,
         string officerUserId,
         CancellationToken cancellationToken = default);
+
+    Task<ConferenceDirectionHistoryVm?> GetDirectionHistoryAsync(
+        string requestingUserId,
+        string officerUserId,
+        ConferenceItemKind kind,
+        int itemId,
+        CancellationToken cancellationToken = default);
 }
