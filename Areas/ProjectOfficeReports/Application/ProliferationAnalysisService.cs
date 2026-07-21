@@ -317,14 +317,16 @@ public sealed class ProliferationAnalysisService
                 break;
         }
 
+        // Order while the query still targets mapped entity properties. EF Core cannot
+        // translate ordering by a member of the projected ProjectInfo constructor.
         var projects = await query
+            .OrderBy(x => x.Name)
             .Select(x => new ProjectInfo(
                 x.Id,
                 x.Name,
                 x.CaseFileNumber,
                 x.TechnicalCategoryId,
                 x.TechnicalCategory != null ? x.TechnicalCategory.Name : "Not categorised"))
-            .OrderBy(x => x.Name)
             .ToListAsync(cancellationToken);
 
         if (request.Scope == ProliferationAnalysisScope.SelectedProjects)
