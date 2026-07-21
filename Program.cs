@@ -66,6 +66,7 @@ using ProjectManagement.Services.Dashboard;
 using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Documents;
 using ProjectManagement.Services.Ffc;
+using ProjectManagement.Services.Ffc.Exports;
 using ProjectManagement.Services.Ffc.Presentation;
 using ProjectManagement.Services.IndustryPartners;
 using ProjectManagement.Services.Navigation;
@@ -729,6 +730,9 @@ builder.Services.AddSingleton<IFfcPresentationMapRenderer, FfcPresentationMapRen
 builder.Services.AddSingleton<IFfcSlideComposer, FfcSlideComposer>();
 builder.Services.AddScoped<IFfcProgressService, FfcProgressService>();
 builder.Services.AddScoped<IFfcQueryService, FfcQueryService>();
+builder.Services.AddSingleton<FfcDetailedWordDocumentBuilder>();
+builder.Services.AddSingleton<FfcDetailedExcelWorkbookBuilder>();
+builder.Services.AddScoped<IFfcDetailedTableExportService, FfcDetailedTableExportService>();
 builder.Services.AddScoped<IFfcRecordWorkspaceService, FfcRecordWorkspaceService>();
 builder.Services.AddScoped<IFfcRecordCommandService, FfcRecordCommandService>();
 builder.Services.AddScoped<IFfcProjectCommandService, FfcProjectCommandService>();
