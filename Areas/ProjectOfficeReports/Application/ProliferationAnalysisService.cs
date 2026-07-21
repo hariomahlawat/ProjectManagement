@@ -13,15 +13,18 @@ public sealed class ProliferationAnalysisService
     private readonly ApplicationDbContext _db;
     private readonly ProliferationAggregateReadService _aggregateReadService;
     private readonly ProliferationAnalysisExcelBuilder _excelBuilder;
+    private readonly ILogger<ProliferationAnalysisService> _logger;
 
     public ProliferationAnalysisService(
         ApplicationDbContext db,
         ProliferationAggregateReadService aggregateReadService,
-        ProliferationAnalysisExcelBuilder excelBuilder)
+        ProliferationAnalysisExcelBuilder excelBuilder,
+        ILogger<ProliferationAnalysisService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _aggregateReadService = aggregateReadService ?? throw new ArgumentNullException(nameof(aggregateReadService));
         _excelBuilder = excelBuilder ?? throw new ArgumentNullException(nameof(excelBuilder));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<ProliferationAnalysisResultDto> RunAsync(
@@ -34,14 +37,6 @@ public sealed class ProliferationAnalysisService
         var scope = await ResolveScopeAsync(request, cancellationToken);
         var projectIds = scope.Projects.Select(x => x.Id).ToArray();
         var projectIdSet = projectIds.ToHashSet();
-        var projectMap = scope.Projects.ToDictionary(x => x.Id);
-
-        var unitRows = await BuildUnitRowsAsync(request, projectIds, projectMap, cancellationToken);
-        var unitQuantity = unitRows.Sum(x => x.Quantity);
-        var receivingUnitCount = unitRows
-            .Select(x => x.UnitName)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count();
 
         IReadOnlyList<ProliferationAnalysisProjectRowDto> projectRows;
         int annualQuantity;
@@ -84,6 +79,36 @@ public sealed class ProliferationAnalysisService
         var total = checked(sddTotal + abwTotal);
         var positiveRows = projectRows.Where(x => x.TotalQuantity > 0).ToList();
 
+        // Unit-level data is deliberately queried only on demand. A failure in the
+        // supplementary unit query must never prevent an authoritative total report.
+        IReadOnlyList<ProliferationAnalysisUnitRowDto> unitRows =
+            Array.Empty<ProliferationAnalysisUnitRowDto>();
+        var unitDataLoaded = false;
+        var unitQuantity = 0;
+        var receivingUnitCount = 0;
+        var hasUnitBreakdown = detailedQuantity > 0;
+
+        if (request.IncludeUnitBreakdown)
+        {
+            unitDataLoaded = true;
+
+            if (hasUnitBreakdown)
+            {
+                var projectMap = scope.Projects.ToDictionary(x => x.Id);
+                unitRows = await BuildUnitRowsAsync(
+                    request,
+                    projectIds,
+                    projectMap,
+                    cancellationToken);
+
+                unitQuantity = unitRows.Sum(x => x.Quantity);
+                receivingUnitCount = unitRows
+                    .Select(x => x.UnitName)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count();
+            }
+        }
+
         var summary = new ProliferationAnalysisSummaryDto
         {
             TotalProliferation = total,
@@ -98,12 +123,17 @@ public sealed class ProliferationAnalysisService
             ApprovedAnnualQuantity = annualQuantity,
             ApprovedDetailedQuantity = detailedQuantity,
             UnitBreakdownQuantity = unitQuantity,
-            HasUnitBreakdown = unitRows.Count > 0
+            HasUnitBreakdown = hasUnitBreakdown,
+            UnitDataLoaded = unitDataLoaded
         };
 
-        IReadOnlyList<ProliferationAnalysisUnitRowDto> returnedUnits = request.IncludeUnitBreakdown
-            ? unitRows
-            : Array.Empty<ProliferationAnalysisUnitRowDto>();
+        _logger.LogDebug(
+            "Generated proliferation analysis. Scope: {Scope}; Period: {Period}; Projects: {ProjectCount}; Total: {Total}; UnitDataLoaded: {UnitDataLoaded}",
+            request.Scope,
+            request.PeriodMode,
+            projectIds.Length,
+            total,
+            unitDataLoaded);
 
         return new ProliferationAnalysisResultDto
         {
@@ -111,10 +141,15 @@ public sealed class ProliferationAnalysisService
             PeriodLabel = BuildPeriodLabel(request),
             SourceLabel = request.Source?.ToDisplayName() ?? "All sources",
             CalculationBasis = calculationBasis,
-            CoverageMessage = BuildCoverageMessage(request, annualQuantity, detailedQuantity, unitQuantity),
+            CoverageMessage = BuildCoverageMessage(
+                request,
+                annualQuantity,
+                detailedQuantity,
+                unitQuantity,
+                unitDataLoaded),
             Summary = summary,
             Projects = projectRows,
-            Units = returnedUnits
+            Units = unitRows
         };
     }
 
@@ -149,18 +184,18 @@ public sealed class ProliferationAnalysisService
     {
         if (!Enum.IsDefined(request.Scope))
         {
-            throw new InvalidOperationException("Select a valid analysis scope.");
+            throw new ProliferationAnalysisValidationException("Select a valid analysis scope.");
         }
 
         if (!Enum.IsDefined(request.PeriodMode))
         {
-            throw new InvalidOperationException("Select a valid period.");
+            throw new ProliferationAnalysisValidationException("Select a valid period.");
         }
 
         if (request.Scope == ProliferationAnalysisScope.TechnicalCategory
             && (!request.TechnicalCategoryId.HasValue || request.TechnicalCategoryId.Value <= 0))
         {
-            throw new InvalidOperationException("Select a technical category.");
+            throw new ProliferationAnalysisValidationException("Select a technical category.");
         }
 
         var selectedIds = (request.ProjectIds ?? Array.Empty<int>())
@@ -170,12 +205,12 @@ public sealed class ProliferationAnalysisService
 
         if (request.Scope == ProliferationAnalysisScope.SelectedProjects && selectedIds.Length == 0)
         {
-            throw new InvalidOperationException("Select at least one simulator.");
+            throw new ProliferationAnalysisValidationException("Select at least one simulator.");
         }
 
         if (selectedIds.Length > MaximumSelectedProjects)
         {
-            throw new InvalidOperationException($"Select no more than {MaximumSelectedProjects} simulators.");
+            throw new ProliferationAnalysisValidationException($"Select no more than {MaximumSelectedProjects} simulators.");
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -190,44 +225,44 @@ public sealed class ProliferationAnalysisService
             case ProliferationAnalysisPeriodMode.SingleYear:
                 if (!request.Year.HasValue || !ProliferationYearPolicy.IsValid(request.Year.Value, now))
                 {
-                    throw new InvalidOperationException($"Select a year between {minimumYear} and {maximumYear}.");
+                    throw new ProliferationAnalysisValidationException($"Select a year between {minimumYear} and {maximumYear}.");
                 }
                 break;
 
             case ProliferationAnalysisPeriodMode.YearRange:
                 if (!request.FromYear.HasValue || !request.ToYear.HasValue)
                 {
-                    throw new InvalidOperationException("Select both the first and last year.");
+                    throw new ProliferationAnalysisValidationException("Select both the first and last year.");
                 }
 
                 if (!ProliferationYearPolicy.IsValid(request.FromYear.Value, now)
                     || !ProliferationYearPolicy.IsValid(request.ToYear.Value, now))
                 {
-                    throw new InvalidOperationException($"Select years between {minimumYear} and {maximumYear}.");
+                    throw new ProliferationAnalysisValidationException($"Select years between {minimumYear} and {maximumYear}.");
                 }
 
                 if (request.FromYear.Value > request.ToYear.Value)
                 {
-                    throw new InvalidOperationException("The first year must be before or equal to the last year.");
+                    throw new ProliferationAnalysisValidationException("The first year must be before or equal to the last year.");
                 }
                 break;
 
             case ProliferationAnalysisPeriodMode.CustomDates:
                 if (!request.FromDate.HasValue || !request.ToDate.HasValue)
                 {
-                    throw new InvalidOperationException("Select both the start and end date.");
+                    throw new ProliferationAnalysisValidationException("Select both the start and end date.");
                 }
 
                 if (request.FromDate.Value > request.ToDate.Value)
                 {
-                    throw new InvalidOperationException("The start date must be before or equal to the end date.");
+                    throw new ProliferationAnalysisValidationException("The start date must be before or equal to the end date.");
                 }
 
                 var minimumDate = new DateOnly(minimumYear, 1, 1);
                 var maximumDate = new DateOnly(maximumYear, 12, 31);
                 if (request.FromDate.Value < minimumDate || request.ToDate.Value > maximumDate)
                 {
-                    throw new InvalidOperationException(
+                    throw new ProliferationAnalysisValidationException(
                         $"Select dates between {minimumDate:dd MMM yyyy} and {maximumDate:dd MMM yyyy}.");
                 }
                 break;
@@ -259,7 +294,7 @@ public sealed class ProliferationAnalysisService
 
                 if (string.IsNullOrWhiteSpace(categoryName))
                 {
-                    throw new InvalidOperationException("The selected technical category is not available.");
+                    throw new ProliferationAnalysisValidationException("The selected technical category is not available.");
                 }
 
                 query = query.Where(x => x.TechnicalCategoryId == categoryId);
@@ -297,7 +332,7 @@ public sealed class ProliferationAnalysisService
             var expected = (request.ProjectIds ?? Array.Empty<int>()).Where(x => x > 0).Distinct().Count();
             if (projects.Count != expected)
             {
-                throw new InvalidOperationException(
+                throw new ProliferationAnalysisValidationException(
                     "One or more selected simulators are no longer eligible for proliferation reporting. Remove them and try again.");
             }
         }
@@ -508,8 +543,38 @@ public sealed class ProliferationAnalysisService
         ProliferationAnalysisRequestDto request,
         int annualQuantity,
         int detailedQuantity,
-        int unitQuantity)
+        int unitQuantity,
+        bool unitDataLoaded)
     {
+        if (!unitDataLoaded)
+        {
+            if (request.PeriodMode == ProliferationAnalysisPeriodMode.CustomDates)
+            {
+                return detailedQuantity > 0
+                    ? $"This exact-date report contains {detailedQuantity:N0} approved detailed units. Load the unit-wise breakdown when receiving-unit names are required."
+                    : "No approved detailed entries were recorded for the selected dates.";
+            }
+
+            if (annualQuantity > 0 && detailedQuantity > 0)
+            {
+                return $"Approved annual records in scope total {annualQuantity:N0} and do not contain receiving-unit names. "
+                       + $"Approved detailed entries total {detailedQuantity:N0}; their unit-wise breakdown can be loaded when required. "
+                       + "The reported total may differ because the configured counting rule determines which records contribute.";
+            }
+
+            if (annualQuantity > 0)
+            {
+                return $"Approved annual records in scope total {annualQuantity:N0}. Annual records do not contain receiving-unit names.";
+            }
+
+            if (detailedQuantity > 0)
+            {
+                return $"Approved detailed entries in scope total {detailedQuantity:N0}. Load the unit-wise breakdown when receiving-unit names are required.";
+            }
+
+            return "No approved proliferation was recorded for the selected scope and period.";
+        }
+
         var detailedWithoutUnitName = Math.Max(0, detailedQuantity - unitQuantity);
 
         if (request.PeriodMode == ProliferationAnalysisPeriodMode.CustomDates)

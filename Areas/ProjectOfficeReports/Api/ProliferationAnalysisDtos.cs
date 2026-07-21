@@ -72,6 +72,8 @@ public sealed class ProliferationAnalysisSummaryDto
     public int UnitBreakdownQuantity { get; init; }
 
     public bool HasUnitBreakdown { get; init; }
+
+    public bool UnitDataLoaded { get; init; }
 }
 
 public sealed class ProliferationAnalysisProjectRowDto

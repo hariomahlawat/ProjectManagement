@@ -54,6 +54,7 @@
         abw: root.querySelector('#pf-analysis-abw'),
         projectCount: root.querySelector('#pf-analysis-project-count'),
         unitCount: root.querySelector('#pf-analysis-unit-count'),
+        unitCountNote: root.querySelector('#pf-analysis-unit-count-note'),
         coverage: root.querySelector('#pf-analysis-coverage'),
         projectBody: root.querySelector('#pf-analysis-project-body'),
         loadUnits: root.querySelector('#pf-analysis-load-units'),
@@ -185,40 +186,82 @@
         setStatus("Report options changed. Generate the report again to update the results.");
     }
 
+    function antiforgeryHeaders() {
+        if (!token) return {};
+        return {
+            "X-CSRF-TOKEN": token,
+            "RequestVerificationToken": token
+        };
+    }
+
+    function ensureAntiforgeryToken() {
+        if (token) return;
+        throw new Error("The secure report session could not be initialised. Refresh the page and try again.");
+    }
+
     async function fetchJson(url, options = {}) {
+        const hasBody = options.body !== undefined && options.body !== null;
+        if (hasBody) ensureAntiforgeryToken();
+
         const response = await fetch(url, {
             credentials: "same-origin",
+            ...options,
             headers: {
                 Accept: "application/json",
-                ...(options.body ? { "Content-Type": "application/json" } : {}),
-                ...(token ? { "X-CSRF-TOKEN": token } : {}),
+                ...(hasBody ? { "Content-Type": "application/json" } : {}),
+                ...(hasBody ? antiforgeryHeaders() : {}),
                 ...(options.headers || {})
-            },
-            ...options
+            }
         });
 
         if (!response.ok) {
             throw await createSafeError(response);
         }
 
+        if (response.status === 204) return null;
+
+        const contentType = response.headers.get("content-type") || "";
+        if (!contentType.includes("json")) {
+            throw new Error("The server returned an unexpected response. Refresh the page and try again.");
+        }
+
         return response.json();
     }
 
     async function createSafeError(response) {
-        let message = "The report could not be generated. Try again.";
+        let payload = null;
         try {
             const contentType = response.headers.get("content-type") || "";
-            if (contentType.includes("json")) {
-                const payload = await response.json();
-                const candidate = payload?.detail || payload?.message || payload?.title;
-                if (candidate && String(candidate).length <= 500) message = String(candidate);
-            }
+            if (contentType.includes("json")) payload = await response.json();
         } catch {
-            // Never display arbitrary server response bodies.
+            payload = null;
         }
+
+        const traceId = payload?.traceId || payload?.extensions?.traceId || null;
+        const candidate = payload?.detail || payload?.message || payload?.title || "";
+        let message;
+
+        if (candidate && String(candidate).length <= 500) {
+            message = String(candidate);
+        } else if (response.status === 400) {
+            message = "The report request could not be validated. Refresh the page and try again.";
+        } else if (response.status === 401) {
+            message = "Your session has expired. Sign in again and retry the report.";
+        } else if (response.status === 403) {
+            message = "You are not authorised to generate this report.";
+        } else if (response.status === 404 || response.status === 405) {
+            message = "The reporting service is not available. Confirm that the latest report files have been deployed.";
+        } else if (response.status >= 500) {
+            message = "The report could not be generated because of a server error.";
+        } else {
+            message = `The report request failed (${response.status}).`;
+        }
+
+        if (traceId) message += ` Reference: ${traceId}`;
 
         const error = new Error(message);
         error.status = response.status;
+        error.traceId = traceId;
         return error;
     }
 
@@ -471,16 +514,34 @@
         elements.sdd.textContent = formatNumber(summary.sddTotal);
         elements.abw.textContent = formatNumber(summary.abw515Total);
         elements.projectCount.textContent = formatNumber(summary.projectCount);
-        elements.unitCount.textContent = formatNumber(summary.receivingUnitCount);
+
+        const unitDataLoaded = Boolean(summary.unitDataLoaded || includeUnits);
+        const hasUnitBreakdown = Boolean(summary.hasUnitBreakdown);
+        if (unitDataLoaded) {
+            elements.unitCount.textContent = formatNumber(summary.receivingUnitCount);
+            if (elements.unitCountNote) {
+                elements.unitCountNote.textContent = hasUnitBreakdown
+                    ? "From approved detailed entries"
+                    : "No unit-level entries";
+            }
+        } else {
+            elements.unitCount.textContent = "—";
+            if (elements.unitCountNote) {
+                elements.unitCountNote.textContent = hasUnitBreakdown
+                    ? "Load unit-wise breakdown"
+                    : "Not available in annual records";
+            }
+        }
+
         elements.basis.textContent = result.calculationBasis || "";
         elements.coverage.innerHTML = `<i class="bi bi-info-circle" aria-hidden="true"></i><span>${escapeHtml(result.coverageMessage || "")}</span>`;
 
         renderProjectRows(Array.isArray(result.projects) ? result.projects : []);
 
-        if (includeUnits) {
+        if (unitDataLoaded) {
             renderUnitRows(Array.isArray(result.units) ? result.units : []);
         } else {
-            resetUnitSection(Boolean(summary.hasUnitBreakdown));
+            resetUnitSection(hasUnitBreakdown);
         }
     }
 
@@ -561,6 +622,13 @@
             return;
         }
 
+        try {
+            ensureAntiforgeryToken();
+        } catch (error) {
+            setStatus(error.message, true);
+            return;
+        }
+
         elements.export.disabled = true;
         const originalHtml = elements.export.innerHTML;
         elements.export.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Exporting…';
@@ -573,7 +641,7 @@
                 headers: {
                     Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     "Content-Type": "application/json",
-                    ...(token ? { "X-CSRF-TOKEN": token } : {})
+                    ...antiforgeryHeaders()
                 },
                 body: JSON.stringify(request)
             });
