@@ -1,77 +1,146 @@
-# Conference Review — Direction History Navigation
+# Simulators Compendium — Professional Hardening
 
-## Deployment
+This package is prepared as a **ready-to-replace implementation** for the PRISM ERP source tree.
 
-Apply this package on top of the current Conference Review implementation, including the sticky-header jitter correction.
+## What this phase implements
 
-Copy the supplied folders into the directory containing `ProjectManagement.csproj`, preserve the folder structure, and replace the matching files.
+### Publication preflight
 
-No database migration, NuGet package, npm package, service registration, or configuration change is required.
+- Shows eligible simulators, completed-project scope, category count and selected-photo coverage.
+- Reports completed projects excluded because proliferation availability is disabled or not recorded.
+- Detects and displays:
+  - missing photographs;
+  - missing Arm/Service;
+  - missing or zero proliferation cost;
+  - missing description;
+  - missing completion year; and
+  - likely `AI`/`Al` title-entry errors.
+- Provides direct links to the project, photograph manager and completed-project editor where the user is authorised.
+- Does not block generation when warnings remain; the PDF uses deliberate placeholders.
+
+### Photograph selection and loading
+
+- Uses the explicit project cover photograph when valid.
+- Otherwise uses a photograph marked as cover.
+- Otherwise selects the best available project photograph, preferring non-low-resolution images.
+- Loads a PDF-friendly configured derivative first and falls back safely.
+- Preserves cancellation and logs missing or unreadable derivative files rather than swallowing failures silently.
+
+### PDF publication
+
+- Institutional SDD cover with title, subtitle, as-on date and portfolio summary.
+- Optional handling/classification marking repeated on the cover, page header and footer.
+- Category index with clickable simulator names and printed page references.
+- Repeating category/index headers when a category spans pages.
+- Simulator pages with:
+  - technical category;
+  - completion year;
+  - Arm/Service;
+  - indicative proliferation cost in ₹ lakh;
+  - project reference, where recorded;
+  - cost remarks, where recorded;
+  - project photograph or a deliberate no-photo placeholder; and
+  - Markdown-formatted description.
+- PDF document metadata.
+- Standard ligatures disabled to improve searchable/copyable text for words such as `completion`, `visualisation` and `firing`.
+- Professional PRISM footer and page numbering.
+
+### Web UX
+
+- Compact, professional readiness dashboard.
+- Controlled export error message.
+- Double-submit protection and generation progress state.
+- Expandable warning table without permanent filters.
+- Responsive and print-specific styling.
 
 ## Replacement files
 
-- `Pages/Workspace/Conference.cshtml.cs`
-- `Pages/Workspace/_ConferenceItemRow.cshtml`
-- `Pages/Workspace/_ConferenceSection.cshtml`
-- `Services/Workspace/IOfficerConferenceReadService.cs`
-- `Services/Workspace/OfficerConferenceReadService.cs`
-- `ViewModels/Workspace/OfficerConferenceViewModels.cs`
-- `wwwroot/css/officer-conference.css`
-- `wwwroot/js/pages/officer-conference.js`
-- `wwwroot/js/pages/officer-conference.test.js`
-- `ProjectManagement.Tests/OfficerConferencePageTests.cs`
-- `ProjectManagement.Tests/OfficerConferenceReadServiceTests.cs`
+Copy these paths over the corresponding project files:
 
-## Implemented behaviour
+```text
+Configuration/CompendiumPdfOptions.cs
+Pages/Projects/Compendium/Index.cshtml
+Pages/Projects/Compendium/Index.cshtml.cs
+Services/Compendiums/CompendiumDtos.cs
+Services/Compendiums/ICompendiumExportService.cs
+Services/Compendiums/CompendiumExportService.cs
+Services/Compendiums/CompendiumReadService.cs
+Utilities/Reporting/CompendiumPdfReportBuilder.cs
+Utilities/Reporting/MarkdownPdfRenderer.cs
+wwwroot/css/pages/projects-compendium.css
+wwwroot/js/pages/projects-compendium.js
+ProjectManagement.Tests/Compendiums/CompendiumPublicationTests.cs
+```
 
-- Renames the shared column heading to **Conference direction**.
-- Shows compact older/newer navigation only when an item has more than one direction.
-- Opens every row on the latest direction.
-- Loads one item's history only when the user first requests an older direction.
-- Caches the loaded history independently for each row.
-- Displays `Latest · n of n` or `Historical · x of n` with accessible controls.
-- Updates the direction and its associated progress together.
-- Assigns progress to the correct direction cycle: after that direction and before the next direction.
-- Applies the existing responsible-functionary semantics for projects, ideas, and other tasks.
-- Keeps Action Queue, pending-direction counts, and closed-loop behaviour tied exclusively to the latest direction.
-- Validates that the selected item belongs to the selected officer's authorised current workload.
-- Uses row-local loading, retry, and error states; a failed history request does not disturb other rows.
-- Returns to the true latest direction before opening **Issue further direction**.
-- Invalidates cached history and advances the count after a new direction is saved.
-- Preserves the invariant-height sticky-header jitter fix.
+## Configuration
 
-## Local validation
+Merge the supplied `appsettings.CompendiumPdf.fragment.json` into the root `appsettings.json`.
+Do not replace the full application configuration file.
 
-From the project root, stop the running application and execute:
+Recommended section:
+
+```json
+"CompendiumPdf": {
+  "Title": "SDD Simulators Compendium",
+  "Subtitle": "Available for Proliferation",
+  "UnitDisplayName": "Simulator Development Division",
+  "IssuerDisplayName": "Simulator Development Division",
+  "FileNamePrefix": "SDD_Simulators_Compendium",
+  "MiscCategoryNames": [ "Misc", "Miscellaneous" ],
+  "CoverPhotoDerivativeKey": "md",
+  "PreferredPhotoFormat": "jpg",
+  "PreferWebp": false,
+  "ShowMissingPhotoPlaceholder": true
+}
+```
+
+## Service registration
+
+No new registration is required. The existing registrations remain valid:
+
+```csharp
+builder.Services.AddScoped<ICompendiumReadService, CompendiumReadService>();
+builder.Services.AddScoped<ICompendiumExportService, CompendiumExportService>();
+builder.Services.AddScoped<ICompendiumPdfReportBuilder, CompendiumPdfReportBuilder>();
+```
+
+`IClock`, `IProjectPhotoService`, `IWebHostEnvironment` and typed loggers are already resolved through the existing application container.
+
+## Database
+
+- No database migration.
+- No model/schema change.
+- Existing completed-project, technical-status, production-cost and project-photo records are used.
+
+## Build and verification
+
+From the project directory:
 
 ```powershell
 Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
-npm ci
-npm test
+dotnet restore .\ProjectManagement.csproj
 dotnet build .\ProjectManagement.csproj
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
 ```
 
-Then reload Conference Review with `Ctrl+F5`.
+Then:
 
-## Functional verification
+1. Open `/Projects/Compendium`.
+2. Confirm the preflight counts and warning links.
+3. Generate without a marking and verify the PDF.
+4. Generate with an authorised marking and confirm it is repeated correctly.
+5. Confirm photographs appear for projects with any usable project photograph, even when no explicit cover was selected.
+6. Search the PDF for `completion`, `visualisation`, `firing` and `proliferation`.
+7. Verify index links and printed page numbers.
+8. Check a long Markdown description and a project with no photograph.
 
-1. An item with one direction shows no navigation controls.
-2. An item with multiple directions opens on `Latest · n of n`.
-3. The left arrow shows the immediately older direction and its bounded progress.
-4. The right arrow returns toward the latest direction.
-5. Boundary arrows are disabled at the oldest and latest positions.
-6. Different rows retain independent history positions.
-7. A history-load failure leaves the latest direction visible and offers a local retry.
-8. **Issue further direction** returns the row to latest before opening the editor.
-9. After saving, the new direction is shown as latest and the historical cache is refreshed on next use.
-10. Project Officer Action Queue and pending-direction counts remain based on the latest direction only.
+Use **Ctrl+F5** after deployment so the versioned CSS and JavaScript are refreshed.
 
-## Validation completed while preparing this package
+## Preparation validation completed
 
-- Full repository JavaScript suite: **226/226 passed**.
-- Conference Review JavaScript tests: **33/33 passed**.
-- JavaScript syntax checks passed.
-- CSS parsed successfully with no syntax errors.
-- Modified C# files parsed successfully with the C# syntax parser.
-- The preparation environment did not contain the .NET SDK; run the .NET build and test commands locally before publication.
+- C# files parsed successfully with a C# syntax parser.
+- JavaScript syntax check passed under Node.js.
+- CSS parsed without syntax errors.
+- Replacement paths and patch application were checked against the supplied source snapshot.
+
+The preparation container did not have a functioning .NET SDK or NuGet network access, so the final `dotnet build` and runtime QuestPDF test must be run in Visual Studio/local build environment using the commands above.

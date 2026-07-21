@@ -2,8 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using Microsoft.AspNetCore.Hosting;
-using QuestPDF.Drawing;
+using Microsoft.Extensions.Logging;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -18,9 +19,13 @@ public interface ICompendiumPdfReportBuilder
 
 public sealed record CompendiumPdfReportContext(
     string Title,
+    string Subtitle,
     string UnitDisplayName,
+    string IssuerDisplayName,
+    string? HandlingMarking,
     DateTimeOffset GeneratedAtUtc,
-    IReadOnlyList<CompendiumPdfCategorySection> Categories);
+    IReadOnlyList<CompendiumPdfCategorySection> Categories,
+    bool ShowMissingPhotoPlaceholder);
 
 public sealed record CompendiumPdfCategorySection(
     string CategoryName,
@@ -29,467 +34,636 @@ public sealed record CompendiumPdfCategorySection(
 public sealed record CompendiumPdfProjectSection(
     int ProjectId,
     string ProjectName,
+    string? CaseFileNumber,
     string CategoryName,
     string CompletionYearDisplay,
     string ArmServiceDisplay,
     string ProliferationCostDisplay,
+    string? ProliferationCostRemarks,
     string DescriptionMarkdown,
-    byte[]? CoverPhoto);
+    byte[]? CoverPhoto,
+    bool PhotoWasSelected);
 
+// SECTION: Publication-quality QuestPDF composition for the SDD Simulators Compendium.
 public sealed class CompendiumPdfReportBuilder : ICompendiumPdfReportBuilder
 {
+    private const string Navy = "#0B1220";
+    private const string NavySoft = "#111C33";
+    private const string Blue = "#1E3A8A";
+    private const string Gold = "#D4AF37";
+    private const string Slate900 = "#0F172A";
+    private const string Slate700 = "#334155";
+    private const string Slate600 = "#475569";
+    private const string Slate500 = "#64748B";
+    private const string Slate300 = "#CBD5E1";
+    private const string Slate200 = "#E2E8F0";
+    private const string Slate100 = "#F1F5F9";
+    private const string Slate50 = "#F8FAFC";
+
+    private readonly IWebHostEnvironment _environment;
+    private readonly ILogger<CompendiumPdfReportBuilder> _logger;
+
     static CompendiumPdfReportBuilder()
     {
         QuestPDF.Settings.License = LicenseType.Community;
     }
 
-    private readonly IWebHostEnvironment _env;
-
-    public CompendiumPdfReportBuilder(IWebHostEnvironment env)
+    public CompendiumPdfReportBuilder(
+        IWebHostEnvironment environment,
+        ILogger<CompendiumPdfReportBuilder> logger)
     {
-        _env = env ?? throw new ArgumentNullException(nameof(env));
+        _environment = environment ?? throw new ArgumentNullException(nameof(environment));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public byte[] Build(CompendiumPdfReportContext context)
     {
-        if (context is null)
-        {
-            throw new ArgumentNullException(nameof(context));
-        }
+        ArgumentNullException.ThrowIfNull(context);
 
+        var title = Normalize(context.Title, "Simulators Compendium");
+        var subtitle = Normalize(context.Subtitle, "Available for Proliferation");
+        var unit = Normalize(context.UnitDisplayName, "Simulator Development Division");
+        var issuer = Normalize(context.IssuerDisplayName, "Simulator Development Division");
+        var marking = NormalizeOptional(context.HandlingMarking)?.ToUpperInvariant();
         var generatedAtIst = TimeZoneInfo.ConvertTime(context.GeneratedAtUtc, TimeZoneHelper.GetIst());
-        var generatedAtText = generatedAtIst.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture);
-        var unitText = string.IsNullOrWhiteSpace(context.UnitDisplayName) ? string.Empty : context.UnitDisplayName.Trim();
-        var titleText = string.IsNullOrWhiteSpace(context.Title) ? "Simulators Compendium" : context.Title.Trim();
+        var generatedDate = generatedAtIst.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture);
+        var projectCount = context.Categories.Sum(category => category.Projects.Count);
+        var footerLogo = TryLoadAsset("img/logos/sdd.png");
+        var crest = TryLoadAsset("img/logos/artrac.png");
+        var sddMark = TryLoadAsset("img/logos/sdd.png");
 
-        // SECTION: Cover accent color (thin gold line for premium look).
-        const string CoverAccentGold = "#D4AF37";
-
-        // SECTION: Resolve footer logo bytes using the same asset path as Project Pulse.
-        var footerLogoBytes = TryLoadFooterLogoBytes(_env, "img/logos/sdd.png");
-        // SECTION: Cover page logos (institutional): crest (top nav) + SDD mark (same as Project Pulse).
-        var coverCrestBytes = TryLoadFooterLogoBytes(_env, "img/logos/artrac.png");
-        var coverSddBytes = TryLoadFooterLogoBytes(_env, "img/logos/sdd.png");
-
-        var document = Document.Create(container =>
-        {
-            // SECTION: Cover page
-            container.Page(page =>
+        var document = Document
+            .Create(container =>
             {
-                page.Size(PageSizes.A4);
-                // SECTION: Use margin=0 so the background can be full-bleed.
-                page.Margin(0);
-                page.PageColor("#FFFFFF");
+                ComposeCover(
+                    container,
+                    title,
+                    subtitle,
+                    unit,
+                    issuer,
+                    marking,
+                    generatedDate,
+                    projectCount,
+                    context.Categories.Count,
+                    crest,
+                    sddMark);
 
-                page.Content().Layers(layers =>
+                ComposeIndex(
+                    container,
+                    title,
+                    subtitle,
+                    issuer,
+                    marking,
+                    context.Categories,
+                    footerLogo);
+
+                foreach (var category in context.Categories)
                 {
-                    // SECTION: Full-bleed institutional cover background.
-                    layers.Layer().Background("#0B1220");
-
-                    // SECTION: Decorative diagonal band isolated in its own layer to avoid reusing a single-child container.
-                    layers.Layer().AlignLeft().AlignTop().TranslateX(-120).TranslateY(160).Rotate(-10).Element(band =>
+                    foreach (var project in category.Projects)
                     {
-                        // SECTION: A4 portrait width is ~595pt; fixed width keeps this compatible with older QuestPDF APIs.
-                        band.Width(895)
-                            .Height(120)
-                            .Background("#111C33");
-                    });
-
-                    // SECTION: Thin gold accent line (diagonal) to make the cover feel premium.
-                    // It is drawn as a slim band aligned with the decorative diagonal strip.
-                    layers.Layer().AlignLeft().AlignTop().TranslateX(-120).TranslateY(150).Rotate(-10).Element(accent =>
-                    {
-                        accent.Width(895)
-                            .Height(6)
-                            .Background(CoverAccentGold);
-                    });
-
-                    // SECTION: Watermark intentionally omitted to avoid unsupported opacity APIs in this QuestPDF version.
-
-                    // SECTION: Cover foreground content.
-                    layers.PrimaryLayer().PaddingHorizontal(70).PaddingVertical(70).Column(col =>
-                    {
-                        col.Spacing(16);
-
-                        // SECTION: Top institutional lockup.
-                        col.Item().Row(r =>
-                        {
-                            // SECTION: Crest (top nav image).
-                            if (coverCrestBytes is not null && coverCrestBytes.Length > 0)
-                            {
-                                r.ConstantItem(48).Height(48).AlignMiddle()
-                                 .Image(coverCrestBytes).FitArea();
-                                r.ConstantItem(12);
-                            }
-
-                            r.RelativeItem().AlignMiddle().Text(t =>
-                            {
-                                t.DefaultTextStyle(s => s.FontSize(12).FontColor("#CBD5E1").SemiBold());
-                                t.Span(string.IsNullOrWhiteSpace(unitText) ? "PRISM ERP" : unitText);
-                            });
-
-                            // SECTION: Secondary SDD mark (right aligned).
-                            if (coverSddBytes is not null && coverSddBytes.Length > 0)
-                            {
-                                r.ConstantItem(12);
-                                r.ConstantItem(34).Height(34).AlignMiddle().AlignRight()
-                                 .Image(coverSddBytes).FitArea();
-                            }
-                        });
-
-                        // SECTION: Cover title block.
-                        col.Item().PaddingTop(90).Text(titleText)
-                            .FontSize(40)
-                            .SemiBold()
-                            .FontColor("#FFFFFF");
-
-                        // SECTION: Short thin gold underline under the title (subtle, designer feel).
-                        col.Item().PaddingTop(10).AlignLeft().Element(e =>
-                        {
-                            e.Width(140)
-                             .Height(2)
-                             .Background(CoverAccentGold);
-                        });
-
-                        col.Item().Text($"Generated on {generatedAtText}")
-                            .FontSize(12)
-                            .FontColor("#94A3B8");
-
-                        col.Item().PaddingTop(18).Element(e => e.Height(2).Background("#1F2A44"));
-
-                        // SECTION: Bottom SDD monogram (readable as SDD vertically).
-                        col.Item().PaddingTop(230).AlignLeft().Column(sdd =>
-                        {
-                            sdd.Spacing(2);
-
-                            sdd.Item().Text(t =>
-                            {
-                                t.DefaultTextStyle(s => s.FontSize(11).FontColor("#94A3B8").LetterSpacing(2));
-                                t.Span("S").FontColor(CoverAccentGold).SemiBold();
-                                t.Span("imulator");
-                            });
-
-                            sdd.Item().Text(t =>
-                            {
-                                t.DefaultTextStyle(s => s.FontSize(11).FontColor("#94A3B8").LetterSpacing(2));
-                                t.Span("D").FontColor(CoverAccentGold).SemiBold();
-                                t.Span("evelopment");
-                            });
-
-                            sdd.Item().Text(t =>
-                            {
-                                t.DefaultTextStyle(s => s.FontSize(11).FontColor("#94A3B8").LetterSpacing(2));
-                                t.Span("D").FontColor(CoverAccentGold).SemiBold();
-                                t.Span("ivision");
-                            });
-                        });
-                    });
-                });
-            });
-
-            // SECTION: Index pages
-            container.Page(page =>
-            {
-                page.Size(PageSizes.A4);
-                // SECTION: Keep content grid margins while allowing footer to reach the true page bottom.
-                page.MarginTop(35);
-                page.MarginLeft(35);
-                page.MarginRight(35);
-                page.MarginBottom(0);
-                page.PageColor("#FFFFFF");
-                page.DefaultTextStyle(x => x.FontSize(11).FontColor("#1F2933"));
-
-                page.Header().Column(header =>
-                {
-                    header.Item().Text("Index")
-                        .FontSize(20)
-                        .SemiBold()
-                        .FontColor("#0F172A");
-
-                    header.Item().Text($"{titleText}{(string.IsNullOrWhiteSpace(unitText) ? string.Empty : " · " + unitText)}")
-                        .FontSize(10)
-                        .FontColor("#64748B");
-                });
-
-                page.Content().PaddingTop(15).Column(content =>
-                {
-                    if (context.Categories.Count == 0)
-                    {
-                        content.Item().PaddingTop(50).AlignCenter().Text("No eligible projects found.")
-                            .FontSize(14)
-                            .FontColor("#64748B");
-                        return;
+                        ComposeProjectPage(
+                            container,
+                            project,
+                            issuer,
+                            marking,
+                            context.ShowMissingPhotoPlaceholder,
+                            footerLogo);
                     }
-
-                    content.Spacing(18);
-
-                    foreach (var cat in context.Categories)
-                    {
-                        var catCopy = cat;
-                        content.Item().Element(c => ComposeIndexCategory(c, catCopy));
-                    }
-                });
-
-                // SECTION: Index footer (full-bleed, no page numbers).
-                page.Footer().Element(f =>
-                {
-                    ComposeIndexFooter(
-                        f.PaddingLeft(-35).PaddingRight(-35),
-                        footerLogoBytes);
-                });
-            });
-
-            // SECTION: Detail pages
-            foreach (var cat in context.Categories)
-            {
-                foreach (var proj in cat.Projects)
-                {
-                    var projCopy = proj;
-                    container.Page(page =>
-                    {
-                        page.Size(PageSizes.A4);
-                        // SECTION: Keep content grid margins while allowing footer to reach the true page bottom.
-                        page.MarginTop(35);
-                        page.MarginLeft(35);
-                        page.MarginRight(35);
-                        page.MarginBottom(0);
-                        page.PageColor("#FFFFFF");
-                        page.DefaultTextStyle(x => x.FontSize(11).FontColor("#1F2933"));
-
-                        // SECTION: No header on detail pages (URD refinement).
-
-                        page.Content().PaddingTop(14).Element(c => ComposeProjectDetail(c, projCopy));
-
-                        page.Footer().Element(f =>
-                        {
-                            // SECTION: Full-bleed footer by negating detail page horizontal margin.
-                            ComposeProjectFooter(
-                                f
-                                    .PaddingLeft(-35)
-                                    .PaddingRight(-35),
-                                footerLogoBytes);
-                        });
-                    });
                 }
-            }
-        });
+            })
+            .WithMetadata(new DocumentMetadata
+            {
+                Title = $"{title} — {subtitle}",
+                Author = issuer,
+                Subject = $"Completed simulators recorded as {subtitle.ToLowerInvariant()}.",
+                Keywords = "simulators, proliferation, SDD, PRISM ERP, training systems",
+                Creator = "PRISM ERP",
+                Producer = "PRISM ERP / QuestPDF",
+                CreationDate = context.GeneratedAtUtc,
+                ModifiedDate = context.GeneratedAtUtc
+            });
 
         return document.GeneratePdf();
     }
 
-    // SECTION: Stable named destinations used for in-document navigation.
-    private static string ProjectAnchorId(int projectId) => $"proj-{projectId.ToString(CultureInfo.InvariantCulture)}";
-
-    private static byte[]? TryLoadFooterLogoBytes(IWebHostEnvironment env, string relativeUnderWwwroot)
+    private static void ComposeCover(
+        IDocumentContainer container,
+        string title,
+        string subtitle,
+        string unit,
+        string issuer,
+        string? marking,
+        string generatedDate,
+        int projectCount,
+        int categoryCount,
+        byte[]? crest,
+        byte[]? sddMark)
     {
-        try
+        container.Page(page =>
         {
-            if (string.IsNullOrWhiteSpace(relativeUnderWwwroot))
-            {
-                return null;
-            }
+            page.Size(PageSizes.A4);
+            page.Margin(0);
+            page.PageColor("#FFFFFF");
+            page.DefaultTextStyle(style => BaseStyle(style).FontColor("#FFFFFF"));
 
-            var relativePath = relativeUnderWwwroot.Trim().Replace('\\', '/');
-            var fullPath = Path.Combine(env.WebRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
-            return File.Exists(fullPath) ? File.ReadAllBytes(fullPath) : null;
-        }
-        catch
-        {
-            // SECTION: Never block PDF generation when asset lookup fails.
-            return null;
-        }
-    }
-
-    private static void ComposeProjectFooter(
-        IContainer container,
-        byte[]? logoBytes)
-    {
-        container
-            .Background("#F8FAFC")
-            .PaddingVertical(8)
-            .PaddingHorizontal(35)
-            .Row(row =>
+            page.Content().Layers(layers =>
             {
-                // SECTION: Left footer content (logo and organization label).
-                row.RelativeItem().Row(left =>
+                layers.Layer().Background(Navy);
+
+                layers.Layer()
+                    .AlignLeft()
+                    .AlignTop()
+                    .TranslateX(-120)
+                    .TranslateY(160)
+                    .Rotate(-10)
+                    .Element(band => band
+                        .Width(895)
+                        .Height(120)
+                        .Background(NavySoft));
+
+                layers.Layer()
+                    .AlignLeft()
+                    .AlignTop()
+                    .TranslateX(-120)
+                    .TranslateY(150)
+                    .Rotate(-10)
+                    .Element(band => band
+                        .Width(895)
+                        .Height(6)
+                        .Background(Gold));
+
+                layers.PrimaryLayer().PaddingHorizontal(68).PaddingVertical(58).Column(column =>
                 {
-                    if (logoBytes is not null && logoBytes.Length > 0)
+                    column.Spacing(12);
+
+                    column.Item().Row(row =>
                     {
-                        left.ConstantItem(22).Height(22).AlignMiddle().Element(logo => logo.Image(logoBytes).FitArea());
-                        left.ConstantItem(8);
+                        if (crest is { Length: > 0 })
+                        {
+                            row.ConstantItem(48).Height(48).Image(crest).FitArea();
+                            row.ConstantItem(12);
+                        }
+
+                        row.RelativeItem().AlignMiddle().Column(lockup =>
+                        {
+                            lockup.Item().Text(unit)
+                                .FontSize(12)
+                                .SemiBold()
+                                .FontColor("#E2E8F0");
+                            lockup.Item().Text("PRISM ERP")
+                                .FontSize(9)
+                                .FontColor("#94A3B8");
+                        });
+
+                        if (sddMark is { Length: > 0 })
+                        {
+                            row.ConstantItem(38).Height(38).AlignMiddle().Image(sddMark).FitArea();
+                        }
+                    });
+
+                    if (!string.IsNullOrWhiteSpace(marking))
+                    {
+                        column.Item().PaddingTop(8).AlignCenter().Text(marking)
+                            .FontSize(9)
+                            .SemiBold()
+                            .LetterSpacing(.8f)
+                            .FontColor("#F8D568");
                     }
 
-                    left.RelativeItem().AlignMiddle().Text(t =>
+                    column.Item().PaddingTop(82).Text(title)
+                        .FontSize(37)
+                        .SemiBold()
+                        .LineHeight(1.05f)
+                        .FontColor("#FFFFFF");
+
+                    column.Item().Width(145).Height(2).Background(Gold);
+
+                    column.Item().Text(subtitle)
+                        .FontSize(16)
+                        .FontColor("#CBD5E1");
+
+                    column.Item().PaddingTop(8).Text($"As on {generatedDate}")
+                        .FontSize(11)
+                        .FontColor("#94A3B8");
+
+                    column.Item().PaddingTop(28).Row(summary =>
                     {
-                        t.DefaultTextStyle(s => s.FontSize(9).FontColor("#475569").SemiBold());
-                        t.Span("Simulator Development Division");
+                        summary.ConstantItem(138).Element(box => ComposeCoverMetric(box, projectCount.ToString(CultureInfo.InvariantCulture), "SIMULATORS"));
+                        summary.ConstantItem(12);
+                        summary.ConstantItem(138).Element(box => ComposeCoverMetric(box, categoryCount.ToString(CultureInfo.InvariantCulture), "TECHNICAL CATEGORIES"));
+                    });
+
+                    column.Item().PaddingTop(185).Row(bottom =>
+                    {
+                        bottom.RelativeItem().Column(org =>
+                        {
+                            org.Item().Text(issuer)
+                                .FontSize(11)
+                                .SemiBold()
+                                .FontColor("#E2E8F0");
+                            org.Item().Text("Capability catalogue generated from the authoritative PRISM project record.")
+                                .FontSize(8.5f)
+                                .FontColor("#94A3B8");
+                        });
+
+                        if (!string.IsNullOrWhiteSpace(marking))
+                        {
+                            bottom.AutoItem().AlignBottom().Text(marking)
+                                .FontSize(8)
+                                .SemiBold()
+                                .FontColor("#F8D568");
+                        }
                     });
                 });
+            });
+        });
+    }
 
-                // SECTION: Right footer content (product label and page number).
-                row.RelativeItem().AlignRight().AlignMiddle().Text(t =>
-                {
-                    t.DefaultTextStyle(s => s.FontSize(9).FontColor("#64748B"));
-                    t.Span("PRISM ERP · Page ");
-                    t.CurrentPageNumber().SemiBold();
-                    t.Span(" / ");
-                    t.TotalPages().SemiBold();
-                });
+    private static void ComposeCoverMetric(IContainer container, string value, string label)
+    {
+        container.Border(1)
+            .BorderColor("#263552")
+            .Background("#101A2D")
+            .PaddingHorizontal(14)
+            .PaddingVertical(11)
+            .Column(column =>
+            {
+                column.Item().Text(value).FontSize(21).SemiBold().FontColor("#FFFFFF");
+                column.Item().Text(label).FontSize(7.5f).LetterSpacing(.7f).FontColor("#94A3B8");
             });
     }
 
-    private static void ComposeIndexFooter(
-        IContainer container,
-        byte[]? logoBytes)
+    private static void ComposeIndex(
+        IDocumentContainer container,
+        string title,
+        string subtitle,
+        string issuer,
+        string? marking,
+        IReadOnlyList<CompendiumPdfCategorySection> categories,
+        byte[]? footerLogo)
     {
-        container
-            .Background("#F8FAFC")
-            .PaddingVertical(8)
-            .PaddingHorizontal(35)
-            .Row(row =>
-            {
-                // SECTION: Left footer content (logo and organization label).
-                row.RelativeItem().Row(left =>
-                {
-                    if (logoBytes is not null && logoBytes.Length > 0)
-                    {
-                        left.ConstantItem(22).Height(22).AlignMiddle().Element(logo => logo.Image(logoBytes).FitArea());
-                        left.ConstantItem(8);
-                    }
+        container.Page(page =>
+        {
+            ConfigureStandardPage(page);
 
-                    left.RelativeItem().AlignMiddle().Text(t =>
-                    {
-                        t.DefaultTextStyle(s => s.FontSize(9).FontColor("#475569").SemiBold());
-                        t.Span("Simulator Development Division");
-                    });
+            page.Header().Row(row =>
+            {
+                row.RelativeItem().Column(header =>
+                {
+                    header.Item().Text("Index")
+                        .FontSize(20)
+                        .SemiBold()
+                        .FontColor(Slate900);
+                    header.Item().Text($"{title} · {subtitle}")
+                        .FontSize(9.5f)
+                        .FontColor(Slate500);
                 });
 
-                // SECTION: Right footer content (product label only).
-                row.RelativeItem().AlignRight().AlignMiddle().Text(t =>
+                if (!string.IsNullOrWhiteSpace(marking))
                 {
-                    t.DefaultTextStyle(s => s.FontSize(9).FontColor("#64748B"));
-                    t.Span("PRISM ERP");
+                    row.AutoItem().AlignTop().Text(marking)
+                        .FontSize(8)
+                        .SemiBold()
+                        .FontColor("#9A6B00");
+                }
+            });
+
+            page.Content().PaddingTop(14).Column(content =>
+            {
+                content.Spacing(14);
+
+                if (categories.Count == 0)
+                {
+                    content.Item().PaddingTop(50).AlignCenter().Text("No eligible projects found.")
+                        .FontSize(13)
+                        .FontColor(Slate500);
+                    return;
+                }
+
+                foreach (var category in categories)
+                {
+                    var categoryCopy = category;
+                    content.Item().Element(element => ComposeIndexCategory(element, categoryCopy));
+                }
+            });
+
+            page.Footer().Element(footer => ComposeFooter(
+                footer.PaddingLeft(-35).PaddingRight(-35),
+                issuer,
+                marking,
+                includePageNumber: true,
+                footerLogo));
+        });
+    }
+
+    private static void ComposeProjectPage(
+        IDocumentContainer container,
+        CompendiumPdfProjectSection project,
+        string issuer,
+        string? marking,
+        bool showMissingPhotoPlaceholder,
+        byte[]? footerLogo)
+    {
+        container.Page(page =>
+        {
+            ConfigureStandardPage(page);
+
+            page.Header().Row(row =>
+            {
+                row.RelativeItem().Text(project.CategoryName.ToUpperInvariant())
+                    .FontSize(7.5f)
+                    .SemiBold()
+                    .LetterSpacing(.7f)
+                    .FontColor(Blue);
+
+                if (!string.IsNullOrWhiteSpace(marking))
+                {
+                    row.AutoItem().Text(marking)
+                        .FontSize(8)
+                        .SemiBold()
+                        .FontColor("#9A6B00");
+                }
+            });
+
+            page.Content().PaddingTop(10).Section(ProjectAnchorId(project.ProjectId)).Column(column =>
+            {
+                column.Spacing(12);
+
+                column.Item().Text(project.ProjectName)
+                    .FontSize(20)
+                    .SemiBold()
+                    .LineHeight(1.08f)
+                    .FontColor(Slate900);
+
+                column.Item().Height(2).Background("#DCE5F2");
+
+                column.Item().Row(row =>
+                {
+                    row.RelativeItem().Column(metadata =>
+                    {
+                        metadata.Spacing(6);
+                        metadata.Item().Element(item => ComposeKeyValue(item, "Technical category", project.CategoryName));
+                        metadata.Item().Element(item => ComposeKeyValue(item, "Year of completion", project.CompletionYearDisplay));
+                        metadata.Item().Element(item => ComposeKeyValue(item, "Arm/Service", project.ArmServiceDisplay));
+                        metadata.Item().Element(item => ComposeKeyValue(item, "Indicative proliferation cost (₹ lakh)", project.ProliferationCostDisplay));
+
+                        if (!string.IsNullOrWhiteSpace(project.CaseFileNumber))
+                        {
+                            metadata.Item().Element(item => ComposeKeyValue(item, "Project reference", project.CaseFileNumber!));
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(project.ProliferationCostRemarks))
+                        {
+                            metadata.Item().PaddingTop(4).BorderLeft(2).BorderColor(Slate300).PaddingLeft(8)
+                                .Text(project.ProliferationCostRemarks!)
+                                .FontSize(8.5f)
+                                .FontColor(Slate600)
+                                .LineHeight(1.2f);
+                        }
+                    });
+
+                    if (project.CoverPhoto is { Length: > 0 })
+                    {
+                        row.ConstantItem(228).Height(168).PaddingLeft(14).Element(image =>
+                        {
+                            image.Border(1)
+                                .BorderColor(Slate200)
+                                .Background(Slate50)
+                                .Padding(7)
+                                .AlignCenter()
+                                .AlignMiddle()
+                                .Image(project.CoverPhoto)
+                                .FitArea();
+                        });
+                    }
+                    else if (showMissingPhotoPlaceholder)
+                    {
+                        row.ConstantItem(228).Height(168).PaddingLeft(14).Element(ComposeMissingPhoto);
+                    }
+                });
+
+                column.Item().Element(box =>
+                {
+                    box.Border(1)
+                        .BorderColor(Slate200)
+                        .Background("#FFFFFF")
+                        .Padding(11)
+                        .Column(description =>
+                        {
+                            description.Spacing(7);
+                            description.Item().Text("Project description")
+                                .FontSize(10.5f)
+                                .SemiBold()
+                                .FontColor(Slate700);
+                            description.Item().Element(markdown => MarkdownPdfRenderer.Render(markdown, project.DescriptionMarkdown));
+                        });
                 });
             });
+
+            page.Footer().Element(footer => ComposeFooter(
+                footer.PaddingLeft(-35).PaddingRight(-35),
+                issuer,
+                marking,
+                includePageNumber: true,
+                footerLogo));
+        });
+    }
+
+    private static void ConfigureStandardPage(PageDescriptor page)
+    {
+        page.Size(PageSizes.A4);
+        page.MarginTop(30);
+        page.MarginLeft(35);
+        page.MarginRight(35);
+        page.MarginBottom(0);
+        page.PageColor("#FFFFFF");
+        page.DefaultTextStyle(style => BaseStyle(style).FontSize(10.5f).FontColor("#1F2933"));
     }
 
     private static void ComposeIndexCategory(IContainer container, CompendiumPdfCategorySection category)
     {
-        container.Column(col =>
+        container.Table(table =>
         {
-            col.Spacing(10);
-
-            col.Item().Text(category.CategoryName)
-                .FontSize(14)
-                .SemiBold()
-                .FontColor("#1E3A8A");
-
-            col.Item().Table(table =>
+            table.ColumnsDefinition(columns =>
             {
-                table.ColumnsDefinition(columns =>
-                {
-                    columns.RelativeColumn(4);
-                    columns.ConstantColumn(90);
-                });
-
-                table.Header(header =>
-                {
-                    header.Cell().Element(CellHeader).Text("Project");
-                    header.Cell().Element(CellHeader).AlignRight().Text("Completed");
-                });
-
-                foreach (var p in category.Projects)
-                {
-                    table.Cell().Element(CellBody)
-                        .SectionLink(ProjectAnchorId(p.ProjectId))
-                        .Text(p.ProjectName);
-                    table.Cell().Element(CellBody).AlignRight().Text(p.CompletionYearDisplay);
-                }
+                columns.RelativeColumn(1);
+                columns.ConstantColumn(68);
+                columns.ConstantColumn(38);
             });
+
+            // The header repeats automatically when a category table spans pages.
+            // Keeping the category label inside the table header prevents orphaned continuation rows.
+            table.Header(header =>
+            {
+                header.Cell().Element(CategoryHeaderCell).Text(category.CategoryName);
+                header.Cell().Element(CategoryHeaderCell).Text(string.Empty);
+                header.Cell().Element(CategoryHeaderCell).Text(string.Empty);
+
+                header.Cell().Element(IndexColumnHeader).Text("Simulator");
+                header.Cell().Element(IndexColumnHeader).AlignRight().Text("Completed");
+                header.Cell().Element(IndexColumnHeader).AlignRight().Text("Page");
+            });
+
+            foreach (var project in category.Projects)
+            {
+                var anchor = ProjectAnchorId(project.ProjectId);
+
+                table.Cell().Element(IndexBodyCell)
+                    .SectionLink(anchor)
+                    .Text(project.ProjectName);
+
+                table.Cell().Element(IndexBodyCell)
+                    .AlignRight()
+                    .Text(project.CompletionYearDisplay);
+
+                table.Cell().Element(IndexBodyCell)
+                    .AlignRight()
+                    .Text(text => text.BeginPageNumberOfSection(anchor));
+            }
         });
     }
 
-    private static void ComposeProjectDetail(IContainer container, CompendiumPdfProjectSection project)
+    private static void ComposeMissingPhoto(IContainer container)
     {
-        container.Column(col =>
-        {
-            col.Spacing(12);
-
-            col.Item().Section(ProjectAnchorId(project.ProjectId))
-                .AlignCenter().Text(project.ProjectName)
-                .FontSize(20)
-                .SemiBold()
-                .FontColor("#0F172A");
-
-            // SECTION: Header two-column layout (left metadata, right cover photo).
-            col.Item().Row(row =>
+        container.Border(1)
+            .BorderColor(Slate200)
+            .Background(Slate50)
+            .AlignCenter()
+            .AlignMiddle()
+            .Column(column =>
             {
-                row.RelativeItem().Column(meta =>
-                {
-                    meta.Spacing(6);
-                    meta.Item().Element(c => ComposeKeyValue(c, "Technical category", project.CategoryName));
-                    meta.Item().Element(c => ComposeKeyValue(c, "Year of completion", project.CompletionYearDisplay));
-                    meta.Item().Element(c => ComposeKeyValue(c, "Arm/Service", project.ArmServiceDisplay));
-                    meta.Item().Element(c => ComposeKeyValue(c, "Proliferation cost (lakhs)", project.ProliferationCostDisplay));
-                });
-
-                if (project.CoverPhoto is not null && project.CoverPhoto.Length > 0)
-                {
-                    row.ConstantItem(230).Height(170).PaddingLeft(14).Element(img =>
-                    {
-                        img.Border(1)
-                            .BorderColor("#E2E8F0")
-                            .Background("#F8FAFC")
-                            .Padding(8)
-                            .AlignCenter()
-                            .AlignMiddle()
-                            .Image(project.CoverPhoto)
-                            .FitArea();
-                    });
-                }
+                column.Spacing(5);
+                column.Item().AlignCenter().Text("PHOTO")
+                    .FontSize(9)
+                    .SemiBold()
+                    .LetterSpacing(1.2f)
+                    .FontColor("#94A3B8");
+                column.Item().AlignCenter().Text("Photograph not available")
+                    .FontSize(9)
+                    .FontColor(Slate500);
+                column.Item().AlignCenter().Text("Add or mark a project cover photograph in PRISM")
+                    .FontSize(7.5f)
+                    .FontColor("#94A3B8");
             });
-
-            // SECTION: Description (full width with markdown formatting)
-            col.Item().PaddingTop(4).Element(box =>
-            {
-                box.Border(1)
-                    .BorderColor("#E2E8F0")
-                    .Background("#FFFFFF")
-                    .Padding(10)
-                    .Column(desc =>
-                    {
-                        desc.Spacing(6);
-                        desc.Item().Text("Project description")
-                            .FontSize(11)
-                            .SemiBold()
-                            .FontColor("#334155");
-
-                        desc.Item().Element(md => MarkdownPdfRenderer.Render(md, project.DescriptionMarkdown));
-                    });
-            });
-        });
     }
 
     private static void ComposeKeyValue(IContainer container, string key, string value)
     {
         container.Row(row =>
         {
-            row.ConstantItem(160).Text(key).FontSize(10).FontColor("#64748B");
-            row.RelativeItem().Text(value).FontSize(10).FontColor("#0F172A").SemiBold();
+            row.ConstantItem(148).Text(key).FontSize(9.5f).FontColor(Slate500);
+            row.RelativeItem().Text(value).FontSize(9.5f).FontColor(Slate900).SemiBold();
         });
     }
 
-    private static IContainer CellHeader(IContainer container)
-        => container.DefaultTextStyle(x => x.SemiBold().FontColor("#334155").FontSize(10))
-            .PaddingVertical(6)
-            .PaddingHorizontal(8)
-            .BorderBottom(1)
-            .BorderColor("#CBD5E1");
+    private static void ComposeFooter(
+        IContainer container,
+        string issuer,
+        string? marking,
+        bool includePageNumber,
+        byte[]? logo)
+    {
+        container.Background(Slate50)
+            .PaddingVertical(7)
+            .PaddingHorizontal(35)
+            .Row(row =>
+            {
+                row.RelativeItem().Row(left =>
+                {
+                    if (logo is { Length: > 0 })
+                    {
+                        left.ConstantItem(21).Height(21).AlignMiddle().Image(logo).FitArea();
+                        left.ConstantItem(7);
+                    }
 
-    private static IContainer CellBody(IContainer container)
-        => container.DefaultTextStyle(x => x.FontSize(10).FontColor("#0F172A"))
-            .PaddingVertical(5)
-            .PaddingHorizontal(8)
+                    left.RelativeItem().AlignMiddle().Text(issuer)
+                        .FontSize(8.5f)
+                        .SemiBold()
+                        .FontColor(Slate600);
+                });
+
+                if (!string.IsNullOrWhiteSpace(marking))
+                {
+                    row.AutoItem().PaddingHorizontal(10).AlignMiddle().Text(marking)
+                        .FontSize(7.5f)
+                        .SemiBold()
+                        .FontColor("#9A6B00");
+                }
+
+                row.RelativeItem().AlignRight().AlignMiddle().Text(text =>
+                {
+                    text.DefaultTextStyle(BaseStyle(TextStyle.Default).FontSize(8.5f).FontColor(Slate500));
+                    text.Span("PRISM ERP");
+                    if (includePageNumber)
+                    {
+                        text.Span(" · Page ");
+                        text.CurrentPageNumber().SemiBold();
+                        text.Span(" / ");
+                        text.TotalPages().SemiBold();
+                    }
+                });
+            });
+    }
+
+    private static IContainer CategoryHeaderCell(IContainer container)
+        => container.Background("#EDF3FF")
             .BorderBottom(1)
-            .BorderColor("#E2E8F0");
+            .BorderColor("#B9CBEF")
+            .PaddingHorizontal(8)
+            .PaddingVertical(7)
+            .DefaultTextStyle(style => BaseStyle(style).FontSize(11.5f).SemiBold().FontColor(Blue));
+
+    private static IContainer IndexColumnHeader(IContainer container)
+        => container.Background(Slate50)
+            .BorderBottom(1)
+            .BorderColor(Slate300)
+            .PaddingHorizontal(8)
+            .PaddingVertical(5)
+            .DefaultTextStyle(style => BaseStyle(style).FontSize(8.5f).SemiBold().FontColor(Slate600));
+
+    private static IContainer IndexBodyCell(IContainer container)
+        => container.BorderBottom(1)
+            .BorderColor(Slate200)
+            .PaddingHorizontal(8)
+            .PaddingVertical(5)
+            .DefaultTextStyle(style => BaseStyle(style).FontSize(9.25f).FontColor(Slate900));
+
+    private static TextStyle BaseStyle(TextStyle style)
+        => style.DisableFontFeature(FontFeatures.StandardLigatures);
+
+    private static string ProjectAnchorId(int projectId)
+        => $"compendium-project-{projectId.ToString(CultureInfo.InvariantCulture)}";
+
+    private byte[]? TryLoadAsset(string relativeUnderWwwRoot)
+    {
+        try
+        {
+            var relative = relativeUnderWwwRoot.Trim().Replace('\\', '/');
+            var path = Path.Combine(
+                _environment.WebRootPath,
+                relative.Replace('/', Path.DirectorySeparatorChar));
+
+            if (!File.Exists(path))
+            {
+                _logger.LogWarning("Compendium PDF asset was not found at {AssetPath}.", path);
+                return null;
+            }
+
+            return File.ReadAllBytes(path);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Unable to load compendium PDF asset {RelativeAssetPath}.",
+                relativeUnderWwwRoot);
+            return null;
+        }
+    }
+
+    private static string Normalize(string? value, string fallback)
+        => string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+
+    private static string? NormalizeOptional(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

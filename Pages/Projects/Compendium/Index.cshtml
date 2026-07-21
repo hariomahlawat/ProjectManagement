@@ -1,37 +1,247 @@
 @page
 @model ProjectManagement.Pages.Projects.Compendium.IndexModel
-
+@using ProjectManagement.Services.Compendiums
 @{
     ViewData["Title"] = "Simulators Compendium";
+    const int initiallyVisibleWarnings = 8;
+    var hiddenWarningCount = Math.Max(0, Model.WarningProjects.Count - initiallyVisibleWarnings);
 }
 
-<div class="container-fluid px-0">
-    <div class="d-flex align-items-start justify-content-between flex-wrap gap-3 mb-4">
-        <div>
-            <h1 class="h3 mb-1">Simulators Compendium</h1>
-            <div class="text-muted">Generate a print-ready PDF of completed projects available for proliferation.</div>
-        </div>
-    </div>
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/projects-compendium.css" asp-append-version="true" />
+}
 
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+<div class="compendium-page">
+    <nav class="compendium-breadcrumb" aria-label="Breadcrumb">
+        <a asp-page="/Projects/Index">Projects</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">Simulators Compendium</span>
+    </nav>
+
+    <header class="compendium-page__header">
+        <div>
+            <p class="compendium-eyebrow">PUBLICATION</p>
+            <h1>Simulators Compendium</h1>
+            <p>Generate a professional PDF of completed projects recorded as available for proliferation.</p>
+        </div>
+    </header>
+
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger compendium-validation" role="alert"></div>
+
+    @if (!Model.Preflight.CanGenerate)
+    {
+        <section class="compendium-status compendium-status--neutral" role="status">
+            <i class="bi bi-info-circle" aria-hidden="true"></i>
+            <div>
+                <strong>No simulator is currently eligible for the compendium.</strong>
+                <span>Projects must be completed, active records and marked as available for proliferation.</span>
+            </div>
+        </section>
+    }
+    else if (Model.Preflight.IsPublicationReady)
+    {
+        <section class="compendium-status compendium-status--ready" role="status">
+            <i class="bi bi-check-circle" aria-hidden="true"></i>
+            <div>
+                <strong>Publication preflight passed.</strong>
+                <span>All @Model.Preflight.EligibleProjectCount eligible simulators have the core publication data recorded.</span>
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="compendium-status compendium-status--warning" role="status">
+            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+            <div>
+                <strong>Ready to generate with warnings.</strong>
+                <span>@Model.Preflight.ProjectsWithWarnings simulator(s) require review. The PDF can still be generated with explicit “Not recorded” or photograph placeholders.</span>
+            </div>
+        </section>
+    }
+
+    <section class="compendium-metrics" aria-label="Compendium readiness summary">
+        <article class="compendium-metric">
+            <span>Eligible simulators</span>
+            <strong>@Model.Preflight.EligibleProjectCount</strong>
+            <small>of @Model.Preflight.CompletedProjectCount completed</small>
+        </article>
+        <article class="compendium-metric">
+            <span>Technical categories</span>
+            <strong>@Model.Preflight.CategoryCount</strong>
+            <small>grouped in the index</small>
+        </article>
+        <article class="compendium-metric">
+            <span>Photographs selected</span>
+            <strong>@Model.Preflight.PhotoSelectedCount<span class="compendium-metric__denominator">/@Model.Preflight.EligibleProjectCount</span></strong>
+            <small>cover or best available photo</small>
+        </article>
+        <article class="compendium-metric @(Model.Preflight.TotalWarningCount > 0 ? "compendium-metric--attention" : string.Empty)">
+            <span>Publication warnings</span>
+            <strong>@Model.Preflight.TotalWarningCount</strong>
+            <small>across @Model.Preflight.ProjectsWithWarnings project(s)</small>
+        </article>
+    </section>
+
+    <section class="compendium-export-card">
+        <div class="compendium-export-card__body">
+            <div class="compendium-export-card__copy">
+                <div class="compendium-export-card__icon" aria-hidden="true">
+                    <i class="bi bi-file-earmark-pdf"></i>
+                </div>
                 <div>
-                    <div class="fw-semibold">Simulators Compendium PDF</div>
-                    <div class="text-muted small">Includes cover page, category index, and per-project detail pages.</div>
+                    <h2>SDD Simulators Compendium</h2>
+                    <p>Includes an institutional cover, category index with page references, one simulator section per project, photographs where available, document metadata, page numbers and PRISM footer.</p>
+                    <div class="compendium-eligibility">
+                        <i class="bi bi-shield-check" aria-hidden="true"></i>
+                        <span>Eligibility: completed, not archived or deleted, and recorded as available for proliferation.</span>
+                    </div>
+                </div>
+            </div>
+
+            <form method="post" asp-page-handler="Generate" class="compendium-export-form" data-compendium-generate-form>
+                <div class="compendium-marking-field">
+                    <label asp-for="Input.HandlingMarking"></label>
+                    <input asp-for="Input.HandlingMarking"
+                           class="form-control"
+                           maxlength="80"
+                           autocomplete="off"
+                           placeholder="Optional, e.g. RESTRICTED" />
+                    <span asp-validation-for="Input.HandlingMarking" class="text-danger small"></span>
+                    <small>PRISM does not assign a classification automatically. Enter a marking only when authorised and applicable.</small>
                 </div>
 
-                <form method="post" asp-page-handler="Generate">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-file-earmark-pdf me-1"></i>
-                        Generate PDF
-                    </button>
-                </form>
+                <button type="submit"
+                        class="btn btn-primary compendium-generate-button"
+                        disabled="@(!Model.Preflight.CanGenerate)"
+                        data-compendium-generate-button>
+                    <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-compendium-spinner></span>
+                    <i class="bi bi-file-earmark-pdf" aria-hidden="true" data-compendium-button-icon></i>
+                    <span data-compendium-button-label>Generate PDF</span>
+                </button>
+            </form>
+        </div>
+
+        @if (Model.Preflight.ExcludedNotAvailableCount > 0 || Model.Preflight.MissingAvailabilityStatusCount > 0)
+        {
+            <footer class="compendium-export-card__footer">
+                @if (Model.Preflight.ExcludedNotAvailableCount > 0)
+                {
+                    <span><strong>@Model.Preflight.ExcludedNotAvailableCount</strong> completed project(s) excluded because proliferation availability is not enabled.</span>
+                }
+                @if (Model.Preflight.MissingAvailabilityStatusCount > 0)
+                {
+                    <span><strong>@Model.Preflight.MissingAvailabilityStatusCount</strong> completed project(s) excluded because availability status is not recorded.</span>
+                }
+            </footer>
+        }
+    </section>
+
+    @if (Model.WarningProjects.Count > 0)
+    {
+        <section class="compendium-review-card" aria-labelledby="compendium-review-heading">
+            <header class="compendium-review-card__header">
+                <div>
+                    <p class="compendium-eyebrow">PREFLIGHT REVIEW</p>
+                    <h2 id="compendium-review-heading">Projects requiring publication review</h2>
+                    <p>Generation is not blocked. Correct these records to remove placeholders and improve the final publication.</p>
+                </div>
+                <span class="compendium-review-count">@Model.WarningProjects.Count project@(Model.WarningProjects.Count == 1 ? string.Empty : "s")</span>
+            </header>
+
+            <div class="compendium-warning-summary" aria-label="Warning counts">
+                @if (Model.Preflight.MissingPhotoCount > 0)
+                {
+                    <span><i class="bi bi-image" aria-hidden="true"></i>@Model.Preflight.MissingPhotoCount without photo</span>
+                }
+                @if (Model.Preflight.MissingArmServiceCount > 0)
+                {
+                    <span><i class="bi bi-diagram-3" aria-hidden="true"></i>@Model.Preflight.MissingArmServiceCount without Arm/Service</span>
+                }
+                @if (Model.Preflight.MissingCostCount > 0)
+                {
+                    <span><i class="bi bi-currency-rupee" aria-hidden="true"></i>@Model.Preflight.MissingCostCount without cost</span>
+                }
+                @if (Model.Preflight.ZeroCostCount > 0)
+                {
+                    <span><i class="bi bi-exclamation-circle" aria-hidden="true"></i>@Model.Preflight.ZeroCostCount zero-cost entries</span>
+                }
+                @if (Model.Preflight.MissingDescriptionCount > 0)
+                {
+                    <span><i class="bi bi-card-text" aria-hidden="true"></i>@Model.Preflight.MissingDescriptionCount without description</span>
+                }
+                @if (Model.Preflight.MissingCompletionYearCount > 0)
+                {
+                    <span><i class="bi bi-calendar-x" aria-hidden="true"></i>@Model.Preflight.MissingCompletionYearCount without completion year</span>
+                }
+                @if (Model.Preflight.PossibleTitleTypoCount > 0)
+                {
+                    <span><i class="bi bi-spellcheck" aria-hidden="true"></i>@Model.Preflight.PossibleTitleTypoCount possible title typo</span>
+                }
             </div>
 
-            <div class="mt-3 text-muted small">
-                Eligibility: Completed, not archived, not deleted, and available for proliferation.
+            <div class="table-responsive">
+                <table class="table compendium-review-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Simulator</th>
+                            <th scope="col">Category</th>
+                            <th scope="col">Review required</th>
+                            <th scope="col" class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var index = 0; index < Model.WarningProjects.Count; index++)
+                        {
+                            var project = Model.WarningProjects[index];
+                            var hiddenClass = index >= initiallyVisibleWarnings ? "compendium-warning-row--hidden" : string.Empty;
+                            <tr class="@hiddenClass" data-compendium-warning-row>
+                                <td>
+                                    <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId" class="compendium-project-link">
+                                        @project.ProjectName
+                                    </a>
+                                    <div class="compendium-project-meta">Completed: @project.CompletionYearDisplay</div>
+                                </td>
+                                <td>@project.TechnicalCategoryName</td>
+                                <td>
+                                    <div class="compendium-issue-list">
+                                        @foreach (var issue in project.Issues)
+                                        {
+                                            <span class="compendium-issue @IndexModel.GetIssueCssClass(issue)">@IndexModel.GetIssueLabel(issue)</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td class="text-end">
+                                    <div class="compendium-row-actions">
+                                        @if (project.Issues.Contains(CompendiumPublicationIssue.MissingPhoto) && Model.CanManageProjectPhotos)
+                                        {
+                                            <a asp-page="/Projects/Photos/Index" asp-route-id="@project.ProjectId" class="btn btn-sm btn-outline-primary">Add photo</a>
+                                        }
+                                        @if (Model.CanMaintainProjectData)
+                                        {
+                                            <a asp-page="/Projects/CompletedSummary/Edit" asp-route-id="@project.ProjectId" class="btn btn-sm btn-outline-secondary">Edit record</a>
+                                        }
+                                        <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId" class="btn btn-sm btn-link">Open</a>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             </div>
-        </div>
-    </div>
+
+            @if (hiddenWarningCount > 0)
+            {
+                <footer class="compendium-review-card__footer">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-compendium-show-all>
+                        Show all @Model.WarningProjects.Count projects
+                    </button>
+                </footer>
+            }
+        </section>
+    }
 </div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/pages/projects-compendium.js" asp-append-version="true"></script>
+}
