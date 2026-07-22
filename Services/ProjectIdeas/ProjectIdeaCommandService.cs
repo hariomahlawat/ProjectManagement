@@ -13,11 +13,15 @@ public class ProjectIdeaCommandService : IProjectIdeaCommandService
         => _db = db ?? throw new ArgumentNullException(nameof(db));
 
     // SECTION: Idea lifecycle commands
-    public async Task<ProjectIdea> CreateAsync(ProjectIdea idea)
+    public async Task<ProjectIdea> CreateAsync(
+        ProjectIdea idea,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(idea);
+
         idea.CreatedAt = idea.UpdatedAt = DateTime.UtcNow;
         _db.ProjectIdeas.Add(idea);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(cancellationToken);
         return idea;
     }
 

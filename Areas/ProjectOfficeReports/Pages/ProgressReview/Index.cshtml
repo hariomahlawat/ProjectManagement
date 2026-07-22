@@ -467,8 +467,8 @@
                                     @foreach (var entry in vm.Ipr.StatusChanges.Take(8))
                                     {
                                         var iprRecordUrl = Url.Page(
-                                            "/ProjectOfficeReports/Ipr/Manage",
-                                            new { area = "ProjectOfficeReports", EditId = entry.IprId });
+                                            "/ProjectOfficeReports/Ipr/Index",
+                                            new { area = "ProjectOfficeReports", tab = "records", mode = "edit", id = entry.IprId });
                                         <li>
                                             <strong><a class="progress-review__link" href="@iprRecordUrl">@entry.Title</a></strong>
                                             <span class="text-muted">(<time datetime="@FormatDateIso(entry.EventDate)">@FormatDay(entry.EventDate)</time>)</span>
@@ -494,8 +494,8 @@
                                     @foreach (var entry in vm.Ipr.Remarks.Take(8))
                                     {
                                         var iprRecordUrl = Url.Page(
-                                            "/ProjectOfficeReports/Ipr/Manage",
-                                            new { area = "ProjectOfficeReports", EditId = entry.IprId });
+                                            "/ProjectOfficeReports/Ipr/Index",
+                                            new { area = "ProjectOfficeReports", tab = "records", mode = "edit", id = entry.IprId });
                                         <li>
                                             <strong><a class="progress-review__link" href="@iprRecordUrl">@entry.Title</a></strong>
                                             <span class="text-muted">(<time datetime="@FormatDateIso(entry.EventDate)">@FormatDay(entry.EventDate)</time>)</span>

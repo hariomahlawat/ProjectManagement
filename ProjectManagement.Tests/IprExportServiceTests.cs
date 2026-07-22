@@ -26,18 +26,20 @@ public sealed class IprExportServiceTests
                 IprStatus.Filed,
                 "Alice",
                 new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero),
-                new DateTimeOffset(2024, 2, 10, 0, 0, 0, TimeSpan.Zero),
+                null,
                 "Project Beacon",
-                "Initial filing"),
+                "Initial filing",
+                IprType.Patent),
             new(
                 "IPR-002",
-                null,
-                IprStatus.FilingUnderProcess,
-                null,
-                null,
-                null,
-                null,
-                null)
+                "Copyright training package",
+                IprStatus.Granted,
+                "Bob",
+                new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2024, 2, 10, 0, 0, 0, TimeSpan.Zero),
+                "Project Atlas",
+                "Registration complete",
+                IprType.Copyright)
         };
 
         var filter = new IprFilter();
@@ -61,23 +63,27 @@ public sealed class IprExportServiceTests
         Assert.Equal("Name of the product", worksheet.Cell(1, 2).GetString());
         Assert.Equal("IPR filing no", worksheet.Cell(1, 3).GetString());
 
+        Assert.Equal("Protection date", worksheet.Cell(1, 8).GetString());
+
         Assert.Equal("Alpha", worksheet.Cell(2, 2).GetString());
         Assert.Equal("IPR-001", worksheet.Cell(2, 3).GetString());
-        Assert.Equal("Filed", worksheet.Cell(2, 4).GetString());
-        Assert.Equal("Alice", worksheet.Cell(2, 5).GetString());
-        Assert.Equal(new DateTime(2024, 1, 1), worksheet.Cell(2, 6).GetDateTime());
-        Assert.Equal(new DateTime(2024, 2, 10), worksheet.Cell(2, 7).GetDateTime());
-        Assert.Equal("Project Beacon", worksheet.Cell(2, 8).GetString());
-        Assert.Equal("Initial filing", worksheet.Cell(2, 9).GetString());
+        Assert.Equal("Patent", worksheet.Cell(2, 4).GetString());
+        Assert.Equal("Patent pending", worksheet.Cell(2, 5).GetString());
+        Assert.Equal("Alice", worksheet.Cell(2, 6).GetString());
+        Assert.Equal(new DateTime(2024, 1, 1), worksheet.Cell(2, 7).GetDateTime());
+        Assert.True(worksheet.Cell(2, 8).IsEmpty());
+        Assert.Equal("Project Beacon", worksheet.Cell(2, 9).GetString());
+        Assert.Equal("Initial filing", worksheet.Cell(2, 10).GetString());
 
-        Assert.Equal("", worksheet.Cell(3, 2).GetString());
+        Assert.Equal("Copyright training package", worksheet.Cell(3, 2).GetString());
         Assert.Equal("IPR-002", worksheet.Cell(3, 3).GetString());
-        Assert.Equal("Filing under process", worksheet.Cell(3, 4).GetString());
-        Assert.Equal("", worksheet.Cell(3, 5).GetString());
-        Assert.True(worksheet.Cell(3, 6).IsEmpty());
-        Assert.True(worksheet.Cell(3, 7).IsEmpty());
-        Assert.Equal("", worksheet.Cell(3, 8).GetString());
-        Assert.Equal("", worksheet.Cell(3, 9).GetString());
+        Assert.Equal("Copyright", worksheet.Cell(3, 4).GetString());
+        Assert.Equal("Copyright registered", worksheet.Cell(3, 5).GetString());
+        Assert.Equal("Bob", worksheet.Cell(3, 6).GetString());
+        Assert.Equal(new DateTime(2024, 2, 1), worksheet.Cell(3, 7).GetDateTime());
+        Assert.Equal(new DateTime(2024, 2, 10), worksheet.Cell(3, 8).GetDateTime());
+        Assert.Equal("Project Atlas", worksheet.Cell(3, 9).GetString());
+        Assert.Equal("Registration complete", worksheet.Cell(3, 10).GetString());
     }
 
     [Fact]

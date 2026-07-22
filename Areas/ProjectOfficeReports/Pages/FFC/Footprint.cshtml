@@ -1,0 +1,187 @@
+@page
+@using System
+@using System.Linq
+@using System.Text.Json
+@using ProjectManagement.Services.Ffc
+@using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.FootprintModel
+@{
+    var countryPayload = Model.Result.Countries.Select(country => new
+    {
+        id = country.CountryId,
+        name = country.CountryName,
+        iso3 = country.IsoCode,
+        recordCount = country.RecordCount,
+        projectCount = country.ProjectCount,
+        installed = country.InstalledUnits,
+        delivered = country.DeliveredNotInstalledUnits,
+        planned = country.PlannedUnits,
+        total = country.TotalUnits,
+        lastUpdated = country.LastUpdated,
+        years = country.Years.Select(year => new
+        {
+            recordId = year.RecordId,
+            year = year.Year,
+            projectCount = year.ProjectCount,
+            installed = year.InstalledUnits,
+            delivered = year.DeliveredNotInstalledUnits,
+            planned = year.PlannedUnits,
+            total = year.TotalUnits,
+            overallPosition = year.OverallPosition,
+            updatedAt = year.UpdatedAt,
+            workspaceUrl = Url.Page("/FFC/Records/Details", new { area = "ProjectOfficeReports", id = year.RecordId }),
+            detailedUrl = Url.Page("/FFC/MapTableDetailed", new { area = "ProjectOfficeReports", countryId = country.CountryId, year = year.Year }),
+            projects = year.Projects.Select(project => new
+            {
+                id = project.FfcProjectId,
+                linkedProjectId = project.LinkedProjectId,
+                name = project.DisplayName,
+                ffcName = project.FfcName,
+                quantity = project.Quantity,
+                position = project.Position.ToString(),
+                stageSummary = project.StageSummary,
+                progress = project.CurrentProgress
+            })
+        })
+    });
+    var countryPayloadJson = JsonSerializer.Serialize(countryPayload);
+    var metricLabel = FootprintModel.MetricLabel(Model.Metric);
+    var metricAriaLabel = metricLabel.ToLowerInvariant();
+}
+
+@section Styles {
+    @if (Model.IsMapView)
+    {
+        <link rel="stylesheet" href="~/lib/leaflet/1.9.4/leaflet.css" asp-append-version="true" />
+    }
+    <link rel="stylesheet" href="~/css/project-office-reports/ffc-footprint.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/project-office-reports/ffc-powerpoint-export.css" asp-append-version="true" />
+}
+
+<div class="ffc-footprint"
+     data-ffc-footprint
+     data-view="@Model.ViewMode"
+     data-metric="@Model.MetricValue"
+     data-selected-country-id="@Model.SelectedCountryId"
+     data-geo-url="@Url.Content("~/data/maps/world-countries-simplified.geojson")">
+
+    <header class="ffc-footprint-header">
+        <div class="ffc-footprint-header__copy">
+            <div class="ffc-footprint-header__eyebrow">FFC Proposals</div>
+            <h1>FFC Global Footprint</h1>
+            <p>Explore simulator quantity status by country and year.</p>
+        </div>
+        <nav class="ffc-footprint-module-nav" aria-label="FFC views">
+            <a asp-page="/FFC/Index" class="btn btn-outline-secondary btn-sm">Overview</a>
+            <a asp-page="/FFC/MapTableDetailed" class="btn btn-outline-secondary btn-sm">Detailed table</a>
+            <span class="btn btn-primary btn-sm" aria-current="page">Footprint</span>
+            <button type="button"
+                    class="btn btn-outline-primary btn-sm"
+                    data-bs-toggle="offcanvas"
+                    data-bs-target="#ffcPowerPointExport"
+                    aria-controls="ffcPowerPointExport">
+                <span class="bi bi-file-earmark-slides" aria-hidden="true"></span>
+                Download PowerPoint
+            </button>
+        </nav>
+    </header>
+
+    <partial name="~/Areas/ProjectOfficeReports/Pages/FFC/Partials/_FootprintSummary.cshtml" model="Model" />
+
+    <section class="ffc-footprint-toolbar" aria-label="Footprint controls">
+        <div class="ffc-footprint-view-switch" role="group" aria-label="Display mode">
+            <a asp-page="/FFC/Footprint"
+               asp-all-route-data='Model.BuildRoute(view: "map", clearSelectedCountry: true)'
+               class="@(Model.IsMapView ? "is-active" : string.Empty)"
+               aria-current="@(Model.IsMapView ? "page" : null)">
+                <span class="bi bi-map" aria-hidden="true"></span>
+                Map
+            </a>
+            <a asp-page="/FFC/Footprint"
+               asp-all-route-data='Model.BuildRoute(view: "cards", clearSelectedCountry: true)'
+               class="@(Model.IsCardsView ? "is-active" : string.Empty)"
+               aria-current="@(Model.IsCardsView ? "page" : null)">
+                <span class="bi bi-grid" aria-hidden="true"></span>
+                Country cards
+            </a>
+        </div>
+
+        <partial name="~/Areas/ProjectOfficeReports/Pages/FFC/Partials/_FootprintFilters.cshtml" model="Model" />
+    </section>
+
+    @if (Model.IsMapView)
+    {
+        <section class="ffc-footprint-map-section" aria-labelledby="ffc-footprint-map-title">
+            <div class="ffc-footprint-map-toolbar">
+                <div>
+                    <h2 id="ffc-footprint-map-title">@metricLabel</h2>
+                    <p>Colour intensity represents the selected metric. Select a country for year and project details.</p>
+                </div>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-ffc-fit-footprint>
+                    <span class="bi bi-bounding-box" aria-hidden="true"></span>
+                    Fit footprint
+                </button>
+            </div>
+
+            <div class="ffc-footprint-map-shell">
+                <div id="ffcFootprintMap"
+                     class="ffc-footprint-map"
+                     role="application"
+                     aria-label="World map showing FFC @metricAriaLabel">
+                    <div class="ffc-footprint-map__loading" data-ffc-map-loading>
+                        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                        Preparing FFC footprint…
+                    </div>
+                </div>
+                <div class="ffc-footprint-legend" data-ffc-map-legend aria-label="Map legend"></div>
+                <div class="ffc-footprint-map__error" data-ffc-map-error hidden>
+                    <span class="bi bi-exclamation-triangle" aria-hidden="true"></span>
+                    <div>
+                        <strong>The map could not be prepared.</strong>
+                        <p>The country-card view remains available.</p>
+                    </div>
+                    <a asp-page="/FFC/Footprint"
+                       asp-all-route-data='Model.BuildRoute(view: "cards")'
+                       class="btn btn-outline-primary btn-sm">Open country cards</a>
+                </div>
+            </div>
+
+            <ul class="visually-hidden" aria-label="Countries represented on the FFC map">
+                @foreach (var country in Model.Result.Countries)
+                {
+                    <li>
+                        <button type="button" data-ffc-country-trigger data-country-id="@country.CountryId">
+                            @country.CountryName: @country.InstalledUnits installed, @country.DeliveredNotInstalledUnits delivered awaiting installation and @country.PlannedUnits planned.
+                        </button>
+                    </li>
+                }
+            </ul>
+        </section>
+    }
+    else
+    {
+        <section class="ffc-footprint-cards-section" aria-labelledby="ffc-footprint-cards-title">
+            <div class="ffc-footprint-section-heading">
+                <div>
+                    <h2 id="ffc-footprint-cards-title">Country footprint</h2>
+                    <p>Select a country to review its year-wise records and project status.</p>
+                </div>
+                <span>@Model.Result.Countries.Count countr@(Model.Result.Countries.Count == 1 ? "y" : "ies")</span>
+            </div>
+            <partial name="~/Areas/ProjectOfficeReports/Pages/FFC/Partials/_FootprintCountryCards.cshtml" model="Model" />
+        </section>
+    }
+
+    <partial name="~/Areas/ProjectOfficeReports/Pages/FFC/Partials/_FootprintCountryPanel.cshtml" />
+    <partial name="~/Areas/ProjectOfficeReports/Pages/FFC/Partials/_PowerPointExportDrawer.cshtml" model="Model" />
+    <script type="application/json" id="ffc-footprint-data">@Html.Raw(countryPayloadJson)</script>
+</div>
+
+@section Scripts {
+    @if (Model.IsMapView)
+    {
+        <script src="~/lib/leaflet/1.9.4/leaflet.js" asp-append-version="true"></script>
+    }
+    <script src="~/js/pages/project-office-reports/ffc/ffc-footprint.js" asp-append-version="true"></script>
+    <script src="~/js/pages/project-office-reports/ffc/ffc-powerpoint-export.js" asp-append-version="true"></script>
+}

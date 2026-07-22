@@ -55,10 +55,11 @@
         "trash" => "Items in Trash are permanently deleted after 30 days.",
         _ => "Notes, reminders, checklists, ideas and drafts."
     };
+    var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
 }
 @section Styles { <link rel="stylesheet" href="~/css/notebook.css" asp-append-version="true" /> }
 
-<div class="notebook-shell @(Model.UseLegacyEditor ? "has-editor" : "editor-collapsed")" data-board-view="grid" data-view="@Model.Notebook.View" data-open-label-manager-on-load="@Model.EditLabels.ToString().ToLowerInvariant()">
+<div class="notebook-shell @(Model.UseLegacyEditor ? "has-editor" : "editor-collapsed")" data-board-view="grid" data-view="@Model.Notebook.View" data-current-user-id="@currentUserId" data-open-label-manager-on-load="@Model.EditLabels.ToString().ToLowerInvariant()">
     @* SECTION: Dedicated anti-forgery token for Notebook API mutations *@
     <div id="notebook-antiforgery-token" hidden>
         @Html.AntiForgeryToken()

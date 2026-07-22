@@ -1,0 +1,153 @@
+@page {
+    size: A4 landscape;
+    margin: 9mm 8mm 10mm;
+}
+
+@media print {
+    html,
+    body {
+        background: #fff !important;
+        color: #000 !important;
+        font-family: Arial, sans-serif !important;
+    }
+
+    .pm-page-shell,
+    .ffc-detailed-page,
+    .ffc-detailed-card,
+    .ffc-detailed-card .pm-card__body,
+    .ffc-detailed-table {
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        background: #fff !important;
+    }
+
+    .ffc-detailed-toolbar,
+    .ffc-detailed-filter-alert,
+    #ffc-inline-edit-token,
+    #ffcWordExportModal,
+    .ffc-dtable__expand,
+    .ffc-dtable .editor,
+    .ffc-dtable .inline-error,
+    .ffc-dtable .inline-status,
+    [data-hide-in-print] {
+        display: none !important;
+    }
+
+    .ffc-detailed-print-heading {
+        display: block !important;
+        margin: 0 0 5mm !important;
+        color: #000;
+    }
+
+    .ffc-detailed-print-heading h1 {
+        margin: 0 0 1mm;
+        font-size: 15pt;
+        font-weight: 700;
+    }
+
+    .ffc-detailed-print-heading p {
+        margin: 0;
+        color: #444;
+        font-size: 8.5pt;
+    }
+
+    .ffc-dtable {
+        width: 100% !important;
+        min-width: 0 !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        color: #000 !important;
+        background: #fff !important;
+        font-size: 7.2pt !important;
+    }
+
+    .ffc-dtable thead {
+        display: table-header-group;
+    }
+
+    .ffc-dtable thead th {
+        position: static !important;
+        padding: 1.6mm 1.2mm !important;
+        border: .25mm solid #8b96a3 !important;
+        color: #000 !important;
+        background: #e9edf2 !important;
+        box-shadow: none !important;
+        font-size: 7.2pt !important;
+    }
+
+    .ffc-dtable tbody td {
+        padding: 1.45mm 1.2mm !important;
+        border: .2mm solid #b8c0ca !important;
+        color: #000 !important;
+        background: #fff !important;
+        line-height: 1.25 !important;
+    }
+
+    .ffc-dtable__group-row {
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+
+    .ffc-dtable__group-row td {
+        position: static !important;
+        padding: 1.5mm 1.2mm !important;
+        border-color: #8b96a3 !important;
+        background: #f0f2f5 !important;
+    }
+
+    .ffc-dtable__project-row {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .ffc-dtable__group-title,
+    .ffc-dtable__project-name a {
+        color: #000 !important;
+        text-decoration: none !important;
+    }
+
+    .ffc-dtable__group-title i {
+        display: none !important;
+    }
+
+    .ffc-dtable__group-iso,
+    .ffc-dtable__status-label,
+    .text-muted {
+        color: #333 !important;
+    }
+
+    .ffc-dtable__clamp,
+    .ffc-dtable__clamp.is-expanded {
+        display: block !important;
+        max-height: none !important;
+        overflow: visible !important;
+        white-space: pre-line !important;
+    }
+
+    .ffc-dtable td[data-editable="true"] .display-text {
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .ffc-dtable td[data-editable="true"].is-editing {
+        background: #fff !important;
+        box-shadow: none !important;
+    }
+
+    .ffc-dtable__col-serial { width: 4.5% !important; }
+    .ffc-dtable__col-project { width: 16% !important; }
+    .ffc-dtable__col-cost { width: 8% !important; }
+    .ffc-dtable__col-quantity { width: 6.5% !important; }
+    .ffc-dtable__col-status { width: 10% !important; }
+    .ffc-dtable__col-progress { width: 27% !important; }
+    .ffc-dtable__col-overall { width: 28% !important; }
+}

@@ -1,131 +1,184 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Security.Claims;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Areas.Admin.Models;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
-using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.Maintenance;
+using ProjectManagement.Services.Navigation;
+using ProjectManagement.Services.Navigation.ModuleNav;
 using ProjectManagement.Utilities.Reporting;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Projects;
 
-[Authorize(Roles = "Admin")]
-public class LegacyImportModel : PageModel
+[Authorize(Policy = AdminPolicies.IngestionManage)]
+public sealed class LegacyImportModel : PageModel
 {
     private readonly ApplicationDbContext _db;
-    private readonly IProjectImportService _importService;
+    private readonly ILegacyImportPreflightService _preflight;
+    private readonly IAdminNavigationUrlBuilder _navigation;
 
-    public LegacyImportModel(ApplicationDbContext db, IProjectImportService importService)
+    public LegacyImportModel(
+        ApplicationDbContext db,
+        ILegacyImportPreflightService preflight,
+        IAdminNavigationUrlBuilder navigation)
     {
-        _db = db;
-        _importService = importService;
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _preflight = preflight ?? throw new ArgumentNullException(nameof(preflight));
+        _navigation = navigation ?? throw new ArgumentNullException(nameof(navigation));
     }
 
-    [BindProperty(SupportsGet = true)]
-    public int? ProjectCategoryId { get; set; }
+    [BindProperty(SupportsGet = true)] public int? ProjectCategoryId { get; set; }
+    [BindProperty(SupportsGet = true)] public int? TechnicalCategoryId { get; set; }
+    [BindProperty] public IFormFile? Upload { get; set; }
+    [BindProperty] public Guid PreviewToken { get; set; }
+    [BindProperty] public bool ConfirmCommit { get; set; }
 
-    [BindProperty(SupportsGet = true)]
-    public int? TechnicalCategoryId { get; set; }
-
-    [BindProperty]
-    public IFormFile? Upload { get; set; }
-
-    [TempData]
-    public string? StatusMessage { get; set; }
-
+    public AdminPageHeaderModel Header { get; private set; } = new();
+    public LegacyImportPreview? Preview { get; private set; }
     public IReadOnlyList<SelectListItem> ProjectCategories { get; private set; } = Array.Empty<SelectListItem>();
-
     public IReadOnlyList<SelectListItem> TechnicalCategories { get; private set; } = Array.Empty<SelectListItem>();
 
-    public async Task OnGetAsync()
+    public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        await LoadOptionsAsync();
+        await LoadPageAsync(cancellationToken);
     }
 
-    public async Task<IActionResult> OnPostImportAsync()
+    public async Task<IActionResult> OnPostPreviewAsync(CancellationToken cancellationToken)
     {
-        await LoadOptionsAsync();
+        await LoadPageAsync(cancellationToken);
+        if (!ProjectCategoryId.HasValue) ModelState.AddModelError(nameof(ProjectCategoryId), "Select a project category.");
+        if (!TechnicalCategoryId.HasValue) ModelState.AddModelError(nameof(TechnicalCategoryId), "Select a technical category.");
+        if (Upload is null || Upload.Length == 0) ModelState.AddModelError(nameof(Upload), "Upload a non-empty .xlsx workbook.");
+        if (!ModelState.IsValid) return Page();
 
-        if (!ProjectCategoryId.HasValue)
-        {
-            ModelState.AddModelError(nameof(ProjectCategoryId), "Select a project category.");
-        }
-
-        if (!TechnicalCategoryId.HasValue)
-        {
-            ModelState.AddModelError(nameof(TechnicalCategoryId), "Select a technical category.");
-        }
-
-        if (Upload is null || Upload.Length == 0)
-        {
-            ModelState.AddModelError(nameof(Upload), "Upload a non-empty .xlsx file.");
-        }
-
-        if (!ModelState.IsValid)
-        {
-            return Page();
-        }
-
-        var importerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "legacy-import";
-        var result = await _importService.ImportLegacyProjectsAsync(
+        var operation = await _preflight.PreviewAsync(
             ProjectCategoryId!.Value,
             TechnicalCategoryId!.Value,
             Upload!,
-            importerUserId);
-
-        if (!result.Success)
+            cancellationToken);
+        if (!operation.Succeeded || operation.Value is null)
         {
-            ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "Import failed.");
+            ModelState.AddModelError(string.Empty, operation.UserMessage ?? "The workbook could not be validated.");
             return Page();
         }
 
-        StatusMessage = $"Imported {result.RowsImported} projects for the selected categories.";
-        return RedirectToPage(new
+        Preview = operation.Value;
+        PreviewToken = Preview.Token;
+        ViewData["StatusMessage"] = operation.UserMessage;
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostCommitAsync(CancellationToken cancellationToken)
+    {
+        if (!ProjectCategoryId.HasValue || !TechnicalCategoryId.HasValue || PreviewToken == Guid.Empty)
         {
-            ProjectCategoryId,
-            TechnicalCategoryId
-        });
+            TempData[FlashMessageKeys.AdminMaintenanceError] = "The validated import is incomplete or has expired. Validate the workbook again.";
+            return RedirectToPage();
+        }
+        if (!ConfirmCommit)
+        {
+            TempData[FlashMessageKeys.AdminMaintenanceError] = "Confirm that the validated row counts and category selections have been reviewed.";
+            return RedirectToPage(new { ProjectCategoryId, TechnicalCategoryId });
+        }
+
+        var actor = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "legacy-import";
+        var result = await _preflight.CommitAsync(
+            PreviewToken,
+            ProjectCategoryId.Value,
+            TechnicalCategoryId.Value,
+            actor,
+            cancellationToken);
+        if (!result.Succeeded)
+        {
+            TempData[FlashMessageKeys.AdminMaintenanceError] = !string.IsNullOrWhiteSpace(result.TraceId)
+                ? $"{result.Message} Trace reference: {result.TraceId}."
+                : result.Message;
+            return RedirectToPage(new { ProjectCategoryId, TechnicalCategoryId });
+        }
+
+        TempData[FlashMessageKeys.AdminMaintenanceSuccess] = result.Message;
+        return RedirectToPage(new { ProjectCategoryId, TechnicalCategoryId });
+    }
+
+    public async Task<IActionResult> OnPostCancelAsync(CancellationToken cancellationToken)
+    {
+        if (PreviewToken != Guid.Empty) await _preflight.CancelAsync(PreviewToken, cancellationToken);
+        TempData[FlashMessageKeys.AdminMaintenanceSuccess] = "Validated workbook staging was cancelled and removed.";
+        return RedirectToPage(new { ProjectCategoryId, TechnicalCategoryId });
     }
 
     public IActionResult OnGetTemplate()
     {
-        var workbook = ProjectLegacyImportTemplateFactory.CreateWorkbook();
-        using var stream = new System.IO.MemoryStream();
+        using var workbook = ProjectLegacyImportTemplateFactory.CreateWorkbook();
+        using var stream = new MemoryStream();
         workbook.SaveAs(stream);
-        stream.Position = 0;
-        return File(stream.ToArray(),
+        return File(
+            stream.ToArray(),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "LegacyProjectsTemplate.xlsx");
     }
 
-    private async Task LoadOptionsAsync()
+    public string StatusTone(LegacyImportRowStatus status) => status switch
     {
-        ProjectCategories = await _db.ProjectCategories
-            .OrderBy(x => x.Name)
-            .Select(x => new SelectListItem
-            {
-                Value = x.Id.ToString(CultureInfo.InvariantCulture),
-                Text = x.Name,
-                Selected = ProjectCategoryId.HasValue && ProjectCategoryId.Value == x.Id
-            })
-            .ToListAsync();
+        LegacyImportRowStatus.Valid => "success",
+        LegacyImportRowStatus.Warning => "warning",
+        _ => "danger"
+    };
 
-        TechnicalCategories = await _db.TechnicalCategories
-            .Where(x => x.IsActive)
-            .OrderBy(x => x.Name)
-            .Select(x => new SelectListItem
+    private async Task LoadPageAsync(CancellationToken cancellationToken)
+    {
+        var projectCategories = await _db.ProjectCategories.AsNoTracking()
+            .OrderBy(category => category.Name)
+            .Select(category => new { category.Id, category.Name })
+            .ToListAsync(cancellationToken);
+        ProjectCategories = projectCategories
+            .Select(category => new SelectListItem(
+                category.Name,
+                category.Id.ToString(CultureInfo.InvariantCulture),
+                ProjectCategoryId == category.Id))
+            .ToArray();
+
+        var technicalCategories = await _db.TechnicalCategories.AsNoTracking()
+            .Where(category => category.IsActive)
+            .OrderBy(category => category.Name)
+            .Select(category => new { category.Id, category.Name })
+            .ToListAsync(cancellationToken);
+        TechnicalCategories = technicalCategories
+            .Select(category => new SelectListItem(
+                category.Name,
+                category.Id.ToString(CultureInfo.InvariantCulture),
+                TechnicalCategoryId == category.Id))
+            .ToArray();
+
+        Header = new AdminPageHeaderModel
+        {
+            Eyebrow = "Controlled maintenance",
+            Title = "Legacy project import",
+            Description = "Validate an approved Excel workbook without database mutation, review every proposed row and then commit one idempotent import.",
+            Icon = "bi-database-up",
+            Actions = new[]
             {
-                Value = x.Id.ToString(CultureInfo.InvariantCulture),
-                Text = x.Name,
-                Selected = TechnicalCategoryId.HasValue && TechnicalCategoryId.Value == x.Id
-            })
-            .ToListAsync();
+                new AdminPageActionModel
+                {
+                    Text = "Maintenance centre",
+                    Href = _navigation.GetPath(HttpContext, AdminNavigationKeys.MaintenanceCentre),
+                    Icon = "bi-arrow-left"
+                },
+                new AdminPageActionModel
+                {
+                    Text = "Download template",
+                    Href = Url.Page(null, "Template") ?? "#",
+                    Icon = "bi-download",
+                    IsPrimary = true
+                }
+            }
+        };
     }
 }

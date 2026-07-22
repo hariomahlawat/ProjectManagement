@@ -1,8 +1,7 @@
-using System;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using ProjectManagement.Areas.Admin.Pages.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Data;
+using ProjectManagement.Services.Admin;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -10,19 +9,20 @@ namespace ProjectManagement.Tests;
 public sealed class DbHealthPageTests
 {
     [Fact]
-    public async Task NonRelationalProvider_SetsFallbackValues()
+    public async Task NonRelationalProvider_ReturnsUnavailableDatabaseHealthSnapshot()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
 
         await using var context = new ApplicationDbContext(options);
-        var model = new DbHealthModel(context);
+        var service = new DatabaseHealthService(context, NullLogger<DatabaseHealthService>.Instance);
 
-        await model.OnGetAsync();
+        var snapshot = await service.CheckAsync(CancellationToken.None);
 
-        Assert.False(model.IsRelational);
-        Assert.Equal("(not available)", model.LatestMigration);
-        Assert.Empty(model.PendingMigrations);
+        Assert.False(snapshot.IsRelational);
+        Assert.Equal("(not available)", snapshot.LatestMigration);
+        Assert.Empty(snapshot.PendingMigrations);
+        Assert.Contains(snapshot.Checks, check => check.Status == AdminHealthStatus.Unavailable);
     }
 }

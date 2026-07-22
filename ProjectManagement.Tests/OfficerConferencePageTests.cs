@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using ProjectManagement.Configuration;
 using ProjectManagement.Pages.Workspace;
 
@@ -15,5 +16,14 @@ public sealed class OfficerConferencePageTests
                 .Cast<AuthorizeAttribute>());
 
         Assert.Equal(Policies.ConferenceRemarks.Manage, attribute.Policy);
+    }
+
+    [Fact]
+    public void ConferencePage_ExposesReadOnlyDirectionHistoryHandler()
+    {
+        var method = typeof(ConferenceModel).GetMethod(nameof(ConferenceModel.OnGetDirectionHistoryAsync));
+
+        Assert.NotNull(method);
+        Assert.Equal(typeof(Task<IActionResult>), method!.ReturnType);
     }
 }

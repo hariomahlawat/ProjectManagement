@@ -1,81 +1,89 @@
-using System;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Admin;
 
-namespace ProjectManagement.Services
+namespace ProjectManagement.Services;
+
+public sealed class LoginAggregationWorker : BackgroundService
 {
-    public class LoginAggregationWorker : BackgroundService
+    private const string WorkerKey = "login-aggregation";
+
+    private readonly IServiceProvider _services;
+    private readonly ILogger<LoginAggregationWorker> _logger;
+    private readonly IAdminWorkerStatusRegistry? _status;
+
+    public LoginAggregationWorker(
+        IServiceProvider services,
+        ILogger<LoginAggregationWorker> logger,
+        IAdminWorkerStatusRegistry? status = null)
     {
-        private readonly IServiceProvider _sp;
-        private readonly ILogger<LoginAggregationWorker> _log;
+        _services = services ?? throw new ArgumentNullException(nameof(services));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _status = status;
+        _status?.Register(WorkerKey, "Login aggregation", TimeSpan.FromHours(24));
+    }
 
-        public LoginAggregationWorker(IServiceProvider sp, ILogger<LoginAggregationWorker> log)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        try
         {
-            _sp = sp;
-            _log = log;
-        }
+            using var timer = new PeriodicTimer(TimeSpan.FromHours(24));
+            await RunCycleAsync(stoppingToken);
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            try
+            while (await timer.WaitForNextTickAsync(stoppingToken))
             {
-                using var timer = new PeriodicTimer(TimeSpan.FromHours(24));
-
-                await AggregateAsync(stoppingToken);
-
-                while (await timer.WaitForNextTickAsync(stoppingToken))
-                {
-                    await AggregateAsync(stoppingToken);
-                }
-            }
-            catch (TaskCanceledException)
-            {
-                // Ignore cancellation exceptions to allow graceful shutdown
-            }
-            catch (OperationCanceledException)
-            {
-                // Ignore cancellation exceptions to allow graceful shutdown
-            }
-            catch (Exception ex)
-            {
-                _log.LogError(ex, "Login aggregation worker failed.");
+                await RunCycleAsync(stoppingToken);
             }
         }
-
-        private async Task AggregateAsync(CancellationToken stoppingToken)
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            if (stoppingToken.IsCancellationRequested)
-            {
-                return;
-            }
-
-            using var scope = _sp.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-            var now = DateTime.UtcNow;
-            var date = DateOnly.FromDateTime(now.AddDays(-1));
-            var exists = await db.DailyLoginStats.AnyAsync(x => x.Date == date, stoppingToken);
-            if (exists)
-            {
-                return;
-            }
-
-            var from = new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, TimeSpan.Zero);
-            var to = from.AddDays(1);
-
-            var count = await db.AuthEvents
-                .Where(e => e.Event == "LoginSucceeded" && e.WhenUtc >= from && e.WhenUtc < to)
-                .CountAsync(stoppingToken);
-
-            db.DailyLoginStats.Add(new DailyLoginStat { Date = date, Count = count });
-            await db.SaveChangesAsync(stoppingToken);
+            // Graceful shutdown.
         }
+        catch (Exception exception)
+        {
+            _status?.MarkFailed(WorkerKey, exception);
+            _logger.LogError(exception, "Login aggregation worker failed.");
+        }
+    }
+
+    private async Task RunCycleAsync(CancellationToken cancellationToken)
+    {
+        _status?.MarkStarted(WorkerKey);
+        try
+        {
+            var result = await AggregateAsync(cancellationToken);
+            _status?.MarkSucceeded(WorkerKey, result);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _status?.MarkFailed(WorkerKey, exception);
+            throw;
+        }
+    }
+
+    private async Task<string> AggregateAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        using var scope = _services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var date = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
+        var exists = await db.DailyLoginStats.AnyAsync(row => row.Date == date, cancellationToken);
+        if (exists) return $"Daily aggregate for {date:yyyy-MM-dd} already exists.";
+
+        var from = new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, TimeSpan.Zero);
+        var to = from.AddDays(1);
+        var count = await db.AuthEvents
+            .Where(authEvent =>
+                authEvent.Event == AuthenticationEventNames.LoginSucceeded
+                && authEvent.WhenUtc >= from
+                && authEvent.WhenUtc < to)
+            .CountAsync(cancellationToken);
+
+        db.DailyLoginStats.Add(new DailyLoginStat { Date = date, Count = count });
+        await db.SaveChangesAsync(cancellationToken);
+        return $"Stored {count} successful sign-in(s) for {date:yyyy-MM-dd}.";
     }
 }

@@ -1,0 +1,147 @@
+@model ProjectManagement.Areas.Admin.Models.AdminCategoryDirectoryModel
+@using ProjectManagement.Services.Admin.MasterData
+@{
+    var result = Model.Result;
+}
+<section class="admin-panel admin-category-directory" aria-labelledby="category-directory-title" data-admin-category-tree>
+    <header class="admin-panel__header">
+        <div>
+            <div class="admin-panel__eyebrow">Hierarchy directory</div>
+            <h2 id="category-directory-title">Categories</h2>
+        </div>
+        <span class="admin-panel__meta">@result.Rows.Count displayed · @result.Total total</span>
+    </header>
+
+    <form method="get" class="admin-master-filter-toolbar" data-admin-auto-filter>
+        <div class="admin-filter-toolbar__search">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <label class="visually-hidden" for="category-search">Search categories</label>
+            <input id="category-search" class="form-control" type="search" name="q" value="@result.Search" placeholder="Search name or hierarchy path" autocomplete="off" />
+        </div>
+        <div class="admin-filter-toolbar__field">
+            <label for="category-status">Status</label>
+            <select id="category-status" class="form-select" name="status">
+                <option value="active" selected="@(result.Status == "active" ? "selected" : null)">Active</option>
+                <option value="inactive" selected="@(result.Status == "inactive" ? "selected" : null)">Inactive</option>
+                <option value="all" selected="@(result.Status == "all" ? "selected" : null)">All states</option>
+            </select>
+        </div>
+        <div class="admin-filter-toolbar__actions">
+            <button class="btn btn-primary" type="submit"><i class="bi bi-funnel" aria-hidden="true"></i>Apply</button>
+            <a class="btn btn-outline-secondary" asp-area="@Model.Area" asp-page="@Model.IndexPage">Clear</a>
+        </div>
+        <div class="admin-category-toolbar__tree-actions" aria-label="Tree controls">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-admin-tree-expand><i class="bi bi-arrows-expand" aria-hidden="true"></i>Expand all</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-admin-tree-collapse><i class="bi bi-arrows-collapse" aria-hidden="true"></i>Collapse all</button>
+        </div>
+    </form>
+
+    @if (result.Rows.Count == 0)
+    {
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml"
+                 model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel
+                 {
+                     Icon = "bi-diagram-3",
+                     Title = "No categories match the current filters",
+                     Description = result.Total == 0
+                         ? "Create the first root category to establish the hierarchy."
+                         : "Clear or adjust the search and status filters.",
+                     ActionText = result.Total == 0 ? "Add root category" : null,
+                     ActionHref = result.Total == 0 ? Url.Page(Model.CreatePage, new { area = Model.Area }) : null
+                 })" />
+    }
+    else
+    {
+        <div class="admin-data-table-wrap">
+            <table class="admin-data-table admin-category-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Category</th>
+                        <th scope="col">Usage</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Order</th>
+                        <th scope="col" class="admin-data-table__actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in result.Rows)
+                    {
+                        <tr class="@(row.IsContextOnly ? "is-context" : string.Empty)"
+                            data-category-row
+                            data-category-id="@row.Id"
+                            data-parent-id="@(row.ParentId?.ToString() ?? string.Empty)"
+                            data-depth="@row.Depth">
+                            <td>
+                                <div class="admin-category-cell" style="--category-depth:@row.Depth">
+                                    @if (row.HasChildren)
+                                    {
+                                        <button type="button" class="admin-category-toggle" data-admin-tree-toggle aria-expanded="true" aria-label="Collapse @row.Name">
+                                            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <span class="admin-category-toggle admin-category-toggle--placeholder" aria-hidden="true"></span>
+                                    }
+                                    <span class="admin-category-cell__icon" aria-hidden="true"><i class="bi @(row.HasChildren ? "bi-folder2-open" : "bi-tag")"></i></span>
+                                    <span class="admin-category-cell__copy">
+                                        <strong>@row.Name</strong>
+                                        <span title="@row.Path">@row.Path</span>
+                                        @if (row.IsContextOnly)
+                                        {
+                                            <small>Shown as hierarchy context</small>
+                                        }
+                                    </span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="admin-usage-summary">
+                                    <strong>@row.DirectUsageCount project@(row.DirectUsageCount == 1 ? string.Empty : "s")</strong>
+                                    <span>@row.DirectChildCount child@(row.DirectChildCount == 1 ? string.Empty : "ren") · @row.DescendantCount descendant@(row.DescendantCount == 1 ? string.Empty : "s")</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="admin-status-pill admin-status-pill--@(row.IsActive ? "success" : "neutral")">
+                                    <i class="bi @(row.IsActive ? "bi-check-circle" : "bi-slash-circle")" aria-hidden="true"></i>
+                                    @(row.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td>
+                                <div class="admin-order-control">
+                                    <span>@(row.SortOrder + 1)</span>
+                                    <form method="post" data-admin-controlled-submit asp-area="@Model.Area" asp-page="@Model.IndexPage" asp-page-handler="@Model.MoveHandler">
+                                        <input type="hidden" name="id" value="@row.Id" />
+                                        <input type="hidden" name="offset" value="-1" />
+                                        <button class="btn btn-sm btn-icon" type="submit" disabled="@(!row.CanMoveUp ? "disabled" : null)" aria-label="Move @row.Name up"><i class="bi bi-chevron-up" aria-hidden="true"></i></button>
+                                    </form>
+                                    <form method="post" data-admin-controlled-submit asp-area="@Model.Area" asp-page="@Model.IndexPage" asp-page-handler="@Model.MoveHandler">
+                                        <input type="hidden" name="id" value="@row.Id" />
+                                        <input type="hidden" name="offset" value="1" />
+                                        <button class="btn btn-sm btn-icon" type="submit" disabled="@(!row.CanMoveDown ? "disabled" : null)" aria-label="Move @row.Name down"><i class="bi bi-chevron-down" aria-hidden="true"></i></button>
+                                    </form>
+                                </div>
+                            </td>
+                            <td class="admin-data-table__actions">
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @row.Name"><i class="bi bi-three-dots" aria-hidden="true"></i></button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><a class="dropdown-item" asp-area="@Model.Area" asp-page="@Model.CreatePage" asp-route-parentId="@row.Id"><i class="bi bi-node-plus" aria-hidden="true"></i>Add child</a></li>
+                                        <li><a class="dropdown-item" asp-area="@Model.Area" asp-page="@Model.EditPage" asp-route-id="@row.Id"><i class="bi bi-pencil-square" aria-hidden="true"></i>Edit</a></li>
+                                        <li>
+                                            <form method="post" data-admin-controlled-submit asp-area="@Model.Area" asp-page="@Model.IndexPage" asp-page-handler="@Model.ToggleHandler">
+                                                <input type="hidden" name="id" value="@row.Id" />
+                                                <button class="dropdown-item" type="submit"><i class="bi @(row.IsActive ? "bi-slash-circle" : "bi-check-circle")" aria-hidden="true"></i>@(row.IsActive ? "Deactivate" : "Activate")</button>
+                                            </form>
+                                        </li>
+                                        <li><hr class="dropdown-divider" /></li>
+                                        <li><a class="dropdown-item text-danger" asp-area="@Model.Area" asp-page="@Model.DeletePage" asp-route-id="@row.Id"><i class="bi bi-trash3" aria-hidden="true"></i>Review deletion</a></li>
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>

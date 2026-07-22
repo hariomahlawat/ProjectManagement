@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Linq;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -12,13 +11,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
-using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services.Ffc;
+using ProjectManagement.Services.Ffc.Exports;
 using ProjectManagement.Services.Remarks;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 
@@ -26,9 +25,12 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 [ValidateAntiForgeryToken]
 public class MapTableDetailedModel : PageModel
 {
+    private const int OverallRemarksMaxLength = 4000;
+
     private readonly ApplicationDbContext _db;
     private readonly IFfcQueryService _ffcQueryService;
-    private readonly IRemarkService _remarkService;
+    private readonly IFfcProgressService _ffcProgressService;
+    private readonly IFfcDetailedTableExportService _exportService;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<MapTableDetailedModel> _logger;
 
@@ -36,13 +38,15 @@ public class MapTableDetailedModel : PageModel
     public MapTableDetailedModel(
         ApplicationDbContext db,
         IFfcQueryService ffcQueryService,
-        IRemarkService remarkService,
+        IFfcProgressService ffcProgressService,
+        IFfcDetailedTableExportService exportService,
         UserManager<ApplicationUser> userManager,
         ILogger<MapTableDetailedModel> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _ffcQueryService = ffcQueryService ?? throw new ArgumentNullException(nameof(ffcQueryService));
-        _remarkService = remarkService ?? throw new ArgumentNullException(nameof(remarkService));
+        _ffcProgressService = ffcProgressService ?? throw new ArgumentNullException(nameof(ffcProgressService));
+        _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -60,133 +64,81 @@ public class MapTableDetailedModel : PageModel
 
     public string? FilterSummary { get; private set; }
 
+    public string ExportScopeLabel { get; private set; } = "Complete portfolio";
+
+    public string GeneratedAtIstDisplay { get; private set; } = string.Empty;
+
+    public bool ShowWordExportModal { get; private set; }
+
     // SECTION: View model
     public IReadOnlyList<FfcDetailedGroupVm> Groups { get; private set; } = Array.Empty<FfcDetailedGroupVm>();
+
+    [BindProperty]
+    public WordExportInputModel WordExport { get; set; } = new();
 
     // SECTION: Request handlers
     public async Task OnGetAsync(long? countryId, short? year, string? countryIso3, CancellationToken cancellationToken)
     {
-        CountryIso3 = string.IsNullOrWhiteSpace(countryIso3) ? null : countryIso3.Trim().ToUpperInvariant();
-        CountryId = await ResolveCountryIdAsync(countryId, CountryIso3, cancellationToken);
-        Year = year;
-
-        if (CountryId.HasValue)
-        {
-            CountryName = await _db.FfcCountries
-                .AsNoTracking()
-                .Where(country => country.Id == CountryId.Value)
-                .Select(country => country.Name)
-                .FirstOrDefaultAsync(cancellationToken);
-        }
-
-        FilterSummary = BuildFilterSummary();
-
-        var (rangeFrom, rangeTo) = ResolveRange();
-        Groups = await _ffcQueryService.GetDetailedGroupsAsync(rangeFrom, rangeTo, incompleteOnly: false, CountryId, Year, applyYearFilter: true, cancellationToken: cancellationToken);
-
-        FfcBreadcrumbs.Set(
-            ViewData,
-            ("FFC Proposals", Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
-            ("Detailed table", null));
+        await LoadPageAsync(countryId, year, countryIso3, cancellationToken);
     }
 
-    public async Task<IActionResult> OnGetDataAsync(long? countryId, short? year, string? countryIso3, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetDataAsync(
+        long? countryId,
+        short? year,
+        string? countryIso3,
+        CancellationToken cancellationToken)
     {
-        CountryIso3 = string.IsNullOrWhiteSpace(countryIso3) ? null : countryIso3.Trim().ToUpperInvariant();
-        CountryId = await ResolveCountryIdAsync(countryId, CountryIso3, cancellationToken);
-        Year = year;
-
-        var (rangeFrom, rangeTo) = ResolveRange();
-        var groups = await _ffcQueryService.GetDetailedGroupsAsync(rangeFrom, rangeTo, incompleteOnly: false, CountryId, Year, applyYearFilter: true, cancellationToken: cancellationToken);
-        return new JsonResult(groups);
+        await ResolveScopeAsync(countryId, year, countryIso3, cancellationToken);
+        return new JsonResult(await LoadGroupsAsync(cancellationToken));
     }
 
-    public async Task<IActionResult> OnGetExportAsync(long? countryId, short? year, string? countryIso3, CancellationToken cancellationToken)
+    // Retained for compatibility with existing bookmarks and links.
+    public Task<IActionResult> OnGetExportAsync(
+        long? countryId,
+        short? year,
+        string? countryIso3,
+        CancellationToken cancellationToken)
+        => OnGetExportExcelAsync(countryId, year, countryIso3, cancellationToken);
+
+    public async Task<IActionResult> OnGetExportExcelAsync(
+        long? countryId,
+        short? year,
+        string? countryIso3,
+        CancellationToken cancellationToken)
     {
-        CountryIso3 = string.IsNullOrWhiteSpace(countryIso3) ? null : countryIso3.Trim().ToUpperInvariant();
-        CountryId = await ResolveCountryIdAsync(countryId, CountryIso3, cancellationToken);
-        Year = year;
+        await ResolveScopeAsync(countryId, year, countryIso3, cancellationToken);
+        var groups = await LoadGroupsAsync(cancellationToken);
+        var export = _exportService.BuildExcel(CreateExportContext(groups, handlingMarking: null));
 
-        var (rangeFrom, rangeTo) = ResolveRange();
-        var groups = await _ffcQueryService.GetDetailedGroupsAsync(rangeFrom, rangeTo, incompleteOnly: false, CountryId, Year, applyYearFilter: true, cancellationToken: cancellationToken);
+        return File(export.Content, export.ContentType, export.FileName);
+    }
 
-        using var workbook = new ClosedXML.Excel.XLWorkbook();
-        var worksheet = workbook.AddWorksheet("FFC Projects (Detailed)");
+    public async Task<IActionResult> OnPostExportWordAsync(
+        long? countryId,
+        short? year,
+        string? countryIso3,
+        CancellationToken cancellationToken)
+    {
+        await ResolveScopeAsync(countryId, year, countryIso3, cancellationToken);
 
-        // SECTION: Header row
-        var columnIndex = 1;
-        worksheet.Cell(1, columnIndex++).Value = "Country";
-        worksheet.Cell(1, columnIndex++).Value = "ISO3";
-        worksheet.Cell(1, columnIndex++).Value = "Year";
-        worksheet.Cell(1, columnIndex++).Value = "S. No.";
-        worksheet.Cell(1, columnIndex++).Value = "Project";
-        worksheet.Cell(1, columnIndex++).Value = "Cost (₹ Lakh)";
-        worksheet.Cell(1, columnIndex++).Value = "Quantity";
-        worksheet.Cell(1, columnIndex++).Value = "Status";
-        worksheet.Cell(1, columnIndex++).Value = "Progress / present status";
-        worksheet.Cell(1, columnIndex++).Value = "Overall remarks";
-
-        var rowIndex = 2;
-        foreach (var group in groups
-            .OrderByDescending(g => g.Year)
-            .ThenBy(g => g.CountryName, StringComparer.OrdinalIgnoreCase))
+        if (!ModelState.IsValid)
         {
-            if (group.Rows is null || group.Rows.Count == 0)
-            {
-                continue;
-            }
-
-            foreach (var project in group.Rows)
-            {
-                columnIndex = 1;
-
-                worksheet.Cell(rowIndex, columnIndex++).Value = group.CountryName;
-                worksheet.Cell(rowIndex, columnIndex++).Value = group.CountryCode;
-                worksheet.Cell(rowIndex, columnIndex++).Value = group.Year;
-                worksheet.Cell(rowIndex, columnIndex++).Value = project.Serial;
-                worksheet.Cell(rowIndex, columnIndex++).Value = project.ProjectName;
-
-                if (project.CostInCr.HasValue)
-                {
-                    var costInLakh = project.CostInCr.Value * 100m;
-                    worksheet.Cell(rowIndex, columnIndex).Value = costInLakh;
-                    worksheet.Cell(rowIndex, columnIndex).Style.NumberFormat.Format = "0.00";
-                }
-                columnIndex++;
-
-                worksheet.Cell(rowIndex, columnIndex++).Value = project.Quantity;
-                worksheet.Cell(rowIndex, columnIndex++).Value = project.Status;
-                worksheet.Cell(rowIndex, columnIndex++).Value = project.ProgressText ?? string.Empty;
-                worksheet.Cell(rowIndex, columnIndex++).Value = group.OverallRemarks ?? string.Empty;
-
-                rowIndex++;
-            }
-
-            rowIndex++;
+            await CompletePageStateAsync(cancellationToken);
+            ShowWordExportModal = true;
+            return Page();
         }
 
-        // SECTION: Styling
-        var headerRange = worksheet.Range(1, 1, 1, 10);
-        headerRange.Style.Font.Bold = true;
-        headerRange.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#f3f4f6");
-        headerRange.Style.Border.BottomBorder = ClosedXML.Excel.XLBorderStyleValues.Thin;
+        var groups = await LoadGroupsAsync(cancellationToken);
+        var handlingMarking = NormalizeHandlingMarking(WordExport.HandlingMarking);
+        var export = _exportService.BuildWord(CreateExportContext(groups, handlingMarking));
 
-        worksheet.SheetView.FreezeRows(1);
-        worksheet.Columns().AdjustToContents();
-
-        using var stream = new System.IO.MemoryStream();
-        workbook.SaveAs(stream);
-        stream.Position = 0;
-
-        var fileName = $"FFC_Projects_Detailed_{DateTime.UtcNow:yyyyMMdd_HHmm}.xlsx";
-        return File(
-            fileContents: stream.ToArray(),
-            contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            fileDownloadName: fileName);
+        return File(export.Content, export.ContentType, export.FileName);
     }
 
     // SECTION: Inline editing handlers
-    public async Task<IActionResult> OnPostUpdateOverallRemarksAsync([FromBody] UpdateOverallRemarksRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostUpdateOverallRemarksAsync(
+        [FromBody] UpdateOverallRemarksRequest request,
+        CancellationToken cancellationToken)
     {
         if (!User.IsInRole("Admin") && !User.IsInRole("HoD"))
         {
@@ -206,7 +158,7 @@ public class MapTableDetailedModel : PageModel
         var normalized = NormalizeRemark(request.OverallRemarks);
         if (normalized.Length > OverallRemarksMaxLength)
         {
-            return BadRequest(new { message = $"Overall remarks must be {OverallRemarksMaxLength} characters or fewer." });
+            return BadRequest(new { message = $"Overall status must be {OverallRemarksMaxLength} characters or fewer." });
         }
 
         var record = await _db.FfcRecords
@@ -232,7 +184,9 @@ public class MapTableDetailedModel : PageModel
         });
     }
 
-    public async Task<IActionResult> OnPostUpdateProgressAsync([FromBody] UpdateProgressRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostUpdateProgressAsync(
+        [FromBody] UpdateProgressRequest request,
+        CancellationToken cancellationToken)
     {
         if (!User.IsInRole("Admin") && !User.IsInRole("HoD"))
         {
@@ -244,176 +198,146 @@ public class MapTableDetailedModel : PageModel
             return BadRequest(new { message = "Request payload is missing." });
         }
 
-        if (request.FfcProjectId <= 0)
+        var actor = await BuildRemarkActorContextAsync(cancellationToken);
+
+        try
         {
-            return BadRequest(new { message = "Invalid project identifier." });
-        }
+            var result = await _ffcProgressService.UpdateProgressAsync(
+                new FfcProgressUpdateCommand(
+                    FfcProjectId: request.FfcProjectId,
+                    RequestedLinkedProjectId: request.LinkedProjectId,
+                    ExternalRemarkId: request.ExternalRemarkId,
+                    ProgressText: request.ProgressText,
+                    Actor: actor),
+                cancellationToken);
 
-        var normalized = NormalizeRemark(request.ProgressText);
-        if (normalized.Length > ProgressMaxLength)
-        {
-            return BadRequest(new { message = $"Progress text must be {ProgressMaxLength} characters or fewer." });
-        }
-
-        var project = await _db.FfcProjects
-            .FirstOrDefaultAsync(item => item.Id == request.FfcProjectId, cancellationToken);
-
-        if (project is null)
-        {
-            return NotFound(new { message = "Project row not found." });
-        }
-
-        // SECTION: Request sanitisation
-        var requestedLinkedProjectId = NormalizeOptionalId(request.LinkedProjectId);
-        var externalRemarkId = NormalizeOptionalId(request.ExternalRemarkId);
-        var projectLinkedProjectId = NormalizeOptionalId(project.LinkedProjectId);
-
-        if (requestedLinkedProjectId.HasValue && projectLinkedProjectId != requestedLinkedProjectId)
-        {
-            return BadRequest(new { message = "Linked project reference does not match the selected row." });
-        }
-
-        if (projectLinkedProjectId.HasValue)
-        {
-            var linkedProjectExists = await _db.Projects
-                .AsNoTracking()
-                .AnyAsync(item => item.Id == projectLinkedProjectId.Value, cancellationToken);
-
-            if (!linkedProjectExists)
+            return new JsonResult(new
             {
-                return BadRequest(new { message = "Linked project not found. Please fix the linkage." });
-            }
+                ok = true,
+                progressText = result.ProgressText,
+                renderedProgressText = FormatRemarkForDisplay(result.ProgressText),
+                updatedAtUtc = result.UpdatedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
+                updatedBy = User.Identity?.Name,
+                externalRemarkId = result.ExternalRemarkId
+            });
         }
-
-        string? updatedBy = User.Identity?.Name;
-        DateTimeOffset updatedAt = DateTimeOffset.UtcNow;
-
-        if (projectLinkedProjectId is int resolvedLinkedProjectId)
+        catch (FfcProgressNotFoundException ex)
         {
-            try
-            {
-                if (string.IsNullOrWhiteSpace(normalized))
-                {
-                    return BadRequest(new { message = "Progress text cannot be empty for linked projects." });
-                }
-
-                var actor = await BuildRemarkActorContextAsync(cancellationToken);
-                if (actor is null)
-                {
-                    return Forbid();
-                }
-
-                // SECTION: Resolve remark for edit (latest external remark preferred)
-                var existingRemark = await ResolveExternalRemarkAsync(
-                    resolvedLinkedProjectId,
-                    externalRemarkId,
-                    cancellationToken);
-
-                if (existingRemark is not null)
-                {
-                    try
-                    {
-                        var updatedRemark = await _remarkService.EditRemarkAsync(existingRemark.Id, new EditRemarkRequest(
-                            Actor: actor,
-                            Body: normalized,
-                            Scope: existingRemark.Scope,
-                            EventDate: existingRemark.EventDate,
-                            StageRef: existingRemark.StageRef,
-                            StageNameSnapshot: existingRemark.StageNameSnapshot,
-                            Meta: BuildFfcMeta("progress", project.FfcRecordId, project.Id, resolvedLinkedProjectId),
-                            RowVersion: existingRemark.RowVersion), cancellationToken);
-
-                        if (updatedRemark is null)
-                        {
-                            return NotFound(new { message = "External remark not found." });
-                        }
-
-                        updatedAt = updatedRemark.LastEditedAtUtc.HasValue
-                            ? new DateTimeOffset(updatedRemark.LastEditedAtUtc.Value, TimeSpan.Zero)
-                            : new DateTimeOffset(updatedRemark.CreatedAtUtc, TimeSpan.Zero);
-
-                        return new JsonResult(new
-                        {
-                            ok = true,
-                            progressText = normalized,
-                            renderedProgressText = FormatRemarkForDisplay(normalized),
-                            updatedAtUtc = updatedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
-                            updatedBy,
-                            externalRemarkId = updatedRemark.Id
-                        });
-                    }
-                    catch (InvalidOperationException)
-                    {
-                        throw;
-                    }
-                    catch (Exception ex)
-                    {
-                        // SECTION: Fallback to new remark when edit fails unexpectedly
-                        _logger.LogWarning(
-                            ex,
-                            "Failed to edit external remark for linked project. LinkedProjectId={LinkedProjectId}, ExternalRemarkId={ExternalRemarkId}",
-                            resolvedLinkedProjectId,
-                            existingRemark.Id);
-                    }
-                }
-
-                var createdRemark = await _remarkService.CreateRemarkAsync(new CreateRemarkRequest(
-                    ProjectId: resolvedLinkedProjectId,
-                    Actor: actor,
-                    Type: RemarkType.External,
-                    Scope: RemarkScope.General,
-                    Body: normalized,
-                    EventDate: DateOnly.FromDateTime(IstClock.ToIst(DateTime.UtcNow)),
-                    StageRef: null,
-                    StageNameSnapshot: null,
-                    Meta: BuildFfcMeta("progress", project.FfcRecordId, project.Id, resolvedLinkedProjectId)), cancellationToken);
-
-                updatedAt = new DateTimeOffset(createdRemark.CreatedAtUtc, TimeSpan.Zero);
-
-                return new JsonResult(new
-                {
-                    ok = true,
-                    progressText = normalized,
-                    renderedProgressText = FormatRemarkForDisplay(normalized),
-                    updatedAtUtc = updatedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
-                    updatedBy,
-                    externalRemarkId = createdRemark.Id
-                });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (DbUpdateException ex)
-            {
-                LogProgressUpdateFailure(ex, request, resolvedLinkedProjectId);
-                return BadRequest(new { message = "Unable to save progress due to a database constraint. See server logs for details." });
-            }
-            catch (Exception ex)
-            {
-                LogProgressUpdateFailure(ex, request, resolvedLinkedProjectId);
-                return StatusCode(500, new { ok = false, message = "Unable to save. See server logs for details." });
-            }
+            return NotFound(new { message = ex.Message });
         }
-        else
+        catch (UnauthorizedAccessException)
         {
-            project.Remarks = string.IsNullOrWhiteSpace(normalized) ? null : normalized;
-            project.UpdatedAt = updatedAt;
-            await _db.SaveChangesAsync(cancellationToken);
+            return Forbid();
         }
-
-        return new JsonResult(new
+        catch (FfcProgressValidationException ex)
         {
-            ok = true,
-            progressText = normalized,
-            renderedProgressText = FormatRemarkForDisplay(normalized),
-            updatedAtUtc = updatedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
-            updatedBy,
-            externalRemarkId
-        });
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (DbUpdateException ex)
+        {
+            LogProgressUpdateFailure(ex, request, request.LinkedProjectId);
+            return BadRequest(new
+            {
+                message = "Unable to save progress due to a database constraint. See server logs for details."
+            });
+        }
+        catch (Exception ex)
+        {
+            LogProgressUpdateFailure(ex, request, request.LinkedProjectId);
+            return StatusCode(500, new
+            {
+                ok = false,
+                message = "Unable to save. See server logs for details."
+            });
+        }
     }
 
-    // SECTION: Helper methods
+    // SECTION: Page state
+    private async Task LoadPageAsync(
+        long? countryId,
+        short? year,
+        string? countryIso3,
+        CancellationToken cancellationToken)
+    {
+        await ResolveScopeAsync(countryId, year, countryIso3, cancellationToken);
+        await CompletePageStateAsync(cancellationToken);
+    }
+
+    private async Task CompletePageStateAsync(CancellationToken cancellationToken)
+    {
+        FilterSummary = BuildFilterSummary();
+        ExportScopeLabel = string.IsNullOrWhiteSpace(FilterSummary) ? "Complete portfolio" : FilterSummary!;
+
+        var generatedAtIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneHelper.GetIst());
+        GeneratedAtIstDisplay = generatedAtIst.ToString("dd MMM yyyy, HH:mm 'IST'", CultureInfo.InvariantCulture);
+        Groups = await LoadGroupsAsync(cancellationToken);
+
+        FfcBreadcrumbs.Set(
+            ViewData,
+            ("FFC Proposals", Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
+            ("Detailed Table", null));
+    }
+
+    private async Task ResolveScopeAsync(
+        long? countryId,
+        short? year,
+        string? countryIso3,
+        CancellationToken cancellationToken)
+    {
+        CountryIso3 = string.IsNullOrWhiteSpace(countryIso3)
+            ? null
+            : countryIso3.Trim().ToUpperInvariant();
+        CountryId = await ResolveCountryIdAsync(countryId, CountryIso3, cancellationToken);
+        Year = year;
+
+        if (CountryId.HasValue)
+        {
+            var country = await _db.FfcCountries
+                .AsNoTracking()
+                .Where(item => item.Id == CountryId.Value)
+                .Select(item => new { item.Name, item.IsoCode })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            CountryName = country?.Name;
+            CountryIso3 = country?.IsoCode?.Trim().ToUpperInvariant() ?? CountryIso3;
+        }
+
+        FilterSummary = BuildFilterSummary();
+        ExportScopeLabel = string.IsNullOrWhiteSpace(FilterSummary) ? "Complete portfolio" : FilterSummary!;
+    }
+
+    private async Task<IReadOnlyList<FfcDetailedGroupVm>> LoadGroupsAsync(CancellationToken cancellationToken)
+    {
+        // An unknown ISO code must not silently fall back to the complete portfolio.
+        if (!string.IsNullOrWhiteSpace(CountryIso3) && !CountryId.HasValue)
+        {
+            return Array.Empty<FfcDetailedGroupVm>();
+        }
+
+        var (rangeFrom, rangeTo) = ResolveRange();
+        return await _ffcQueryService.GetDetailedGroupsAsync(
+            rangeFrom,
+            rangeTo,
+            incompleteOnly: false,
+            CountryId,
+            Year,
+            applyYearFilter: true,
+            cancellationToken: cancellationToken);
+    }
+
+    private FfcDetailedTableExportContext CreateExportContext(
+        IReadOnlyList<FfcDetailedGroupVm> groups,
+        string? handlingMarking)
+        => new(
+            ScopeLabel: ExportScopeLabel,
+            GeneratedAtUtc: DateTimeOffset.UtcNow,
+            HandlingMarking: handlingMarking,
+            Groups: groups);
+
     private string? BuildFilterSummary()
     {
         if (!HasFilters)
@@ -451,7 +375,10 @@ public class MapTableDetailedModel : PageModel
     }
 
     // SECTION: Lookup helpers
-    private async Task<long?> ResolveCountryIdAsync(long? countryId, string? countryIso3, CancellationToken cancellationToken)
+    private async Task<long?> ResolveCountryIdAsync(
+        long? countryId,
+        string? countryIso3,
+        CancellationToken cancellationToken)
     {
         if (countryId.HasValue)
         {
@@ -464,7 +391,6 @@ public class MapTableDetailedModel : PageModel
         }
 
         var iso = countryIso3.Trim().ToUpperInvariant();
-
         var matchedId = await _db.FfcCountries
             .AsNoTracking()
             .Where(country => country.IsoCode == iso)
@@ -474,10 +400,7 @@ public class MapTableDetailedModel : PageModel
         return matchedId == 0 ? null : matchedId;
     }
 
-    // SECTION: Inline editing helpers
-    private const int ProgressMaxLength = 2000;
-    private const int OverallRemarksMaxLength = 4000;
-
+    // SECTION: Normalisation helpers
     private static string NormalizeRemark(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -485,43 +408,23 @@ public class MapTableDetailedModel : PageModel
             return string.Empty;
         }
 
-        var trimmed = value.Trim();
-        return trimmed.Replace("\r\n", "\n", StringComparison.Ordinal)
+        return value.Trim()
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace("\r", "\n", StringComparison.Ordinal);
     }
 
     private static string FormatRemarkForDisplay(string? value)
+        => NormalizeRemark(value);
+
+    private static string? NormalizeHandlingMarking(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            return string.Empty;
+            return null;
         }
 
-        var text = value.Trim()
-            .Replace("\r", " ", StringComparison.Ordinal)
-            .Replace("\n", " ", StringComparison.Ordinal);
-
-        const int limit = 200;
-        return text.Length <= limit ? text : string.Concat(text.AsSpan(0, limit), "…");
-    }
-
-    // SECTION: Identifier helpers
-    private static int? NormalizeOptionalId(int? value)
-    {
-        return value.HasValue && value.Value > 0 ? value : null;
-    }
-
-    // SECTION: Metadata helpers
-    private static string BuildFfcMeta(string kind, long ffcRecordId, long ffcProjectId, int linkedProjectId)
-    {
-        return JsonSerializer.Serialize(new
-        {
-            source = "ProjectOfficeReports.FFC.MapTableDetailed",
-            kind,
-            ffcRecordId,
-            ffcProjectId,
-            linkedProjectId
-        });
+        var parts = value.Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(" ", parts);
     }
 
     private Task<RemarkActorContext?> BuildRemarkActorContextAsync(CancellationToken cancellationToken)
@@ -557,73 +460,7 @@ public class MapTableDetailedModel : PageModel
         return Task.FromResult<RemarkActorContext?>(new RemarkActorContext(userId, primary, roles));
     }
 
-    // SECTION: External remark helpers
-    private async Task<ExternalRemarkSnapshot?> ResolveExternalRemarkAsync(
-        int linkedProjectId,
-        int? externalRemarkId,
-        CancellationToken cancellationToken)
-    {
-        if (externalRemarkId.HasValue && externalRemarkId.Value > 0)
-        {
-            var byId = await LoadExternalRemarkByIdAsync(linkedProjectId, externalRemarkId.Value, cancellationToken);
-            if (byId is not null)
-            {
-                return byId;
-            }
-        }
-
-        return await LoadLatestExternalRemarkAsync(linkedProjectId, cancellationToken);
-    }
-
-    private Task<ExternalRemarkSnapshot?> LoadExternalRemarkByIdAsync(
-        int linkedProjectId,
-        int externalRemarkId,
-        CancellationToken cancellationToken)
-    {
-        return _db.Remarks
-            .AsNoTracking()
-            .Where(item => item.Id == externalRemarkId
-                && item.ProjectId == linkedProjectId
-                && !item.IsDeleted
-                && item.Type == RemarkType.External)
-            .Select(item => new ExternalRemarkSnapshot(
-                item.Id,
-                item.ProjectId,
-                item.Scope,
-                item.EventDate,
-                item.StageRef,
-                item.StageNameSnapshot,
-                item.RowVersion,
-                item.CreatedAtUtc,
-                item.LastEditedAtUtc))
-            .FirstOrDefaultAsync(cancellationToken);
-    }
-
-    private Task<ExternalRemarkSnapshot?> LoadLatestExternalRemarkAsync(
-        int linkedProjectId,
-        CancellationToken cancellationToken)
-    {
-        return _db.Remarks
-            .AsNoTracking()
-            .Where(item => item.ProjectId == linkedProjectId
-                && !item.IsDeleted
-                && item.Type == RemarkType.External)
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .ThenByDescending(item => item.Id)
-            .Select(item => new ExternalRemarkSnapshot(
-                item.Id,
-                item.ProjectId,
-                item.Scope,
-                item.EventDate,
-                item.StageRef,
-                item.StageNameSnapshot,
-                item.RowVersion,
-                item.CreatedAtUtc,
-                item.LastEditedAtUtc))
-            .FirstOrDefaultAsync(cancellationToken);
-    }
-
-    private void LogProgressUpdateFailure(Exception ex, UpdateProgressRequest request, int linkedProjectId)
+    private void LogProgressUpdateFailure(Exception ex, UpdateProgressRequest request, int? linkedProjectId)
     {
         var userId = _userManager.GetUserId(User);
         var roles = new List<string>();
@@ -646,7 +483,6 @@ public class MapTableDetailedModel : PageModel
             userId ?? string.Empty,
             roles.Count == 0 ? "None" : string.Join(",", roles));
 
-        // SECTION: Database exception details
         if (ex is DbUpdateException { InnerException: Npgsql.PostgresException postgresException })
         {
             _logger.LogError(
@@ -655,6 +491,14 @@ public class MapTableDetailedModel : PageModel
                 postgresException.ConstraintName,
                 postgresException.Detail);
         }
+    }
+
+    public sealed class WordExportInputModel
+    {
+        [Display(Name = "Handling / classification marking")]
+        [StringLength(80, ErrorMessage = "The marking must be 80 characters or fewer.")]
+        [RegularExpression(@"^[^\r\n]*$", ErrorMessage = "The marking must be entered on one line.")]
+        public string? HandlingMarking { get; set; }
     }
 
     public sealed class UpdateOverallRemarksRequest
@@ -676,15 +520,4 @@ public class MapTableDetailedModel : PageModel
 
         public int? ExternalRemarkId { get; set; }
     }
-
-    private sealed record ExternalRemarkSnapshot(
-        int Id,
-        int ProjectId,
-        RemarkScope Scope,
-        DateOnly EventDate,
-        string? StageRef,
-        string? StageNameSnapshot,
-        byte[] RowVersion,
-        DateTime CreatedAtUtc,
-        DateTime? LastEditedAtUtc);
 }

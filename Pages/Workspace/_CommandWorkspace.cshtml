@@ -1,10 +1,15 @@
 @using System.Text.Json
+@using ProjectManagement.Infrastructure
 @using ProjectManagement.ViewModels.Workspace
 @model ProjectManagement.Pages.Workspace.IndexModel
 @{
     var vm = Model.CommandWorkspace;
+    var adoption = vm.UsageSummary;
     var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     var isPortfolio = vm.ActiveView == "portfolio";
+    var isAdoption = vm.ActiveView == "adoption";
+    var isUsagePattern = vm.ActiveView == "usage-pattern";
+    var isMyActivity = vm.ActiveView == "my-activity";
     var selectedCategoryCount = vm.SelectedParentCategoryIds.Count;
     var categoryTriggerText = selectedCategoryCount switch
     {
@@ -13,66 +18,181 @@
         _ => $"{selectedCategoryCount} categories"
     };
     var filteredProjectCount = vm.StageColumns.Sum(x => x.ProjectCount);
+    var completedMaturityDays = Math.Min(adoption.TrackingWorkingDays, adoption.RequiredWorkingDays);
+    var hasAdoptionPeriod = adoption.PeriodStart != default && adoption.PeriodEnd != default;
+    var adoptionPeriodLabel = !hasAdoptionPeriod
+        ? "Current monitored period"
+        : adoption.PeriodStart == adoption.PeriodEnd
+            ? adoption.PeriodEnd.ToString("dd MMM yyyy")
+            : $"{adoption.PeriodStart:dd MMM} – {adoption.PeriodEnd:dd MMM yyyy}";
+    var trendJson = JsonSerializer.Serialize(adoption.Trend, jsonOptions);
+    var monitoredWorkingDayLabel = adoption.TrackingWorkingDays == 1
+        ? "1 monitored working day"
+        : $"{adoption.TrackingWorkingDays} monitored working days";
+    var adoptionTrendReady = adoption.TrackingWorkingDays >= 3;
+    var population = Math.Max(1, adoption.TotalUsers);
+    var usageReach = Math.Clamp((int)Math.Round(adoption.UsedErpUsers * 100d / population), 0, 100);
+    var contributionReach = Math.Clamp((int)Math.Round(adoption.OperationalContributors * 100d / population), 0, 100);
+    var commandRail = new CommandWorkspaceRailVm
+    {
+        CanSwitchWorkspace = Model.CanSwitchWorkspace,
+        ActiveView = vm.ActiveView,
+        ProjectOfficerCount = vm.ProjectOfficerCount,
+        TotalOngoingProjects = vm.TotalOngoingProjects
+    };
 }
 
-<div class="command-workspace">
-    <aside class="cw-local-rail" data-workspace-rail aria-label="Workspace navigation">
-        <button type="button"
-                class="cw-local-rail__toggle"
-                data-workspace-rail-toggle
-                aria-expanded="false"
-                aria-controls="workspace-local-navigation"
-                title="Expand workspace navigation">
-            <i class="bi bi-grid-1x2" aria-hidden="true"></i>
-            <span>Workspace</span>
-            <i class="bi bi-chevron-right cw-local-rail__toggle-chevron" aria-hidden="true"></i>
-        </button>
-
-        <nav id="workspace-local-navigation">
-            @if (Model.CanSwitchWorkspace)
-            {
-                <div class="cw-local-rail__group">
-                    <span class="cw-local-rail__group-label">Workspace</span>
-                    <a asp-page="/Workspace/Index"
-                       asp-route-mode="command"
-                       class="is-context-active"
-                       aria-current="true"
-                       data-tooltip="Comdt / HoD workspace">
-                        <i class="bi bi-building" aria-hidden="true"></i><span>Comdt / HoD</span>
-                    </a>
-                    <a asp-page="/Workspace/Index"
-                       asp-route-mode="project-officer"
-                       data-tooltip="Project Officer workspace">
-                        <i class="bi bi-person-workspace" aria-hidden="true"></i><span>Project Officer</span>
-                    </a>
-                </div>
-            }
-
-            <div class="cw-local-rail__group cw-local-rail__group--pages">
-                <span class="cw-local-rail__group-label">Comdt / HoD</span>
-                <a asp-page="/Workspace/Index"
-                   asp-route-mode="command"
-                   asp-route-view="portfolio"
-                   class="@(isPortfolio ? "is-active" : null)"
-                   aria-current="@(isPortfolio ? "page" : null)"
-                   data-tooltip="Project Portfolio">
-                    <i class="bi bi-diagram-3" aria-hidden="true"></i><span>Project Portfolio</span><b>@vm.TotalOngoingProjects</b>
-                </a>
-                <a asp-page="/Workspace/Index"
-                   asp-route-mode="command"
-                   asp-route-view="officers"
-                   class="@(!isPortfolio ? "is-active" : null)"
-                   aria-current="@(!isPortfolio ? "page" : null)"
-                   data-tooltip="Officer workload">
-                    <i class="bi bi-people" aria-hidden="true"></i><span>Officer workload</span><b>@vm.ProjectOfficerCount</b>
-                </a>
-            </div>
-        </nav>
-    </aside>
+<div class="command-workspace is-nav-expanded" data-command-workspace>
+    @await Html.PartialAsync("_CommandWorkspaceRail", commandRail)
 
     <main class="cw-workspace-content">
-    @if (isPortfolio)
-    {
+
+        @if (isMyActivity)
+        {
+            @await Html.PartialAsync("_ProjectOfficerActivity", Model)
+        }
+        else if (isAdoption)
+        {
+            <section class="cw-adoption-hero" aria-labelledby="cw-adoption-title">
+                <div>
+                    <span class="cw-adoption-hero__eyebrow">System adoption</span>
+                    <h1 id="cw-adoption-title">ERP adoption</h1>
+                    <p>Track ERP use, operational contribution and user adoption. Not an attendance measure.</p>
+                </div>
+                <div class="cw-adoption-hero__actions">
+                    <span class="cw-adoption-maturity @(adoption.ReviewAvailable ? "is-ready" : null)">
+                        <i class="bi @(adoption.ReviewAvailable ? "bi-check-circle" : "bi-hourglass-split")"></i>
+                        @(adoption.ReviewAvailable
+                            ? $"Baseline available · {adoption.RequiredWorkingDays} monitored working days"
+                            : $"Initial collection · {completedMaturityDays} of {adoption.RequiredWorkingDays} monitored working days")
+                    </span>
+                    <a asp-page="/Workspace/Index" asp-route-mode="command" asp-route-view="usage-pattern" class="cw-header-action"><i class="bi bi-bounding-box-circles"></i><span>Open usage pattern</span></a>
+                    <a asp-page="/Usage/Index" class="cw-header-action"><i class="bi bi-bar-chart-line"></i><span>Detailed ERP usage</span></a>
+                </div>
+            </section>
+
+            <section class="cw-adoption-kpis" aria-label="ERP adoption measures">
+                <article><span><i class="bi bi-activity"></i></span><div><strong>@adoption.ActiveToday</strong><b>Active today</b><small>of @adoption.TotalUsers users in scope</small></div></article>
+                <article><span><i class="bi bi-people"></i></span><div><strong>@adoption.UsedErpUsers</strong><b>Active in monitored period</b><small>unique users · @monitoredWorkingDayLabel</small></div></article>
+                <article title="Users with at least one recognised operational action during the monitored period."><span><i class="bi bi-pencil-square"></i></span><div><strong>@adoption.OperationalContributors</strong><b>Operational contributors</b><small>within the monitored period</small></div></article>
+                <article><span><i class="bi bi-window-stack"></i></span><div><strong>@adoption.ModulesUsed</strong><b>Modules visited</b><small>navigation, interaction or action recorded</small></div></article>
+                <article class="@(!adoption.ReviewAvailable ? "is-pending" : adoption.ReviewCaseCount > 0 ? "is-attention" : null)"><span><i class="bi @(!adoption.ReviewAvailable ? "bi-hourglass-split" : "bi-flag")"></i></span><div><strong>@(adoption.ReviewAvailable ? adoption.ReviewCaseCount.ToString() : "—")</strong><b>Review cases</b><small>@(adoption.ReviewAvailable ? "no use in the review window" : $"available after {adoption.RequiredWorkingDays} working days")</small></div></article>
+            </section>
+
+            <div class="cw-adoption-analysis-grid">
+                <section class="cw-panel cw-adoption-trend-panel" aria-labelledby="cw-adoption-trend-title">
+                    <header class="cw-panel__header">
+                        <div><span class="cw-panel__eyebrow">Daily reach</span><h2 id="cw-adoption-trend-title">Daily ERP usage</h2></div>
+                        <span class="cw-result-count">@adoptionPeriodLabel</span>
+                    </header>
+                    @if (adoption.Trend.Count == 0)
+                    {
+                        <div class="cw-empty"><i class="bi bi-graph-up"></i><strong>No monitored trend yet</strong><span>Trend data will appear after usage monitoring begins.</span></div>
+                    }
+                    else if (!adoptionTrendReady)
+                    {
+                        <div class="cw-collection-progress" role="status" aria-label="ERP usage collection progress">
+                            <div class="cw-collection-progress__summary">
+                                <span><i class="bi bi-hourglass-split" aria-hidden="true"></i> Initial collection</span>
+                                <strong>@completedMaturityDays of @adoption.RequiredWorkingDays monitored working days completed</strong>
+                                <small>The daily trend will appear after three monitored working days.</small>
+                            </div>
+                            <ol class="cw-collection-progress__days" aria-label="Seven-day monitoring maturity">
+                                @for (var day = 1; day <= adoption.RequiredWorkingDays; day++)
+                                {
+                                    var dayState = day <= completedMaturityDays ? "is-complete" : day == completedMaturityDays + 1 ? "is-next" : null;
+                                    <li class="@dayState"><span>Day @day</span><i class="bi @(day <= completedMaturityDays ? "bi-check2" : "bi-dot")" aria-hidden="true"></i></li>
+                                }
+                            </ol>
+                            <div class="cw-collection-progress__facts">
+                                <div><span>Active today</span><strong>@adoption.ActiveToday</strong></div>
+                                <div><span>Active in monitored period</span><strong>@adoption.UsedErpUsers</strong></div>
+                                <div><span>Operational contributors</span><strong>@adoption.OperationalContributors</strong></div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="cw-adoption-chart-wrap">
+                            <canvas id="command-adoption-chart"
+                                    role="img"
+                                    aria-label="Active ERP users and operational contributors by day"
+                                    data-series='@Html.Raw(trendJson)'></canvas>
+                        </div>
+                        <div class="cw-adoption-chart-note"><i class="bi bi-info-circle"></i>Counts are unique users per day. Existing authenticated sessions are counted whenever monitored ERP activity occurs.</div>
+                    }
+                </section>
+
+                <section class="cw-panel cw-adoption-reach" aria-labelledby="cw-adoption-reach-title">
+                    <header class="cw-panel__header">
+                        <div><span class="cw-panel__eyebrow">Population reach</span><h2 id="cw-adoption-reach-title">Adoption reach</h2></div>
+                    </header>
+                    <div class="cw-adoption-baseline"><span>Effective population</span><strong>@adoption.TotalUsers</strong><small>active human accounts</small></div>
+                    <div class="cw-adoption-reach__body">
+                        <div class="cw-reach-row is-use">
+                            <div><span>Used ERP in period</span><strong>@adoption.UsedErpUsers of @adoption.TotalUsers</strong></div>
+                            <progress class="cw-reach-progress" max="100" value="@usageReach" aria-label="ERP-use reach: @usageReach percent">@usageReach%</progress>
+                            <small>@usageReach%</small>
+                        </div>
+                        <div class="cw-reach-row is-contribution">
+                            <div><span>Operational contributors</span><strong>@adoption.OperationalContributors of @adoption.TotalUsers</strong></div>
+                            <progress class="cw-reach-progress" max="100" value="@contributionReach" aria-label="Operational-contribution reach: @contributionReach percent">@contributionReach%</progress>
+                            <small>@contributionReach%</small>
+                        </div>
+                    </div>
+                    <p class="cw-adoption-reach__note">Operational contribution is a stronger signal within the wider population of users with monitored ERP activity.</p>
+                </section>
+            </div>
+
+            <section class="cw-panel cw-adoption-attention" aria-labelledby="cw-adoption-attention-title">
+                <header class="cw-panel__header">
+                    <div><span class="cw-panel__eyebrow">Command review</span><h2 id="cw-adoption-attention-title">Attention required</h2></div>
+                    @if (adoption.ReviewAvailable)
+                    {
+                        <span class="cw-result-count">@adoption.ReviewCaseCount user@(adoption.ReviewCaseCount == 1 ? "" : "s")</span>
+                    }
+                </header>
+                @if (!adoption.ReviewAvailable)
+                {
+                    <div class="cw-adoption-pending">
+                        <i class="bi bi-hourglass-split"></i>
+                        <div><strong>Review classifications are withheld during initial collection.</strong><span>They become available after @adoption.RequiredWorkingDays monitored working days. Current ERP activity and contribution counts remain available above.</span></div>
+                    </div>
+                }
+                else if (adoption.Attention.Count == 0)
+                {
+                    <div class="cw-adoption-pending is-clear"><i class="bi bi-check2-circle"></i><div><strong>No adoption exceptions require review.</strong><span>All eligible users have monitored ERP use in the current review window.</span></div></div>
+                }
+                else
+                {
+                    <div class="cw-adoption-table-wrap">
+                        <table class="cw-adoption-table">
+                            <thead><tr><th>User</th><th>Observation</th><th>Last recorded use</th></tr></thead>
+                            <tbody>
+                                @foreach (var row in adoption.Attention)
+                                {
+                                    <tr>
+                                        <td><strong>@row.DisplayName</strong><span>@string.Join(" · ", new[] { row.Rank, row.UserName }.Where(x => !string.IsNullOrWhiteSpace(x)))</span></td>
+                                        <td><span class="cw-adoption-observation">@row.Observation</span></td>
+                                        <td>@(row.LastRecordedUseUtc.HasValue ? IstClock.ToIst(row.LastRecordedUseUtc.Value).ToString("dd MMM yyyy, HH:mm") + " IST" : "No monitored use recorded")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    @if (adoption.ReviewCaseCount > adoption.Attention.Count)
+                    {
+                        <footer class="cw-adoption-attention__footer">Showing the first @adoption.Attention.Count of @adoption.ReviewCaseCount review cases. Open detailed ERP usage for the complete directory.</footer>
+                    }
+                }
+            </section>
+        }
+        else if (isUsagePattern)
+        {
+            @await Html.PartialAsync("_ErpUsagePattern", vm.UsagePattern)
+        }
+        else if (isPortfolio)
+        {
         <section class="cw-panel cw-panel--chart">
             <header class="cw-panel__header cw-panel__header--compact">
                 <h2>Projects by current stage</h2>
@@ -182,9 +302,9 @@
                 </div>
             }
         </section>
-    }
-    else
-    {
+        }
+        else
+        {
         <section class="cw-panel cw-officer-panel">
             <header class="cw-panel__header cw-panel__header--compact">
                 <h2>Officer workload</h2>
@@ -219,6 +339,6 @@
                 <div class="cw-order-feedback" data-officer-order-feedback aria-live="polite"></div>
             }
         </section>
-    }
+        }
     </main>
 </div>

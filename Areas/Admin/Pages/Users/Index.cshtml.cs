@@ -1,104 +1,226 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using ProjectManagement.Infrastructure;
-using ProjectManagement.Services;
+using ProjectManagement.Areas.Admin.Models;
+using ProjectManagement.Configuration;
+using ProjectManagement.Services.Admin;
 
-namespace ProjectManagement.Areas.Admin.Pages.Users
+namespace ProjectManagement.Areas.Admin.Pages.Users;
+
+[Authorize(Policy = AdminPolicies.UsersManage)]
+[ResponseCache(NoStore = true)]
+public sealed class IndexModel : PageModel
 {
-    [Authorize(Roles = "Admin")]
-    [ResponseCache(NoStore = true)]
-    public class IndexModel : PageModel
+    private static readonly int[] SupportedPageSizes = { 10, 25, 50, 100 };
+    private static readonly HashSet<string> SupportedStatuses = new(StringComparer.OrdinalIgnoreCase)
     {
-        private readonly IUserManagementService _users;
-        private readonly UserLifecycleOptions _opts;
-        public IndexModel(IUserManagementService users, Microsoft.Extensions.Options.IOptions<UserLifecycleOptions> opts)
-        {
-            _users = users;
-            _opts = opts.Value;
-        }
+        "active",
+        "must-change-password",
+        "locked",
+        "disabled",
+        "pending-deletion"
+    };
 
-        public IList<UserRow> Users { get; private set; } = new List<UserRow>();
-        public UserLifecycleOptions Options => _opts;
+    private readonly IAdminUserQueryService _queries;
+    private readonly ISafeCsvWriter _csv;
+    private readonly IAdminTimeService _time;
 
-        [BindProperty(SupportsGet = true)] public string? Q { get; set; }
-        [BindProperty(SupportsGet = true)] public string? Role { get; set; }
-        [BindProperty(SupportsGet = true)] public string? Status { get; set; }
-        public IList<string> AllRoles { get; private set; } = new List<string>();
-
-        public class UserRow
-        {
-            public string Id { get; set; } = "";
-            public string UserName { get; set; } = "";
-            public string FullName { get; set; } = "";
-            public string Rank { get; set; } = "";
-            public IList<string> Roles { get; set; } = new List<string>();
-            public bool IsDisabled { get; set; }
-            public DateTime? LastLogin { get; set; }
-            public int LoginCount { get; set; }
-            public DateTime CreatedUtc { get; set; }
-        }
-
-        private async Task LoadAsync()
-        {
-            AllRoles = await _users.GetRolesAsync();
-            var all = await _users.GetUsersAsync();
-            var rows = new List<UserRow>();
-            foreach (var u in all)
-            {
-                var roles = await _users.GetUserRolesAsync(u.Id);
-                rows.Add(new UserRow
-                {
-                    Id = u.Id,
-                    UserName = u.UserName ?? string.Empty,
-                    FullName = u.FullName,
-                    Rank = u.Rank,
-                    Roles = roles.OrderBy(r => r).ToList(),
-                    IsDisabled = u.IsDisabled,
-                    CreatedUtc = u.CreatedUtc,
-                    LastLogin = u.LastLoginUtc.HasValue ? IstClock.ToIst(u.LastLoginUtc.Value) : null,
-                    LoginCount = u.LoginCount
-                });
-            }
-
-            IEnumerable<UserRow> query = rows;
-            if (!string.IsNullOrWhiteSpace(Q))
-            {
-                var q = Q.ToLowerInvariant();
-                query = query.Where(r => r.UserName.ToLowerInvariant().Contains(q)
-                    || (r.FullName?.ToLowerInvariant().Contains(q) ?? false)
-                    || r.Roles.Any(role => role.ToLowerInvariant().Contains(q)));
-            }
-            if (!string.IsNullOrEmpty(Role))
-                query = query.Where(r => r.Roles.Contains(Role));
-            if (Status == "active")
-                query = query.Where(r => !r.IsDisabled);
-            else if (Status == "disabled")
-                query = query.Where(r => r.IsDisabled);
-
-            Users = query.ToList();
-        }
-
-        public async Task OnGet() => await LoadAsync();
-
-        public async Task<IActionResult> OnGetExport()
-        {
-            await LoadAsync();
-            var sb = new StringBuilder();
-            sb.AppendLine("UserName,FullName,Roles,LastLogin,LoginCount,Status");
-            foreach (var u in Users)
-            {
-                var roles = string.Join(';', u.Roles);
-                var last = TimeFmt.ToIst(u.LastLogin);
-                var status = u.IsDisabled ? "Disabled" : "Active";
-                sb.AppendLine($"{u.UserName},{u.FullName},{roles},{last},{u.LoginCount},{status}");
-            }
-            return File(Encoding.UTF8.GetBytes(sb.ToString()), "text/csv", "users.csv");
-        }
+    public IndexModel(
+        IAdminUserQueryService queries,
+        ISafeCsvWriter csv,
+        IAdminTimeService time)
+    {
+        _queries = queries ?? throw new ArgumentNullException(nameof(queries));
+        _csv = csv ?? throw new ArgumentNullException(nameof(csv));
+        _time = time ?? throw new ArgumentNullException(nameof(time));
     }
+
+    [BindProperty(SupportsGet = true)]
+    public string? Q { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? Role { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? Status { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public int PageNo { get; set; } = 1;
+
+    [BindProperty(SupportsGet = true)]
+    public int PageSize { get; set; } = 25;
+
+    public AdminPageHeaderModel Header { get; private set; } = new();
+
+    public IReadOnlyList<AdminUserRow> Users { get; private set; } =
+        Array.Empty<AdminUserRow>();
+
+    public IReadOnlyList<string> AllRoles { get; private set; } =
+        Array.Empty<string>();
+
+    public AdminUserSummary Summary { get; private set; } =
+        new(0, 0, 0, 0, 0, 0);
+
+    public IReadOnlyList<UserStatusFilter> StatusFilters { get; private set; } =
+        Array.Empty<UserStatusFilter>();
+
+    public IReadOnlyList<int> PageSizeOptions => SupportedPageSizes;
+
+    public int Total { get; private set; }
+
+    public int TotalPages { get; private set; } = 1;
+
+    public int FirstRowNumber => Total == 0 ? 0 : ((PageNo - 1) * PageSize) + 1;
+
+    public int LastRowNumber => Math.Min(Total, PageNo * PageSize);
+
+    public bool HasFilters =>
+        !string.IsNullOrWhiteSpace(Q)
+        || !string.IsNullOrWhiteSpace(Role)
+        || !string.IsNullOrWhiteSpace(Status);
+
+    public int ActiveFilterCount =>
+        (string.IsNullOrWhiteSpace(Q) ? 0 : 1)
+        + (string.IsNullOrWhiteSpace(Role) ? 0 : 1)
+        + (string.IsNullOrWhiteSpace(Status) ? 0 : 1);
+
+    public async Task OnGetAsync(CancellationToken cancellationToken)
+    {
+        NormaliseRequest();
+        var result = await _queries.GetAsync(BuildRequest(), cancellationToken);
+
+        Users = result.Rows;
+        AllRoles = result.Roles;
+        Summary = result.Summary;
+        Total = result.Total;
+        PageNo = result.Page;
+        PageSize = result.PageSize;
+        TotalPages = result.TotalPages;
+        StatusFilters = BuildStatusFilters(Summary);
+        Header = BuildHeader();
+    }
+
+    public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
+    {
+        NormaliseRequest();
+        var rows = await _queries.GetForExportAsync(
+            BuildRequest() with { Page = 1, PageSize = 100 },
+            cancellationToken);
+
+        var bytes = _csv.Write(
+            new[]
+            {
+                "Username",
+                "FullName",
+                "Rank",
+                "Roles",
+                "AccountState",
+                "LastLoginIST",
+                "LoginCount",
+                "CreatedIST"
+            },
+            rows.Select(user => (IReadOnlyList<object?>)new object?[]
+            {
+                user.UserName,
+                user.FullName,
+                user.Rank,
+                string.Join(';', user.Roles),
+                user.AccountState.DisplayName,
+                _time.FormatIst(user.LastLoginUtc),
+                user.LoginCount,
+                _time.FormatIst(user.CreatedUtc)
+            }));
+
+        var fileName = $"prism-users-{_time.UtcNow:yyyyMMdd}.csv";
+        return File(bytes, "text/csv; charset=utf-8", fileName);
+    }
+
+    public string FormatIst(DateTime? utc) => _time.FormatIst(utc);
+
+    public string FormatIst(DateTimeOffset? utc) => _time.FormatIst(utc);
+
+    public bool IsStatusActive(string? status) =>
+        string.Equals(Status?.Trim(), status?.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    public string StatusCountLabel(int count) => count == 1 ? "1 account" : $"{count:N0} accounts";
+
+    private AdminPageHeaderModel BuildHeader() => new()
+    {
+        Eyebrow = "Access & security",
+        Title = "Users",
+        Description = "Manage identities, assigned roles and account lifecycle state.",
+        Icon = "bi-people",
+        Actions = new[]
+        {
+            new AdminPageActionModel
+            {
+                Text = "Create user",
+                Href = Url.Page("./Create"),
+                Icon = "bi-person-plus",
+                IsPrimary = true
+            }
+        }
+    };
+
+    private AdminUserListRequest BuildRequest() => new(
+        Q,
+        Role,
+        Status,
+        PageNo,
+        PageSize);
+
+    private void NormaliseRequest()
+    {
+        Q = string.IsNullOrWhiteSpace(Q) ? null : Q.Trim();
+        if (Q is { Length: > 100 })
+        {
+            Q = Q[..100];
+        }
+        Role = string.IsNullOrWhiteSpace(Role) ? null : Role.Trim();
+        Status = string.IsNullOrWhiteSpace(Status) ? null : Status.Trim().ToLowerInvariant();
+        if (Status is not null && !SupportedStatuses.Contains(Status))
+        {
+            Status = null;
+        }
+        PageNo = Math.Max(1, PageNo);
+        PageSize = SupportedPageSizes.Contains(PageSize) ? PageSize : 25;
+    }
+
+    private static IReadOnlyList<UserStatusFilter> BuildStatusFilters(AdminUserSummary summary) =>
+        new[]
+        {
+            new UserStatusFilter(null, "All users", summary.Total, "bi-people", "neutral"),
+            new UserStatusFilter("active", "Active", summary.Active, "bi-check-circle", "success"),
+            new UserStatusFilter(
+                "must-change-password",
+                "Password change",
+                summary.MustChangePassword,
+                "bi-key",
+                "info"),
+            new UserStatusFilter(
+                "locked",
+                "Locked",
+                summary.TemporarilyLocked,
+                "bi-lock",
+                "warning"),
+            new UserStatusFilter(
+                "disabled",
+                "Disabled",
+                summary.Disabled,
+                "bi-person-slash",
+                "neutral"),
+            new UserStatusFilter(
+                "pending-deletion",
+                "Pending deletion",
+                summary.PendingDeletion,
+                "bi-person-x",
+                "danger")
+        };
+
+    public sealed record UserStatusFilter(
+        string? Key,
+        string Label,
+        int Count,
+        string Icon,
+        string Tone);
 }

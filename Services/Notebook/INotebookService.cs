@@ -93,6 +93,7 @@ public interface INotebookService
     Task<IReadOnlyList<NotebookCollaboratorVm>> GetCollaboratorsAsync(string userId, Guid itemId, CancellationToken ct = default);
     Task<IReadOnlyList<NotebookCollaboratorSearchVm>> SearchCollaboratorsAsync(string userId, Guid itemId, string query, int take = 10, CancellationToken ct = default);
     Task<NotebookItemDetailVm> AddCollaboratorAsync(string ownerId, Guid itemId, string collaboratorUserId, NotebookCollaborationRole role, Guid expectedVersion, CancellationToken ct = default);
+    Task<NotebookItemDetailVm> UpdateCollaboratorRoleAsync(string ownerId, Guid itemId, string collaboratorUserId, NotebookCollaborationRole role, Guid expectedVersion, CancellationToken ct = default);
     Task<NotebookItemDetailVm> RemoveCollaboratorAsync(string ownerId, Guid itemId, string collaboratorUserId, Guid expectedVersion, CancellationToken ct = default);
     Task LeaveCollaborationAsync(string userId, Guid itemId, CancellationToken ct = default);
 }

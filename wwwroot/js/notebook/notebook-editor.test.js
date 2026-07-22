@@ -120,6 +120,8 @@ test('Notebook editor template exposes the required modal contract', async () =>
   assert.equal(editor.querySelectorAll(EditorSelectors.title).length, 1);
   assert.equal(editor.querySelectorAll(EditorSelectors.body).length, 1);
   assert.equal(editor.querySelectorAll(EditorSelectors.checklist).length, 1);
+  assert.equal(editor.querySelectorAll('[data-notebook-access-banner]').length, 1);
+  assert.equal(editor.querySelector('[data-notebook-access-banner]').hidden, true);
   assert.equal(editor.querySelectorAll(EditorSelectors.conflict).length, 1);
   assert.equal(editor.querySelector(EditorSelectors.conflict).hidden, true);
   assert.equal(editor.querySelectorAll('[data-notebook-use-local]').length, 1);

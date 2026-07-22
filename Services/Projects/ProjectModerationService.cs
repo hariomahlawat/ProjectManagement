@@ -10,8 +10,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Storage;
 
@@ -194,7 +196,13 @@ public sealed class ProjectModerationService
     {
         var project = await _db.Projects
             .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
+            .Where(candidate => candidate.Id == projectId)
+            .Select(candidate => new PurgeCandidate(
+                candidate.Id,
+                candidate.IsDeleted,
+                candidate.DeleteReason))
+            .FirstOrDefaultAsync(cancellationToken);
+
         if (project is null)
         {
             return ProjectModerationResult.NotFound();
@@ -205,13 +213,7 @@ public sealed class ProjectModerationService
             return ProjectModerationResult.InvalidState("Project must be in Trash before it can be purged.");
         }
 
-        using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
-
-        var metadata = await PurgeProjectAsync(projectId, includeAssets, cancellationToken);
-
-        await WritePurgeAuditAsync(projectId, actorUserId, project.DeleteReason, includeAssets, metadata, "Manual");
-        await tx.CommitAsync(cancellationToken);
-
+        await PurgeCoreAsync(project, actorUserId, includeAssets, "Manual", cancellationToken);
         return ProjectModerationResult.Success();
     }
 
@@ -220,24 +222,27 @@ public sealed class ProjectModerationService
         bool includeAssets,
         CancellationToken cancellationToken = default)
     {
-        var projectIds = await _db.Projects
+        var projects = await _db.Projects
             .AsNoTracking()
-            .Where(p => p.IsDeleted && p.DeletedAt != null && p.DeletedAt <= cutoffUtc)
-            .Select(p => p.Id)
+            .Where(project => project.IsDeleted && project.DeletedAt != null && project.DeletedAt <= cutoffUtc)
+            .Select(project => new PurgeCandidate(project.Id, project.IsDeleted, project.DeleteReason))
             .ToListAsync(cancellationToken);
 
         var purged = 0;
-        foreach (var projectId in projectIds)
+        foreach (var project in projects)
         {
             try
             {
-                var metadata = await PurgeProjectAsync(projectId, includeAssets, cancellationToken);
-                await WritePurgeAuditAsync(projectId, "system", reason: null, includeAssets, metadata, "Expired");
+                await PurgeCoreAsync(project, "system", includeAssets, "Expired", cancellationToken);
                 purged++;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to purge project {ProjectId}", projectId);
+                _logger.LogError(ex, "Failed to purge project {ProjectId}", project.Id);
+            }
+            finally
+            {
+                _db.ChangeTracker.Clear();
             }
         }
 
@@ -247,166 +252,236 @@ public sealed class ProjectModerationService
     // SECTION: Purge helpers
     private async Task<Project?> LoadProjectAsync(int projectId, CancellationToken cancellationToken)
     {
-        return await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
+        return await _db.Projects.FirstOrDefaultAsync(project => project.Id == projectId, cancellationToken);
     }
 
-    private async Task<string?> PurgeProjectAsync(
-        int projectId,
+    private async Task PurgeCoreAsync(
+        PurgeCandidate project,
+        string actorUserId,
         bool includeAssets,
+        string source,
         CancellationToken cancellationToken)
     {
+        FileQuarantineHandle? quarantinedAssets = null;
         var metadata = new Dictionary<string, object?>();
 
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
+
+        try
+        {
+            if (includeAssets)
+            {
+                quarantinedAssets = FileSystemQuarantine.StageDirectory(
+                    BuildProjectRootPath(project.Id),
+                    _uploadRootProvider.RootPath,
+                    "projects",
+                    project.Id.ToString(CultureInfo.InvariantCulture));
+
+                metadata["assetDisposition"] = quarantinedAssets is null ? "NotFound" : "Quarantined";
+                if (quarantinedAssets is not null)
+                {
+                    metadata["assetQuarantineRef"] = FileSystemQuarantine.GetSafeReference(quarantinedAssets);
+                }
+            }
+            else
+            {
+                metadata["assetDisposition"] = "Retained";
+            }
+
+            await PurgeProjectDatabaseRecordsAsync(project.Id, metadata, cancellationToken);
+            var metadataJson = JsonSerializer.Serialize(metadata);
+
+            await WritePurgeAuditAsync(
+                project.Id,
+                actorUserId,
+                project.DeleteReason,
+                includeAssets,
+                metadataJson,
+                source);
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            _db.ChangeTracker.Clear();
+
+            if (quarantinedAssets is not null)
+            {
+                try
+                {
+                    FileSystemQuarantine.Restore(quarantinedAssets);
+                }
+                catch (Exception restoreError)
+                {
+                    _logger.LogCritical(
+                        restoreError,
+                        "Project {ProjectId} database purge failed and its asset quarantine could not be restored. Quarantine reference: {Reference}",
+                        project.Id,
+                        FileSystemQuarantine.GetSafeReference(quarantinedAssets));
+                    throw new InvalidOperationException(
+                        "The project purge failed and the asset directory could not be restored automatically.",
+                        restoreError);
+                }
+            }
+
+            throw;
+        }
+
+        if (quarantinedAssets is null)
+        {
+            return;
+        }
+
+        try
+        {
+            FileSystemQuarantine.FinalizeDeletion(quarantinedAssets);
+            TryDeleteParentIfEmpty(quarantinedAssets.OriginalPath);
+        }
+        catch (Exception cleanupError)
+        {
+            var reference = FileSystemQuarantine.GetSafeReference(quarantinedAssets);
+            _logger.LogError(
+                cleanupError,
+                "Project {ProjectId} was purged but final deletion of quarantined assets failed. Quarantine reference: {Reference}",
+                project.Id,
+                reference);
+
+            try
+            {
+                await _audit.LogAsync(
+                    "Projects.PurgeAssetCleanupPending",
+                    message: $"Project {project.Id} database records were purged, but quarantined assets require cleanup.",
+                    level: "Warning",
+                    userId: actorUserId,
+                    data: new Dictionary<string, string?>
+                    {
+                        ["ProjectId"] = project.Id.ToString(CultureInfo.InvariantCulture),
+                        ["QuarantineReference"] = reference,
+                        ["Source"] = source
+                    });
+            }
+            catch (Exception auditError)
+            {
+                _logger.LogCritical(
+                    auditError,
+                    "Project {ProjectId} asset cleanup is pending and the warning audit could not be recorded. Quarantine reference: {Reference}",
+                    project.Id,
+                    reference);
+            }
+        }
+    }
+
+    private async Task PurgeProjectDatabaseRecordsAsync(
+        int projectId,
+        IDictionary<string, object?> metadata,
+        CancellationToken cancellationToken)
+    {
         var photos = await _db.ProjectPhotos
-            .Where(p => p.ProjectId == projectId)
+            .Where(photo => photo.ProjectId == projectId)
             .ToListAsync(cancellationToken);
         metadata["photoCount"] = photos.Count;
         _db.ProjectPhotos.RemoveRange(photos);
 
         var videos = await _db.ProjectVideos
-            .Where(v => v.ProjectId == projectId)
+            .Where(video => video.ProjectId == projectId)
             .ToListAsync(cancellationToken);
         metadata["videoCount"] = videos.Count;
         _db.ProjectVideos.RemoveRange(videos);
 
         var documents = await _db.ProjectDocuments
-            .Where(d => d.ProjectId == projectId)
+            .Where(document => document.ProjectId == projectId)
             .ToListAsync(cancellationToken);
         metadata["documentCount"] = documents.Count;
         _db.ProjectDocuments.RemoveRange(documents);
 
         var comments = await _db.ProjectComments
-            .Where(c => c.ProjectId == projectId)
+            .Where(comment => comment.ProjectId == projectId)
             .ToListAsync(cancellationToken);
         metadata["commentCount"] = comments.Count;
         _db.ProjectComments.RemoveRange(comments);
 
         var remarks = await _db.Remarks
-            .Where(r => r.ProjectId == projectId)
+            .Where(remark => remark.ProjectId == projectId)
             .ToListAsync(cancellationToken);
         metadata["remarkCount"] = remarks.Count;
         _db.Remarks.RemoveRange(remarks);
 
         var tots = await _db.ProjectTots
-            .Where(t => t.ProjectId == projectId)
+            .Where(tot => tot.ProjectId == projectId)
             .ToListAsync(cancellationToken);
         metadata["totCount"] = tots.Count;
         _db.ProjectTots.RemoveRange(tots);
 
         var stages = await _db.ProjectStages
-            .Where(s => s.ProjectId == projectId)
+            .Where(stage => stage.ProjectId == projectId)
             .ToListAsync(cancellationToken);
         metadata["stageCount"] = stages.Count;
         _db.ProjectStages.RemoveRange(stages);
 
         var planSnapshots = await _db.ProjectPlanSnapshots
-            .Where(s => s.ProjectId == projectId)
+            .Where(snapshot => snapshot.ProjectId == projectId)
             .ToListAsync(cancellationToken);
         metadata["planSnapshotCount"] = planSnapshots.Count;
         _db.ProjectPlanSnapshots.RemoveRange(planSnapshots);
 
-        var snapshotIds = planSnapshots.Select(s => s.Id).ToList();
-        if (snapshotIds.Count > 0)
-        {
-            var planSnapshotRows = await _db.ProjectPlanSnapshotRows
-                .Where(s => snapshotIds.Contains(s.SnapshotId))
+        var snapshotIds = planSnapshots.Select(snapshot => snapshot.Id).ToList();
+        var snapshotRows = snapshotIds.Count == 0
+            ? new List<ProjectPlanSnapshotRow>()
+            : await _db.ProjectPlanSnapshotRows
+                .Where(row => snapshotIds.Contains(row.SnapshotId))
                 .ToListAsync(cancellationToken);
-            metadata["planSnapshotRowCount"] = planSnapshotRows.Count;
-            _db.ProjectPlanSnapshotRows.RemoveRange(planSnapshotRows);
-        }
-        else
-        {
-            metadata["planSnapshotRowCount"] = 0;
-        }
+        metadata["planSnapshotRowCount"] = snapshotRows.Count;
+        _db.ProjectPlanSnapshotRows.RemoveRange(snapshotRows);
 
         var planVersions = await _db.PlanVersions
-            .Where(v => v.ProjectId == projectId)
+            .Where(version => version.ProjectId == projectId)
             .ToListAsync(cancellationToken);
         metadata["planVersionCount"] = planVersions.Count;
         _db.PlanVersions.RemoveRange(planVersions);
 
-        var planVersionIds = planVersions.Select(v => v.Id).ToList();
-        if (planVersionIds.Count > 0)
-        {
-            var schedules = await _db.StagePlans
-                .Where(p => planVersionIds.Contains(p.PlanVersionId))
+        var planVersionIds = planVersions.Select(version => version.Id).ToList();
+        var stagePlans = planVersionIds.Count == 0
+            ? new List<StagePlan>()
+            : await _db.StagePlans
+                .Where(plan => planVersionIds.Contains(plan.PlanVersionId))
                 .ToListAsync(cancellationToken);
-            metadata["stagePlanCount"] = schedules.Count;
-            _db.StagePlans.RemoveRange(schedules);
+        metadata["stagePlanCount"] = stagePlans.Count;
+        _db.StagePlans.RemoveRange(stagePlans);
 
-            var approvals = await _db.PlanApprovalLogs
-                .Where(p => planVersionIds.Contains(p.PlanVersionId))
+        var approvalLogs = planVersionIds.Count == 0
+            ? new List<PlanApprovalLog>()
+            : await _db.PlanApprovalLogs
+                .Where(log => planVersionIds.Contains(log.PlanVersionId))
                 .ToListAsync(cancellationToken);
-            metadata["planApprovalLogCount"] = approvals.Count;
-            _db.PlanApprovalLogs.RemoveRange(approvals);
-        }
-        else
-        {
-            metadata["stagePlanCount"] = 0;
-            metadata["planApprovalLogCount"] = 0;
-        }
+        metadata["planApprovalLogCount"] = approvalLogs.Count;
+        _db.PlanApprovalLogs.RemoveRange(approvalLogs);
 
         var timelineEntries = await _db.StageChangeLogs
-            .Where(l => l.ProjectId == projectId)
+            .Where(log => log.ProjectId == projectId)
             .ToListAsync(cancellationToken);
         metadata["timelineChangeLogCount"] = timelineEntries.Count;
         _db.StageChangeLogs.RemoveRange(timelineEntries);
 
         var metaRequests = await _db.ProjectMetaChangeRequests
-            .Where(r => r.ProjectId == projectId)
+            .Where(request => request.ProjectId == projectId)
             .ToListAsync(cancellationToken);
         metadata["metaChangeRequestCount"] = metaRequests.Count;
         _db.ProjectMetaChangeRequests.RemoveRange(metaRequests);
 
-        var project = await _db.Projects
-            .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
-        if (project != null)
+        var projectEntity = await _db.Projects
+            .FirstOrDefaultAsync(candidate => candidate.Id == projectId, cancellationToken);
+        if (projectEntity is not null)
         {
-            _db.Projects.Remove(project);
+            _db.Projects.Remove(projectEntity);
         }
 
         await _db.SaveChangesAsync(cancellationToken);
-
-        var assetsPurged = includeAssets && TryDeleteProjectAssets(projectId);
-        metadata["assetsPurged"] = assetsPurged;
-
-        return metadata.Count == 0
-            ? null
-            : JsonSerializer.Serialize(metadata);
     }
+
+    private sealed record PurgeCandidate(int Id, bool IsDeleted, string? DeleteReason);
 
     // SECTION: Asset cleanup
-    private bool TryDeleteProjectAssets(int projectId)
-    {
-        try
-        {
-            var path = BuildProjectRootPath(projectId);
-            if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
-            {
-                return false;
-            }
-
-            Directory.Delete(path, recursive: true);
-            TryDeleteParentIfEmpty(path);
-            return true;
-        }
-        catch (IOException ex)
-        {
-            _logger.LogWarning(ex, "Failed to delete asset directory for project {ProjectId}", projectId);
-            return false;
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            _logger.LogWarning(ex, "Access denied deleting asset directory for project {ProjectId}", projectId);
-            return false;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Unexpected error deleting asset directory for project {ProjectId}", projectId);
-            return false;
-        }
-    }
-
     private string BuildProjectRootPath(int projectId)
     {
         var rootPath = _uploadRootProvider.RootPath;

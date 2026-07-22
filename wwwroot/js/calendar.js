@@ -24,6 +24,7 @@
 
   const preferencesForm = document.getElementById('calendarPreferences');
   const showCelebrationsToggle = document.getElementById('showCelebrationsToggle');
+  const pageShell = document.querySelector('.calendar-page-shell');
   const antiforgeryInput = preferencesForm?.querySelector('input[name="__RequestVerificationToken"]');
   const preferenceEndpoint = preferencesForm?.dataset.preferenceEndpoint || '/calendar/events/preferences/show-celebrations';
 
@@ -238,34 +239,101 @@
     return `${formatDisplayDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
+  const normaliseHolidayEntry = (entry) => ({
+    id: entry?.id ?? entry?.Id ?? null,
+    name: entry?.name ?? entry?.Name ?? '',
+    type: entry?.type ?? entry?.Type ?? 'Gazetted',
+    isObservedAsOfficeHoliday: entry?.isObservedAsOfficeHoliday ?? entry?.IsObservedAsOfficeHoliday ?? false,
+    affectsSchedule: entry?.affectsSchedule ?? entry?.AffectsSchedule ?? false,
+    authorityReference: entry?.authorityReference ?? entry?.AuthorityReference ?? null
+  });
+
+  const holidayVisualState = (meta) => {
+    if (!meta) return null;
+    if (meta.closureType === 'Gazetted' || meta.entries?.some(entry => entry.type === 'Gazetted')) return 'gazetted';
+    if (meta.isOfficeClosed || meta.entries?.some(entry => entry.isObservedAsOfficeHoliday)) return 'rh-observed';
+    return 'rh-info';
+  };
+
+  // Informational restricted holidays are always visible, but use a deliberately
+  // subdued presentation so they never compete with office-closure holidays.
+  const shouldDisplayHoliday = (meta) => !!meta;
+
+  const getVisibleHolidayMeta = (iso) => {
+    const meta = iso ? holidayMap.get(iso) : null;
+    return shouldDisplayHoliday(meta) ? meta : null;
+  };
+
   const buildHolidayTooltip = (meta) => {
-    const name = meta?.name || meta?.Name || '';
-    return name ? `Holiday: ${name}` : 'Holiday';
+    if (!meta) return '';
+    const entries = Array.isArray(meta.entries) ? meta.entries : [];
+    return entries.map(entry => {
+      if (entry.type === 'Gazetted') {
+        return `Gazetted Holiday: ${entry.name}\nOffice closed\nAffects project schedules`;
+      }
+      if (entry.isObservedAsOfficeHoliday) {
+        return `Restricted Holiday: ${entry.name}\nOffice closed\nAffects project schedules`;
+      }
+      return `Restricted Holiday: ${entry.name}\nOffice open\nNo effect on project schedules`;
+    }).join('\n\n');
+  };
+
+  const holidayBadgePresentation = (meta) => {
+    const entries = Array.isArray(meta?.entries) ? meta.entries : [];
+    if (entries.length === 0) return { primary: '', secondary: '' };
+
+    const gazetted = entries.find(entry => entry.type === 'Gazetted');
+    const observed = entries.find(entry => entry.isObservedAsOfficeHoliday);
+    const primary = gazetted || observed || entries[0];
+
+    if (!gazetted && entries.every(entry => entry.type !== 'Gazetted') && entries.length > 1) {
+      return { primary: `RH · ${entries.length}`, secondary: '' };
+    }
+
+    if (entries.length > 1) {
+      return {
+        primary: gazetted ? `Gazetted holiday · ${entries.length}` : `RH · ${entries.length}`,
+        secondary: ''
+      };
+    }
+
+    if (primary.type === 'Gazetted') {
+      return { primary: 'Gazetted holiday', secondary: primary.name };
+    }
+
+    if (primary.isObservedAsOfficeHoliday) {
+      return { primary: 'RH · Office holiday', secondary: primary.name };
+    }
+
+    return { primary: `RH · ${primary.name}`, secondary: '' };
   };
 
   const buildHolidayAria = (iso, meta) => {
     const labelDate = formatDisplayDate(`${iso}T00:00:00`);
-    const tooltip = buildHolidayTooltip(meta);
+    const tooltip = buildHolidayTooltip(meta).replace(/\n/g, '. ');
     return `${labelDate} — ${tooltip}`;
   };
 
+  const holidayClasses = ['pm-holiday', 'pm-holiday--gazetted', 'pm-holiday--rh-observed', 'pm-holiday--rh-info'];
+
   const decorateHolidayCell = (el, iso) => {
     if (!el) return;
-    const meta = iso ? holidayMap.get(iso) : null;
-    if (meta) {
-      el.classList.add('pm-holiday');
+    holidayClasses.forEach(className => el.classList.remove(className));
+    const meta = getVisibleHolidayMeta(iso);
+    const state = holidayVisualState(meta);
+    if (meta && state) {
+      el.classList.add('pm-holiday', `pm-holiday--${state}`);
       el.setAttribute('data-pm-holiday-active', '1');
-    } else if (el.getAttribute('data-pm-holiday-active')) {
-      el.classList.remove('pm-holiday');
-      el.removeAttribute('data-pm-holiday-active');
+      el.setAttribute('data-pm-holiday-state', state);
     } else {
-      el.classList.remove('pm-holiday');
+      el.removeAttribute('data-pm-holiday-active');
+      el.removeAttribute('data-pm-holiday-state');
     }
   };
 
   const decorateHolidayLabelElement = (el, iso) => {
     if (!el) return;
-    const meta = iso ? holidayMap.get(iso) : null;
+    const meta = getVisibleHolidayMeta(iso);
     if (meta) {
       if (!el.hasAttribute('data-pm-holiday-orig-title') && el.hasAttribute('title')) {
         el.setAttribute('data-pm-holiday-orig-title', el.getAttribute('title'));
@@ -275,7 +343,7 @@
       }
       const tooltip = buildHolidayTooltip(meta);
       const baseAria = el.getAttribute('data-pm-holiday-orig-aria');
-      const aria = baseAria ? `${baseAria}. ${tooltip}` : buildHolidayAria(iso, meta);
+      const aria = baseAria ? `${baseAria}. ${tooltip.replace(/\n/g, '. ')}` : buildHolidayAria(iso, meta);
       el.setAttribute('title', tooltip);
       el.setAttribute('aria-label', aria);
       el.setAttribute('data-pm-holiday-label', '1');
@@ -292,19 +360,32 @@
 
   const syncHolidayBadge = (targetEl, iso, options = {}) => {
     if (!targetEl) return;
-    const meta = iso ? holidayMap.get(iso) : null;
+    const meta = getVisibleHolidayMeta(iso);
     const predicate = typeof options.shouldDisplay === 'function' ? options.shouldDisplay : null;
     const shouldShow = !!(meta && (!predicate || predicate(meta, iso)));
     const badge = targetEl.querySelector('.pm-holiday-badge');
     if (shouldShow) {
-      const label = buildHolidayTooltip(meta);
       let node = badge;
       if (!node) {
         node = document.createElement('span');
         node.className = 'pm-holiday-badge';
         targetEl.appendChild(node);
       }
-      node.textContent = label;
+      node.classList.remove('pm-holiday-badge--gazetted', 'pm-holiday-badge--rh-observed', 'pm-holiday-badge--rh-info');
+      const state = holidayVisualState(meta);
+      if (state) node.classList.add(`pm-holiday-badge--${state}`);
+      const presentation = holidayBadgePresentation(meta);
+      node.replaceChildren();
+      const primary = document.createElement('span');
+      primary.className = 'pm-holiday-badge__primary';
+      primary.textContent = presentation.primary;
+      node.appendChild(primary);
+      if (presentation.secondary) {
+        const secondary = document.createElement('span');
+        secondary.className = 'pm-holiday-badge__secondary';
+        secondary.textContent = presentation.secondary;
+        node.appendChild(secondary);
+      }
       decorateHolidayLabelElement(node, iso);
     } else if (badge) {
       decorateHolidayLabelElement(badge, null);
@@ -337,7 +418,7 @@
     const isListView = (calendar?.view?.type || '').startsWith('list');
     calendarEl.querySelectorAll('.fc-list-day').forEach(row => {
       const iso = getIsoDate(row.getAttribute('data-date'));
-      const meta = iso ? holidayMap.get(iso) : null;
+      const meta = getVisibleHolidayMeta(iso);
       decorateHolidayCell(row, iso);
       const cushion = row.querySelector('.fc-list-day-cushion');
       if (cushion) {
@@ -944,7 +1025,18 @@
     headerToolbar: false,
     firstDay: 1,
     height: 'auto',
+    fixedWeekCount: false,
     dayMaxEvents: 3,
+    eventTimeFormat: {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    },
+    slotLabelFormat: {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    },
     nowIndicator: true,
     navLinks: false,
     slotMinTime: '08:00:00',
@@ -1134,11 +1226,21 @@
       items.forEach(item => {
         const iso = getIsoDate(item?.date || item?.Date);
         if (!iso) return;
+        const entries = (item?.entries || item?.Entries || []).map(normaliseHolidayEntry);
+        // Compatibility with the pre-classification endpoint during rolling deployments.
+        if (entries.length === 0 && (item?.name || item?.Name)) {
+          entries.push(normaliseHolidayEntry({
+            name: item?.name || item?.Name,
+            type: 'Gazetted',
+            isObservedAsOfficeHoliday: true,
+            affectsSchedule: true
+          }));
+        }
         holidayMap.set(iso, {
-          name: item?.name || item?.Name || '',
-          skipWeekends: item?.skipWeekends ?? item?.SkipWeekends ?? null,
-          startUtc: item?.startUtc || item?.StartUtc || null,
-          endUtc: item?.endUtc || item?.EndUtc || null
+          date: iso,
+          isOfficeClosed: item?.isOfficeClosed ?? item?.IsOfficeClosed ?? entries.some(entry => entry.affectsSchedule),
+          closureType: item?.closureType ?? item?.ClosureType ?? (entries.some(entry => entry.type === 'Gazetted') ? 'Gazetted' : null),
+          entries
         });
       });
       holidayRangeKey = key;
@@ -1247,12 +1349,13 @@
   const btnToday = document.getElementById('btnToday');
   btnToday && btnToday.addEventListener('click', () => calendar.today(), { passive: true });
   function markActiveView() {
-    const v = calendar.view?.type;
+    const v = calendar.view?.type || 'dayGridMonth';
     viewButtons.forEach(b => {
       const isActive = b.getAttribute('data-view') === v;
       b.classList.toggle('active', isActive);
       b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
+    if (pageShell) pageShell.dataset.calendarView = v;
   }
   calendar.on('datesSet', markActiveView);
   markActiveView();
@@ -1309,10 +1412,6 @@
         const label = cat === 'Insp' ? 'Inspection' : cat;
         return `<span><span class="legend-dot pm-cat-${cat.toLowerCase()}"></span>${label} (${n})</span>`;
       }).join('');
-      const holidayCount = holidayMap.size;
-      if (holidayCount > 0) {
-        html += `<span><span class="legend-dot pm-holiday"></span>Holiday (${holidayCount})</span>`;
-      }
       legend.innerHTML = html;
     }
   }

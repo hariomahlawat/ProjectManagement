@@ -25,6 +25,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         private readonly ILogger<ReaderModel> _logger;
         private readonly IAuthorizationService _authorizationService;
         private readonly IAotsUnreadService _aotsUnreadService;
+        private readonly IDocRepoAuditService _audit;
 
         // SECTION: Constructor
         public ReaderModel(
@@ -32,13 +33,15 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             IDocStorage storage,
             ILogger<ReaderModel> logger,
             IAuthorizationService authorizationService,
-            IAotsUnreadService aotsUnreadService)
+            IAotsUnreadService aotsUnreadService,
+            IDocRepoAuditService audit)
         {
             _db = db;
             _storage = storage;
             _logger = logger;
             _authorizationService = authorizationService;
             _aotsUnreadService = aotsUnreadService;
+            _audit = audit;
         }
 
         // SECTION: View data
@@ -193,7 +196,51 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 IsAotsSeen = await _aotsUnreadService.MarkAsReadAsync(id, userId, cancellationToken);
             }
 
+            if (!IsFileMissing && !string.IsNullOrWhiteSpace(userId))
+            {
+                await RecordDocumentViewAsync(id, userId, cancellationToken);
+            }
+
             return Page();
+        }
+
+        private async Task RecordDocumentViewAsync(
+            Guid documentId,
+            string userId,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                var duplicateWindowStart = DateTimeOffset.UtcNow.AddMinutes(-5);
+                var alreadyRecorded = await _db.DocRepoAudits
+                    .AsNoTracking()
+                    .AnyAsync(audit =>
+                        audit.DocumentId == documentId
+                        && audit.ActorUserId == userId
+                        && audit.EventType == DocRepoAuditEventTypes.Viewed
+                        && audit.OccurredAtUtc >= duplicateWindowStart,
+                        cancellationToken);
+
+                if (alreadyRecorded)
+                {
+                    return;
+                }
+
+                await _audit.WriteAsync(
+                    documentId,
+                    userId,
+                    DocRepoAuditEventTypes.Viewed,
+                    new { documentId },
+                    cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Unable to record recent document view for DocumentId={DocumentId}", documentId);
+            }
         }
 
         // SECTION: AOTS logging helpers

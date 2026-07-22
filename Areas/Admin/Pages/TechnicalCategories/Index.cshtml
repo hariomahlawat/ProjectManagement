@@ -1,32 +1,21 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.TechnicalCategories.IndexModel
-@using System.Linq
 @{
     ViewData["Title"] = "Technical categories";
 }
 
-<h1 class="h3 mb-3">Technical categories</h1>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
 
-@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
-{
-    <div class="alert alert-success" role="status">@Model.StatusMessage</div>
-}
+<section class="admin-master-summary-grid" aria-label="Technical category summary">
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-cpu"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.Total</strong><span>Total categories</span><small>@Model.Result.RootCount root categories</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--success"><span class="admin-monitoring-metric__icon"><i class="bi bi-check-circle"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.Active</strong><span>Active</span><small>Available for project classification</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-slash-circle"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.Inactive</strong><span>Inactive</span><small>Retained for historical records</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-link-45deg"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.InUse</strong><span>In use</span><small>Referenced by one or more projects</small></span></article>
+</section>
 
-<p>
-    <a class="btn btn-primary btn-sm" asp-page="Create">Add root category</a>
-</p>
-
-@if (!Model.Nodes.Any())
-{
-    <div class="alert alert-info">No technical categories have been created yet.</div>
-}
-else
-{
-    <div class="category-tree" data-behavior="category-tree">
-        <partial name="_CategoryTree" model="Model.Nodes" />
-    </div>
-}
+<partial name="~/Areas/Admin/Pages/Shared/_AdminCategoryDirectory.cshtml" model="Model.DirectoryModel" />
 
 @section Scripts {
-    <script src="~/js/admin/categories.js" asp-append-version="true"></script>
+    <script src="~/js/admin/admin-category-tree.js" asp-append-version="true" defer></script>
 }

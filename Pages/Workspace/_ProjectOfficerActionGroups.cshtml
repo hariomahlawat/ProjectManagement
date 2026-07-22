@@ -1,0 +1,89 @@
+@using ProjectManagement.ViewModels.Workspace
+@model ProjectOfficerActionGroupsRenderVm
+@if (!Model.Groups.Any())
+{
+    <div class="po-empty po-empty--success">
+        <i class="bi bi-check2-circle" aria-hidden="true"></i>
+        <div><strong>Queue clear</strong><span>No actions currently require your attention.</span></div>
+    </div>
+}
+else
+{
+    <div class="po-action-groups" role="list">
+        @for (var groupIndex = 0; groupIndex < Model.Groups.Count; groupIndex++)
+        {
+            var group = Model.Groups[groupIndex];
+            var recommended = Model.ShowRecommended && groupIndex == 0;
+            var severityClass = recommended
+                ? "recommended"
+                : group.Severity.Equals("Danger", StringComparison.OrdinalIgnoreCase)
+                    ? "danger"
+                    : group.Severity.Equals("Warning", StringComparison.OrdinalIgnoreCase)
+                        ? "warning"
+                        : "routine";
+            var groupTitleFilter = group.Title.ToLowerInvariant();
+
+            <article role="listitem"
+                     class="po-action-group po-action-group--@severityClass"
+                     data-po-action-row
+                     data-group-title="@groupTitleFilter">
+                <span class="po-action-group__rail" aria-hidden="true"></span>
+                <div class="po-action-group__identity">
+                    <a href="@group.PrimaryUrl" class="po-action-group__title">@group.Title</a>
+                    <span data-po-action-count>@group.ActionCount action@(group.ActionCount == 1 ? string.Empty : "s")</span>
+                </div>
+                <div class="po-action-group__actions">
+                    @for (var actionIndex = 0; actionIndex < group.Actions.Count; actionIndex++)
+                    {
+                        var item = group.Actions[actionIndex];
+                        var isRecommended = recommended && actionIndex == 0;
+                        var itemFilterText = $"{item.Type} {item.BadgeText} {item.Detail} {item.Meta}".ToLowerInvariant();
+                        <div class="po-action-line @(isRecommended ? "po-action-line--recommended" : string.Empty)"
+                             data-po-action-item
+                             data-action-type="@item.Type.ToLowerInvariant()"
+                             data-filter-text="@itemFilterText"
+                             data-action-count="@item.RepresentedActionCount">
+                            <div class="po-action-line__type @(isRecommended ? "po-action-line__type--recommended" : string.Empty)">
+                                @if (isRecommended)
+                                {
+                                    <i class="bi bi-stars" aria-hidden="true"></i>
+                                }
+                                else
+                                {
+                                    <span class="po-type po-type--@item.Type.ToLowerInvariant()">@item.BadgeText</span>
+                                }
+                            </div>
+                            <div class="po-action-line__content">
+                                @if (isRecommended)
+                                {
+                                    <span class="po-action__recommendation"><strong>Recommended next</strong></span>
+                                }
+                                <span class="po-action-line__detail">@item.Detail</span>
+                                @if (isRecommended || !string.IsNullOrWhiteSpace(item.Meta))
+                                {
+                                    <small class="po-action-line__meta-text">
+                                        @if (isRecommended)
+                                        {
+                                            <span>@item.BadgeText</span>
+                                        }
+                                        @if (isRecommended && !string.IsNullOrWhiteSpace(item.Meta))
+                                        {
+                                            <span aria-hidden="true">·</span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(item.Meta))
+                                        {
+                                            <span>@item.Meta</span>
+                                        }
+                                    </small>
+                                }
+                            </div>
+                            <a class="po-action-line__button" href="@item.ActionUrl">
+                                <span>@item.ActionText</span><i class="bi bi-arrow-right" aria-hidden="true"></i>
+                            </a>
+                        </div>
+                    }
+                </div>
+            </article>
+        }
+    </div>
+}

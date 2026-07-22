@@ -20,16 +20,29 @@ public sealed class ProjectOfficerWorkspaceVm
     public int ProjectsNeedingAttentionCount { get; set; }
     public int ProjectTimelineIssueCount { get; set; }
     public int AssignedIdeaCount { get; set; }
+    public int UpcomingEventCount { get; set; }
+    public int PendingConferenceDirectionCount { get; set; }
     public int AotsUnreadCount { get; set; }
+    public int? NavigationActionCount { get; set; }
+    public int? NavigationFollowUpCount { get; set; }
     public string AotsUrl { get; set; } = "/DocumentRepository/Documents?scope=aots";
     public WorkspaceEngagementVm Engagement { get; set; } = new();
+    public ErpActivityStripVm ActivityStrip { get; set; } = new();
+    public ErpActivityYearVm ActivityYear { get; set; } = new();
+    public WorkspaceDocumentHubVm DocumentHub { get; set; } = new();
     public IReadOnlyList<WorkspaceCommandChipVm> CommandChips { get; set; } = Array.Empty<WorkspaceCommandChipVm>();
     public WorkspaceDataCompletenessInsightVm DataCompletenessInsight { get; set; } = new();
     public IReadOnlyList<WorkspaceRailItemVm> RailItems { get; set; } = Array.Empty<WorkspaceRailItemVm>();
     public IReadOnlyList<WorkspaceAttentionItemVm> PendingWithMe { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public IReadOnlyList<WorkspaceActionQueueItemVm> ActionQueue { get; set; } = Array.Empty<WorkspaceActionQueueItemVm>();
     public IReadOnlyList<WorkspaceActionQueueGroupVm> ActionQueueGroups { get; set; } = Array.Empty<WorkspaceActionQueueGroupVm>();
+    public IReadOnlyList<WorkspaceActionQueueItemVm> AllActionQueue { get; set; } = Array.Empty<WorkspaceActionQueueItemVm>();
+    public IReadOnlyList<WorkspaceActionQueueGroupVm> AllActionQueueGroups { get; set; } = Array.Empty<WorkspaceActionQueueGroupVm>();
     public int ActionQueueTotalCount { get; set; }
+    public int ActionProjectCount { get; set; }
+    public int ActionIdeaCount { get; set; }
+    public int ActionTaskCount { get; set; }
+    public WorkspaceActionQueueSummaryVm ActionSummary { get; set; } = new();
 
     public string ActionHeadline => ActionQueueTotalCount switch
     {
@@ -40,46 +53,93 @@ public sealed class ProjectOfficerWorkspaceVm
         _ => $"{ActionQueueTotalCount} actions require attention"
     };
 
-    public int FollowUpCount => PersonalReminders.Count + Ideas.Count;
+    public int FollowUpCount => NavigationFollowUpCount
+        ?? PersonalReminders.Count;
+
+    public int? ActionQueueBadgeCount
+    {
+        get
+        {
+            var count = NavigationActionCount ?? ActionQueueTotalCount;
+            return count > 0 ? count : null;
+        }
+    }
 
     public string OperationalSummary
     {
         get
         {
+            var scope = new List<string>();
+            var projectCount = ActionSummary.ProjectCount > 0 ? ActionSummary.ProjectCount : ActionProjectCount;
+            var ideaCount = ActionSummary.IdeaCount > 0 ? ActionSummary.IdeaCount : ActionIdeaCount;
+            var taskCount = ActionSummary.TaskCount > 0 ? ActionSummary.TaskCount : ActionTaskCount;
+
+            if (projectCount > 0)
+            {
+                scope.Add($"{projectCount} project{(projectCount == 1 ? string.Empty : "s")}");
+            }
+
+            if (ideaCount > 0)
+            {
+                scope.Add($"{ideaCount} idea{(ideaCount == 1 ? string.Empty : "s")}");
+            }
+
+            if (taskCount > 0)
+            {
+                scope.Add($"{taskCount} task{(taskCount == 1 ? string.Empty : "s")}");
+            }
+
             var parts = new List<string>();
-
-            if (ProjectsNeedingAttentionCount > 0)
+            if (scope.Count > 0)
             {
-                parts.Add($"{ProjectsNeedingAttentionCount} project{(ProjectsNeedingAttentionCount == 1 ? string.Empty : "s")} affected");
+                parts.Add($"Across {JoinHumanReadable(scope)}");
+            }
+            else if (AssignedProjectCount > 0 && ActionQueueTotalCount == 0)
+            {
+                parts.Add($"Across {AssignedProjectCount} project{(AssignedProjectCount == 1 ? string.Empty : "s")}");
             }
 
-            if (ProjectTimelineIssueCount > 0)
-            {
-                parts.Add($"{ProjectTimelineIssueCount} timeline action{(ProjectTimelineIssueCount == 1 ? string.Empty : "s")} pending");
-            }
+            AddCount(parts, ActionSummary.ReturnedCount, "returned item", "returned items");
+            AddCount(parts, ActionSummary.OverdueTaskCount, "overdue task", "overdue tasks");
+            AddCount(parts,
+                ActionSummary.ConferenceDirectionCount > 0 ? ActionSummary.ConferenceDirectionCount : PendingConferenceDirectionCount,
+                "conference direction",
+                "conference directions");
+            AddCount(parts,
+                ActionSummary.TimelineCount > 0 ? ActionSummary.TimelineCount : ProjectTimelineIssueCount,
+                "timeline action",
+                "timeline actions");
+            AddCount(parts, ActionSummary.ProjectUpdateCount, "overdue update", "overdue updates");
+            AddCount(parts, ActionSummary.IdeaUpdateCount, "idea update", "idea updates");
+            AddCount(parts, ActionSummary.DueSoonTaskCount, "task due soon", "tasks due soon");
+            AddCount(parts, ActionSummary.AotsCount, "AOTS document", "AOTS documents");
 
             if (RecordGapCount > 0)
             {
-                parts.Add($"{RecordGapCount} record gap{(RecordGapCount == 1 ? string.Empty : "s")}");
+                AddCount(parts, RecordGapCount, "record gap", "record gaps");
             }
 
-            if (parts.Count == 0 && AotsUnreadCount > 0)
-            {
-                parts.Add($"{AotsUnreadCount} AOTS document{(AotsUnreadCount == 1 ? string.Empty : "s")} awaiting review");
-            }
-
-            if (parts.Count > 0)
-            {
-                return string.Join(" · ", parts);
-            }
-
-            return ActionQueueTotalCount > 0
-                ? $"{ActionQueueTotalCount} assigned action{(ActionQueueTotalCount == 1 ? string.Empty : "s")} sequenced below"
-                : "No overdue project actions or incomplete timelines";
+            return parts.Count == 0 ? "No immediate action required" : string.Join(" · ", parts);
         }
     }
 
-    public int ActionQueueHiddenCount => Math.Max(0, ActionQueueTotalCount - ActionQueue.Count);
+    private static void AddCount(ICollection<string> parts, int count, string singular, string plural)
+    {
+        if (count > 0)
+        {
+            parts.Add($"{count} {(count == 1 ? singular : plural)}");
+        }
+    }
+
+    private static string JoinHumanReadable(IReadOnlyList<string> values) => values.Count switch
+    {
+        0 => string.Empty,
+        1 => values[0],
+        2 => $"{values[0]} and {values[1]}",
+        _ => $"{string.Join(", ", values.Take(values.Count - 1))} and {values[^1]}"
+    };
+
+    public int ActionQueueHiddenCount => Math.Max(0, ActionQueueTotalCount - ActionQueue.Sum(item => item.RepresentedActionCount));
     public IReadOnlyList<WorkspaceAttentionItemVm> RemarksDue { get; set; } = Array.Empty<WorkspaceAttentionItemVm>();
     public IReadOnlyList<WorkspaceTaskVm> OfficialTasksDue { get; set; } = Array.Empty<WorkspaceTaskVm>();
     public IReadOnlyList<WorkspaceIdeaVm> IdeasNeedingUpdate { get; set; } = Array.Empty<WorkspaceIdeaVm>();
@@ -103,6 +163,53 @@ public sealed class ProjectOfficerWorkspaceVm
     public IReadOnlyList<WorkspaceReminderVm> PersonalReminders { get; set; } = Array.Empty<WorkspaceReminderVm>();
     public CommandOfficerWorkloadVm? CommandWorkloadCard { get; set; }
     public IReadOnlyList<WorkspaceUpcomingEventVm> UpcomingEvents { get; set; } = Array.Empty<WorkspaceUpcomingEventVm>();
+}
+
+public sealed class WorkspaceDocumentHubVm
+{
+    public int FavouriteCount { get; set; }
+    public int AotsUnreadCount { get; set; }
+    public int RecentCount { get; set; }
+    public int UploadedByMeCount { get; set; }
+    public IReadOnlyList<WorkspaceDocumentVm> Favourites { get; set; } = Array.Empty<WorkspaceDocumentVm>();
+    public IReadOnlyList<WorkspaceDocumentVm> Aots { get; set; } = Array.Empty<WorkspaceDocumentVm>();
+    public IReadOnlyList<WorkspaceDocumentVm> Recent { get; set; } = Array.Empty<WorkspaceDocumentVm>();
+    public IReadOnlyList<WorkspaceDocumentVm> UploadedByMe { get; set; } = Array.Empty<WorkspaceDocumentVm>();
+}
+
+public sealed class WorkspaceDocumentVm
+{
+    public Guid DocumentId { get; set; }
+    public string Subject { get; set; } = string.Empty;
+    public string Office { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public DateOnly? DocumentDate { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTimeOffset? LastViewedAtUtc { get; set; }
+    public bool IsAots { get; set; }
+    public bool IsFavourite { get; set; }
+    public bool IsUnreadAots { get; set; }
+    public string OpenUrl { get; set; } = string.Empty;
+}
+
+public sealed class ProjectOfficerDocumentListRenderVm
+{
+    public IReadOnlyList<WorkspaceDocumentVm> Documents { get; init; } = Array.Empty<WorkspaceDocumentVm>();
+    public string EmptyTitle { get; init; } = "No documents";
+    public string EmptyText { get; init; } = "Documents will appear here when available.";
+    public string DateMode { get; init; } = "document";
+}
+
+public sealed class ProjectOfficerActionGroupsRenderVm
+{
+    public IReadOnlyList<WorkspaceActionQueueGroupVm> Groups { get; init; } = Array.Empty<WorkspaceActionQueueGroupVm>();
+    public bool ShowRecommended { get; init; } = true;
+}
+
+public sealed class ProjectOfficerProjectTableRenderVm
+{
+    public IReadOnlyList<WorkspaceProjectMatrixRowVm> Rows { get; init; } = Array.Empty<WorkspaceProjectMatrixRowVm>();
+    public bool Compact { get; init; }
 }
 
 public sealed class WorkspaceUpcomingEventVm
@@ -209,9 +316,30 @@ public sealed class WorkspaceAotsDocumentVm
     public string OpenUrl { get; set; } = string.Empty;
 }
 
+public sealed class WorkspaceConferenceDirectionActionVm
+{
+    public ConferenceItemKind Kind { get; set; }
+
+    public int ItemId { get; set; }
+
+    public int? ProjectId { get; set; }
+
+    public string Title { get; set; } = string.Empty;
+
+    public string DirectionText { get; set; } = string.Empty;
+
+    public DateTime IssuedAtUtc { get; set; }
+
+    public string ActionUrl { get; set; } = string.Empty;
+}
+
 public sealed class WorkspaceActionQueueItemVm
 {
     public int? ProjectId { get; set; }
+
+    public string WorkItemKey { get; set; } = string.Empty;
+
+    public int RepresentedActionCount { get; set; } = 1;
 
     public string Type { get; set; } = string.Empty;
 
@@ -253,11 +381,31 @@ public sealed class WorkspaceActionQueueGroupVm
 
     public IReadOnlyList<WorkspaceActionQueueItemVm> Actions { get; set; } = Array.Empty<WorkspaceActionQueueItemVm>();
 
-    public int ActionCount => Actions.Count;
+    public int ActionCount => Actions.Sum(action => action.RepresentedActionCount);
+}
+
+public sealed class WorkspaceActionQueueSummaryVm
+{
+    public int TotalCount { get; set; }
+    public int ProjectCount { get; set; }
+    public int IdeaCount { get; set; }
+    public int TaskCount { get; set; }
+    public int ReturnedCount { get; set; }
+    public int OverdueTaskCount { get; set; }
+    public int ConferenceDirectionCount { get; set; }
+    public int TimelineCount { get; set; }
+    public int ProjectUpdateCount { get; set; }
+    public int IdeaUpdateCount { get; set; }
+    public int AotsCount { get; set; }
+    public int DueSoonTaskCount { get; set; }
 }
 
 public sealed class WorkspaceAttentionItemVm
 {
+    public int? ProjectId { get; set; }
+
+    public string WorkItemKey { get; set; } = string.Empty;
+
     public string Type { get; set; } = string.Empty;
 
     public string Title { get; set; } = string.Empty;
@@ -344,9 +492,11 @@ public sealed class WorkspaceTaskVm
 
     public string Status { get; set; } = string.Empty;
 
-    public DateTime? DueDateUtc { get; set; }
+    public DateOnly DueDate { get; set; }
 
     public bool IsOverdue { get; set; }
+
+    public bool IsDueSoon { get; set; }
 
     public int? DaysOverdue { get; set; }
 
@@ -710,9 +860,14 @@ public static class WorkspaceDisplayHelpers
             return "Review timeline";
         }
 
-        if (row.IsCurrentStagePdcMissing || row.IsCurrentStageStartMissing)
+        if (row.IsCurrentStagePdcMissing)
         {
-            return "Update dates";
+            return "Set current-stage PDC";
+        }
+
+        if (row.IsCurrentStageStartMissing)
+        {
+            return "Set stage start";
         }
 
         if (row.HasBackfill)
@@ -723,12 +878,27 @@ public static class WorkspaceDisplayHelpers
         return "Open timeline";
     }
 
+    public static string ProjectNextActionLabel(WorkspaceProjectMatrixRowVm row)
+    {
+        if (row.HasOverdueCurrentStage || row.HasCurrentStageIssue || row.HasBackfill)
+        {
+            return TimelineActionLabel(row);
+        }
+
+        if (row.UpdateStatus is "ActionRequired" or "Attention")
+        {
+            return "Add Project Officer update";
+        }
+
+        return CompactActionLabel(row.NextActionText);
+    }
+
     // SECTION: Matrix action labels are shortened for dense enterprise table rows.
     public static string CompactActionLabel(string action) => action switch
     {
         "Complete backfill" => "Complete timeline",
         "Update current stage" => "Update stage",
-        "Update current stage dates" => "Update dates",
+        "Update current stage dates" => "Set current-stage PDC",
         "Add remark" => "Add remark",
         "Complete project data" => "Complete data",
         _ => action

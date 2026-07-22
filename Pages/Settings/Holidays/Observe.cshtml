@@ -1,0 +1,23 @@
+@page "{id:int}"
+@model ProjectManagement.Pages.Settings.Holidays.ObserveModel
+@using ProjectManagement.Areas.Admin.Models
+@{
+    ViewData["Title"] = "Declare RH as office holiday";
+    var header = new AdminPageHeaderModel { Eyebrow = "Office calendar · Controlled decision", Title = "Declare as office holiday", Description = "Retain the Restricted Holiday classification while declaring an office-wide non-working day.", Icon = "bi-building-check", Actions = new[] { new AdminPageActionModel { Text = "Back to holidays", Href = Model.Item is null ? Url.Page("./Index") : Url.Page("./Index", new { year = Model.Item.Date.Year }), Icon = "bi-arrow-left" } } };
+}
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
+@if (Model.Item is not null)
+{
+<div class="admin-operation-layout"><form method="post" class="admin-panel admin-controlled-operation admin-controlled-operation--warning" novalidate>
+<input asp-for="Input.Id" type="hidden" /><input asp-for="Input.RowVersion" type="hidden" />
+<header><span class="admin-controlled-operation__icon"><i class="bi bi-building-check"></i></span><div><div class="admin-panel__eyebrow">Restricted Holiday</div><h2>@Model.Item.Name</h2><p>@Model.Item.Date.ToString("dddd, dd MMMM yyyy")</p></div></header>
+<div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
+<dl class="admin-operation-facts"><div><dt>Classification</dt><dd>Restricted Holiday</dd></div><div><dt>Current status</dt><dd>Information only · Office open</dd></div><div><dt>After declaration</dt><dd>Office closed · Non-working day</dd></div><div><dt>Calendar</dt><dd>Displayed as RH · Office holiday</dd></div></dl>
+@if (Model.Item.IsDateClosedByAnotherEntry){<div class="admin-operation-notice"><i class="bi bi-info-circle"></i><div><strong>Date already closed</strong><span>Another office holiday is already recorded on this date. This declaration preserves the formal observance decision but does not add another non-working date.</span></div></div>}
+<div class="admin-form-grid admin-form-grid--two"><div class="admin-field admin-field--wide"><label asp-for="Input.AuthorityReference"></label><input asp-for="Input.AuthorityReference" class="form-control" maxlength="240" /><span asp-validation-for="Input.AuthorityReference" class="text-danger"></span></div><div class="admin-field admin-field--wide"><label asp-for="Input.Remarks"></label><textarea asp-for="Input.Remarks" class="form-control" rows="3" maxlength="1200"></textarea><span asp-validation-for="Input.Remarks" class="text-danger"></span></div></div>
+<div class="form-check admin-confirmation-check"><input asp-for="Input.Confirmed" class="form-check-input" /><label asp-for="Input.Confirmed" class="form-check-label"></label><span asp-validation-for="Input.Confirmed" class="text-danger d-block"></span></div>
+<div class="admin-operation-notice"><i class="bi bi-exclamation-triangle"></i><div><strong>Operational effect</strong><span>The date will be excluded from future project working-day calculations. Existing approved or persisted project dates will not be silently recalculated.</span></div></div>
+<footer><a asp-page="./Index" asp-route-year="@Model.Item.Date.Year" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-warning" type="submit"><i class="bi bi-building-check"></i>Declare office holiday</button></footer>
+</form></div>
+}
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

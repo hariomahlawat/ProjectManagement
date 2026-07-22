@@ -1,253 +1,743 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Helpers;
+using ProjectManagement.Models;
 using ProjectManagement.Models.IndustryPartners;
 
 namespace ProjectManagement.Services.IndustryPartners;
 
 public sealed class IndustryPartnerService : IIndustryPartnerService
 {
-    private readonly ApplicationDbContext _db;
-    public IndustryPartnerService(ApplicationDbContext db) => _db = db;
-
-    public async Task<IndustryPartnerSearchResult> SearchAsync(string? query, int page, int pageSize, CancellationToken cancellationToken = default)
+    private static readonly Regex MultiSpaceRegex = new(@"\s+", RegexOptions.Compiled);
+    private static readonly Regex CompanyPunctuationRegex = new(@"[^a-z0-9]+", RegexOptions.Compiled);
+    private static readonly string[] CompanySuffixes =
     {
-        // SECTION: Search input normalization
-        page = Math.Max(1, page);
-        pageSize = Math.Clamp(pageSize, 1, 100);
-        var normalizedQuery = Normalize(query);
-        var rawQuery = query?.Trim();
-        var loweredRawQuery = rawQuery?.ToLower();
+        "private limited", "pvt limited", "pvt ltd", "limited", "ltd", "llp",
+        "incorporated", "inc", "corporation", "corp", "company", "co"
+    };
 
-        // SECTION: Base search query
+    private readonly ApplicationDbContext _db;
+    private readonly IIndustryPartnerAttachmentStorage? _attachmentStorage;
+
+    public IndustryPartnerService(
+        ApplicationDbContext db,
+        IIndustryPartnerAttachmentStorage? attachmentStorage = null)
+    {
+        _db = db;
+        _attachmentStorage = attachmentStorage;
+    }
+
+    public async Task<IndustryPartnerSearchResult> SearchAsync(
+        string? query,
+        IndustryPartnerDirectoryFilter filter,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 10, 100);
+
+        var normalizedQuery = Normalize(query);
+        var loweredQuery = NullIfEmpty(query)?.ToLowerInvariant();
+        var activeStatus = ProjectLifecycleStatus.Active;
+
         var partners = _db.IndustryPartners.AsNoTracking().AsQueryable();
 
-        // SECTION: Comprehensive partner search filters
-        if (!string.IsNullOrWhiteSpace(normalizedQuery) || !string.IsNullOrWhiteSpace(loweredRawQuery))
+        partners = filter switch
         {
-            partners = partners.Where(x =>
+            IndustryPartnerDirectoryFilter.ContactOnly =>
+                partners.Where(partner => !partner.PartnerProjects.Any()),
+
+            IndustryPartnerDirectoryFilter.JdpAssociated =>
+                partners.Where(partner => partner.PartnerProjects.Any()),
+
+            IndustryPartnerDirectoryFilter.CurrentJdp =>
+                partners.Where(partner => partner.PartnerProjects.Any(link =>
+                    !link.Project.IsDeleted &&
+                    !link.Project.IsArchived &&
+                    link.Project.LifecycleStatus == activeStatus)),
+
+            IndustryPartnerDirectoryFilter.PastJdp =>
+                partners.Where(partner => partner.PartnerProjects.Any(link =>
+                    link.Project.IsDeleted ||
+                    link.Project.IsArchived ||
+                    link.Project.LifecycleStatus != activeStatus)),
+
+            _ => partners
+        };
+
+        if (!string.IsNullOrWhiteSpace(normalizedQuery) || !string.IsNullOrWhiteSpace(loweredQuery))
+        {
+            partners = partners.Where(partner =>
                 (!string.IsNullOrWhiteSpace(normalizedQuery) &&
-                    (
-                        x.NormalizedName.Contains(normalizedQuery!) ||
-                        (x.NormalizedLocation ?? string.Empty).Contains(normalizedQuery!)
-                    )) ||
-                (!string.IsNullOrWhiteSpace(loweredRawQuery) &&
-                    (
-                        (x.Name ?? string.Empty).ToLower().Contains(loweredRawQuery!) ||
-                        (x.Location ?? string.Empty).ToLower().Contains(loweredRawQuery!) ||
-                        (x.Remarks ?? string.Empty).ToLower().Contains(loweredRawQuery!) ||
-                        x.Contacts.Any(c =>
-                            (c.Name ?? string.Empty).ToLower().Contains(loweredRawQuery!) ||
-                            (c.Email ?? string.Empty).ToLower().Contains(loweredRawQuery!) ||
-                            (c.Phone ?? string.Empty).ToLower().Contains(loweredRawQuery!)) ||
-                        x.PartnerProjects.Any(p =>
-                            (p.Project.Name ?? string.Empty).ToLower().Contains(loweredRawQuery!)) ||
-                        x.Attachments.Any(a =>
-                            (a.OriginalFileName ?? string.Empty).ToLower().Contains(loweredRawQuery!))
-                    )));
+                 (partner.NormalizedName.Contains(normalizedQuery) ||
+                  (partner.NormalizedLocation ?? string.Empty).Contains(normalizedQuery))) ||
+                (!string.IsNullOrWhiteSpace(loweredQuery) &&
+                 ((partner.Name ?? string.Empty).ToLower().Contains(loweredQuery) ||
+                  (partner.Location ?? string.Empty).ToLower().Contains(loweredQuery) ||
+                  (partner.Remarks ?? string.Empty).ToLower().Contains(loweredQuery) ||
+                  partner.Contacts.Any(contact =>
+                      (contact.Name ?? string.Empty).ToLower().Contains(loweredQuery) ||
+                      (contact.Email ?? string.Empty).ToLower().Contains(loweredQuery) ||
+                      (contact.Phone ?? string.Empty).ToLower().Contains(loweredQuery)) ||
+                  partner.PartnerProjects.Any(link =>
+                      (link.Project.Name ?? string.Empty).ToLower().Contains(loweredQuery) ||
+                      (link.Project.CaseFileNumber ?? string.Empty).ToLower().Contains(loweredQuery)) ||
+                  partner.Attachments.Any(attachment =>
+                      (attachment.OriginalFileName ?? string.Empty).ToLower().Contains(loweredQuery)))))
+            ;
         }
 
-        // SECTION: Result shaping
         var total = await partners.CountAsync(cancellationToken);
         var items = await partners
-            .OrderBy(x => x.Name)
+            .OrderBy(partner => partner.Name)
+            .ThenBy(partner => partner.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(x => new IndustryPartnerListItem(
-                x.Id,
-                x.Name,
-                x.Location,
-                x.Contacts.Count,
-                x.Attachments.Count,
-                x.PartnerProjects.Count))
+            .Select(partner => new IndustryPartnerListItem(
+                partner.Id,
+                partner.Name,
+                partner.Location,
+                partner.Contacts
+                    .OrderBy(contact => contact.Id)
+                    .Select(contact => contact.Name)
+                    .FirstOrDefault(),
+                partner.Contacts
+                    .OrderBy(contact => contact.Id)
+                    .Select(contact => contact.Phone)
+                    .FirstOrDefault(),
+                partner.Contacts
+                    .OrderBy(contact => contact.Id)
+                    .Select(contact => contact.Email)
+                    .FirstOrDefault(),
+                partner.Contacts.Count,
+                partner.Attachments.Count,
+                partner.PartnerProjects.Count,
+                partner.PartnerProjects.Count(link =>
+                    !link.Project.IsDeleted &&
+                    !link.Project.IsArchived &&
+                    link.Project.LifecycleStatus == activeStatus),
+                partner.UpdatedUtc ?? partner.CreatedUtc))
             .ToListAsync(cancellationToken);
+
         return new IndustryPartnerSearchResult(items, total, page, pageSize);
     }
 
-    public async Task<IndustryPartnerDto?> GetAsync(int id, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<IndustryPartnerDuplicateSuggestion>> FindDuplicateSuggestionsAsync(
+        string? name,
+        int take = 5,
+        CancellationToken cancellationToken = default)
     {
-        var row = await _db.IndustryPartners.AsNoTracking()
-            .Where(x => x.Id == id)
-            .Select(x => new IndustryPartnerDto(
-                x.Id,
-                x.Name,
-                x.Location,
-                x.Remarks,
-                x.Contacts.OrderBy(c => c.Id).Select(c => new IndustryPartnerContactDto(c.Id, c.Name, c.Phone, c.Email, c.CreatedUtc)).ToList(),
-                x.Attachments.OrderByDescending(a => a.UploadedUtc).Select(a => new IndustryPartnerAttachmentDto(a.Id, a.OriginalFileName, a.ContentType, a.SizeBytes, a.UploadedUtc)).ToList(),
-                x.PartnerProjects.OrderBy(p => p.Project.Name).Select(p => new IndustryPartnerProjectDto(p.ProjectId, p.Project.Name)).ToList()))
-            .FirstOrDefaultAsync(cancellationToken);
-        return row;
+        var canonical = CanonicalCompanyName(name);
+        if (canonical.Length < 3)
+        {
+            return Array.Empty<IndustryPartnerDuplicateSuggestion>();
+        }
+
+        take = Math.Clamp(take, 1, 10);
+        var candidates = await _db.IndustryPartners
+            .AsNoTracking()
+            .OrderBy(partner => partner.Name)
+            .Select(partner => new
+            {
+                partner.Id,
+                partner.Name,
+                partner.Location,
+                ContactCount = partner.Contacts.Count,
+                ProjectCount = partner.PartnerProjects.Count
+            })
+            .Take(1000)
+            .ToListAsync(cancellationToken);
+
+        return candidates
+            .Select(candidate => new
+            {
+                Candidate = candidate,
+                Canonical = CanonicalCompanyName(candidate.Name)
+            })
+            .Where(candidate =>
+                candidate.Canonical == canonical ||
+                candidate.Canonical.Contains(canonical, StringComparison.Ordinal) ||
+                canonical.Contains(candidate.Canonical, StringComparison.Ordinal))
+            .OrderByDescending(candidate => candidate.Canonical == canonical)
+            .ThenBy(candidate => Math.Abs(candidate.Canonical.Length - canonical.Length))
+            .ThenBy(candidate => candidate.Candidate.Name)
+            .Take(take)
+            .Select(candidate => new IndustryPartnerDuplicateSuggestion(
+                candidate.Candidate.Id,
+                candidate.Candidate.Name,
+                candidate.Candidate.Location,
+                candidate.Candidate.ContactCount,
+                candidate.Candidate.ProjectCount))
+            .ToList();
     }
 
-    public async Task<int> CreateAsync(CreateIndustryPartnerRequest req, ClaimsPrincipal user, CancellationToken cancellationToken = default)
+    public async Task<IndustryPartnerDto?> GetAsync(
+        int id,
+        CancellationToken cancellationToken = default)
     {
-        var name = req.Name?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(name)) throw Error(nameof(req.Name), "Name is required.");
-        await EnsureUniqueAsync(0, name, req.Location, cancellationToken);
-        var id = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "system";
-        var entity = new IndustryPartner
+        var partner = await _db.IndustryPartners
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(item => item.Contacts)
+            .Include(item => item.Attachments)
+            .Include(item => item.PartnerProjects)
+                .ThenInclude(link => link.Project)
+            .FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+
+        if (partner is null)
+        {
+            return null;
+        }
+
+        var contacts = partner.Contacts
+            .OrderBy(contact => contact.Id)
+            .Select(contact => new IndustryPartnerContactDto(
+                contact.Id,
+                contact.Name,
+                contact.Phone,
+                contact.Email,
+                contact.CreatedByUserId,
+                contact.CreatedUtc,
+                Convert.ToBase64String(contact.RowVersion)))
+            .ToList();
+
+        var attachments = partner.Attachments
+            .OrderByDescending(attachment => attachment.UploadedUtc)
+            .Select(attachment => new IndustryPartnerAttachmentDto(
+                attachment.Id,
+                attachment.OriginalFileName,
+                attachment.ContentType,
+                attachment.SizeBytes,
+                attachment.UploadedUtc))
+            .ToList();
+
+        var linkedProjects = partner.PartnerProjects
+            .OrderByDescending(link =>
+                !link.Project.IsDeleted &&
+                !link.Project.IsArchived &&
+                link.Project.LifecycleStatus == ProjectLifecycleStatus.Active)
+            .ThenByDescending(link => link.LinkedUtc)
+            .ThenBy(link => link.Project.Name)
+            .Select(link => new IndustryPartnerProjectDto(
+                link.ProjectId,
+                link.Project.Name,
+                link.Project.CaseFileNumber,
+                link.Project.LifecycleStatus,
+                link.Project.IsArchived,
+                link.Project.IsDeleted,
+                link.LinkedUtc))
+            .ToList();
+
+        return new IndustryPartnerDto(
+            partner.Id,
+            partner.Name,
+            partner.Location,
+            partner.Remarks,
+            partner.CreatedUtc,
+            partner.UpdatedUtc ?? partner.CreatedUtc,
+            Convert.ToBase64String(partner.RowVersion),
+            contacts,
+            attachments,
+            linkedProjects);
+    }
+
+    public async Task<IndustryPartnerProjectContextDto?> GetProjectContextAsync(
+        int projectId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _db.Projects
+            .AsNoTracking()
+            .Where(project => project.Id == projectId && !project.IsDeleted)
+            .Select(project => new IndustryPartnerProjectContextDto(
+                project.Id,
+                project.Name,
+                project.CaseFileNumber,
+                project.LifecycleStatus,
+                project.IsArchived))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<int> CreateAsync(
+        CreateIndustryPartnerRequest request,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default)
+    {
+        var name = Require(request.Name, "name", "Organisation name is required.", 200);
+        var location = Optional(request.Location, "location", 2000);
+        var remarks = Optional(request.Remarks, "remarks", 4000);
+        var contact = ValidateOptionalContact(request.ContactName, request.ContactPhone, request.ContactEmail);
+
+        await EnsureUniqueAsync(0, name, location, cancellationToken);
+        if (request.ProjectId.HasValue)
+        {
+            await EnsureProjectCanBeLinkedAsync(request.ProjectId.Value, cancellationToken);
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var userId = GetUserId(user);
+        var partner = new IndustryPartner
         {
             Name = name,
             NormalizedName = Normalize(name)!,
-            Location = NullIfEmpty(req.Location),
-            NormalizedLocation = Normalize(req.Location),
-            Remarks = NullIfEmpty(req.Remarks),
-            CreatedByUserId = id,
-            CreatedUtc = DateTimeOffset.UtcNow
+            Location = location,
+            NormalizedLocation = Normalize(location),
+            Remarks = remarks,
+            CreatedByUserId = userId,
+            CreatedUtc = now,
+            UpdatedByUserId = contact is not null || request.ProjectId.HasValue ? userId : null,
+            UpdatedUtc = contact is not null || request.ProjectId.HasValue ? now : null
         };
-        _db.IndustryPartners.Add(entity);
-        await _db.SaveChangesAsync(cancellationToken);
-        return entity.Id;
-    }
 
-    public async Task UpdateFieldAsync(int id, string field, string? value, ClaimsPrincipal user, CancellationToken cancellationToken = default)
-    {
-        var partner = await _db.IndustryPartners.FirstOrDefaultAsync(x => x.Id == id, cancellationToken) ?? throw new KeyNotFoundException();
-        switch ((field ?? string.Empty).Trim().ToLowerInvariant())
+        if (contact is not null)
         {
-            case "name":
-                partner.Name = value?.Trim() ?? string.Empty;
-                if (string.IsNullOrWhiteSpace(partner.Name)) throw Error("name", "Name is required.");
-                partner.NormalizedName = Normalize(partner.Name)!;
-                await EnsureUniqueAsync(id, partner.Name, partner.Location, cancellationToken);
-                break;
-            case "location":
-                partner.Location = NullIfEmpty(value);
-                partner.NormalizedLocation = Normalize(partner.Location);
-                await EnsureUniqueAsync(id, partner.Name, partner.Location, cancellationToken);
-                break;
-            case "remarks":
-                partner.Remarks = NullIfEmpty(value);
-                break;
-            default:
-                throw Error("field", "Unsupported field.");
+            partner.Contacts.Add(new IndustryPartnerContact
+            {
+                Name = contact.Value.Name,
+                Phone = contact.Value.Phone,
+                Email = contact.Value.Email,
+                CreatedByUserId = userId,
+                CreatedUtc = now
+            });
         }
 
-        partner.UpdatedByUserId = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "system";
-        partner.UpdatedUtc = DateTimeOffset.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
+        if (request.ProjectId.HasValue)
+        {
+            partner.PartnerProjects.Add(new IndustryPartnerProject
+            {
+                ProjectId = request.ProjectId.Value,
+                LinkedByUserId = userId,
+                LinkedUtc = now
+            });
+        }
+
+        _db.IndustryPartners.Add(partner);
+        await SaveWithValidationAsync(cancellationToken);
+        return partner.Id;
     }
 
-    public async Task<int> AddContactAsync(int partnerId, ContactRequest req, ClaimsPrincipal user, CancellationToken cancellationToken = default)
+    public async Task UpdateAsync(
+        int id,
+        UpdateIndustryPartnerRequest request,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default)
     {
-        _ = user;
-        await EnsureContactValid(req, cancellationToken);
+        var partner = await _db.IndustryPartners
+            .FirstOrDefaultAsync(item => item.Id == id, cancellationToken)
+            ?? throw new KeyNotFoundException("Industry organisation not found.");
+
+        ApplyConcurrencyToken(partner, request.RowVersion);
+
+        var name = Require(request.Name, "name", "Organisation name is required.", 200);
+        var location = Optional(request.Location, "location", 2000);
+        var remarks = Optional(request.Remarks, "remarks", 4000);
+
+        await EnsureUniqueAsync(id, name, location, cancellationToken);
+
+        partner.Name = name;
+        partner.NormalizedName = Normalize(name)!;
+        partner.Location = location;
+        partner.NormalizedLocation = Normalize(location);
+        partner.Remarks = remarks;
+        Touch(partner, user);
+
+        await SaveWithConcurrencyAsync(cancellationToken);
+    }
+
+    public async Task<int> AddContactAsync(
+        int partnerId,
+        ContactRequest request,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default)
+    {
+        var partner = await _db.IndustryPartners
+            .FirstOrDefaultAsync(item => item.Id == partnerId, cancellationToken)
+            ?? throw new KeyNotFoundException("Industry organisation not found.");
+
+        var contactValue = ValidateContact(request);
         var contact = new IndustryPartnerContact
         {
             IndustryPartnerId = partnerId,
-            Name = NullIfEmpty(req.Name),
-            Phone = NullIfEmpty(req.Phone),
-            Email = NullIfEmpty(req.Email),
+            Name = contactValue.Name,
+            Phone = contactValue.Phone,
+            Email = contactValue.Email,
+            CreatedByUserId = GetUserId(user),
             CreatedUtc = DateTimeOffset.UtcNow
         };
+
         _db.IndustryPartnerContacts.Add(contact);
+        Touch(partner, user);
         await _db.SaveChangesAsync(cancellationToken);
         return contact.Id;
     }
 
-    public async Task UpdateContactAsync(int partnerId, int contactId, ContactRequest req, ClaimsPrincipal user, CancellationToken cancellationToken = default)
+    public async Task UpdateContactAsync(
+        int partnerId,
+        int contactId,
+        ContactRequest request,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default)
     {
-        _ = user;
-        await EnsureContactValid(req, cancellationToken);
-        var contact = await _db.IndustryPartnerContacts.FirstOrDefaultAsync(x => x.Id == contactId && x.IndustryPartnerId == partnerId, cancellationToken)
-            ?? throw new KeyNotFoundException();
-        contact.Name = NullIfEmpty(req.Name);
-        contact.Phone = NullIfEmpty(req.Phone);
-        contact.Email = NullIfEmpty(req.Email);
-        await _db.SaveChangesAsync(cancellationToken);
+        var partner = await _db.IndustryPartners
+            .FirstOrDefaultAsync(item => item.Id == partnerId, cancellationToken)
+            ?? throw new KeyNotFoundException("Industry organisation not found.");
+
+        var contact = await _db.IndustryPartnerContacts
+            .FirstOrDefaultAsync(item => item.Id == contactId && item.IndustryPartnerId == partnerId, cancellationToken)
+            ?? throw new KeyNotFoundException("Contact not found.");
+
+        EnsureCanModifyContact(contact, user);
+        ApplyConcurrencyToken(contact, request.RowVersion);
+        var contactValue = ValidateContact(request);
+
+        contact.Name = contactValue.Name;
+        contact.Phone = contactValue.Phone;
+        contact.Email = contactValue.Email;
+        Touch(partner, user);
+
+        await SaveWithConcurrencyAsync(cancellationToken);
     }
 
-    public async Task DeleteContactAsync(int partnerId, int contactId, ClaimsPrincipal user, CancellationToken cancellationToken = default)
+    public async Task DeleteContactAsync(
+        int partnerId,
+        int contactId,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default)
     {
-        _ = user;
-        var contact = await _db.IndustryPartnerContacts.FirstOrDefaultAsync(x => x.Id == contactId && x.IndustryPartnerId == partnerId, cancellationToken)
-            ?? throw new KeyNotFoundException();
+        var partner = await _db.IndustryPartners
+            .FirstOrDefaultAsync(item => item.Id == partnerId, cancellationToken)
+            ?? throw new KeyNotFoundException("Industry organisation not found.");
+
+        var contact = await _db.IndustryPartnerContacts
+            .FirstOrDefaultAsync(item => item.Id == contactId && item.IndustryPartnerId == partnerId, cancellationToken)
+            ?? throw new KeyNotFoundException("Contact not found.");
+
+        EnsureCanModifyContact(contact, user);
         _db.IndustryPartnerContacts.Remove(contact);
+        Touch(partner, user);
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task LinkProjectAsync(int partnerId, int projectId, ClaimsPrincipal user, CancellationToken cancellationToken = default)
+    public async Task LinkProjectAsync(
+        int partnerId,
+        int projectId,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default)
     {
-        // SECTION: Project validation for JDP linking
-        // Every live project can carry a JDP association; no lifecycle-stage gate applies.
-        var projectExists = await _db.Projects
-            .AsNoTracking()
-            .AnyAsync(item => item.Id == projectId && !item.IsDeleted && !item.IsArchived, cancellationToken);
+        var partner = await _db.IndustryPartners
+            .FirstOrDefaultAsync(item => item.Id == partnerId, cancellationToken)
+            ?? throw new KeyNotFoundException("Industry organisation not found.");
 
-        if (!projectExists)
+        await EnsureProjectCanBeLinkedAsync(projectId, cancellationToken);
+
+        var alreadyLinked = await _db.IndustryPartnerProjects.AnyAsync(
+            link => link.IndustryPartnerId == partnerId && link.ProjectId == projectId,
+            cancellationToken);
+
+        if (alreadyLinked)
         {
-            throw Error("project", "Selected project was not found.");
+            throw Error("project", "This organisation is already linked to the selected project as JDP.");
         }
-
-        var exists = await _db.IndustryPartnerProjects.AnyAsync(x => x.IndustryPartnerId == partnerId && x.ProjectId == projectId, cancellationToken);
-        if (exists) return;
 
         _db.IndustryPartnerProjects.Add(new IndustryPartnerProject
         {
             IndustryPartnerId = partnerId,
             ProjectId = projectId,
-            LinkedByUserId = user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "system",
+            LinkedByUserId = GetUserId(user),
             LinkedUtc = DateTimeOffset.UtcNow
         });
 
+        Touch(partner, user);
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task UnlinkProjectAsync(int partnerId, int projectId, ClaimsPrincipal user, CancellationToken cancellationToken = default)
+    public async Task UnlinkProjectAsync(
+        int partnerId,
+        int projectId,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default)
     {
-        _ = user;
-        var entity = await _db.IndustryPartnerProjects.FirstOrDefaultAsync(x => x.IndustryPartnerId == partnerId && x.ProjectId == projectId, cancellationToken);
-        if (entity is null) return;
-        _db.IndustryPartnerProjects.Remove(entity);
+        var partner = await _db.IndustryPartners
+            .FirstOrDefaultAsync(item => item.Id == partnerId, cancellationToken)
+            ?? throw new KeyNotFoundException("Industry organisation not found.");
+
+        var link = await _db.IndustryPartnerProjects
+            .FirstOrDefaultAsync(item => item.IndustryPartnerId == partnerId && item.ProjectId == projectId, cancellationToken);
+
+        if (link is null)
+        {
+            return;
+        }
+
+        _db.IndustryPartnerProjects.Remove(link);
+        Touch(partner, user);
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task DeletePartnerAsync(int partnerId, ClaimsPrincipal user, CancellationToken cancellationToken = default)
+    public async Task DeletePartnerAsync(
+        int partnerId,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default)
     {
         _ = user;
-        var partner = await _db.IndustryPartners.FirstOrDefaultAsync(x => x.Id == partnerId, cancellationToken) ?? throw new KeyNotFoundException();
-        var linked = await _db.IndustryPartnerProjects.AnyAsync(x => x.IndustryPartnerId == partnerId, cancellationToken);
-        if (linked) throw Error("delete", "Cannot delete partner while linked projects exist.");
+        var partner = await _db.IndustryPartners
+            .Include(item => item.Attachments)
+            .FirstOrDefaultAsync(item => item.Id == partnerId, cancellationToken)
+            ?? throw new KeyNotFoundException("Industry organisation not found.");
+
+        var hasLinks = await _db.IndustryPartnerProjects
+            .AnyAsync(link => link.IndustryPartnerId == partnerId, cancellationToken);
+        if (hasLinks)
+        {
+            throw Error("delete", "Remove the JDP project links before permanently deleting this organisation.");
+        }
+
+        var storageKeys = partner.Attachments.Select(attachment => attachment.StorageKey).ToArray();
         _db.IndustryPartners.Remove(partner);
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (_attachmentStorage is null)
+        {
+            return;
+        }
+
+        foreach (var storageKey in storageKeys)
+        {
+            await _attachmentStorage.DeleteAsync(storageKey, cancellationToken);
+        }
     }
 
-    private async Task EnsureUniqueAsync(int id, string name, string? location, CancellationToken ct)
+    private static void EnsureCanModifyContact(IndustryPartnerContact contact, ClaimsPrincipal user)
     {
-        var nn = Normalize(name)!;
-        var nl = Normalize(location);
-        var exists = await _db.IndustryPartners.AnyAsync(x => x.Id != id && x.NormalizedName == nn && x.NormalizedLocation == nl, ct);
-        if (exists) throw Error("name", "A partner with the same name and location already exists.");
+        var currentUserId = user.FindFirstValue(ClaimTypes.NameIdentifier);
+        var canManageAny = Policies.IndustryPartners.ContactOverrideRoles.Any(user.IsInRole);
+        var isAuthor = !string.IsNullOrWhiteSpace(currentUserId) &&
+                       !string.IsNullOrWhiteSpace(contact.CreatedByUserId) &&
+                       string.Equals(contact.CreatedByUserId, currentUserId, StringComparison.Ordinal);
+
+        if (!canManageAny && !isAuthor)
+        {
+            throw new ForbiddenException("You can edit or remove only contacts that you created.");
+        }
     }
 
-    private static async Task EnsureContactValid(ContactRequest req, CancellationToken cancellationToken)
+    private async Task EnsureProjectCanBeLinkedAsync(int projectId, CancellationToken cancellationToken)
     {
-        await Task.CompletedTask;
-        var phone = NullIfEmpty(req.Phone);
-        var email = NullIfEmpty(req.Email);
-        if (phone is null && email is null) throw Error("contact", "Either phone or email is required.");
-        if (email is not null && !Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$")) throw Error("email", "Email format is invalid.");
+        var exists = await _db.Projects
+            .AsNoTracking()
+            .AnyAsync(project => project.Id == projectId && !project.IsDeleted, cancellationToken);
+
+        if (!exists)
+        {
+            throw Error("project", "Selected project was not found.");
+        }
     }
 
-    private static IndustryPartnerValidationException Error(string key, string message)
+    private async Task EnsureUniqueAsync(
+        int id,
+        string name,
+        string? location,
+        CancellationToken cancellationToken)
     {
-        return new IndustryPartnerValidationException(new Dictionary<string, List<string>> { [key] = new() { message } });
+        var normalizedName = Normalize(name)!;
+        var normalizedLocation = Normalize(location);
+        var exists = await _db.IndustryPartners.AnyAsync(partner =>
+            partner.Id != id &&
+            partner.NormalizedName == normalizedName &&
+            partner.NormalizedLocation == normalizedLocation,
+            cancellationToken);
+
+        if (exists)
+        {
+            throw Error("name", "An organisation with the same name and location already exists.");
+        }
     }
+
+    private async Task SaveWithValidationAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception)
+        {
+            throw new IndustryPartnerValidationException(
+                new Dictionary<string, List<string>>
+                {
+                    ["name"] = new() { "An organisation with the same name and location already exists." }
+                },
+                exception);
+        }
+    }
+
+    private async Task SaveWithConcurrencyAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            throw new IndustryPartnerValidationException(
+                new Dictionary<string, List<string>>
+                {
+                    ["concurrency"] = new() { "This record was changed by another user. Reload it and apply your changes again." }
+                },
+                exception);
+        }
+        catch (DbUpdateException exception)
+        {
+            throw new IndustryPartnerValidationException(
+                new Dictionary<string, List<string>>
+                {
+                    ["name"] = new() { "An organisation with the same name and location already exists." }
+                },
+                exception);
+        }
+    }
+
+    private void ApplyConcurrencyToken<TEntity>(TEntity entity, string? token)
+        where TEntity : class
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            throw Error("concurrency", "The record version is missing. Reload the page and try again.");
+        }
+
+        try
+        {
+            _db.Entry(entity).Property("RowVersion").OriginalValue = Convert.FromBase64String(token);
+        }
+        catch (FormatException)
+        {
+            throw Error("concurrency", "The record version is invalid. Reload the page and try again.");
+        }
+    }
+
+    private static (string? Name, string? Phone, string? Email) ValidateContact(ContactRequest request)
+    {
+        var name = Optional(request.Name, "contactName", 200);
+        var phone = Optional(request.Phone, "phone", 64);
+        var email = OptionalEmail(request.Email, "email");
+
+        if (phone is null && email is null)
+        {
+            throw Error("contact", "Add at least a phone number or an email address.");
+        }
+
+        return (name, phone, email);
+    }
+
+    private static (string? Name, string? Phone, string? Email)? ValidateOptionalContact(
+        string? name,
+        string? phone,
+        string? email)
+    {
+        var hasAnyValue = !string.IsNullOrWhiteSpace(name) ||
+                          !string.IsNullOrWhiteSpace(phone) ||
+                          !string.IsNullOrWhiteSpace(email);
+        if (!hasAnyValue)
+        {
+            return null;
+        }
+
+        var validated = ValidateContact(new ContactRequest(name, phone, email));
+        return validated;
+    }
+
+    private static string Require(string? value, string key, string message, int maxLength)
+    {
+        var normalized = NullIfEmpty(value);
+        if (normalized is null)
+        {
+            throw Error(key, message);
+        }
+
+        if (normalized.Length > maxLength)
+        {
+            throw Error(key, $"Maximum length is {maxLength} characters.");
+        }
+
+        return normalized;
+    }
+
+    private static string? Optional(string? value, string key, int maxLength)
+    {
+        var normalized = NullIfEmpty(value);
+        if (normalized is not null && normalized.Length > maxLength)
+        {
+            throw Error(key, $"Maximum length is {maxLength} characters.");
+        }
+
+        return normalized;
+    }
+
+    private static string? OptionalEmail(string? value, string key)
+    {
+        var email = Optional(value, key, 256);
+        if (email is not null && !new EmailAddressAttribute().IsValid(email))
+        {
+            throw Error(key, "Enter a valid email address.");
+        }
+
+        return email;
+    }
+
+    private static void Touch(IndustryPartner partner, ClaimsPrincipal user)
+    {
+        partner.UpdatedUtc = DateTimeOffset.UtcNow;
+        partner.UpdatedByUserId = GetUserId(user);
+    }
+
+    private static string GetUserId(ClaimsPrincipal user) =>
+        user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "system";
 
     private static string? Normalize(string? value)
     {
-        var trimmed = NullIfEmpty(value);
-        return trimmed?.ToLowerInvariant();
+        var normalized = NullIfEmpty(value);
+        return normalized is null
+            ? null
+            : MultiSpaceRegex.Replace(normalized, " ").ToLowerInvariant();
+    }
+
+    private static string CanonicalCompanyName(string? value)
+    {
+        var normalized = Normalize(value) ?? string.Empty;
+        normalized = Regex.Replace(normalized, @"^m\s*/?\s*s\.?\s+", string.Empty, RegexOptions.IgnoreCase);
+        normalized = CompanyPunctuationRegex.Replace(normalized, " ").Trim();
+
+        var changed = true;
+        while (changed && normalized.Length > 0)
+        {
+            changed = false;
+            foreach (var suffix in CompanySuffixes)
+            {
+                var suffixPattern = $@"(?:^|\s){Regex.Escape(suffix)}$";
+                var withoutSuffix = Regex.Replace(normalized, suffixPattern, string.Empty, RegexOptions.IgnoreCase).Trim();
+                if (withoutSuffix.Length == normalized.Length)
+                {
+                    continue;
+                }
+
+                normalized = withoutSuffix;
+                changed = true;
+                break;
+            }
+        }
+
+        return CompanyPunctuationRegex.Replace(normalized, string.Empty);
     }
 
     private static string? NullIfEmpty(string? value)
     {
-        var v = value?.Trim();
-        return string.IsNullOrWhiteSpace(v) ? null : v;
+        var trimmed = value?.Trim();
+        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
     }
+
+    private static IndustryPartnerValidationException Error(string key, string message) =>
+        new(new Dictionary<string, List<string>> { [key] = new() { message } });
 }

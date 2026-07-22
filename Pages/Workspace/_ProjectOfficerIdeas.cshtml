@@ -1,0 +1,65 @@
+@using ProjectManagement.Services.Workspace
+@using ProjectManagement.Infrastructure
+@model ProjectManagement.Pages.Workspace.IndexModel
+@{
+    var ideas = Model.Workspace.Ideas;
+    var showFilters = ideas.Count > 8;
+}
+<div class="po-workspace po-workspace--embedded po-dedicated-page">
+    <header class="po-dedicated-hero">
+        <div><span class="po-eyebrow">My work</span><h1>My ideas</h1><p>Assigned ideas, recent activity and items requiring an update.</p></div>
+        <a href="@WorkspaceRouteHelper.ProjectIdeasMine()" class="po-dedicated-hero__action">Open idea register<i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+    </header>
+
+    @if (showFilters)
+    {
+        <section class="po-panel po-idea-list-panel">
+            <div class="po-list-toolbar po-list-toolbar--ideas" data-po-idea-filters>
+                <label class="po-list-toolbar__search"><span class="visually-hidden">Search ideas</span><i class="bi bi-search" aria-hidden="true"></i><input type="search" placeholder="Search ideas" data-po-idea-search /></label>
+                <label><span class="visually-hidden">Idea state</span><select data-po-idea-state><option value="">All ideas</option><option value="attention">Update required</option><option value="current">Current</option></select></label>
+                <button type="button" data-po-clear-filters disabled>Reset</button>
+            </div>
+        </section>
+    }
+
+    <section class="po-idea-grid">
+        @if (!ideas.Any())
+        {
+            <div class="po-empty"><i class="bi bi-lightbulb" aria-hidden="true"></i><div><strong>No assigned ideas</strong><span>Ideas assigned to you will appear here.</span></div></div>
+        }
+        else
+        {
+            @foreach (var idea in ideas)
+            {
+                var filterText = $"{idea.Title} {idea.Status}".ToLowerInvariant();
+                var commentLabel = idea.CommentCount == 1 ? "comment" : "comments";
+                var documentLabel = idea.DocumentCount == 1 ? "document" : "documents";
+                <article class="po-idea-card" data-po-idea-row data-filter-text="@filterText" data-state="@(idea.NeedsUpdate ? "attention" : "current")">
+                    <div class="po-idea-card__top">
+                        <span class="po-idea-card__icon"><i class="bi bi-lightbulb" aria-hidden="true"></i></span>
+                        @if (idea.NeedsUpdate)
+                        {
+                            <span class="po-idea-card__flag">Update required</span>
+                        }
+                        else
+                        {
+                            <span class="po-idea-card__state">No update due</span>
+                        }
+                    </div>
+                    <h2>@idea.Title</h2>
+                    <p>@idea.Status</p>
+                    <div class="po-idea-card__meta">
+                        <span><i class="bi bi-chat-left-text" aria-hidden="true"></i>@idea.CommentCount @commentLabel</span>
+                        <span><i class="bi bi-file-earmark" aria-hidden="true"></i>@idea.DocumentCount @documentLabel</span>
+                        <span><i class="bi bi-clock" aria-hidden="true"></i>Updated @IstClock.ToIst(idea.LastActivityAtUtc).ToString("dd MMM yyyy")</span>
+                    </div>
+                    <a href="@idea.OpenUrl">Open idea<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                </article>
+            }
+        }
+    </section>
+    @if (showFilters)
+    {
+        <div class="po-filter-empty" data-po-filter-empty hidden>No ideas match the selected filters.</div>
+    }
+</div>

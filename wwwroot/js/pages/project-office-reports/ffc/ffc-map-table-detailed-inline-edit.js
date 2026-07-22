@@ -57,6 +57,11 @@
             displayValue.textContent = normalized;
             displayValue.classList.remove("text-muted", "fst-italic");
         }
+
+        displayValue.classList.remove("is-expanded");
+        window.requestAnimationFrame(() => {
+            document.dispatchEvent(new CustomEvent("ffc:detailed-table-content-updated"));
+        });
     };
 
     const showStatus = (cell, message) => {
@@ -90,6 +95,8 @@
     const setEditorState = (cell, isEditing) => {
         const display = cell.querySelector(selectors.display);
         const editor = cell.querySelector(selectors.editor);
+
+        cell.classList.toggle("is-editing", isEditing);
 
         if (display) {
             display.classList.toggle("d-none", isEditing);
@@ -127,13 +134,16 @@
         const textarea = cell.querySelector(selectors.textarea);
         if (textarea) {
             cell.dataset.originalValue = textarea.value;
-            textarea.focus();
-            textarea.setSelectionRange(textarea.value.length, textarea.value.length);
         }
 
         setError(cell, "");
         setEditorState(cell, true);
         activeCell = cell;
+
+        if (textarea) {
+            textarea.focus();
+            textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        }
     };
 
     const endEdit = (cell, rawValue, displayValue) => {

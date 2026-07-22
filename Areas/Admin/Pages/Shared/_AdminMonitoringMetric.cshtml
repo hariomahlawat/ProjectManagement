@@ -1,0 +1,32 @@
+@model ProjectManagement.Areas.Admin.Models.AdminMonitoringMetricModel
+
+@if (!string.IsNullOrWhiteSpace(Model.Href))
+{
+    <a class="admin-monitoring-metric admin-monitoring-metric--@Model.Tone@(Model.IsActive ? " is-active" : string.Empty)"
+       href="@Model.Href"
+       aria-current="@(Model.IsActive ? "true" : null)">
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi @Model.Icon"></i></span>
+        <span class="admin-monitoring-metric__copy">
+            <strong>@Model.Value</strong>
+            <span>@Model.Label</span>
+            @if (!string.IsNullOrWhiteSpace(Model.Detail))
+            {
+                <small>@Model.Detail</small>
+            }
+        </span>
+    </a>
+}
+else
+{
+    <article class="admin-monitoring-metric admin-monitoring-metric--@Model.Tone">
+        <span class="admin-monitoring-metric__icon" aria-hidden="true"><i class="bi @Model.Icon"></i></span>
+        <span class="admin-monitoring-metric__copy">
+            <strong>@Model.Value</strong>
+            <span>@Model.Label</span>
+            @if (!string.IsNullOrWhiteSpace(Model.Detail))
+            {
+                <small>@Model.Detail</small>
+            }
+        </span>
+    </article>
+}

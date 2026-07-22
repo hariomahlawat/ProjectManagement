@@ -11,6 +11,8 @@
         ConferenceItemKind.ActionTask => "task",
         _ => "item"
     };
+    var openLabel = $"Open {kindLabel}";
+    var directionActionLabel = direction is null ? "Issue direction" : "Issue further direction";
     var directionDate = direction is null
         ? null
         : IstClock.ToIst(direction.CreatedAtUtc).ToString("dd MMM yyyy, hh:mm tt");
@@ -21,16 +23,19 @@
     var directionCellClass = direction is null
         ? "oc-item__direction oc-item__direction--empty"
         : "oc-item__direction";
+    var directionCount = Math.Max(item.DirectionCount, direction is null ? 0 : 1);
 }
 
 <article class="oc-item @(item.RequiresAttention ? "oc-item--attention" : string.Empty)"
          data-oc-item
          data-officer-id="@Model.OfficerUserId"
          data-item-kind="@((int)item.Kind)"
-         data-item-id="@item.ItemId">
+         data-item-id="@item.ItemId"
+         data-direction-count="@directionCount"
+         data-latest-direction-id="@(direction?.Id.ToString() ?? string.Empty)">
     <div class="oc-item__main">
         <div class="oc-item__title-row">
-            <a href="@item.OpenUrl" target="_blank" rel="noopener" title="Open @kindLabel">
+            <a href="@item.OpenUrl" target="_blank" rel="noopener" title="@openLabel">
                 @item.Title
             </a>
         </div>
@@ -50,6 +55,27 @@
         {
             <p class="oc-current-context">@item.CurrentContext</p>
         }
+        @if (item.Kind == ConferenceItemKind.Project && item.RecordHealth is not null)
+        {
+            var recordHealth = item.RecordHealth;
+            var recordHealthCss = WorkspaceDisplayHelpers.HealthCss(recordHealth.HealthPercent);
+            var recordGapLabel = $"{recordHealth.RecordGapCount} gap{(recordHealth.RecordGapCount == 1 ? string.Empty : "s")}";
+            <a class="oc-record-health oc-record-health--@recordHealthCss"
+               href="@recordHealth.OpenUrl"
+               target="_blank"
+               rel="noopener"
+               title="Open project record for @item.Title"
+               aria-label="@item.Title: @recordHealth.HealthPercent percent record complete with @recordGapLabel">
+                <span class="oc-record-health__top">
+                    <strong>Records</strong>
+                    <span>@recordHealth.HealthPercent% complete · @recordGapLabel</span>
+                </span>
+                <progress class="oc-record-health__track"
+                          value="@recordHealth.HealthPercent"
+                          max="100"
+                          aria-label="Record completeness: @recordHealth.HealthPercent percent">@recordHealth.HealthPercent%</progress>
+            </a>
+        }
         @if (!string.IsNullOrWhiteSpace(item.AttentionText))
         {
             <span class="oc-attention"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i>@item.AttentionText</span>
@@ -63,13 +89,49 @@
                 <i class="bi bi-file-earmark" aria-hidden="true"></i>
                 <span>No conference direction recorded</span>
             </div>
+            <button type="button"
+                    class="oc-add-direction oc-add-direction--issue"
+                    data-oc-add
+                    data-oc-direction-action
+                    aria-controls="@editorId"
+                    aria-expanded="false">
+                <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                <span>Issue direction</span>
+            </button>
         }
         else
         {
-            <div class="oc-direction" data-oc-direction-content>
-                <div class="oc-direction__label">
-                    <span><i class="bi bi-file-earmark-check" aria-hidden="true"></i>Latest conference direction</span>
-                </div>
+            <div class="oc-direction"
+                 data-oc-direction-content
+                 data-direction-sequence="@directionCount"
+                 data-direction-total="@directionCount"
+                 data-direction-latest="true"
+                 aria-label="Latest conference direction, @directionCount of @directionCount">
+                @if (directionCount > 1)
+                {
+                    <div class="oc-direction-history"
+                         data-oc-direction-history
+                         aria-label="Conference direction history navigation">
+                        <button type="button"
+                                class="oc-direction-history__button"
+                                data-oc-direction-older
+                                aria-label="Show older conference direction"
+                                title="Show older conference direction">
+                            <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                        </button>
+                        <span class="oc-direction-history__position"
+                              data-oc-direction-position
+                              aria-live="polite">Latest · @directionCount of @directionCount</span>
+                        <button type="button"
+                                class="oc-direction-history__button"
+                                data-oc-direction-newer
+                                aria-label="Show newer conference direction"
+                                title="Show newer conference direction"
+                                disabled>
+                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                }
                 <div class="oc-direction__instruction">
                     <p id="@directionBodyId" class="oc-direction__body" data-oc-direction-body>@direction.Body</p>
                     <button type="button"
@@ -79,7 +141,7 @@
                             aria-expanded="false"
                             hidden>More</button>
                 </div>
-                <time class="oc-direction__timestamp" datetime="@directionDateIso">@directionDate</time>
+                <time class="oc-direction__timestamp" datetime="@directionDateIso">Issued @directionDate</time>
             </div>
         }
     </div>
@@ -88,8 +150,6 @@
         <div data-oc-progress-content>
             @if (direction is not null)
             {
-                <span class="oc-progress-label">Progress after direction</span>
-
                 @if (item.ProgressEntries.Count > 0)
                 {
                     <div class="oc-progress-list">
@@ -147,15 +207,31 @@
                     <p class="oc-progress-empty">@item.EmptyProgressText</p>
                 }
             }
+            else
+            {
+                <p class="oc-progress-empty oc-progress-empty--awaiting"
+                   aria-label="Awaiting initial direction. Progress tracking begins after a direction is issued."
+                   title="Progress tracking begins after a direction is issued.">
+                    Awaiting initial direction
+                </p>
+            }
         </div>
 
         <div class="oc-item__actions @(direction is null ? "oc-item__actions--empty" : string.Empty)">
-            <button type="button" class="oc-add-direction" data-oc-add aria-controls="@editorId" aria-expanded="false">
-                <i class="bi bi-plus-circle" aria-hidden="true"></i>
-                <span>Add direction</span>
-            </button>
+            @if (direction is not null)
+            {
+                <button type="button"
+                        class="oc-add-direction"
+                        data-oc-add
+                        data-oc-direction-action
+                        aria-controls="@editorId"
+                        aria-expanded="false">
+                    <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                    <span>Issue further direction</span>
+                </button>
+            }
             <a href="@item.OpenUrl" target="_blank" rel="noopener" class="oc-open-item">
-                Open <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                @openLabel <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
             </a>
             <span class="oc-row-status" data-oc-row-status aria-live="polite"></span>
         </div>
@@ -184,7 +260,7 @@
             <div>
                 <button type="button" class="oc-editor-cancel" data-oc-cancel>Cancel</button>
                 <button type="submit" class="oc-editor-save" data-oc-save disabled>
-                    <span>Add direction</span>
+                    <span data-oc-save-label>@directionActionLabel</span>
                     <i class="bi bi-arrow-right" aria-hidden="true"></i>
                 </button>
             </div>

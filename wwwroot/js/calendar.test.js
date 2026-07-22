@@ -94,6 +94,38 @@ class FakeCalendar {
     }
 }
 
+test('calendar uses compact month rows and official 24-hour time labels', async () => {
+    const dom = new JSDOM(`<!DOCTYPE html><html><body>
+        <div id="calendar" data-show-celebrations="false"></div>
+    </body></html>`, { url: 'https://example.test/Calendar', runScripts: 'dangerously' });
+
+    const { window } = dom;
+    window.alert = () => {};
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    window.FullCalendar = {
+        Calendar: FakeCalendar,
+        dayGrid: () => ({}),
+        timeGrid: () => ({}),
+        list: () => ({}),
+        interaction: () => ({})
+    };
+    window.fetch = async () => ({ ok: true, status: 200, json: async () => [] });
+
+    const scriptEl = window.document.createElement('script');
+    scriptEl.textContent = scriptContent;
+    window.document.body.appendChild(scriptEl);
+    await new Promise(resolve => setTimeout(resolve, 25));
+
+    const options = FakeCalendar.lastInstance.opts;
+    assert.equal(options.fixedWeekCount, false);
+    assert.equal(options.eventTimeFormat.hour, '2-digit');
+    assert.equal(options.eventTimeFormat.minute, '2-digit');
+    assert.equal(options.eventTimeFormat.hour12, false);
+    assert.equal(options.slotLabelFormat.hour, '2-digit');
+    assert.equal(options.slotLabelFormat.minute, '2-digit');
+    assert.equal(options.slotLabelFormat.hour12, false);
+});
+
 test('calendar highlights admin holidays during initial load', async () => {
     const dom = new JSDOM(`<!DOCTYPE html><html><body>
         <div id="calendar" data-show-celebrations="false">
@@ -136,9 +168,15 @@ test('calendar highlights admin holidays during initial load', async () => {
             status: 200,
             json: async () => ([{
                 date: '2024-12-25',
-                name: 'Founders Day',
-                startUtc: '2024-12-25T00:00:00Z',
-                endUtc: '2024-12-26T00:00:00Z'
+                isOfficeClosed: true,
+                closureType: 'Gazetted',
+                entries: [{
+                    id: 1,
+                    name: 'Founders Day',
+                    type: 'Gazetted',
+                    isObservedAsOfficeHoliday: true,
+                    affectsSchedule: true
+                }]
             }])
         };
     };
@@ -153,17 +191,20 @@ test('calendar highlights admin holidays during initial load', async () => {
     const calendarEl = window.document.getElementById('calendar');
     const holidayCell = calendarEl.querySelector('.fc-daygrid-day[data-date="2024-12-25"]');
     assert.ok(holidayCell.classList.contains('pm-holiday'));
+    assert.ok(holidayCell.classList.contains('pm-holiday--gazetted'));
     const holidayBadge = holidayCell.querySelector('.pm-holiday-badge');
     assert.ok(holidayBadge, 'holiday cell should receive badge');
-    assert.equal(holidayBadge.textContent, 'Holiday: Founders Day');
+    assert.equal(holidayBadge.querySelector('.pm-holiday-badge__primary')?.textContent, 'Gazetted holiday');
+    assert.equal(holidayBadge.querySelector('.pm-holiday-badge__secondary')?.textContent, 'Founders Day');
 
     const nonHolidayCell = calendarEl.querySelector('.fc-daygrid-day[data-date="2024-12-26"]');
     assert.ok(!nonHolidayCell.classList.contains('pm-holiday'));
     assert.equal(nonHolidayCell.querySelector('.pm-holiday-badge'), null);
 
     const numberEl = holidayCell.querySelector('.fc-daygrid-day-number');
-    assert.equal(numberEl.getAttribute('title'), 'Holiday: Founders Day');
-    assert.ok((numberEl.getAttribute('aria-label') || '').includes('Holiday: Founders Day'));
+    assert.ok((numberEl.getAttribute('title') || '').includes('Gazetted Holiday: Founders Day'));
+    assert.ok((numberEl.getAttribute('aria-label') || '').includes('Office closed'));
+    assert.ok((numberEl.getAttribute('aria-label') || '').includes('Affects project schedules'));
 
     const headerCell = calendarEl.querySelector('.fc-col-header-cell');
     assert.ok(headerCell.classList.contains('pm-holiday'));
@@ -172,6 +213,58 @@ test('calendar highlights admin holidays during initial load', async () => {
     assert.ok(timeGridFrame.classList.contains('pm-holiday'));
 });
 
+
+test('informational RH remains subtle and is always visible', async () => {
+    const dom = new JSDOM(`<!DOCTYPE html><html><body>
+        <div id="calendar" data-show-celebrations="false">
+            <div class="fc-daygrid-day" data-date="2024-12-26">
+                <div class="fc-daygrid-day-top"><div class="fc-daygrid-day-number" title="26"></div></div>
+            </div>
+        </div>
+    </body></html>`, { url: 'https://example.test/', runScripts: 'dangerously' });
+
+    const { window } = dom;
+    window.alert = () => {};
+    window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+    window.FullCalendar = {
+        Calendar: FakeCalendar,
+        dayGrid: () => ({}),
+        timeGrid: () => ({}),
+        list: () => ({}),
+        interaction: () => ({})
+    };
+    window.fetch = async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ([{
+            date: '2024-12-26',
+            isOfficeClosed: false,
+            closureType: null,
+            entries: [{
+                id: 2,
+                name: 'Optional Day',
+                type: 'Restricted',
+                isObservedAsOfficeHoliday: false,
+                affectsSchedule: false
+            }]
+        }])
+    });
+
+    const scriptEl = window.document.createElement('script');
+    scriptEl.textContent = scriptContent;
+    window.document.body.appendChild(scriptEl);
+    await new Promise(resolve => setTimeout(resolve, 25));
+
+    const cell = window.document.querySelector('.fc-daygrid-day[data-date="2024-12-26"]');
+    assert.ok(cell.classList.contains('pm-holiday--rh-info'));
+    assert.equal(
+        cell.querySelector('.pm-holiday-badge__primary')?.textContent,
+        'RH · Optional Day');
+    const number = cell.querySelector('.fc-daygrid-day-number');
+    assert.ok((number.getAttribute('title') || '').includes('Office open'));
+    assert.ok((number.getAttribute('title') || '').includes('No effect on project schedules'));
+    assert.equal(window.document.getElementById('showInformationalRhToggle'), null);
+});
 
 test('calendar celebration source uses the supported events endpoint and filters celebrations', async () => {
     const dom = new JSDOM(`<!DOCTYPE html><html><body>

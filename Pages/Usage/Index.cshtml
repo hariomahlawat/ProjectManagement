@@ -1,0 +1,381 @@
+@page
+@model ProjectManagement.Pages.Usage.IndexModel
+@using ProjectManagement.Areas.Admin.Models
+@using ProjectManagement.Configuration
+@using ProjectManagement.Models
+@using ProjectManagement.Services.Usage
+@{
+    ViewData["Title"] = "ERP usage";
+    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "analytics";
+    var header = new AdminPageHeaderModel
+    {
+        Eyebrow = "Command monitoring · Adoption",
+        Title = "ERP usage",
+        Description = "Review day-to-day application adoption independently of login frequency.",
+        Icon = "bi-activity",
+        Actions = new[]
+        {
+            new AdminPageActionModel
+            {
+                Text = "Export CSV",
+                Href = Url.Page("./Index", "Export", new
+                {
+                    days = Model.Days,
+                    search = Model.Search,
+                    role = Model.Role,
+                    module = Model.Module,
+                    posture = Model.Posture,
+                    quickFilter = Model.QuickFilter,
+                    includeDisabledAccounts = Model.IncludeDisabledAccounts,
+                    includeNonHumanAccounts = Model.IncludeNonHumanAccounts
+                }),
+                Icon = "bi-download"
+            }
+        }
+    };
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/erp-usage.css" asp-append-version="true" />
+}
+
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
+
+<section class="erp-usage-notice" aria-label="Interpretation notice">
+    <i class="bi bi-info-circle" aria-hidden="true"></i>
+    <p><strong>Adoption indicator, not attendance.</strong> Approximate active time is derived from distinct monitored activity intervals. It does not measure working hours or individual performance.</p>
+</section>
+
+<section class="erp-usage-notice erp-usage-notice--maturity"
+         aria-label="Usage data maturity"
+         title="Historical audited actions remain visible, but read-only navigation before monitoring began was not comprehensively recorded.">
+    <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+    <div>
+        @if (!Model.Result.RegularClassificationAvailable)
+        {
+            <p><strong>Initial collection · @Math.Min(Model.Result.TrackingWorkingDays, 7) of 7 monitored working days.</strong> Regular-user and seven-day review classifications become available after seven monitored working days.</p>
+        }
+        else if (!Model.Result.ThirtyDayReviewAvailable)
+        {
+            <p><strong>Developing baseline.</strong> Seven-day assessment is available; the 30-day indicator remains pending until a complete monitored window exists.</p>
+        }
+        else
+        {
+            <p><strong>Established baseline.</strong> Seven-day and 30-day adoption indicators are available.</p>
+        }
+        <small>Monitoring active since @Model.FormatTrackingInception()</small>
+    </div>
+</section>
+
+<section class="erp-usage-summary" aria-label="ERP usage summary">
+    <article class="erp-usage-metric erp-usage-metric--primary">
+        <span><i class="bi bi-person-check"></i></span>
+        <div><strong>@Model.Result.Summary.ActiveToday</strong><b>Active today</b><small>of @Model.Result.Summary.UserCount users in the effective scope</small></div>
+    </article>
+    <article class="erp-usage-metric erp-usage-metric--success @(!Model.Result.RegularClassificationAvailable ? "is-pending" : null)">
+        <span><i class="bi bi-calendar2-check"></i></span>
+        <div><strong>@(Model.Result.RegularClassificationAvailable ? Model.Result.Summary.RegularUsers.ToString() : "—")</strong><b>Regular users</b><small>@(Model.Result.RegularClassificationAvailable ? $"≥ {Model.Result.RegularThresholdPercent}% of monitored working days" : "Available after 7 monitored working days")</small></div>
+    </article>
+    <article class="erp-usage-metric erp-usage-metric--info">
+        <span><i class="bi bi-arrow-repeat"></i></span>
+        @if (!Model.Result.RegularClassificationAvailable)
+        {
+            <div><strong>@Model.Result.Summary.UsersWithMonitoredUse</strong><b>Users with monitored use</b><small>Navigation, interaction or recognised action recorded</small></div>
+        }
+        else
+        {
+            <div><strong>@Model.Result.Summary.OccasionalUsers</strong><b>Occasional users</b><small>Recorded monitored use below the regular-user threshold</small></div>
+        }
+    </article>
+    <article class="erp-usage-metric erp-usage-metric--warning @(!Model.Result.SevenDayReviewAvailable ? "is-pending" : null)">
+        <span><i class="bi bi-calendar-x"></i></span>
+        <div><strong>@(Model.Result.SevenDayReviewAvailable ? Model.Result.Summary.NoUsageSevenWorkingDays.ToString() : "—")</strong><b>No use in 7 working days</b><small>@(Model.Result.SevenDayReviewAvailable ? "Requires adoption review" : "Withheld during initial collection")</small></div>
+    </article>
+    <article class="erp-usage-metric erp-usage-metric--danger @(!Model.Result.ThirtyDayReviewAvailable ? "is-pending" : null)">
+        <span><i class="bi bi-person-x"></i></span>
+        <div><strong>@(Model.Result.ThirtyDayReviewAvailable ? Model.Result.Summary.NoUsageThirtyDays.ToString() : "—")</strong><b>No use in 30 days</b><small>@(Model.Result.ThirtyDayReviewAvailable ? "Long-term non-adoption signal" : "Available after a complete monitored 30-day window")</small></div>
+    </article>
+    <article class="erp-usage-metric erp-usage-metric--neutral">
+        <span><i class="bi bi-pencil-square"></i></span>
+        <div><strong>@Model.Result.Summary.BusinessContributors</strong><b>Recorded operational contributors</b><small>At least one recognised operational action in the selected period</small></div>
+    </article>
+</section>
+
+<section class="admin-panel erp-usage-filter-panel" aria-labelledby="erp-usage-filter-title">
+    <header class="admin-panel__header">
+        <div><div class="admin-panel__eyebrow">Scope</div><h2 id="erp-usage-filter-title">Usage filters</h2></div>
+        <span class="admin-panel__meta">@Model.Result.StartDate.ToString("dd MMM") – @Model.Result.EndDate.ToString("dd MMM yyyy")</span>
+    </header>
+    <form method="get" class="erp-usage-filters">
+        <label>
+            <span>Period</span>
+            <select asp-for="Days" class="form-select">
+                <option value="7">Last 7 days</option>
+                <option value="30">Last 30 days</option>
+                <option value="60">Last 60 days</option>
+                <option value="90">Last 90 days</option>
+            </select>
+        </label>
+        <label class="erp-usage-filters__search">
+            <span>User</span>
+            <input asp-for="Search" class="form-control" type="search" placeholder="Name, rank or username" autocomplete="off" />
+        </label>
+        <label>
+            <span>Role</span>
+            <select asp-for="Role" class="form-select">
+                <option value="">All roles</option>
+                @foreach (var role in Model.Result.RoleOptions)
+                {
+                    <option value="@role">@role</option>
+                }
+            </select>
+        </label>
+        <label>
+            <span>Module</span>
+            <select asp-for="Module" class="form-select">
+                <option value="">All modules</option>
+                @foreach (var module in Model.ModuleOptions)
+                {
+                    <option value="@module.Key">@module.Label</option>
+                }
+            </select>
+        </label>
+        <label>
+            <span>Usage posture</span>
+            <select asp-for="Posture" class="form-select">
+                <option value="">All postures</option>
+                @if (!Model.Result.RegularClassificationAvailable)
+                {
+                    <option value="Use recorded">Use recorded</option>
+                    <option value="Not yet recorded">Not yet recorded</option>
+                }
+                else
+                {
+                    <option value="Regular user">Regular user</option>
+                    <option value="Occasional user">Occasional user</option>
+                    <option value="No recent use">No recent use</option>
+                    <option value="No recorded use">No recorded use</option>
+                }
+            </select>
+        </label>
+        <label>
+            <span>Quick review</span>
+            <select asp-for="QuickFilter" class="form-select">
+                <option value="">All users</option>
+                <option value="used-today">Used today</option>
+                @if (Model.Result.SevenDayReviewAvailable)
+                {
+                    <option value="no-use-7">No use in 7 working days</option>
+                    <option value="never-recorded">Never recorded</option>
+                }
+                else
+                {
+                    <option value="never-recorded">Not yet recorded</option>
+                }
+            </select>
+        </label>
+        <label>
+            <span>Rows</span>
+            <select asp-for="PageSize" class="form-select">
+                <option value="10">10</option>
+                <option value="15">15</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
+        </label>
+        <div class="erp-usage-filters__actions">
+            <button class="btn btn-primary" type="submit"><i class="bi bi-funnel"></i>Apply</button>
+            <a class="btn btn-outline-secondary" asp-page="./Index">Clear</a>
+        </div>
+        <fieldset class="erp-usage-scope-options">
+            <legend>Population</legend>
+            <label class="form-check">
+                <input asp-for="IncludeDisabledAccounts" class="form-check-input" />
+                <span class="form-check-label">Include disabled accounts</span>
+            </label>
+            <label class="form-check">
+                <input asp-for="IncludeNonHumanAccounts" class="form-check-input" />
+                <span class="form-check-label">Include service and test accounts</span>
+            </label>
+            <small>Default command scope: active human accounts. Pending-deletion accounts are always excluded.</small>
+        </fieldset>
+    </form>
+</section>
+
+@if (Model.Result.Modules.Count > 0)
+{
+    <section class="admin-panel" aria-labelledby="erp-module-title">
+        <header class="admin-panel__header">
+            <div><div class="admin-panel__eyebrow">Adoption by function</div><h2 id="erp-module-title">Modules used</h2></div>
+        </header>
+        <div class="erp-module-grid">
+            @foreach (var module in Model.Result.Modules.Take(8))
+            {
+                <article>
+                    <span><i class="bi @module.Icon"></i></span>
+                    <div><strong>@module.Label</strong><small>@module.UserCount user@(module.UserCount == 1 ? string.Empty : "s") · @module.ActiveBucketCount activity interval@(module.ActiveBucketCount == 1 ? string.Empty : "s")</small></div>
+                </article>
+            }
+        </div>
+    </section>
+}
+
+<section class="admin-panel" aria-labelledby="erp-user-directory-title">
+    <header class="admin-panel__header">
+        <div><div class="admin-panel__eyebrow">User adoption</div><h2 id="erp-user-directory-title">Daily-user directory</h2></div>
+        <span class="admin-panel__meta">@Model.Result.TotalUsers user@(Model.Result.TotalUsers == 1 ? string.Empty : "s") in the effective scope</span>
+    </header>
+
+    @if (Model.Result.Users.Count == 0)
+    {
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new AdminEmptyStateModel { Icon = "bi-activity", Title = "No usage records match the current filters", Description = "Usage appears after authenticated navigation, an interactive browser heartbeat or a recognised audited action." })" />
+    }
+    else
+    {
+        <div class="admin-data-table-wrap erp-usage-table-wrap">
+            <table class="admin-data-table erp-usage-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Today / last active</th>
+                        <th>Active working days</th>
+                        <th>Approx. active time</th>
+                        <th>Modules / actions</th>
+                        <th>Posture</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in Model.Result.Users)
+                    {
+                        <tr>
+                            <td>
+                                <div class="erp-user-identity">
+                                    @if (User.IsInRole(RoleNames.Admin))
+                                    {
+                                        <a asp-area="Admin" asp-page="/Users/Details" asp-route-id="@user.UserId">@user.FullName</a>
+                                    }
+                                    else
+                                    {
+                                        <strong>@user.FullName</strong>
+                                    }
+                                    <span>@string.Join(" · ", new[] { user.Rank, user.UserName }.Where(value => !string.IsNullOrWhiteSpace(value)))</span>
+                                    <small>
+                                        @(user.Roles.Count == 0 ? "No assigned role" : string.Join(", ", user.Roles)) · @user.AccountState
+                                        @if (user.AccountKind != UserAccountKind.Human)
+                                        {
+                                            <text> · @user.AccountKind account</text>
+                                        }
+                                    </small>
+                                    @if (Model.ShouldShowEffectiveTrackingStart(user))
+                                    {
+                                        <small>Monitored from @user.EffectiveTrackingStart.ToString("dd MMM yyyy")</small>
+                                    }
+                                </div>
+                            </td>
+                            <td>
+                                <div class="erp-usage-today @(user.UsedToday ? "is-active" : null)">
+                                    <span><i class="bi @(user.UsedToday ? "bi-check-circle-fill" : "bi-dash-circle")"></i>@(user.UsedToday ? "Used today" : "No use today")</span>
+                                    <small>@Model.FormatLastActive(user.LastActiveUtc)</small>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="erp-working-days">
+                                    <strong>@user.ActiveWorkingDays of @user.AvailableWorkingDays</strong>
+                                    <progress class="erp-working-days__progress"
+                                              max="100"
+                                              value="@user.ActivePercentage"
+                                              aria-label="@user.ActivePercentage percent of available monitored working days">@user.ActivePercentage%</progress>
+                                    <small>@user.ActivePercentage% of available monitored working days</small>
+                                </div>
+                            </td>
+                            <td title="Calculated from distinct activity intervals recorded since usage monitoring was enabled.">
+                                <strong>@IndexModel.FormatApproximateMinutes(user.ApproximateActiveMinutes)</strong>
+                                <small class="d-block text-muted">Distinct monitored intervals</small>
+                            </td>
+                            <td>
+                                <div class="erp-module-list">@(user.Modules.Count == 0 ? "—" : string.Join(", ", user.Modules.Take(4)))</div>
+                                <div class="erp-action-counts">
+                                    <small><strong>@user.OperationalActionCount</strong> operational</small>
+                                    <small><strong>@user.AdministrativeActionCount</strong> administrative</small>
+                                </div>
+                            </td>
+                            <td><span class="admin-status-pill admin-status-pill--@user.PostureTone">@user.Posture</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (Model.Result.TotalPages > 1)
+        {
+            <nav class="admin-pagination" aria-label="ERP usage pages">
+                <a class="btn btn-sm btn-outline-secondary @(Model.Result.Page <= 1 ? "disabled" : null)" href="@Model.PageUrl(Model.Result.Page - 1)"><i class="bi bi-chevron-left"></i>Previous</a>
+                <span>Page @Model.Result.Page of @Model.Result.TotalPages</span>
+                <a class="btn btn-sm btn-outline-secondary @(Model.Result.Page >= Model.Result.TotalPages ? "disabled" : null)" href="@Model.PageUrl(Model.Result.Page + 1)">Next<i class="bi bi-chevron-right"></i></a>
+            </nav>
+        }
+    }
+</section>
+
+@if (Model.Result.Users.Count > 0 && Model.Result.HeatmapDates.Count > 0)
+{
+    <section class="admin-panel" aria-labelledby="erp-heatmap-title">
+        <header class="admin-panel__header">
+            <div><div class="admin-panel__eyebrow">Day-by-day pattern</div><h2 id="erp-heatmap-title">Usage heatmap</h2></div>
+            <div class="erp-heatmap-legend" aria-label="Heatmap legend">
+                <span><i class="is-action"></i>Operational action</span>
+                <span><i class="is-admin-action"></i>Administrative action</span>
+                <span><i class="is-interactive"></i>Interactive use</span>
+                <span><i class="is-navigation"></i>Navigation</span>
+                <span><i class="is-none"></i>No recorded use</span>
+                <span><i class="is-not-observed"></i>Not monitored</span>
+                <span><i class="is-nonworking"></i>Non-working day</span>
+            </div>
+        </header>
+        <div class="erp-heatmap-scroll" tabindex="0" aria-label="Horizontally scrollable usage heatmap">
+            <table class="erp-heatmap-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        @foreach (var date in Model.Result.HeatmapDates)
+                        {
+                            <th class="@(Model.IsTrackingInceptionDate(date) ? "is-tracking-start" : null)"
+                                title="@(Model.IsTrackingInceptionDate(date) ? $"Monitoring started · {date:dddd, dd MMM yyyy}" : date.ToString("dddd, dd MMM yyyy"))">
+                                <span>@date.ToString("dd")</span><small>@date.ToString("MMM")</small>
+                            </th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in Model.Result.Users)
+                    {
+                        <tr>
+                            <th scope="row" title="@user.FullName">@user.FullName</th>
+                            @foreach (var cell in user.Heatmap)
+                            {
+                                var stateClass = cell.State switch
+                                {
+                                    ErpUsageHeatmapState.BusinessAction => "is-action",
+                                    ErpUsageHeatmapState.AdministrativeAction => "is-admin-action",
+                                    ErpUsageHeatmapState.Interactive => "is-interactive",
+                                    ErpUsageHeatmapState.Navigation => "is-navigation",
+                                    ErpUsageHeatmapState.NonWorkingDay => "is-nonworking",
+                                    ErpUsageHeatmapState.NotObserved => "is-not-observed",
+                                    _ => "is-none"
+                                };
+                                var tooltip = $"{cell.Date:dddd, dd MMM yyyy}\n{cell.Label}";
+                                <td class="@(Model.IsTrackingInceptionDate(cell.Date) ? "is-tracking-start" : null)"><span class="erp-heatmap-cell @stateClass" title="@tooltip"><span class="visually-hidden">@cell.Label</span></span></td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+}
+
+@section Scripts {
+    <script src="~/js/pages/erp-usage.js" asp-append-version="true" defer></script>
+}

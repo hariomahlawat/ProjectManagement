@@ -1,0 +1,129 @@
+@model ProjectManagement.Pages.IndustryPartners.IndexModel
+@{
+    var partner = Model.SelectedPartner!;
+    var primary = partner.PrimaryContact;
+    var hasContextualAssociation = Model.ProjectContext is not null &&
+        partner.LinkedProjects.Any(link => link.ProjectId == Model.ProjectContext.Id);
+    var statusKey = partner.LinkedProjects.Count == 0 ? "contact" : partner.ActiveProjectCount > 0 ? "current" : "past";
+}
+
+<div class="offcanvas offcanvas-end ip-partner-drawer"
+     tabindex="-1"
+     id="industryPartnerDrawer"
+     aria-labelledby="industryPartnerDrawerLabel"
+     data-partner-drawer
+     data-open-drawer="true"
+     data-close-url="@Model.BuildDirectoryUrl()">
+    <div class="offcanvas-header ip-drawer-header">
+        <div class="min-w-0">
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="ip-status-badge ip-status-@statusKey">@partner.StatusLabel</span>
+                @if (partner.LinkedProjects.Count > 0)
+                {
+                    <span class="ip-header-count">@partner.LinkedProjects.Count @(partner.LinkedProjects.Count == 1 ? "project" : "projects")</span>
+                }
+            </div>
+            <h2 class="offcanvas-title" id="industryPartnerDrawerLabel">@partner.Name</h2>
+            <div class="ip-drawer-subtitle">
+                <i class="bi bi-geo-alt" aria-hidden="true"></i>
+                <span>@(string.IsNullOrWhiteSpace(partner.Location) ? "Location not added" : partner.Location)</span>
+            </div>
+            @if (primary is not null && (!string.IsNullOrWhiteSpace(primary.Phone) || !string.IsNullOrWhiteSpace(primary.Email)))
+            {
+                <div class="ip-drawer-contact-line">
+                    <i class="bi bi-person" aria-hidden="true"></i>
+                    <span>@primary.DisplayName</span>
+                    @if (!string.IsNullOrWhiteSpace(primary.Phone))
+                    {
+                        <span>· @primary.Phone</span>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(primary.Email))
+                    {
+                        <span>· @primary.Email</span>
+                    }
+                </div>
+            }
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+
+    <div class="ip-drawer-actions">
+        @if (Model.CanManageOrganisation && !Model.Edit)
+        {
+            <a href="@Model.BuildDirectoryUrl(partner.Id, "overview", edit: true)" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-pencil" aria-hidden="true"></i> Edit
+            </a>
+        }
+        @if (Model.CanAddContact)
+        {
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-open-tab="contacts" data-show-panel="contact-add-panel" data-contact-toolbar-action>
+                <i class="bi bi-person-plus" aria-hidden="true"></i> Add contact
+            </button>
+        }
+        @if (Model.CanManageOrganisation)
+        {
+            @if (hasContextualAssociation)
+            {
+                <button type="button" class="btn btn-sm btn-outline-primary" data-open-tab="projects">
+                    <i class="bi bi-check2-circle" aria-hidden="true"></i> JDP linked
+                </button>
+            }
+            else if (Model.ProjectContext is null)
+            {
+                <button type="button" class="btn btn-sm btn-primary" data-open-tab="projects" data-show-panel="project-add-panel" data-project-toolbar-action>
+                    <i class="bi bi-link-45deg" aria-hidden="true"></i> Link project
+                </button>
+            }
+        }
+
+        @if (Model.CanDeleteOrganisation && partner.LinkedProjects.Count == 0)
+        {
+            <div class="dropdown ms-auto">
+                <button class="btn btn-sm btn-light ip-more-button" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="More actions for @partner.Name">
+                    <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                        <form method="post" asp-page-handler="DeletePartner" data-confirm-form="Permanently delete this organisation and all of its contacts and files? This cannot be undone.">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="partnerId" value="@partner.Id" />
+                            <input type="hidden" name="q" value="@Model.Q" />
+                            <input type="hidden" name="filter" value="@Model.Filter" />
+                            <input type="hidden" name="p" value="@Model.PageNumber" />
+                            <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
+                            <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash" aria-hidden="true"></i> Delete organisation</button>
+                        </form>
+                    </li>
+                </ul>
+            </div>
+        }
+    </div>
+
+    <nav class="ip-drawer-tabs" role="tablist" aria-label="Organisation details">
+        <button class="@(Model.ActiveTab == "overview" ? "is-active" : null)" type="button" role="tab" data-tab-target="overview" aria-selected="@(Model.ActiveTab == "overview")">Overview</button>
+        <button class="@(Model.ActiveTab == "contacts" ? "is-active" : null)" type="button" role="tab" data-tab-target="contacts" aria-selected="@(Model.ActiveTab == "contacts")">
+            Contacts <span>@partner.Contacts.Count</span>
+        </button>
+        <button class="@(Model.ActiveTab == "projects" ? "is-active" : null)" type="button" role="tab" data-tab-target="projects" aria-selected="@(Model.ActiveTab == "projects")">
+            JDP history <span>@partner.LinkedProjects.Count</span>
+        </button>
+        <button class="@(Model.ActiveTab == "files" ? "is-active" : null)" type="button" role="tab" data-tab-target="files" aria-selected="@(Model.ActiveTab == "files")">
+            Files <span>@partner.Attachments.Count</span>
+        </button>
+    </nav>
+
+    <div class="offcanvas-body ip-drawer-body">
+        <section class="ip-tab-panel @(Model.ActiveTab == "overview" ? "is-active" : null)" data-tab-panel="overview" role="tabpanel">
+            <partial name="_PartnerOverview" model="Model" />
+        </section>
+        <section class="ip-tab-panel @(Model.ActiveTab == "contacts" ? "is-active" : null)" data-tab-panel="contacts" role="tabpanel">
+            <partial name="_Contacts" model="Model" />
+        </section>
+        <section class="ip-tab-panel @(Model.ActiveTab == "projects" ? "is-active" : null)" data-tab-panel="projects" role="tabpanel">
+            <partial name="_LinkedProjects" model="Model" />
+        </section>
+        <section class="ip-tab-panel @(Model.ActiveTab == "files" ? "is-active" : null)" data-tab-panel="files" role="tabpanel">
+            <partial name="_Attachments" model="Model" />
+        </section>
+    </div>
+</div>

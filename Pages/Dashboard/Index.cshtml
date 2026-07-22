@@ -36,9 +36,23 @@
         .ThenBy(x => x.Name)
         .Take(5)
         .ToList();
-    var ffcPayload = JsonSerializer.Serialize(Model.FfcSimulatorMap.Countries, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    var ffcPayload = JsonSerializer.Serialize(
+        Model.FfcSimulatorMap.Countries.Select(country => new
+        {
+            country.CountryId,
+            country.Iso3,
+            country.Name,
+            country.Installed,
+            country.Delivered,
+            country.Planned,
+            country.TotalUnits,
+            DetailsUrl = Url.Page(
+                "/FFC/MapTableDetailed",
+                values: new { area = "ProjectOfficeReports", countryId = country.CountryId }) ?? "#"
+        }),
+        new JsonSerializerOptions(JsonSerializerDefaults.Web));
     var ffcGeoUrl = Url.Content("~/ffc/maps/world_india_view.geojson");
-    var ffcFullMapUrl = Url.Page("/FFC/Map", values: new { area = "ProjectOfficeReports" }) ?? "#";
+    var ffcPartnerCountryCount = Model.FfcSimulatorMap.Countries.Count(x => x.TotalUnits > 0);
     var canOpenOcrConsole = User.IsInRole(RoleNames.Admin) || User.IsInRole(RoleNames.HoD);
     var ocrPending = Model.SearchHealth.Ocr.Pending;
     var ocrFailed = Model.SearchHealth.Ocr.Failed;
@@ -356,46 +370,112 @@
             </article>
         </section>
 
-        <section class="db-panel db-ffc-panel db-reveal" aria-labelledby="ffc-title">
+        <section class="db-panel db-ffc-panel db-reveal" aria-labelledby="ffc-title" data-ffc-map-scope>
             <div class="db-section-head">
                 <div><span class="db-section-icon db-section-icon--blue"><i class="bi bi-globe-asia-australia"></i></span><div><h2 id="ffc-title">Simulator footprint across FFCs</h2><p>Completed and planned units by partner country</p></div></div>
-                <a href="@ffcFullMapUrl" class="db-text-link">View full map <i class="bi bi-arrow-right"></i></a>
+                <nav class="db-ffc-module-actions" aria-label="FFC module navigation">
+                    <a asp-area="ProjectOfficeReports"
+                       asp-page="/FFC/Index"
+                       class="db-text-link db-ffc-module-actions__primary">
+                        Open FFC portfolio <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                    </a>
+                    <div class="dropdown">
+                        <button type="button"
+                                class="db-ffc-module-actions__more"
+                                data-bs-toggle="dropdown"
+                                data-bs-auto-close="true"
+                                aria-label="More FFC navigation options"
+                                aria-expanded="false">
+                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end db-ffc-nav-menu">
+                            <li>
+                                <a asp-area="ProjectOfficeReports"
+                                   asp-page="/FFC/Map"
+                                   class="dropdown-item">
+                                    <i class="bi bi-globe2" aria-hidden="true"></i>
+                                    <span>Full map</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a asp-area="ProjectOfficeReports"
+                                   asp-page="/FFC/MapTableDetailed"
+                                   class="dropdown-item">
+                                    <i class="bi bi-table" aria-hidden="true"></i>
+                                    <span>Detailed table</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </nav>
             </div>
             @if (Model.FfcSimulatorMap.HasData)
             {
                 <div class="db-ffc-layout">
                     <div class="db-ffc-map-wrap">
-                        <div class="ffc-simulator-map db-ffc-map" data-widget="ffc-simulator-map" data-countries='@Html.Raw(ffcPayload)' data-geo-url="@ffcGeoUrl" data-focus-bounds="42,-18|-38,118" data-highlight-color="var(--db-primary)">
-                            <div class="ffc-simulator-map__canvas" role="img" aria-label="Map showing simulator footprint across Friendly Foreign Countries"></div>
+                        <div class="ffc-simulator-map db-ffc-map"
+                             data-widget="ffc-simulator-map"
+                             data-countries="@ffcPayload"
+                             data-geo-url="@ffcGeoUrl"
+                             data-focus-bounds="42,-18|-38,118"
+                             data-auto-fit="true"
+                             data-auto-fit-max-zoom="4"
+                             data-deconflict-markers="true"
+                             data-highlight-color="var(--db-primary)">
+                            <div class="ffc-simulator-map__canvas"
+                                 role="region"
+                                 aria-label="Interactive map showing completed and planned simulator units across Friendly Foreign Countries"
+                                 aria-describedby="ffc-map-legend"></div>
                             <div class="ffc-simulator-map__status" data-map-status>Loading footprint…</div>
                         </div>
-                        <div class="db-ffc-legend" aria-label="Map legend">
-                            <span><i class="is-completed"></i>Bubble value: completed units</span>
-                            <span><i class="is-planned"></i>Amber marker: planned-only location</span>
+                        <div id="ffc-map-legend" class="db-ffc-legend" aria-label="Map legend">
+                            <span><i class="is-completed"></i>Blue number: completed units</span>
+                            <span><i class="is-mixed"></i>Amber badge: additional planned units</span>
+                            <span><i class="is-planned"></i>Amber marker: planned-only units</span>
                         </div>
                     </div>
-                    <aside class="db-ffc-insights">
-                        <div class="db-ffc-stats">
-                            <div><span>Countries covered</span><strong>@Model.FfcSimulatorMap.Countries.Count(x => x.Completed > 0)</strong></div>
-                            <div><span>Completed units <i class="bi bi-info-circle" title="Installed plus delivered units recorded as completed"></i></span><strong>@Model.FfcSimulatorMap.TotalCompleted</strong></div>
-                            <div><span>Installed <i class="bi bi-info-circle" title="Units installed at the partner-country location"></i></span><strong>@Model.FfcSimulatorMap.TotalInstalled</strong></div>
-                            <div><span>Delivered <i class="bi bi-info-circle" title="Units delivered but not recorded as installed"></i></span><strong>@Model.FfcSimulatorMap.TotalDelivered</strong></div>
-                            <div class="is-planned"><span>Planned units <i class="bi bi-info-circle" title="Approved or recorded future units not yet completed"></i></span><strong>@Model.FfcSimulatorMap.TotalPlanned</strong></div>
+                    <aside class="db-ffc-insights" aria-label="FFC simulator footprint summary">
+                        <div class="db-ffc-primary-stats">
+                            <div>
+                                <span>Partner countries</span>
+                                <strong>@ffcPartnerCountryCount</strong>
+                            </div>
+                            <div>
+                                <span>Completed units <i class="bi bi-info-circle" title="Installed units plus units delivered and awaiting installation"></i></span>
+                                <strong>@Model.FfcSimulatorMap.TotalCompleted</strong>
+                            </div>
+                            <div class="is-planned">
+                                <span>Planned units <i class="bi bi-info-circle" title="Approved or recorded future units not yet completed"></i></span>
+                                <strong>@Model.FfcSimulatorMap.TotalPlanned</strong>
+                            </div>
+                        </div>
+                        <div class="db-ffc-breakdown" aria-label="Completed unit breakdown">
+                            <span>Completed breakdown</span>
+                            <p>
+                                <strong>@Model.FfcSimulatorMap.TotalInstalled</strong> installed
+                                <i aria-hidden="true">·</i>
+                                <strong>@Model.FfcSimulatorMap.TotalDelivered</strong> awaiting installation
+                            </p>
                         </div>
                         <div class="db-ffc-countries">
-                            <h3>Top countries</h3>
+                            <h3>Top countries by completed units</h3>
                             @foreach (var country in topFfcCountries)
                             {
-                                <a asp-area="ProjectOfficeReports" asp-page="/FFC/MapTableDetailed" asp-route-countryId="@country.CountryId" data-country-chip="@country.Iso3" class="db-country-row">
-                                    <span>@country.Name</span>
-                                    <div>
-                                        <strong>@country.Completed</strong>
-                                        <small>completed</small>
+                                <a asp-area="ProjectOfficeReports"
+                                   asp-page="/FFC/MapTableDetailed"
+                                   asp-route-countryId="@country.CountryId"
+                                   data-country-chip="@country.Iso3"
+                                   class="db-country-row"
+                                   aria-label="Open FFC projects for @country.Name: @country.Completed completed and @country.Planned planned units">
+                                    <span class="db-country-row__name">@country.Name</span>
+                                    <span class="db-country-row__metrics">
+                                        <span><strong>@country.Completed</strong> completed</span>
                                         @if (country.Planned > 0)
                                         {
                                             <em>+@country.Planned planned</em>
                                         }
-                                    </div>
+                                    </span>
+                                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
                                 </a>
                             }
                         </div>

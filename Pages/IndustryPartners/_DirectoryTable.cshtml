@@ -1,0 +1,218 @@
+@model ProjectManagement.Pages.IndustryPartners.IndexModel
+@{
+    var hasSearch = !string.IsNullOrWhiteSpace(Model.Q);
+    var emptyTitle = "No organisations in the directory";
+    var emptyMessage = "Add an organisation when its contact details or JDP association need to be retained.";
+    var emptyIcon = "bi-building";
+    var showAddAction = Model.Filter == "all";
+    var showViewAllAction = false;
+
+    if (hasSearch)
+    {
+        emptyTitle = "No matching organisations";
+        emptyMessage = "Try another organisation, contact, phone number, email address or project reference.";
+        emptyIcon = "bi-search";
+        showAddAction = false;
+    }
+    else
+    {
+        switch (Model.Filter)
+        {
+            case "contact":
+                emptyTitle = "No contact-only organisations";
+                emptyMessage = "Every organisation in the directory currently has a JDP association.";
+                emptyIcon = "bi-person-check";
+                showAddAction = false;
+                showViewAllAction = true;
+                break;
+
+            case "associated":
+                emptyTitle = "No JDPs recorded";
+                emptyMessage = "No organisation is currently linked to a project as Joint Development Partner.";
+                emptyIcon = "bi-link-45deg";
+                showAddAction = false;
+                showViewAllAction = true;
+                break;
+
+            case "current":
+                emptyTitle = "No current JDPs";
+                emptyMessage = "No organisation is presently associated with an ongoing project.";
+                emptyIcon = "bi-play-circle";
+                showAddAction = false;
+                showViewAllAction = true;
+                break;
+
+            case "past":
+                emptyTitle = "No past JDPs";
+                emptyMessage = "No organisation is associated with a completed, cancelled or archived project.";
+                emptyIcon = "bi-clock-history";
+                showAddAction = false;
+                showViewAllAction = true;
+                break;
+        }
+    }
+}
+
+@if (Model.SearchResult.Items.Count == 0)
+{
+    <div class="ip-directory-empty">
+        <div class="ip-empty-icon"><i class="bi @emptyIcon" aria-hidden="true"></i></div>
+        <h2>@emptyTitle</h2>
+        <p>@emptyMessage</p>
+
+        @if (hasSearch)
+        {
+            <a asp-page="./Index"
+               asp-route-filter="@Model.Filter"
+               asp-route-projectId="@Model.ContextProjectId"
+               class="btn btn-outline-secondary btn-sm">Clear search</a>
+        }
+        else if (showViewAllAction)
+        {
+            <a asp-page="./Index"
+               asp-route-filter="all"
+               asp-route-projectId="@Model.ContextProjectId"
+               class="btn btn-outline-secondary btn-sm">View all organisations</a>
+        }
+        else if (showAddAction && Model.CanManageOrganisation)
+        {
+            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addOrganisationModal">Add organisation</button>
+        }
+    </div>
+}
+else
+{
+    <div class="table-responsive ip-directory-table-wrap">
+        <table class="table ip-directory-table align-middle mb-0">
+            <thead>
+                <tr>
+                    <th scope="col">Organisation</th>
+                    <th scope="col">Contact</th>
+                    <th scope="col">JDP projects</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="text-end">Updated</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.SearchResult.Items)
+                {
+                    var detailUrl = Model.BuildDirectoryUrl(item.Id, Model.ProjectContext is null ? "overview" : "projects");
+                    <tr class="ip-directory-row">
+                        <td data-label="Organisation">
+                            <div class="ip-organisation-cell">
+                                <div class="ip-org-avatar" aria-hidden="true">@GetOrganisationInitial(item.Name)</div>
+                                <div class="min-w-0">
+                                    <a href="@detailUrl" class="ip-organisation-link">@item.Name</a>
+                                    <div class="ip-row-meta">
+                                        <i class="bi bi-geo-alt" aria-hidden="true"></i>
+                                        <span>@(string.IsNullOrWhiteSpace(item.Location) ? "Location not added" : item.Location)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td data-label="Contact">
+                            @if (item.ContactCount == 0)
+                            {
+                                <div class="ip-contact-name ip-muted">No contact added</div>
+                            }
+                            else
+                            {
+                                <div class="ip-contact-name">@(string.IsNullOrWhiteSpace(item.PrimaryContactName) ? "General contact" : item.PrimaryContactName)</div>
+                                @if (!string.IsNullOrWhiteSpace(item.ContactPhone) || !string.IsNullOrWhiteSpace(item.ContactEmail))
+                                {
+                                    <div class="ip-row-contact-channels">
+                                        @if (!string.IsNullOrWhiteSpace(item.ContactPhone))
+                                        {
+                                            <a href="tel:@item.ContactPhone"><i class="bi bi-telephone" aria-hidden="true"></i>@item.ContactPhone</a>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(item.ContactEmail))
+                                        {
+                                            <a href="mailto:@item.ContactEmail" class="ip-truncate"><i class="bi bi-envelope" aria-hidden="true"></i>@item.ContactEmail</a>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="ip-row-meta ip-muted">Contact details unavailable</div>
+                                }
+                            }
+                        </td>
+                        <td data-label="JDP projects">
+                            @if (item.ProjectCount == 0)
+                            {
+                                <span class="ip-project-count ip-muted">No JDP association</span>
+                            }
+                            else
+                            {
+                                <span class="ip-project-count"><strong>@item.ProjectCount</strong> @(item.ProjectCount == 1 ? "project" : "projects")</span>
+                                @if (item.ActiveProjectCount > 0)
+                                {
+                                    <div class="ip-row-meta">@item.ActiveProjectCount ongoing</div>
+                                }
+                            }
+                        </td>
+                        <td data-label="Status">
+                            <span class="ip-status-badge ip-status-@item.StatusKey">@item.StatusLabel</span>
+                        </td>
+                        <td data-label="Updated" class="text-end">
+                            <span class="ip-updated-date">@item.LastUpdatedUtc.LocalDateTime.ToString("dd MMM yyyy")</span>
+                            <a href="@detailUrl" class="ip-row-open" aria-label="Open @item.Name">
+                                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                            </a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.SearchResult.TotalPages > 1)
+    {
+        <nav class="ip-pagination" aria-label="Directory pages">
+            <span>Page @Model.SearchResult.Page of @Model.SearchResult.TotalPages</span>
+            <div class="btn-group btn-group-sm" role="group">
+                <a class="btn btn-outline-secondary @(Model.SearchResult.HasPrevious ? null : "disabled")"
+                   asp-page="./Index"
+                   asp-route-q="@Model.Q"
+                   asp-route-filter="@Model.Filter"
+                   asp-route-p="@(Model.PageNumber - 1)"
+                   asp-route-projectId="@Model.ContextProjectId"
+                   aria-disabled="@(!Model.SearchResult.HasPrevious)">Previous</a>
+                <a class="btn btn-outline-secondary @(Model.SearchResult.HasNext ? null : "disabled")"
+                   asp-page="./Index"
+                   asp-route-q="@Model.Q"
+                   asp-route-filter="@Model.Filter"
+                   asp-route-p="@(Model.PageNumber + 1)"
+                   asp-route-projectId="@Model.ContextProjectId"
+                   aria-disabled="@(!Model.SearchResult.HasNext)">Next</a>
+            </div>
+        </nav>
+    }
+}
+
+@functions {
+    private static string GetOrganisationInitial(string? name)
+    {
+        var value = (name ?? string.Empty).Trim();
+        var prefixes = new[] { "M/s.", "M/s", "M/S.", "M/S", "Messrs.", "Messrs" };
+
+        foreach (var prefix in prefixes)
+        {
+            if (value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                value = value[prefix.Length..].TrimStart(' ', '.', '-', ':');
+                break;
+            }
+        }
+
+        foreach (var character in value)
+        {
+            if (char.IsLetterOrDigit(character))
+            {
+                return char.ToUpperInvariant(character).ToString();
+            }
+        }
+
+        return "?";
+    }
+}

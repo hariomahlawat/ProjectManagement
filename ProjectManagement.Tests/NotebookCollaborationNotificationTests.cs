@@ -36,6 +36,102 @@ public sealed class NotebookCollaborationNotificationTests
     }
 
     [Fact]
+    public async Task UpdateCollaboratorRole_PersistsPermissionAndDurableNotification()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+
+        var added = await fixture.Service.AddCollaboratorAsync(
+            fixture.Owner.Id,
+            fixture.Item.Id,
+            fixture.Collaborator.Id,
+            NotebookCollaborationRole.Editor,
+            fixture.Item.Version);
+
+        var updated = await fixture.Service.UpdateCollaboratorRoleAsync(
+            fixture.Owner.Id,
+            fixture.Item.Id,
+            fixture.Collaborator.Id,
+            NotebookCollaborationRole.Viewer,
+            added.Version);
+
+        var collaboration = Assert.Single(await fixture.Db.NotebookItemCollaborators.ToListAsync());
+        Assert.Equal(NotebookCollaborationRole.Viewer, collaboration.Role);
+        Assert.Equal(ProjectManagement.ViewModels.Notebook.NotebookAccessLevel.Owner, updated.AccessLevel);
+        Assert.NotEqual(added.Version, updated.Version);
+
+        var dispatch = await fixture.Db.NotificationDispatches
+            .OrderByDescending(row => row.Id)
+            .FirstAsync();
+        Assert.Equal(NotificationKind.NotebookAccessChanged, dispatch.Kind);
+        Assert.Equal("NotebookAccessChanged", dispatch.EventType);
+        Assert.Equal(fixture.Collaborator.Id, dispatch.RecipientUserId);
+        Assert.Contains("View only", dispatch.Summary!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Viewer_CanReadButCannotEditContentOrChecklist()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+
+        await fixture.Service.AddCollaboratorAsync(
+            fixture.Owner.Id,
+            fixture.Item.Id,
+            fixture.Collaborator.Id,
+            NotebookCollaborationRole.Viewer,
+            fixture.Item.Version);
+
+        var detail = await fixture.Service.GetDetailAsync(fixture.Collaborator.Id, fixture.Item.Id);
+        Assert.NotNull(detail);
+        Assert.Equal(ProjectManagement.ViewModels.Notebook.NotebookAccessLevel.Viewer, detail!.AccessLevel);
+        Assert.False(detail.CanEditContent);
+        Assert.True(detail.CanDuplicate);
+        Assert.True(detail.CanLeave);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => fixture.Service.UpdateContentAsync(
+            fixture.Collaborator.Id,
+            fixture.Item.Id,
+            "Changed",
+            "Changed",
+            detail.Version));
+    }
+
+    [Fact]
+    public async Task Editor_CanEditContentButCannotControlOwnerLifecycleOrMetadataAggregate()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+
+        await fixture.Service.AddCollaboratorAsync(
+            fixture.Owner.Id,
+            fixture.Item.Id,
+            fixture.Collaborator.Id,
+            NotebookCollaborationRole.Editor,
+            fixture.Item.Version);
+
+        var detail = await fixture.Service.GetDetailAsync(fixture.Collaborator.Id, fixture.Item.Id);
+        Assert.NotNull(detail);
+        var edited = await fixture.Service.UpdateContentAsync(
+            fixture.Collaborator.Id,
+            fixture.Item.Id,
+            "Collaborative update",
+            "Body",
+            detail!.Version);
+
+        Assert.Equal("Collaborative update", edited.Title);
+        Assert.True(edited.CanEditContent);
+        Assert.False(edited.CanManageLifecycle);
+        Assert.False(edited.CanManageMetadata);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => fixture.Service.CompleteAsync(
+            fixture.Collaborator.Id, fixture.Item.Id, true, edited.Version));
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => fixture.Service.UpdateAsync(
+            fixture.Collaborator.Id,
+            fixture.Item.Id,
+            new NotebookUpdateInput { Title = "Attempted metadata change", ColorKey = "green" },
+            edited.Version));
+    }
+
+    [Fact]
     public async Task RemoveThenReshare_UsesDistinctCollaborationEventFingerprints()
     {
         await using var fixture = await Fixture.CreateAsync();

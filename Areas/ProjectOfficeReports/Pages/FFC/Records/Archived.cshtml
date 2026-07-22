@@ -1,0 +1,110 @@
+@page
+@using System.Globalization
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.ArchivedModel
+@{
+    ViewData["Title"] = "FFC Proposals – Archived records";
+    ViewData["UseFullWidth"] = true;
+}
+
+@section Styles {
+    <link rel="stylesheet"
+          href="~/css/project-office-reports/ffc-record-workspace.css"
+          asp-append-version="true" />
+    <link rel="stylesheet"
+          href="~/css/components/prism-confirm-dialog.css"
+          asp-append-version="true" />
+}
+
+<div class="container-fluid px-3 px-lg-4 py-2 ffc-workspace ffc-archived-records"
+     data-ffc-archived-records>
+    <header class="ffc-workspace-header">
+        <div class="ffc-workspace-header__copy">
+            <div class="ffc-workspace-header__eyebrow">FFC administration</div>
+            <h1>Archived country-year records</h1>
+            <p>Review and restore records removed from normal portfolio and reporting views.</p>
+        </div>
+        <a href="@Model.SafeReturnUrl" class="btn btn-outline-secondary btn-sm">
+            <span class="bi bi-arrow-left" aria-hidden="true"></span>
+            Back to portfolio
+        </a>
+    </header>
+
+    <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
+
+    <section class="ffc-workspace-section" aria-labelledby="ffc-archived-records-title">
+        <div class="ffc-workspace-section__heading">
+            <div>
+                <h2 id="ffc-archived-records-title">Archived records</h2>
+                <p>Restoring a record returns its projects and attachments to the active FFC portfolio.</p>
+            </div>
+            <span class="ffc-archived-records__count">
+                @Model.Records.Count record@(Model.Records.Count == 1 ? string.Empty : "s")
+            </span>
+        </div>
+
+        @if (Model.Records.Count == 0)
+        {
+            <div class="ffc-workspace-empty ffc-workspace-empty--compact">
+                <span class="bi bi-archive" aria-hidden="true"></span>
+                <div>
+                    <h3>No archived FFC records</h3>
+                    <p>Archived country-year records will appear here and can be restored when required.</p>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="ffc-archived-records__table" role="table" aria-label="Archived FFC records">
+                <div class="ffc-archived-records__head" role="row">
+                    <div role="columnheader">Country-year record</div>
+                    <div role="columnheader">Retained content</div>
+                    <div role="columnheader">Archived on</div>
+                    <div role="columnheader" class="text-end">Action</div>
+                </div>
+
+                @foreach (var record in Model.Records)
+                {
+                    <div class="ffc-archived-records__row" role="row">
+                        <div role="cell" data-label="Record">
+                            <strong>@record.CountryName · @record.Year</strong>
+                            <span>@record.IsoCode</span>
+                        </div>
+                        <div role="cell" data-label="Retained content">
+                            <span>@record.ProjectCount project@(record.ProjectCount == 1 ? string.Empty : "s")</span>
+                            <span aria-hidden="true">·</span>
+                            <span>@record.AttachmentCount attachment@(record.AttachmentCount == 1 ? string.Empty : "s")</span>
+                        </div>
+                        <div role="cell" data-label="Archived on">
+                            @record.ArchivedAt.ToString("d MMM yyyy", CultureInfo.InvariantCulture)
+                        </div>
+                        <div role="cell" data-label="Action" class="text-end">
+                            <form method="post"
+                                  asp-page-handler="Restore"
+                                  asp-route-id="@record.RecordId"
+                                  class="d-inline"
+                                  data-ffc-restore-record>
+                                <input type="hidden" name="rowVersion" value="@record.RowVersion" />
+                                <input type="hidden" asp-for="ReturnUrl" />
+                                <button type="submit" class="btn btn-outline-primary btn-sm" data-ffc-submitting-text="Restoring…">
+                                    <span class="bi bi-arrow-counterclockwise" aria-hidden="true"></span>
+                                    Restore
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+</div>
+
+<partial name="~/Pages/Shared/_PrismConfirmDialog.cshtml" />
+
+@section Scripts {
+    <script src="~/js/components/prism-confirm-dialog.js"
+            asp-append-version="true"
+            defer></script>
+    <script src="~/js/pages/project-office-reports/ffc/ffc-record-workspace.js"
+            asp-append-version="true"
+            defer></script>
+}

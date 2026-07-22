@@ -1,0 +1,43 @@
+@using ProjectManagement.ViewModels.Workspace
+@using ProjectManagement.Infrastructure
+@model ProjectOfficerDocumentListRenderVm
+@if (!Model.Documents.Any())
+{
+    <div class="po-empty">
+        <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
+        <div><strong>@Model.EmptyTitle</strong><span>@Model.EmptyText</span></div>
+    </div>
+}
+else
+{
+    <div class="po-document-list">
+        @foreach (var document in Model.Documents)
+        {
+            var dateLabel = Model.DateMode == "viewed" && document.LastViewedAtUtc.HasValue
+                ? $"Opened {IstClock.ToIst(document.LastViewedAtUtc.Value.UtcDateTime):dd MMM yyyy, HH:mm}"
+                : document.DocumentDate.HasValue
+                    ? document.DocumentDate.Value.ToString("dd MMM yyyy")
+                    : $"Added {IstClock.ToIst(document.CreatedAtUtc):dd MMM yyyy}";
+            <a class="po-document-row" href="@document.OpenUrl">
+                <span class="po-document-row__icon" aria-hidden="true">
+                    <i class="bi @(document.IsAots ? "bi-file-earmark-lock2" : "bi-file-earmark-text")"></i>
+                </span>
+                <div class="po-document-row__content">
+                    <div class="po-document-row__title">
+                        <strong>@document.Subject</strong>
+                        @if (document.IsFavourite)
+                        {
+                            <i class="bi bi-star-fill po-document-row__favourite" title="Favourite" aria-label="Favourite"></i>
+                        }
+                        @if (document.IsUnreadAots)
+                        {
+                            <span class="po-document-row__unread">Unread</span>
+                        }
+                    </div>
+                    <span>@string.Join(" · ", new[] { document.Office, document.Category, dateLabel }.Where(value => !string.IsNullOrWhiteSpace(value)))</span>
+                </div>
+                <span class="po-document-row__open">Open<i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+            </a>
+        }
+    </div>
+}

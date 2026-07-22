@@ -1,32 +1,32 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
-using ProjectManagement.Services;
+using ProjectManagement.Services.Admin;
 
 namespace ProjectManagement.Services.Projects;
 
 public sealed class ProjectRetentionWorker : BackgroundService
 {
+    private const string WorkerKey = "project-retention";
+
     private readonly IServiceProvider _serviceProvider;
     private readonly IOptions<ProjectRetentionOptions> _options;
     private readonly ILogger<ProjectRetentionWorker> _logger;
     private readonly IClock _clock;
+    private readonly IAdminWorkerStatusRegistry? _status;
 
     public ProjectRetentionWorker(
         IServiceProvider serviceProvider,
         IOptions<ProjectRetentionOptions> options,
         ILogger<ProjectRetentionWorker> logger,
-        IClock clock)
+        IClock clock,
+        IAdminWorkerStatusRegistry? status = null)
     {
-        _serviceProvider = serviceProvider;
-        _options = options;
-        _logger = logger;
-        _clock = clock;
+        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        _options = options ?? throw new ArgumentNullException(nameof(options));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _status = status;
+        _status?.Register(WorkerKey, "Project trash retention", TimeSpan.FromHours(24));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -34,17 +34,20 @@ public sealed class ProjectRetentionWorker : BackgroundService
         var delay = TimeSpan.FromHours(24);
         while (!stoppingToken.IsCancellationRequested)
         {
+            _status?.MarkStarted(WorkerKey);
             try
             {
-                await RunOnceAsync(stoppingToken);
+                var purged = await RunOnceAsync(stoppingToken);
+                _status?.MarkSucceeded(WorkerKey, $"Purged {purged} project record(s).");
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                // Swallow cancellation during shutdown.
+                break;
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                _logger.LogError(ex, "Failed to execute project retention job");
+                _status?.MarkFailed(WorkerKey, exception);
+                _logger.LogError(exception, "Failed to execute project retention job");
             }
 
             try
@@ -58,18 +61,18 @@ public sealed class ProjectRetentionWorker : BackgroundService
         }
     }
 
-    private async Task RunOnceAsync(CancellationToken cancellationToken)
+    private async Task<int> RunOnceAsync(CancellationToken cancellationToken)
     {
         var retentionDays = Math.Max(0, _options.Value.TrashRetentionDays);
-        var removeAssets = _options.Value.RemoveAssetsOnPurge;
         var cutoff = _clock.UtcNow.AddDays(-retentionDays);
 
         using var scope = _serviceProvider.CreateScope();
         var moderation = scope.ServiceProvider.GetRequiredService<ProjectModerationService>();
-        var purged = await moderation.PurgeExpiredAsync(cutoff, removeAssets, cancellationToken);
-        if (purged > 0)
-        {
-            _logger.LogInformation("Purged {Count} projects from Trash", purged);
-        }
+        var purged = await moderation.PurgeExpiredAsync(
+            cutoff,
+            _options.Value.RemoveAssetsOnPurge,
+            cancellationToken);
+        if (purged > 0) _logger.LogInformation("Purged {Count} projects from Trash", purged);
+        return purged;
     }
 }

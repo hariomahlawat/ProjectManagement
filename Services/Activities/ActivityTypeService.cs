@@ -1,10 +1,10 @@
-using System;
-using System.Collections.Generic;
 using System.Security.Claims;
-using System.Threading;
-using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Models.Activities;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData;
 
 namespace ProjectManagement.Services.Activities;
 
@@ -14,16 +14,20 @@ public sealed class ActivityTypeService : IActivityTypeService
     private readonly IActivityTypeValidator _validator;
     private readonly IUserContext _userContext;
     private readonly IClock _clock;
+    private readonly IAdminAuditService _audit;
 
-    public ActivityTypeService(IActivityTypeRepository activityTypeRepository,
-                               IActivityTypeValidator validator,
-                               IUserContext userContext,
-                               IClock clock)
+    public ActivityTypeService(
+        IActivityTypeRepository activityTypeRepository,
+        IActivityTypeValidator validator,
+        IUserContext userContext,
+        IClock clock,
+        IAdminAuditService audit)
     {
         _activityTypeRepository = activityTypeRepository;
         _validator = validator;
         _userContext = userContext;
         _clock = clock;
+        _audit = audit;
     }
 
     public async Task<ActivityType> CreateAsync(ActivityTypeInput input, CancellationToken cancellationToken = default)
@@ -35,8 +39,8 @@ public sealed class ActivityTypeService : IActivityTypeService
         var now = _clock.UtcNow;
         var type = new ActivityType
         {
-            Name = input.Name.Trim(),
-            Description = input.Description?.Trim(),
+            Name = MasterDataName.Normalize(input.Name),
+            Description = string.IsNullOrWhiteSpace(input.Description) ? null : input.Description.Trim(),
             IsActive = input.IsActive,
             CreatedByUserId = userId,
             CreatedAtUtc = now,
@@ -44,7 +48,22 @@ public sealed class ActivityTypeService : IActivityTypeService
             LastModifiedAtUtc = now
         };
 
-        await _activityTypeRepository.AddAsync(type, cancellationToken);
+        try
+        {
+            await _activityTypeRepository.AddAsync(type, cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            throw DuplicateNameValidationException();
+        }
+
+        await _audit.RecordAsync(new AdminAuditEntry(
+            "MasterData.ActivityTypeCreated",
+            "ActivityType",
+            type.Id.ToString(),
+            After: Snapshot(type),
+            Origin: "Admin.ActivityTypes"), cancellationToken);
+
         return type;
     }
 
@@ -59,20 +78,56 @@ public sealed class ActivityTypeService : IActivityTypeService
         EnsureAdminOrHod();
         await _validator.ValidateAsync(input, existing, cancellationToken);
 
-        existing.Name = input.Name.Trim();
-        existing.Description = input.Description?.Trim();
+        var before = Snapshot(existing);
+        existing.Name = MasterDataName.Normalize(input.Name);
+        existing.Description = string.IsNullOrWhiteSpace(input.Description) ? null : input.Description.Trim();
         existing.IsActive = input.IsActive;
         existing.LastModifiedByUserId = RequireUserId();
         existing.LastModifiedAtUtc = _clock.UtcNow;
 
-        await _activityTypeRepository.UpdateAsync(existing, cancellationToken);
+        if (input.RowVersion is not { Length: > 0 })
+        {
+            throw new ActivityValidationException(new Dictionary<string, List<string>>
+            {
+                [string.Empty] = new()
+                {
+                    "The record version is missing. Reload the page and try again."
+                }
+            });
+        }
+
+        try
+        {
+            await _activityTypeRepository.UpdateAsync(existing, input.RowVersion, cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new ActivityValidationException(new Dictionary<string, List<string>>
+            {
+                [string.Empty] = new()
+                {
+                    "This activity type was changed by another administrator. Reload the page and try again."
+                }
+            });
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            throw DuplicateNameValidationException();
+        }
+
+        await _audit.RecordAsync(new AdminAuditEntry(
+            "MasterData.ActivityTypeUpdated",
+            "ActivityType",
+            existing.Id.ToString(),
+            Before: before,
+            After: Snapshot(existing),
+            Origin: "Admin.ActivityTypes"), cancellationToken);
+
         return existing;
     }
 
-    public Task<IReadOnlyList<ActivityType>> ListAsync(CancellationToken cancellationToken = default)
-    {
-        return _activityTypeRepository.ListAsync(cancellationToken);
-    }
+    public Task<IReadOnlyList<ActivityType>> ListAsync(CancellationToken cancellationToken = default) =>
+        _activityTypeRepository.ListAsync(cancellationToken);
 
     private string RequireUserId()
     {
@@ -94,8 +149,28 @@ public sealed class ActivityTypeService : IActivityTypeService
         }
     }
 
-    private static bool IsAdminOrHod(ClaimsPrincipal principal)
+    private static bool IsAdminOrHod(ClaimsPrincipal principal) =>
+        principal.IsInRole("Admin") || principal.IsInRole("HoD");
+
+    private static bool IsUniqueViolation(DbUpdateException exception) =>
+        exception.InnerException is PostgresException postgres && postgres.SqlState == PostgresErrorCodes.UniqueViolation;
+
+    private static ActivityValidationException DuplicateNameValidationException() =>
+        new(new Dictionary<string, List<string>>
+        {
+            [nameof(ActivityTypeInput.Name)] = new()
+            {
+                "An activity type with this name already exists."
+            }
+        });
+
+    private static object Snapshot(ActivityType item) => new
     {
-        return principal.IsInRole("Admin") || principal.IsInRole("HoD");
-    }
+        item.Id,
+        item.Name,
+        item.Description,
+        item.IsActive,
+        item.LastModifiedByUserId,
+        item.LastModifiedAtUtc
+    };
 }

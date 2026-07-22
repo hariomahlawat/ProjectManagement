@@ -122,6 +122,56 @@ namespace ProjectManagement.Tests
             Assert.Equal("Approved", sheet.Cell(dataRow, 7).GetString());
         }
 
+
+        [Fact]
+        public async Task ExportAsync_UsesOnlyRequestedColumns()
+        {
+            using var context = CreateContext();
+            var project = new Project
+            {
+                Id = 84,
+                Name = "Column Selection Project",
+                CreatedByUserId = "seed",
+                LifecycleStatus = ProjectLifecycleStatus.Completed
+            };
+            context.Projects.Add(project);
+            context.ProliferationGranularEntries.Add(new ProliferationGranular
+            {
+                Id = Guid.NewGuid(),
+                ProjectId = project.Id,
+                Source = ProliferationSource.Sdd,
+                UnitName = "Unit One",
+                ProliferationDate = new DateOnly(2025, 4, 1),
+                Quantity = 9,
+                ApprovalStatus = ApprovalStatus.Approved,
+                SubmittedByUserId = "seed",
+                CreatedOnUtc = DateTime.UtcNow,
+                LastUpdatedOnUtc = DateTime.UtcNow,
+                RowVersion = Guid.NewGuid().ToByteArray()
+            });
+            await context.SaveChangesAsync();
+
+            var service = new ProliferationReportsService(context, new ProliferationReportExcelWorkbookBuilder());
+            var (contentBytes, _) = await service.ExportAsync(new ProliferationReportQueryDto
+            {
+                Report = ProliferationReportKind.GranularLedger,
+                ProjectId = project.Id,
+                ApprovalStatus = "Approved",
+                Columns = new[] { "projectName", "quantity" }
+            }, CancellationToken.None);
+
+            using var stream = new MemoryStream(contentBytes);
+            using var workbook = new XLWorkbook(stream);
+            var sheet = workbook.Worksheet("Report");
+            var headerRow = FindHeaderRow(sheet, "Project", "");
+            Assert.True(headerRow > 0);
+            Assert.Equal("Project", sheet.Cell(headerRow, 1).GetString());
+            Assert.Equal("Quantity", sheet.Cell(headerRow, 2).GetString());
+            Assert.True(string.IsNullOrWhiteSpace(sheet.Cell(headerRow, 3).GetString()));
+            Assert.Equal("Column Selection Project", sheet.Cell(headerRow + 1, 1).GetString());
+            Assert.Equal(9, sheet.Cell(headerRow + 1, 2).GetValue<int>());
+        }
+
         // SECTION: Helpers
         private static string FindFilterValue(IXLWorksheet sheet, string key)
         {
@@ -139,7 +189,8 @@ namespace ProjectManagement.Tests
         {
             for (var r = 1; r <= 80; r++)
             {
-                if (sheet.Cell(r, 1).GetString() == col1 && sheet.Cell(r, 3).GetString() == col3)
+                if (sheet.Cell(r, 1).GetString() == col1 &&
+                    (string.IsNullOrEmpty(col3) || sheet.Cell(r, 3).GetString() == col3))
                 {
                     return r;
                 }

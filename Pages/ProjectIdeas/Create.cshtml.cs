@@ -17,9 +17,9 @@ public class CreateModel : PageModel
 {
     private readonly UserManager<ApplicationUser> _users;
     private readonly ProjectIdeaPermissionService _permissions;
-    private readonly ProjectIdeaCommandService _commands;
+    private readonly IProjectIdeaCommandService _commands;
 
-    public CreateModel(UserManager<ApplicationUser> users, ProjectIdeaPermissionService permissions, ProjectIdeaCommandService commands)
+    public CreateModel(UserManager<ApplicationUser> users, ProjectIdeaPermissionService permissions, IProjectIdeaCommandService commands)
     {
         _users = users;
         _permissions = permissions;

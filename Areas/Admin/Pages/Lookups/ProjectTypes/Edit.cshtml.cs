@@ -1,116 +1,86 @@
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Security.Claims;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
-using ProjectManagement.Services;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData;
 
 namespace ProjectManagement.Areas.Admin.Pages.Lookups.ProjectTypes;
 
-[Authorize(Roles = "Admin")]
-public class EditModel : PageModel
+[Authorize(Policy = AdminPolicies.MasterDataManage)]
+public sealed class EditModel : PageModel
 {
     private readonly ApplicationDbContext _db;
-    private readonly IAuditService _audit;
+    private readonly IAdminMasterDataCommandService _commands;
 
-    public EditModel(ApplicationDbContext db, IAuditService audit)
+    public EditModel(ApplicationDbContext db, IAdminMasterDataCommandService commands)
     {
-        _db = db ?? throw new ArgumentNullException(nameof(db));
-        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+        _db = db;
+        _commands = commands;
     }
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
 
-    [TempData]
-    public string? StatusMessage { get; set; }
-
-    public async Task<IActionResult> OnGetAsync(int id)
+    public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
-        var projectType = await _db.ProjectTypes.FindAsync(id);
-        if (projectType is null)
+        var entity = await _db.ProjectTypes.AsNoTracking().SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (entity is null)
         {
             return NotFound();
         }
 
         Input = new InputModel
         {
-            Id = projectType.Id,
-            Name = projectType.Name,
-            SortOrder = projectType.SortOrder
+            Id = entity.Id,
+            Name = entity.Name,
+            SortOrder = entity.SortOrder,
+            RowVersion = entity.RowVersion
         };
-
         return Page();
     }
 
-    public async Task<IActionResult> OnPostAsync()
+    public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
         {
             return Page();
         }
 
-        var projectType = await _db.ProjectTypes.FindAsync(Input.Id);
-        if (projectType is null)
+        var result = await _commands.UpdateProjectTypeAsync(
+            new FlatLookupUpdateCommand(Input.Id, Input.Name, Input.SortOrder, Input.RowVersion),
+            cancellationToken);
+
+        if (!result.Succeeded)
         {
-            return NotFound();
-        }
+            if (result.ErrorCode == "NotFound")
+            {
+                return NotFound();
+            }
 
-        var trimmedName = Input.Name.Trim();
-
-        // SECTION: Duplicate guard
-        var duplicate = await _db.ProjectTypes
-            .AnyAsync(u => u.Id != Input.Id && u.Name == trimmedName);
-
-        if (duplicate)
-        {
-            ModelState.AddModelError("Input.Name", "A project type with this name already exists.");
+            ModelState.AddModelError(result.ErrorCode == "DuplicateName" ? "Input.Name" : string.Empty,
+                result.UserMessage ?? "The project type could not be updated.");
             return Page();
         }
 
-        // SECTION: Persist lookup update
-        var originalName = projectType.Name;
-        var originalSort = projectType.SortOrder;
-
-        projectType.Name = trimmedName;
-        projectType.SortOrder = Input.SortOrder;
-
-        await _db.SaveChangesAsync();
-
-        // SECTION: Audit log
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        await _audit.LogAsync(
-            "Lookups.ProjectTypeUpdated",
-            userId: userId,
-            userName: User.Identity?.Name,
-            data: new Dictionary<string, string?>
-            {
-                ["ProjectTypeId"] = projectType.Id.ToString(),
-                ["NameBefore"] = originalName,
-                ["NameAfter"] = projectType.Name,
-                ["SortOrderBefore"] = originalSort.ToString(),
-                ["SortOrderAfter"] = projectType.SortOrder.ToString()
-            });
-
-        TempData["StatusMessage"] = $"Updated '{projectType.Name}'.";
+        TempData[FlashMessageKeys.AdminMasterDataSuccess] = result.UserMessage;
         return RedirectToPage("./Index");
     }
 
     public sealed class InputModel
     {
-        [HiddenInput]
         public int Id { get; set; }
 
-        [Required]
-        [StringLength(200)]
+        [Required, StringLength(200)]
         public string Name { get; set; } = string.Empty;
 
         [Range(0, 1000)]
         public int SortOrder { get; set; }
+
+        [Required]
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
 }

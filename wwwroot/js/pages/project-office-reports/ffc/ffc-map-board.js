@@ -45,12 +45,12 @@
                         <div class="ffc-card__country">${esc(name)}</div>
                         <div class="text-muted small">ISO-3 <span class="ffc-card__iso">${esc(iso)}</span></div>
                     </div>
-                    <div class="ffc-chip">Total units ${(row.total || 0)}</div>
+                    <div class="ffc-chip">Total quantity ${(row.total || 0)}</div>
                 </div>
                 <div class="ffc-rows">
-                    <div class="ffc-row"><span>Installed units</span><strong>${row.installed || 0}</strong></div>
+                    <div class="ffc-row"><span>Installed quantity</span><strong>${row.installed || 0}</strong></div>
                     <div class="ffc-row"><span>Delivered (not installed)</span><strong>${row.delivered || 0}</strong></div>
-                    <div class="ffc-row"><span>Planned units</span><strong>${row.planned || 0}</strong></div>
+                    <div class="ffc-row"><span>Planned quantity</span><strong>${row.planned || 0}</strong></div>
                 </div>
             </div>`;
     }

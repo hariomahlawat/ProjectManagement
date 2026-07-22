@@ -1,187 +1,97 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Documents.RecycleModel
-@{ 
+@{
     ViewData["Title"] = "Document recycle bin";
-    var hasRows = Model.Rows.Any();
+    var firstItem = Model.Result.TotalCount == 0 ? 0 : ((Model.Result.Page - 1) * Model.Result.PageSize) + 1;
+    var lastItem = Math.Min(Model.Result.TotalCount, Model.Result.Page * Model.Result.PageSize);
 }
 
-<div class="container-xxl py-4">
-    <nav aria-label="breadcrumb" class="mb-3">
-        <ol class="breadcrumb mb-0">
-            <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Document recycle bin</li>
-        </ol>
-    </nav>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 
-    <h1 class="h3 mb-4">Document recycle bin</h1>
+<section class="admin-recovery-metric-grid admin-recovery-metric-grid--compact" aria-label="Document recovery summary">
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-files"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.TotalCount</strong><span>Recoverable documents</span><small>Current filter scope</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-device-ssd"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.FormatBytes(Model.Result.TotalBytes)</strong><span>Stored files</span><small>Measured recycle storage</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--success"><span class="admin-monitoring-metric__icon"><i class="bi bi-arrow-counterclockwise"></i></span><span class="admin-monitoring-metric__copy"><strong>Restorable</strong><span>Published state retained</span><small>Project and stage links preserved</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--warning"><span class="admin-monitoring-metric__icon"><i class="bi bi-shield-exclamation"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.MaximumBulkDocuments</strong><span>Maximum batch</span><small>Per controlled operation</small></span></article>
+</section>
 
-    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
-    {
-        <div class="alert alert-success" role="status">@Model.StatusMessage</div>
-    }
-    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
-    {
-        <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
-    }
+<section class="admin-panel" aria-labelledby="document-recycle-title">
+    <header class="admin-panel__header">
+        <div><div class="admin-panel__eyebrow">Recovery directory</div><h2 id="document-recycle-title">Recycled documents</h2></div>
+        <span class="admin-panel__meta">Showing @firstItem–@lastItem of @Model.Result.TotalCount</span>
+    </header>
 
-    <form method="get" class="pm-card pm-shadow mb-4 p-3">
-        <div class="row g-3 align-items-end">
-            <div class="col-12 col-lg-3">
-                <label class="form-label" asp-for="ProjectId">Project</label>
-                <select asp-for="ProjectId" asp-items="Model.ProjectOptions" class="form-select">
-                    <option value="">All projects</option>
-                </select>
-            </div>
-            <div class="col-12 col-lg-3">
-                <label class="form-label" asp-for="StageCode">Stage</label>
-                <select asp-for="StageCode" asp-items="Model.StageOptions" class="form-select">
-                    <option value="">All stages</option>
-                </select>
-            </div>
-            <div class="col-6 col-lg-2">
-                <label class="form-label" asp-for="DeletedFrom">Deleted from</label>
-                <input asp-for="DeletedFrom" type="date" class="form-control" />
-            </div>
-            <div class="col-6 col-lg-2">
-                <label class="form-label" asp-for="DeletedTo">Deleted to</label>
-                <input asp-for="DeletedTo" type="date" class="form-control" />
-            </div>
-            <div class="col-12 col-lg-2">
-                <label class="form-label" asp-for="DeletedBy">Deleted by</label>
-                <input asp-for="DeletedBy" class="form-control" placeholder="Name or username" />
-            </div>
-            <div class="col-6 col-lg-2">
-                <label class="form-label" asp-for="SizeMinMb">Min size (MB)</label>
-                <input asp-for="SizeMinMb" class="form-control" type="number" min="0" />
-            </div>
-            <div class="col-6 col-lg-2">
-                <label class="form-label" asp-for="SizeMaxMb">Max size (MB)</label>
-                <input asp-for="SizeMaxMb" class="form-control" type="number" min="0" />
-            </div>
-            <div class="col-12 d-flex gap-2">
-                <button type="submit" class="btn btn-primary">Apply filters</button>
-                <a asp-page="Recycle" class="btn btn-outline-secondary">Reset</a>
-            </div>
-        </div>
+    <form method="get" class="admin-filter-toolbar admin-recovery-filter-toolbar admin-recovery-filter-toolbar--documents">
+        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--search"><label asp-for="Search">Search</label><div class="admin-search-control"><i class="bi bi-search"></i><input asp-for="Search" class="form-control" placeholder="Title, file name or project" /></div></div>
+        <div class="admin-filter-toolbar__field"><label asp-for="ProjectId">Project</label><select asp-for="ProjectId" asp-items="Model.Result.Projects" class="form-select"><option value="">All projects</option></select></div>
+        <div class="admin-filter-toolbar__field"><label asp-for="StageCode">Stage</label><select asp-for="StageCode" asp-items="Model.Result.Stages" class="form-select"><option value="">All stages</option></select></div>
+        <div class="admin-filter-toolbar__field"><label asp-for="DeletedFrom">Deleted from</label><input asp-for="DeletedFrom" type="date" class="form-control" /></div>
+        <div class="admin-filter-toolbar__field"><label asp-for="DeletedTo">Deleted to</label><input asp-for="DeletedTo" type="date" class="form-control" /></div>
+        <div class="admin-filter-toolbar__field"><label asp-for="DeletedBy">Deleted by</label><input asp-for="DeletedBy" class="form-control" placeholder="Name or username" /></div>
+        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--page-size"><label asp-for="PageSize">Rows</label><select asp-for="PageSize" class="form-select">@foreach (var size in new[] { 10, 25, 50, 100 }) { <option value="@size">@size</option> }</select></div>
+        <input type="hidden" asp-for="PageNumber" value="1" />
+        <div class="admin-filter-toolbar__actions"><button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Apply</button><a asp-page="./Recycle" class="btn btn-outline-secondary">Clear</a></div>
     </form>
 
-    <form method="post" id="selectionForm" class="d-none">
-        @Html.AntiForgeryToken()
-        <input type="hidden" name="ProjectId" value="@(Model.ProjectId?.ToString() ?? string.Empty)" />
-        <input type="hidden" name="StageCode" value="@(Model.StageCode ?? string.Empty)" />
-        <input type="hidden" name="DeletedFrom" value="@(Model.DeletedFrom?.ToString("yyyy-MM-dd") ?? string.Empty)" />
-        <input type="hidden" name="DeletedTo" value="@(Model.DeletedTo?.ToString("yyyy-MM-dd") ?? string.Empty)" />
-        <input type="hidden" name="DeletedBy" value="@(Model.DeletedBy ?? string.Empty)" />
-        <input type="hidden" name="SizeMinMb" value="@(Model.SizeMinMb?.ToString() ?? string.Empty)" />
-        <input type="hidden" name="SizeMaxMb" value="@(Model.SizeMaxMb?.ToString() ?? string.Empty)" />
+    <form method="post" asp-page-handler="Execute" id="documentRecoveryForm" data-document-recovery-form>
+        <input type="hidden" asp-for="Search" /><input type="hidden" asp-for="ProjectId" /><input type="hidden" asp-for="StageCode" />
+        <input type="hidden" asp-for="DeletedFrom" /><input type="hidden" asp-for="DeletedTo" /><input type="hidden" asp-for="DeletedBy" />
+        <input type="hidden" asp-for="PageNumber" /><input type="hidden" asp-for="PageSize" />
+        <input type="hidden" asp-for="Command.Action" data-document-command-action /><input type="hidden" asp-for="Command.DocumentId" data-document-command-id />
+
+        <div class="admin-selection-toolbar" data-document-selection-toolbar hidden>
+            <div><strong><span data-document-selected-count>0</span> selected</strong><small>Maximum @Model.MaximumBulkDocuments records per operation.</small></div>
+            <div><button class="btn btn-outline-primary" type="button" data-document-bulk-action="restore-selected" data-bs-toggle="modal" data-bs-target="#documentRecoveryModal"><i class="bi bi-arrow-counterclockwise"></i> Restore selected</button><button class="btn btn-outline-danger" type="button" data-document-bulk-action="delete-selected" data-bs-toggle="modal" data-bs-target="#documentRecoveryModal"><i class="bi bi-trash"></i> Delete permanently</button></div>
+        </div>
+
+        @if (Model.Result.Items.Count == 0)
+        {
+            <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-recycle", Title = "No recycled documents", Description = "No soft-deleted documents match the current recovery filters." })" />
+        }
+        else
+        {
+            <div class="admin-table-wrap">
+                <table class="admin-data-table admin-recovery-table admin-document-recycle-table">
+                    <thead><tr><th class="admin-checkbox-column"><input type="checkbox" class="form-check-input" data-document-select-all aria-label="Select all visible documents" /></th><th>Document</th><th>Project and stage</th><th>File</th><th>Deletion record</th><th class="text-end">Actions</th></tr></thead>
+                    <tbody>
+                    @foreach (var row in Model.Result.Items)
+                    {
+                        <tr>
+                            <td class="admin-checkbox-column"><input type="checkbox" class="form-check-input" name="Command.SelectedIds" value="@row.DocumentId" data-document-select data-document-title="@row.Title" data-document-size="@row.FileSize" aria-label="Select @row.Title" /></td>
+                            <td><div class="admin-table-primary">@row.Title</div><div class="admin-table-secondary">Document #@row.DocumentId</div></td>
+                            <td><div class="admin-table-primary">@row.ProjectName</div><div class="admin-table-secondary">@row.StageDisplayName</div></td>
+                            <td><div class="admin-table-primary admin-break-word">@row.OriginalFileName</div><div class="admin-table-secondary">@Model.FormatBytes(row.FileSize) · @row.ContentType</div></td>
+                            <td><div class="admin-table-primary">@Model.FormatTime(row.DeletedAtUtc)</div><div class="admin-table-secondary">By @(row.DeletedByDisplay ?? "Unknown user")</div></td>
+                            <td class="text-end"><div class="dropdown"><button class="admin-row-action" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @row.Title"><i class="bi bi-three-dots"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><button class="dropdown-item" type="button" data-document-action="restore" data-document-id="@row.DocumentId" data-document-title="@row.Title" data-document-size="@row.FileSize" data-bs-toggle="modal" data-bs-target="#documentRecoveryModal"><i class="bi bi-arrow-counterclockwise"></i> Restore document</button></li><li><hr class="dropdown-divider" /></li><li><button class="dropdown-item text-danger" type="button" data-document-action="delete" data-document-id="@row.DocumentId" data-document-title="@row.Title" data-document-size="@row.FileSize" data-bs-toggle="modal" data-bs-target="#documentRecoveryModal"><i class="bi bi-trash"></i> Delete permanently</button></li></ul></div></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
     </form>
 
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <div class="text-muted">
-            <strong>@Model.TotalCount</strong> document(s), totaling <strong>@Model.TotalSizeDisplay</strong>.
-        </div>
-        <div class="btn-group">
-            <button type="submit" class="btn btn-outline-primary" form="selectionForm" asp-page-handler="RestoreSelected" disabled="@(hasRows ? null : "disabled")">Restore selected</button>
-            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#confirmBulkDelete" disabled="@(hasRows ? null : "disabled")">Hard delete selected</button>
-        </div>
-    </div>
-
-    @if (!hasRows)
+    @if (Model.Result.TotalPages > 1)
     {
-        <div class="alert alert-info">No soft-deleted documents match the current filters.</div>
+        <nav class="admin-pagination" aria-label="Document recycle pages"><a class="btn btn-sm btn-outline-secondary @(Model.Result.Page <= 1 ? "disabled" : null)" href="@Model.PageUrl(Model.Result.Page - 1)">Previous</a><span>Page @Model.Result.Page of @Model.Result.TotalPages</span><a class="btn btn-sm btn-outline-secondary @(Model.Result.Page >= Model.Result.TotalPages ? "disabled" : null)" href="@Model.PageUrl(Model.Result.Page + 1)">Next</a></nav>
     }
-    else
-    {
-        <div class="table-responsive">
-            <table class="table align-middle">
-                <thead>
-                    <tr>
-                        <th scope="col" class="text-center pm-util-col-3rem">Select</th>
-                        <th scope="col">Project</th>
-                        <th scope="col">Stage</th>
-                        <th scope="col">Nomenclature</th>
-                        <th scope="col">Original file</th>
-                        <th scope="col" class="text-end">Size</th>
-                        <th scope="col">Deleted on/by</th>
-                        <th scope="col" class="text-end">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var row in Model.Rows)
-                {
-                    <tr>
-                        <td class="text-center">
-                            <input type="checkbox" class="form-check-input" form="selectionForm" name="SelectedIds" value="@row.DocumentId" id="select-@row.DocumentId" />
-                        </td>
-                        <td>
-                            <div class="fw-semibold">@row.ProjectName</div>
-                            <div class="text-muted small">Project #@row.ProjectId</div>
-                        </td>
-                        <td>
-                            <div>@row.StageDisplayName</div>
-                            @if (!string.IsNullOrEmpty(row.StageCode))
-                            {
-                                <div class="text-muted small">@row.StageCode</div>
-                            }
-                        </td>
-                        <td>
-                            <div class="fw-semibold">@row.Title</div>
-                        </td>
-                        <td>
-                            <div class="text-break">@row.OriginalFileName</div>
-                        </td>
-                        <td class="text-end">@row.FileSizeDisplay</td>
-                        <td>
-                            @if (row.DeletedAtUtc.HasValue)
-                            {
-                                var deletedIst = IstClock.ToIst(row.DeletedAtUtc.Value.UtcDateTime);
-                                <div>@deletedIst.ToString("dd MMM yyyy HH:mm") IST</div>
-                            }
-                            else
-                            {
-                                <div class="text-muted">—</div>
-                            }
-                            <div class="text-muted small">@row.DeletedByDisplay</div>
-                        </td>
-                        <td class="text-end">
-                            <div class="btn-group btn-group-sm">
-                                <button type="submit" class="btn btn-outline-primary" form="restoreForm-@row.DocumentId">Restore</button>
-                                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#confirmHardDelete-@row.DocumentId">Hard delete</button>
-                            </div>
-                            <form method="post" asp-page-handler="Restore" asp-route-id="@row.DocumentId" id="restoreForm-@row.DocumentId" class="d-none">
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="ProjectId" value="@(Model.ProjectId?.ToString() ?? string.Empty)" />
-                                <input type="hidden" name="StageCode" value="@(Model.StageCode ?? string.Empty)" />
-                                <input type="hidden" name="DeletedFrom" value="@(Model.DeletedFrom?.ToString("yyyy-MM-dd") ?? string.Empty)" />
-                                <input type="hidden" name="DeletedTo" value="@(Model.DeletedTo?.ToString("yyyy-MM-dd") ?? string.Empty)" />
-                                <input type="hidden" name="DeletedBy" value="@(Model.DeletedBy ?? string.Empty)" />
-                                <input type="hidden" name="SizeMinMb" value="@(Model.SizeMinMb?.ToString() ?? string.Empty)" />
-                                <input type="hidden" name="SizeMaxMb" value="@(Model.SizeMaxMb?.ToString() ?? string.Empty)" />
-                            </form>
-                            <form method="post" asp-page-handler="HardDelete" asp-route-id="@row.DocumentId" id="hardDeleteForm-@row.DocumentId" class="d-none">
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="ProjectId" value="@(Model.ProjectId?.ToString() ?? string.Empty)" />
-                                <input type="hidden" name="StageCode" value="@(Model.StageCode ?? string.Empty)" />
-                                <input type="hidden" name="DeletedFrom" value="@(Model.DeletedFrom?.ToString("yyyy-MM-dd") ?? string.Empty)" />
-                                <input type="hidden" name="DeletedTo" value="@(Model.DeletedTo?.ToString("yyyy-MM-dd") ?? string.Empty)" />
-                                <input type="hidden" name="DeletedBy" value="@(Model.DeletedBy ?? string.Empty)" />
-                                <input type="hidden" name="SizeMinMb" value="@(Model.SizeMinMb?.ToString() ?? string.Empty)" />
-                                <input type="hidden" name="SizeMaxMb" value="@(Model.SizeMaxMb?.ToString() ?? string.Empty)" />
-                            </form>
-                            <partial name="../Shared/_ConfirmModal" model="@(new ConfirmModal($"confirmHardDelete-{row.DocumentId}", "Permanently delete document", $"This will permanently remove '{row.Title}' and its stored file. This cannot be undone.", $"hardDeleteForm-{row.DocumentId}", "Delete"))" />
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-    }
+</section>
 
-    <partial name="../Shared/_ConfirmModal" model="@(new ConfirmModal(
-        "confirmBulkDelete",
-        "Permanently delete selected",
-        "All selected documents and their files will be permanently removed. This cannot be undone.",
-        "selectionForm",
-        "Delete selected",
-        Url.Page(null, pageHandler: "HardDeleteSelected")))" />
+<div class="modal fade" id="documentRecoveryModal" tabindex="-1" aria-labelledby="documentRecoveryTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content admin-controlled-modal">
+        <div class="modal-header"><div><div class="admin-panel__eyebrow" data-document-operation-eyebrow>Recovery operation</div><h2 class="modal-title fs-5" id="documentRecoveryTitle" data-document-operation-title>Restore document</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-body">
+            <div class="admin-record-summary"><span class="admin-record-summary__icon"><i class="bi bi-file-earmark"></i></span><div><strong data-document-summary-title>Selected document</strong><small data-document-summary-detail>Review the operation before continuing.</small></div></div>
+            <div data-document-restore-panel><p class="mb-0">The selected document will be republished with its project and stage links preserved.</p></div>
+            <div data-document-delete-panel hidden>
+                <div class="admin-destructive-warning"><i class="bi bi-exclamation-octagon"></i><div><strong>Permanent deletion cannot be undone</strong><p>The database record and stored file will be removed. Partial failures are reported without hiding successful operations.</p></div></div>
+                <div class="mb-3"><label asp-for="Command.Confirmation" class="form-label">Type <strong>DELETE</strong> to confirm</label><input asp-for="Command.Confirmation" class="form-control" autocomplete="off" data-document-confirmation /></div>
+                <label class="form-check"><input asp-for="Command.Acknowledge" class="form-check-input" data-document-acknowledge /><span class="form-check-label">I understand that these documents and stored files cannot be recovered after deletion.</span></label>
+            </div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" form="documentRecoveryForm" class="btn btn-primary" data-document-submit><i class="bi bi-arrow-counterclockwise"></i> Restore</button></div>
+    </div></div>
 </div>
+
+@section Scripts { <script src="~/js/admin/admin-document-recycle.js" asp-append-version="true" defer></script> }

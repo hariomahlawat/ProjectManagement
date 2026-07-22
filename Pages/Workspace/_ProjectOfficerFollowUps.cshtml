@@ -1,0 +1,80 @@
+@using ProjectManagement.Services.Workspace
+@using ProjectManagement.Infrastructure
+@using ProjectManagement.ViewModels.Workspace
+@model ProjectManagement.Pages.Workspace.IndexModel
+@{
+    var vm = Model.Workspace;
+    var generatedAtUtc = new DateTimeOffset(DateTime.SpecifyKind(vm.GeneratedAtUtc, DateTimeKind.Utc));
+    var reminderCount = vm.PersonalReminders.Count;
+    var eventCount = vm.UpcomingEventCount;
+}
+<div class="po-workspace po-workspace--embedded po-dedicated-page">
+    <header class="po-dedicated-hero">
+        <div>
+            <span class="po-eyebrow">My work</span>
+            <h1>Follow-ups</h1>
+            <p>Due reminders and upcoming commitments that should remain visible.</p>
+        </div>
+        <div class="po-dedicated-hero__metrics" aria-label="Follow-up summary">
+            <div><strong>@reminderCount</strong><span>due or pinned reminder@(reminderCount == 1 ? string.Empty : "s")</span></div>
+            <div><strong>@eventCount</strong><span>event@(eventCount == 1 ? string.Empty : "s") in next 14 days</span></div>
+        </div>
+    </header>
+
+    <div class="po-two-column-pages">
+        <section class="po-panel">
+            <div class="po-panel__head">
+                <div><span class="po-panel__kicker">Notebook</span><h2>Reminders</h2><p>Reminders that are due or intentionally pinned.</p></div>
+                <a href="@WorkspaceRouteHelper.PersonalReminders()" class="po-link">Open notebook<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            </div>
+            @if (!vm.PersonalReminders.Any())
+            {
+                <div class="po-empty po-empty--success"><i class="bi bi-check2-circle" aria-hidden="true"></i><div><strong>No reminders due</strong><span>Your reminder list is clear.</span></div></div>
+            }
+            else
+            {
+                <div class="po-follow-page-list">
+                    @foreach (var item in vm.PersonalReminders)
+                    {
+                        var overdueClass = item.DueAtUtc.HasValue && item.DueAtUtc.Value < generatedAtUtc ? "is-overdue" : string.Empty;
+                        <a href="@item.OpenUrl" class="po-follow-page-row @overdueClass">
+                            <span class="po-follow-page-row__icon"><i class="bi @(item.IsPinned ? "bi-pin-angle-fill" : "bi-bell")" aria-hidden="true"></i></span>
+                            <div><strong>@item.Title</strong><span>@item.Priority · @WorkspaceDisplayHelpers.FormatReminderDate(item.DueAtUtc)</span></div>
+                            <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                        </a>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="po-panel">
+            <div class="po-panel__head">
+                <div><span class="po-panel__kicker">Calendar</span><h2>Upcoming events</h2><p>Events scheduled during the next 14 days.</p></div>
+                <a href="/Calendar" class="po-link">Open calendar<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            </div>
+            @if (!vm.UpcomingEvents.Any())
+            {
+                <div class="po-empty po-empty--success"><i class="bi bi-calendar2-check" aria-hidden="true"></i><div><strong>No events in the next 14 days</strong><span>Your calendar is clear.</span></div></div>
+            }
+            else
+            {
+                <div class="po-follow-events">
+                    @foreach (var item in vm.UpcomingEvents)
+                    {
+                        var eventMeta = string.IsNullOrWhiteSpace(item.Location)
+                            ? $"{item.TimeLabel} · {item.CategoryLabel}"
+                            : $"{item.TimeLabel} · {item.CategoryLabel} · {item.Location}";
+                        <a href="@item.OpenUrl" class="po-follow-event po-follow-event--@item.Tone">
+                            <span class="po-follow-event__date"><strong>@item.LocalDate.Day.ToString("00")</strong><small>@item.LocalDate.ToString("MMM").ToUpperInvariant()</small></span>
+                            <span class="po-follow-event__content">
+                                <strong>@item.Title</strong>
+                                <small>@eventMeta</small>
+                            </span>
+                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                        </a>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+</div>

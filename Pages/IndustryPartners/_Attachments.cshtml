@@ -1,58 +1,112 @@
 @model ProjectManagement.Pages.IndustryPartners.IndexModel
-@{ var p = Model.SelectedPartner!; }
-<div class="ip-section">
-    <div class="ip-section-header">
-        <h3 class="ip-section-title">Attachments</h3>
-        <small class="ip-section-note">Supporting documents and media files.</small>
-    </div>
-    <div class="ip-section-body">
-        @if (Model.CanManage)
-        {
-            <form method="post" asp-page-handler="UploadAttachment" enctype="multipart/form-data" class="mb-3" data-attachment-upload-form>
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="partnerId" value="@p.Id" />
-                <div class="d-flex flex-wrap align-items-center gap-2">
-                    <input type="file" name="file" class="form-control form-control-sm ip-input" required data-attachment-file />
-                    <span class="ip-upload-file-name" data-attachment-file-name>No file selected</span>
-                    <button class="btn btn-sm btn-primary" type="submit" data-attachment-upload-submit disabled>Upload</button>
-                </div>
-            </form>
-        }
+@{
+    var partner = Model.SelectedPartner!;
+}
 
-        @if (!p.Attachments.Any())
-        {
-            <div class="ip-empty-text">No attachments uploaded yet.</div>
-        }
-        else
-        {
-            @foreach (var a in p.Attachments)
-            {
-                var ext = System.IO.Path.GetExtension(a.OriginalFileName)?.Trim('.').ToUpperInvariant();
-                if (string.IsNullOrWhiteSpace(ext))
-                {
-                    ext = "FILE";
-                }
-
-                <div class="ip-attachment-item">
-                    <div>
-                        <span class="ip-file-icon">@ext</span>
-                        <a asp-page="./Index" asp-page-handler="DownloadAttachment" asp-route-partnerId="@p.Id" asp-route-attachmentId="@a.Id" class="fw-semibold text-decoration-none ip-file-name">@a.OriginalFileName</a>
-                        <div class="ip-attachment-meta">@($"{a.SizeBytes / 1024.0:F1} KB") • Uploaded @a.UploadedUtc.LocalDateTime.ToString("dd MMM yyyy")</div>
-                    </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <a asp-page="./Index" asp-page-handler="DownloadAttachment" asp-route-partnerId="@p.Id" asp-route-attachmentId="@a.Id" class="btn btn-sm btn-outline-secondary">Download</a>
-                        @if (Model.CanManage)
-                        {
-                            <form method="post" asp-page-handler="DeleteAttachment" class="d-inline">
-                                @Html.AntiForgeryToken()
-                                <input type="hidden" name="partnerId" value="@p.Id" />
-                                <input type="hidden" name="attachmentId" value="@a.Id" />
-                                <button class="btn btn-sm ip-btn-outline-danger" type="submit">Delete</button>
-                            </form>
-                        }
-                    </div>
-                </div>
-            }
-        }
+<div class="ip-section-heading">
+    <div>
+        <h3>Files</h3>
+        <p>Optional brochures, catalogues or company information. A directory record is complete without files.</p>
     </div>
+    @if (Model.CanManageOrganisation)
+    {
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle-panel="file-add-panel" aria-expanded="false">
+            <i class="bi bi-paperclip" aria-hidden="true"></i> Add file
+        </button>
+    }
 </div>
+
+@if (Model.CanManageOrganisation)
+{
+    <div class="ip-inline-create d-none" data-collapsible-panel="file-add-panel">
+        <div class="ip-inline-create-title">
+            <strong>Add company file</strong>
+            <span>Use this only for material specifically related to the organisation.</span>
+        </div>
+        <form method="post" asp-page-handler="UploadAttachment" enctype="multipart/form-data" data-attachment-upload-form>
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="partnerId" value="@partner.Id" />
+            <input type="hidden" name="q" value="@Model.Q" />
+            <input type="hidden" name="filter" value="@Model.Filter" />
+            <input type="hidden" name="p" value="@Model.PageNumber" />
+            <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
+            <label class="ip-file-drop" for="partnerFileInput" data-file-drop>
+                <i class="bi bi-cloud-arrow-up" aria-hidden="true"></i>
+                <span data-attachment-file-name>Choose a brochure, catalogue or company document</span>
+                <small>The existing PRISM upload limits and file security checks apply.</small>
+            </label>
+            <input id="partnerFileInput" type="file" name="file" class="visually-hidden" required data-attachment-file />
+            <div class="ip-form-actions ip-form-actions-compact">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-hide-panel="file-add-panel">Cancel</button>
+                <button type="submit" class="btn btn-sm btn-primary" data-attachment-upload-submit disabled>Upload file</button>
+            </div>
+        </form>
+    </div>
+}
+
+@if (partner.Attachments.Count == 0)
+{
+    <div class="ip-tab-empty ip-tab-empty-soft">
+        <div class="ip-empty-icon"><i class="bi bi-file-earmark-text" aria-hidden="true"></i></div>
+        <h4>No company files added</h4>
+        <p>This is normal. Add a file only when a brochure, catalogue or company profile is useful.</p>
+    </div>
+}
+else
+{
+    <div class="ip-file-list">
+        @foreach (var attachment in partner.Attachments)
+        {
+            var extension = System.IO.Path.GetExtension(attachment.OriginalFileName)?.Trim('.').ToUpperInvariant();
+            extension = string.IsNullOrWhiteSpace(extension) ? "FILE" : extension;
+            <article class="ip-file-row">
+                <div class="ip-file-type">@extension</div>
+                <div class="min-w-0 flex-grow-1">
+                    <a asp-page="./Index"
+                       asp-page-handler="DownloadAttachment"
+                       asp-route-partnerId="@partner.Id"
+                       asp-route-attachmentId="@attachment.Id"
+                       class="ip-file-title">@attachment.OriginalFileName</a>
+                    <div class="ip-row-meta">@FormatBytes(attachment.SizeBytes) · Added @attachment.UploadedUtc.LocalDateTime.ToString("dd MMM yyyy")</div>
+                </div>
+                <div class="ip-file-actions">
+                    <a asp-page="./Index"
+                       asp-page-handler="DownloadAttachment"
+                       asp-route-partnerId="@partner.Id"
+                       asp-route-attachmentId="@attachment.Id"
+                       class="btn btn-sm btn-light"
+                       aria-label="Download @attachment.OriginalFileName">
+                        <i class="bi bi-download" aria-hidden="true"></i>
+                    </a>
+                    @if (Model.CanManageOrganisation)
+                    {
+                        <form method="post" asp-page-handler="DeleteAttachment" data-confirm-form="Remove this file from the organisation record?">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="partnerId" value="@partner.Id" />
+                            <input type="hidden" name="attachmentId" value="@attachment.Id" />
+                            <input type="hidden" name="q" value="@Model.Q" />
+                            <input type="hidden" name="filter" value="@Model.Filter" />
+                            <input type="hidden" name="p" value="@Model.PageNumber" />
+                            <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
+                            <button type="submit" class="btn btn-sm btn-light text-danger" aria-label="Delete @attachment.OriginalFileName">
+                                <i class="bi bi-trash" aria-hidden="true"></i>
+                            </button>
+                        </form>
+                    }
+                </div>
+            </article>
+        }
+    </div>
+}
+
+@functions {
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes >= 1024L * 1024L)
+        {
+            return $"{bytes / (1024d * 1024d):0.0} MB";
+        }
+
+        return $"{Math.Max(1, bytes / 1024d):0.0} KB";
+    }
+}

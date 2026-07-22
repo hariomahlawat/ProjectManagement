@@ -1,0 +1,44 @@
+@model ProjectManagement.Areas.Admin.Models.AdminPageHeaderModel
+
+<header class="admin-page-header">
+    <div class="admin-page-header__main">
+        @if (!string.IsNullOrWhiteSpace(Model.Icon))
+        {
+            <span class="admin-page-header__icon" aria-hidden="true">
+                <i class="bi @Model.Icon"></i>
+            </span>
+        }
+
+        <div class="admin-page-header__copy">
+            @if (!string.IsNullOrWhiteSpace(Model.Eyebrow))
+            {
+                <div class="admin-page-header__eyebrow">@Model.Eyebrow</div>
+            }
+            <h1>@Model.Title</h1>
+            @if (!string.IsNullOrWhiteSpace(Model.Description))
+            {
+                <p>@Model.Description</p>
+            }
+        </div>
+    </div>
+
+    @if (Model.Actions.Count > 0)
+    {
+        <div class="admin-page-header__actions" aria-label="Page actions">
+            @foreach (var action in Model.Actions)
+            {
+                if (!string.IsNullOrWhiteSpace(action.Href))
+                {
+                    <a href="@action.Href"
+                       class="btn @(action.IsPrimary ? "btn-primary" : "btn-outline-secondary")">
+                        @if (!string.IsNullOrWhiteSpace(action.Icon))
+                        {
+                            <i class="bi @action.Icon" aria-hidden="true"></i>
+                        }
+                        <span>@action.Text</span>
+                    </a>
+                }
+            }
+        </div>
+    }
+</header>

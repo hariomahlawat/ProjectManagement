@@ -26,6 +26,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public string? SortBy { get; set; }
         public string? SortDir { get; set; }
 
+        // Optional visible/exported columns. Unsupported keys are ignored.
+        public string[]? Columns { get; set; }
+
         // Paging
         public int Page { get; set; } = 1;
         public int PageSize { get; set; } = 50;

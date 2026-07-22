@@ -15,6 +15,13 @@ public interface INotebookNotificationService
         string actorUserId,
         CancellationToken cancellationToken = default);
 
+    Task QueueRoleChangedAsync(
+        NotebookItem item,
+        NotebookItemCollaborator collaboration,
+        NotebookCollaborationRole previousRole,
+        string actorUserId,
+        CancellationToken cancellationToken = default);
+
     Task QueueAccessRemovedAsync(
         NotebookItem item,
         NotebookItemCollaborator collaboration,

@@ -1,0 +1,75 @@
+@page
+@model ProjectManagement.Areas.Admin.Pages.Maintenance.IndexModel
+@using ProjectManagement.Services.Navigation.ModuleNav
+@{
+    ViewData["Title"] = "Maintenance centre";
+}
+
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+
+<div class="admin-maintenance-grid">
+    <section class="admin-panel admin-maintenance-card" aria-labelledby="pdf-maintenance-title">
+        <header class="admin-panel__header">
+            <div><div class="admin-panel__eyebrow">Document repository</div><h2 id="pdf-maintenance-title">PDF ingestion</h2></div>
+            <span class="admin-status-pill admin-status-pill--@(Model.Summary.PdfIngestionRunning ? "warning" : Model.Summary.LastPdfRun?.Status == "Failed" ? "danger" : "success")">
+                @(Model.Summary.PdfIngestionRunning ? "Running" : Model.Summary.LastPdfRun?.Status ?? "Ready")
+            </span>
+        </header>
+        <div class="admin-maintenance-card__body">
+            <div class="admin-maintenance-card__icon"><i class="bi bi-file-earmark-arrow-up"></i></div>
+            <div>
+                <p>Link eligible FFC, IPR and Activity PDFs into the searchable document repository. Existing links are retained and overlapping runs are blocked.</p>
+                @if (Model.Summary.LastPdfRun is not null)
+                {
+                    <dl class="admin-maintenance-facts">
+                        <div><dt>Last completed</dt><dd>@Model.FormatTime(Model.Summary.LastPdfRun.CompletedAtUtc)</dd></div>
+                        <div><dt>Outcome</dt><dd>@Model.Summary.LastPdfRun.Status</dd></div>
+                        <div><dt>Processed</dt><dd>@Model.Summary.LastPdfRun.Discovered discovered · @Model.Summary.LastPdfRun.IngestedOrLinked linked</dd></div>
+                        <div><dt>Duration</dt><dd>@Model.FormatDuration(Model.Summary.LastPdfRun.Duration)</dd></div>
+                    </dl>
+                }
+                else
+                {
+                    <div class="admin-inline-notice"><i class="bi bi-info-circle"></i><span>No ingestion run has completed since this application instance started.</span></div>
+                }
+            </div>
+        </div>
+        <footer class="admin-maintenance-card__footer">
+            <a class="btn btn-primary" href="@Model.Path(AdminNavigationKeys.PdfIngestion)"><i class="bi bi-play-circle"></i> Open PDF ingestion</a>
+            <a class="btn btn-outline-secondary" asp-area="Admin" asp-page="/Logs/Index" asp-route-Action="PdfIngestion">Audit history</a>
+        </footer>
+    </section>
+
+    <section class="admin-panel admin-maintenance-card" aria-labelledby="legacy-maintenance-title">
+        <header class="admin-panel__header">
+            <div><div class="admin-panel__eyebrow">Data migration</div><h2 id="legacy-maintenance-title">Legacy project import</h2></div>
+            <span class="admin-status-pill admin-status-pill--neutral">Two-stage workflow</span>
+        </header>
+        <div class="admin-maintenance-card__body">
+            <div class="admin-maintenance-card__icon"><i class="bi bi-database-up"></i></div>
+            <div>
+                <p>Validate an approved Excel workbook before any database change. Previewed rows, warnings and blocking errors are shown before commit.</p>
+                <dl class="admin-maintenance-facts">
+                    <div><dt>Completed imports</dt><dd>@Model.Summary.LegacyImportRuns</dd></div>
+                    <div><dt>Projects imported</dt><dd>@Model.Summary.LegacyProjectsImported</dd></div>
+                    <div><dt>Last import</dt><dd>@Model.FormatTime(Model.Summary.LastLegacyImportUtc)</dd></div>
+                    <div><dt>Last initiated by</dt><dd>@(Model.Summary.LastLegacyImportBy ?? "—")</dd></div>
+                </dl>
+            </div>
+        </div>
+        <footer class="admin-maintenance-card__footer">
+            <a class="btn btn-primary" href="@Model.Path(AdminNavigationKeys.LegacyImport)"><i class="bi bi-file-earmark-spreadsheet"></i> Validate workbook</a>
+            <a class="btn btn-outline-secondary" asp-area="Admin" asp-page="/Logs/Index" asp-route-Action="LegacyImport">Audit history</a>
+        </footer>
+    </section>
+</div>
+
+<section class="admin-panel" aria-labelledby="maintenance-controls-title">
+    <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Operating safeguards</div><h2 id="maintenance-controls-title">Controlled execution</h2></div></header>
+    <div class="admin-control-principles">
+        <article><span><i class="bi bi-shield-check"></i></span><div><strong>Authorised administrators only</strong><p>Maintenance operations remain policy-protected and are recorded in the administrative audit trail.</p></div></article>
+        <article><span><i class="bi bi-clipboard-check"></i></span><div><strong>Validate before mutation</strong><p>Legacy imports require a non-mutating preview. PDF ingestion performs configuration and concurrency checks before processing.</p></div></article>
+        <article><span><i class="bi bi-arrow-repeat"></i></span><div><strong>Idempotent handling</strong><p>Existing PDF links and previously completed category imports are detected before new records are created.</p></div></article>
+        <article><span><i class="bi bi-journal-text"></i></span><div><strong>Traceable outcomes</strong><p>Success, partial completion and failure states retain an audit reference suitable for investigation.</p></div></article>
+    </div>
+</section>

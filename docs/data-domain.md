@@ -11,7 +11,7 @@ Derives from `IdentityDbContext<ApplicationUser>` and exposes tables for `Projec
 Provides a design-time factory so Entity Framework tooling can create the context when running migrations. It reads configuration from `appsettings.json`, `appsettings.Development.json`, or environment variables.
 
 ### `Data/IdentitySeeder.cs`
-Seeds initial roles (`Project Officer`, `HoD`, `Comdt`, `Admin`, `TA`, `MCO`, `Project Office`, `Main Office`) and creates a default `admin` account with the password `ChangeMe!123` if it does not already exist. The `admin` user has `MustChangePassword` set to `false` so it can log in immediately.
+Seeds the initial application roles. If the configured bootstrap administrator does not yet exist, startup requires a one-time secret through `PRISM_BOOTSTRAP_ADMIN_PASSWORD` or `Security:BootstrapAdminPassword`. The account is created with `MustChangePassword` enabled; remove the bootstrap secret after successful creation. Development test users are seeded only when explicit `DevelopmentSeedUsers:*:Password` values are configured.
 
 ## Domain model
 

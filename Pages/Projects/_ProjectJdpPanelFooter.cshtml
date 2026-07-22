@@ -12,14 +12,16 @@
         @if (hasPartners)
         {
             <a class="btn btn-sm btn-outline-secondary"
-               asp-page="/IndustryPartners/Index">
+               asp-page="/IndustryPartners/Index"
+               asp-route-projectId="@Model.Project.Id">
                 Manage links
             </a>
         }
         else
         {
             <a class="btn btn-sm btn-primary"
-               asp-page="/IndustryPartners/Index">
+               asp-page="/IndustryPartners/Index"
+               asp-route-projectId="@Model.Project.Id">
                 Link partner
             </a>
         }

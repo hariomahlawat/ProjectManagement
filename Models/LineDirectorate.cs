@@ -16,6 +16,8 @@ public class LineDirectorate
 
     public int SortOrder { get; set; }
 
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;

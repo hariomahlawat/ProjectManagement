@@ -1,35 +1,33 @@
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Security.Claims;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
-using ProjectManagement.Services;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData;
 
 namespace ProjectManagement.Areas.Admin.Pages.Lookups.LineDirectorates;
 
-[Authorize(Roles = "Admin")]
-public class EditModel : PageModel
+[Authorize(Policy = AdminPolicies.MasterDataManage)]
+public sealed class EditModel : PageModel
 {
     private readonly ApplicationDbContext _db;
-    private readonly IAuditService _audit;
+    private readonly IAdminMasterDataCommandService _commands;
 
-    public EditModel(ApplicationDbContext db, IAuditService audit)
+    public EditModel(ApplicationDbContext db, IAdminMasterDataCommandService commands)
     {
-        _db = db ?? throw new ArgumentNullException(nameof(db));
-        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+        _db = db;
+        _commands = commands;
     }
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
 
-    public async Task<IActionResult> OnGetAsync(int id)
+    public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
-        var entity = await _db.LineDirectorates.FindAsync(id);
+        var entity = await _db.LineDirectorates.AsNoTracking().SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (entity is null)
         {
             return NotFound();
@@ -39,72 +37,50 @@ public class EditModel : PageModel
         {
             Id = entity.Id,
             Name = entity.Name,
-            SortOrder = entity.SortOrder
+            SortOrder = entity.SortOrder,
+            RowVersion = entity.RowVersion
         };
-
         return Page();
     }
 
-    public async Task<IActionResult> OnPostAsync()
+    public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
         {
             return Page();
         }
 
-        var entity = await _db.LineDirectorates.FindAsync(Input.Id);
-        if (entity is null)
-        {
-            return NotFound();
-        }
+        var result = await _commands.UpdateLineDirectorateAsync(
+            new FlatLookupUpdateCommand(Input.Id, Input.Name, Input.SortOrder, Input.RowVersion),
+            cancellationToken);
 
-        var trimmedName = Input.Name.Trim();
-        var duplicate = await _db.LineDirectorates
-            .AnyAsync(l => l.Id != Input.Id && l.Name == trimmedName);
-
-        if (duplicate)
+        if (!result.Succeeded)
         {
-            ModelState.AddModelError("Input.Name", "A line directorate with this name already exists.");
+            if (result.ErrorCode == "NotFound")
+            {
+                return NotFound();
+            }
+
+            ModelState.AddModelError(result.ErrorCode == "DuplicateName" ? "Input.Name" : string.Empty,
+                result.UserMessage ?? "The line directorate could not be updated.");
             return Page();
         }
 
-        var originalName = entity.Name;
-        var originalSortOrder = entity.SortOrder;
-
-        entity.Name = trimmedName;
-        entity.SortOrder = Input.SortOrder;
-        entity.UpdatedUtc = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync();
-
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        await _audit.LogAsync(
-            "Lookups.LineDirectorateUpdated",
-            userId: userId,
-            userName: User.Identity?.Name,
-            data: new Dictionary<string, string?>
-            {
-                ["LineDirectorateId"] = entity.Id.ToString(),
-                ["NameBefore"] = originalName,
-                ["NameAfter"] = entity.Name,
-                ["SortOrderBefore"] = originalSortOrder.ToString(),
-                ["SortOrderAfter"] = entity.SortOrder.ToString()
-            });
-
-        TempData["StatusMessage"] = $"Updated '{entity.Name}'.";
+        TempData[FlashMessageKeys.AdminMasterDataSuccess] = result.UserMessage;
         return RedirectToPage("./Index");
     }
 
     public sealed class InputModel
     {
-        [HiddenInput]
         public int Id { get; set; }
 
-        [Required]
-        [StringLength(200)]
+        [Required, StringLength(200)]
         public string Name { get; set; } = string.Empty;
 
         [Range(0, 1000)]
         public int SortOrder { get; set; }
+
+        [Required]
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
 }

@@ -6,7 +6,7 @@ namespace ProjectManagement.Application.Ipr;
 
 public sealed class IprFilter
 {
-    private const int DefaultPageSize = 25;
+    private const int DefaultPageSize = 15;
     private const int MaxPageSize = 200;
 
     private int _page = 1;

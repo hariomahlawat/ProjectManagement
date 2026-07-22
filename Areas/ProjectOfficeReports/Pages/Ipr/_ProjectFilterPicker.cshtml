@@ -1,0 +1,76 @@
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
+@{
+    var selectedProject = Model.ProjectId.HasValue
+        ? Model.ProjectPickerOptions.FirstOrDefault(project => project.Id == Model.ProjectId.Value)
+        : null;
+    var selectedName = selectedProject?.Name ?? string.Empty;
+}
+
+<div class="ipr-project-filter-picker"
+     data-ipr-project-picker
+     data-selected-id="@(Model.ProjectId?.ToString() ?? string.Empty)">
+    <div class="ipr-project-picker__control">
+        <i class="bi bi-search" aria-hidden="true"></i>
+        <input id="Filter_ProjectSearch"
+               type="search"
+               class="form-control ipr-project-picker__search"
+               value="@selectedName"
+               placeholder="All projects"
+               autocomplete="off"
+               spellcheck="false"
+               role="combobox"
+               aria-autocomplete="list"
+               aria-expanded="false"
+               aria-controls="Filter_ProjectSuggestions"
+               aria-label="Filter by project"
+               data-ipr-project-search />
+        <button type="button"
+                class="btn ipr-project-picker__clear @(string.IsNullOrWhiteSpace(selectedName) ? "d-none" : string.Empty)"
+                aria-label="Clear project filter"
+                title="Clear project filter"
+                data-ipr-project-clear>
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+    </div>
+
+    <input type="hidden"
+           name="ProjectId"
+           value="@(Model.ProjectId?.ToString() ?? string.Empty)"
+           data-ipr-project-value
+           data-ipr-auto-submit />
+
+    <div id="Filter_ProjectSuggestions"
+         class="ipr-project-picker__panel d-none"
+         role="listbox"
+         aria-label="Project filters"
+         data-ipr-project-options>
+        <button type="button"
+                class="ipr-project-picker__option"
+                role="option"
+                data-ipr-project-option
+                data-project-id=""
+                data-project-label=""
+                data-project-search="all projects">
+            <span class="ipr-project-picker__option-main">All projects</span>
+            <span class="ipr-project-picker__option-meta">Show the complete register</span>
+        </button>
+        @foreach (var project in Model.ProjectPickerOptions)
+        {
+            <button type="button"
+                    class="ipr-project-picker__option"
+                    role="option"
+                    data-ipr-project-option
+                    data-project-id="@project.Id"
+                    data-project-label="@project.Name"
+                    data-project-secondary="@project.SecondaryText"
+                    data-project-search="@project.SearchText">
+                <span class="ipr-project-picker__option-main">@project.Name</span>
+                <span class="ipr-project-picker__option-meta">@project.SecondaryText</span>
+            </button>
+        }
+        <div class="ipr-project-picker__empty d-none" data-ipr-project-empty>
+            No matching project found.
+        </div>
+    </div>
+    <div class="visually-hidden" role="status" aria-live="polite" data-ipr-project-status></div>
+</div>

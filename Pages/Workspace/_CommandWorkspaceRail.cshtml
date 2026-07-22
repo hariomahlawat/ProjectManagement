@@ -1,0 +1,118 @@
+@using ProjectManagement.ViewModels.Workspace
+@model CommandWorkspaceRailVm
+@{
+    var activeView = string.IsNullOrWhiteSpace(Model.ActiveView)
+        ? "officers"
+        : Model.ActiveView.Trim().ToLowerInvariant();
+    var isOfficers = activeView == "officers";
+    var isPortfolio = activeView == "portfolio";
+    var isConference = activeView == "conference";
+    var isBriefingDecks = activeView == "briefing-decks";
+    var isAdoption = activeView == "adoption";
+    var isUsagePattern = activeView == "usage-pattern";
+    var isMyActivity = activeView == "my-activity";
+}
+
+<aside class="cw-local-rail is-expanded" data-workspace-rail aria-label="Comdt and HoD workspace navigation">
+    <div class="cw-local-rail__identity">
+        <span class="cw-local-rail__mark" aria-hidden="true"><i class="bi bi-grid-1x2-fill"></i></span>
+        <div>
+            <small>PRISM ERP</small>
+            <strong>Command workspace</strong>
+        </div>
+        <button type="button"
+                class="cw-local-rail__toggle"
+                data-workspace-rail-toggle
+                aria-expanded="true"
+                aria-controls="command-workspace-local-navigation"
+                aria-label="Collapse workspace navigation"
+                title="Collapse workspace navigation">
+            <i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i>
+        </button>
+    </div>
+
+    <nav id="command-workspace-local-navigation">
+        @if (Model.CanSwitchWorkspace)
+        {
+            <div class="cw-local-rail__group">
+                <span class="cw-local-rail__group-label">Workspace</span>
+                <a asp-page="/Workspace/Index"
+                   asp-route-mode="command"
+                   asp-route-view="officers"
+                   class="is-context-active"
+                   data-tooltip="Comdt / HoD workspace">
+                    <i class="bi bi-building" aria-hidden="true"></i><span>Comdt / HoD</span>
+                </a>
+                <a asp-page="/Workspace/Index"
+                   asp-route-mode="project-officer"
+                   data-tooltip="Project Officer workspace">
+                    <i class="bi bi-person-workspace" aria-hidden="true"></i><span>Project Officer</span>
+                </a>
+            </div>
+        }
+
+        <div class="cw-local-rail__group">
+            <span class="cw-local-rail__group-label">Project monitoring</span>
+            <a asp-page="/Workspace/Index"
+               asp-route-mode="command"
+               asp-route-view="officers"
+               class="@(isOfficers ? "is-active" : null)"
+               aria-current="@(isOfficers ? "page" : null)"
+               data-tooltip="Officer workload">
+                <i class="bi bi-people" aria-hidden="true"></i><span>Officer workload</span><b>@Model.ProjectOfficerCount</b>
+            </a>
+            <a asp-page="/Workspace/Index"
+               asp-route-mode="command"
+               asp-route-view="portfolio"
+               class="@(isPortfolio ? "is-active" : null)"
+               aria-current="@(isPortfolio ? "page" : null)"
+               data-tooltip="Project portfolio">
+                <i class="bi bi-diagram-3" aria-hidden="true"></i><span>Project portfolio</span><b>@Model.TotalOngoingProjects</b>
+            </a>
+            <a asp-page="/Workspace/Conference"
+               class="@(isConference ? "is-active" : null)"
+               aria-current="@(isConference ? "page" : null)"
+               data-tooltip="Conference review">
+                <i class="bi bi-clipboard2-check" aria-hidden="true"></i><span>Conference review</span>
+            </a>
+            <a asp-page="/Workspace/BriefingDecks/Index"
+               class="@(isBriefingDecks ? "is-active" : null)"
+               aria-current="@(isBriefingDecks ? "page" : null)"
+               data-tooltip="Briefing decks">
+                <i class="bi bi-file-earmark-slides" aria-hidden="true"></i><span>Briefing decks</span>
+            </a>
+        </div>
+
+        <div class="cw-local-rail__group">
+            <span class="cw-local-rail__group-label">System adoption</span>
+            <a asp-page="/Workspace/Index"
+               asp-route-mode="command"
+               asp-route-view="adoption"
+               class="@(isAdoption ? "is-active" : null)"
+               aria-current="@(isAdoption ? "page" : null)"
+               data-tooltip="ERP adoption">
+                <i class="bi bi-person-check" aria-hidden="true"></i><span>ERP adoption</span>
+            </a>
+            <a asp-page="/Workspace/Index"
+               asp-route-mode="command"
+               asp-route-view="usage-pattern"
+               class="@(isUsagePattern ? "is-active" : null)"
+               aria-current="@(isUsagePattern ? "page" : null)"
+               data-tooltip="ERP usage pattern">
+                <i class="bi bi-bounding-box-circles" aria-hidden="true"></i><span>ERP usage pattern</span>
+            </a>
+        </div>
+
+        <div class="cw-local-rail__group">
+            <span class="cw-local-rail__group-label">My resources</span>
+            <a asp-page="/Workspace/Index"
+               asp-route-mode="command"
+               asp-route-view="my-activity"
+               class="@(isMyActivity ? "is-active" : null)"
+               aria-current="@(isMyActivity ? "page" : null)"
+               data-tooltip="My ERP activity">
+                <i class="bi bi-activity" aria-hidden="true"></i><span>My ERP activity</span>
+            </a>
+        </div>
+    </nav>
+</aside>

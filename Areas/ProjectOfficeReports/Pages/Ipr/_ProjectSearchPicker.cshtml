@@ -1,0 +1,94 @@
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
+@{
+    var selectedProjectId = Model.Input.ProjectId;
+    var selectedProject = selectedProjectId is int projectId
+        ? Model.ProjectPickerOptions.FirstOrDefault(project => project.Id == projectId)
+        : null;
+    var projectFieldName = "Input.ProjectId";
+    var hasProjectError = ViewData.ModelState.TryGetValue(projectFieldName, out var projectModelState) &&
+        projectModelState.Errors.Count > 0;
+    var selectedProjectUnavailable = selectedProjectId.HasValue && selectedProject is null;
+    var selectedName = selectedProject?.Name ??
+        (selectedProjectId is int unavailableProjectId
+            ? $"Unavailable project #{unavailableProjectId}"
+            : string.Empty);
+    var selectedSecondary = selectedProject?.SecondaryText ??
+        (selectedProjectUnavailable
+            ? "This project is no longer available. Select another project."
+            : string.Empty);
+}
+
+<div class="ipr-form-field ipr-form-field--wide">
+    <label asp-for="Input.ProjectId" class="form-label"></label>
+    <div class="ipr-project-picker"
+         data-ipr-project-picker
+         data-selected-id="@(Model.Input.ProjectId?.ToString() ?? string.Empty)">
+        <div class="ipr-project-picker__control">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <input id="Input_ProjectSearch"
+                   type="search"
+                   class="form-control ipr-project-picker__search @(hasProjectError ? "is-invalid" : string.Empty)"
+                   value="@selectedName"
+                   placeholder="Search project name, code or status"
+                   autocomplete="off"
+                   spellcheck="false"
+                   role="combobox"
+                   aria-autocomplete="list"
+                   aria-expanded="false"
+                   aria-invalid="@(hasProjectError ? "true" : "false")"
+                   aria-controls="Input_ProjectSuggestions"
+                   data-ipr-project-search />
+            <button type="button"
+                    class="btn ipr-project-picker__clear @(string.IsNullOrWhiteSpace(selectedName) ? "d-none" : string.Empty)"
+                    aria-label="Clear project selection"
+                    title="Clear project selection"
+                    data-ipr-project-clear>
+                <i class="bi bi-x-lg" aria-hidden="true"></i>
+            </button>
+        </div>
+
+        <input asp-for="Input.ProjectId" type="hidden" data-ipr-project-value />
+
+        <div id="Input_ProjectSuggestions"
+             class="ipr-project-picker__panel d-none"
+             role="listbox"
+             aria-label="Project search results"
+             data-ipr-project-options>
+            <button type="button"
+                    class="ipr-project-picker__option"
+                    role="option"
+                    data-ipr-project-option
+                    data-project-id=""
+                    data-project-label="No project"
+                    data-project-search="no project unassigned">
+                <span class="ipr-project-picker__option-main">No project</span>
+                <span class="ipr-project-picker__option-meta">Keep this IPR record unassigned</span>
+            </button>
+            @foreach (var project in Model.ProjectPickerOptions)
+            {
+                <button type="button"
+                        class="ipr-project-picker__option"
+                        role="option"
+                        data-ipr-project-option
+                        data-project-id="@project.Id"
+                        data-project-label="@project.Name"
+                        data-project-secondary="@project.SecondaryText"
+                        data-project-search="@project.SearchText">
+                    <span class="ipr-project-picker__option-main">@project.Name</span>
+                    <span class="ipr-project-picker__option-meta">@project.SecondaryText</span>
+                </button>
+            }
+            <div class="ipr-project-picker__empty d-none" data-ipr-project-empty>
+                No matching project found.
+            </div>
+        </div>
+
+        <div class="ipr-project-picker__selection @(string.IsNullOrWhiteSpace(selectedSecondary) ? "d-none" : string.Empty)"
+             aria-live="polite"
+             data-ipr-project-selection>
+            <span data-ipr-project-selection-text>@selectedSecondary</span>
+        </div>
+        <div class="visually-hidden" role="status" aria-live="polite" data-ipr-project-status></div>
+    </div>
+    <span asp-validation-for="Input.ProjectId" class="text-danger"></span>
+</div>

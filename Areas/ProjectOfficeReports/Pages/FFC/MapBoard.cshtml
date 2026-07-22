@@ -3,30 +3,3 @@
 @{
     ViewData["Title"] = "FFC Proposals – Country board";
 }
-
-@section Styles {
-    <link rel="stylesheet" href="~/css/project-office-reports/ffc-map.css" asp-append-version="true" />
-}
-
-<div class="container-xxl py-1" id="ffc-board-page">
-    <!-- ===== Board header ===== -->
-    <section class="pm-page-header">
-        <div>
-            <h1 class="h4 mb-1">FFC – Country board</h1>
-            <p class="pm-page-subtitle">
-                Project units per country (installed, delivered, planned). Optimised for screenshots and slides.
-            </p>
-        </div>
-    </section>
-
-    <!-- ===== Country cards ===== -->
-    <div id="ffc-board" class="ffc-board" data-data-url="@Url.Page("/FFC/Map", pageHandler: "Data")">
-        <!-- tiles injected by JS -->
-    </div>
-
-    <footer class="text-muted small mt-3">Project units data refreshes nightly.</footer>
-</div>
-
-@section Scripts {
-    <script defer src="~/js/pages/project-office-reports/ffc/ffc-map-board.js" asp-append-version="true"></script>
-}

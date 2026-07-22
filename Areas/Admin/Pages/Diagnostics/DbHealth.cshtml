@@ -1,73 +1,158 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Diagnostics.DbHealthModel
+@using ProjectManagement.Services.Admin
 @{
-    ViewData["Title"] = "Database health";
+    ViewData["Title"] = "System health";
+    var health = Model.Snapshot;
+    var database = health.Database;
+    var overallTone = Model.StatusTone(health.OverallStatus);
 }
 
-<div class="container-xxl py-4">
-    <nav aria-label="breadcrumb" class="mb-3">
-        <ol class="breadcrumb mb-0">
-            <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Database health</li>
-        </ol>
-    </nav>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 
-    <div class="d-flex align-items-center mb-3">
-        <h1 class="h3 mb-0">Database health</h1>
-    </div>
-
-    @if (!Model.IsRelational)
+<section class="admin-monitoring-metric-grid" aria-label="System health summary">
+    @foreach (var metric in Model.Metrics)
     {
-        <div class="alert alert-info" role="alert">
-            Migration status is unavailable because the configured provider is not relational.
-        </div>
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminMonitoringMetric.cshtml" model="metric" />
     }
-    else
+</section>
+
+<section class="admin-health-overview admin-health-overview--@overallTone" aria-labelledby="health-overview-title">
+    <span class="admin-health-overview__icon" aria-hidden="true"><i class="bi @Model.StatusIcon(health.OverallStatus)"></i></span>
+    <div class="admin-health-overview__copy">
+        <div class="admin-panel__eyebrow">Operational assurance</div>
+        <h2 id="health-overview-title">@Model.StatusLabel(health.OverallStatus)</h2>
+        <p>
+            @if (health.OverallStatus == AdminHealthStatus.Healthy)
+            {
+                <text>All completed checks are reporting a healthy state.</text>
+            }
+            else if (health.OverallStatus == AdminHealthStatus.Critical)
+            {
+                <text>One or more critical checks require immediate administrator action.</text>
+            }
+            else
+            {
+                <text>One or more checks require review before the next operational or deployment activity.</text>
+            }
+        </p>
+    </div>
+    <div class="admin-health-overview__meta">
+        <span>Checked</span>
+        <strong>@Model.FormatIst(health.CheckedUtc)</strong>
+        <small>Results are cached for 45 seconds unless refreshed.</small>
+    </div>
+</section>
+
+<section class="admin-health-facts" aria-label="Database and application facts">
+    <article class="admin-health-fact">
+        <span class="admin-health-fact__icon" aria-hidden="true"><i class="bi bi-database"></i></span>
+        <div><small>Database</small><strong>@(database.DatabaseName ?? "Unavailable")</strong><span>@(database.Host ?? database.Provider)</span></div>
+    </article>
+    <article class="admin-health-fact">
+        <span class="admin-health-fact__icon" aria-hidden="true"><i class="bi bi-speedometer2"></i></span>
+        <div><small>Query latency</small><strong>@(database.QueryLatencyMilliseconds.HasValue ? $"{database.QueryLatencyMilliseconds:N0} ms" : "—")</strong><span>@(database.ServerVersion ?? "Server version unavailable")</span></div>
+    </article>
+    <article class="admin-health-fact">
+        <span class="admin-health-fact__icon" aria-hidden="true"><i class="bi bi-device-ssd"></i></span>
+        <div><small>Database size</small><strong>@Model.FormatBytes(database.DatabaseSizeBytes)</strong><span>@database.AppliedMigrations.Count applied migrations</span></div>
+    </article>
+    <article class="admin-health-fact">
+        <span class="admin-health-fact__icon" aria-hidden="true"><i class="bi bi-diagram-3"></i></span>
+        <div><small>Migration state</small><strong>@database.PendingMigrations.Count pending</strong><span>@database.AppliedButMissingMigrations.Count missing from assembly</span></div>
+    </article>
+</section>
+
+<div class="admin-health-domain-list">
+    @foreach (var group in Model.CheckGroups)
     {
-        if (Model.HasPendingMigrations)
-        {
-            <div class="alert alert-warning" role="alert">
-                <strong>Pending migrations detected.</strong> Apply the migration(s) below to keep the schema in sync.
+        var critical = group.Count(check => check.Status == AdminHealthStatus.Critical);
+        var warnings = group.Count(check => check.Status == AdminHealthStatus.Warning);
+        var unavailable = group.Count(check => check.Status == AdminHealthStatus.Unavailable);
+        var groupId = $"health-group-{group.Key.Replace(" ", "-").ToLowerInvariant()}";
+        <section class="admin-panel admin-health-domain" aria-labelledby="@groupId">
+            <header class="admin-panel__header">
+                <div>
+                    <div class="admin-panel__eyebrow">Assurance domain</div>
+                    <h2 id="@groupId">@group.Key</h2>
+                </div>
+                <div class="admin-health-domain__summary">
+                    @if (critical > 0)
+                    {
+                        <span class="admin-status-pill admin-status-pill--danger">@critical critical</span>
+                    }
+                    @if (warnings > 0)
+                    {
+                        <span class="admin-status-pill admin-status-pill--warning">@warnings warning@(warnings == 1 ? string.Empty : "s")</span>
+                    }
+                    @if (unavailable > 0)
+                    {
+                        <span class="admin-status-pill admin-status-pill--neutral">@unavailable starting / unavailable</span>
+                    }
+                    @if (critical == 0 && warnings == 0 && unavailable == 0)
+                    {
+                        <span class="admin-status-pill admin-status-pill--success">Healthy</span>
+                    }
+                </div>
+            </header>
+            <div class="admin-health-check-list">
+                @foreach (var check in group.OrderByDescending(item => item.Status).ThenBy(item => item.Label, StringComparer.OrdinalIgnoreCase))
+                {
+                    <partial name="~/Areas/Admin/Pages/Shared/_AdminHealthCheckRow.cshtml" model="check" />
+                }
             </div>
+        </section>
+    }
+</div>
+
+<section class="admin-health-migration-grid" aria-label="Migration lineage details">
+    <article class="admin-panel">
+        <header class="admin-panel__header">
+            <div>
+                <div class="admin-panel__eyebrow">Deployment readiness</div>
+                <h2>Pending migrations</h2>
+            </div>
+            <span class="admin-panel__meta">@database.PendingMigrations.Count</span>
+        </header>
+        @if (database.PendingMigrations.Count == 0)
+        {
+            <div class="admin-compact-empty"><i class="bi bi-check-circle" aria-hidden="true"></i><span>No pending migrations were detected.</span></div>
         }
         else
         {
-            <div class="alert alert-success" role="alert">
-                <strong>No pending migrations.</strong> The application and database schemas are aligned.
-            </div>
+            <ul class="admin-technical-list">
+                @foreach (var migration in database.PendingMigrations)
+                {
+                    <li><code>@migration</code></li>
+                }
+            </ul>
         }
+    </article>
 
-        <div class="card mb-4">
-            <div class="card-header">Connection summary</div>
-            <div class="card-body">
-                <dl class="row mb-0">
-                    <dt class="col-sm-3">Host</dt>
-                    <dd class="col-sm-9">@(!string.IsNullOrWhiteSpace(Model.Host) ? Model.Host : "(unknown)")</dd>
-                    <dt class="col-sm-3">Database</dt>
-                    <dd class="col-sm-9">@(!string.IsNullOrWhiteSpace(Model.DatabaseName) ? Model.DatabaseName : "(unknown)")</dd>
-                    <dt class="col-sm-3">Latest migration</dt>
-                    <dd class="col-sm-9">@Model.LatestMigration</dd>
-                </dl>
+    <article class="admin-panel">
+        <header class="admin-panel__header">
+            <div>
+                <div class="admin-panel__eyebrow">Migration lineage</div>
+                <h2>Applied but missing from assembly</h2>
             </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header">Pending migrations (@Model.PendingMigrations.Count)</div>
-            <div class="card-body">
-                @if (Model.PendingMigrations.Count == 0)
-                {
-                    <p class="mb-0 text-muted">None.</p>
-                }
-                else
-                {
-                    <ul class="mb-0">
-                        @foreach (var migration in Model.PendingMigrations)
-                        {
-                            <li>@migration</li>
-                        }
-                    </ul>
-                }
+            <span class="admin-panel__meta">@database.AppliedButMissingMigrations.Count</span>
+        </header>
+        @if (database.AppliedButMissingMigrations.Count == 0)
+        {
+            <div class="admin-compact-empty"><i class="bi bi-check-circle" aria-hidden="true"></i><span>The deployed migration assembly matches database history.</span></div>
+        }
+        else
+        {
+            <div class="admin-inline-notice admin-inline-notice--danger">
+                <i class="bi bi-x-octagon" aria-hidden="true"></i>
+                <span>The following applied migrations are absent from the deployed assembly. Correct the deployment lineage before applying further migrations.</span>
             </div>
-        </div>
-    }
-</div>
+            <ul class="admin-technical-list">
+                @foreach (var migration in database.AppliedButMissingMigrations)
+                {
+                    <li><code>@migration</code></li>
+                }
+            </ul>
+        }
+    </article>
+</section>

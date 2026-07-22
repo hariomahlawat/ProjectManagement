@@ -1,0 +1,273 @@
+using DocumentFormat.OpenXml.Packaging;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.FileProviders;
+using ProjectManagement.Models;
+using ProjectManagement.Models.ProjectBriefings;
+using ProjectManagement.Services.ProjectBriefings;
+using ProjectManagement.Services.ProjectBriefings.Presentation;
+using Xunit;
+using A = DocumentFormat.OpenXml.Drawing;
+
+namespace ProjectManagement.Tests.ProjectBriefings;
+
+public sealed class ProjectBriefingSlideComposerTests
+{
+    [Fact]
+    public void Compose_CreatesOpenableEditableWidescreenDeck()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+
+        var (content, slideCount) = composer.Compose(BuildData());
+
+        Assert.True(content.Length > 10_000);
+        Assert.Equal(7, slideCount);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var presentationPart = Assert.IsType<PresentationPart>(document.PresentationPart);
+        var slides = presentationPart.SlideParts.ToArray();
+        Assert.Equal(slideCount, slides.Length);
+        Assert.Equal(12192000, presentationPart.Presentation.SlideSize?.Cx?.Value);
+        Assert.Equal(6858000, presentationPart.Presentation.SlideSize?.Cy?.Value);
+
+        var text = string.Join("\n", slides
+            .SelectMany(slide => slide.Slide.Descendants<A.Text>())
+            .Select(node => node.Text));
+        Assert.Contains("QUARTERLY COMMAND REVIEW", text, StringComparison.Ordinal);
+        Assert.Contains("COST (R&D)", text, StringComparison.Ordinal);
+        Assert.Contains("PROLIFERATION COST", text, StringComparison.Ordinal);
+        Assert.Contains("Latest external status for AURA", text, StringComparison.Ordinal);
+        Assert.Contains("Stage-wise summary", text, StringComparison.Ordinal);
+        Assert.Contains("Stage-wise project distribution", text, StringComparison.Ordinal);
+        Assert.Contains("PRESENT STATUS", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("PROJECT POSITION", text, StringComparison.Ordinal);
+        Assert.Contains("CAPABILITY OVERVIEW", text, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("reverse workflow order", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Bars are native editable PowerPoint shapes", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Cost (R&D) resolves L1", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("STATUS: LATEST EXTERNAL REMARK ONLY", text, StringComparison.Ordinal);
+
+        var nativeTables = slides
+            .SelectMany(slide => slide.Slide.Descendants<A.Table>())
+            .Count();
+        Assert.True(nativeTables >= 2, "The stage and executive project tables must remain native editable PowerPoint tables.");
+    }
+
+    [Fact]
+    public void Compose_PaginatesFortyNineShortRowsIntoSevenBalancedProjectTables()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var projects = Enumerable.Range(1, 49)
+            .Select(index => new ProjectBriefingPresentationProject
+            {
+                ProjectId = index,
+                ProjectName = $"Project {index:00}",
+                LifecycleStatus = ProjectLifecycleStatus.Active,
+                LifecycleDisplay = "Ongoing",
+                PresentStageCode = "DEV",
+                PresentStage = "Development",
+                PresentStageOrder = 70,
+                CostRd = new ProjectBriefingCostValue(1_000_000m, ProjectBriefingCostBasis.L1, "₹10 Lakh", "L1"),
+                ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+                ExternalStatus = "Development in progress.",
+                BriefDescription = "Brief capability description.",
+                SortOrder = index
+            })
+            .ToArray();
+
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 9,
+            DeckName = "Project Update Review",
+            PresentationMode = ProjectBriefingPresentationMode.ExecutiveTable,
+            CostMode = ProjectBriefingCostMode.CostRdOnly,
+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 22, 3, 30, 0, TimeSpan.Zero),
+            Projects = projects,
+            Summary = new ProjectBriefingPresentationSummary
+            {
+                ProjectCount = projects.Length,
+                OngoingCount = projects.Length,
+                CostRdRecordedCount = projects.Length
+            }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.Equal(9, slideCount); // cover + portfolio + seven project-table slides
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+        var tables = slides.SelectMany(slide => slide.Slide.Descendants<A.Table>()).ToArray();
+        Assert.Equal(7, tables.Length);
+
+        var text = string.Join("\n", slides
+            .SelectMany(slide => slide.Slide.Descendants<A.Text>())
+            .Select(node => node.Text));
+        Assert.Contains("Project status summary (7/7)", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Compose_PreservesCompleteCapabilityContentAcrossContinuationSlides()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var paragraphs = Enumerable.Range(1, 18)
+            .Select(index =>
+                $"Capability paragraph {index} explains the complete operational function, training application, system behaviour, user interaction, safety consideration and expected employment of the project without omitting audience-relevant information.")
+            .ToArray();
+        var description = string.Join(
+            "\n\n",
+            new[]
+            {
+                "Capability Overview",
+                paragraphs[0],
+                "Key Deliverables",
+                string.Join("\n", paragraphs.Skip(1).Take(8).Select((value, index) => $"• Deliverable {index + 1}: {value}")),
+                "Operational Impact",
+                string.Join("\n", paragraphs.Skip(9))
+            });
+
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 91,
+            ProjectName = "LONG CAPABILITY PROJECT",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            PresentStageCode = "DEV",
+            PresentStage = "Development",
+            PresentStageOrder = 70,
+            ProjectCategory = "Other R&D Projects",
+            TechnicalCategory = "AR / VR",
+            CostRd = new ProjectBriefingCostValue(10_000_000m, ProjectBriefingCostBasis.L1, "₹1 Cr", "L1"),
+            ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+            ExternalStatus = "Development in progress.",
+            BriefDescription = description,
+            SortOrder = 1
+        };
+
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 91,
+            DeckName = "Full Capability Review",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            CostMode = ProjectBriefingCostMode.CostRdOnly,
+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 22, 6, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary
+            {
+                ProjectCount = 1,
+                OngoingCount = 1,
+                CostRdRecordedCount = 1,
+                TotalCostRdInRupees = 10_000_000m
+            }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.True(slideCount > 3, "Long capability content should create one or more continuation slides.");
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+        var text = string.Join("\n", slides
+            .SelectMany(slide => slide.Slide.Descendants<A.Text>())
+            .Select(node => node.Text));
+
+        Assert.Contains("CAPABILITY OVERVIEW — CONTINUED", text, StringComparison.Ordinal);
+        Assert.Contains(paragraphs[^1], text, StringComparison.Ordinal);
+        Assert.DoesNotContain("operational function,…", text, StringComparison.Ordinal);
+    }
+
+    private static ProjectBriefingPresentationData BuildData()
+    {
+        var projects = new[]
+        {
+            new ProjectBriefingPresentationProject
+            {
+                ProjectId = 1,
+                ProjectName = "AURA",
+                LifecycleStatus = ProjectLifecycleStatus.Active,
+                LifecycleDisplay = "Ongoing",
+                PresentStageCode = "AON",
+                PresentStage = "Acceptance of Necessity",
+                PresentStageOrder = 30,
+                ProjectCategory = "CoE",
+                TechnicalCategory = "AR / VR",
+                CostRd = new ProjectBriefingCostValue(39_530_000m, ProjectBriefingCostBasis.AoN, "₹3.95 Cr", "AoN"),
+                ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+                ExternalStatus = "Latest external status for AURA",
+                ExternalStatusDate = new DateOnly(2026, 7, 20),
+                BriefDescription = "Augmented-reality situational-awareness capability for dismounted users.",
+                SortOrder = 10
+            },
+            new ProjectBriefingPresentationProject
+            {
+                ProjectId = 2,
+                ProjectName = "ASTRAE",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                LifecycleDisplay = "Completed",
+                PresentStageCode = "COMPLETED",
+                PresentStage = "Completed",
+                PresentStageOrder = 10_000,
+                ProjectCategory = "CoE",
+                TechnicalCategory = "AI",
+                CostRd = new ProjectBriefingCostValue(28_000_000m, ProjectBriefingCostBasis.L1, "₹2.8 Cr", "L1"),
+                ProliferationCost = new ProjectBriefingCostValue(1_850_000m, ProjectBriefingCostBasis.Proliferation, "₹18.5 Lakh", "Proliferation"),
+                ExternalStatus = "Trials completed and project available for briefing.",
+                ExternalStatusDate = new DateOnly(2026, 7, 18),
+                BriefDescription = "AI-enabled target acquisition and engagement system.",
+                SortOrder = 20
+            }
+        };
+
+        return new ProjectBriefingPresentationData
+        {
+            DeckId = 7,
+            DeckName = "Quarterly Command Review",
+            DeckDescription = "Selected development and completed projects",
+            PresentationMode = ProjectBriefingPresentationMode.Combined,
+            CostMode = ProjectBriefingCostMode.Both,
+            IncludeStageSummary = true,
+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero),
+            Projects = projects,
+            Summary = new ProjectBriefingPresentationSummary
+            {
+                ProjectCount = 2,
+                OngoingCount = 1,
+                CompletedCount = 1,
+                TotalCostRdInRupees = 67_530_000m,
+                CostRdRecordedCount = 2,
+                TotalProliferationCostInRupees = 1_850_000m,
+                ProliferationCostRecordedCount = 1,
+                MissingExternalStatusCount = 0,
+                MissingPhotoCount = 2,
+                StageSummary = new[]
+                {
+                    new ProjectBriefingSummaryPoint("Completed", 1, 10_000),
+                    new ProjectBriefingSummaryPoint("Acceptance of Necessity", 1, 30)
+                }
+            }
+        };
+    }
+
+    private sealed class TestEnvironment : IWebHostEnvironment
+    {
+        public TestEnvironment(string contentRootPath)
+        {
+            ContentRootPath = contentRootPath;
+            WebRootPath = Path.Combine(contentRootPath, "wwwroot");
+            Directory.CreateDirectory(WebRootPath);
+            ContentRootFileProvider = new NullFileProvider();
+            WebRootFileProvider = new NullFileProvider();
+        }
+
+        public string ApplicationName { get; set; } = "ProjectManagement.Tests";
+        public IFileProvider WebRootFileProvider { get; set; }
+        public string WebRootPath { get; set; }
+        public string EnvironmentName { get; set; } = "Test";
+        public string ContentRootPath { get; set; }
+        public IFileProvider ContentRootFileProvider { get; set; }
+    }
+}

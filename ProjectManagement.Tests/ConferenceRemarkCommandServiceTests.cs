@@ -313,6 +313,14 @@ public sealed class ConferenceRemarkCommandServiceTests
         public string? Text { get; private set; }
         public string? ActorRole { get; private set; }
 
+        public Task<ProjectIdea> CreateAsync(
+            ProjectIdea idea,
+            CancellationToken cancellationToken = default)
+        {
+            Idea = idea;
+            return Task.FromResult(idea);
+        }
+
         public Task<ProjectIdeaComment> AddConferenceCommentAsync(
             ProjectIdea idea,
             string text,

@@ -1,4 +1,4 @@
-// SECTION: FFC simulator map widget bootstrapper
+// SECTION: FFC simulator footprint map
 (function () {
   'use strict';
 
@@ -6,12 +6,12 @@
     return;
   }
 
-  // SECTION: Helpers
+  // SECTION: Value and payload helpers
   function safeParse(json) {
     try {
       return JSON.parse(json || '[]');
-    } catch (err) {
-      console.warn('FFC simulator map payload could not be parsed', err); // eslint-disable-line no-console
+    } catch (error) {
+      console.warn('FFC simulator map payload could not be parsed.', error); // eslint-disable-line no-console
       return [];
     }
   }
@@ -20,75 +20,162 @@
     if (!raw || typeof raw !== 'string') {
       return null;
     }
+
     var parts = raw.split('|');
     if (parts.length !== 2) {
       return null;
     }
+
     var northWest = parts[0].split(',').map(Number);
     var southEast = parts[1].split(',').map(Number);
-    if (northWest.length !== 2 || southEast.length !== 2 || northWest.some(isNaN) || southEast.some(isNaN)) {
+    if (
+      northWest.length !== 2 ||
+      southEast.length !== 2 ||
+      northWest.some(isNaN) ||
+      southEast.some(isNaN)
+    ) {
       return null;
     }
-    return L.latLngBounds(L.latLng(southEast[0], northWest[1]), L.latLng(northWest[0], southEast[1]));
+
+    return L.latLngBounds(
+      L.latLng(southEast[0], northWest[1]),
+      L.latLng(northWest[0], southEast[1])
+    );
+  }
+
+  function readFlag(host, name, defaultValue) {
+    var raw = host.getAttribute(name);
+    if (raw === null || raw === '') {
+      return defaultValue;
+    }
+
+    return raw !== 'false' && raw !== '0';
+  }
+
+  function readNumber(host, name, defaultValue) {
+    var raw = Number(host.getAttribute(name));
+    return Number.isFinite(raw) ? raw : defaultValue;
+  }
+
+  function property(country, camelName, pascalName) {
+    if (!country) {
+      return undefined;
+    }
+    if (typeof country[camelName] !== 'undefined') {
+      return country[camelName];
+    }
+    return country[pascalName];
+  }
+
+  function valueOrZero(country, camelName, pascalName) {
+    return Number(property(country, camelName, pascalName)) || 0;
+  }
+
+  function countryIso(country) {
+    return String(property(country, 'iso3', 'Iso3') || '').toUpperCase();
+  }
+
+  function countryName(country) {
+    return String(property(country, 'name', 'Name') || 'Partner country');
+  }
+
+  function countryDetailsUrl(country) {
+    return String(property(country, 'detailsUrl', 'DetailsUrl') || '');
+  }
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function clamp(value, minimum, maximum) {
+    return Math.min(Math.max(value, minimum), maximum);
   }
 
   function getIso(feature) {
     if (!feature || !feature.properties) {
       return '';
     }
-    var props = feature.properties;
-    return String(props.iso_a3 || props.iso3 || props.iso || props.ISO_A3 || '').toUpperCase();
+
+    var properties = feature.properties;
+    var candidates = [
+      properties.iso_a3,
+      properties.iso3,
+      properties.iso,
+      properties.ISO_A3,
+      properties.ADM0_A3,
+      properties.ADM0_A3_IN,
+      properties.SOV_A3
+    ];
+
+    for (var index = 0; index < candidates.length; index += 1) {
+      var value = String(candidates[index] || '').trim().toUpperCase();
+      if (value && value !== '-99') {
+        return value;
+      }
+    }
+
+    return '';
+  }
+
+  function featureLabelLatLng(feature) {
+    if (!feature || !feature.properties) {
+      return null;
+    }
+
+    var properties = feature.properties;
+    var longitudeValue = typeof properties.LABEL_X !== 'undefined'
+      ? properties.LABEL_X
+      : (typeof properties.label_x !== 'undefined' ? properties.label_x : properties.labelX);
+    var latitudeValue = typeof properties.LABEL_Y !== 'undefined'
+      ? properties.LABEL_Y
+      : (typeof properties.label_y !== 'undefined' ? properties.label_y : properties.labelY);
+    var longitude = Number(longitudeValue);
+    var latitude = Number(latitudeValue);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      return null;
+    }
+
+    return L.latLng(latitude, longitude);
   }
 
   function buildLookup(countries) {
-    return countries.reduce(function (acc, country) {
-      var iso = String(country.iso3 || country.Iso3 || '').toUpperCase();
+    return countries.reduce(function (lookup, country) {
+      var iso = countryIso(country);
       if (iso) {
-        acc[iso] = country;
+        lookup[iso] = country;
       }
-      return acc;
+      return lookup;
     }, {});
   }
 
   function buildCountryStats(country) {
-    var installed = valueOrZero(country, 'installed');
-    var delivered = valueOrZero(country, 'delivered');
-    var planned = valueOrZero(country, 'planned');
+    var installed = valueOrZero(country, 'installed', 'Installed');
+    var delivered = valueOrZero(country, 'delivered', 'Delivered');
+    var planned = valueOrZero(country, 'planned', 'Planned');
     var completed = installed + delivered;
-    var total = completed + planned;
+
     return {
       installed: installed,
       delivered: delivered,
       planned: planned,
       completed: completed,
-      total: total,
+      total: completed + planned,
       displayCount: completed > 0 ? completed : planned
     };
   }
 
-  function valueOrZero(country, key) {
-    if (!country) {
-      return 0;
-    }
-    var value = country[key];
-    if (typeof value === 'undefined') {
-      var altKey = key.charAt(0).toUpperCase() + key.slice(1);
-      value = country[altKey];
-    }
-    return Number(value) || 0;
-  }
-
   function completedValue(country) {
-    if (!country) {
-      return 0;
+    var explicit = property(country, 'completed', 'Completed');
+    if (typeof explicit !== 'undefined') {
+      return Number(explicit) || 0;
     }
-    if (typeof country.completed !== 'undefined') {
-      return Number(country.completed) || 0;
-    }
-    if (typeof country.Completed !== 'undefined') {
-      return Number(country.Completed) || 0;
-    }
-    return valueOrZero(country, 'installed') + valueOrZero(country, 'delivered');
+    return buildCountryStats(country).completed;
   }
 
   function colorScale(ratio, accent) {
@@ -96,41 +183,115 @@
       return accent;
     }
     if (ratio >= 0.5) {
-      return '#7c3aed';
+      return '#7185e8';
     }
     if (ratio >= 0.25) {
-      return '#a78bfa';
+      return '#aebbf4';
     }
-    return '#ddd6fe';
+    return '#dbe3fb';
   }
 
-  function createPin(count, mode) {
-    var safeCount = typeof count === 'number' && !Number.isNaN(count) ? count : 0;
+  function createPin(stats, mode) {
+    var safeCount = Number.isFinite(stats.displayCount) ? stats.displayCount : 0;
     var digitCount = String(Math.abs(safeCount)).length;
-    var size = 34 + Math.min(Math.max(digitCount - 1, 0) * 6, 12);
+    var size = 32 + Math.min(Math.max(digitCount - 1, 0) * 5, 10);
     var pointer = Math.round(size * 0.28);
     var height = size + pointer;
+    var plannedBadge = mode === 'mixed' && stats.planned > 0
+      ? '<span class="ffc-simulator-map__pin-planned">+' + stats.planned + '</span>'
+      : '';
     var html = '' +
-      '<div class="ffc-simulator-map__pin ffc-simulator-map__pin--' + (mode || 'completed') + '" style="--pin-size:' + size + 'px; --pin-pointer:' + pointer + 'px">' +
+      '<div class="ffc-simulator-map__pin ffc-simulator-map__pin--' + mode + '" style="--pin-size:' + size + 'px;--pin-pointer:' + pointer + 'px">' +
       '  <div class="ffc-simulator-map__pin-head">' +
       '    <span class="ffc-simulator-map__pin-count">' + safeCount + '</span>' +
       '  </div>' +
+      plannedBadge +
       '</div>';
-    return L.divIcon({
-      html: html,
-      className: '',
-      iconSize: [size, height],
-      iconAnchor: [size / 2, height]
-    });
+
+    return {
+      icon: L.divIcon({
+        html: html,
+        className: '',
+        iconSize: [size, height],
+        iconAnchor: [size / 2, height]
+      }),
+      size: size,
+      pointer: pointer,
+      height: height
+    };
   }
 
+  function markerMode(stats) {
+    if (stats.completed === 0 && stats.planned > 0) {
+      return 'planned';
+    }
+    if (stats.completed > 0 && stats.planned > 0) {
+      return 'mixed';
+    }
+    return 'completed';
+  }
+  // END SECTION
+
+  // SECTION: Marker collision resolution
+  function buildCandidateOffsets() {
+    var offsets = [[0, 0]];
+    var radii = [42, 68, 94, 120];
+    var directions = [
+      [0, -1], [1, 0], [-1, 0], [0, 1],
+      [0.72, -0.72], [-0.72, -0.72], [0.72, 0.72], [-0.72, 0.72],
+      [0.38, -0.92], [-0.38, -0.92], [0.92, -0.38], [-0.92, -0.38],
+      [0.92, 0.38], [-0.92, 0.38], [0.38, 0.92], [-0.38, 0.92]
+    ];
+
+    radii.forEach(function (radius) {
+      directions.forEach(function (direction) {
+        offsets.push([
+          Math.round(direction[0] * radius),
+          Math.round(direction[1] * radius)
+        ]);
+      });
+    });
+
+    return offsets;
+  }
+
+  var candidateOffsets = buildCandidateOffsets();
+
+  function markerBubbleCenter(anchorPoint, item) {
+    return L.point(
+      anchorPoint.x,
+      anchorPoint.y - item.markerMeta.pointer - (item.markerMeta.size / 2)
+    );
+  }
+
+  function markerFitsCanvas(anchorPoint, item, canvas) {
+    var horizontalPadding = 8;
+    var verticalPadding = 8;
+    var halfWidth = item.markerMeta.size / 2;
+    var bubbleTop = anchorPoint.y - item.markerMeta.height;
+
+    return anchorPoint.x - halfWidth >= horizontalPadding &&
+      anchorPoint.x + halfWidth <= canvas.clientWidth - horizontalPadding &&
+      bubbleTop >= verticalPadding &&
+      anchorPoint.y <= canvas.clientHeight - verticalPadding;
+  }
+
+  function markerCollides(anchorPoint, item, occupied) {
+    var center = markerBubbleCenter(anchorPoint, item);
+    var radius = (item.markerMeta.size / 2) + 4;
+
+    return occupied.some(function (placed) {
+      return center.distanceTo(placed.center) < radius + placed.radius + 7;
+    });
+  }
   // END SECTION
 
   // SECTION: Map builder
   function hydrate(host) {
-    if (!host) {
+    if (!host || host.getAttribute('data-ffc-hydrated') === 'true') {
       return;
     }
+
     var canvas = host.querySelector('.ffc-simulator-map__canvas');
     if (!canvas) {
       return;
@@ -142,24 +303,35 @@
       return;
     }
 
+    host.setAttribute('data-ffc-hydrated', 'true');
+
     var lookup = buildLookup(countries);
-    var maxCompleted = countries.reduce(function (max, country) {
-      return Math.max(max, completedValue(country));
+    var maxCompleted = countries.reduce(function (maximum, country) {
+      return Math.max(maximum, completedValue(country));
     }, 0);
-    var highlightColor = host.getAttribute('data-highlight-color') || '#4338ca';
+    var highlightColor = host.getAttribute('data-highlight-color') || '#3255d2';
+    var autoFit = readFlag(host, 'data-auto-fit', false);
+    var autoFitMaxZoom = readNumber(host, 'data-auto-fit-max-zoom', 4);
+    var deconflictMarkers = readFlag(host, 'data-deconflict-markers', false);
+    var scope = host.closest('[data-ffc-map-scope]') || host.parentElement || host;
+
     var map = L.map(canvas, {
       attributionControl: false,
-      zoomControl: false,
-      scrollWheelZoom: false,
+      boxZoom: false,
       doubleClickZoom: false,
-      dragging: true
+      dragging: true,
+      keyboard: false,
+      scrollWheelZoom: false,
+      tap: false,
+      touchZoom: false,
+      zoomControl: false
     });
 
     var defaultBounds = parseBounds(host.getAttribute('data-focus-bounds'));
     if (defaultBounds) {
-      map.fitBounds(defaultBounds);
+      map.fitBounds(defaultBounds, { animate: false });
     } else {
-      map.setView([4, 21], 3);
+      map.setView([4, 35], 3);
     }
 
     var geoUrl = host.getAttribute('data-geo-url');
@@ -168,130 +340,158 @@
       return;
     }
 
-    fetch(geoUrl)
+    fetch(geoUrl, { credentials: 'same-origin' })
       .then(function (response) {
         if (!response.ok) {
-          throw new Error('Failed to load geo data');
+          throw new Error('Failed to load FFC map geography.');
         }
         return response.json();
       })
-      .then(function (geojson) {
+      .then(function (geoJson) {
         var tooltip = document.createElement('div');
         tooltip.className = 'ffc-simulator-map__tooltip';
+        tooltip.setAttribute('role', 'group');
+        tooltip.setAttribute('aria-label', 'Country simulator summary');
         host.appendChild(tooltip);
 
         var hideTimeout = null;
         var activeIso = null;
+        var tooltipPositionToken = 0;
         var state = {};
+        var layoutFrame = 0;
+
+        function ensureItem(iso, country) {
+          if (!state[iso]) {
+            state[iso] = {
+              iso: iso,
+              country: country,
+              layers: []
+            };
+          }
+          return state[iso];
+        }
 
         function baseStyle(country) {
-          var completed = completedValue(country);
-          var ratio = maxCompleted > 0 ? completed / maxCompleted : 0;
+          if (!country) {
+            return {
+              color: '#bcc9da',
+              fillColor: '#f3f5f8',
+              fillOpacity: 0.62,
+              opacity: 1,
+              weight: 0.8
+            };
+          }
+
+          var stats = buildCountryStats(country);
+          if (stats.completed === 0 && stats.planned > 0) {
+            return {
+              color: '#c47c00',
+              fillColor: '#fff3cf',
+              fillOpacity: 0.86,
+              opacity: 1,
+              weight: 1.25
+            };
+          }
+
+          var ratio = maxCompleted > 0 ? stats.completed / maxCompleted : 0;
           return {
-            color: country ? '#312e81' : '#cbd5f5',
-            weight: country ? 1.2 : 0.8,
-            fillColor: country ? colorScale(ratio, highlightColor) : '#f1f5f9',
-            fillOpacity: country ? 0.9 : 0.45,
-            opacity: 1
+            color: '#4054a3',
+            fillColor: colorScale(ratio, highlightColor),
+            fillOpacity: 0.88,
+            opacity: 1,
+            weight: 1.05
           };
         }
 
-        function renderTooltip(country) {
-          var stats = buildCountryStats(country);
-          var name = country.name || country.Name || '';
+        function applyItemStyle(item, style) {
+          item.layers.forEach(function (layer) {
+            layer.setStyle(style);
+          });
+        }
+
+        function bringItemToFront(item) {
+          item.layers.forEach(function (layer) {
+            if (layer.bringToFront) {
+              layer.bringToFront();
+            }
+          });
+        }
+
+        function renderTooltip(item) {
+          var stats = item.stats || buildCountryStats(item.country);
+          var name = escapeHtml(countryName(item.country));
+          var detailsUrl = countryDetailsUrl(item.country);
           var rows = [
             '<div class="ffc-simulator-map__tooltip-title">' + name + '</div>',
             '<dl class="ffc-simulator-map__tooltip-metrics">',
-            '  <div class="ffc-simulator-map__tooltip-row">',
-            '    <dt>Completed units</dt><dd>' + stats.completed + '</dd>',
-            '  </div>',
-            '  <div class="ffc-simulator-map__tooltip-row">',
-            '    <dt>Installed units</dt><dd>' + stats.installed + '</dd>',
-            '  </div>',
-            '  <div class="ffc-simulator-map__tooltip-row">',
-            '    <dt>Delivered units</dt><dd>' + stats.delivered + '</dd>',
-            '  </div>'
+            '  <div class="ffc-simulator-map__tooltip-row"><dt>Completed</dt><dd>' + stats.completed + '</dd></div>',
+            '  <div class="ffc-simulator-map__tooltip-row"><dt>Installed</dt><dd>' + stats.installed + '</dd></div>',
+            '  <div class="ffc-simulator-map__tooltip-row"><dt>Delivered, awaiting installation</dt><dd>' + stats.delivered + '</dd></div>'
           ];
+
           if (stats.planned > 0) {
             rows.push(
-              '  <div class="ffc-simulator-map__tooltip-row">',
-              '    <dt>Planned units</dt><dd>' + stats.planned + '</dd>',
-              '  </div>',
-              '  <div class="ffc-simulator-map__tooltip-row">',
-              '    <dt>All units</dt><dd>' + stats.total + '</dd>',
-              '  </div>'
+              '  <div class="ffc-simulator-map__tooltip-row"><dt>Planned</dt><dd>' + stats.planned + '</dd></div>'
             );
           }
+
           rows.push('</dl>');
+          if (detailsUrl && detailsUrl !== '#') {
+            rows.push(
+              '<a class="ffc-simulator-map__tooltip-action" href="' + escapeHtml(detailsUrl) + '">' +
+              '<span>View FFC projects</span><span aria-hidden="true">&rarr;</span></a>'
+            );
+          }
+
           tooltip.innerHTML = rows.join('');
+        }
+
+        function hideTooltipImmediately() {
+          tooltipPositionToken += 1;
+          tooltip.removeAttribute('data-visible');
+          tooltip.classList.remove('is-below');
+          tooltip.style.removeProperty('left');
+          tooltip.style.removeProperty('top');
         }
 
         function positionTooltip(anchor) {
           if (!anchor) {
-            tooltip.style.opacity = '0';
+            hideTooltipImmediately();
             return;
           }
-          tooltip.style.left = anchor.x + 'px';
-          tooltip.style.top = anchor.y + 'px';
-          tooltip.style.opacity = '1';
-        }
 
-        function resetActiveStyle() {
-          if (activeIso && state[activeIso]) {
-            var prev = state[activeIso];
-            if (prev.layer) {
-              prev.layer.setStyle(baseStyle(prev.country));
-            }
-            if (prev.markerEl) {
-              prev.markerEl.classList.remove('ffc-simulator-map__pin--active');
-            }
-          }
-        }
-
-        function showCountryTooltip(countryIso, anchor) {
-          if (!state[countryIso]) {
-            return;
-          }
-          clearTimeout(hideTimeout);
-          var item = state[countryIso];
-          if (activeIso !== countryIso) {
-            resetActiveStyle();
-          }
-          activeIso = countryIso;
-          renderTooltip(item.country);
-          positionTooltip(anchor || item.anchor);
-          if (item.layer) {
-            item.layer.setStyle({
-              color: highlightColor,
-              weight: 2,
-              fillOpacity: 1,
-              opacity: 1
-            });
-            if (item.layer.bringToFront) {
-              item.layer.bringToFront();
-            }
-          }
-          if (item.markerEl) {
-            item.markerEl.classList.add('ffc-simulator-map__pin--active');
-          }
+          var token = ++tooltipPositionToken;
+          tooltip.classList.remove('is-below');
+          tooltip.style.left = '0px';
+          tooltip.style.top = '0px';
           tooltip.setAttribute('data-visible', 'true');
+
+          window.requestAnimationFrame(function () {
+            if (token !== tooltipPositionToken || !tooltip.hasAttribute('data-visible')) {
+              return;
+            }
+
+            var width = tooltip.offsetWidth;
+            var height = tooltip.offsetHeight;
+            var left = clamp(anchor.x - (width / 2), 8, Math.max(8, host.clientWidth - width - 8));
+            var top = anchor.y - height - 17;
+
+            if (top < 8) {
+              top = anchor.y + 17;
+              tooltip.classList.add('is-below');
+            }
+
+            top = clamp(top, 8, Math.max(8, host.clientHeight - height - 8));
+            tooltip.style.left = Math.round(left) + 'px';
+            tooltip.style.top = Math.round(top) + 'px';
+          });
         }
 
-        function scheduleHideTooltip() {
-          clearTimeout(hideTimeout);
-          hideTimeout = setTimeout(function () {
-            tooltip.removeAttribute('data-visible');
-            tooltip.style.opacity = '0';
-            resetActiveStyle();
-            activeIso = null;
-          }, 180);
-        }
-
-        function deriveAnchorFromEvent(e, fallbackLatLng) {
-          var latLng = e && e.latlng ? e.latlng : fallbackLatLng;
+        function deriveAnchor(latLng) {
           if (!latLng) {
             return null;
           }
+
           var point = map.latLngToContainerPoint(latLng);
           var canvasRect = canvas.getBoundingClientRect();
           var hostRect = host.getBoundingClientRect();
@@ -301,10 +501,180 @@
           };
         }
 
-        var shapes = L.geoJSON(geojson, {
+        function resetActiveStyle() {
+          if (!activeIso || !state[activeIso]) {
+            return;
+          }
+
+          var previous = state[activeIso];
+          applyItemStyle(previous, baseStyle(previous.country));
+          if (previous.markerElement) {
+            var previousPin = previous.markerElement.querySelector('.ffc-simulator-map__pin');
+            if (previousPin) {
+              previousPin.classList.remove('ffc-simulator-map__pin--active');
+            }
+          }
+          if (previous.marker) {
+            previous.marker.setZIndexOffset(previous.defaultZIndex || 0);
+          }
+          if (previous.triggerElements) {
+            previous.triggerElements.forEach(function (element) {
+              element.classList.remove('is-active');
+            });
+          }
+        }
+
+        function showCountryTooltip(iso, anchor) {
+          var item = state[String(iso || '').toUpperCase()];
+          if (!item) {
+            return;
+          }
+
+          window.clearTimeout(hideTimeout);
+          if (activeIso !== item.iso) {
+            resetActiveStyle();
+          }
+
+          activeIso = item.iso;
+          renderTooltip(item);
+          applyItemStyle(item, {
+            color: highlightColor,
+            fillColor: baseStyle(item.country).fillColor,
+            fillOpacity: 1,
+            opacity: 1,
+            weight: 2
+          });
+          bringItemToFront(item);
+
+          if (item.markerElement) {
+            var pin = item.markerElement.querySelector('.ffc-simulator-map__pin');
+            if (pin) {
+              pin.classList.add('ffc-simulator-map__pin--active');
+            }
+          }
+          if (item.marker) {
+            item.marker.setZIndexOffset(2000);
+          }
+          if (item.triggerElements) {
+            item.triggerElements.forEach(function (element) {
+              element.classList.add('is-active');
+            });
+          }
+
+          positionTooltip(anchor || item.anchor);
+        }
+
+        function scheduleHideTooltip() {
+          window.clearTimeout(hideTimeout);
+          hideTimeout = window.setTimeout(function () {
+            hideTooltipImmediately();
+            resetActiveStyle();
+            activeIso = null;
+          }, 190);
+        }
+
+        function navigateToCountry(item) {
+          var url = item ? countryDetailsUrl(item.country) : '';
+          if (url && url !== '#') {
+            window.location.assign(url);
+          }
+        }
+
+        function updateLeader(item, displayLatLng, pixelDistance) {
+          if (!deconflictMarkers || pixelDistance < 8) {
+            if (item.leader && map.hasLayer(item.leader)) {
+              map.removeLayer(item.leader);
+            }
+            item.leader = null;
+            return;
+          }
+
+          if (!item.leader) {
+            item.leader = L.polyline(
+              [item.actualLatLng, displayLatLng],
+              {
+                className: 'ffc-simulator-map__leader',
+                interactive: false,
+                opacity: 0.72,
+                weight: 1.1
+              }
+            ).addTo(map);
+          } else {
+            item.leader.setLatLngs([item.actualLatLng, displayLatLng]);
+            if (!map.hasLayer(item.leader)) {
+              item.leader.addTo(map);
+            }
+          }
+        }
+
+        function layoutMarkers() {
+          layoutFrame = 0;
+          var items = Object.keys(state)
+            .map(function (iso) { return state[iso]; })
+            .filter(function (item) { return item.marker && item.actualLatLng; })
+            .sort(function (left, right) {
+              var completedDifference = right.stats.completed - left.stats.completed;
+              if (completedDifference !== 0) {
+                return completedDifference;
+              }
+              var totalDifference = right.stats.total - left.stats.total;
+              if (totalDifference !== 0) {
+                return totalDifference;
+              }
+              return countryName(left.country).localeCompare(countryName(right.country));
+            });
+
+          var occupied = [];
+          items.forEach(function (item) {
+            var actualPoint = map.latLngToContainerPoint(item.actualLatLng);
+            var selectedPoint = actualPoint;
+
+            if (deconflictMarkers) {
+              for (var index = 0; index < candidateOffsets.length; index += 1) {
+                var offset = candidateOffsets[index];
+                var candidate = L.point(actualPoint.x + offset[0], actualPoint.y + offset[1]);
+                if (!markerFitsCanvas(candidate, item, canvas)) {
+                  continue;
+                }
+                if (!markerCollides(candidate, item, occupied)) {
+                  selectedPoint = candidate;
+                  break;
+                }
+              }
+            }
+
+            var displayLatLng = map.containerPointToLatLng(selectedPoint);
+            var bubbleCenter = markerBubbleCenter(selectedPoint, item);
+            var radius = (item.markerMeta.size / 2) + 4;
+            var distance = actualPoint.distanceTo(selectedPoint);
+
+            item.marker.setLatLng(displayLatLng);
+            item.displayLatLng = displayLatLng;
+            item.anchor = deriveAnchor(displayLatLng);
+            occupied.push({ center: bubbleCenter, radius: radius });
+            updateLeader(item, displayLatLng, distance);
+          });
+
+          if (activeIso && state[activeIso]) {
+            positionTooltip(state[activeIso].anchor);
+          }
+        }
+
+        function scheduleMarkerLayout() {
+          if (layoutFrame) {
+            window.cancelAnimationFrame(layoutFrame);
+          }
+          layoutFrame = window.requestAnimationFrame(layoutMarkers);
+        }
+
+        tooltip.addEventListener('mouseenter', function () {
+          window.clearTimeout(hideTimeout);
+        });
+        tooltip.addEventListener('mouseleave', scheduleHideTooltip);
+
+        var shapes = L.geoJSON(geoJson, {
           style: function (feature) {
-            var country = lookup[getIso(feature)];
-            return baseStyle(country);
+            return baseStyle(lookup[getIso(feature)]);
           },
           onEachFeature: function (feature, layer) {
             var iso = getIso(feature);
@@ -312,78 +682,148 @@
             if (!country) {
               return;
             }
-            var bounds = layer.getBounds();
-            state[iso] = state[iso] || { country: country };
-            state[iso].layer = layer;
-            state[iso].bounds = bounds;
-            state[iso].anchor = deriveAnchorFromEvent(null, bounds.getCenter());
 
-            layer.on('mouseover', function (e) {
-              showCountryTooltip(iso, deriveAnchorFromEvent(e));
+            var item = ensureItem(iso, country);
+            var layerBounds = layer.getBounds();
+            item.layers.push(layer);
+            item.labelLatLng = item.labelLatLng || featureLabelLatLng(feature);
+            if (item.bounds) {
+              item.bounds.extend(layerBounds);
+            } else {
+              item.bounds = L.latLngBounds(layerBounds);
+            }
+
+            layer.on('mouseover', function (event) {
+              showCountryTooltip(iso, deriveAnchor(event.latlng || item.actualLatLng));
             });
-            layer.on('mouseout', function () {
-              scheduleHideTooltip();
+            layer.on('mouseout', scheduleHideTooltip);
+            layer.on('click', function () {
+              navigateToCountry(item);
             });
           }
         }).addTo(map);
 
-        shapes.eachLayer(function (layer) {
-          var iso = getIso(layer.feature);
-          var country = lookup[iso];
-          if (!country) {
+        var footprintBounds = L.latLngBounds([]);
+        Object.keys(state).forEach(function (iso) {
+          var item = state[iso];
+          var anchor = item.labelLatLng || (item.bounds && item.bounds.isValid() ? item.bounds.getCenter() : null);
+          if (anchor) {
+            footprintBounds.extend(anchor);
+          }
+        });
+
+        if (autoFit && footprintBounds.isValid()) {
+          map.fitBounds(footprintBounds, {
+            animate: false,
+            maxZoom: autoFitMaxZoom,
+            paddingTopLeft: [34, 26],
+            paddingBottomRight: [36, 52]
+          });
+        }
+
+        Object.keys(state).forEach(function (iso) {
+          var item = state[iso];
+          if (!item.bounds || !item.bounds.isValid()) {
             return;
           }
-          var stats = buildCountryStats(country);
-          var center = layer.getBounds().getCenter();
-          var markerMode = stats.completed === 0 && stats.planned > 0
-            ? 'planned'
-            : (stats.completed > 0 && stats.planned > 0 ? 'mixed' : 'completed');
-          var marker = L.marker(center, { icon: createPin(stats.displayCount, markerMode) }).addTo(map);
-          var markerEl = marker.getElement();
-          state[iso] = state[iso] || { country: country };
-          state[iso].marker = marker;
-          state[iso].markerEl = markerEl;
-          state[iso].anchor = deriveAnchorFromEvent(null, center);
 
-          marker.on('mouseover', function (e) {
-            var anchor = deriveAnchorFromEvent(e, center);
-            showCountryTooltip(iso, anchor);
+          item.actualLatLng = item.labelLatLng || item.bounds.getCenter();
+          item.stats = buildCountryStats(item.country);
+          item.markerMeta = createPin(item.stats, markerMode(item.stats));
+          item.defaultZIndex = Math.min(item.stats.completed * 4, 180);
+
+          item.marker = L.marker(item.actualLatLng, {
+            alt: countryName(item.country) + ' FFC simulator summary',
+            bubblingMouseEvents: false,
+            icon: item.markerMeta.icon,
+            keyboard: true,
+            riseOnHover: true,
+            riseOffset: 800,
+            title: countryName(item.country),
+            zIndexOffset: item.defaultZIndex
+          }).addTo(map);
+
+          item.markerElement = item.marker.getElement();
+          if (item.markerElement) {
+            item.markerElement.setAttribute('role', 'link');
+            item.markerElement.setAttribute(
+              'aria-label',
+              countryName(item.country) + ': ' +
+              item.stats.completed + ' completed and ' +
+              item.stats.planned + ' planned units. Open FFC projects.'
+            );
+            item.markerElement.addEventListener('focus', function () {
+              showCountryTooltip(iso, item.anchor);
+            });
+            item.markerElement.addEventListener('blur', scheduleHideTooltip);
+            item.markerElement.addEventListener('keydown', function (event) {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                navigateToCountry(item);
+              }
+            });
+          }
+
+          item.marker.on('mouseover', function () {
+            showCountryTooltip(iso, item.anchor);
           });
-          marker.on('mouseout', function () {
-            scheduleHideTooltip();
+          item.marker.on('mouseout', scheduleHideTooltip);
+          item.marker.on('click', function () {
+            navigateToCountry(item);
           });
         });
 
-        var listItems = host.querySelectorAll('[data-country-chip]');
-        if (listItems.length) {
-          listItems.forEach(function (itemEl) {
-            var iso = itemEl.getAttribute('data-country-chip');
-            itemEl.addEventListener('mouseenter', function () {
-              showCountryTooltip(iso);
-            });
-            itemEl.addEventListener('focus', function () {
-              showCountryTooltip(iso);
-            });
-            itemEl.addEventListener('mouseleave', function () {
-              scheduleHideTooltip();
-            });
-            itemEl.addEventListener('blur', function () {
-              scheduleHideTooltip();
-            });
-            itemEl.addEventListener('click', function (e) {
-              e.preventDefault();
-              var item = state[iso];
-              if (!item) {
-                return;
-              }
-              if (item.bounds) {
-                map.fitBounds(item.bounds, { maxZoom: 6 });
-              } else if (item.marker) {
-                map.panTo(item.marker.getLatLng());
+        layoutMarkers();
+
+        var listItems = scope.querySelectorAll('[data-country-chip]');
+        listItems.forEach(function (element) {
+          var iso = String(element.getAttribute('data-country-chip') || '').toUpperCase();
+          var item = state[iso];
+          if (!item) {
+            return;
+          }
+
+          item.triggerElements = item.triggerElements || [];
+          item.triggerElements.push(element);
+
+          element.addEventListener('mouseenter', function () {
+            showCountryTooltip(iso, item.anchor);
+          });
+          element.addEventListener('focus', function () {
+            showCountryTooltip(iso, item.anchor);
+          });
+          element.addEventListener('mouseleave', scheduleHideTooltip);
+          element.addEventListener('blur', scheduleHideTooltip);
+
+          if (!element.matches('a[href]')) {
+            element.addEventListener('click', function (event) {
+              event.preventDefault();
+              if (item.bounds && item.bounds.isValid()) {
+                map.fitBounds(item.bounds, {
+                  animate: true,
+                  maxZoom: 6,
+                  padding: [46, 46]
+                });
               }
               showCountryTooltip(iso, item.anchor);
             });
+          }
+        });
+
+        map.on('moveend zoomend', scheduleMarkerLayout);
+
+        if (typeof ResizeObserver !== 'undefined') {
+          var resizeObserver = new ResizeObserver(function () {
+            map.invalidateSize(false);
+            scheduleMarkerLayout();
           });
+          resizeObserver.observe(canvas);
+          host._ffcResizeObserver = resizeObserver; // Retain the observer for the life of the map host.
+        } else {
+          window.addEventListener('resize', function () {
+            map.invalidateSize(false);
+            scheduleMarkerLayout();
+          }, { passive: true });
         }
 
         host.classList.add('ffc-simulator-map--ready');
@@ -391,8 +831,13 @@
         if (status) {
           status.setAttribute('aria-hidden', 'true');
         }
+
+        // Keep a reference for diagnostics and future progressive enhancement.
+        host._ffcMap = map;
+        host._ffcShapes = shapes;
       })
-      .catch(function () {
+      .catch(function (error) {
+        console.warn('FFC simulator map could not be initialised.', error); // eslint-disable-line no-console
         host.classList.add('ffc-simulator-map--error');
       });
   }
@@ -400,9 +845,7 @@
 
   // SECTION: Initialisation
   var hosts = document.querySelectorAll('[data-widget="ffc-simulator-map"]');
-  if (hosts.length) {
-    hosts.forEach(hydrate);
-  }
+  hosts.forEach(hydrate);
   // END SECTION
-})();
+}());
 // END SECTION

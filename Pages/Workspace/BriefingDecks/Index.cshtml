@@ -1,0 +1,630 @@
+@page "/Workspace/BriefingDecks/{deckId:long?}"
+@model ProjectManagement.Pages.Workspace.BriefingDecks.IndexModel
+@using ProjectManagement.Infrastructure
+@using ProjectManagement.Models.ProjectBriefings
+@using ProjectManagement.Services.ProjectBriefings
+@using ProjectManagement.ViewModels.Workspace
+@{
+    ViewData["Title"] = "Project Briefing Deck Builder | Comdt / HoD Workspace";
+    ViewData["UseFullWidth"] = true;
+    ViewData["PageShell"] = "workspace";
+    var deck = Model.SelectedDeck;
+    var presentationModeLabel = deck?.PresentationMode switch
+    {
+        ProjectBriefingPresentationMode.ExecutiveTable => "Executive table deck",
+        ProjectBriefingPresentationMode.DetailedProjects => "Detailed project deck",
+        ProjectBriefingPresentationMode.Combined => "Combined deck",
+        _ => "Deck format"
+    };
+    var costModeLabel = deck?.CostMode switch
+    {
+        ProjectBriefingCostMode.CostRdOnly => "Cost (R&D) only",
+        ProjectBriefingCostMode.ProliferationOnly => "Proliferation cost only",
+        ProjectBriefingCostMode.Both => "Both costs",
+        ProjectBriefingCostMode.None => "No cost",
+        _ => "Cost setting"
+    };
+    var includesDetailedSlides = deck?.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects or ProjectBriefingPresentationMode.Combined;
+    var includesCostRd = deck?.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both;
+    var includesProliferationCost = deck?.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both;
+    var missingStatusCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ExternalStatusAvailableCount;
+    var missingCostRdCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.CostRdAvailableCount;
+    var missingProliferationCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.ProliferationCostAvailableCount;
+    var missingPhotoCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.CoverPhotoAvailableCount;
+    var missingDescriptionCount = deck is null ? 0 : deck.Readiness.ProjectCount - deck.Readiness.DescriptionAvailableCount;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/command-workspace.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/project-briefing-decks.css" asp-append-version="true" />
+}
+
+<div class="command-workspace is-nav-expanded command-workspace--briefing-decks" data-command-workspace>
+    @await Html.PartialAsync("/Pages/Workspace/_CommandWorkspaceRail.cshtml", Model.CommandRail)
+
+    <main class="cw-workspace-content pbd-shell" data-pbd-root
+          data-search-url="@Url.Page("/Workspace/BriefingDecks/Index", "SearchProjects")"
+          data-reorder-url="@Url.Page("/Workspace/BriefingDecks/Index", "Reorder")"
+          data-membership-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateMembership")"
+          data-description-url="@Url.Page("/Workspace/BriefingDecks/Index", "UpdateDescription")">
+        <form method="post" class="pbd-antiforgery" aria-hidden="true">
+            @Html.AntiForgeryToken()
+        </form>
+
+        <header class="pbd-page-header">
+            <div>
+                <span class="pbd-eyebrow">Project monitoring</span>
+                <h1>Project Briefing Deck Builder</h1>
+                <p>Select projects, maintain shared command decks and generate professional editable PowerPoint presentations.</p>
+            </div>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#pbd-new-deck-modal">
+                <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                New deck
+            </button>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+        {
+            <div class="alert alert-success pbd-alert" role="status">
+                <i class="bi bi-check-circle" aria-hidden="true"></i>
+                <span>@Model.StatusMessage</span>
+            </div>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+        {
+            <div class="alert alert-danger pbd-alert" role="alert">
+                <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                <span>@Model.ErrorMessage</span>
+            </div>
+        }
+
+        @if (Model.Decks.Count == 0)
+        {
+            <section class="pbd-first-use" aria-labelledby="pbd-first-use-title">
+                <span class="pbd-first-use__icon" aria-hidden="true"><i class="bi bi-file-earmark-slides"></i></span>
+                <div>
+                    <span class="pbd-eyebrow">No saved decks</span>
+                    <h2 id="pbd-first-use-title">Create your first project briefing deck</h2>
+                    <p>A shared command deck retains project membership and slide order while stage, cost and external status are refreshed from current PRISM data whenever the PowerPoint is generated.</p>
+                </div>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#pbd-new-deck-modal">
+                    Create deck
+                </button>
+            </section>
+        }
+        else
+        {
+            <div class="pbd-workspace">
+                <aside class="pbd-saved" aria-label="Shared command decks">
+                    <div class="pbd-saved__header">
+                        <div>
+                            <span class="pbd-eyebrow">Command workspace</span>
+                            <h2>Shared decks</h2>
+                        </div>
+                        <span class="pbd-count">@Model.Decks.Count</span>
+                    </div>
+                    <nav class="pbd-saved__list">
+                        @foreach (var saved in Model.Decks)
+                        {
+                            var isActive = deck?.Id == saved.Id;
+                            <a asp-page="/Workspace/BriefingDecks/Index"
+                               asp-route-deckId="@saved.Id"
+                               class="pbd-saved-card @(isActive ? "is-active" : null)"
+                               aria-current="@(isActive ? "page" : null)">
+                                <span class="pbd-saved-card__icon" aria-hidden="true"><i class="bi bi-file-earmark-slides"></i></span>
+                                <span class="pbd-saved-card__body">
+                                    <strong>@saved.Name</strong>
+                                    <small>@saved.ProjectCount @(saved.ProjectCount == 1 ? "project" : "projects") · updated @IstClock.ToIst(saved.UpdatedAtUtc).ToString("dd MMM") by @saved.LastModifiedByDisplay</small>
+                                </span>
+                                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                            </a>
+                        }
+                    </nav>
+                </aside>
+
+                @if (deck is not null)
+                {
+                    <section class="pbd-editor" aria-labelledby="pbd-deck-title" data-deck-id="@deck.Id">
+                        <header class="pbd-deck-header">
+                            <div class="pbd-deck-header__identity">
+                                <span class="pbd-deck-header__mark" aria-hidden="true"><i class="bi bi-easel2"></i></span>
+                                <div>
+                                    <span class="pbd-eyebrow">Saved briefing deck</span>
+                                    <h2 id="pbd-deck-title">@deck.Name</h2>
+                                    <p>@(string.IsNullOrWhiteSpace(deck.Description) ? "No deck description recorded." : deck.Description)</p>
+                                    <small class="pbd-deck-header__meta">Created by @deck.CreatedByDisplay · Last updated by @deck.LastModifiedByDisplay on @IstClock.ToIst(deck.UpdatedAtUtc).ToString("dd MMM yyyy, HH:mm")</small>
+                                </div>
+                            </div>
+                            <div class="pbd-deck-header__actions">
+                                <form method="post" asp-page-handler="Generate" data-pbd-generate-form>
+                                    <input type="hidden" name="deckId" value="@deck.Id" />
+                                    <button type="submit" class="btn btn-primary" disabled="@(deck.Projects.Count == 0)" data-pbd-generate>
+                                        <span data-pbd-generate-label><i class="bi bi-file-earmark-ppt" aria-hidden="true"></i> Generate PowerPoint</span>
+                                        <span class="d-none" data-pbd-generate-progress><span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Generating…</span>
+                                    </button>
+                                </form>
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Deck actions">
+                                        <i class="bi bi-three-dots" aria-hidden="true"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li>
+                                            <form method="post" asp-page-handler="Duplicate">
+                                                <input type="hidden" name="deckId" value="@deck.Id" />
+                                                <button type="submit" class="dropdown-item"><i class="bi bi-copy" aria-hidden="true"></i> Duplicate deck</button>
+                                            </form>
+                                        </li>
+                                        <li><hr class="dropdown-divider" /></li>
+                                        <li>
+                                            <button type="button" class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#pbd-delete-deck-modal">
+                                                <i class="bi bi-trash" aria-hidden="true"></i> Delete deck
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </header>
+                        <div class="pbd-generate-status" data-pbd-generate-status aria-live="polite"></div>
+
+                        <section class="pbd-readiness" aria-label="Deck readiness">
+                            <div><strong data-pbd-metric="projects">@deck.Readiness.ProjectCount</strong><span>Selected projects</span></div>
+                            <div><strong data-pbd-metric="status">@deck.Readiness.ExternalStatusAvailableCount/@deck.Readiness.ProjectCount</strong><span>External status</span></div>
+                            <div><strong data-pbd-metric="cost-rd">@deck.Readiness.CostRdAvailableCount/@deck.Readiness.ProjectCount</strong><span>Cost (R&amp;D)</span></div>
+                            <div><strong data-pbd-metric="proliferation">@deck.Readiness.ProliferationCostAvailableCount/@deck.Readiness.ProjectCount</strong><span>Proliferation cost</span></div>
+                            <div><strong data-pbd-metric="photo">@deck.Readiness.CoverPhotoAvailableCount/@deck.Readiness.ProjectCount</strong><span>PowerPoint-ready photo</span></div>
+                        </section>
+
+                        <section class="pbd-export-preflight" aria-label="PowerPoint generation summary">
+                            <div class="pbd-slide-estimate">
+                                <span class="pbd-eyebrow">Estimated deck size</span>
+                                <strong data-pbd-slide-total>@deck.SlideEstimate.TotalSlides @(deck.SlideEstimate.TotalSlides == 1 ? "slide" : "slides")</strong>
+                                <small data-pbd-slide-breakdown>
+                                    Cover and portfolio @deck.SlideEstimate.CoverAndPortfolioSlides ·
+                                    Summary @deck.SlideEstimate.SummarySlides ·
+                                    Tables @deck.SlideEstimate.ExecutiveTableSlides ·
+                                    Project slides @deck.SlideEstimate.DetailedProjectSlides
+                                    @if (deck.SlideEstimate.CapabilityContinuationSlides > 0)
+                                    {
+                                        <text> · Capability continuations @deck.SlideEstimate.CapabilityContinuationSlides</text>
+                                    }
+                                </small>
+                            </div>
+                            <div class="pbd-preflight-gaps">
+                                <span class="pbd-eyebrow">Content readiness</span>
+                                <div class="pbd-preflight-gaps__items" data-pbd-readiness-gaps>
+                                    @if (deck.Readiness.ProjectCount == 0)
+                                    {
+                                        <span class="is-neutral"><i class="bi bi-info-circle" aria-hidden="true"></i> Add projects to generate a deck</span>
+                                    }
+                                    else
+                                    {
+                                        @if (missingStatusCount > 0)
+                                        {
+                                            <span><i class="bi bi-chat-left-text" aria-hidden="true"></i> @missingStatusCount without external status</span>
+                                        }
+                                        @if (includesCostRd && missingCostRdCount > 0)
+                                        {
+                                            <span><i class="bi bi-currency-rupee" aria-hidden="true"></i> @missingCostRdCount without Cost (R&amp;D)</span>
+                                        }
+                                        @if (includesProliferationCost && missingProliferationCount > 0)
+                                        {
+                                            <span><i class="bi bi-boxes" aria-hidden="true"></i> @missingProliferationCount without proliferation cost</span>
+                                        }
+                                        @if (includesDetailedSlides && missingPhotoCount > 0)
+                                        {
+                                            <span><i class="bi bi-image" aria-hidden="true"></i> @missingPhotoCount without PowerPoint-ready photo</span>
+                                        }
+                                        @if (includesDetailedSlides && missingDescriptionCount > 0)
+                                        {
+                                            <span><i class="bi bi-card-text" aria-hidden="true"></i> @missingDescriptionCount without capability overview</span>
+                                        }
+                                        @if (missingStatusCount == 0
+                                            && (!includesCostRd || missingCostRdCount == 0)
+                                            && (!includesProliferationCost || missingProliferationCount == 0)
+                                            && (!includesDetailedSlides || (missingPhotoCount == 0 && missingDescriptionCount == 0)))
+                                        {
+                                            <span class="is-ready"><i class="bi bi-check-circle" aria-hidden="true"></i> Selected content is ready</span>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        </section>
+
+                        <details class="pbd-settings" data-pbd-open-settings="@(deck.Projects.Count == 0 ? "true" : "false")">
+                            <summary>
+                                <span><i class="bi bi-sliders" aria-hidden="true"></i> Deck settings</span>
+                                <small>@presentationModeLabel · @costModeLabel</small>
+                            </summary>
+                            <form method="post" asp-page-handler="SaveSettings" class="pbd-settings__form">
+                                <input type="hidden" name="DeckId" value="@deck.Id" />
+                                <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+
+                                <div class="pbd-form-grid pbd-form-grid--identity">
+                                    <label class="form-label">
+                                        <span>Deck name</span>
+                                        <input class="form-control" name="Name" value="@deck.Name" maxlength="160" required />
+                                    </label>
+                                    <label class="form-label">
+                                        <span>Description <small>optional</small></span>
+                                        <input class="form-control" name="Description" value="@deck.Description" maxlength="600" />
+                                    </label>
+                                </div>
+
+                                <fieldset class="pbd-choice-group">
+                                    <legend>Deck format</legend>
+                                    <div class="pbd-choice-cards pbd-choice-cards--three">
+                                        <label class="pbd-choice-card">
+                                            <input type="radio" name="PresentationMode" value="ExecutiveTable" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.ExecutiveTable)" />
+                                            <span><i class="bi bi-table" aria-hidden="true"></i><strong>Executive table deck</strong><small>Summary and editable project tables</small></span>
+                                        </label>
+                                        <label class="pbd-choice-card">
+                                            <input type="radio" name="PresentationMode" value="DetailedProjects" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.DetailedProjects)" />
+                                            <span><i class="bi bi-file-slides" aria-hidden="true"></i><strong>Detailed project deck</strong><small>One professional slide per project</small></span>
+                                        </label>
+                                        <label class="pbd-choice-card">
+                                            <input type="radio" name="PresentationMode" value="Combined" checked="@(deck.PresentationMode == ProjectBriefingPresentationMode.Combined)" />
+                                            <span><i class="bi bi-layers" aria-hidden="true"></i><strong>Combined deck</strong><small>Executive table followed by project slides</small></span>
+                                        </label>
+                                    </div>
+                                </fieldset>
+
+                                <fieldset class="pbd-choice-group">
+                                    <legend>Cost information</legend>
+                                    <div class="pbd-choice-cards pbd-choice-cards--four">
+                                        <label class="pbd-choice-card pbd-choice-card--compact">
+                                            <input type="radio" name="CostMode" value="CostRdOnly" checked="@(deck.CostMode == ProjectBriefingCostMode.CostRdOnly)" />
+                                            <span><strong>Cost (R&amp;D) only</strong><small>L1 → AoN → IPA</small></span>
+                                        </label>
+                                        <label class="pbd-choice-card pbd-choice-card--compact">
+                                            <input type="radio" name="CostMode" value="ProliferationOnly" checked="@(deck.CostMode == ProjectBriefingCostMode.ProliferationOnly)" />
+                                            <span><strong>Proliferation cost only</strong><small>Latest indicative cost</small></span>
+                                        </label>
+                                        <label class="pbd-choice-card pbd-choice-card--compact">
+                                            <input type="radio" name="CostMode" value="Both" checked="@(deck.CostMode == ProjectBriefingCostMode.Both)" />
+                                            <span><strong>Both costs</strong><small>Shown separately</small></span>
+                                        </label>
+                                        <label class="pbd-choice-card pbd-choice-card--compact">
+                                            <input type="radio" name="CostMode" value="None" checked="@(deck.CostMode == ProjectBriefingCostMode.None)" />
+                                            <span><strong>Do not include cost</strong><small>Hide cost from slides</small></span>
+                                        </label>
+                                    </div>
+                                </fieldset>
+
+                                <div class="pbd-settings__bottom">
+                                    <fieldset class="pbd-checks">
+                                        <legend>Summary slides</legend>
+                                        <label><input type="checkbox" name="IncludeStageSummary" value="true" checked="@deck.IncludeStageSummary" /> Stage-wise summary <small>chart and table</small></label>
+                                        <label><input type="checkbox" name="IncludeProjectCategorySummary" value="true" checked="@deck.IncludeProjectCategorySummary" /> Project-category summary</label>
+                                        <label><input type="checkbox" name="IncludeTechnicalCategorySummary" value="true" checked="@deck.IncludeTechnicalCategorySummary" /> Technical-category summary</label>
+                                    </fieldset>
+                                    <label class="form-label pbd-marking">
+                                        <span>Handling / classification marking <small>optional</small></span>
+                                        <input class="form-control" name="HandlingMarking" value="@deck.HandlingMarking" maxlength="80" placeholder="e.g. OFFICIAL" />
+                                    </label>
+                                    <button type="submit" class="btn btn-primary align-self-end">Save settings</button>
+                                </div>
+                            </form>
+                        </details>
+
+                        <section class="pbd-selector" aria-labelledby="pbd-selector-title">
+                            <header class="pbd-section-header">
+                                <div>
+                                    <span class="pbd-eyebrow">Build the collection</span>
+                                    <h3 id="pbd-selector-title">Add projects</h3>
+                                    <p>Use one or more selection methods. Existing projects are retained and duplicates are ignored.</p>
+                                </div>
+                            </header>
+
+                            <div class="pbd-selector-tabs" role="tablist" aria-label="Project selection methods">
+                                <button type="button" class="is-active" data-pbd-selector-tab="quick" role="tab" aria-selected="true"><i class="bi bi-lightning" aria-hidden="true"></i> Quick add</button>
+                                <button type="button" data-pbd-selector-tab="completed" role="tab" aria-selected="false"><i class="bi bi-check2-circle" aria-hidden="true"></i> Recently completed</button>
+                                <button type="button" data-pbd-selector-tab="project-category" role="tab" aria-selected="false"><i class="bi bi-folder2" aria-hidden="true"></i> Project category</button>
+                                <button type="button" data-pbd-selector-tab="technical-category" role="tab" aria-selected="false"><i class="bi bi-cpu" aria-hidden="true"></i> Technical category</button>
+                                <button type="button" data-pbd-selector-tab="individual" role="tab" aria-selected="false"><i class="bi bi-search" aria-hidden="true"></i> Manage individually</button>
+                            </div>
+
+                            <div class="pbd-selector-panel is-active" data-pbd-selector-panel="quick">
+                                <div class="pbd-quick-grid">
+                                    <form method="post" asp-page-handler="AddSelection" class="pbd-quick-card">
+                                        <input type="hidden" name="DeckId" value="@deck.Id" />
+                                        <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+                                        <input type="hidden" name="Kind" value="Ongoing" />
+                                        <span class="pbd-quick-card__icon"><i class="bi bi-kanban"></i></span>
+                                        <span><strong>All ongoing projects</strong><small>@Model.SelectionOptions.OngoingCount projects currently active</small></span>
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">Add</button>
+                                    </form>
+                                    <form method="post" asp-page-handler="AddSelection" class="pbd-quick-card">
+                                        <input type="hidden" name="DeckId" value="@deck.Id" />
+                                        <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+                                        <input type="hidden" name="Kind" value="AvailableForProliferation" />
+                                        <span class="pbd-quick-card__icon"><i class="bi bi-boxes"></i></span>
+                                        <span><strong>Available for proliferation</strong><small>@Model.SelectionOptions.ProliferationAvailableCount projects marked available</small></span>
+                                        <button type="submit" class="btn btn-sm btn-outline-primary">Add</button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <div class="pbd-selector-panel" data-pbd-selector-panel="completed" hidden>
+                                <form method="post" asp-page-handler="AddSelection" class="pbd-inline-form">
+                                    <input type="hidden" name="DeckId" value="@deck.Id" />
+                                    <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+                                    <input type="hidden" name="Kind" value="RecentlyCompleted" />
+                                    <label class="form-label"><span>From year</span><input class="form-control" type="number" name="CompletionYearFrom" min="@Model.SelectionOptions.MinimumCompletionYear" max="@Model.SelectionOptions.MaximumCompletionYear" value="@(Math.Max(Model.SelectionOptions.MinimumCompletionYear, Model.SelectionOptions.MaximumCompletionYear - 1))" /></label>
+                                    <label class="form-label"><span>To year</span><input class="form-control" type="number" name="CompletionYearTo" min="@Model.SelectionOptions.MinimumCompletionYear" max="@Model.SelectionOptions.MaximumCompletionYear" value="@Model.SelectionOptions.MaximumCompletionYear" /></label>
+                                    <div class="pbd-inline-form__context"><strong>@Model.SelectionOptions.CompletedCount completed projects</strong><span>Completion year falls back to completion date where required.</span></div>
+                                    <button type="submit" class="btn btn-primary">Add matching projects</button>
+                                </form>
+                            </div>
+
+                            <div class="pbd-selector-panel" data-pbd-selector-panel="project-category" hidden>
+                                <form method="post" asp-page-handler="AddSelection" class="pbd-category-form">
+                                    <input type="hidden" name="DeckId" value="@deck.Id" />
+                                    <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+                                    <input type="hidden" name="Kind" value="ProjectCategory" />
+                                    <div class="pbd-category-grid">
+                                        @foreach (var category in Model.SelectionOptions.ProjectCategories)
+                                        {
+                                            <label class="pbd-filter-option @(category.ParentId.HasValue ? "is-child" : null)">
+                                                <input type="checkbox" name="ProjectCategoryIds" value="@category.Id" />
+                                                <span><strong>@category.Name</strong><small>@category.MatchCount projects</small></span>
+                                            </label>
+                                        }
+                                    </div>
+                                    <div class="pbd-category-form__footer"><span>Selecting a parent category also includes its child categories.</span><button type="submit" class="btn btn-primary">Add selected categories</button></div>
+                                </form>
+                            </div>
+
+                            <div class="pbd-selector-panel" data-pbd-selector-panel="technical-category" hidden>
+                                <form method="post" asp-page-handler="AddSelection" class="pbd-category-form">
+                                    <input type="hidden" name="DeckId" value="@deck.Id" />
+                                    <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+                                    <input type="hidden" name="Kind" value="TechnicalCategory" />
+                                    <div class="pbd-category-grid">
+                                        @foreach (var category in Model.SelectionOptions.TechnicalCategories)
+                                        {
+                                            <label class="pbd-filter-option @(category.ParentId.HasValue ? "is-child" : null)">
+                                                <input type="checkbox" name="TechnicalCategoryIds" value="@category.Id" />
+                                                <span><strong>@category.Name</strong><small>@category.MatchCount projects</small></span>
+                                            </label>
+                                        }
+                                    </div>
+                                    <div class="pbd-category-form__footer"><span>Multiple technical categories can be added in one action.</span><button type="submit" class="btn btn-primary">Add selected categories</button></div>
+                                </form>
+                            </div>
+
+                            <div class="pbd-selector-panel" data-pbd-selector-panel="individual" hidden>
+                                <form method="post" asp-page-handler="AddSelection" class="pbd-individual-form" data-pbd-individual-form>
+                                    <input type="hidden" name="DeckId" value="@deck.Id" />
+                                    <input type="hidden" name="RowVersion" value="@deck.RowVersion" />
+                                    <input type="hidden" name="Kind" value="IndividualProjects" />
+                                    <div class="pbd-manage-search-row">
+                                        <label class="pbd-project-search">
+                                            <span class="visually-hidden">Search all projects</span>
+                                            <i class="bi bi-search" aria-hidden="true"></i>
+                                            <input type="search" class="form-control" placeholder="Search all projects by name, case file, officer or category" autocomplete="off" data-pbd-project-search />
+                                        </label>
+                                        <select class="form-select" data-pbd-membership-filter aria-label="Filter search results by deck membership">
+                                            <option value="all">All projects</option>
+                                            <option value="selected">In this deck</option>
+                                            <option value="unselected">Not in this deck</option>
+                                        </select>
+                                    </div>
+                                    <div class="pbd-search-status" data-pbd-search-status>Enter at least two characters.</div>
+                                    <div class="pbd-search-results" data-pbd-search-results></div>
+                                    <div class="pbd-individual-form__footer">
+                                        <span data-pbd-selected-count>No pending changes</span>
+                                        <button type="submit" class="btn btn-primary" disabled data-pbd-apply-membership>Apply changes</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </section>
+
+                        <section class="pbd-selected" aria-labelledby="pbd-selected-title" data-pbd-selected-section>
+                            <header class="pbd-section-header pbd-section-header--selected">
+                                <div>
+                                    <span class="pbd-eyebrow">Slide order</span>
+                                    <h3 id="pbd-selected-title">Selected projects <span data-pbd-selected-total>@deck.Projects.Count</span></h3>
+                                    <p>Search, review and arrange the projects included in this deck.</p>
+                                </div>
+                            </header>
+
+                            <div class="pbd-selected-toolbar" data-pbd-selected-toolbar>
+                                <label class="pbd-selected-search">
+                                    <span class="visually-hidden">Search selected projects</span>
+                                    <i class="bi bi-search" aria-hidden="true"></i>
+                                    <input type="search" class="form-control" placeholder="Search within this deck" autocomplete="off" data-pbd-selected-search />
+                                </label>
+                                <select class="form-select" data-pbd-selected-stage aria-label="Filter selected projects by present stage">
+                                    <option value="">All stages</option>
+                                    @foreach (var stage in deck.Projects.Select(project => project.PresentStage).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(stage => stage))
+                                    {
+                                        <option value="@stage">@stage</option>
+                                    }
+                                </select>
+                                <select class="form-select" data-pbd-selected-readiness aria-label="Filter selected projects by content readiness">
+                                    <option value="">All readiness</option>
+                                    <option value="missing-status">Missing external status</option>
+                                    <option value="missing-cost-rd">Missing Cost (R&amp;D)</option>
+                                    <option value="missing-proliferation">Missing proliferation cost</option>
+                                    <option value="missing-photo">Missing photograph</option>
+                                    <option value="missing-description">Missing capability overview</option>
+                                </select>
+                                <span class="pbd-visible-count" data-pbd-visible-count>@deck.Projects.Count shown</span>
+                            </div>
+                            <div class="pbd-selected-actions">
+                                <label><input type="checkbox" data-pbd-select-visible /> Select visible</label>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled data-pbd-bulk-top><i class="bi bi-arrow-bar-up" aria-hidden="true"></i> Move to top</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled data-pbd-bulk-bottom><i class="bi bi-arrow-bar-down" aria-hidden="true"></i> Move to bottom</button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" disabled data-pbd-bulk-remove><i class="bi bi-trash" aria-hidden="true"></i> Remove selected</button>
+                                <span class="pbd-filter-reorder-note" data-pbd-filter-reorder-note hidden>Clear filters to drag projects into slide order.</span>
+                                <span class="pbd-save-state" data-pbd-sort-status aria-live="polite"></span>
+                            </div>
+
+                            <div class="pbd-empty-projects" data-pbd-empty-projects @(deck.Projects.Count == 0 ? null : "hidden")>
+                                <i class="bi bi-file-earmark-plus" aria-hidden="true"></i>
+                                <strong>No projects selected</strong>
+                                <span>Use a quick selection or Manage individually above.</span>
+                            </div>
+
+                            <div class="pbd-table-wrap" data-pbd-selected-table-wrap @(deck.Projects.Count == 0 ? "hidden" : null)>
+                                <table class="pbd-project-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="pbd-select-column"><span class="visually-hidden">Select</span></th>
+                                            <th class="pbd-drag-column"><span class="visually-hidden">Order</span></th>
+                                            <th>Project</th>
+                                            <th>Present stage</th>
+                                            <th>Cost (R&amp;D)</th>
+                                            <th>Proliferation cost</th>
+                                            <th>Status <small>external remark</small></th>
+                                            <th>Deck readiness</th>
+                                            <th><span class="visually-hidden">Actions</span></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody data-pbd-sortable>
+                                        @foreach (var project in deck.Projects)
+                                        {
+                                            var photoReadinessTitle = project.HasCoverPhoto
+                                                ? "PowerPoint-ready cover photograph available"
+                                                : project.HasSelectedCoverPhoto
+                                                    ? $"Selected photograph could not be prepared for PowerPoint: {project.CoverPhotoReadinessReason ?? "unreadable image"}"
+                                                    : "No cover photograph selected";
+                                            var costReadinessTitle = project.CostRd.IsAvailable
+                                                ? $"Cost (R&D) available from {project.CostRd.BasisDisplay}"
+                                                : "Cost (R&D) not recorded";
+                                            var hasCapabilityOverview = !string.Equals(project.BriefDescription, "Brief description not recorded.", StringComparison.Ordinal);
+                                            var searchText = string.Join(" ", new[]
+                                            {
+                                                project.ProjectName,
+                                                project.LifecycleDisplay,
+                                                project.PresentStage,
+                                                project.ProjectCategory,
+                                                project.TechnicalCategory,
+                                                project.ExternalStatus
+                                            }.Where(value => !string.IsNullOrWhiteSpace(value)));
+                                            <tr data-project-id="@project.ProjectId"
+                                                data-search-text="@searchText"
+                                                data-stage="@project.PresentStage"
+                                                data-missing-status="@(string.IsNullOrWhiteSpace(project.ExternalStatus) ? "true" : "false")"
+                                                data-missing-cost-rd="@(!project.CostRd.IsAvailable ? "true" : "false")"
+                                                data-missing-proliferation="@(!project.ProliferationCost.IsAvailable ? "true" : "false")"
+                                                data-missing-photo="@(!project.HasCoverPhoto ? "true" : "false")"
+                                                data-missing-description="@(!hasCapabilityOverview ? "true" : "false")">
+                                                <td class="pbd-select-column"><input type="checkbox" data-pbd-row-select aria-label="Select @project.ProjectName" /></td>
+                                                <td class="pbd-drag-column"><button type="button" class="pbd-drag" aria-label="Reorder @project.ProjectName. Use the up or down arrow key." aria-keyshortcuts="ArrowUp ArrowDown" title="Drag or use the up/down arrow keys to reorder"><i class="bi bi-grip-vertical" aria-hidden="true"></i></button></td>
+                                                <td class="pbd-project-name">
+                                                    <a href="@project.OpenUrl" target="_blank" rel="noopener" title="@project.ProjectName">@project.ProjectName</a>
+                                                    <small>@project.LifecycleDisplay · @(project.ProjectCategory ?? "Not categorised") · @(project.TechnicalCategory ?? "No technical category")</small>
+                                                </td>
+                                                <td><span class="pbd-stage">@project.PresentStage</span></td>
+                                                <td class="pbd-cost">
+                                                    <strong>@project.CostRd.DisplayValue</strong>
+                                                    @if (!string.IsNullOrWhiteSpace(project.CostRd.BasisDisplay))
+                                                    {
+                                                        <small>@project.CostRd.BasisDisplay</small>
+                                                    }
+                                                </td>
+                                                <td class="pbd-cost"><strong>@project.ProliferationCost.DisplayValue</strong></td>
+                                                <td class="pbd-status">
+                                                    @if (string.IsNullOrWhiteSpace(project.ExternalStatus))
+                                                    {
+                                                        <span class="pbd-missing">No external status recorded</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span title="@project.ExternalStatus">@project.ExternalStatus</span>
+                                                        @if (project.ExternalStatusDate.HasValue)
+                                                        {
+                                                            <small>@project.ExternalStatusDate.Value.ToString("dd MMM yyyy")</small>
+                                                        }
+                                                    }
+                                                </td>
+                                                <td>
+                                                    <div class="pbd-readiness-icons" aria-label="Project deck readiness">
+                                                        <span class="@(project.HasCoverPhoto ? "is-ready" : "is-missing")" title="@photoReadinessTitle"><i class="bi bi-image"></i></span>
+                                                        <span class="@(!string.IsNullOrWhiteSpace(project.ExternalStatus) ? "is-ready" : "is-missing")" title="@(!string.IsNullOrWhiteSpace(project.ExternalStatus) ? "External status available" : "External status missing")"><i class="bi bi-chat-left-text"></i></span>
+                                                        <span class="@(project.CostRd.IsAvailable ? "is-ready" : "is-missing")" title="@costReadinessTitle"><i class="bi bi-currency-rupee"></i></span>
+                                                        <span class="@(hasCapabilityOverview ? "is-ready" : "is-missing")" title="@(hasCapabilityOverview ? "Capability overview available" : "Capability overview not recorded")"><i class="bi bi-card-text"></i></span>
+                                                    </div>
+                                                </td>
+                                                <td class="pbd-row-actions">
+                                                    <button type="button" class="btn btn-sm btn-link" data-pbd-edit-description data-project-id="@project.ProjectId" data-project-name="@project.ProjectName" data-description="@project.BriefDescriptionOverride" aria-label="Edit briefing description for @project.ProjectName" title="Edit briefing description"><i class="bi bi-pencil-square"></i></button>
+                                                    <form method="post" asp-page-handler="RemoveProject" data-pbd-remove-project-form>
+                                                        <input type="hidden" name="deckId" value="@deck.Id" />
+                                                        <input type="hidden" name="projectId" value="@project.ProjectId" />
+                                                        <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
+                                                        <button type="submit" class="btn btn-sm btn-link text-danger" aria-label="Remove @project.ProjectName from deck" title="Remove from deck"><i class="bi bi-x-lg"></i></button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="pbd-no-filter-results" data-pbd-no-filter-results hidden>No selected projects match the current search and filters.</div>
+                        </section>
+                    </section>
+                }
+            </div>
+        }
+    </main>
+</div>
+
+<div class="modal fade" id="pbd-new-deck-modal" tabindex="-1" aria-labelledby="pbd-new-deck-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content pbd-modal">
+            <form method="post" asp-page-handler="Create">
+                <div class="modal-header">
+                    <div><span class="pbd-eyebrow">Shared command deck</span><h2 class="modal-title" id="pbd-new-deck-title">Create briefing deck</h2></div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label"><span>Deck name</span><input class="form-control" name="Name" maxlength="160" required placeholder="Project Update Review" data-pbd-new-name /></label>
+                    <label class="form-label"><span>Description <small>optional</small></span><textarea class="form-control" name="Description" maxlength="600" rows="3" placeholder="Purpose, audience or review context"></textarea></label>
+                    <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> The deck is visible to all authorised Comdt/HoD workspace users. Project membership is saved; current stage, cost and latest external status are refreshed when PowerPoint is generated.</p>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Create deck</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@if (deck is not null)
+{
+    <div class="modal fade" id="pbd-delete-deck-modal" tabindex="-1" aria-labelledby="pbd-delete-deck-title" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content pbd-modal">
+                <form method="post" asp-page-handler="Delete">
+                    <input type="hidden" name="deckId" value="@deck.Id" />
+                    <input type="hidden" name="rowVersion" value="@deck.RowVersion" />
+                    <div class="modal-header"><h2 class="modal-title" id="pbd-delete-deck-title">Delete briefing deck?</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+                    <div class="modal-body"><p><strong>@deck.Name</strong> and its saved project selection will be deleted. Project records are not affected.</p></div>
+                    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-danger">Delete deck</button></div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="pbd-description-modal" tabindex="-1" aria-labelledby="pbd-description-title" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content pbd-modal">
+                <form data-pbd-description-form>
+                    <div class="modal-header"><div><span class="pbd-eyebrow">Detailed project slide</span><h2 class="modal-title" id="pbd-description-title" data-pbd-description-title>Brief description</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+                    <div class="modal-body">
+                        <input type="hidden" data-pbd-description-project-id />
+                        <label class="form-label"><span>Briefing-specific capability overview</span><textarea class="form-control" rows="7" maxlength="1200" data-pbd-description-value></textarea></label>
+                        <p class="pbd-form-note"><i class="bi bi-info-circle" aria-hidden="true"></i> This text applies only to this saved deck. Leave it blank to use the project description.</p>
+                        <div class="pbd-modal-status" data-pbd-description-status aria-live="polite"></div>
+                    </div>
+                    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save description</button></div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script src="~/lib/sortable/1.15.2/Sortable.min.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/pages/command-workspace.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/pages/project-briefing-decks.js" asp-append-version="true"></script>
+}

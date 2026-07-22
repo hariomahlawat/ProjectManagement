@@ -81,7 +81,7 @@
                 <span class="ffc-record-card__summary-label"
                       data-bs-toggle="tooltip"
                       data-bs-placement="top"
-                      title="Total project units captured for this country and year">Project units</span>
+                      title="Total project quantity captured for this country and year">Project quantity</span>
             </div>
             <div class="ffc-record-card__summary-item ffc-record-card__summary-item--attachments">
                 <span class="ffc-record-card__summary-value ffc-record-card__summary-value--attachments">@attachmentCount</span>
@@ -137,12 +137,12 @@
                     </header>
                     @if (projectUnits > 0)
                     {
-                        <div class="ffc-record-card__status-date">@deliveredUnits of @projectUnits unit@(projectUnits == 1 ? string.Empty : "s") delivered</div>
-                        <p class="ffc-record-card__status-remarks mb-0">Planned: @plannedUnits unit@(plannedUnits == 1 ? string.Empty : "s")</p>
+                        <div class="ffc-record-card__status-date">Delivered: @deliveredUnits of @projectUnits</div>
+                        <p class="ffc-record-card__status-remarks mb-0">Planned: @plannedUnits</p>
                     }
                     else
                     {
-                        <p class="text-muted mb-0">No project units recorded.</p>
+                        <p class="text-muted mb-0">No project quantity recorded.</p>
                     }
                 </article>
                 <article class="ffc-record-card__status">
@@ -152,12 +152,12 @@
                     </header>
                     @if (projectUnits > 0)
                     {
-                        <div class="ffc-record-card__status-date">@installedUnits of @projectUnits unit@(projectUnits == 1 ? string.Empty : "s") installed</div>
+                        <div class="ffc-record-card__status-date">Installed: @installedUnits of @projectUnits</div>
                         <p class="ffc-record-card__status-remarks mb-0">Awaiting install: @(projectUnits - installedUnits)</p>
                     }
                     else
                     {
-                        <p class="text-muted mb-0">No project units recorded.</p>
+                        <p class="text-muted mb-0">No project quantity recorded.</p>
                     }
                 </article>
             </div>
@@ -223,7 +223,7 @@
                                 {
                                     <div class="text-muted small">@stageSummary</div>
                                 }
-                                <div class="text-muted small">Units: @Math.Max(1, project.Quantity)</div>
+                                <div class="text-muted small">Qty: @Math.Max(1, project.Quantity)</div>
                                 <div class="text-muted small">
                                     @if (!string.IsNullOrWhiteSpace(externalRemark))
                                     {
@@ -245,7 +245,7 @@
                     {
                         <div class="mb-2">
                             <div class="fw-semibold">@project.Name</div>
-                            <div class="text-muted small">Units: @Math.Max(1, project.Quantity)</div>
+                            <div class="text-muted small">Qty: @Math.Max(1, project.Quantity)</div>
                             @if (!string.IsNullOrWhiteSpace(project.Remarks))
                             {
                                 <div class="text-muted small">@project.Remarks</div>

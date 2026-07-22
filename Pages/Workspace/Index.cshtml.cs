@@ -16,23 +16,36 @@ public class IndexModel : PageModel
     private readonly ProjectOfficerWorkspaceService _projectOfficerWorkspaceService;
     private readonly CommandWorkspaceService _commandWorkspaceService;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IAuthorizationService _authorization;
 
     public ProjectOfficerWorkspaceVm Workspace { get; private set; } = new();
     public CommandWorkspaceVm CommandWorkspace { get; private set; } = new();
     public bool IsCommandMode { get; private set; }
     public bool CanSwitchWorkspace { get; private set; }
+    public bool CanViewDocuments { get; private set; }
 
     [BindProperty(SupportsGet = true)] public string? Mode { get; set; }
     [BindProperty(SupportsGet = true)] public string View { get; set; } = "officers";
     [BindProperty(SupportsGet = true)] public List<int> ParentCategoryIds { get; set; } = new();
     [BindProperty(SupportsGet = true)] public string? ProjectSearch { get; set; }
     [BindProperty(SupportsGet = true)] public bool PopulatedStagesOnly { get; set; }
+    [BindProperty(SupportsGet = true)] public int PatternDays { get; set; } = 7;
+    [BindProperty(SupportsGet = true)] public string? PatternUserId { get; set; }
+    [BindProperty(SupportsGet = true)] public string? PatternRole { get; set; }
+    [BindProperty(SupportsGet = true)] public string? PatternModule { get; set; }
+    [BindProperty(SupportsGet = true)] public string? PatternSignal { get; set; }
+    [BindProperty(SupportsGet = true)] public string? ActivityPeriod { get; set; }
 
-    public IndexModel(ProjectOfficerWorkspaceService projectOfficerWorkspaceService, CommandWorkspaceService commandWorkspaceService, UserManager<ApplicationUser> userManager)
+    public IndexModel(
+        ProjectOfficerWorkspaceService projectOfficerWorkspaceService,
+        CommandWorkspaceService commandWorkspaceService,
+        UserManager<ApplicationUser> userManager,
+        IAuthorizationService authorization)
     {
         _projectOfficerWorkspaceService = projectOfficerWorkspaceService;
         _commandWorkspaceService = commandWorkspaceService;
         _userManager = userManager;
+        _authorization = authorization;
     }
 
     public async Task<IActionResult> OnGetAsync(CancellationToken ct)
@@ -45,13 +58,21 @@ public class IndexModel : PageModel
         if (!hasCommandRole && !hasProjectOfficerRole) return RedirectToPage("/Dashboard/Index");
 
         CanSwitchWorkspace = hasCommandRole && hasProjectOfficerRole;
+        CanViewDocuments = (await _authorization.AuthorizeAsync(User, "DocRepo.View")).Succeeded;
         IsCommandMode = hasCommandRole && (!string.Equals(Mode, "project-officer", StringComparison.OrdinalIgnoreCase) || !hasProjectOfficerRole);
 
         if (IsCommandMode)
         {
-            View = string.Equals(View, "portfolio", StringComparison.OrdinalIgnoreCase)
-                ? "portfolio"
-                : "officers";
+            View = View?.Trim().ToLowerInvariant() switch
+            {
+                "portfolio" => "portfolio",
+                "adoption" => "adoption",
+                "usage-pattern" => "usage-pattern",
+                "pattern" => "usage-pattern",
+                "my-activity" => "my-activity",
+                "activity" => "my-activity",
+                _ => "officers"
+            };
             if (View == "portfolio" && !Request.Query.ContainsKey(nameof(PopulatedStagesOnly)))
             {
                 PopulatedStagesOnly = true;
@@ -62,16 +83,46 @@ public class IndexModel : PageModel
                 ParentCategoryIds = ParentCategoryIds,
                 ProjectSearch = ProjectSearch,
                 PopulatedStagesOnly = PopulatedStagesOnly,
+                PatternDays = PatternDays,
+                PatternUserId = PatternUserId,
+                PatternRole = PatternRole,
+                PatternModule = PatternModule,
+                PatternSignal = PatternSignal,
                 RequestingUserId = userId
             }, ct);
+
+            if (View == "my-activity")
+            {
+                Workspace = await _projectOfficerWorkspaceService.GetProjectOfficerWorkspaceAsync(
+                    userId,
+                    User,
+                    ProjectOfficerWorkspaceView.Activity,
+                    includeDocuments: false,
+                    ct: ct,
+                    activityPeriod: ActivityPeriod);
+            }
         }
         else
         {
-            Workspace = await _projectOfficerWorkspaceService.GetProjectOfficerWorkspaceAsync(userId, User, ct);
+            var projectOfficerView = ProjectOfficerWorkspaceViewParser.Parse(View);
+            View = projectOfficerView.ToRouteValue();
+            if (projectOfficerView == ProjectOfficerWorkspaceView.Documents && !CanViewDocuments)
+            {
+                return Forbid();
+            }
+
+            Workspace = await _projectOfficerWorkspaceService.GetProjectOfficerWorkspaceAsync(
+                userId,
+                User,
+                projectOfficerView,
+                includeDocuments: CanViewDocuments && projectOfficerView == ProjectOfficerWorkspaceView.Documents,
+                ct: ct,
+                activityPeriod: projectOfficerView == ProjectOfficerWorkspaceView.Activity ? ActivityPeriod : null);
         }
 
         return Page();
     }
+
     public async Task<IActionResult> OnPostSaveOfficerOrderAsync([FromBody] SaveOfficerOrderRequest request, CancellationToken ct)
     {
         if (!User.IsInRole(RoleNames.Comdt) && !User.IsInRole(RoleNames.HoD)) return Forbid();

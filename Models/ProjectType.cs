@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
@@ -15,6 +16,8 @@ public class ProjectType
     public bool IsActive { get; set; } = true;
 
     public int SortOrder { get; set; }
+
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
     // SECTION: Navigation
     public ICollection<Project> Projects { get; set; } = new List<Project>();

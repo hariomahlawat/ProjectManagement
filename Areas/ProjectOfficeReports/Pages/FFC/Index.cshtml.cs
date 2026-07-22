@@ -2,262 +2,185 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
-using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
-using ProjectManagement.Models;
-using ProjectManagement.Models.Remarks;
-using ProjectManagement.Models.Execution;
-using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Ffc;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 
 [Authorize]
-public class IndexModel : FfcRecordListPageModel
+public sealed class IndexModel : PageModel
 {
-    public IndexModel(ApplicationDbContext db)
-        : base(db)
+    public const int PortfolioPageSize = 25;
+
+    private readonly ApplicationDbContext _db;
+    private readonly IFfcPortfolioService _portfolioService;
+
+    public IndexModel(
+        ApplicationDbContext db,
+        IFfcPortfolioService portfolioService)
     {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _portfolioService = portfolioService ?? throw new ArgumentNullException(nameof(portfolioService));
     }
+
+    [FromQuery(Name = "q")]
+    public string? Query { get; set; }
+
+    [FromQuery(Name = "page")]
+    public int PageNumber { get; set; } = 1;
+
+    [FromQuery(Name = "year")]
+    public short? Year { get; set; }
+
+    [FromQuery(Name = "countryId")]
+    public long? CountryId { get; set; }
+
+    [FromQuery(Name = "ipa")]
+    public FfcFilterState IpaStatus { get; set; } = FfcFilterState.Any;
+
+    [FromQuery(Name = "gsl")]
+    public FfcFilterState GslStatus { get; set; } = FfcFilterState.Any;
+
+    [FromQuery(Name = "delivery")]
+    public FfcFilterState DeliveryStatus { get; set; } = FfcFilterState.Any;
+
+    [FromQuery(Name = "installation")]
+    public FfcFilterState InstallationStatus { get; set; } = FfcFilterState.Any;
 
     public bool CanManageRecords { get; private set; }
 
-    public IReadOnlyList<SelectListItem> CountryOptions { get; private set; } = Array.Empty<SelectListItem>();
+    public FfcPortfolioPageResult Portfolio { get; private set; } = new(
+        FfcPortfolioSummary.Empty,
+        Array.Empty<FfcPortfolioRecordRow>(),
+        0,
+        1,
+        PortfolioPageSize);
 
-    public IReadOnlyList<SelectListItem> YearOptions { get; private set; } = Array.Empty<SelectListItem>();
+    public IReadOnlyList<SelectListItem> CountryOptions { get; private set; }
+        = Array.Empty<SelectListItem>();
 
-    public IReadOnlyList<MilestoneFilterOption> MilestoneOptions { get; private set; } = Array.Empty<MilestoneFilterOption>();
+    public IReadOnlyList<SelectListItem> YearOptions { get; private set; }
+        = Array.Empty<SelectListItem>();
 
-    public IReadOnlyDictionary<int, ProjectLifecycleStatus> RollupProjectStatus { get; private set; }
-        = new Dictionary<int, ProjectLifecycleStatus>();
+    public IReadOnlyList<FilterOption> MilestoneOptions { get; } =
+    [
+        new(FfcFilterState.Any, "Any status"),
+        new(FfcFilterState.Completed, "Completed"),
+        new(FfcFilterState.Pending, "Pending")
+    ];
 
-    public IReadOnlyDictionary<int, string?> RollupProjectExternalRemark { get; private set; }
-        = new Dictionary<int, string?>();
+    public IReadOnlyList<FilterOption> ProgressOptions { get; } =
+    [
+        new(FfcFilterState.Any, "Any status"),
+        new(FfcFilterState.Completed, "Completed"),
+        new(FfcFilterState.Partial, "Partial"),
+        new(FfcFilterState.Pending, "Pending")
+    ];
 
-    public IReadOnlyDictionary<int, string?> RollupProjectStageSummary { get; private set; }
-        = new Dictionary<int, string?>();
+    public IReadOnlyList<FfcPortfolioRecordRow> Records => Portfolio.Records;
 
-    public async Task OnGetAsync()
+    public FfcPortfolioSummary Summary => Portfolio.Summary;
+
+    public int TotalCount => Portfolio.TotalRecordCount;
+
+    public int TotalPages => Portfolio.TotalPages;
+
+    public bool HasQuery => !string.IsNullOrWhiteSpace(Query);
+
+    public bool HasAdvancedFilters =>
+        IpaStatus != FfcFilterState.Any ||
+        GslStatus != FfcFilterState.Any ||
+        DeliveryStatus != FfcFilterState.Any ||
+        InstallationStatus != FfcFilterState.Any;
+
+    public bool HasActiveFilters =>
+        HasQuery ||
+        Year.HasValue ||
+        CountryId.HasValue ||
+        HasAdvancedFilters;
+
+    public string? SelectedCountryLabel => CountryOptions
+        .FirstOrDefault(option => option.Selected)?.Text;
+
+    public async Task OnGetAsync(CancellationToken cancellationToken)
     {
+        NormalizeRequest();
         CanManageRecords = User.IsInRole("Admin") || User.IsInRole("HoD");
-        await LoadFilterOptionsAsync();
-        await LoadRecordsAsync();
 
-        await LoadProjectRollupMetadataAsync();
+        await LoadFilterOptionsAsync(cancellationToken);
+
+        Portfolio = await _portfolioService.GetPageAsync(
+            new FfcPortfolioPageRequest(
+                BuildPortfolioFilter(),
+                PageNumber,
+                PortfolioPageSize),
+            cancellationToken);
+
+        PageNumber = Portfolio.PageNumber;
         FfcBreadcrumbs.Set(ViewData, ("FFC Proposals", null));
     }
 
-    protected override IQueryable<FfcRecord> ApplyRecordFilters(IQueryable<FfcRecord> queryable)
-        => queryable.Where(record => !record.IsDeleted);
-
-    protected override IQueryable<FfcRecord> ApplyOrdering(IQueryable<FfcRecord> queryable)
-    {
-
-        return queryable
-            .OrderByDescending(record => record.Year)
-            .ThenBy(record => record.Country!.Name);
-    }
-
-    public Dictionary<string, string?> BuildRouteWithoutSort(
+    public Dictionary<string, string?> BuildRoute(
         int? page = null,
-        string? query = null,
-        short? year = null,
-        long? countryId = null,
-        MilestoneFilterState? ipa = null,
-        MilestoneFilterState? gsl = null,
-        MilestoneFilterState? delivery = null,
-        MilestoneFilterState? installation = null)
+        string? remove = null)
     {
-        var values = BuildRoute(
-            page: page,
-            sort: null,
-            dir: null,
-            query: query,
-            year: year,
-            countryId: countryId,
-            ipa: ipa,
-            gsl: gsl,
-            delivery: delivery,
-            installation: installation);
+        var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        var targetPage = Math.Max(1, page ?? PageNumber);
 
-        values.Remove("sort");
-        values.Remove("dir");
+        if (targetPage > 1)
+        {
+            values["page"] = targetPage.ToString(CultureInfo.InvariantCulture);
+        }
+
+        if (!IsRemoved(remove, "q") && !string.IsNullOrWhiteSpace(Query))
+        {
+            values["q"] = Query;
+        }
+
+        if (!IsRemoved(remove, "year") && Year.HasValue)
+        {
+            values["year"] = Year.Value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        if (!IsRemoved(remove, "countryId") && CountryId.HasValue)
+        {
+            values["countryId"] = CountryId.Value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        AddFilterRouteValue(values, "ipa", IpaStatus, remove);
+        AddFilterRouteValue(values, "gsl", GslStatus, remove);
+        AddFilterRouteValue(values, "delivery", DeliveryStatus, remove);
+        AddFilterRouteValue(values, "installation", InstallationStatus, remove);
 
         return values;
     }
 
-    public string GetMilestoneLabel(MilestoneFilterState state)
+    public string GetFilterLabel(FfcFilterState state, bool allowsPartial)
     {
-        var option = MilestoneOptions.FirstOrDefault(item => item.Value == state);
-        return option?.Label ?? state.ToString();
+        var options = allowsPartial ? ProgressOptions : MilestoneOptions;
+        return options.FirstOrDefault(option => option.Value == state)?.Label ?? state.ToString();
     }
 
-    private async Task LoadProjectRollupMetadataAsync()
+    private FfcPortfolioFilter BuildPortfolioFilter()
+        => new(
+            Query: Query,
+            Year: Year,
+            CountryId: CountryId,
+            IpaStatus: IpaStatus,
+            GslStatus: GslStatus,
+            DeliveryStatus: DeliveryStatus,
+            InstallationStatus: InstallationStatus);
+
+    private async Task LoadFilterOptionsAsync(CancellationToken cancellationToken)
     {
-        var linkedProjectIds = Records
-            .SelectMany(record => record.Projects)
-            .Where(project => project.LinkedProjectId.HasValue)
-            .Select(project => project.LinkedProjectId!.Value)
-            .Distinct()
-            .ToArray();
-
-        if (linkedProjectIds.Length == 0)
-        {
-            RollupProjectStatus = new Dictionary<int, ProjectLifecycleStatus>();
-            RollupProjectExternalRemark = new Dictionary<int, string?>();
-            RollupProjectStageSummary = new Dictionary<int, string?>();
-            return;
-        }
-
-        var projectSnapshots = await Db.Projects
-            .AsNoTracking()
-            .Where(project => linkedProjectIds.Contains(project.Id))
-            .Select(project => new
-            {
-                project.Id,
-                project.LifecycleStatus,
-                Stages = project.ProjectStages
-                    .Select(stage => new
-                    {
-                        stage.StageCode,
-                        stage.SortOrder,
-                        stage.Status,
-                        stage.CompletedOn
-                    })
-                    .ToList()
-            })
-            .ToListAsync();
-
-        RollupProjectStatus = projectSnapshots
-            .ToDictionary(x => x.Id, x => x.LifecycleStatus);
-
-        RollupProjectStageSummary = projectSnapshots
-            .ToDictionary(
-                x => x.Id,
-                x => BuildStageSummary(x.Stages.Select(stage => new ProjectStage
-                {
-                    StageCode = stage.StageCode,
-                    SortOrder = stage.SortOrder,
-                    Status = stage.Status,
-                    CompletedOn = stage.CompletedOn
-                })));
-
-        var externalRemarks = await Db.Remarks
-            .AsNoTracking()
-            .Where(remark => linkedProjectIds.Contains(remark.ProjectId)
-                             && !remark.IsDeleted
-                             && remark.Type == RemarkType.External)
-            .Select(remark => new { remark.ProjectId, remark.Id, remark.CreatedAtUtc, remark.Body })
-            .ToListAsync();
-
-        RollupProjectExternalRemark = externalRemarks
-            .GroupBy(remark => remark.ProjectId)
-            .ToDictionary(
-                group => group.Key,
-                group =>
-                {
-                    var last = group
-                        .OrderByDescending(item => item.CreatedAtUtc)
-                        .ThenByDescending(item => item.Id)
-                        .First();
-
-                    var body = (last.Body ?? string.Empty).Trim()
-                        .Replace("\r", " ", StringComparison.Ordinal)
-                        .Replace("\n", " ", StringComparison.Ordinal);
-
-                    const int limit = 120;
-                    string? summary = body.Length <= limit
-                        ? body
-                        : string.Concat(body.AsSpan(0, limit), "…");
-
-                    return (string?)summary;
-                });
-    }
-
-    private static string? BuildStageSummary(IEnumerable<ProjectStage> projectStages)
-    {
-        static string FmtDate(DateOnly? d) => d.HasValue ? d.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture) : "";
-
-        var stages = projectStages?
-            .Where(s => !StageCodes.IsTot(s.StageCode))
-            .OrderBy(s => s.SortOrder)
-            .ToList() ?? new List<ProjectStage>();
-
-        if (stages.Count == 0)
-            return null;
-
-        var paymentStage = stages.FirstOrDefault(s => StageCodes.IsPayment(s.StageCode));
-        if (paymentStage is not null)
-        {
-            var cutoff = paymentStage.SortOrder;
-            stages = stages.Where(s => s.SortOrder <= cutoff).ToList();
-        }
-
-        var topCompleted = stages
-            .Where(s => s.Status == StageStatus.Completed)
-            .OrderByDescending(s => s.SortOrder)
-            .ThenByDescending(s => s.CompletedOn ?? DateOnly.MinValue)
-            .FirstOrDefault();
-
-        var started = stages.FirstOrDefault(s => s.Status is StageStatus.InProgress or StageStatus.Blocked);
-
-        var missed = topCompleted is null
-            ? Array.Empty<string>()
-            : stages
-                .Where(s => s.SortOrder < topCompleted.SortOrder && s.Status != StageStatus.Completed)
-                .Select(s => StageCodes.DisplayNameOf(s.StageCode))
-                .ToArray();
-
-        if (started is not null)
-        {
-            var prev = stages.LastOrDefault(s => s.SortOrder < started.SortOrder && s.Status == StageStatus.Completed);
-            var prevLabel = prev is null ? null : StageCodes.DisplayNameOf(prev.StageCode);
-            var prevDate = prev is null ? "" : FmtDate(prev.CompletedOn);
-            var nowLabel = StageCodes.DisplayNameOf(started.StageCode);
-            var nowState = started.Status == StageStatus.Blocked ? "Blocked" : "In progress";
-            var missedPart = missed.Length > 0 ? $" — missed: {string.Join(", ", missed)}" : string.Empty;
-
-            if (prevLabel is null)
-                return $"Now: {nowLabel} ({nowState}){missedPart}";
-
-            var prevPart = string.IsNullOrEmpty(prevDate) ? prevLabel : $"{prevLabel} ({prevDate})";
-            return $"Last completed: {prevPart} · Now: {nowLabel} ({nowState}){missedPart}";
-        }
-
-        if (topCompleted is not null)
-        {
-            var topLabel = StageCodes.DisplayNameOf(topCompleted.StageCode);
-            var topDate = FmtDate(topCompleted.CompletedOn);
-            var topPart = string.IsNullOrEmpty(topDate) ? topLabel : $"{topLabel} ({topDate})";
-
-            var next = stages.FirstOrDefault(s => s.SortOrder > topCompleted.SortOrder);
-            string nextPart = string.Empty;
-            if (next is not null)
-            {
-                var nextLabel = StageCodes.DisplayNameOf(next.StageCode);
-                var suffix = next.Status switch
-                {
-                    StageStatus.InProgress => " (Started)",
-                    StageStatus.Blocked => " (Blocked)",
-                    _ => " (Not started)"
-                };
-                nextPart = $" · Next: {nextLabel}{suffix}";
-            }
-
-            var missedPart = missed.Length > 0 ? $" — missed: {string.Join(", ", missed)}" : string.Empty;
-            return $"Last completed: {topPart}{nextPart}{missedPart}";
-        }
-
-        var firstDefined = stages.FirstOrDefault();
-        return firstDefined is null ? null : $"Not started · First stage: {StageCodes.DisplayNameOf(firstDefined.StageCode)}";
-    }
-
-    private async Task LoadFilterOptionsAsync()
-    {
-        var activeRecords = Db.FfcRecords
+        var activeRecords = _db.FfcRecords
             .AsNoTracking()
             .Where(record => !record.IsDeleted);
 
@@ -265,45 +188,77 @@ public class IndexModel : FfcRecordListPageModel
             .Select(record => record.Year)
             .Distinct()
             .OrderByDescending(year => year)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         YearOptions = years
             .Select(year => new SelectListItem
             {
                 Value = year.ToString(CultureInfo.InvariantCulture),
                 Text = year.ToString(CultureInfo.InvariantCulture),
-                Selected = Year.HasValue && Year.GetValueOrDefault() == year
+                Selected = Year.HasValue && Year.Value == year
             })
             .ToList();
 
-        var countries = await Db.FfcCountries
-            .AsNoTracking()
-            .Where(country => country.IsActive)
+        var countries = await activeRecords
+            .Select(record => new
+            {
+                record.Country.Id,
+                record.Country.Name,
+                record.Country.IsoCode
+            })
+            .Distinct()
             .OrderBy(country => country.Name)
-            .Select(country => new { country.Id, country.Name })
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         CountryOptions = countries
             .Select(country => new SelectListItem
             {
                 Value = country.Id.ToString(CultureInfo.InvariantCulture),
-                Text = country.Name,
+                Text = $"{country.Name} · {country.IsoCode}",
                 Selected = CountryId.HasValue && CountryId.Value == country.Id
             })
             .ToList();
-
-        MilestoneOptions = BuildMilestoneOptions();
     }
 
-    private static IReadOnlyList<MilestoneFilterOption> BuildMilestoneOptions()
-        => new List<MilestoneFilterOption>
-        {
-            new(MilestoneFilterState.Any, "Any status"),
-            new(MilestoneFilterState.Completed, "Completed"),
-            new(MilestoneFilterState.Pending, "Pending")
-        };
+    private void NormalizeRequest()
+    {
+        Query = string.IsNullOrWhiteSpace(Query) ? null : Query.Trim();
+        PageNumber = Math.Max(1, PageNumber);
 
-    public sealed record MilestoneFilterOption(MilestoneFilterState Value, string Label)
+        IpaStatus = NormalizeMilestoneFilter(IpaStatus);
+        GslStatus = NormalizeMilestoneFilter(GslStatus);
+        DeliveryStatus = NormalizeProgressFilter(DeliveryStatus);
+        InstallationStatus = NormalizeProgressFilter(InstallationStatus);
+    }
+
+    private static FfcFilterState NormalizeMilestoneFilter(FfcFilterState state)
+        => state is FfcFilterState.Completed or FfcFilterState.Pending
+            ? state
+            : FfcFilterState.Any;
+
+    private static FfcFilterState NormalizeProgressFilter(FfcFilterState state)
+        => state is FfcFilterState.Completed or FfcFilterState.Partial or FfcFilterState.Pending
+            ? state
+            : FfcFilterState.Any;
+
+    private static void AddFilterRouteValue(
+        IDictionary<string, string?> values,
+        string key,
+        FfcFilterState state,
+        string? remove)
+    {
+        if (IsRemoved(remove, key) || state == FfcFilterState.Any)
+        {
+            return;
+        }
+
+        values[key] = state.ToString().ToLowerInvariant();
+    }
+
+    private static bool IsRemoved(string? remove, string key)
+        => string.Equals(remove, key, StringComparison.OrdinalIgnoreCase);
+
+    public sealed record FilterOption(FfcFilterState Value, string Label)
     {
         public string QueryValue => Value.ToString().ToLowerInvariant();
     }

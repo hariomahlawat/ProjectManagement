@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 
 namespace ProjectManagement.Controllers;
 
@@ -19,37 +20,45 @@ public sealed class IndustryPartnersProjectLookupController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetAsync([FromQuery] string? q, [FromQuery] int take = 20, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetAsync(
+        [FromQuery] string? q,
+        [FromQuery] int take = 25,
+        CancellationToken cancellationToken = default)
     {
-        // SECTION: Input normalization
         var trimmedQuery = q?.Trim();
         var normalizedTake = Math.Clamp(take, 1, 50);
 
-        // SECTION: Base project filters
-        var projectsQuery = _dbContext.Projects
+        // Historical association is a first-class use case. Archived and completed
+        // projects are searchable; only soft-deleted projects are excluded.
+        var projects = _dbContext.Projects
             .AsNoTracking()
-            .Where(project => !project.IsDeleted && !project.IsArchived);
+            .Where(project => !project.IsDeleted);
 
-        // SECTION: Query-based search filters
         if (!string.IsNullOrWhiteSpace(trimmedQuery))
         {
             var pattern = $"%{trimmedQuery}%";
-            projectsQuery = projectsQuery.Where(project =>
+            projects = projects.Where(project =>
                 EF.Functions.ILike(project.Name, pattern) ||
-                (!string.IsNullOrWhiteSpace(project.CaseFileNumber) && EF.Functions.ILike(project.CaseFileNumber!, pattern)));
+                (project.CaseFileNumber != null && EF.Functions.ILike(project.CaseFileNumber, pattern)));
         }
 
-        // SECTION: Lightweight response projection
-        var items = await projectsQuery
+        var items = await projects
             .OrderBy(project => project.Name)
             .ThenBy(project => project.Id)
             .Take(normalizedTake)
             .Select(project => new
             {
                 id = project.Id,
-                name = string.IsNullOrWhiteSpace(project.CaseFileNumber)
-                    ? $"{project.Name} (ID: {project.Id})"
-                    : $"{project.Name} | {project.CaseFileNumber}"
+                name = project.Name,
+                caseFileNumber = project.CaseFileNumber,
+                statusLabel = project.IsArchived
+                    ? "Archived"
+                    : project.LifecycleStatus == ProjectLifecycleStatus.Completed
+                        ? "Completed"
+                        : project.LifecycleStatus == ProjectLifecycleStatus.Cancelled
+                            ? "Cancelled"
+                            : "Ongoing",
+                isArchived = project.IsArchived
             })
             .ToListAsync(cancellationToken);
 

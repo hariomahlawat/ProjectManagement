@@ -1,0 +1,23 @@
+@model AdminUserDetails
+<div class="admin-user-identity">
+    <span class="admin-user-avatar" aria-hidden="true">
+        @{
+            var first = string.IsNullOrWhiteSpace(Model.FullName)
+                ? (string.IsNullOrWhiteSpace(Model.UserName) ? "U" : Model.UserName[..1])
+                : Model.FullName[..1];
+        }
+        @first.ToUpperInvariant()
+    </span>
+    <div class="admin-user-identity__copy">
+        <div class="admin-user-identity__name">@(string.IsNullOrWhiteSpace(Model.FullName) ? Model.UserName : Model.FullName)</div>
+        <div class="admin-user-identity__meta">
+            @if (!string.IsNullOrWhiteSpace(Model.Rank))
+            {
+                <span>@Model.Rank</span>
+                <span aria-hidden="true">·</span>
+            }
+            <span>@($"@{Model.UserName}")</span>
+        </div>
+    </div>
+    <partial name="~/Areas/Admin/Pages/Shared/_AdminUserStateBadge.cshtml" model="Model.AccountState" />
+</div>

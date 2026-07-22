@@ -131,7 +131,7 @@ public class ProliferationOverviewServicePreferenceTests
 
         await context.SaveChangesAsync();
 
-        var readService = new ProliferationTrackerReadService(context);
+        var readService = new ProliferationTrackerReadService(new ProliferationAggregateReadService(context));
         var service = new ProliferationOverviewService(context, readService);
 
         var allOverrides = await service.GetPreferenceOverridesAsync(

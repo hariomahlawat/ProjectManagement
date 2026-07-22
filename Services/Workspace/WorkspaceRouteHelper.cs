@@ -56,6 +56,9 @@ internal static class WorkspaceRouteHelper
     public static string MyProjects(string userId)
         => $"/Projects/Ongoing?ProjectOfficerId={Uri.EscapeDataString(userId)}";
 
+    public static string ProjectOfficerWorkspace(string view = "overview")
+        => $"/Workspace?mode=project-officer&view={Uri.EscapeDataString(string.IsNullOrWhiteSpace(view) ? "overview" : view)}";
+
     // SECTION: Workspace cross-module routes
     public static string ActionTask(int taskId)
         => $"/ActionTasks?viewMode=MyWork&taskId={taskId}";
@@ -80,4 +83,18 @@ internal static class WorkspaceRouteHelper
 
     public static string AotsReader(Guid documentId)
         => $"/DocumentRepository/Documents/Reader/{documentId}?returnUrl={Uri.EscapeDataString(AotsInbox())}";
+
+    public static string DocumentRepository()
+        => "/DocumentRepository/Documents";
+
+    public static string DocumentFavourites()
+        => "/DocumentRepository/Documents?scope=favourites";
+
+    public static string DocumentReader(Guid documentId, string? returnUrl = null)
+    {
+        var reader = $"/DocumentRepository/Documents/Reader/{documentId}";
+        return string.IsNullOrWhiteSpace(returnUrl)
+            ? reader
+            : $"{reader}?returnUrl={Uri.EscapeDataString(returnUrl)}";
+    }
 }

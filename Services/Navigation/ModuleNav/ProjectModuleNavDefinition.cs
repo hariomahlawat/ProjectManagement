@@ -43,7 +43,7 @@ public static class ProjectModuleNavDefinition
         },
         new()
         {
-            Text = "Industry partners",
+            Text = "Industry directory",
             Page = "/IndustryPartners/Index",
             Icon = "bi-buildings",
             AuthorizationPolicy = Policies.IndustryPartners.View

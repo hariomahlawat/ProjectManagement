@@ -7,8 +7,15 @@ function boot() {
   const genBtn = document.getElementById('generatePwd');
   const copyBtn = document.getElementById('copyPwd');
 
+  const originalCopyMarkup = copyBtn?.innerHTML ?? 'Copy';
+
   genBtn?.addEventListener('click', () => {
-    pwdInput.value = generatePassword();
+    const generatedLength = Number.parseInt(pwdInput.dataset.generatedLength || '16', 10);
+    const requiredUnique = Number.parseInt(pwdInput.dataset.requiredUnique || '1', 10);
+    pwdInput.value = generatePassword(
+      Number.isFinite(generatedLength) ? generatedLength : 16,
+      Number.isFinite(requiredUnique) ? requiredUnique : 1,
+    );
     // trigger unobtrusive validation recheck
     pwdInput.dispatchEvent(new Event('input', { bubbles: true }));
   });
@@ -30,10 +37,10 @@ function boot() {
         ta.remove();
       }
       copyBtn.textContent = 'Copied';
-      setTimeout(() => (copyBtn.textContent = 'Copy'), 1000);
+      setTimeout(() => { copyBtn.innerHTML = originalCopyMarkup; }, 1000);
     } catch {
       copyBtn.textContent = 'Copy failed';
-      setTimeout(() => (copyBtn.textContent = 'Copy'), 1000);
+      setTimeout(() => { copyBtn.innerHTML = originalCopyMarkup; }, 1000);
     }
   });
 }

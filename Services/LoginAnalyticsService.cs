@@ -1,82 +1,160 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.Services
 {
-    public record LoginPoint(string UserId, string UserName, DateTimeOffset Local, int MinutesOfDay, bool IsOdd, string Reason);
+    public record LoginPoint(
+        string UserId,
+        string LoginName,
+        string DisplayName,
+        DateTimeOffset Local,
+        int MinutesOfDay,
+        bool IsOdd,
+        string Reason);
+
     public record LoginAnalyticsDto(
-        string TimeZone, int WorkStartMin, int WorkEndMin, int P50Min, int P90Min,
+        string TimeZone,
+        int WorkStartMin,
+        int WorkEndMin,
+        int P50Min,
+        int P90Min,
         IReadOnlyList<LoginPoint> Points);
 
     public interface ILoginAnalyticsService
     {
-        Task<LoginAnalyticsDto> GetAsync(int days, bool markWeekendOdd, TimeZoneInfo tz,
-            TimeSpan workStart, TimeSpan workEnd, string? userId = null);
+        Task<LoginAnalyticsDto> GetAsync(
+            int days,
+            bool markWeekendOdd,
+            TimeZoneInfo timeZone,
+            TimeSpan workStart,
+            TimeSpan workEnd,
+            string? userId = null);
     }
 
     public class LoginAnalyticsService : ILoginAnalyticsService
     {
-        private readonly ApplicationDbContext _db;
-        public LoginAnalyticsService(ApplicationDbContext db) => _db = db;
+        private const int MaximumLookbackDays = 365;
 
-        public async Task<LoginAnalyticsDto> GetAsync(int days, bool markWeekendOdd, TimeZoneInfo tz,
-            TimeSpan workStart, TimeSpan workEnd, string? userId = null)
+        private readonly ApplicationDbContext _db;
+        private readonly IClock _clock;
+
+        public LoginAnalyticsService(ApplicationDbContext db, IClock clock)
         {
-            var toUtc = DateTimeOffset.UtcNow;
-            var fromUtc = toUtc.AddDays(-days);
+            _db = db;
+            _clock = clock;
+        }
+
+        public async Task<LoginAnalyticsDto> GetAsync(
+            int days,
+            bool markWeekendOdd,
+            TimeZoneInfo timeZone,
+            TimeSpan workStart,
+            TimeSpan workEnd,
+            string? userId = null)
+        {
+            var safeDays = Math.Clamp(days, 1, MaximumLookbackDays);
+            var toUtc = _clock.UtcNow;
+            var fromUtc = toUtc.AddDays(-safeDays);
 
             var query = _db.AuthEvents
-                .Where(e => e.Event == "LoginSucceeded" && e.WhenUtc >= fromUtc && e.WhenUtc <= toUtc);
+                .AsNoTracking()
+                .Where(authEvent =>
+                    authEvent.Event == AuthenticationEventNames.LoginSucceeded
+                    && authEvent.WhenUtc >= fromUtc
+                    && authEvent.WhenUtc <= toUtc);
+
             if (!string.IsNullOrWhiteSpace(userId))
-                query = query.Where(e => e.UserId == userId);
-
-            var rows = await query
-                .Select(e => new { e.UserId, e.WhenUtc })
-                .ToListAsync();
-
-            var userNames = await _db.Users
-                .Select(u => new { u.Id, u.FullName, u.UserName, u.Email })
-                .ToDictionaryAsync(x => x.Id, x => x.FullName ?? x.UserName ?? x.Email ?? "(deleted)");
-
-            var points = new List<LoginPoint>(rows.Count);
-            var mins = new List<int>(rows.Count);
-
-            foreach (var r in rows)
             {
-                var local = TimeZoneInfo.ConvertTime(r.WhenUtc, tz);
-                var tod = local.TimeOfDay;
-                var m = (int)Math.Round(tod.TotalMinutes);
-                var outsideHours = tod < workStart || tod > workEnd;
-                var weekend = local.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
-                var isOdd = outsideHours || (markWeekendOdd && weekend);
-                var reason = isOdd ? (outsideHours ? "Outside working hours" : "Weekend") : string.Empty;
-                var name = userNames.TryGetValue(r.UserId, out var n) ? n : "(deleted)";
-                points.Add(new LoginPoint(r.UserId, name, local, m, isOdd, reason));
-                mins.Add(m);
+                query = query.Where(authEvent => authEvent.UserId == userId);
             }
 
-            mins.Sort();
-            int p50 = Percentile(mins, 50);
-            int p90 = Percentile(mins, 90);
+            var rows = await query
+                .OrderBy(authEvent => authEvent.WhenUtc)
+                .Select(authEvent => new { authEvent.UserId, authEvent.WhenUtc })
+                .ToListAsync();
+
+            var userIds = rows.Select(row => row.UserId).Distinct().ToArray();
+            var users = userIds.Length == 0
+                ? new Dictionary<string, UserIdentity>(StringComparer.Ordinal)
+                : await _db.Users
+                    .AsNoTracking()
+                    .Where(user => userIds.Contains(user.Id))
+                    .Select(user => new UserIdentity(
+                        user.Id,
+                        user.UserName ?? user.Email ?? "(deleted)",
+                        string.IsNullOrWhiteSpace(user.FullName)
+                            ? (user.UserName ?? user.Email ?? "(deleted)")
+                            : user.FullName))
+                    .ToDictionaryAsync(user => user.Id, StringComparer.Ordinal);
+
+            var points = new List<LoginPoint>(rows.Count);
+            var minutes = new List<int>(rows.Count);
+
+            foreach (var row in rows)
+            {
+                var local = TimeZoneInfo.ConvertTime(row.WhenUtc, timeZone);
+                var timeOfDay = local.TimeOfDay;
+                var minuteOfDay = (int)Math.Round(timeOfDay.TotalMinutes);
+                var outsideHours = timeOfDay < workStart || timeOfDay > workEnd;
+                var weekend = local.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+                var isOdd = outsideHours || (markWeekendOdd && weekend);
+                var reason = isOdd
+                    ? (outsideHours ? "Outside working hours" : "Weekend")
+                    : string.Empty;
+
+                var identity = users.TryGetValue(row.UserId, out var resolved)
+                    ? resolved
+                    : new UserIdentity(row.UserId, "(deleted)", "(deleted)");
+
+                points.Add(new LoginPoint(
+                    row.UserId,
+                    identity.LoginName,
+                    identity.DisplayName,
+                    local,
+                    minuteOfDay,
+                    isOdd,
+                    reason));
+
+                minutes.Add(minuteOfDay);
+            }
+
+            minutes.Sort();
 
             return new LoginAnalyticsDto(
-                tz.Id, (int)workStart.TotalMinutes, (int)workEnd.TotalMinutes, p50, p90, points);
+                timeZone.Id,
+                (int)workStart.TotalMinutes,
+                (int)workEnd.TotalMinutes,
+                Percentile(minutes, 50),
+                Percentile(minutes, 90),
+                points);
         }
 
-        private static int Percentile(IList<int> sortedMins, int p)
+        private static int Percentile(IList<int> sortedMinutes, int percentile)
         {
-            if (sortedMins.Count == 0) return 0;
-            if (sortedMins.Count == 1) return sortedMins[0];
-            var rank = (p / 100.0) * (sortedMins.Count - 1);
-            var lo = (int)Math.Floor(rank);
-            var hi = (int)Math.Ceiling(rank);
-            if (lo == hi) return sortedMins[lo];
-            var val = sortedMins[lo] + (sortedMins[hi] - sortedMins[lo]) * (rank - lo);
-            return (int)Math.Round(val);
+            if (sortedMinutes.Count == 0)
+            {
+                return 0;
+            }
+
+            if (sortedMinutes.Count == 1)
+            {
+                return sortedMinutes[0];
+            }
+
+            var rank = (percentile / 100.0) * (sortedMinutes.Count - 1);
+            var lowerIndex = (int)Math.Floor(rank);
+            var upperIndex = (int)Math.Ceiling(rank);
+            if (lowerIndex == upperIndex)
+            {
+                return sortedMinutes[lowerIndex];
+            }
+
+            var value = sortedMinutes[lowerIndex]
+                + (sortedMinutes[upperIndex] - sortedMinutes[lowerIndex]) * (rank - lowerIndex);
+            return (int)Math.Round(value);
         }
+
+        private sealed record UserIdentity(string Id, string LoginName, string DisplayName);
     }
 }

@@ -17,6 +17,7 @@ public class FfcProject
     public DateOnly? InstalledOn { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
     public FfcRecord Record { get; set; } = null!;
     public Project? LinkedProject { get; set; }

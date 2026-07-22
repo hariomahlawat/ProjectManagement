@@ -201,6 +201,7 @@ public sealed class OfficerConferenceReadServiceTests
 
         var projectItem = Assert.Single(result.Sections.Single(section => section.Kind == ConferenceItemKind.Project).Items);
         Assert.Equal("Latest project direction", projectItem.LatestDirection!.Body);
+        Assert.Equal(2, projectItem.DirectionCount);
         Assert.Empty(projectItem.ProgressSummary);
         Assert.Null(projectItem.LatestProgressText);
         Assert.Collection(
@@ -222,6 +223,7 @@ public sealed class OfficerConferenceReadServiceTests
 
         var ideaItem = Assert.Single(result.Sections.Single(section => section.Kind == ConferenceItemKind.ProjectIdea).Items);
         Assert.Equal("Idea direction", ideaItem.LatestDirection!.Body);
+        Assert.Equal(1, ideaItem.DirectionCount);
         Assert.Empty(ideaItem.ProgressSummary);
         Assert.Collection(
             ideaItem.ProgressEntries,
@@ -239,6 +241,7 @@ public sealed class OfficerConferenceReadServiceTests
 
         var taskItem = Assert.Single(result.Sections.Single(section => section.Kind == ConferenceItemKind.ActionTask).Items);
         Assert.Equal("Task direction", taskItem.LatestDirection!.Body);
+        Assert.Equal(1, taskItem.DirectionCount);
         Assert.Empty(taskItem.ProgressSummary);
         Assert.Null(taskItem.LatestProgressText);
         var taskAssigneeEntry = Assert.Single(taskItem.ProgressEntries);
@@ -246,6 +249,58 @@ public sealed class OfficerConferenceReadServiceTests
         Assert.Equal("Task progress", taskAssigneeEntry.Body);
         Assert.Equal(officer.FullName, taskAssigneeEntry.AuthorName);
         Assert.Equal(Utc(5), taskAssigneeEntry.ActivityAtUtc);
+
+        var history = await service.GetDirectionHistoryAsync(
+            command.Id,
+            officer.Id,
+            ConferenceItemKind.Project,
+            project.Id);
+
+        Assert.NotNull(history);
+        Assert.Equal(project.Id, history!.ItemId);
+        Assert.Collection(
+            history.Cycles,
+            older =>
+            {
+                Assert.Equal("Older direction", older.Direction.Body);
+                Assert.Equal(1, older.SequenceNumber);
+                Assert.False(older.IsLatest);
+                var awaiting = Assert.Single(older.ProgressEntries);
+                Assert.Equal("Project Officer", awaiting.Label);
+                Assert.NotNull(awaiting.EmptyText);
+            },
+            latest =>
+            {
+                Assert.Equal("Latest project direction", latest.Direction.Body);
+                Assert.Equal(2, latest.SequenceNumber);
+                Assert.True(latest.IsLatest);
+                Assert.Equal(2, latest.ProgressEntries.Count);
+            });
+
+        var ideaHistory = await service.GetDirectionHistoryAsync(
+            command.Id,
+            officer.Id,
+            ConferenceItemKind.ProjectIdea,
+            idea.Id);
+        var ideaCycle = Assert.Single(ideaHistory!.Cycles);
+        Assert.True(ideaCycle.IsLatest);
+        Assert.Equal(2, ideaCycle.ProgressEntries.Count);
+
+        var taskHistory = await service.GetDirectionHistoryAsync(
+            command.Id,
+            officer.Id,
+            ConferenceItemKind.ActionTask,
+            task.Id);
+        var taskCycle = Assert.Single(taskHistory!.Cycles);
+        Assert.True(taskCycle.IsLatest);
+        Assert.Equal("Task progress", Assert.Single(taskCycle.ProgressEntries).Body);
+
+        var inaccessible = await service.GetDirectionHistoryAsync(
+            command.Id,
+            officer.Id,
+            ConferenceItemKind.Project,
+            itemId: 999999);
+        Assert.Null(inaccessible);
     }
 
     [Fact]

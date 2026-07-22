@@ -28,6 +28,8 @@ using ProjectManagement.Data.Projects;
 using ProjectManagement.Models.Projects;
 using ProjectManagement.Models.IndustryPartners;
 using ProjectManagement.Models.ProjectIdeas;
+using ProjectManagement.Models.ProjectBriefings;
+using ProjectManagement.Models.Usage;
 
 namespace ProjectManagement.Data
 {
@@ -50,6 +52,8 @@ namespace ProjectManagement.Data
         public DbSet<ProjectProductionCostFact> ProjectProductionCostFacts => Set<ProjectProductionCostFact>();
         public DbSet<ProjectLppRecord> ProjectLppRecords => Set<ProjectLppRecord>();
         public DbSet<ProjectTechStatus> ProjectTechStatuses => Set<ProjectTechStatus>();
+        public DbSet<ProjectBriefingDeck> ProjectBriefingDecks => Set<ProjectBriefingDeck>();
+        public DbSet<ProjectBriefingDeckItem> ProjectBriefingDeckItems => Set<ProjectBriefingDeckItem>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<TodoItem> TodoItems => Set<TodoItem>();
         public DbSet<NotebookItem> NotebookItems => Set<NotebookItem>();
@@ -103,6 +107,8 @@ namespace ProjectManagement.Data
         public DbSet<ProjectScheduleSettings> ProjectScheduleSettings => Set<ProjectScheduleSettings>();
         public DbSet<ProjectPlanDuration> ProjectPlanDurations => Set<ProjectPlanDuration>();
         public DbSet<Holiday> Holidays => Set<Holiday>();
+        public DbSet<UserActivityBucket> UserActivityBuckets => Set<UserActivityBucket>();
+        public DbSet<UserActivityDailySummary> UserActivityDailySummaries => Set<UserActivityDailySummary>();
         public DbSet<StageShiftLog> StageShiftLogs => Set<StageShiftLog>();
         public DbSet<Status> Statuses => Set<Status>();
         public DbSet<Workflow> Workflows => Set<Workflow>();
@@ -182,6 +188,22 @@ namespace ProjectManagement.Data
                 .Property(x => x.ComdtOfficerWorkloadOrderJson)
                 .HasMaxLength(8000);
 
+            builder.Entity<ApplicationUser>()
+                .Property(x => x.DeletionPreviousStateJson)
+                .HasMaxLength(2000);
+
+            builder.Entity<ApplicationUser>()
+                .Property(x => x.AccountKind)
+                .HasDefaultValue(UserAccountKind.Human);
+
+            builder.Entity<ApplicationUser>()
+                .HasIndex(x => x.AccountKind);
+
+            builder.Entity<ApplicationUser>()
+                .ToTable(table => table.HasCheckConstraint(
+                    "CK_AspNetUsers_AccountKind",
+                    "\"AccountKind\" IN (1, 2, 3)"));
+
             builder.Entity<ApplicationUser>().HasData(
                 new ApplicationUser
                 {
@@ -197,12 +219,14 @@ namespace ProjectManagement.Data
                     LastLoginUtc = null,
                     LoginCount = 0,
                     CreatedUtc = systemUserCreatedUtc,
+                    AccountKind = UserAccountKind.Service,
                     IsDisabled = false,
                     DisabledUtc = null,
                     DisabledByUserId = null,
                     PendingDeletion = false,
                     DeletionRequestedUtc = null,
                     DeletionRequestedByUserId = null,
+                    DeletionPreviousStateJson = null,
                     ShowCelebrationsInCalendar = true,
                     SecurityStamp = "c3f1e44d-21c7-4cd1-8d3a-2212333e2ef2",
                     ConcurrencyStamp = "bb6d6cb5-52dd-432c-95d4-6b6a92d6a0d3",
@@ -462,6 +486,53 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.DocumentId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // SECTION: Project briefing decks
+            builder.Entity<ProjectBriefingDeck>(entity =>
+            {
+                entity.ToTable("ProjectBriefingDecks");
+                entity.Property(deck => deck.OwnerUserId).HasMaxLength(450).IsRequired();
+                entity.Property(deck => deck.LastModifiedByUserId).HasMaxLength(450);
+                entity.Property(deck => deck.Name).HasMaxLength(160).IsRequired();
+                entity.Property(deck => deck.NormalizedName).HasMaxLength(160).IsRequired();
+                entity.Property(deck => deck.Description).HasMaxLength(600);
+                entity.Property(deck => deck.PresentationMode).HasConversion<string>().HasMaxLength(32).IsRequired();
+                entity.Property(deck => deck.CostMode).HasConversion<string>().HasMaxLength(32).IsRequired();
+                entity.Property(deck => deck.HandlingMarking).HasMaxLength(80);
+                entity.Property(deck => deck.SelectionRulesJson).HasColumnType("jsonb");
+                ConfigureRowVersion(entity);
+                entity.HasIndex(deck => deck.NormalizedName)
+                    .HasDatabaseName("UX_ProjectBriefingDecks_NormalizedName")
+                    .IsUnique();
+                entity.HasIndex(deck => deck.UpdatedAtUtc)
+                    .HasDatabaseName("IX_ProjectBriefingDecks_UpdatedAtUtc");
+                entity.HasIndex(deck => deck.OwnerUserId)
+                    .HasDatabaseName("IX_ProjectBriefingDecks_OwnerUserId");
+                entity.HasOne(deck => deck.OwnerUser)
+                    .WithMany()
+                    .HasForeignKey(deck => deck.OwnerUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(deck => deck.LastModifiedByUser)
+                    .WithMany()
+                    .HasForeignKey(deck => deck.LastModifiedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<ProjectBriefingDeckItem>(entity =>
+            {
+                entity.ToTable("ProjectBriefingDeckItems");
+                entity.Property(item => item.BriefDescriptionOverride).HasMaxLength(1200);
+                entity.HasIndex(item => new { item.DeckId, item.ProjectId }).IsUnique();
+                entity.HasIndex(item => new { item.DeckId, item.SortOrder });
+                entity.HasOne(item => item.Deck)
+                    .WithMany(deck => deck.Items)
+                    .HasForeignKey(item => item.DeckId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(item => item.Project)
+                    .WithMany()
+                    .HasForeignKey(item => item.ProjectId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             builder.Entity<Project>(e =>
@@ -907,8 +978,13 @@ namespace ProjectManagement.Data
                     entity.Property(x => x.UpdatedAt).HasColumnType("timestamp with time zone");
                 }
 
-                entity.HasIndex(x => new { x.CountryId, x.Year })
-                    .HasDatabaseName("IX_FfcRecords_CountryId_Year");
+                var activeCountryYearIndex = entity.HasIndex(x => new { x.CountryId, x.Year })
+                    .IsUnique()
+                    .HasDatabaseName("UX_FfcRecords_CountryId_Year_Active");
+
+                activeCountryYearIndex.HasFilter(Database.IsNpgsql()
+                    ? "\"IsDeleted\" = FALSE"
+                    : "\"IsDeleted\" = 0");
                 entity.HasIndex(x => new { x.IpaYes, x.GslYes, x.DeliveryYes, x.InstallationYes })
                     .HasDatabaseName("IX_FfcRecords_StatusFlags");
 
@@ -938,6 +1014,7 @@ namespace ProjectManagement.Data
 
             builder.Entity<FfcProject>(entity =>
             {
+                ConfigureRowVersion(entity);
                 entity.ToTable("FfcProjects");
                 entity.Property(x => x.Name).HasMaxLength(256).IsRequired();
                 entity.Property(x => x.Remarks).HasColumnType("text");
@@ -958,6 +1035,11 @@ namespace ProjectManagement.Data
                 entity.HasIndex(x => x.LinkedProjectId)
                     .HasDatabaseName("IX_FfcProjects_LinkedProjectId");
 
+                entity.HasIndex(x => new { x.FfcRecordId, x.LinkedProjectId })
+                    .IsUnique()
+                    .HasFilter("\"LinkedProjectId\" IS NOT NULL")
+                    .HasDatabaseName("UX_FfcProjects_Record_LinkedProject");
+
                 entity.HasOne(x => x.Record)
                     .WithMany(x => x.Projects)
                     .HasForeignKey(x => x.FfcRecordId)
@@ -977,6 +1059,12 @@ namespace ProjectManagement.Data
                     tb.HasCheckConstraint(
                         "CK_FfcProjects_InstalledOn_RequiresFlag",
                         "\"InstalledOn\" IS NULL OR \"IsInstalled\" = TRUE");
+                    tb.HasCheckConstraint(
+                        "CK_FfcProjects_Installed_RequiresDelivered",
+                        "\"IsInstalled\" = FALSE OR \"IsDelivered\" = TRUE");
+                    tb.HasCheckConstraint(
+                        "CK_FfcProjects_InstallationDate_NotBeforeDeliveryDate",
+                        "\"DeliveredOn\" IS NULL OR \"InstalledOn\" IS NULL OR \"InstalledOn\" >= \"DeliveredOn\"");
                 });
             });
 
@@ -1649,6 +1737,7 @@ namespace ProjectManagement.Data
 
             builder.Entity<ProjectCategory>(e =>
             {
+                ConfigureRowVersion(e);
                 e.Property(x => x.Name).HasMaxLength(120).IsRequired();
                 e.HasIndex(x => new { x.ParentId, x.Name }).IsUnique();
                 e.Property(x => x.SortOrder).HasDefaultValue(0);
@@ -1663,6 +1752,7 @@ namespace ProjectManagement.Data
 
             builder.Entity<TechnicalCategory>(e =>
             {
+                ConfigureRowVersion(e);
                 e.Property(x => x.Name).HasMaxLength(120).IsRequired();
                 e.HasIndex(x => new { x.ParentId, x.Name }).IsUnique();
                 e.Property(x => x.SortOrder).HasDefaultValue(0);
@@ -1678,6 +1768,7 @@ namespace ProjectManagement.Data
             // SECTION: Project type lookup
             builder.Entity<ProjectType>(e =>
             {
+                ConfigureRowVersion(e);
                 e.Property(x => x.Name).HasMaxLength(200).IsRequired();
                 e.HasIndex(x => x.Name);
                 e.Property(x => x.SortOrder).HasDefaultValue(0);
@@ -1686,6 +1777,7 @@ namespace ProjectManagement.Data
 
             builder.Entity<SponsoringUnit>(e =>
             {
+                ConfigureRowVersion(e);
                 e.Property(x => x.Name).HasMaxLength(200).IsRequired();
                 e.HasIndex(x => x.Name).IsUnique();
                 e.Property(x => x.IsActive).HasDefaultValue(true);
@@ -1710,6 +1802,7 @@ namespace ProjectManagement.Data
 
             builder.Entity<LineDirectorate>(e =>
             {
+                ConfigureRowVersion(e);
                 e.Property(x => x.Name).HasMaxLength(200).IsRequired();
                 e.HasIndex(x => x.Name).IsUnique();
                 e.Property(x => x.IsActive).HasDefaultValue(true);
@@ -1929,6 +2022,7 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => x.TimeUtc);
                 e.HasIndex(x => x.Action);
                 e.HasIndex(x => x.UserId);
+                e.HasIndex(x => new { x.UserId, x.TimeUtc });
                 e.HasIndex(x => x.Level);
                 e.HasIndex(x => x.UserName);
                 e.HasIndex(x => x.Ip);
@@ -2355,9 +2449,59 @@ namespace ProjectManagement.Data
 
             builder.Entity<Holiday>(e =>
             {
-                e.HasIndex(x => x.Date).IsUnique();
                 e.Property(x => x.Date).HasColumnType("date");
                 e.Property(x => x.Name).HasMaxLength(160);
+                e.Property(x => x.Type)
+                    .HasConversion<int>()
+                    .HasDefaultValue(HolidayType.Gazetted);
+                e.Property(x => x.IsObservedAsOfficeHoliday).HasDefaultValue(true);
+                e.Property(x => x.AuthorityReference).HasMaxLength(240);
+                e.Property(x => x.ObservanceRemarks).HasMaxLength(1200);
+                e.Property(x => x.ObservanceChangedByUserId).HasMaxLength(450);
+                e.Property(x => x.ObservanceChangedUtc).HasColumnType("timestamp with time zone");
+                e.HasIndex(x => x.Date);
+                e.HasIndex(x => new { x.Date, x.Type });
+                e.ToTable(table =>
+                {
+                    table.HasCheckConstraint(
+                        "CK_Holidays_Type",
+                        "\"Type\" IN (1, 2)");
+                    table.HasCheckConstraint(
+                        "CK_Holidays_GazettedObserved",
+                        "\"Type\" <> 1 OR \"IsObservedAsOfficeHoliday\" = TRUE");
+                });
+                ConfigureRowVersion(e);
+            });
+
+            builder.Entity<UserActivityBucket>(e =>
+            {
+                e.Property(x => x.UserId).HasMaxLength(450);
+                e.Property(x => x.ModuleKey).HasMaxLength(64);
+                e.Property(x => x.BucketStartUtc).HasColumnType("timestamp with time zone");
+                e.Property(x => x.FirstSeenUtc).HasColumnType("timestamp with time zone");
+                e.Property(x => x.LastSeenUtc).HasColumnType("timestamp with time zone");
+                e.Property(x => x.ActivityDateIst).HasColumnType("date");
+                e.HasIndex(x => new { x.UserId, x.BucketStartUtc, x.ModuleKey }).IsUnique();
+                e.HasIndex(x => new { x.ActivityDateIst, x.UserId });
+                e.HasIndex(x => new { x.ModuleKey, x.ActivityDateIst });
+                e.HasOne(x => x.User)
+                    .WithMany()
+                    .HasForeignKey(x => x.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<UserActivityDailySummary>(e =>
+            {
+                e.Property(x => x.UserId).HasMaxLength(450);
+                e.Property(x => x.ActivityDateIst).HasColumnType("date");
+                e.Property(x => x.FirstSeenUtc).HasColumnType("timestamp with time zone");
+                e.Property(x => x.LastSeenUtc).HasColumnType("timestamp with time zone");
+                e.HasIndex(x => new { x.UserId, x.ActivityDateIst }).IsUnique();
+                e.HasIndex(x => x.ActivityDateIst);
+                e.HasOne(x => x.User)
+                    .WithMany()
+                    .HasForeignKey(x => x.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             builder.Entity<PlanApprovalLog>(e =>
@@ -3149,6 +3293,7 @@ namespace ProjectManagement.Data
                 entity.Property(x => x.Name).HasMaxLength(200);
                 entity.Property(x => x.Phone).HasMaxLength(64);
                 entity.Property(x => x.Email).HasMaxLength(256);
+                entity.Property(x => x.CreatedByUserId).HasMaxLength(450);
                 entity.HasOne(x => x.IndustryPartner)
                     .WithMany(x => x.Contacts)
                     .HasForeignKey(x => x.IndustryPartnerId)

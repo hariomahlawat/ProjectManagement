@@ -2,15 +2,22 @@
 
 <div class="pf-filter-toolbar" id="pf-filter-toolbar" data-filter-context="@Model.Context">
     <div class="d-flex flex-wrap align-items-center gap-2 w-100">
-        <div class="flex-grow-1 flex-md-grow-0 pf-min-w-160">
-            <label class="visually-hidden" for="pf-filter-project">Project</label>
-            <select class="form-select form-select-sm" id="pf-filter-project" aria-label="Filter by project">
-                <option value="">All projects</option>
-                @foreach (var project in Model.Projects)
-                {
-                    <option value="@project.Value">@project.Label</option>
-                }
-            </select>
+        <div class="flex-grow-1 flex-md-grow-0 pf-filter-project-picker">
+            <partial name="~/Areas/ProjectOfficeReports/Pages/Proliferation/Partials/_ProjectSearchPicker.cshtml"
+                     model="@(new ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels.ProliferationProjectPickerModel(
+                         InputId: "pf-filter-project-search",
+                         ValueInputId: "pf-filter-project",
+                         SuggestionsId: "pf-filter-project-suggestions",
+                         Label: "Project",
+                         Projects: Model.Projects.Select(project => new ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels.ProliferationCompletedProjectOption(int.Parse(project.Value), project.Label)).ToList(),
+                         Placeholder: "All projects",
+                         EligibilityText: string.Empty,
+                         Compact: true,
+                         ShowLabel: false,
+                         ShowEligibilityText: false,
+                         ShowRecent: true,
+                         AriaLabel: "Filter by project",
+                         RecentStorageKey: "prism-proliferation-filter-recent-projects"))" />
         </div>
         <div class="flex-grow-1 flex-md-grow-0 pf-min-w-140">
             <label class="visually-hidden" for="pf-filter-source">Source</label>

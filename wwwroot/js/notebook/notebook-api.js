@@ -247,8 +247,9 @@ export const NotebookApi = {
   toggleChecklistItem: (itemId, rowId, isDone, version) => request(`/api/notebook/items/${encodeURIComponent(itemId)}/checklist-items/${encodeURIComponent(rowId)}`, jsonRequestOptions('PATCH', { isDone, version })),
   getCounts: () => request('/api/notebook/counts'),
   getCollaborators: (id) => request(`/api/notebook/items/${encodeURIComponent(id)}/collaborators`),
-  searchCollaborators: (id, query) => request(`/api/notebook/items/${encodeURIComponent(id)}/collaborator-search?query=${encodeURIComponent(query)}`),
-  addCollaborator: (id, userId, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/collaborators`, jsonRequestOptions('POST', { userId, role: 0, version })),
+  searchCollaborators: (id, query, options = {}) => request(`/api/notebook/items/${encodeURIComponent(id)}/collaborator-search?query=${encodeURIComponent(query)}`, options),
+  addCollaborator: (id, userId, role = 'Viewer', version) => request(`/api/notebook/items/${encodeURIComponent(id)}/collaborators`, jsonRequestOptions('POST', { userId, role, version })),
+  updateCollaboratorRole: (id, userId, role, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/collaborators/${encodeURIComponent(userId)}`, jsonRequestOptions('PATCH', { role, version })),
   removeCollaborator: (id, userId, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/collaborators/${encodeURIComponent(userId)}`, jsonRequestOptions('DELETE', { version })),
   leaveCollaboration: (id) => request(`/api/notebook/items/${encodeURIComponent(id)}/leave`, jsonRequestOptions('POST', {})),
   getCardHtml: (id, view = 'home') => request(`/api/notebook/items/${encodeURIComponent(id)}/card?view=${encodeURIComponent(view)}`, { headers: { Accept: 'text/html' } })

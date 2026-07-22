@@ -13,6 +13,6 @@ namespace ProjectManagement.Contracts.Activities
 
         Task AddAsync(ActivityType activityType, CancellationToken cancellationToken = default);
 
-        Task UpdateAsync(ActivityType activityType, CancellationToken cancellationToken = default);
+        Task UpdateAsync(ActivityType activityType, byte[]? rowVersion = null, CancellationToken cancellationToken = default);
     }
 }

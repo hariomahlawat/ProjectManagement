@@ -1,6 +1,41 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
 @using System.Text.Json
+@using System.Linq
+@using ProjectManagement.Infrastructure.Data
+@functions {
+    private static string CountLabel(int count, string singular, string plural)
+        => $"{count} {(count == 1 ? singular : plural)}";
+
+    private static bool IsProtectedStatus(string status)
+        => status.Contains("granted", StringComparison.OrdinalIgnoreCase)
+            || status.Contains("registered", StringComparison.OrdinalIgnoreCase)
+            || status.Contains("protected", StringComparison.OrdinalIgnoreCase);
+
+    private static string FormatAge(int days)
+    {
+        if (days <= 0)
+        {
+            return "<1d";
+        }
+
+        if (days < 30)
+        {
+            return $"{days}d";
+        }
+
+        if (days < 365)
+        {
+            return $"{Math.Max(1, days / 30)}m";
+        }
+
+        var years = days / 365;
+        var remainingMonths = (days % 365) / 30;
+        return remainingMonths == 0
+            ? $"{years}y"
+            : $"{years}y {remainingMonths}m";
+    }
+}
 @{
     ViewData["Title"] = "IPR Register";
     ViewData["UseFullWidth"] = true;
@@ -14,31 +49,58 @@
     var firstItem = hasRecords ? ((Model.PageNumber - 1) * Model.PageSize) + 1 : 0;
     var lastItem = hasRecords ? Math.Min(Model.TotalCount, Model.PageNumber * Model.PageSize) : 0;
     var yearlyJson = JsonSerializer.Serialize(Model.YearlyStats);
+    var recordsJson = JsonSerializer.Serialize(Model.Records);
+    var selectedRecord = Model.Records.FirstOrDefault();
     var recordsRoutes = Model.GetRouteValuesForLinks(new { tab = "records", page = 1 }, includePage: false, includeModeAndId: false);
     var projectRoutes = Model.GetRouteValuesForLinks(new { tab = "project", page = 1 }, includePage: false, includeModeAndId: false);
+    var followupRoutes = Model.GetRouteValuesForLinks(new { tab = "followup", page = 1 }, includePage: false, includeModeAndId: false);
     var analyticsRoutes = Model.GetRouteValuesForLinks(new { tab = "analytics", page = 1 }, includePage: false, includeModeAndId: false);
+    var assignedProjectGroupCount = Model.ProjectIprGroups.Count(group => !group.IsUnassigned);
+    var hasUnassignedProjectGroup = Model.ProjectIprGroups.Any(group => group.IsUnassigned);
+    var patentBreakdown = Model.TypeBreakdown.FirstOrDefault(item => item.Type == IprType.Patent);
+    var copyrightBreakdown = Model.TypeBreakdown.FirstOrDefault(item => item.Type == IprType.Copyright);
+    var patentFiled = patentBreakdown?.Filed ?? 0;
+    var copyrightFiled = copyrightBreakdown?.Filed ?? 0;
+    var patentProtected = patentBreakdown?.Protected ?? 0;
+    var copyrightProtected = copyrightBreakdown?.Protected ?? 0;
+    var patentPending = patentBreakdown?.Pending ?? 0;
+    var copyrightPending = copyrightBreakdown?.Pending ?? 0;
+    var patentFiledPercent = Model.Kpis.Total == 0 ? 0 : Math.Round(patentFiled * 100d / Model.Kpis.Total, 1);
+    var copyrightFiledPercent = Model.Kpis.Total == 0 ? 0 : 100 - patentFiledPercent;
+    var patentProtectedPercent = Model.Kpis.Granted == 0 ? 0 : Math.Round(patentProtected * 100d / Model.Kpis.Granted, 1);
+    var copyrightProtectedPercent = Model.Kpis.Granted == 0 ? 0 : 100 - patentProtectedPercent;
+    var patentPendingPercent = Model.Kpis.Filed == 0 ? 0 : Math.Round(patentPending * 100d / Model.Kpis.Filed, 1);
+    var copyrightPendingPercent = Model.Kpis.Filed == 0 ? 0 : 100 - patentPendingPercent;
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/site-ipr.css" asp-append-version="true" />
 }
 
-<div class="ipr-register-page">
+<div class="ipr-register-page" data-ipr-density-root>
     <header class="ipr-register-header">
         <div class="ipr-register-title-block">
             <span class="ipr-register-icon"><i class="bi bi-file-earmark-text"></i></span>
             <div>
                 <h1>IPR Register</h1>
-                <p>Track filed and granted patents and copyrights by project.</p>
+                <p>Operational register for patents, copyrights, project linkage and follow-up.</p>
             </div>
         </div>
         <div class="ipr-register-actions">
+            <button type="button"
+                    class="btn btn-outline-secondary ipr-guidance-trigger"
+                    data-bs-toggle="modal"
+                    data-bs-target="#iprGuidanceModal">
+                <i class="bi bi-info-circle" aria-hidden="true"></i> Patent or copyright?
+            </button>
             <a asp-page="./Index" asp-page-handler="Export" asp-all-route-data="exportRouteValues" class="btn btn-outline-primary">
                 <i class="bi bi-download"></i> Export
             </a>
             @if (Model.CanEdit)
             {
-                <a asp-page="./Index" asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "create" }, includeModeAndId: false)" class="btn btn-primary">
+                <a asp-page="./Index"
+                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "create" }, includeModeAndId: false)"
+                   class="btn btn-primary">
                     <i class="bi bi-plus-lg"></i> Add IPR record
                 </a>
             }
@@ -47,86 +109,145 @@
 
     @if (!string.IsNullOrWhiteSpace(toastMessage) || !string.IsNullOrWhiteSpace(toastError))
     {
-        <div class="toast-container position-fixed top-0 end-0 p-3 pm-util-z-1100" aria-live="polite" aria-atomic="true">
+        <div id="iprToastContainer" class="toast-container position-fixed end-0 p-3 ipr-toast-container" aria-live="polite" aria-atomic="true">
             @if (!string.IsNullOrWhiteSpace(toastMessage))
             {
-                <div class="toast align-items-center text-bg-success border-0 show" role="status"><div class="d-flex"><div class="toast-body">@toastMessage</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>
+                <div class="toast align-items-center text-bg-success border-0 show" role="status">
+                    <div class="d-flex"><div class="toast-body">@toastMessage</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>
+                </div>
             }
             @if (!string.IsNullOrWhiteSpace(toastError))
             {
-                <div class="toast align-items-center text-bg-danger border-0 show" role="alert"><div class="d-flex"><div class="toast-body">@toastError</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>
+                <div class="toast align-items-center text-bg-danger border-0 show" role="alert">
+                    <div class="d-flex"><div class="toast-body">@toastError</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>
+                </div>
             }
         </div>
     }
 
-    <section class="ipr-summary-grid" aria-label="IPR summary">
-        <a asp-page="./Index" asp-route-tab="records" class="ipr-summary-card ipr-summary-card--filed">
-            <div><span>Total filed</span><strong>@Model.Kpis.Total</strong><small>All patents and copyrights</small></div>
-            <i class="bi bi-file-earmark-check"></i>
-        </a>
-        <a asp-page="./Index" asp-route-tab="records" asp-route-Statuses="Granted" class="ipr-summary-card ipr-summary-card--granted">
-            <div><span>Granted</span><strong>@Model.Kpis.Granted</strong><small>@Model.Kpis.Granted filings have received grant</small></div>
-            <i class="bi bi-patch-check"></i>
-        </a>
-        <a asp-page="./Index" asp-route-tab="records" asp-route-Statuses="Filed" class="ipr-summary-card ipr-summary-card--awaiting">
-            <div><span>Awaiting grant</span><strong>@Model.Kpis.Filed</strong><small>Filed records not yet granted</small></div>
-            <i class="bi bi-clock-history"></i>
-        </a>
-        <a asp-page="./Index" asp-route-tab="project" class="ipr-summary-card ipr-summary-card--projects">
-            <div><span>Projects with IPR</span><strong>@Model.ProjectsWithIpr</strong><small>Distinct projects linked to @Model.Kpis.Total filings</small></div>
-            <i class="bi bi-buildings"></i>
-        </a>
-        <div class="ipr-type-summary">
-            <div class="ipr-type-summary__head"><strong>Position by type</strong></div>
-            <div class="ipr-type-summary__columns" aria-hidden="true">
-                <span>Type</span><span>Filed</span><span>Granted</span><span>Awaiting</span>
+    <section class="ipr-insight-ribbon" aria-label="IPR operational summary">
+        <article class="ipr-insight ipr-insight--filed">
+            <a asp-page="./Index" asp-route-tab="records" class="ipr-insight__primary">
+                <span>Filed</span><strong>@Model.Kpis.Total</strong><small>all patent and copyright records</small>
+            </a>
+            <div class="ipr-insight__bar" aria-hidden="true">
+                <span class="is-patent" style="width:@(patentFiledPercent)%"></span>
+                <span class="is-copyright" style="width:@(copyrightFiledPercent)%"></span>
             </div>
-            @foreach (var item in Model.TypeBreakdown)
-            {
-                <div class="ipr-type-summary__row">
-                    <span>@item.Type</span>
-                    <strong>@item.Filed</strong>
-                    <strong class="text-success">@item.Granted</strong>
-                    <strong class="ipr-awaiting-value">@item.AwaitingGrant</strong>
-                </div>
-            }
-        </div>
+            <div class="ipr-insight__breakdown" aria-label="Filed IPR category split">
+                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Patent"><i class="is-patent"></i>@CountLabel(patentFiled, "patent", "patents")</a>
+                <span aria-hidden="true">·</span>
+                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Copyright"><i class="is-copyright"></i>@CountLabel(copyrightFiled, "copyright", "copyrights")</a>
+            </div>
+        </article>
+        <article class="ipr-insight ipr-insight--granted">
+            <a asp-page="./Index" asp-route-tab="records" asp-route-Statuses="Granted" class="ipr-insight__primary">
+                <span>Protected</span><strong>@Model.Kpis.Granted</strong><small>patents granted and copyrights registered</small>
+            </a>
+            <div class="ipr-insight__bar" aria-hidden="true">
+                <span class="is-patent" style="width:@(patentProtectedPercent)%"></span>
+                <span class="is-copyright" style="width:@(copyrightProtectedPercent)%"></span>
+            </div>
+            <div class="ipr-insight__breakdown" aria-label="Protected IPR category split">
+                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Patent" asp-route-Statuses="Granted"><i class="is-patent"></i>@(patentProtected == 1 ? $"{patentProtected} patent granted" : $"{patentProtected} patents granted")</a>
+                <span aria-hidden="true">·</span>
+                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Copyright" asp-route-Statuses="Granted"><i class="is-copyright"></i>@(copyrightProtected == 1 ? $"{copyrightProtected} copyright registered" : $"{copyrightProtected} copyrights registered")</a>
+            </div>
+        </article>
+        <article class="ipr-insight ipr-insight--awaiting">
+            <a asp-page="./Index" asp-route-tab="records" asp-route-Statuses="Filed" class="ipr-insight__primary">
+                <span>Pending</span><strong>@Model.Kpis.Filed</strong><small>@Model.OverdueAttentionCount pending beyond 3 years</small>
+            </a>
+            <div class="ipr-insight__bar" aria-hidden="true">
+                <span class="is-patent" style="width:@(patentPendingPercent)%"></span>
+                <span class="is-copyright" style="width:@(copyrightPendingPercent)%"></span>
+            </div>
+            <div class="ipr-insight__breakdown" aria-label="Pending IPR category split">
+                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Patent" asp-route-Statuses="Filed"><i class="is-patent"></i>@CountLabel(patentPending, "patent", "patents")</a>
+                <span aria-hidden="true">·</span>
+                <a asp-page="./Index" asp-route-tab="records" asp-route-Types="Copyright" asp-route-Statuses="Filed"><i class="is-copyright"></i>@CountLabel(copyrightPending, "copyright", "copyrights")</a>
+            </div>
+        </article>
+        <a asp-page="./Index" asp-route-tab="project" class="ipr-insight ipr-insight--projects">
+            <span>Projects</span><strong>@Model.ProjectsWithIpr</strong><small>@Model.UnassignedCount unassigned</small>
+        </a>
+        <a asp-page="./Index" asp-route-tab="followup" class="ipr-insight ipr-insight--attention @(Model.AttentionRecordCount > 0 ? "has-attention" : string.Empty)">
+            <span>Needs attention</span><strong>@Model.AttentionRecordCount</strong><small>@Model.MissingAttachmentCount without evidence</small>
+        </a>
     </section>
 
     <nav class="ipr-tabs" aria-label="IPR views">
         <a asp-page="./Index" asp-all-route-data="recordsRoutes" class="@(Model.Tab == "records" ? "active" : "")"><i class="bi bi-card-list"></i> Records</a>
-        <a asp-page="./Index" asp-all-route-data="projectRoutes" class="@(Model.Tab == "project" ? "active" : "")"><i class="bi bi-building"></i> Projects &amp; IPR</a>
+        <a asp-page="./Index" asp-all-route-data="projectRoutes" class="@(Model.Tab == "project" ? "active" : "")"><i class="bi bi-building"></i> Projects</a>
+        <a asp-page="./Index" asp-all-route-data="followupRoutes" class="@(Model.Tab == "followup" ? "active" : "")">
+            <i class="bi bi-exclamation-diamond"></i> Follow-up
+            @if (Model.AttentionRecordCount > 0)
+            {
+                <span class="ipr-tab-count">@Model.AttentionRecordCount</span>
+            }
+        </a>
         <a asp-page="./Index" asp-all-route-data="analyticsRoutes" class="@(Model.Tab == "analytics" ? "active" : "")"><i class="bi bi-bar-chart-line"></i> Analytics</a>
     </nav>
 
     @if (Model.Tab == "records")
     {
-        <section class="ipr-panel">
-            <form method="get" class="ipr-filter-bar" data-ipr-loading-form>
-                <input type="hidden" name="Tab" value="records" />
+        <section class="ipr-panel ipr-records-panel">
+            <form method="get" class="ipr-filter-bar @(Model.HasAnyFilter ? "has-clear" : string.Empty)" data-ipr-loading-form>
+                <input type="hidden" name="tab" value="records" />
                 <div class="ipr-search-field"><i class="bi bi-search"></i><input asp-for="Query" type="search" placeholder="Search title, filing number or project" /></div>
-                <select name="Types" class="form-select" data-ipr-auto-submit><option value="">All types</option>@foreach (var option in Model.TypeOptions)
-                {
-                    if (option.Selected) { <option value="@option.Value" selected>@option.Text</option> }
-                    else { <option value="@option.Value">@option.Text</option> }
-                }</select>
-                <select name="Statuses" class="form-select" data-ipr-auto-submit><option value="">All positions</option>@foreach (var option in Model.StatusOptions)
-                {
-                    if (option.Selected) { <option value="@option.Value" selected>@option.Text</option> }
-                    else { <option value="@option.Value">@option.Text</option> }
-                }</select>
-                <select asp-for="ProjectId" asp-items="Model.ProjectOptions" class="form-select" data-ipr-auto-submit></select>
-                <select asp-for="Year" asp-items="Model.YearOptions" class="form-select" data-ipr-auto-submit></select>
-                <button type="submit" class="btn btn-primary">Apply</button>
+                <select name="Types" class="form-select" data-ipr-auto-submit aria-label="Filter by IPR category">
+                    <option value="">All IPR categories</option>
+                    @foreach (var option in Model.TypeOptions)
+                    {
+                        if (option.Selected) { <option value="@option.Value" selected>@option.Text</option> }
+                        else { <option value="@option.Value">@option.Text</option> }
+                    }
+                </select>
+                <select name="Statuses" class="form-select" data-ipr-auto-submit aria-label="Filter by status">
+                    <option value="">All statuses</option>
+                    @foreach (var option in Model.StatusOptions)
+                    {
+                        if (option.Selected) { <option value="@option.Value" selected>@option.Text</option> }
+                        else { <option value="@option.Value">@option.Text</option> }
+                    }
+                </select>
+                <partial name="_ProjectFilterPicker" model="Model" />
+                <select asp-for="Year" asp-items="Model.YearOptions" class="form-select" data-ipr-auto-submit aria-label="Filter by filing year"></select>
+                <button type="submit" class="visually-hidden">Apply filters</button>
                 @if (Model.HasAnyFilter)
                 {
                     <a asp-page="./Index" asp-route-tab="records" class="btn btn-outline-secondary">Clear</a>
                 }
             </form>
 
-            <div class="ipr-panel-header">
-                <div><h2>IPR records</h2><p>@(hasRecords ? $"Showing {firstItem}–{lastItem} of {Model.TotalCount}" : "No records found")</p></div>
-                <span class="ipr-result-count">@Model.TotalCount total</span>
+            <div class="ipr-record-toolbar">
+                <div>
+                    <strong>IPR records</strong>
+                    <span>@(hasRecords ? $"{firstItem}–{lastItem} of {Model.TotalCount}" : "No matching records")</span>
+                </div>
+                <div class="ipr-record-toolbar__actions">
+                    <label class="ipr-page-size-control">
+                        <span>Rows</span>
+                        <select class="form-select form-select-sm" data-ipr-page-size aria-label="Records per page">
+                            @foreach (var option in Model.PageSizeOptions)
+                            {
+                                if (option.Selected) { <option value="@option.Value" selected>@option.Text</option> }
+                                else { <option value="@option.Value">@option.Text</option> }
+                            }
+                        </select>
+                    </label>
+                    <div class="ipr-density-control">
+                        <span>Density</span>
+                        <div class="ipr-density-toggle" role="group" aria-label="Table density">
+                            <button type="button" class="btn is-active" data-ipr-density="compact" aria-pressed="true">
+                                <i class="bi bi-list" aria-hidden="true"></i><span>Compact</span>
+                            </button>
+                            <button type="button" class="btn" data-ipr-density="comfortable" aria-pressed="false">
+                                <i class="bi bi-list-ul" aria-hidden="true"></i><span>Comfortable</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             @if (!hasRecords)
@@ -135,152 +256,460 @@
             }
             else
             {
-                <div class="table-responsive">
-                    <table class="table ipr-register-table align-middle mb-0">
-                        <thead><tr><th>IPR title</th><th>Type</th><th>Project</th><th>Filing no.</th><th>Filed on</th><th>Status</th><th>Granted on</th><th class="text-center">Files</th><th></th></tr></thead>
-                        <tbody>
-                        @foreach (var row in Model.Records)
+                <div class="ipr-record-workbench">
+                    <div class="ipr-register-grid-wrap">
+                        <div class="table-responsive ipr-register-scroll">
+                            <table class="table ipr-register-table align-middle mb-0" role="grid" aria-label="IPR records">
+                                <thead>
+                                    <tr>
+                                        <th>IPR record</th>
+                                        <th>Project</th>
+                                        <th>Filed</th>
+                                        <th>Status</th>
+                                        <th>Protected</th>
+                                        <th class="text-center">Files</th>
+                                        @if (Model.CanEdit)
+                                        {
+                                            <th><span class="visually-hidden">Actions</span></th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @for (var index = 0; index < Model.Records.Count; index++)
+                                {
+                                    var row = Model.Records[index];
+                                    var editRoutes = Model.GetRouteValuesForLinks(new { mode = "edit", id = row.Id }, includeModeAndId: false);
+                                    <tr class="ipr-record-row @(index == 0 ? "is-selected" : string.Empty)"
+                                        data-ipr-record-row
+                                        data-record-id="@row.Id"
+                                        tabindex="@(index == 0 ? "0" : "-1")"
+                                        aria-selected="@(index == 0 ? "true" : "false")"
+                                        aria-controls="iprRecordInspector">
+                                        <td>
+                                            <button type="button" class="ipr-record-title" data-ipr-select-record data-record-id="@row.Id" title="Inspect @row.Title" tabindex="-1">
+                                                <span>@row.Title</span>
+                                                <small><span class="ipr-type-dot ipr-type-dot--@row.IprType.ToLowerInvariant()"></span>@row.IprType · @row.ApplicationNumber</small>
+                                            </button>
+                                        </td>
+                                        <td>
+                                            @if (row.ProjectId.HasValue)
+                                            {
+                                                <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@row.ProjectId" class="ipr-project-link">@row.ProjectName</a>
+                                            }
+                                            else
+                                            {
+                                                <span class="ipr-project-name ipr-project-name--unassigned">@row.ProjectName</span>
+                                            }
+                                        </td>
+                                        <td class="ipr-nowrap">@(row.FiledOn?.ToString("dd MMM yyyy") ?? "—")</td>
+                                        <td><span class="ipr-status-badge @(IsProtectedStatus(row.Status) ? "ipr-status-badge--granted" : "ipr-status-badge--filed")">@row.Status</span></td>
+                                        <td class="ipr-nowrap">@(row.GrantedOn?.ToString("dd MMM yyyy") ?? "—")</td>
+                                        <td class="text-center">
+                                            @if (row.AttachmentCount > 0)
+                                            {
+                                                <span class="ipr-file-count" title="@row.AttachmentCount attachment(s)"><i class="bi bi-paperclip"></i>@row.AttachmentCount</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="ipr-no-file" title="No attachment">—</span>
+                                            }
+                                        </td>
+                                        @if (Model.CanEdit)
+                                        {
+                                            <td class="text-end">
+                                                <a asp-page="./Index" asp-all-route-data="editRoutes" class="btn btn-sm btn-outline-secondary ipr-row-edit-link" aria-label="Edit @row.Title" title="Edit IPR record"><i class="bi bi-pencil"></i></a>
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        @if (Model.TotalPages > 1)
                         {
-                            <tr>
-                                <td><a asp-page="./Index" asp-route-tab="records" asp-route-mode="edit" asp-route-id="@row.Id" class="ipr-title-link">@row.Title</a></td>
-                                <td><span class="ipr-type-badge ipr-type-badge--@row.IprType.ToLowerInvariant()">@row.IprType</span></td>
-                                <td>
-                                    @if (row.ProjectId.HasValue)
+                            var baseRoutes = Model.GetRouteValuesForLinks(new { pageSize = Model.PageSize, tab = "records" }, includePage: false, includeModeAndId: false);
+                            <div class="ipr-pagination-bar">
+                                <span>Showing @firstItem–@lastItem of @Model.TotalCount</span>
+                                <nav aria-label="IPR register pages"><ul class="pagination pagination-sm mb-0">
+                                    <li class="page-item @(Model.PageNumber == 1 ? "disabled" : "")"><a class="page-link" asp-page="./Index" asp-all-route-data="baseRoutes" asp-route-page="@(Model.PageNumber - 1)">‹</a></li>
+                                    @for (var pageNo = Math.Max(1, Model.PageNumber - 2); pageNo <= Math.Min(Model.TotalPages, Model.PageNumber + 2); pageNo++)
                                     {
-                                        <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@row.ProjectId" class="ipr-project-link">@row.ProjectName</a>
+                                        <li class="page-item @(pageNo == Model.PageNumber ? "active" : "")"><a class="page-link" asp-page="./Index" asp-all-route-data="baseRoutes" asp-route-page="@pageNo">@pageNo</a></li>
+                                    }
+                                    <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : "")"><a class="page-link" asp-page="./Index" asp-all-route-data="baseRoutes" asp-route-page="@(Model.PageNumber + 1)">›</a></li>
+                                </ul></nav>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="ipr-inspector-resize-handle"
+                         data-ipr-inspector-resize
+                         role="separator"
+                         aria-orientation="vertical"
+                         aria-label="Resize filing details panel"
+                         tabindex="0"></div>
+
+                    <aside class="ipr-record-inspector"
+                           id="iprRecordInspector"
+                           data-ipr-record-inspector
+                           data-ipr-project-base-url="@Url.Content("~/Projects/Overview")"
+                           aria-live="polite">
+                        @if (selectedRecord is not null)
+                        {
+                            var selectedEditRoutes = Model.GetRouteValuesForLinks(new { mode = "edit", id = selectedRecord.Id }, includeModeAndId: false);
+                            <div class="ipr-inspector-header">
+                                <div>
+                                    <span class="ipr-inspector-eyebrow">Selected filing</span>
+                                    <h2 data-ipr-inspector-title>@selectedRecord.Title</h2>
+                                </div>
+                                @if (Model.CanEdit)
+                                {
+                                    <a asp-page="./Index" asp-all-route-data="selectedEditRoutes" class="btn btn-sm btn-primary" data-ipr-inspector-edit><i class="bi bi-pencil"></i> Edit</a>
+                                }
+                            </div>
+                            <div class="ipr-inspector-badges">
+                                <span class="ipr-type-badge ipr-type-badge--@selectedRecord.IprType.ToLowerInvariant()" data-ipr-inspector-type>@selectedRecord.IprType</span>
+                                <span class="ipr-status-badge @(IsProtectedStatus(selectedRecord.Status) ? "ipr-status-badge--granted" : "ipr-status-badge--filed")" data-ipr-inspector-status>@selectedRecord.Status</span>
+                            </div>
+                            <dl class="ipr-inspector-facts">
+                                <div><dt>Filing number</dt><dd data-ipr-inspector-filing>@selectedRecord.ApplicationNumber</dd></div>
+                                <div><dt>Filed on</dt><dd data-ipr-inspector-filed>@(selectedRecord.FiledOn?.ToString("dd MMM yyyy") ?? "—")</dd></div>
+                                <div><dt>Filed by</dt><dd data-ipr-inspector-filedby>@selectedRecord.FiledBy</dd></div>
+                                <div><dt data-ipr-inspector-protected-label>@(selectedRecord.IprType == "Copyright" ? "Registered on" : "Granted on")</dt><dd data-ipr-inspector-granted>@(selectedRecord.GrantedOn?.ToString("dd MMM yyyy") ?? "—")</dd></div>
+                            </dl>
+                            <section class="ipr-inspector-section">
+                                <h3>Project</h3>
+                                @if (selectedRecord.ProjectId.HasValue)
+                                {
+                                    <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@selectedRecord.ProjectId" data-ipr-inspector-project>@selectedRecord.ProjectName</a>
+                                }
+                                else
+                                {
+                                    <span class="ipr-inspector-unassigned" data-ipr-inspector-project>@selectedRecord.ProjectName</span>
+                                }
+                            </section>
+                            <section class="ipr-inspector-section">
+                                <h3>Notes</h3>
+                                <p data-ipr-inspector-notes>@(selectedRecord.ExternalRemark ?? "No notes recorded.")</p>
+                            </section>
+                            <section class="ipr-inspector-section">
+                                <div class="ipr-inspector-section__head"><h3>Attachments</h3><span data-ipr-inspector-file-count>@selectedRecord.AttachmentCount</span></div>
+                                <div class="ipr-inspector-attachments" data-ipr-inspector-attachments>
+                                    @if (selectedRecord.Attachments.Count == 0)
+                                    {
+                                        <div class="ipr-inspector-empty-file"><i class="bi bi-paperclip"></i>No attachment available</div>
                                     }
                                     else
                                     {
-                                        <span class="ipr-project-name">@row.ProjectName</span>
+                                        @foreach (var attachment in selectedRecord.Attachments)
+                                        {
+                                            <a asp-page="Download" asp-route-iprRecordId="@selectedRecord.Id" asp-route-attachmentId="@attachment.Id" target="_blank" rel="noopener">
+                                                <i class="bi bi-file-earmark-pdf"></i><span><strong>@attachment.FileName</strong><small>@attachment.FileSize · @attachment.UploadedAt</small></span>
+                                            </a>
+                                        }
                                     }
-                                </td>
-                                <td><span class="font-monospace small ipr-filing-number">@row.ApplicationNumber</span></td>
-                                <td>@(row.FiledOn?.ToString("dd MMM yyyy") ?? "—")</td>
-                                <td><span class="ipr-status-badge @(row.Status == "Granted" ? "ipr-status-badge--granted" : "ipr-status-badge--filed")">@row.Status</span></td>
-                                <td>@(row.GrantedOn?.ToString("dd MMM yyyy") ?? "—")</td>
-                                <td class="text-center"><i class="bi bi-paperclip"></i> @row.AttachmentCount</td>
-                                <td class="text-end"><a asp-page="./Index" asp-route-tab="records" asp-route-mode="edit" asp-route-id="@row.Id" class="btn btn-sm btn-outline-secondary" aria-label="Edit @row.Title" title="Edit record"><i class="bi bi-pencil"></i></a></td>
-                            </tr>
+                                </div>
+                            </section>
                         }
-                        </tbody>
-                    </table>
+                    </aside>
                 </div>
-
-                @if (Model.TotalPages > 1)
-                {
-                    var baseRoutes = Model.GetRouteValuesForLinks(new { pageSize = Model.PageSize, tab = "records" }, includePage: false, includeModeAndId: false);
-                    <div class="ipr-pagination-bar">
-                        <span>Showing @firstItem–@lastItem of @Model.TotalCount records</span>
-                        <nav><ul class="pagination pagination-sm mb-0">
-                            <li class="page-item @(Model.PageNumber == 1 ? "disabled" : "")"><a class="page-link" asp-page="./Index" asp-all-route-data="baseRoutes" asp-route-page="@(Model.PageNumber - 1)">‹</a></li>
-                            @for (var pageNo = Math.Max(1, Model.PageNumber - 2); pageNo <= Math.Min(Model.TotalPages, Model.PageNumber + 2); pageNo++)
-                            {<li class="page-item @(pageNo == Model.PageNumber ? "active" : "")"><a class="page-link" asp-page="./Index" asp-all-route-data="baseRoutes" asp-route-page="@pageNo">@pageNo</a></li>}
-                            <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : "")"><a class="page-link" asp-page="./Index" asp-all-route-data="baseRoutes" asp-route-page="@(Model.PageNumber + 1)">›</a></li>
-                        </ul></nav>
-                    </div>
-                }
+                <script type="application/json" id="iprRecordData">@Html.Raw(recordsJson)</script>
             }
         </section>
     }
     else if (Model.Tab == "project")
     {
-        <section class="ipr-panel">
-            <div class="ipr-panel-header">
-                <div>
-                    <h2>Projects &amp; IPR</h2>
-                    <p>See which patent or copyright is linked to each project and its current position.</p>
-                </div>
-                <span class="ipr-result-count">@Model.ProjectsWithIpr projects · @Model.Kpis.Total filings</span>
+        <section class="ipr-panel ipr-projects-panel">
+            <div class="ipr-panel-header ipr-panel-header--toolbar">
+                <div><h2>Project dossiers</h2><p>Each project appears once, with its patent and copyright position shown underneath.</p></div>
+                <span class="ipr-result-count">
+                    @assignedProjectGroupCount projects@(hasUnassignedProjectGroup ? " + 1 unassigned group" : string.Empty) · @Model.Kpis.Total filings
+                </span>
             </div>
-            <div class="table-responsive">
-                <table class="table ipr-project-table align-middle mb-0">
-                    <thead><tr><th>Project</th><th>IPR title</th><th>Type</th><th>Current position</th><th>Filed on</th><th>Granted on</th><th></th></tr></thead>
-                    <tbody>
-                    @foreach (var item in Model.ProjectIprLinks)
-                    {
-                        <tr>
-                            <td>
-                                <div class="ipr-project-cell">
-                                    @if (item.ProjectId.HasValue)
+            <div class="ipr-project-toolbar">
+                <div class="ipr-search-field"><i class="bi bi-search"></i><input type="search" placeholder="Search project or IPR title" data-ipr-project-group-search /></div>
+                <select class="form-select" data-ipr-project-group-status aria-label="Filter project dossiers by IPR status">
+                    <option value="all">All IPR statuses</option>
+                    <option value="awaiting">Has pending IPR</option>
+                    <option value="granted">Has protected IPR</option>
+                    <option value="unassigned">Unassigned records</option>
+                </select>
+                <select class="form-select" data-ipr-project-group-sort aria-label="Sort project dossiers">
+                    <option value="attention">Attention first</option>
+                    <option value="name">Project name</option>
+                    <option value="total">Most IPRs</option>
+                    <option value="latest">Latest filing</option>
+                </select>
+                <button type="button" class="btn btn-outline-secondary" data-ipr-expand-projects title="Expand visible dossiers that have pending filings">
+                    <i class="bi bi-chevron-double-down" aria-hidden="true"></i> Expand pending
+                </button>
+            </div>
+
+            <div class="ipr-project-groups" data-ipr-project-groups>
+                @if (Model.ProjectIprGroups.Count == 0)
+                {
+                    <div class="ipr-empty-state"><i class="bi bi-building"></i><h3>No project dossiers found</h3><p>Link an IPR record to a project to create the first dossier.</p></div>
+                }
+                @foreach (var group in Model.ProjectIprGroups)
+                {
+                    var groupLatestSort = group.LatestFiledOn?.ToString("yyyy-MM-dd") ?? string.Empty;
+                    <details class="ipr-project-group @(group.IsUnassigned ? "ipr-project-group--unassigned" : string.Empty)"
+                             data-ipr-project-group
+                             data-search="@group.SearchText"
+                             data-awaiting="@(group.Awaiting > 0 ? "true" : "false")"
+                             data-granted="@(group.Granted > 0 ? "true" : "false")"
+                             data-unassigned="@(group.IsUnassigned ? "true" : "false")"
+                             data-project-name="@group.ProjectName"
+                             data-total="@group.Total"
+                             data-latest="@groupLatestSort">
+                        <summary>
+                            <div class="ipr-project-group__identity">
+                                <span class="ipr-project-group__icon"><i class="bi @(group.IsUnassigned ? "bi-exclamation-triangle" : "bi-building")"></i></span>
+                                <div>
+                                    @if (group.ProjectId.HasValue)
                                     {
-                                        <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@item.ProjectId" class="ipr-project-link">@item.ProjectName</a>
+                                        <a asp-area="" asp-page="/Projects/Overview" asp-route-id="@group.ProjectId" class="ipr-project-group__name">@group.ProjectName</a>
                                     }
                                     else
                                     {
-                                        <span>@item.ProjectName</span>
+                                        <strong class="ipr-project-group__name">@group.ProjectName</strong>
                                     }
-                                    @if (item.ProjectIprCount > 1)
+                                    <span>@group.Lifecycle · @CountLabel(group.Patents, "patent", "patents") · @CountLabel(group.Copyrights, "copyright", "copyrights") · latest filing @(group.LatestFiledOn?.ToString("dd MMM yyyy") ?? "not recorded")</span>
+                                </div>
+                            </div>
+                            <div class="ipr-project-group__metrics">
+                                <span><strong>@group.Total</strong> IPR</span>
+                                <span class="is-granted"><strong>@group.Granted</strong> protected</span>
+                                <span class="is-awaiting"><strong>@group.Awaiting</strong> pending</span>
+                                <i class="bi bi-chevron-down"></i>
+                            </div>
+                        </summary>
+                        <div class="ipr-project-group__body">
+                            <div class="ipr-project-record-head" aria-hidden="true"><span>IPR title</span><span>Category</span><span>Position</span><span>Filed</span><span>Protected</span><span>Files</span><span></span></div>
+                            @foreach (var item in group.Items)
+                            {
+                                var itemEditRoutes = Model.GetRouteValuesForLinks(new { tab = "project", mode = "edit", id = item.Id }, includeModeAndId: false);
+                                <div class="ipr-project-record">
+                                    <div>
+                                        @if (Model.CanEdit)
+                                        {
+                                            <a asp-page="./Index" asp-all-route-data="itemEditRoutes" class="ipr-title-link">@item.Title</a>
+                                        }
+                                        else
+                                        {
+                                            <span class="ipr-title-text">@item.Title</span>
+                                        }
+                                    </div>
+                                    <span><span class="ipr-type-badge ipr-type-badge--@item.Type.ToLowerInvariant()">@item.Type</span></span>
+                                    <span><span class="ipr-status-badge @(IsProtectedStatus(item.Position) ? "ipr-status-badge--granted" : "ipr-status-badge--filed")">@item.Position</span></span>
+                                    <span class="ipr-nowrap">@(item.FiledOn?.ToString("dd MMM yyyy") ?? "—")</span>
+                                    <span class="ipr-nowrap">@(item.GrantedOn?.ToString("dd MMM yyyy") ?? "—")</span>
+                                    <span class="ipr-file-count-cell">@(item.AttachmentCount > 0 ? $"{item.AttachmentCount}" : "—")</span>
+                                    @if (Model.CanEdit)
                                     {
-                                        <span class="ipr-multi-badge">@item.ProjectIprCount IPR</span>
+                                        <a asp-page="./Index" asp-all-route-data="itemEditRoutes" class="btn btn-sm btn-outline-secondary" title="Edit IPR record" aria-label="Edit @item.Title"><i class="bi bi-pencil"></i></a>
+                                    }
+                                    else
+                                    {
+                                        <span></span>
                                     }
                                 </div>
-                            </td>
-                            <td><a asp-page="./Index" asp-route-tab="project" asp-route-mode="edit" asp-route-id="@item.Id" class="ipr-title-link">@item.Title</a></td>
-                            <td><span class="ipr-type-badge ipr-type-badge--@item.Type.ToLowerInvariant()">@item.Type</span></td>
-                            <td><span class="ipr-status-badge @(item.Position == "Granted" ? "ipr-status-badge--granted" : "ipr-status-badge--filed")">@item.Position</span></td>
-                            <td>@(item.FiledOn?.ToString("dd MMM yyyy") ?? "—")</td>
-                            <td>@(item.GrantedOn?.ToString("dd MMM yyyy") ?? "—")</td>
-                            <td class="text-end"><a asp-page="./Index" asp-route-tab="project" asp-route-mode="edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary" title="Edit record" aria-label="Edit @item.Title"><i class="bi bi-pencil"></i></a></td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
+                            }
+                        </div>
+                    </details>
+                }
+                <div class="ipr-empty-state d-none" data-ipr-project-groups-empty><i class="bi bi-search"></i><h3>No matching project dossier</h3><p>Change the search or status filter.</p></div>
             </div>
+        </section>
+    }
+    else if (Model.Tab == "followup")
+    {
+        <section class="ipr-followup-view">
+            <div class="ipr-followup-header">
+                <div>
+                    <h2>IPR follow-up</h2>
+                    <p>Exceptions and long-pending cases that require administrative attention.</p>
+                    <small>Each record is listed once under its highest-priority issue; all detected issues remain visible as labels.</small>
+                </div>
+                <span>@($"{Model.AttentionRecordCount} unique {(Model.AttentionRecordCount == 1 ? "record" : "records")}")</span>
+            </div>
+
+            @if (Model.AttentionGroups.Count == 0)
+            {
+                <div class="ipr-panel ipr-empty-state ipr-empty-state--success"><i class="bi bi-check-circle"></i><h3>No follow-up required</h3><p>All current IPR records have project linkage, supporting evidence and consistent status data.</p></div>
+            }
+            else
+            {
+                <div class="ipr-followup-groups">
+                    @foreach (var group in Model.AttentionGroups)
+                    {
+                        <article class="ipr-followup-group ipr-followup-group--@group.Tone @(group.Key == "overdue" ? "ipr-followup-group--wide" : string.Empty)">
+                            <header>
+                                <div>
+                                    <span class="ipr-followup-group__icon"><i class="bi @(group.Key == "overdue" ? "bi-hourglass-split" : group.Key == "data" ? "bi-exclamation-octagon" : group.Key == "linkage" ? "bi-link-45deg" : "bi-paperclip")"></i></span>
+                                    <div><h3>@group.Title</h3><p>@group.Description</p></div>
+                                </div>
+                                <strong>@group.Items.Count</strong>
+                            </header>
+                            <div class="ipr-followup-list">
+                                @foreach (var item in group.Items)
+                                {
+                                    var attentionEditRoutes = Model.GetRouteValuesForLinks(new { tab = "followup", mode = "edit", id = item.Id }, includeModeAndId: false);
+                                    <div class="ipr-followup-card ipr-followup-card--@item.Severity">
+                                        <div class="ipr-followup-card__main">
+                                            @if (Model.CanEdit)
+                                            {
+                                                <a asp-page="./Index" asp-all-route-data="attentionEditRoutes">@item.Title</a>
+                                            }
+                                            else
+                                            {
+                                                <strong>@item.Title</strong>
+                                            }
+                                            <span>@item.ProjectName · @item.Type</span>
+                                            <ul>
+                                                @foreach (var reason in item.Reasons)
+                                                {
+                                                    <li>@reason</li>
+                                                }
+                                            </ul>
+                                        </div>
+                                        <div class="ipr-followup-card__meta">
+                                            @if (item.WaitingDays.HasValue)
+                                            {
+                                                <strong>@FormatAge(item.WaitingDays.Value)</strong>
+                                                <span>Filed @(item.FiledOn?.ToString("dd MMM yyyy") ?? "date unavailable")</span>
+                                            }
+                                            else
+                                            {
+                                                <strong>@($"{item.AttachmentCount} {(item.AttachmentCount == 1 ? "file" : "files")}")</strong>
+                                                <span>Evidence status</span>
+                                            }
+                                            @if (Model.CanEdit)
+                                            {
+                                                <a asp-page="./Index"
+                                                   asp-all-route-data="attentionEditRoutes"
+                                                   class="ipr-followup-card__open"
+                                                   aria-label="Open @item.Title">
+                                                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                                                </a>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
         </section>
     }
     else
     {
-        <section class="ipr-analytics-grid">
-            <article class="ipr-panel ipr-chart-panel">
-                <div class="ipr-panel-header"><div><h2>Filings and grants by year</h2><p>A filing and its later grant are counted as separate events.</p></div></div>
-                <div class="ipr-chart-canvas"><canvas id="iprEventTrend" data-yearly='@Html.Raw(yearlyJson)' role="img" aria-label="IPR filings and grants by year"></canvas></div>
-            </article>
-            <aside class="ipr-analytics-side">
-                <article class="ipr-panel ipr-type-position-panel">
-                    <div class="ipr-panel-header"><div><h2>Position by type</h2><p>Absolute filed, granted and awaiting-grant counts.</p></div></div>
-                    <div class="ipr-type-matrix">
-                        <div class="ipr-type-matrix__head"><span>Type</span><span>Filed</span><span>Granted</span><span>Awaiting</span></div>
+        <section class="ipr-analytics-view">
+            @{
+                var recordsWithEvidence = Math.Max(0, Model.Kpis.Total - Model.AnalyticsSummary.MissingAttachments);
+                var evidenceCoveragePercent = Model.Kpis.Total == 0
+                    ? 100
+                    : (int)Math.Round(recordsWithEvidence * 100d / Model.Kpis.Total, MidpointRounding.AwayFromZero);
+            }
+            <div class="ipr-analytics-insights">
+                <article><span>Evidence coverage</span><strong>@evidenceCoveragePercent%</strong><small>@recordsWithEvidence of @Model.Kpis.Total filings have supporting files</small></article>
+                <article><span>Median time to protection</span><strong>@(Model.AnalyticsSummary.MedianGrantDays.HasValue ? FormatAge(Model.AnalyticsSummary.MedianGrantDays.Value) : "—")</strong><small>protected cases with both dates</small></article>
+                <article><span>Median pending age</span><strong>@(Model.AnalyticsSummary.MedianAwaitingDays.HasValue ? FormatAge(Model.AnalyticsSummary.MedianAwaitingDays.Value) : "—")</strong><small>currently pending</small></article>
+                <article class="@(Model.AnalyticsSummary.AwaitingOverThreeYears > 0 ? "has-warning" : string.Empty)"><span>Long pending</span><strong>@Model.AnalyticsSummary.AwaitingOverThreeYears</strong><small>pending beyond 3 years</small></article>
+            </div>
+
+            <div class="ipr-analytics-main-grid">
+                <article class="ipr-panel ipr-chart-panel">
+                    <div class="ipr-panel-header"><div><h2>Filing and protection events by year</h2><p>Patent grants and copyright registrations are counted in the year protection was recorded.</p></div></div>
+                    <div class="ipr-chart-canvas"><canvas id="iprEventTrend" data-yearly='@Html.Raw(yearlyJson)' role="img" aria-label="IPR filing and protection events by year"></canvas></div>
+                </article>
+                <article class="ipr-panel ipr-age-panel">
+                    <div class="ipr-panel-header"><div><h2>Age of pending filings</h2><p>Distribution of the current follow-up workload.</p></div></div>
+                    <div class="ipr-age-bands">
+                        @foreach (var band in Model.AwaitingAgeBands)
+                        {
+                            <div class="ipr-age-band">
+                                <div><span>@band.Label</span><strong>@band.Count</strong></div>
+                                <div class="ipr-age-band__track"><span class="ipr-age-band__fill ipr-age-band__fill--@band.Tone" style="width:@(band.Percentage)%"></span></div>
+                            </div>
+                        }
+                    </div>
+                    <div class="ipr-type-matrix ipr-type-matrix--compact">
+                        <div class="ipr-type-matrix__head"><span>Category</span><span>Filed</span><span>Protected</span><span>Pending</span></div>
                         @foreach (var item in Model.TypeBreakdown)
                         {
                             <div class="ipr-type-matrix__row">
-                                <strong>@item.Type</strong>
+                                <strong>@item.TypeLabel</strong>
                                 <span>@item.Filed</span>
-                                <span class="text-success fw-semibold">@item.Granted</span>
-                                <span class="ipr-awaiting-value fw-semibold">@item.AwaitingGrant</span>
+                                <span class="text-success fw-semibold" title="@item.Protected @item.ProtectedVerb">@item.Protected <small>@item.ProtectedVerb</small></span>
+                                <span class="ipr-awaiting-value fw-semibold" title="@item.Pending @item.PendingLabel">@item.Pending <small>pending</small></span>
                             </div>
                         }
                     </div>
                 </article>
-                <article class="ipr-panel ipr-pending-panel">
-                    <div class="ipr-panel-header"><div><h2>Oldest filings awaiting grant</h2><p>Records that may require follow-up.</p></div></div>
-                    @if (Model.OldestAwaitingGrant.Count == 0)
-                    {
-                        <div class="ipr-compact-empty"><i class="bi bi-check-circle"></i><span>No filings are awaiting grant.</span></div>
-                    }
-                    else
-                    {
-                        <div class="ipr-pending-list">
-                            @foreach (var item in Model.OldestAwaitingGrant)
-                            {
-                                <a asp-page="./Index" asp-route-tab="analytics" asp-route-mode="edit" asp-route-id="@item.Id" class="ipr-pending-row">
-                                    <div><strong>@item.Title</strong><span>@item.ProjectName · @item.Type</span></div>
-                                    <div class="text-end"><strong>@item.WaitingDays d</strong><span>@(item.FiledOn?.ToString("dd MMM yyyy") ?? "Date unavailable")</span></div>
-                                </a>
-                            }
-                        </div>
-                    }
-                </article>
-            </aside>
+            </div>
+
+            <article class="ipr-panel ipr-oldest-panel">
+                <div class="ipr-panel-header">
+                    <div><h2>Oldest pending filings</h2><p>Prioritised by elapsed time since filing.</p></div>
+                    <a asp-page="./Index" asp-route-tab="followup" class="btn btn-sm btn-outline-secondary">Open follow-up</a>
+                </div>
+                @if (Model.OldestAwaitingGrant.Count == 0)
+                {
+                    <div class="ipr-compact-empty"><i class="bi bi-check-circle"></i><span>No filings are pending.</span></div>
+                }
+                else
+                {
+                    <div class="ipr-oldest-list">
+                        @foreach (var item in Model.OldestAwaitingGrant)
+                        {
+                            var oldestEditRoutes = Model.GetRouteValuesForLinks(new { tab = "analytics", mode = "edit", id = item.Id }, includeModeAndId: false);
+                            <div class="ipr-oldest-row">
+                                <span class="ipr-oldest-row__rank"></span>
+                                <div>
+                                    @if (Model.CanEdit)
+                                    {
+                                        <a asp-page="./Index" asp-all-route-data="oldestEditRoutes">@item.Title</a>
+                                    }
+                                    else
+                                    {
+                                        <strong>@item.Title</strong>
+                                    }
+                                    <span>@item.ProjectName · @item.Type</span>
+                                </div>
+                                <div><strong>@FormatAge(item.WaitingDays)</strong><span>Filed @(item.FiledOn?.ToString("dd MMM yyyy") ?? "date unavailable")</span></div>
+                            </div>
+                        }
+                    </div>
+                }
+            </article>
         </section>
     }
 
     @if (Model.CanEdit)
     {
-        <div class="offcanvas offcanvas-end ipr-record-drawer" tabindex="-1" id="iprRecordOffcanvas" aria-labelledby="iprRecordOffcanvasLabel" data-ipr-mode="@(Model.Mode ?? string.Empty)" data-ipr-has-form="@(isCreateMode || isEditMode ? "true" : "false")">
-            <div class="offcanvas-header"><div><h2 class="offcanvas-title h5" id="iprRecordOffcanvasLabel">@(isCreateMode ? "Add IPR record" : "Edit IPR record")</h2><p class="text-muted small mb-0">Capture filing, grant and project details.</p></div><a class="btn-close" asp-page="./Index" asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)"></a></div>
-            <div class="offcanvas-body"><partial name="_RecordFormPartial" model="Model" /></div>
+        <div class="offcanvas offcanvas-end ipr-record-drawer"
+             tabindex="-1"
+             id="iprRecordOffcanvas"
+             aria-labelledby="iprRecordOffcanvasLabel"
+             data-ipr-mode="@(Model.Mode ?? string.Empty)"
+             data-ipr-has-form="@(isCreateMode || isEditMode ? "true" : "false")">
+            <div class="offcanvas-header ipr-record-drawer__header">
+                <div>
+                    <h2 class="offcanvas-title" id="iprRecordOffcanvasLabel">@(isCreateMode ? "Add IPR record" : "Edit IPR record")</h2>
+                    <p>Capture filing, protection and project details.</p>
+                </div>
+                <a class="btn-close" asp-page="./Index" asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)" aria-label="Close IPR record form"></a>
+            </div>
+            <div class="offcanvas-body ipr-record-drawer__body">
+                <partial name="_RecordFormPartial" model="Model" />
+            </div>
         </div>
     }
+
+    <partial name="_IprGuidanceModal" />
 </div>
 
 @section Scripts {

@@ -1,192 +1,359 @@
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
-using ProjectManagement.Data;
-using ProjectManagement.Infrastructure;
-using ProjectManagement.Models;
-using System.ComponentModel.DataAnnotations;
-using System.Globalization;
-using System.Text;
-using System.Text.Json;
+using ProjectManagement.Areas.Admin.Models;
+using ProjectManagement.Configuration;
+using ProjectManagement.Services.Admin;
 
-namespace ProjectManagement.Areas.Admin.Pages.Logs
+namespace ProjectManagement.Areas.Admin.Pages.Logs;
+
+[Authorize(Policy = AdminPolicies.LogsView)]
+[ResponseCache(NoStore = true)]
+public sealed class IndexModel : PageModel
 {
-    [Authorize(Roles = "Admin")]
-    public class IndexModel : PageModel
+    private const int MaximumExportRows = 50_000;
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    private readonly IAdminLogQueryService _queries;
+    private readonly IAuditActionPresentationCatalog _presentations;
+    private readonly IAdminClientDescriptorService _clients;
+    private readonly IAdminAuditEntityLinkResolver _entityLinks;
+    private readonly ISafeCsvWriter _csv;
+    private readonly IAdminTimeService _time;
+
+    public IndexModel(
+        IAdminLogQueryService queries,
+        IAuditActionPresentationCatalog presentations,
+        IAdminClientDescriptorService clients,
+        IAdminAuditEntityLinkResolver entityLinks,
+        ISafeCsvWriter csv,
+        IAdminTimeService time)
     {
-        private readonly ApplicationDbContext _db;
-        public IndexModel(ApplicationDbContext db) => _db = db;
-
-        // ---------- Filters (GET-bound) ----------
-        [BindProperty(SupportsGet = true)] public string? Level { get; set; }
-        [BindProperty(SupportsGet = true)] public string? Action { get; set; }
-        [BindProperty(SupportsGet = true, Name = "User")] public string? UserName { get; set; }
-        [BindProperty(SupportsGet = true)] public string? Ip { get; set; }
-        [BindProperty(SupportsGet = true)] public string? Contains { get; set; }
-        [BindProperty(SupportsGet = true)] [DataType(DataType.Date)] public DateTime? From { get; set; }
-        [BindProperty(SupportsGet = true)] [DataType(DataType.Date)] public DateTime? To { get; set; }
-
-        // ---------- Paging & sorting ----------
-        [BindProperty(SupportsGet = true)] public int PageNo { get; set; } = 1;
-        [BindProperty(SupportsGet = true)] public int PageSize { get; set; } = 25; // cap in OnGet
-        [BindProperty(SupportsGet = true)] public string Sort { get; set; } = "Time";
-        [BindProperty(SupportsGet = true)] public string Dir { get; set; } = "desc"; // asc|desc
-
-        // ---------- Results ----------
-        public int Total { get; private set; }
-        public IReadOnlyList<LogRow> Rows { get; private set; } = Array.Empty<LogRow>();
-
-        // For UI helpers
-        public IReadOnlyList<string> ActionOptions { get; private set; } = Array.Empty<string>();
-
-        // Daily counts for the filtered range
-        public IReadOnlyList<string> SeriesLabels { get; private set; } = Array.Empty<string>();
-        public IReadOnlyList<int> SeriesCounts { get; private set; } = Array.Empty<int>();
-
-        public class LogRow
-        {
-            public DateTime TimeUtc { get; set; }
-            public string Level { get; set; } = "";
-            public string Action { get; set; } = "";
-            public string? UserName { get; set; }
-            public string? Ip { get; set; }
-            public string? Message { get; set; }
-            public string? DataJson { get; set; }
-        }
-
-        public async Task<IActionResult> OnGetAsync()
-        {
-            if (PageNo < 1) PageNo = 1;
-            if (PageSize <= 0 || PageSize > 200) PageSize = 25; // sensible cap
-
-            var q = ComposeQuery(_db.AuditLogs.AsNoTracking());
-
-            Total = await q.CountAsync();
-
-            q = ApplySort(q, Sort, Dir);
-
-            Rows = await q
-                .Skip((PageNo - 1) * PageSize)
-                .Take(PageSize)
-                .Select(x => new LogRow
-                {
-                    TimeUtc = x.TimeUtc,
-                    Level = x.Level,
-                    Action = x.Action,
-                    UserName = x.UserName,
-                    Ip = x.Ip,
-                    Message = x.Message,
-                    DataJson = x.DataJson
-                })
-                .ToListAsync();
-
-            // Populate Action datalist with a small distinct set
-            ActionOptions = await _db.AuditLogs.AsNoTracking()
-                .Select(a => a.Action).Distinct().OrderBy(a => a).Take(50).ToListAsync();
-
-            // Daily count series for the filtered range
-            var perDay = await ComposeQuery(_db.AuditLogs.AsNoTracking())
-                .GroupBy(x => x.TimeUtc.Date)
-                .Select(g => new { Day = g.Key, Count = g.Count() })
-                .OrderBy(x => x.Day)
-                .ToListAsync();
-
-            SeriesLabels = perDay.Select(d => d.Day.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)).ToList();
-            SeriesCounts = perDay.Select(d => d.Count).ToList();
-
-            return Page();
-        }
-
-        // CSV export for current filter
-        public async Task<FileResult> OnGetExportCsvAsync()
-        {
-            var q = ApplySort(ComposeQuery(_db.AuditLogs.AsNoTracking()), "Time", "desc");
-
-            // Hard cap to avoid accidental huge dumps
-            var rows = await q.Take(100_000).ToListAsync();
-
-            var sb = new StringBuilder();
-            sb.AppendLine("TimeIST,Level,Action,User,IP,Message,DataJson");
-
-            foreach (var x in rows)
-            {
-                var tIst = IstClock.ToIst(x.TimeUtc).ToString("dd MMM yyyy HH:mm:ss", CultureInfo.InvariantCulture);
-                sb.AppendLine(string.Join(",", new[]
-                {
-                    Csv(tIst), Csv(x.Level), Csv(x.Action), Csv(x.UserName), Csv(x.Ip),
-                    Csv(x.Message), Csv(x.DataJson)
-                }));
-            }
-
-            var bytes = Encoding.UTF8.GetBytes(sb.ToString());
-            var fileName = $"logs_{DateTime.UtcNow:yyyyMMdd_HHmmss}.csv";
-            return File(bytes, "text/csv; charset=utf-8", fileName);
-        }
-
-        // ---------- Helpers ----------
-
-        private IQueryable<AuditLog> ComposeQuery(IQueryable<AuditLog> q)
-        {
-            if (!string.IsNullOrWhiteSpace(Level)) q = q.Where(x => x.Level == Level);
-            if (!string.IsNullOrWhiteSpace(Action)) q = q.Where(x => x.Action == Action);
-            if (!string.IsNullOrWhiteSpace(UserName)) q = q.Where(x => x.UserName != null && x.UserName.Contains(UserName));
-            if (!string.IsNullOrWhiteSpace(Ip)) q = q.Where(x => x.Ip != null && x.Ip.Contains(Ip));
-
-            if (!string.IsNullOrWhiteSpace(Contains))
-            {
-                // Postgres: ILIKE for case-insensitive contains
-                // Falls back to Contains if provider does not support ILike
-                if (EF.Functions.GetType().GetMethod("ILike") != null)
-                {
-                    q = q.Where(x =>
-                        (x.Message != null && EF.Functions.ILike(x.Message, $"%{Contains}%")) ||
-                        (x.DataJson != null && EF.Functions.ILike(x.DataJson, $"%{Contains}%")));
-                }
-                else
-                {
-                    var needle = Contains.ToLowerInvariant();
-                    q = q.Where(x =>
-                        (x.Message != null && x.Message.ToLower().Contains(needle)) ||
-                        (x.DataJson != null && x.DataJson.ToLower().Contains(needle)));
-                }
-            }
-
-            if (From.HasValue) q = q.Where(x => x.TimeUtc >= From.Value);
-            if (To.HasValue) q = q.Where(x => x.TimeUtc <= To.Value.AddDays(1).AddTicks(-1)); // inclusive day
-
-            return q;
-        }
-
-        private static IQueryable<AuditLog> ApplySort(IQueryable<AuditLog> q, string sort, string dir)
-        {
-            bool asc = string.Equals(dir, "asc", StringComparison.OrdinalIgnoreCase);
-
-            return sort switch
-            {
-                "Level" => asc ? q.OrderBy(x => x.Level).ThenBy(x => x.TimeUtc)
-                               : q.OrderByDescending(x => x.Level).ThenByDescending(x => x.TimeUtc),
-
-                "Action" => asc ? q.OrderBy(x => x.Action).ThenBy(x => x.TimeUtc)
-                                : q.OrderByDescending(x => x.Action).ThenByDescending(x => x.TimeUtc),
-
-                "User" => asc ? q.OrderBy(x => x.UserName).ThenBy(x => x.TimeUtc)
-                              : q.OrderByDescending(x => x.UserName).ThenByDescending(x => x.TimeUtc),
-
-                "Ip" => asc ? q.OrderBy(x => x.Ip).ThenBy(x => x.TimeUtc)
-                            : q.OrderByDescending(x => x.Ip).ThenByDescending(x => x.TimeUtc),
-
-                _ => asc ? q.OrderBy(x => x.TimeUtc) : q.OrderByDescending(x => x.TimeUtc)
-            };
-        }
-
-        private static string Csv(string? s)
-        {
-            if (string.IsNullOrEmpty(s)) return "";
-            // Escape double quotes and wrap
-            var t = s.Replace("\"", "\"\"");
-            return $"\"{t}\"";
-        }
+        _queries = queries ?? throw new ArgumentNullException(nameof(queries));
+        _presentations = presentations ?? throw new ArgumentNullException(nameof(presentations));
+        _clients = clients ?? throw new ArgumentNullException(nameof(clients));
+        _entityLinks = entityLinks ?? throw new ArgumentNullException(nameof(entityLinks));
+        _csv = csv ?? throw new ArgumentNullException(nameof(csv));
+        _time = time ?? throw new ArgumentNullException(nameof(time));
     }
-}
 
+    [BindProperty(SupportsGet = true)] public string? Level { get; set; }
+    [BindProperty(SupportsGet = true)] public string? Action { get; set; }
+    [BindProperty(SupportsGet = true)] public string? Category { get; set; }
+    [BindProperty(SupportsGet = true)] public string? EntityType { get; set; }
+    [BindProperty(SupportsGet = true, Name = "User")] public string? UserName { get; set; }
+    [BindProperty(SupportsGet = true)] public string? UserId { get; set; }
+    [BindProperty(SupportsGet = true)] public string? Ip { get; set; }
+    [BindProperty(SupportsGet = true)] public string? Contains { get; set; }
+    [BindProperty(SupportsGet = true), DataType(DataType.Date)] public DateTime? From { get; set; }
+    [BindProperty(SupportsGet = true), DataType(DataType.Date)] public DateTime? To { get; set; }
+    [BindProperty(SupportsGet = true)] public int PageNo { get; set; } = 1;
+    [BindProperty(SupportsGet = true)] public int PageSize { get; set; } = 25;
+    [BindProperty(SupportsGet = true)] public string Sort { get; set; } = "Time";
+    [BindProperty(SupportsGet = true)] public string Dir { get; set; } = "desc";
+
+    public AdminLogResult Result { get; private set; } = new(
+        Array.Empty<AdminLogRow>(),
+        Array.Empty<string>(),
+        Array.Empty<string>(),
+        Array.Empty<int>(),
+        0,
+        1,
+        25,
+        new AdminLogSummary(0, 0, 0, 0, 0, 0));
+
+    public AdminPageHeaderModel Header { get; private set; } = new();
+
+    public IReadOnlyList<AdminMonitoringMetricModel> Metrics { get; private set; } =
+        Array.Empty<AdminMonitoringMetricModel>();
+
+    public bool HasFilters => !string.IsNullOrWhiteSpace(Level)
+        || !string.IsNullOrWhiteSpace(Action)
+        || !string.IsNullOrWhiteSpace(Category)
+        || !string.IsNullOrWhiteSpace(EntityType)
+        || !string.IsNullOrWhiteSpace(UserName)
+        || !string.IsNullOrWhiteSpace(UserId)
+        || !string.IsNullOrWhiteSpace(Ip)
+        || !string.IsNullOrWhiteSpace(Contains)
+        || From.HasValue
+        || To.HasValue;
+
+    public int FirstRow => Result.Total == 0 ? 0 : ((Result.Page - 1) * Result.PageSize) + 1;
+    public int LastRow => Math.Min(Result.Page * Result.PageSize, Result.Total);
+
+    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
+    {
+        Result = await _queries.GetAsync(BuildQuery(), cancellationToken);
+        PageNo = Result.Page;
+        PageSize = Result.PageSize;
+        BuildPresentation();
+        return Page();
+    }
+
+    public async Task<FileResult> OnGetExportCsvAsync(CancellationToken cancellationToken)
+    {
+        var rows = await _queries.GetForExportAsync(BuildQuery(), MaximumExportRows + 1, cancellationToken);
+        var wasTruncated = rows.Count > MaximumExportRows;
+        var exported = rows.Take(MaximumExportRows).ToArray();
+
+        var bytes = _csv.Write(
+            new[]
+            {
+                "TimeIST", "Severity", "Event", "RawAction", "Category", "Actor", "ActorUserId",
+                "AffectedEntityType", "AffectedEntityId", "SourceIP", "Client", "Message", "Reason",
+                "Outcome", "TraceId", "Origin", "Before", "After", "RawJson"
+            },
+            exported.Select(row =>
+            {
+                var presentation = Presentation(row);
+                var payload = row.Payload;
+                return (IReadOnlyList<object?>)new object?[]
+                {
+                    FormatIst(row.TimeUtc),
+                    row.Level,
+                    presentation.Label,
+                    row.Action,
+                    presentation.Category,
+                    payload?.ActorName ?? row.UserName,
+                    payload?.ActorUserId ?? row.UserId,
+                    payload?.EntityType,
+                    payload?.EntityId,
+                    row.Ip,
+                    Client(row).Summary,
+                    row.Message,
+                    payload?.Reason,
+                    payload?.Outcome,
+                    payload?.TraceId,
+                    payload?.Origin,
+                    payload?.BeforeJson,
+                    payload?.AfterJson,
+                    payload?.RawPrettyJson ?? row.DataJson
+                };
+            }));
+
+        if (wasTruncated)
+        {
+            Response.Headers["X-PRISM-Export-Truncated"] = "true";
+        }
+
+        return File(
+            bytes,
+            "text/csv; charset=utf-8",
+            $"audit_logs_{_time.UtcNow:yyyyMMdd_HHmmss}.csv");
+    }
+
+    public string FormatIst(DateTime utc) => _time.FormatIst(utc);
+
+    public AuditActionPresentation Presentation(AdminLogRow row) =>
+        _presentations.Describe(row.Action, row.Level);
+
+    public AdminClientDescriptor Client(AdminLogRow row) => _clients.Describe(row.UserAgent);
+
+    public AdminAuditEntityLink? EntityLink(AdminLogRow row) => row.Payload is null
+        ? null
+        : _entityLinks.Resolve(HttpContext, row.Payload);
+
+    public string DetailJson(AdminLogRow row)
+    {
+        var presentation = Presentation(row);
+        var client = Client(row);
+        var payload = row.Payload;
+        var entityLink = EntityLink(row);
+
+        return JsonSerializer.Serialize(new AuditDetailDocument(
+            row.Id,
+            presentation.Label,
+            row.Action,
+            presentation.Category,
+            presentation.Icon,
+            presentation.Tone,
+            row.Level,
+            FormatIst(row.TimeUtc),
+            payload?.ActorName ?? row.UserName ?? "System",
+            payload?.ActorUserId ?? row.UserId,
+            payload?.ActorRoles,
+            payload?.EntityType,
+            payload?.EntityId,
+            payload?.AffectedRecord,
+            entityLink?.Text,
+            entityLink?.Href,
+            row.Ip,
+            client.Summary,
+            client.RawUserAgent,
+            row.Message,
+            payload?.Reason,
+            payload?.Outcome,
+            payload?.TraceId,
+            payload?.Origin,
+            payload?.BeforeJson,
+            payload?.AfterJson,
+            payload?.RawPrettyJson ?? row.DataJson), JsonOptions);
+    }
+
+    public string PageUrl(int page) => Url.Page("./Index", QueryValues(page)) ?? "#";
+
+    public string SortUrl(string sort)
+    {
+        var nextDirection = string.Equals(Sort, sort, StringComparison.OrdinalIgnoreCase)
+                            && string.Equals(Dir, "asc", StringComparison.OrdinalIgnoreCase)
+            ? "desc"
+            : "asc";
+        var values = QueryValues(1);
+        values[nameof(Sort)] = sort;
+        values[nameof(Dir)] = nextDirection;
+        return Url.Page("./Index", values) ?? "#";
+    }
+
+    public string FilterUrl(string? level = null, string? category = null)
+    {
+        var values = QueryValues(1);
+        values[nameof(Level)] = level;
+        values[nameof(Category)] = category;
+        return Url.Page("./Index", values) ?? "#";
+    }
+
+    private AdminLogQuery BuildQuery() => new(
+        Level,
+        Action,
+        UserName,
+        UserId,
+        Ip,
+        Contains,
+        From.HasValue ? DateOnly.FromDateTime(From.Value) : null,
+        To.HasValue ? DateOnly.FromDateTime(To.Value) : null,
+        PageNo,
+        PageSize,
+        Sort,
+        Dir,
+        Category,
+        EntityType);
+
+    private Dictionary<string, object?> QueryValues(int page) => new(StringComparer.OrdinalIgnoreCase)
+    {
+        [nameof(Level)] = Level,
+        [nameof(Action)] = Action,
+        [nameof(Category)] = Category,
+        [nameof(EntityType)] = EntityType,
+        ["User"] = UserName,
+        [nameof(UserId)] = UserId,
+        [nameof(Ip)] = Ip,
+        [nameof(Contains)] = Contains,
+        [nameof(From)] = From?.ToString("yyyy-MM-dd"),
+        [nameof(To)] = To?.ToString("yyyy-MM-dd"),
+        [nameof(PageNo)] = page,
+        [nameof(PageSize)] = PageSize,
+        [nameof(Sort)] = Sort,
+        [nameof(Dir)] = Dir
+    };
+
+    private void BuildPresentation()
+    {
+        Header = new AdminPageHeaderModel
+        {
+            Eyebrow = "Monitoring",
+            Title = "Audit logs",
+            Description = "Trace administrative actions, affected records and security-relevant system events.",
+            Icon = "bi-journal-text",
+            Actions = new[]
+            {
+                new AdminPageActionModel
+                {
+                    Text = "Login activity",
+                    Href = Url.Page("/Analytics/Logins", new { area = "Admin" }),
+                    Icon = "bi-graph-up-arrow"
+                },
+                new AdminPageActionModel
+                {
+                    Text = "Export CSV",
+                    Href = Url.Page("./Index", "ExportCsv", QueryValues(1)),
+                    Icon = "bi-download",
+                    IsPrimary = true
+                }
+            }
+        };
+
+        var summary = Result.Summary ?? new AdminLogSummary(Result.Total, 0, 0, 0, 0, 0);
+        Metrics = new[]
+        {
+            new AdminMonitoringMetricModel
+            {
+                Label = "Events",
+                Value = summary.Total.ToString("N0"),
+                Detail = "Current filter scope",
+                Icon = "bi-activity",
+                Tone = "neutral",
+                Href = FilterUrl(),
+                IsActive = string.IsNullOrWhiteSpace(Level)
+            },
+            new AdminMonitoringMetricModel
+            {
+                Label = "Information",
+                Value = summary.Information.ToString("N0"),
+                Detail = "Routine operations",
+                Icon = "bi-info-circle",
+                Tone = "neutral",
+                Href = FilterUrl("Info"),
+                IsActive = string.Equals(Level, "Info", StringComparison.OrdinalIgnoreCase)
+            },
+            new AdminMonitoringMetricModel
+            {
+                Label = "Warnings",
+                Value = summary.Warnings.ToString("N0"),
+                Detail = "Review recommended",
+                Icon = "bi-exclamation-triangle",
+                Tone = "warning",
+                Href = FilterUrl("Warning"),
+                IsActive = string.Equals(Level, "Warning", StringComparison.OrdinalIgnoreCase)
+            },
+            new AdminMonitoringMetricModel
+            {
+                Label = "Errors",
+                Value = summary.Errors.ToString("N0"),
+                Detail = "Immediate investigation",
+                Icon = "bi-x-octagon",
+                Tone = "danger",
+                Href = FilterUrl("Error"),
+                IsActive = string.Equals(Level, "Error", StringComparison.OrdinalIgnoreCase)
+            },
+            new AdminMonitoringMetricModel
+            {
+                Label = "Actors",
+                Value = summary.Actors.ToString("N0"),
+                Detail = $"{summary.AffectedRecords:N0} affected records",
+                Icon = "bi-person-check",
+                Tone = "neutral"
+            }
+        };
+    }
+
+    private sealed record AuditDetailDocument(
+        long Id,
+        string Title,
+        string RawAction,
+        string Category,
+        string Icon,
+        string Tone,
+        string Severity,
+        string Time,
+        string Actor,
+        string? ActorUserId,
+        string? ActorRoles,
+        string? EntityType,
+        string? EntityId,
+        string? AffectedRecord,
+        string? EntityLinkText,
+        string? EntityLinkHref,
+        string? Ip,
+        string Client,
+        string? RawUserAgent,
+        string? Message,
+        string? Reason,
+        string? Outcome,
+        string? TraceId,
+        string? Origin,
+        string? Before,
+        string? After,
+        string? RawJson);
+}

@@ -256,8 +256,9 @@ var init_notebook_api = __esm({
       toggleChecklistItem: (itemId, rowId, isDone, version) => request(`/api/notebook/items/${encodeURIComponent(itemId)}/checklist-items/${encodeURIComponent(rowId)}`, jsonRequestOptions("PATCH", { isDone, version })),
       getCounts: () => request("/api/notebook/counts"),
       getCollaborators: (id) => request(`/api/notebook/items/${encodeURIComponent(id)}/collaborators`),
-      searchCollaborators: (id, query) => request(`/api/notebook/items/${encodeURIComponent(id)}/collaborator-search?query=${encodeURIComponent(query)}`),
-      addCollaborator: (id, userId, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/collaborators`, jsonRequestOptions("POST", { userId, role: 0, version })),
+      searchCollaborators: (id, query, options = {}) => request(`/api/notebook/items/${encodeURIComponent(id)}/collaborator-search?query=${encodeURIComponent(query)}`, options),
+      addCollaborator: (id, userId, role = "Viewer", version) => request(`/api/notebook/items/${encodeURIComponent(id)}/collaborators`, jsonRequestOptions("POST", { userId, role, version })),
+      updateCollaboratorRole: (id, userId, role, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/collaborators/${encodeURIComponent(userId)}`, jsonRequestOptions("PATCH", { role, version })),
       removeCollaborator: (id, userId, version) => request(`/api/notebook/items/${encodeURIComponent(id)}/collaborators/${encodeURIComponent(userId)}`, jsonRequestOptions("DELETE", { version })),
       leaveCollaboration: (id) => request(`/api/notebook/items/${encodeURIComponent(id)}/leave`, jsonRequestOptions("POST", {})),
       getCardHtml: (id, view = "home") => request(`/api/notebook/items/${encodeURIComponent(id)}/card?view=${encodeURIComponent(view)}`, { headers: { Accept: "text/html" } })
@@ -412,8 +413,9 @@ function createChecklistEditor(root, options = {}) {
   const maxLength = options.maxLength || 500;
   let rows = [];
   let isReconciling = false;
+  let readOnly = Boolean(options.readOnly);
   const notify = () => {
-    if (!isReconciling) options.onChange?.();
+    if (!isReconciling && !readOnly) options.onChange?.();
   };
   function normalizeRow(row = {}, index = 0) {
     return {
@@ -446,6 +448,17 @@ function createChecklistEditor(root, options = {}) {
     const text = row.element.querySelector("[data-checklist-text]");
     if (done && (forceContent || done.checked !== Boolean(row.isDone))) done.checked = Boolean(row.isDone);
     if (text && (forceContent || text.value !== (row.text || ""))) text.value = row.text || "";
+    applyRowAccess(row.element);
+  }
+  function applyRowAccess(element) {
+    if (!element) return;
+    element.classList.toggle("is-read-only", readOnly);
+    const done = element.querySelector("[data-checklist-done]");
+    const text = element.querySelector("[data-checklist-text]");
+    const remove = element.querySelector("[data-checklist-remove]");
+    if (done) done.disabled = readOnly;
+    if (text) text.readOnly = readOnly;
+    if (remove) remove.hidden = readOnly;
   }
   function readRowElement(row, index) {
     if (!row.element) return row;
@@ -515,7 +528,17 @@ function createChecklistEditor(root, options = {}) {
       button.innerHTML = '<i class="bi bi-plus-lg" aria-hidden="true"></i><span>List item</span>';
       root.append(button);
     }
+    button.hidden = readOnly;
+    button.disabled = readOnly;
     return button;
+  }
+  function setReadOnly(value) {
+    readOnly = Boolean(value);
+    root.classList.toggle("is-read-only", readOnly);
+    rows.forEach((row) => applyRowAccess(row.element));
+    const add = ensureAddItemControl();
+    add.hidden = readOnly;
+    add.disabled = readOnly;
   }
   function setRows(nextRows) {
     root.replaceChildren();
@@ -524,6 +547,7 @@ function createChecklistEditor(root, options = {}) {
     ensureAddItemControl();
   }
   function addRow(afterElement = null, row = {}) {
+    if (readOnly) return null;
     const insertAt = afterElement ? rows.findIndex((candidate) => candidate.element === afterElement) + 1 : rows.length;
     const model = normalizeRow(row, insertAt);
     const el = rowTemplate(model);
@@ -533,6 +557,7 @@ function createChecklistEditor(root, options = {}) {
     return el;
   }
   function removeRow(element) {
+    if (readOnly) return;
     const row = findRowByElement(element);
     const prev = element.previousElementSibling;
     rows = rows.filter((candidate) => candidate !== row);
@@ -590,15 +615,15 @@ function createChecklistEditor(root, options = {}) {
     }
   }
   function handleInput(event) {
-    if (isReconciling) return;
+    if (isReconciling || readOnly) return;
     if (event.target.matches("[data-checklist-text]")) notify();
   }
   function handleChange(event) {
-    if (isReconciling) return;
+    if (isReconciling || readOnly) return;
     if (event.target.matches("[data-checklist-done]")) notify();
   }
   function handleClick(event) {
-    if (isReconciling) return;
+    if (isReconciling || readOnly) return;
     if (event.target.closest("[data-checklist-add]")) {
       addRow().querySelector("[data-checklist-text]")?.focus();
       return;
@@ -607,7 +632,7 @@ function createChecklistEditor(root, options = {}) {
     if (button) removeRow(button.closest("[data-checklist-row]"));
   }
   function handleKeydown2(event) {
-    if (isReconciling) return;
+    if (isReconciling || readOnly) return;
     const input = event.target.closest("[data-checklist-text]");
     if (!input) return;
     const row = input.closest("[data-checklist-row]");
@@ -633,7 +658,10 @@ function createChecklistEditor(root, options = {}) {
   root.addEventListener("change", handleChange);
   root.addEventListener("click", handleClick);
   root.addEventListener("keydown", handleKeydown2);
-  return { setRows, getRows, addRow, removeRow, reconcileRows, replaceRows: setRows, renderRows: setRows, getFocusedRowState: captureFocusState, restoreFocusedRowState: restoreFocusState, focusFirst: () => (root.querySelector("[data-checklist-text]") || ensureAddItemControl())?.focus(), clear: () => setRows([]), destroy };
+  setReadOnly(readOnly);
+  return { setRows, getRows, addRow, removeRow, reconcileRows, setReadOnly, isReadOnly: () => readOnly, replaceRows: setRows, renderRows: setRows, getFocusedRowState: captureFocusState, restoreFocusedRowState: restoreFocusState, focusFirst: () => {
+    if (!readOnly) (root.querySelector("[data-checklist-text]") || ensureAddItemControl())?.focus();
+  }, clear: () => setRows([]), destroy };
 }
 var parseNullableInt;
 var init_notebook_checklist_editor = __esm({
@@ -1562,6 +1590,41 @@ function initNotebookEditor(board, view, options = {}) {
     return url;
   };
   const focusableSelector = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
+  function accessLevel(target = item) {
+    return String(target?.accessLevel || "None").toLowerCase();
+  }
+  function hasCapability(target, property, minimumAccess) {
+    if (typeof target?.[property] === "boolean") return target[property];
+    const rank = { none: 0, viewer: 1, editor: 2, owner: 3 };
+    return (rank[accessLevel(target)] || 0) >= minimumAccess;
+  }
+  const canEditContent = (target = item) => hasCapability(target, "canEditContent", 2);
+  const canManageMetadata = (target = item) => hasCapability(target, "canManageMetadata", 3);
+  function applyAccessMode(target = item) {
+    if (!modal || !target) return;
+    const editable = canEditContent(target);
+    const metadata = canManageMetadata(target);
+    const title = modal.querySelector("[data-modal-title]");
+    const body = modal.querySelector("[data-modal-body]");
+    const toolbar = modal.querySelector("[data-notebook-editor-toolbar]");
+    const labelHost = modal.querySelector("[data-notebook-label-picker]");
+    const banner = modal.querySelector("[data-notebook-access-banner]");
+    const bannerText = modal.querySelector("[data-notebook-access-text]");
+    const bannerIcon = modal.querySelector("[data-notebook-access-icon]");
+    if (title) title.readOnly = !editable;
+    if (body) body.readOnly = !editable;
+    checklist?.setReadOnly?.(!editable);
+    if (toolbar) toolbar.hidden = !metadata;
+    if (labelHost) labelHost.hidden = !metadata;
+    modal.classList.toggle("is-read-only", !editable);
+    const level = accessLevel(target);
+    if (banner) banner.hidden = level === "owner";
+    if (bannerText && level !== "owner") {
+      const owner = target.ownerDisplayName || "the note owner";
+      bannerText.textContent = level === "viewer" ? `View only · Shared by ${owner}` : level === "editor" ? `Can edit · Shared by ${owner}` : "You no longer have access to this note.";
+    }
+    if (bannerIcon) bannerIcon.className = `bi ${level === "editor" ? "bi-pencil-square" : level === "none" ? "bi-shield-x" : "bi-eye"}`;
+  }
   function setSaveStatus(text, state3 = SaveState.Idle) {
     const el = modal?.querySelector("[data-notebook-save-state]");
     if (el) {
@@ -1636,6 +1699,7 @@ function initNotebookEditor(board, view, options = {}) {
     });
   }
   function markChanged(field) {
+    if (!canEditContent()) return;
     editRevision[field] += 1;
     dirtyState[field] = true;
     if (!draftSourceVersion) draftSourceVersion = item?.version ?? null;
@@ -1659,6 +1723,7 @@ function initNotebookEditor(board, view, options = {}) {
     return dirtyState.title || dirtyState.body || dirtyState.checklist;
   }
   function scheduleAutosave() {
+    if (!canEditContent()) return;
     if (isConflictBlocked()) {
       preserveUnsavedDraft();
       return;
@@ -1676,6 +1741,8 @@ function initNotebookEditor(board, view, options = {}) {
   }
   function configureAutosave() {
     autosave?.stop();
+    autosave = null;
+    if (!canEditContent()) return;
     autosave = createAutosave({
       save: saveEditorPayload,
       onSaving: () => {
@@ -1690,7 +1757,7 @@ function initNotebookEditor(board, view, options = {}) {
     const pin = modal.querySelector("[data-modal-pin]");
     pin?.classList.toggle("is-active", Boolean(item?.isPinned));
     if (pin) {
-      const isOwner = String(item?.accessLevel || "Owner").toLowerCase() === "owner";
+      const isOwner = canManageMetadata();
       pin.hidden = !isOwner;
       pin.setAttribute("aria-label", item?.isPinned ? "Unpin note" : "Pin note");
       pin.disabled = conflictState.active || !isOwner;
@@ -1700,7 +1767,7 @@ function initNotebookEditor(board, view, options = {}) {
     item = updated;
     colourPicker?.setValue(updated.colorKey || "");
     labelPicker?.setValue((updated.labels || []).map((label) => label?.name ?? label));
-    const isOwner = String(updated.accessLevel || "Owner").toLowerCase() === "owner";
+    const isOwner = canManageMetadata(updated);
     const labelHost = modal.querySelector("[data-notebook-label-picker]");
     if (labelHost) labelHost.hidden = !isOwner;
     modal.dataset.itemType = String(updated.type || "Note").toLowerCase();
@@ -1722,6 +1789,8 @@ function initNotebookEditor(board, view, options = {}) {
     resetEditRevision();
     draftSourceVersion = updated.version ?? null;
     clearValidationBlock();
+    applyAccessMode(updated);
+    configureAutosave();
     renderPin();
   }
   function renderMode() {
@@ -1780,6 +1849,9 @@ function initNotebookEditor(board, view, options = {}) {
     requireEditorElement(modal, EditorSelectors.copyLocal).addEventListener("click", copyLocalChanges);
   }
   async function saveEditorPayload(data, operation = {}) {
+    if (!canEditContent()) {
+      throw new NotebookApiError("This note is shared with you in view-only mode.", { status: 403, code: "notebook_view_only" });
+    }
     const submittedRows = item.type === "Checklist" ? structuredCloneSafe(data.checklistRows || []) : [];
     const submittedRevision = { ...editRevision };
     const requestPayload = { ...data, version: item.version };
@@ -1854,6 +1926,14 @@ function initNotebookEditor(board, view, options = {}) {
     } else {
       setSaveStatus(currentSaveError.message, currentSaveError.kind);
     }
+    if (currentSaveError.kind === "forbidden") {
+      preserveUnsavedDraft();
+      autosave?.cancel?.({ abortActive: true });
+      autosave?.stop?.();
+      autosave = null;
+      applyAccessMode({ ...item || {}, accessLevel: "Viewer", canEditContent: false, canManageMetadata: false });
+      void refreshAccessAfterForbidden();
+    }
     if (currentSaveError.kind === "validation") {
       renderValidationErrors(currentSaveError.validationErrors);
       const submittedPayload = buildCurrentPayload();
@@ -1874,11 +1954,32 @@ function initNotebookEditor(board, view, options = {}) {
     }
     return { retryable: isRetryableSaveError(error) && !isConflictBlocked() };
   }
+  async function refreshAccessAfterForbidden() {
+    if (!item?.id) return;
+    try {
+      const latest = await NotebookApi.getItem(item.id);
+      item = latest;
+      applyAccessMode(latest);
+      renderPin();
+      if (accessLevel(latest) === "viewer") {
+        setSaveStatus("Your permission was changed to View only. Unsaved changes were not saved.", SaveState.Forbidden);
+      } else if (canEditContent(latest)) {
+        configureAutosave();
+        setSaveStatus("Only the note owner can change that setting.", SaveState.Forbidden);
+      }
+    } catch (refreshError) {
+      if (refreshError?.status === 404 || refreshError?.status === 403) {
+        applyAccessMode({ ...item || {}, accessLevel: "None", canEditContent: false, canManageMetadata: false });
+        setSaveStatus("Your access to this note was removed. Unsaved changes were not saved.", SaveState.Forbidden);
+      }
+    }
+  }
   function isDevelopment2() {
     return document.documentElement.dataset.environment === "Development" || location.hostname === "localhost";
   }
   async function disposeCurrentItem() {
-    if (!item || !autosave) return;
+    if (!item) return;
+    if (!autosave) return;
     if (isConflictBlocked()) {
       preserveUnsavedDraft();
       autosave.cancel();
@@ -1937,6 +2038,7 @@ function initNotebookEditor(board, view, options = {}) {
     }
   }
   async function restoreStoredDraftIfNeeded() {
+    if (!canEditContent()) return;
     const storedDraft = readStoredDraft(item.id);
     if (!storedDraft) return;
     const differs = storedDraft.title !== item.title || storedDraft.body !== item.body || JSON.stringify(storedDraft.checklistRows || []) !== JSON.stringify(item.checklistRows || []);
@@ -1979,7 +2081,9 @@ function initNotebookEditor(board, view, options = {}) {
   async function copyUnsavedContent() {
     const copied = await copyLocalChanges();
     if (copied) {
-      setSaveStatus("Unsaved note text copied. Sign in again before saving.", currentSaveError?.kind || "session-expired");
+      const state3 = currentSaveError?.kind || SaveState.Error;
+      const message = state3 === "session-expired" ? "Unsaved note text copied. Sign in again before saving." : "Unsaved note text copied.";
+      setSaveStatus(message, state3);
     }
   }
   async function writeTextToClipboard(text) {
@@ -2026,7 +2130,7 @@ function initNotebookEditor(board, view, options = {}) {
     return copied;
   }
   async function retrySave() {
-    if (isConflictBlocked()) return;
+    if (isConflictBlocked() || !canEditContent() || !autosave) return;
     const button = modal.querySelector("[data-notebook-retry]");
     button.disabled = true;
     try {
@@ -2063,7 +2167,7 @@ function initNotebookEditor(board, view, options = {}) {
     closeEditor();
   }
   async function useMyChanges() {
-    if (!conflictState.active || conflictState.resolving || !item) return;
+    if (!conflictState.active || conflictState.resolving || !item || !canEditContent()) return;
     const confirmed = await confirmNotebookAction({ title: "Replace the newer saved version?", message: "Your current changes will be saved over the newer version of this note.", detail: "Use Reload latest instead to keep the newer saved version.", confirmText: "Use my changes", tone: "warning" });
     if (!confirmed) return;
     const resolutionGeneration = conflictGeneration;
@@ -2149,7 +2253,7 @@ function initNotebookEditor(board, view, options = {}) {
     }
   }
   async function changeColour(colorKey, previousColorKey) {
-    if (!item || isConflictBlocked()) {
+    if (!item || !canManageMetadata() || isConflictBlocked()) {
       colourPicker?.setValue(previousColorKey || "");
       return;
     }
@@ -2192,7 +2296,7 @@ function initNotebookEditor(board, view, options = {}) {
     }
   }
   async function changeLabels(labels, previousLabels) {
-    if (!item || isConflictBlocked()) {
+    if (!item || !canManageMetadata() || isConflictBlocked()) {
       labelPicker?.setValue(previousLabels || []);
       return;
     }
@@ -2232,7 +2336,7 @@ function initNotebookEditor(board, view, options = {}) {
     }
   }
   async function pinItem() {
-    if (!item || isConflictBlocked()) return;
+    if (!item || !canManageMetadata() || isConflictBlocked()) return;
     const button = modal.querySelector("[data-modal-pin]");
     button.disabled = true;
     try {
@@ -2264,12 +2368,11 @@ function initNotebookEditor(board, view, options = {}) {
     if (item && item.id !== id) await disposeCurrentItem();
     trigger = document.activeElement;
     item = await NotebookApi.getItem(id);
-    configureAutosave();
     renderMode();
     await restoreStoredDraftIfNeeded();
     modal.hidden = false;
     setBackgroundInert(true);
-    modal.querySelector("[data-modal-title]").focus();
+    (canEditContent() ? modal.querySelector("[data-modal-title]") : modal.querySelector("[data-close]:not(.notebook-modal__backdrop)"))?.focus();
     if (openOptions.pushHistory !== false) {
       openedByPushState = true;
       history.pushState({ ...history.state || {}, notebookModal: true, notebookNoteId: id }, "", buildNoteUrl(id));
@@ -2298,12 +2401,20 @@ function initNotebookEditor(board, view, options = {}) {
   }
   function syncExternalUpdate(updated) {
     if (!item || item.id !== updated.id) return;
+    const lostEditAccess = canEditContent(item) && !canEditContent(updated);
+    if (lostEditAccess && (hasDirtyChanges() || autosave?.hasPending?.())) {
+      preserveUnsavedDraft();
+      autosave?.cancel?.({ abortActive: true });
+      autosave?.stop?.();
+      autosave = null;
+      item = updated;
+      applyAccessMode(updated);
+      renderPin();
+      setSaveStatus("Your permission was changed to View only. Unsaved changes were not saved.", SaveState.Forbidden);
+      return;
+    }
     if (hasDirtyChanges() || autosave?.hasPending?.()) {
-      activateConflict({
-        type: ConflictType.ExternalUpdate,
-        pendingServerItem: updated,
-        message: "This note changed elsewhere."
-      });
+      activateConflict({ type: ConflictType.ExternalUpdate, pendingServerItem: updated, message: "This note changed elsewhere." });
       return;
     }
     applyAuthoritativeItem(updated);
@@ -2420,6 +2531,7 @@ var init_notebook_editor = __esm({
       Idle: "idle",
       Saving: "saving",
       Saved: "saved",
+      Forbidden: "forbidden",
       Error: "error"
     });
     EditorSelectors = Object.freeze({
@@ -2440,13 +2552,311 @@ var init_notebook_editor = __esm({
   }
 });
 
+// wwwroot/js/notebook/notebook-create-draft.js
+function normaliseType(type) {
+  return ["Note", "Checklist", "Reminder"].includes(type) ? type : "Note";
+}
+function hasMeaningfulCreateDraft(draft = {}) {
+  const checklistHasText = Array.isArray(draft.checklistRows) && draft.checklistRows.some((row) => String(row?.text || "").trim().length > 0);
+  return Boolean(
+    String(draft.title || "").trim() || String(draft.body || "").trim() || checklistHasText || Array.isArray(draft.labels) && draft.labels.length > 0 || draft.isPinned || draft.colorKey && draft.colorKey !== "white" || draft.priority && draft.priority !== "Normal" || draft.type === "Reminder" && draft.scheduleTouched && draft.reminderDate && draft.reminderTime
+  );
+}
+function createNotebookCreateDraftStore({ storage, userId, nowProvider = () => /* @__PURE__ */ new Date() } = {}) {
+  const safeStorage = storage || globalThis.sessionStorage;
+  const safeUserId = String(userId || "").trim();
+  const enabled = Boolean(safeStorage && safeUserId);
+  const keyFor = (type) => `notebook:create-draft:v${NOTEBOOK_CREATE_DRAFT_VERSION}:${safeUserId}:${normaliseType(type).toLowerCase()}`;
+  function save(type, draft) {
+    if (!enabled) return false;
+    const safeType = normaliseType(type);
+    const payload = {
+      ...draft,
+      version: NOTEBOOK_CREATE_DRAFT_VERSION,
+      userId: safeUserId,
+      type: safeType,
+      savedAtUtc: nowProvider().toISOString()
+    };
+    try {
+      safeStorage.setItem(keyFor(safeType), JSON.stringify(payload));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  function load(type) {
+    if (!enabled) return null;
+    const safeType = normaliseType(type);
+    let raw;
+    try {
+      raw = safeStorage.getItem(keyFor(safeType));
+    } catch {
+      return null;
+    }
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed?.version !== NOTEBOOK_CREATE_DRAFT_VERSION || parsed?.userId !== safeUserId || parsed?.type !== safeType) {
+        try {
+          safeStorage.removeItem(keyFor(safeType));
+        } catch {
+        }
+        return null;
+      }
+      return parsed;
+    } catch {
+      try {
+        safeStorage.removeItem(keyFor(safeType));
+      } catch {
+      }
+      return null;
+    }
+  }
+  function remove(type) {
+    if (enabled) {
+      try {
+        safeStorage.removeItem(keyFor(type));
+      } catch {
+      }
+    }
+  }
+  function removeAll() {
+    ["Note", "Checklist", "Reminder"].forEach(remove);
+  }
+  return { enabled, keyFor, load, remove, removeAll, save };
+}
+var NOTEBOOK_CREATE_DRAFT_VERSION;
+var init_notebook_create_draft = __esm({
+  "wwwroot/js/notebook/notebook-create-draft.js"() {
+    NOTEBOOK_CREATE_DRAFT_VERSION = 1;
+  }
+});
+
+// wwwroot/js/notebook/notebook-reminder-scheduler.js
+function pad2(value) {
+  return String(value).padStart(2, "0");
+}
+function parseDateParts(dateValue) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateValue || "").trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) return null;
+  return { year, month, day };
+}
+function parseTimeParts(timeValue) {
+  const match = /^(\d{2}):(\d{2})$/.exec(String(timeValue || "").trim());
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour > 23 || minute > 59) return null;
+  return { hour, minute };
+}
+function istCalendarDate(date = /* @__PURE__ */ new Date()) {
+  return new Date(date.getTime() + IST_OFFSET_MINUTES * MINUTE_MS);
+}
+function toDateValue(date) {
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
+}
+function addIstDays(parts, days) {
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day) + days * DAY_MS);
+  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
+}
+function partsToDateValue(parts) {
+  return `${parts.year}-${pad2(parts.month)}-${pad2(parts.day)}`;
+}
+function nextRoundedIstDate(now = /* @__PURE__ */ new Date(), intervalMinutes = 30) {
+  const current = istCalendarDate(now);
+  const minuteOfDay = current.getUTCHours() * 60 + current.getUTCMinutes();
+  const roundedMinutes = (Math.floor(minuteOfDay / intervalMinutes) + 1) * intervalMinutes;
+  const dayOffset = Math.floor(roundedMinutes / (24 * 60));
+  const minuteWithinDay = roundedMinutes % (24 * 60);
+  const dateOnly = addIstDays({
+    year: current.getUTCFullYear(),
+    month: current.getUTCMonth() + 1,
+    day: current.getUTCDate()
+  }, dayOffset);
+  return {
+    date: partsToDateValue(dateOnly),
+    time: `${pad2(Math.floor(minuteWithinDay / 60))}:${pad2(minuteWithinDay % 60)}`
+  };
+}
+function toIstIsoFromParts(dateValue, timeValue) {
+  const date = parseDateParts(dateValue);
+  const time = parseTimeParts(timeValue);
+  if (!date || !time) return null;
+  return `${partsToDateValue(date)}T${pad2(time.hour)}:${pad2(time.minute)}:00+05:30`;
+}
+function istScheduleInstant(dateValue, timeValue) {
+  const date = parseDateParts(dateValue);
+  const time = parseTimeParts(timeValue);
+  if (!date || !time) return null;
+  return new Date(Date.UTC(date.year, date.month - 1, date.day, time.hour, time.minute) - IST_OFFSET_MINUTES * MINUTE_MS);
+}
+function isFutureIstSchedule(dateValue, timeValue, now = /* @__PURE__ */ new Date(), minimumLeadMinutes = 1) {
+  const instant = istScheduleInstant(dateValue, timeValue);
+  return Boolean(instant && instant.getTime() > now.getTime() + minimumLeadMinutes * MINUTE_MS);
+}
+function getIstTodayValue(now = /* @__PURE__ */ new Date()) {
+  return toDateValue(istCalendarDate(now));
+}
+function getReminderPreset(preset, now = /* @__PURE__ */ new Date()) {
+  const currentIst = istCalendarDate(now);
+  const today = {
+    year: currentIst.getUTCFullYear(),
+    month: currentIst.getUTCMonth() + 1,
+    day: currentIst.getUTCDate()
+  };
+  if (preset === "later-today") {
+    const rounded = nextRoundedIstDate(now, 30);
+    const sameDay = rounded.date === partsToDateValue(today);
+    const hour = Number(rounded.time.slice(0, 2));
+    return sameDay && hour < 20 ? rounded : null;
+  }
+  if (preset === "tomorrow-morning") {
+    return { date: partsToDateValue(addIstDays(today, 1)), time: "09:00" };
+  }
+  if (preset === "next-monday") {
+    const weekday = currentIst.getUTCDay();
+    const daysUntilMonday = weekday === 1 ? 7 : (8 - weekday) % 7;
+    return { date: partsToDateValue(addIstDays(today, daysUntilMonday || 7)), time: "09:00" };
+  }
+  return null;
+}
+function getDefaultReminderSchedule(now = /* @__PURE__ */ new Date()) {
+  return getReminderPreset("later-today", now) || getReminderPreset("tomorrow-morning", now);
+}
+function formatReminderSummary(dateValue, timeValue, now = /* @__PURE__ */ new Date()) {
+  const instant = istScheduleInstant(dateValue, timeValue);
+  if (!instant) return "";
+  const targetIst = istCalendarDate(instant);
+  const nowIst = istCalendarDate(now);
+  const targetDay = Date.UTC(targetIst.getUTCFullYear(), targetIst.getUTCMonth(), targetIst.getUTCDate());
+  const today = Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth(), nowIst.getUTCDate());
+  const dayDifference = Math.round((targetDay - today) / DAY_MS);
+  const prefix = dayDifference === 0 ? "Today" : dayDifference === 1 ? "Tomorrow" : new Intl.DateTimeFormat("en-IN", {
+    weekday: "short",
+    day: "numeric",
+    month: "long",
+    year: targetIst.getUTCFullYear() !== nowIst.getUTCFullYear() ? "numeric" : void 0,
+    timeZone: "Asia/Kolkata"
+  }).format(instant);
+  const time = new Intl.DateTimeFormat("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Kolkata"
+  }).format(instant);
+  return `${prefix} at ${time} IST`;
+}
+function createReminderScheduler(root, options = {}) {
+  if (!root) throw new Error("Reminder scheduler root is required.");
+  const nowProvider = options.nowProvider || (() => /* @__PURE__ */ new Date());
+  const dateInput = root.querySelector("[data-reminder-date]");
+  const timeInput = root.querySelector("[data-reminder-time]");
+  const summary = root.querySelector("[data-reminder-summary]");
+  const error = root.querySelector("[data-reminder-error]");
+  const presetButtons = [...root.querySelectorAll("[data-reminder-preset]")];
+  if (!dateInput || !timeInput || !summary || !error) throw new Error("Reminder scheduler markup is incomplete.");
+  let touched = false;
+  function setError(message = "") {
+    error.textContent = message;
+    error.hidden = !message;
+    dateInput.setAttribute("aria-invalid", message ? "true" : "false");
+    timeInput.setAttribute("aria-invalid", message ? "true" : "false");
+  }
+  function updatePresentation({ validate = false } = {}) {
+    const now = nowProvider();
+    dateInput.min = getIstTodayValue(now);
+    const laterToday = getReminderPreset("later-today", now);
+    const laterButton = presetButtons.find((button) => button.dataset.reminderPreset === "later-today");
+    if (laterButton) {
+      laterButton.disabled = !laterToday;
+      laterButton.title = laterToday ? "" : "No suitable time remains today.";
+    }
+    summary.textContent = formatReminderSummary(dateInput.value, timeInput.value, now);
+    summary.hidden = !summary.textContent;
+    if (validate && (dateInput.value || timeInput.value)) validateSchedule();
+    else setError("");
+  }
+  function setValue(value = {}, { markTouched = false, validate = false } = {}) {
+    dateInput.value = value.date || "";
+    timeInput.value = value.time || "";
+    touched = Boolean(markTouched);
+    updatePresentation({ validate });
+  }
+  function setDefault() {
+    setValue(getDefaultReminderSchedule(nowProvider()), { markTouched: false });
+  }
+  function clear() {
+    setValue({}, { markTouched: false });
+  }
+  function getValue() {
+    return {
+      date: dateInput.value,
+      time: timeInput.value,
+      iso: toIstIsoFromParts(dateInput.value, timeInput.value),
+      touched
+    };
+  }
+  function validateSchedule({ focus = false } = {}) {
+    let message = "";
+    if (!dateInput.value) message = "Select a reminder date.";
+    else if (!timeInput.value) message = "Select a reminder time.";
+    else if (!isFutureIstSchedule(dateInput.value, timeInput.value, nowProvider())) message = "Choose a future date and time.";
+    setError(message);
+    if (message && focus) (!dateInput.value ? dateInput : timeInput).focus();
+    return { valid: !message, message };
+  }
+  presetButtons.forEach((button) => button.addEventListener("click", () => {
+    const value = getReminderPreset(button.dataset.reminderPreset, nowProvider());
+    if (!value) return;
+    setValue(value, { markTouched: true, validate: true });
+    options.onChange?.(getValue());
+  }));
+  [dateInput, timeInput].forEach((input) => {
+    input.addEventListener("input", () => {
+      touched = true;
+      updatePresentation();
+      options.onChange?.(getValue());
+    });
+    input.addEventListener("change", () => {
+      touched = true;
+      updatePresentation({ validate: true });
+      options.onChange?.(getValue());
+    });
+    input.addEventListener("blur", () => {
+      if (dateInput.value || timeInput.value) validateSchedule();
+    });
+  });
+  updatePresentation();
+  return {
+    clear,
+    focus: () => dateInput.focus(),
+    getValue,
+    setDefault,
+    setValue,
+    validate: validateSchedule,
+    updatePresentation
+  };
+}
+var IST_OFFSET_MINUTES, MINUTE_MS, DAY_MS;
+var init_notebook_reminder_scheduler = __esm({
+  "wwwroot/js/notebook/notebook-reminder-scheduler.js"() {
+    IST_OFFSET_MINUTES = 330;
+    MINUTE_MS = 6e4;
+    DAY_MS = 24 * 60 * MINUTE_MS;
+  }
+});
+
 // wwwroot/js/notebook/notebook-create-editor.js
 function toIstIso(localValue) {
   const value = String(localValue || "").trim();
   if (!value) return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
-  if (!match) return null;
-  return `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:00+05:30`;
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/.exec(value);
+  return match ? toIstIsoFromParts(match[1], match[2]) : null;
 }
 function parseLabels(value) {
   const seen = /* @__PURE__ */ new Set();
@@ -2461,11 +2871,7 @@ function parseLabels(value) {
 }
 function getCreateTypeUi(type) {
   const safeType = ALLOWED_TYPES.has(type) ? type : "Note";
-  const names = {
-    Note: "note",
-    Checklist: "checklist",
-    Reminder: "reminder"
-  };
+  const names = { Note: "note", Checklist: "checklist", Reminder: "reminder" };
   return {
     type: safeType,
     actionLabel: `Create ${names[safeType]}`,
@@ -2473,17 +2879,32 @@ function getCreateTypeUi(type) {
     bodyPlaceholder: safeType === "Reminder" ? "Add notes…" : "Take a note…",
     showChecklist: safeType === "Checklist",
     showBody: safeType !== "Checklist",
+    showReminderScheduler: safeType === "Reminder",
     openDetails: safeType === "Reminder"
   };
 }
-function buildCreatePayload({ type, title, body, reminderLocal, priority, colorKey, labels, isPinned, checklistRows, clientRequestId }) {
+function buildCreatePayload({
+  type,
+  title,
+  body,
+  reminderDate,
+  reminderTime,
+  reminderLocal,
+  priority,
+  colorKey,
+  labels,
+  isPinned,
+  checklistRows,
+  clientRequestId
+}) {
   const safeType = ALLOWED_TYPES.has(type) ? type : "Note";
+  const reminderAtUtc = safeType === "Reminder" ? toIstIsoFromParts(reminderDate, reminderTime) || toIstIso(reminderLocal) : null;
   return {
     title: String(title || "").trim(),
     body: String(body || "").trim() || null,
     type: safeType,
     priority: priority || "Normal",
-    reminderAtUtc: safeType === "Reminder" || reminderLocal ? toIstIso(reminderLocal) : null,
+    reminderAtUtc,
     colorKey: colorKey || null,
     isPinned: Boolean(isPinned),
     labels: parseLabels(labels),
@@ -2500,16 +2921,31 @@ function buildCreatePayload({ type, title, body, reminderLocal, priority, colorK
 function initNotebookCreateEditor(board, view, options = {}) {
   const showGlobalError = options.showGlobalError || (() => {
   });
+  const showToast = options.showToast || (() => {
+  });
   const applyCounts = options.applyCounts || (() => {
+  });
+  const shell = options.shell || document.querySelector(".notebook-shell");
+  const nowProvider = options.nowProvider || (() => /* @__PURE__ */ new Date());
+  const draftStore = createNotebookCreateDraftStore({
+    storage: options.storage || globalThis.sessionStorage,
+    userId: shell?.dataset?.currentUserId,
+    nowProvider
   });
   let modal = null;
   let checklist = null;
+  let scheduler = null;
   let isOpen = false;
   let isSubmitting = false;
   let isPinned = false;
   let clientRequestId = crypto.randomUUID();
   let colourPicker = null;
   let labelPicker = null;
+  let activeDraftType = "Note";
+  let draftTimer = null;
+  let suppressDraftEvents = false;
+  let trigger = null;
+  let directReminderMode = false;
   function clearCreateQuery() {
     const url = new URL(location.href);
     url.searchParams.delete("mode");
@@ -2518,20 +2954,23 @@ function initNotebookCreateEditor(board, view, options = {}) {
   }
   function getElements() {
     return {
+      dialog: requireEditorElement(modal, ".notebook-modal__dialog"),
       title: requireEditorElement(modal, EditorSelectors.title),
       body: requireEditorElement(modal, EditorSelectors.body),
       checklistRoot: requireEditorElement(modal, EditorSelectors.checklist),
       pin: requireEditorElement(modal, EditorSelectors.pin),
       detailsToggle: requireEditorElement(modal, "[data-notebook-create-details-toggle]"),
       details: requireEditorElement(modal, "[data-notebook-create-details]"),
+      typeField: requireEditorElement(modal, "[data-create-type-field]"),
       type: requireEditorElement(modal, "[data-create-type]"),
-      reminderField: requireEditorElement(modal, "[data-create-reminder-field]"),
-      reminder: requireEditorElement(modal, "[data-create-reminder]"),
+      schedulerRoot: requireEditorElement(modal, "[data-reminder-scheduler]"),
       priority: requireEditorElement(modal, "[data-create-priority]"),
       colourPickerRoot: requireEditorElement(modal, "[data-notebook-colour-picker]"),
       labelPickerRoot: requireEditorElement(modal, "[data-notebook-label-picker]"),
       feedback: requireEditorElement(modal, "[data-notebook-create-feedback]"),
-      submit: requireEditorElement(modal, "[data-notebook-create-submit]")
+      submit: requireEditorElement(modal, "[data-notebook-create-submit]"),
+      discard: requireEditorElement(modal, "[data-notebook-create-discard]"),
+      draftStatus: requireEditorElement(modal, "[data-notebook-create-draft-status]")
     };
   }
   function setFeedback(message = "", isError = false) {
@@ -2539,6 +2978,10 @@ function initNotebookCreateEditor(board, view, options = {}) {
     feedback.textContent = message;
     feedback.hidden = !message;
     feedback.classList.toggle("is-error", isError);
+  }
+  function setDraftStatus(message = "") {
+    const { draftStatus } = getElements();
+    draftStatus.textContent = message;
   }
   function setDetailsExpanded(expanded) {
     const elements = getElements();
@@ -2553,47 +2996,180 @@ function initNotebookCreateEditor(board, view, options = {}) {
     elements.type.value = ui.type;
     elements.checklistRoot.hidden = !ui.showChecklist;
     elements.body.hidden = !ui.showBody;
-    elements.reminderField.hidden = ui.type !== "Reminder";
+    elements.schedulerRoot.hidden = !ui.showReminderScheduler;
+    elements.typeField.hidden = directReminderMode;
+    elements.detailsToggle.hidden = ui.showReminderScheduler;
     elements.title.placeholder = ui.titlePlaceholder;
     elements.body.placeholder = ui.bodyPlaceholder;
     elements.submit.textContent = ui.actionLabel;
     modal.dataset.createType = ui.type.toLowerCase();
+    modal.dataset.directReminder = String(directReminderMode);
     if (ui.showChecklist && checklist.getRows().length === 0) checklist.setRows([{ text: "" }]);
+    if (ui.showReminderScheduler && !scheduler.getValue().date) scheduler.setDefault();
     if (!preserveDetails || ui.openDetails) setDetailsExpanded(ui.openDetails);
+  }
+  function readDraft() {
+    const elements = getElements();
+    const schedule = scheduler.getValue();
+    return {
+      type: elements.type.value,
+      title: elements.title.value,
+      body: elements.body.value,
+      reminderDate: schedule.date,
+      reminderTime: schedule.time,
+      scheduleTouched: schedule.touched,
+      priority: elements.priority.value,
+      colorKey: colourPicker?.getValue() || null,
+      labels: labelPicker?.getValue() || [],
+      isPinned,
+      checklistRows: checklist.getRows(),
+      clientRequestId
+    };
+  }
+  function updateDraftControls(draft = readDraft()) {
+    const meaningful = hasMeaningfulCreateDraft(draft);
+    const { discard } = getElements();
+    discard.hidden = !meaningful;
+    return meaningful;
+  }
+  function clearDraftTimer() {
+    if (draftTimer) window.clearTimeout(draftTimer);
+    draftTimer = null;
+  }
+  function persistDraftNow(type = activeDraftType) {
+    clearDraftTimer();
+    if (!modal || suppressDraftEvents) return false;
+    const draft = readDraft();
+    const meaningful = updateDraftControls(draft);
+    if (meaningful) draftStore.save(type, draft);
+    else draftStore.remove(type);
+    return meaningful;
+  }
+  function scheduleDraftSave() {
+    if (suppressDraftEvents || !isOpen || isSubmitting) return;
+    updateDraftControls();
+    clearDraftTimer();
+    draftTimer = window.setTimeout(() => {
+      persistDraftNow();
+      setDraftStatus("Draft saved");
+      window.setTimeout(() => {
+        if (isOpen) setDraftStatus("");
+      }, 1200);
+    }, DRAFT_SAVE_DELAY_MS);
   }
   function reset(type = "Note") {
     const elements = getElements();
+    suppressDraftEvents = true;
+    activeDraftType = getCreateTypeUi(type).type;
     elements.title.value = "";
     elements.body.value = "";
-    elements.reminder.value = "";
     elements.priority.value = "Normal";
     labelPicker?.setValue([]);
     checklist.clear();
+    scheduler.clear();
     isPinned = false;
     clientRequestId = crypto.randomUUID();
     elements.pin.classList.remove("is-active");
     elements.pin.setAttribute("aria-label", "Pin item");
     colourPicker?.setValue("");
-    applyNotebookSurfaceColour(modal.querySelector(".notebook-modal__dialog"), "");
+    applyNotebookSurfaceColour(elements.dialog, "");
     setFeedback("");
-    applyType(type);
+    setDraftStatus("");
+    applyType(activeDraftType);
+    suppressDraftEvents = false;
+    updateDraftControls();
   }
-  function close() {
+  function applyDraft(draft) {
+    if (!draft) return;
+    const elements = getElements();
+    suppressDraftEvents = true;
+    activeDraftType = getCreateTypeUi(draft.type).type;
+    elements.title.value = draft.title || "";
+    elements.body.value = draft.body || "";
+    elements.priority.value = draft.priority || "Normal";
+    labelPicker?.setValue(Array.isArray(draft.labels) ? draft.labels : []);
+    checklist.setRows(Array.isArray(draft.checklistRows) ? draft.checklistRows : []);
+    scheduler.setValue(
+      { date: draft.reminderDate, time: draft.reminderTime },
+      { markTouched: Boolean(draft.scheduleTouched), validate: draft.type === "Reminder" }
+    );
+    isPinned = Boolean(draft.isPinned);
+    clientRequestId = draft.clientRequestId || crypto.randomUUID();
+    elements.pin.classList.toggle("is-active", isPinned);
+    elements.pin.setAttribute("aria-label", isPinned ? "Unpin item" : "Pin item");
+    colourPicker?.setValue(draft.colorKey || "");
+    applyNotebookSurfaceColour(elements.dialog, draft.colorKey || "");
+    applyType(activeDraftType);
+    suppressDraftEvents = false;
+    updateDraftControls();
+  }
+  function setBackgroundInert(inert) {
+    if (shell) shell.inert = inert;
+    if (modal) modal.inert = false;
+    document.body.classList.toggle("notebook-modal-open", inert);
+  }
+  function trapFocus(event) {
+    if (event.key !== "Tab" || modal.hidden) return;
+    const focusable = [...modal.querySelectorAll(FOCUSABLE_SELECTOR)].filter((element) => !element.hidden && element.offsetParent !== null);
+    if (!focusable.length) {
+      event.preventDefault();
+      getElements().dialog.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+  function closeInternal() {
     if (!modal) return;
+    clearDraftTimer();
     modal.hidden = true;
     modal.classList.remove("is-create-mode");
-    document.body.classList.remove("notebook-modal-open");
+    setBackgroundInert(false);
     isOpen = false;
     clearCreateQuery();
+    trigger?.focus?.();
+    trigger = null;
+  }
+  async function requestClose() {
+    if (!modal || !isOpen || isSubmitting) return;
+    const meaningful = persistDraftNow();
+    closeInternal();
+    if (meaningful) showToast({ message: `${activeDraftType} draft saved.`, tone: "neutral" });
+  }
+  async function discardDraft() {
+    const draft = readDraft();
+    if (hasMeaningfulCreateDraft(draft)) {
+      const confirmed = await confirmNotebookAction({
+        title: "Discard this draft?",
+        message: "The content entered in this new notebook item will be removed.",
+        confirmText: "Discard draft",
+        tone: "danger",
+        backdropCancels: false
+      });
+      if (!confirmed) return;
+    }
+    draftStore.remove(activeDraftType);
+    reset(activeDraftType);
+    closeInternal();
+    showToast({ message: "Draft discarded.", tone: "neutral" });
   }
   async function submit() {
     if (isSubmitting) return;
     const elements = getElements();
+    const schedule = scheduler.getValue();
     const payload = buildCreatePayload({
       type: elements.type.value,
       title: elements.title.value,
       body: elements.body.value,
-      reminderLocal: elements.reminder.value,
+      reminderDate: schedule.date,
+      reminderTime: schedule.time,
       priority: elements.priority.value,
       colorKey: colourPicker?.getValue() || null,
       labels: labelPicker?.getValue() || [],
@@ -2606,15 +3182,20 @@ function initNotebookCreateEditor(board, view, options = {}) {
       elements.title.focus();
       return;
     }
-    if (payload.type === "Reminder" && !payload.reminderAtUtc) {
-      setFeedback("Choose a reminder date and time.", true);
+    if (payload.type === "Reminder") {
       setDetailsExpanded(true);
-      elements.reminder.focus();
-      return;
+      const scheduleValidation = scheduler.validate({ focus: true });
+      if (!scheduleValidation.valid || !payload.reminderAtUtc || !isFutureIstSchedule(schedule.date, schedule.time, nowProvider())) {
+        setFeedback(scheduleValidation.message || "Choose a future reminder date and time.", true);
+        return;
+      }
     }
     isSubmitting = true;
     elements.submit.disabled = true;
+    elements.discard.disabled = true;
     setFeedback("Creating…");
+    setDraftStatus("");
+    persistDraftNow();
     try {
       const response = await NotebookApi.createItem(payload);
       if (!response?.item) {
@@ -2632,13 +3213,17 @@ function initNotebookCreateEditor(board, view, options = {}) {
         renderFailureMessage: "The item was created, but its card could not be rendered. Reload the page.",
         reconcileFailureMessage: "The item was created, but the board could not refresh. Reload the page."
       });
-      close();
+      draftStore.remove(activeDraftType);
+      closeInternal();
       reset("Note");
+      showToast({ message: `${payload.type} created.`, tone: "success" });
     } catch (error) {
       setFeedback(error.message || "Unable to create the notebook item.", true);
+      persistDraftNow();
     } finally {
       isSubmitting = false;
       elements.submit.disabled = false;
+      elements.discard.disabled = false;
     }
   }
   function build() {
@@ -2646,48 +3231,95 @@ function initNotebookCreateEditor(board, view, options = {}) {
     modal.classList.add("is-create-mode");
     document.body.appendChild(modal);
     const elements = getElements();
-    checklist = createChecklistEditor(elements.checklistRoot);
+    checklist = createChecklistEditor(elements.checklistRoot, { onChange: scheduleDraftSave });
+    scheduler = createReminderScheduler(elements.schedulerRoot, { nowProvider, onChange: scheduleDraftSave });
     colourPicker = initNotebookColourPicker(elements.colourPickerRoot, {
       value: "",
       onSelect: (value) => {
-        applyNotebookSurfaceColour(modal.querySelector(".notebook-modal__dialog"), value);
+        applyNotebookSurfaceColour(elements.dialog, value);
+        scheduleDraftSave();
       }
     });
     labelPicker = initNotebookLabelPicker(elements.labelPickerRoot, {
       value: [],
-      onChange: () => {
-      }
+      onChange: scheduleDraftSave
     });
     elements.detailsToggle.hidden = false;
     elements.submit.hidden = false;
     modal.querySelector("[data-notebook-save-state]")?.closest(".notebook-save-feedback")?.setAttribute("hidden", "");
     modal.querySelector("[data-notebook-conflict]")?.setAttribute("hidden", "");
-    elements.type.addEventListener("change", () => applyType(elements.type.value));
+    elements.type.addEventListener("change", () => {
+      const previousType = activeDraftType;
+      activeDraftType = getCreateTypeUi(elements.type.value).type;
+      draftStore.remove(previousType);
+      applyType(activeDraftType, { preserveDetails: true });
+      scheduleDraftSave();
+    });
     elements.detailsToggle.addEventListener("click", () => setDetailsExpanded(elements.detailsToggle.getAttribute("aria-expanded") !== "true"));
     elements.pin.addEventListener("click", () => {
       if (isSubmitting) return;
       isPinned = !isPinned;
       elements.pin.classList.toggle("is-active", isPinned);
       elements.pin.setAttribute("aria-label", isPinned ? "Unpin item" : "Pin item");
+      scheduleDraftSave();
+    });
+    [elements.title, elements.body, elements.priority].forEach((element) => {
+      element.addEventListener("input", scheduleDraftSave);
+      element.addEventListener("change", scheduleDraftSave);
     });
     elements.submit.addEventListener("click", submit);
+    elements.discard.addEventListener("click", discardDraft);
     modal.addEventListener("click", (event) => {
-      if (event.target.closest("[data-close]")) close();
+      const closeTarget = event.target.closest("[data-close]");
+      if (!closeTarget) return;
+      if (closeTarget.classList.contains("notebook-modal__backdrop")) {
+        event.preventDefault();
+        elements.dialog.focus();
+        return;
+      }
+      requestClose();
+    });
+    modal.addEventListener("keydown", (event) => {
+      trapFocus(event);
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        event.preventDefault();
+        submit();
+      }
     });
   }
   function open(type = "Note") {
     if (!modal) build();
-    reset(type);
+    trigger = document.activeElement;
+    const safeType = getCreateTypeUi(type).type;
+    directReminderMode = safeType === "Reminder";
+    reset(safeType);
+    const restored = draftStore.load(safeType);
+    if (restored) applyDraft(restored);
     modal.hidden = false;
     modal.classList.add("is-create-mode");
-    document.body.classList.add("notebook-modal-open");
+    setBackgroundInert(true);
     isOpen = true;
+    if (restored) {
+      const restoredSchedule = scheduler.getValue();
+      const reminderNeedsAttention = safeType === "Reminder" && !isFutureIstSchedule(restoredSchedule.date, restoredSchedule.time, nowProvider());
+      setFeedback(
+        reminderNeedsAttention ? "Draft restored. Choose a future reminder date and time." : "Draft restored.",
+        reminderNeedsAttention
+      );
+      showToast({ message: `${safeType} draft restored.`, tone: "neutral" });
+    }
     const elements = getElements();
     queueMicrotask(() => elements.title.focus());
   }
-  return { open, close, isOpen: () => isOpen };
+  return {
+    open,
+    requestClose,
+    close: requestClose,
+    discardDraft,
+    isOpen: () => isOpen
+  };
 }
-var ALLOWED_TYPES;
+var ALLOWED_TYPES, DRAFT_SAVE_DELAY_MS, FOCUSABLE_SELECTOR;
 var init_notebook_create_editor = __esm({
   "wwwroot/js/notebook/notebook-create-editor.js"() {
     init_notebook_api();
@@ -2696,7 +3328,12 @@ var init_notebook_create_editor = __esm({
     init_notebook_editor();
     init_notebook_colour_picker();
     init_notebook_label_picker();
+    init_notebook_confirm_dialog();
+    init_notebook_create_draft();
+    init_notebook_reminder_scheduler();
     ALLOWED_TYPES = /* @__PURE__ */ new Set(["Note", "Checklist", "Reminder"]);
+    DRAFT_SAVE_DELAY_MS = 300;
+    FOCUSABLE_SELECTOR = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
   }
 });
 
@@ -3485,42 +4122,72 @@ function initNotebookCollaborators(root, options = {}) {
   const panel = dialog.querySelector(".notebook-collaborators-dialog__panel");
   const list = dialog.querySelector("[data-collaborator-list]");
   const empty = dialog.querySelector("[data-collaborators-empty]");
+  const management = dialog.querySelector("[data-collaborators-management]");
+  const intro = dialog.querySelector("[data-collaborators-intro]");
   const search = dialog.querySelector("[data-collaborator-search]");
   const searchWrap = dialog.querySelector("[data-collaborators-search-wrap]");
   const results = dialog.querySelector("[data-collaborator-search-results]");
   const spinner = dialog.querySelector("[data-collaborator-search-spinner]");
   const status = dialog.querySelector("[data-collaborators-status]");
+  const sharePanel = dialog.querySelector("[data-collaborator-share-panel]");
+  const shareAvatar = dialog.querySelector("[data-share-avatar]");
+  const shareName = dialog.querySelector("[data-share-name]");
+  const shareEmail = dialog.querySelector("[data-share-email]");
+  const shareRole = dialog.querySelector("[data-share-role]");
+  const shareConfirm = dialog.querySelector("[data-share-confirm]");
   let activeCard = null;
   let currentItem = null;
-  let timer = 0;
+  let selectedUser = null;
+  let searchTimer = 0;
+  let searchController = null;
+  let busy = false;
   const setStatus = (message = "") => {
     status.textContent = message;
   };
-  const close = () => {
+  const canManage = () => Boolean(currentItem?.canManageCollaborators ?? String(currentItem?.accessLevel || activeCard?.dataset?.accessLevel || "").toLowerCase() === "owner");
+  function clearSearchResults() {
+    results.hidden = true;
+    results.replaceChildren();
+  }
+  function clearSelection({ preserveSearch = false } = {}) {
+    selectedUser = null;
+    sharePanel.hidden = true;
+    shareConfirm.disabled = false;
+    shareRole.value = "Viewer";
+    if (!preserveSearch) search.value = "";
+  }
+  function close() {
+    clearTimeout(searchTimer);
+    searchController?.abort();
     dialog.hidden = true;
     document.body.classList.remove("notebook-dialog-open");
-    results.hidden = true;
-    results.innerHTML = "";
-    search.value = "";
+    clearSearchResults();
+    clearSelection();
+    setStatus("");
     activeCard = null;
     currentItem = null;
-  };
-  const canManage = () => String(currentItem?.accessLevel || activeCard?.dataset?.accessLevel || "").toLowerCase() === "owner";
+    busy = false;
+  }
   function render(rows) {
-    list.innerHTML = "";
+    list.replaceChildren();
     const collaborators = Array.isArray(rows) ? rows : [];
-    empty.hidden = collaborators.length > 1;
+    const nonOwners = collaborators.filter((row) => !row.isOwner);
+    empty.hidden = nonOwners.length > 0;
     collaborators.forEach((row) => {
       const item = document.createElement("div");
       item.className = "notebook-collaborator-row";
+      const role = normaliseRole(row.role);
+      const permission = row.isOwner ? '<span class="notebook-collaborator-role">Owner</span>' : canManage() ? `<label class="notebook-collaborator-role-control"><span class="visually-hidden">Permission for ${escapeHtml3(row.displayName)}</span><select data-collaborator-role="${escapeHtml3(row.userId)}" data-current-role="${role}" aria-label="Permission for ${escapeHtml3(row.displayName)}"><option value="Viewer" ${role === "Viewer" ? "selected" : ""}>View only</option><option value="Editor" ${role === "Editor" ? "selected" : ""}>Can edit</option></select></label>` : `<span class="notebook-collaborator-role">${roleLabel(role)}</span>`;
       item.innerHTML = `
         <span class="notebook-collaborator-avatar">${escapeHtml3(row.initials || initials(row.displayName))}</span>
         <span class="notebook-collaborator-row__identity"><strong>${escapeHtml3(row.displayName)}</strong><small>${escapeHtml3(row.email)}</small></span>
-        <span class="notebook-collaborator-role">${row.isOwner ? "Owner" : "Can edit"}</span>
+        ${permission}
         ${!row.isOwner && canManage() ? `<button type="button" class="notebook-dialog-icon text-danger" data-remove-collaborator="${escapeHtml3(row.userId)}" aria-label="Remove ${escapeHtml3(row.displayName)}" title="Remove collaborator"><i class="bi bi-x-circle"></i></button>` : ""}`;
       list.appendChild(item);
     });
+    management.hidden = !canManage();
     searchWrap.hidden = !canManage();
+    intro.textContent = canManage() ? "Share this note and control whether each person can edit or only view it." : "People who currently have access to this note.";
   }
   async function refresh() {
     const rows = await NotebookApi.getCollaborators(currentItem.id);
@@ -3532,6 +4199,8 @@ function initNotebookCollaborators(root, options = {}) {
     dialog.hidden = false;
     document.body.classList.add("notebook-dialog-open");
     panel.focus?.();
+    clearSelection();
+    clearSearchResults();
     setStatus("Loading collaborators…");
     try {
       currentItem = await NotebookApi.getItem(card.dataset.noteId);
@@ -3546,72 +4215,133 @@ function initNotebookCollaborators(root, options = {}) {
   async function reconcile(response) {
     const updated = requireMutationItem(response);
     updateCardConcurrencyState(activeCard, updated);
-    await reconcileMutation({ response, board: options.board, view: options.view, getCardHtml: NotebookApi.getCardHtml, applyCounts: options.applyCounts, preservePosition: true, showGlobalError: options.showError, existingCard: activeCard });
+    await reconcileMutation({
+      response,
+      board: options.board,
+      view: options.view,
+      getCardHtml: NotebookApi.getCardHtml,
+      applyCounts: options.applyCounts,
+      preservePosition: true,
+      showGlobalError: options.showError,
+      existingCard: activeCard
+    });
     activeCard = document.querySelector(`[data-note-id="${updated.id}"]`) || activeCard;
     currentItem = updated;
+    options.onItemUpdated?.(updated);
     await refresh();
   }
+  function selectSearchResult(row) {
+    selectedUser = row;
+    shareAvatar.textContent = row.initials || initials(row.displayName);
+    shareName.textContent = row.displayName || "PRISM user";
+    shareEmail.textContent = row.email || "";
+    shareRole.value = "Viewer";
+    sharePanel.hidden = false;
+    clearSearchResults();
+    shareRole.focus();
+  }
   search.addEventListener("input", () => {
-    clearTimeout(timer);
+    clearTimeout(searchTimer);
+    searchController?.abort();
+    clearSelection({ preserveSearch: true });
+    clearSearchResults();
     const query = search.value.trim();
-    results.innerHTML = "";
-    results.hidden = true;
-    if (query.length < 2 || !currentItem) return;
-    timer = setTimeout(async () => {
+    if (query.length < 2 || !currentItem || !canManage()) return;
+    searchTimer = setTimeout(async () => {
+      searchController = new AbortController();
       spinner.hidden = false;
       try {
-        const rows = await NotebookApi.searchCollaborators(currentItem.id, query);
-        results.innerHTML = "";
+        const rows = await NotebookApi.searchCollaborators(currentItem.id, query, { signal: searchController.signal });
+        results.replaceChildren();
         rows.forEach((row) => {
           const button = document.createElement("button");
           button.type = "button";
           button.className = "notebook-collaborator-result";
-          button.dataset.addCollaborator = row.userId;
-          button.innerHTML = `<span class="notebook-collaborator-avatar">${escapeHtml3(row.initials || initials(row.displayName))}</span><span><strong>${escapeHtml3(row.displayName)}</strong><small>${escapeHtml3(row.email)}</small></span><i class="bi bi-plus-circle"></i>`;
+          button.dataset.selectCollaborator = row.userId;
+          button.innerHTML = `<span class="notebook-collaborator-avatar">${escapeHtml3(row.initials || initials(row.displayName))}</span><span><strong>${escapeHtml3(row.displayName)}</strong><small>${escapeHtml3(row.email)}</small></span><i class="bi bi-chevron-right"></i>`;
+          button.addEventListener("click", () => selectSearchResult(row));
           results.appendChild(button);
         });
         if (!rows.length) results.innerHTML = '<p class="notebook-collaborator-result-empty">No matching active PRISM users.</p>';
         results.hidden = false;
       } catch (error) {
-        options.showError?.(error?.message || "User search failed.");
+        if (error?.code !== "notebook_request_aborted") options.showError?.(error?.message || "User search failed.");
       } finally {
         spinner.hidden = true;
+        searchController = null;
       }
     }, 250);
   });
-  dialog.addEventListener("click", async (event) => {
-    if (event.target.closest("[data-collaborators-close]")) {
-      close();
-      return;
+  shareConfirm.addEventListener("click", async () => {
+    if (!selectedUser || !currentItem || busy) return;
+    busy = true;
+    shareConfirm.disabled = true;
+    setStatus(`Sharing with ${selectedUser.displayName}…`);
+    try {
+      await reconcile(await NotebookApi.addCollaborator(currentItem.id, selectedUser.userId, shareRole.value, currentItem.version));
+      setStatus(`${selectedUser.displayName} now has ${roleLabel(shareRole.value).toLowerCase()} access.`);
+      clearSelection();
+      search.focus();
+    } catch (error) {
+      setStatus("");
+      options.showError?.(error?.message || "Collaborator could not be added.");
+    } finally {
+      busy = false;
+      shareConfirm.disabled = false;
     }
-    const add = event.target.closest("[data-add-collaborator]");
-    if (add && currentItem) {
-      add.disabled = true;
-      try {
-        await reconcile(await NotebookApi.addCollaborator(currentItem.id, add.dataset.addCollaborator, currentItem.version));
-        search.value = "";
-        results.hidden = true;
-      } catch (error) {
-        options.showError?.(error?.message || "Collaborator could not be added.");
-      } finally {
-        add.disabled = false;
-      }
-      return;
+  });
+  dialog.querySelector("[data-share-cancel]")?.addEventListener("click", () => {
+    clearSelection();
+    clearSearchResults();
+    search.focus();
+  });
+  list.addEventListener("change", async (event) => {
+    const select = event.target.closest("[data-collaborator-role]");
+    if (!select || !currentItem || busy) return;
+    const previousRole = select.dataset.currentRole || "Viewer";
+    if (select.value === previousRole) return;
+    busy = true;
+    select.disabled = true;
+    setStatus("Changing permission…");
+    try {
+      await reconcile(await NotebookApi.updateCollaboratorRole(currentItem.id, select.dataset.collaboratorRole, select.value, currentItem.version));
+      setStatus(`Permission changed to ${roleLabel(select.value)}.`);
+    } catch (error) {
+      select.value = previousRole;
+      setStatus("");
+      options.showError?.(error?.message || "Permission could not be changed.");
+    } finally {
+      busy = false;
+      select.disabled = false;
     }
+  });
+  list.addEventListener("click", async (event) => {
     const remove = event.target.closest("[data-remove-collaborator]");
-    if (remove && currentItem) {
-      const name = remove.closest(".notebook-collaborator-row")?.querySelector("strong")?.textContent?.trim() || "This person";
-      const confirmed = await confirmNotebookAction({ title: `Remove ${name}?`, message: `${name} will immediately lose access to this shared note.`, confirmText: "Remove", tone: "danger" });
-      if (!confirmed) return;
-      remove.disabled = true;
-      try {
-        await reconcile(await NotebookApi.removeCollaborator(currentItem.id, remove.dataset.removeCollaborator, currentItem.version));
-      } catch (error) {
-        options.showError?.(error?.message || "Collaborator could not be removed.");
-      } finally {
-        remove.disabled = false;
-      }
+    if (!remove || !currentItem || busy) return;
+    const name = remove.closest(".notebook-collaborator-row")?.querySelector("strong")?.textContent?.trim() || "This person";
+    const confirmed = await confirmNotebookAction({
+      title: `Remove ${name}?`,
+      message: `${name} will immediately lose access to this shared note.`,
+      confirmText: "Remove",
+      tone: "danger"
+    });
+    if (!confirmed) return;
+    busy = true;
+    remove.disabled = true;
+    setStatus(`Removing ${name}…`);
+    try {
+      await reconcile(await NotebookApi.removeCollaborator(currentItem.id, remove.dataset.removeCollaborator, currentItem.version));
+      setStatus(`${name} no longer has access.`);
+    } catch (error) {
+      setStatus("");
+      options.showError?.(error?.message || "Collaborator could not be removed.");
+    } finally {
+      busy = false;
+      remove.disabled = false;
     }
+  });
+  dialog.addEventListener("click", (event) => {
+    if (event.target.closest("[data-collaborators-close]")) close();
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !dialog.hidden) close();
@@ -3621,13 +4351,15 @@ function initNotebookCollaborators(root, options = {}) {
 function initials(value) {
   return String(value || "").trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
 }
-var escapeHtml3;
+var escapeHtml3, normaliseRole, roleLabel;
 var init_notebook_collaborators = __esm({
   "wwwroot/js/notebook/notebook-collaborators.js"() {
     init_notebook_api();
     init_notebook_reconcile();
     init_notebook_confirm_dialog();
-    escapeHtml3 = (value) => String(value || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+    escapeHtml3 = (value) => String(value || "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+    normaliseRole = (role) => String(role).toLowerCase() === "viewer" || Number(role) === 1 ? "Viewer" : "Editor";
+    roleLabel = (role) => normaliseRole(role) === "Viewer" ? "View only" : "Can edit";
   }
 });
 
@@ -3700,7 +4432,7 @@ function initNotebookApp() {
   const refreshCounts = async () => applyCounts(await NotebookApi.getCounts());
   const labels = hydrateNotebookLabelCatalog(document);
   const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts });
-  const createEditor = initNotebookCreateEditor(board, view, { shell, showGlobalError, applyCounts });
+  const createEditor = initNotebookCreateEditor(board, view, { shell, showGlobalError, applyCounts, showToast: showNotebookToast });
   const labelManager = initNotebookLabelManager(document.querySelector("[data-notebook-label-manager]"), {
     showGlobalError,
     onCatalogChange: (labels2) => renderNotebookLabelNavigation(shell, labels2)
@@ -3777,7 +4509,7 @@ function initNotebookApp() {
   applyBoardView(localStorage.getItem(storageKey) || shell.dataset.boardView || "grid");
   const masonryGrid = initNotebookMasonryGrid(shell);
   const dragOrder = initNotebookDragOrder(shell, board, { api: NotebookApi, showError: showGlobalError, showToast: showNotebookToast });
-  const collaborators = initNotebookCollaborators(document, { board, view, applyCounts, showError: showGlobalError });
+  const collaborators = initNotebookCollaborators(document, { board, view, applyCounts, showError: showGlobalError, onItemUpdated: (updated) => editor.syncExternalUpdate?.(updated) });
   const closeNotebookMenus = (except = null, { restoreFocus = false } = {}) => {
     shell.querySelectorAll(".notebook-card-more[open]").forEach((menu) => {
       if (menu === except) return;
@@ -4053,7 +4785,7 @@ function initNotebookApp() {
     if (event.key !== "Escape") return;
     if (createEditor.isOpen()) {
       event.preventDefault();
-      createEditor.close();
+      await createEditor.requestClose();
       return;
     }
     if (editor.isOpen()) {

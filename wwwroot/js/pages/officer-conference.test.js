@@ -4,6 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
 const source = fs.readFileSync(path.resolve(__dirname, 'officer-conference.js'), 'utf8');
+const conferenceCss = fs.readFileSync(path.resolve(__dirname, '../../css/officer-conference.css'), 'utf8');
 
 test('conference editor supports keyboard save and cancel', () => {
     assert.match(source, /event\.key === 'Escape'/);
@@ -37,9 +38,9 @@ test('conference save surfaces server trace references and row-local feedback', 
     assert.match(source, /setRowStatus\(item, 'Save failed\.', true\)/);
 });
 
-test('conference direction uses formal instruction icon and simplified metadata', () => {
-    assert.match(source, /bi bi-file-earmark-check/);
-    assert.match(source, /Latest conference direction/);
+test('conference direction uses a semantic label and simplified metadata', () => {
+    assert.match(source, /Latest' : 'Historical'} conference direction/);
+    assert.doesNotMatch(source, /oc-direction__label/);
     assert.doesNotMatch(source, /direction\.authorRole/);
     assert.doesNotMatch(source, /direction\.snapshotLabel/);
     assert.doesNotMatch(source, /direction\.snapshotValue/);
@@ -113,4 +114,114 @@ test('new task rendering uses textContent for server-returned values', () => {
     assert.match(source, /title\.textContent = task\.title/);
     assert.match(source, /context\.textContent = task\.currentContext/);
     assert.doesNotMatch(source, /task\.title.*innerHTML/);
+});
+
+test('conference page creates Project Ideas without leaving the officer review', () => {
+    assert.match(source, /data-oc-idea-add/);
+    assert.match(source, /const saveIdea = async/);
+    assert.match(source, /appendCreatedIdea\(payload\.idea\)/);
+    assert.doesNotMatch(source, /window\.location.*ProjectIdeas/);
+});
+
+test('conference idea creation uses antiforgery and same-origin credentials', () => {
+    assert.match(source, /data\.append\('__RequestVerificationToken'/);
+    assert.match(source, /credentials: 'same-origin'/);
+    assert.match(source, /editor\.classList\.contains\('is-saving'\)/);
+});
+
+test('conference idea form supports keyboard create, cancel and field-level validation', () => {
+    assert.match(source, /const applyIdeaErrors/);
+    assert.match(source, /data-oc-idea-error/);
+    assert.match(source, /void saveIdea\(ideaEditor\)/);
+    assert.match(source, /closeIdeaEditor\(ideaEditor, \{ restoreFocus: true \}\)/);
+});
+
+test('new idea rendering uses textContent and updates idea counts', () => {
+    assert.match(source, /title\.textContent = idea\.title/);
+    assert.match(source, /context\.textContent = idea\.currentContext/);
+    assert.match(source, /data-oc-header-idea-count/);
+    assert.doesNotMatch(source, /idea\.title.*innerHTML/);
+});
+
+
+test('first direction transitions from issue action to issue-further-direction action', () => {
+    assert.match(source, /label\.textContent = 'Issue further direction'/);
+    assert.match(source, /actions\.prepend\(addButton\)/);
+    assert.match(source, /saveLabel\.textContent = 'Issue further direction'/);
+});
+
+test('conference sticky toolbar measures the actual application header and avoids fixed offsets', () => {
+    assert.match(source, /document\.querySelector\('\.pm-topbar'\)/);
+    assert.match(source, /const syncStickyHeaderHeight/);
+    assert.match(source, /--oc-topbar-height/);
+    assert.match(source, /ResizeObserver/);
+    assert.match(source, /window\.addEventListener\('scroll', scheduleStickySync/);
+});
+
+
+test('conference sticky toolbar uses hysteresis and avoids threshold oscillation', () => {
+    assert.match(source, /const stickyEnterOffset = 1/);
+    assert.match(source, /const stickyReleaseOffset = 8/);
+    assert.match(source, /stickyState\s*\?\s*shellTop <= topbarHeight \+ stickyReleaseOffset/);
+    assert.match(source, /shellTop <= topbarHeight \+ stickyEnterOffset/);
+    assert.match(source, /nextStickyState !== stickyState/);
+    assert.match(source, /window\.getComputedStyle\(stickyShell\)\.position === 'sticky'/);
+});
+
+test('conference sticky state preserves header geometry', () => {
+    const stuckRule = conferenceCss.match(/\.oc-sticky-shell\.is-stuck \.oc-header\s*\{([\s\S]*?)\}/)?.[1] ?? '';
+
+    assert.match(stuckRule, /min-height:\s*64px/);
+    assert.match(stuckRule, /padding:\s*8px 12px/);
+    assert.doesNotMatch(conferenceCss, /transition:[^;]*(?:min-height|padding)/);
+    assert.doesNotMatch(conferenceCss, /\.oc-sticky-shell\.is-stuck \.oc-eyebrow\s*\{[^}]*display:\s*none/);
+    assert.doesNotMatch(conferenceCss, /\.oc-sticky-shell\.is-stuck \.oc-avatar\s*\{/);
+    assert.doesNotMatch(conferenceCss, /\.oc-sticky-shell\.is-stuck \.oc-header__metric--tasks\.is-zero\s*\{/);
+});
+
+test('conference rows create column headings when the first idea or task is added', () => {
+    assert.match(source, /const ensureColumnHeadings/);
+    assert.match(source, /ensureColumnHeadings\(section, 'Idea'\)/);
+    assert.match(source, /ensureColumnHeadings\(section, 'Task'\)/);
+});
+
+test('conference direction history is loaded lazily and cached per row', () => {
+    assert.match(source, /const directionHistoryState = new WeakMap\(\)/);
+    assert.match(source, /handler', 'DirectionHistory'/);
+    assert.match(source, /directionHistoryState\.get\(item\)/);
+    assert.match(source, /existing\?\.status === 'loaded'/);
+    assert.match(source, /credentials: 'same-origin'/);
+    assert.match(source, /cache: 'no-store'/);
+});
+
+test('conference history navigation updates direction and progress as one cycle', () => {
+    assert.match(source, /const renderDirectionCycle/);
+    assert.match(source, /buildDirection\(cycle\.direction, item, cycle\)/);
+    assert.match(source, /renderProgress\(item, cycle\)/);
+    assert.match(source, /data-oc-direction-older/);
+    assert.match(source, /data-oc-direction-newer/);
+});
+
+test('issuing a further direction returns the row to latest and invalidates cached history', () => {
+    assert.match(source, /returnToLatestDirection\(item\)/);
+    assert.match(source, /directionHistoryState\.delete\(item\)/);
+    assert.match(source, /item\.dataset\.directionView = 'latest'/);
+    assert.match(source, /const nextDirectionCount = readDirectionCount\(item\) \+ 1/);
+});
+
+test('conference history failures remain row-local and retain a retry path', () => {
+    assert.match(source, /History unavailable/);
+    assert.match(source, /Retry loading older conference direction/);
+    assert.match(source, /setRowStatus\(item, message, true\)/);
+});
+
+test('conference column terminology supports historical direction browsing', () => {
+    assert.match(source, /'Conference direction'/);
+    assert.doesNotMatch(source, /\[itemLabel, 'Latest direction'/);
+});
+
+
+test('conference history navigation restores keyboard focus after replacing row controls', () => {
+    assert.match(source, /const preferredSelector = delta < 0/);
+    assert.match(source, /focusTarget\?\.focus\(\{ preventScroll: true \}\)/);
 });

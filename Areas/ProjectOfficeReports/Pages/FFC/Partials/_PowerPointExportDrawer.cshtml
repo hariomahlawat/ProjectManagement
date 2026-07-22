@@ -1,0 +1,178 @@
+@using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC
+@model FootprintModel
+@{
+    var currentScopeText = Model.HasActiveFilters
+        ? "Uses the year, country and search filters currently applied to this page."
+        : "Uses the complete portfolio currently shown on this page.";
+}
+
+<div class="offcanvas offcanvas-end ffc-ppt-export"
+     tabindex="-1"
+     id="ffcPowerPointExport"
+     aria-labelledby="ffcPowerPointExportTitle"
+     data-bs-backdrop="static"
+     data-bs-keyboard="false">
+    <div class="offcanvas-header">
+        <div>
+            <div class="ffc-ppt-export__eyebrow">FFC briefing product</div>
+            <h2 class="offcanvas-title" id="ffcPowerPointExportTitle">Download PowerPoint</h2>
+            <p>Generate a structured, editable 16:9 briefing deck from current PRISM data.</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close PowerPoint export"></button>
+    </div>
+
+    <form method="post"
+          asp-page-handler="ExportPowerPoint"
+          class="ffc-ppt-export__form"
+          data-ffc-ppt-form>
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="PowerPoint.CurrentYear" />
+        <input type="hidden" asp-for="PowerPoint.CurrentCountryId" />
+        <input type="hidden" asp-for="PowerPoint.CurrentSearch" />
+
+        <div class="offcanvas-body">
+            <div class="ffc-ppt-export__alert" data-ffc-ppt-error role="alert" tabindex="-1" hidden></div>
+            <div class="ffc-ppt-export__success" data-ffc-ppt-success role="status" aria-live="polite" hidden></div>
+
+            <section class="ffc-ppt-export__section" aria-labelledby="ffcPptScopeHeading">
+                <div class="ffc-ppt-export__section-heading">
+                    <span>1</span>
+                    <div>
+                        <h3 id="ffcPptScopeHeading">Portfolio scope</h3>
+                        <p>Select the records to include in the deck.</p>
+                    </div>
+                </div>
+
+                <label class="ffc-ppt-choice">
+                    <input type="radio" asp-for="PowerPoint.Scope" value="current" checked />
+                    <span>
+                        <strong>Current filtered portfolio</strong>
+                        <small>@currentScopeText</small>
+                    </span>
+                </label>
+                <label class="ffc-ppt-choice">
+                    <input type="radio" asp-for="PowerPoint.Scope" value="complete" />
+                    <span>
+                        <strong>Complete FFC portfolio</strong>
+                        <small>Ignores current filters and exports all active country-year records.</small>
+                    </span>
+                </label>
+                <label class="ffc-ppt-choice">
+                    <input type="radio" asp-for="PowerPoint.Scope" value="selected" />
+                    <span>
+                        <strong>Selected countries</strong>
+                        <small>Choose one or more countries from the current reporting list.</small>
+                    </span>
+                </label>
+
+                <div class="ffc-ppt-country-select" data-ffc-ppt-countries hidden>
+                    <div class="ffc-ppt-country-select__toolbar">
+                        <strong>Select countries</strong>
+                        <button type="button" class="btn btn-link btn-sm" data-ffc-ppt-select-all>Select all</button>
+                        <button type="button" class="btn btn-link btn-sm" data-ffc-ppt-clear-all>Clear</button>
+                    </div>
+                    <div class="ffc-ppt-country-select__grid">
+                        @foreach (var country in Model.Result.CountryOptions)
+                        {
+                            <label>
+                                @if (Model.CountryId == country.CountryId)
+                                {
+                                    <input type="checkbox"
+                                           name="PowerPoint.SelectedCountryIds"
+                                           value="@country.CountryId"
+                                           checked />
+                                }
+                                else
+                                {
+                                    <input type="checkbox"
+                                           name="PowerPoint.SelectedCountryIds"
+                                           value="@country.CountryId" />
+                                }
+                                <span>@country.CountryName <small>@country.IsoCode</small></span>
+                            </label>
+                        }
+                    </div>
+                    <div class="invalid-feedback d-block" data-ffc-ppt-country-error hidden>Select at least one country.</div>
+                </div>
+            </section>
+
+            <section class="ffc-ppt-export__section" aria-labelledby="ffcPptTypeHeading">
+                <div class="ffc-ppt-export__section-heading">
+                    <span>2</span>
+                    <div>
+                        <h3 id="ffcPptTypeHeading">Presentation type</h3>
+                        <p>Choose the depth appropriate to the briefing.</p>
+                    </div>
+                </div>
+
+                <div class="ffc-ppt-type-grid">
+                    <label class="ffc-ppt-choice ffc-ppt-choice--large">
+                        <input type="radio" asp-for="PowerPoint.PresentationType" value="executive" checked />
+                        <span>
+                            <strong>Executive brief</strong>
+                            <small>Concise portfolio summary, global footprint, quantity status, milestones and operational focus.</small>
+                            <em>Approximately 6–8 slides</em>
+                        </span>
+                    </label>
+                    <label class="ffc-ppt-choice ffc-ppt-choice--large">
+                        <input type="radio" asp-for="PowerPoint.PresentationType" value="full" />
+                        <span>
+                            <strong>Full portfolio</strong>
+                            <small>Executive slides followed by country summaries, project details and a consolidated appendix.</small>
+                            <em>Length adjusts to portfolio size</em>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="ffc-ppt-detail-options" data-ffc-ppt-detail-options>
+                    <h4>Full portfolio detail</h4>
+                    <label><input type="checkbox" asp-for="PowerPoint.IncludeProjects" /> Include project-level slides</label>
+                    <label data-ffc-ppt-progress-option><input type="checkbox" asp-for="PowerPoint.IncludeProgress" /> Include current progress</label>
+                    <label><input type="checkbox" asp-for="PowerPoint.IncludeMilestoneRemarks" /> Include milestone remarks</label>
+                    <label><input type="checkbox" asp-for="PowerPoint.IncludeAttachmentRegister" /> Include attachment register</label>
+                </div>
+            </section>
+
+            <section class="ffc-ppt-export__section" aria-labelledby="ffcPptIdentityHeading">
+                <div class="ffc-ppt-export__section-heading">
+                    <span>3</span>
+                    <div>
+                        <h3 id="ffcPptIdentityHeading">Presentation identity</h3>
+                        <p>Set the title and optional handling marking.</p>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" asp-for="PowerPoint.Title">Presentation title</label>
+                    <input class="form-control" asp-for="PowerPoint.Title" maxlength="120" required />
+                    <span class="invalid-feedback">Enter a presentation title.</span>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" asp-for="PowerPoint.Subtitle">Subtitle</label>
+                    <input class="form-control" asp-for="PowerPoint.Subtitle" maxlength="180" />
+                </div>
+                <div>
+                    <label class="form-label" asp-for="PowerPoint.HandlingMarking">Handling/classification marking <span class="text-muted">(optional)</span></label>
+                    <input class="form-control" asp-for="PowerPoint.HandlingMarking" maxlength="80" placeholder="Enter only when authorised and applicable" />
+                    <div class="form-text">PRISM does not assign a classification automatically. The entered marking appears on every slide.</div>
+                </div>
+            </section>
+
+            <div class="ffc-ppt-export__assurance">
+                <span class="bi bi-shield-check" aria-hidden="true"></span>
+                <div>
+                    <strong>Generated locally from PRISM</strong>
+                    <p>No external service, Microsoft Office installation or internet connection is required.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="ffc-ppt-export__footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+            <button type="submit" class="btn btn-primary" data-ffc-ppt-submit data-submit-label="Preparing PowerPoint…">
+                <span class="bi bi-download" aria-hidden="true"></span>
+                <span data-ffc-ppt-submit-text>Generate and download</span>
+            </button>
+        </div>
+    </form>
+</div>

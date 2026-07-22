@@ -1,174 +1,121 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Projects.TrashModel
-@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@using ProjectManagement.Services.Admin
 @{
-    ViewData["Title"] = "Project Trash";
-    var token = Antiforgery.GetAndStoreTokens(HttpContext);
-    var hasRows = Model.Projects.Count > 0;
+    ViewData["Title"] = "Project trash";
+    var firstItem = Model.Result.TotalCount == 0 ? 0 : ((Model.Result.Page - 1) * Model.Result.PageSize) + 1;
+    var lastItem = Math.Min(Model.Result.TotalCount, Model.Result.Page * Model.Result.PageSize);
 }
 
-<div class="container-xxl py-4">
-    <nav aria-label="breadcrumb" class="mb-3">
-        <ol class="breadcrumb mb-0">
-            <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Project Trash</li>
-        </ol>
-    </nav>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 
-    <div class="d-flex justify-content-between align-items-start flex-column flex-lg-row gap-3 mb-4">
-        <div>
-            <h1 class="h3 mb-1">Project Trash</h1>
-            <p class="text-muted mb-0">Projects moved to Trash stay here for @Model.RetentionDays day(s) unless an admin restores or purges them.</p>
+@if (TempData[FlashMessageKeys.AdminRecoverySuccess] is string successMessage)
+{
+    <div class="admin-flash admin-flash--success" role="status" data-admin-flash><span class="admin-flash__icon"><i class="bi bi-check-circle"></i></span><div class="admin-flash__copy"><strong>Completed</strong><span>@successMessage</span></div><button type="button" class="admin-flash__dismiss" data-admin-flash-dismiss aria-label="Dismiss"><i class="bi bi-x-lg"></i></button></div>
+}
+@if (TempData[FlashMessageKeys.AdminRecoveryError] is string errorMessage)
+{
+    <div class="admin-flash admin-flash--danger" role="alert" data-admin-flash><span class="admin-flash__icon"><i class="bi bi-exclamation-octagon"></i></span><div class="admin-flash__copy"><strong>Action not completed</strong><span>@errorMessage</span></div><button type="button" class="admin-flash__dismiss" data-admin-flash-dismiss aria-label="Dismiss"><i class="bi bi-x-lg"></i></button></div>
+}
+
+<section class="admin-recovery-metric-grid admin-recovery-metric-grid--compact" aria-label="Project trash summary">
+    <article class="admin-monitoring-metric admin-monitoring-metric--@(Model.Result.TotalCount > 0 ? "warning" : "success")"><span class="admin-monitoring-metric__icon"><i class="bi bi-trash3"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.TotalCount</strong><span>Projects in trash</span><small>Current filter scope</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--@(Model.DueCount > 0 ? "danger" : "success")"><span class="admin-monitoring-metric__icon"><i class="bi bi-hourglass-bottom"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.DueCount</strong><span>Due on this page</span><small>@Model.RetentionDays-day retention</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-hdd"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.FormatBytes(Model.VisibleStoredBytes)</strong><span>Visible stored assets</span><small>Documents and videos</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-shield-check"></i></span><span class="admin-monitoring-metric__copy"><strong>@(Model.RemoveAssetsByDefault ? "Included" : "Optional")</strong><span>Asset purge default</span><small>Confirmed before deletion</small></span></article>
+</section>
+
+<section class="admin-panel" aria-labelledby="project-trash-title">
+    <header class="admin-panel__header">
+        <div><div class="admin-panel__eyebrow">Recovery directory</div><h2 id="project-trash-title">Trashed projects</h2></div>
+        <span class="admin-panel__meta">Showing @firstItem–@lastItem of @Model.Result.TotalCount</span>
+    </header>
+
+    <form method="get" class="admin-filter-toolbar admin-recovery-filter-toolbar">
+        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--search">
+            <label asp-for="Search">Search</label>
+            <div class="admin-search-control"><i class="bi bi-search"></i><input asp-for="Search" class="form-control" placeholder="Project, case file or deletion reason" /></div>
         </div>
-        <div class="text-muted small">
-            Default purge removes uploaded files: <strong>@(Model.RemoveAssetsByDefault ? "Yes" : "No")</strong>
+        <div class="admin-filter-toolbar__field">
+            <label asp-for="Retention">Retention state</label>
+            <select asp-for="Retention" class="form-select">
+                <option value="">All states</option>
+                <option value="due">Due for purge</option>
+                <option value="due-soon">Due soon</option>
+                <option value="safe">Within retention</option>
+            </select>
         </div>
-    </div>
+        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--page-size">
+            <label asp-for="PageSize">Rows</label>
+            <select asp-for="PageSize" class="form-select">
+                @foreach (var size in new[] { 10, 25, 50, 100 }) { <option value="@size">@size</option> }
+            </select>
+        </div>
+        <input type="hidden" asp-for="PageNumber" value="1" />
+        <div class="admin-filter-toolbar__actions"><button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Apply</button><a asp-page="./Trash" class="btn btn-outline-secondary">Clear</a></div>
+    </form>
 
-    <input type="hidden" value="@token.RequestToken" data-admin-project-token />
-
-    @if (!hasRows)
+    @if (Model.Result.Items.Count == 0)
     {
-        <div class="alert alert-info" role="status">
-            No projects are currently in Trash.
-        </div>
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-trash3", Title = "No projects in trash", Description = "No trashed projects match the current recovery filters." })" />
     }
     else
     {
-        <div class="table-responsive">
-            <table class="table align-middle">
-                <thead>
-                    <tr>
-                        <th scope="col">Project</th>
-                        <th scope="col">HoD / Project Officer</th>
-                        <th scope="col">Deleted</th>
-                        <th scope="col">Purge schedule</th>
-                        <th scope="col">Reason</th>
-                        <th scope="col" class="text-end">Actions</th>
-                    </tr>
-                </thead>
+        <div class="admin-table-wrap">
+            <table class="admin-data-table admin-recovery-table">
+                <thead><tr><th>Project</th><th>Responsibility</th><th>Deletion record</th><th>Retention</th><th>Related assets</th><th class="text-end">Actions</th></tr></thead>
                 <tbody>
-                @foreach (var row in Model.Projects)
+                @foreach (var row in Model.Result.Items)
                 {
                     <tr>
-                        <td>
-                            <div class="fw-semibold">@row.Name</div>
-                            @if (!string.IsNullOrWhiteSpace(row.CaseFileNumber))
-                            {
-                                <div class="text-muted small">Case file: @row.CaseFileNumber</div>
-                            }
-                            @if (row.IsArchived)
-                            {
-                                <span class="badge text-bg-secondary mt-1">Archived at time of trash</span>
-                            }
-                        </td>
-                        <td>
-                            <div>
-                                <div class="fw-semibold">@(row.HodDisplay ?? "—")</div>
-                                <div class="text-muted small">Head of Department</div>
-                            </div>
-                            <div class="mt-2">
-                                <div class="fw-semibold">@(row.ProjectOfficerDisplay ?? "—")</div>
-                                <div class="text-muted small">Project Officer</div>
-                            </div>
-                        </td>
-                        <td>
-                            <div>@Model.FormatTimestamp(row.DeletedAtUtc)</div>
-                            <div class="text-muted small">@row.DeletedByFallback</div>
-                        </td>
-                        <td>
-                            <div>@Model.FormatTimestamp(row.PurgeScheduledUtc)</div>
-                            <div class="text-muted small">
-                                @if (row.DaysUntilPurge.HasValue)
+                        <td><div class="admin-table-primary">@row.Name</div><div class="admin-table-secondary">@(string.IsNullOrWhiteSpace(row.CaseFileNumber) ? $"Project #{row.ProjectId}" : $"Case file {row.CaseFileNumber}")</div>@if (row.IsArchived){<span class="admin-status-pill admin-status-pill--neutral mt-2">Archived when deleted</span>}</td>
+                        <td><div class="admin-recovery-people"><span><small>HoD</small><strong>@(row.HodDisplay ?? "Not assigned")</strong></span><span><small>Project Officer</small><strong>@(row.ProjectOfficerDisplay ?? "Not assigned")</strong></span></div></td>
+                        <td><div class="admin-table-primary">@Model.FormatTime(row.DeletedAtUtc)</div><div class="admin-table-secondary">By @(row.DeletedByDisplay ?? "Unknown user")</div><div class="admin-table-note">@(string.IsNullOrWhiteSpace(row.DeleteReason) ? "No deletion reason recorded." : row.DeleteReason)</div></td>
+                        <td><span class="admin-retention-badge admin-retention-badge--@(row.IsPurgeDue ? "danger" : row.DaysUntilPurge <= 7 ? "warning" : "success")"><i class="bi @(row.IsPurgeDue ? "bi-exclamation-octagon" : "bi-hourglass-split")"></i>@(row.IsPurgeDue ? "Purge due" : $"{row.DaysUntilPurge} day(s) remaining")</span><div class="admin-table-secondary mt-2">Scheduled @Model.FormatTime(row.PurgeScheduledUtc)</div></td>
+                        <td><div class="admin-asset-summary"><span><i class="bi bi-file-earmark"></i>@row.DocumentCount documents</span><span><i class="bi bi-image"></i>@row.PhotoCount photos</span><span><i class="bi bi-film"></i>@row.VideoCount videos</span><small>@Model.FormatBytes(row.StoredBytes) measured storage</small></div></td>
+                        <td class="text-end"><div class="dropdown"><button class="admin-row-action" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @row.Name"><i class="bi bi-three-dots"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><button class="dropdown-item" type="button" data-recovery-project-action="restore" data-project-id="@row.ProjectId" data-project-name="@row.Name" data-bs-toggle="modal" data-bs-target="#projectRecoveryModal"><i class="bi bi-arrow-counterclockwise"></i> Restore project</button></li><li><hr class="dropdown-divider" /></li>
+                                @if (row.IsPurgeDue)
                                 {
-                                    <span>@row.DaysUntilPurge.Value day(s) remaining</span>
+                                    <li><button class="dropdown-item text-danger" type="button" data-recovery-project-action="purge" data-project-id="@row.ProjectId" data-project-name="@row.Name" data-documents="@row.DocumentCount" data-photos="@row.PhotoCount" data-videos="@row.VideoCount" data-storage="@Model.FormatBytes(row.StoredBytes)" data-default-assets="@(Model.RemoveAssetsByDefault ? "true" : "false")" data-bs-toggle="modal" data-bs-target="#projectRecoveryModal"><i class="bi bi-trash"></i> Delete permanently</button></li>
                                 }
                                 else
                                 {
-                                    <span>—</span>
-                                }
-                            </div>
-                        </td>
-                        <td>
-                            <div>@(string.IsNullOrWhiteSpace(row.DeleteReason) ? "—" : row.DeleteReason)</div>
-                            <div class="text-muted small">Method: @(string.IsNullOrWhiteSpace(row.DeleteMethod) ? "Trash" : row.DeleteMethod)</div>
-                        </td>
-                        <td class="text-end">
-                            <div class="btn-group btn-group-sm">
-                                <button type="button"
-                                        class="btn btn-outline-primary"
-                                        data-bs-toggle="modal"
-                                        data-bs-target="#projectRestoreModal"
-                                        data-project-id="@row.ProjectId"
-                                        data-project-name="@row.Name">
-                                    Restore
-                                </button>
-                                <button type="button"
-                                        class="btn btn-danger"
-                                        data-bs-toggle="modal"
-                                        data-bs-target="#projectPurgeModal"
-                                        data-project-id="@row.ProjectId"
-                                        data-project-name="@row.Name">
-                                    Delete permanently
-                                </button>
-                            </div>
-                        </td>
+                                    <li><span class="dropdown-item-text text-muted"><i class="bi bi-hourglass-split"></i> Permanent deletion available after retention</span></li>
+                                }</ul></div></td>
                     </tr>
                 }
                 </tbody>
             </table>
         </div>
     }
-</div>
 
-<div class="modal fade" id="projectRestoreModal" tabindex="-1" aria-labelledby="projectRestoreModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title fs-5" id="projectRestoreModalLabel">Restore project</h2>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
+    @if (Model.Result.TotalPages > 1)
+    {
+        <nav class="admin-pagination" aria-label="Project trash pages"><a class="btn btn-sm btn-outline-secondary @(Model.Result.Page <= 1 ? "disabled" : null)" href="@Model.PageUrl(Model.Result.Page - 1)">Previous</a><span>Page @Model.Result.Page of @Model.Result.TotalPages</span><a class="btn btn-sm btn-outline-secondary @(Model.Result.Page >= Model.Result.TotalPages ? "disabled" : null)" href="@Model.PageUrl(Model.Result.Page + 1)">Next</a></nav>
+    }
+</section>
+
+<div class="modal fade" id="projectRecoveryModal" tabindex="-1" aria-labelledby="projectRecoveryTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content admin-controlled-modal">
+        <form method="post" asp-page-handler="Execute" id="projectRecoveryForm">
+            <input type="hidden" asp-for="Search" /><input type="hidden" asp-for="Retention" /><input type="hidden" asp-for="PageNumber" /><input type="hidden" asp-for="PageSize" />
+            <input type="hidden" asp-for="Command.Action" data-project-command-action /><input type="hidden" asp-for="Command.ProjectId" data-project-command-id />
+            <div class="modal-header"><div><div class="admin-panel__eyebrow" data-project-operation-eyebrow>Recovery operation</div><h2 class="modal-title fs-5" id="projectRecoveryTitle" data-project-operation-title>Restore project</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
             <div class="modal-body">
-                <p class="mb-0">Restore <strong data-project-name>this project</strong> from Trash?</p>
-                <div class="text-danger small d-none mt-2" data-admin-project-error role="alert"></div>
+                <div class="admin-record-summary"><span class="admin-record-summary__icon"><i class="bi bi-folder2-open"></i></span><div><strong data-project-summary-name>Project</strong><small data-project-summary-detail>Review the operation before continuing.</small></div></div>
+                <div data-project-restore-panel><p class="mb-0">The project will return to its previous archive state, with its records and assignments preserved.</p></div>
+                <div data-project-purge-panel hidden>
+                    <div class="admin-destructive-warning"><i class="bi bi-exclamation-octagon"></i><div><strong>Permanent deletion cannot be undone</strong><p>The project database record, history and selected stored assets will be removed.</p></div></div>
+                    <div class="admin-dependency-summary"><span><b data-project-documents>0</b> documents</span><span><b data-project-photos>0</b> photos</span><span><b data-project-videos>0</b> videos</span><span><b data-project-storage>0 B</b> measured storage</span></div>
+                    <div class="mb-3"><label asp-for="Command.Reason" class="form-label">Administrative reason</label><textarea asp-for="Command.Reason" class="form-control" rows="3" maxlength="512" placeholder="Record why permanent deletion is authorised"></textarea></div>
+                    <div class="mb-3"><label asp-for="Command.Confirmation" class="form-label">Type <strong data-project-confirm-label></strong> to confirm</label><input asp-for="Command.Confirmation" class="form-control" autocomplete="off" data-project-confirm-input /></div>
+                    <label class="form-check mb-3"><input asp-for="Command.RemoveAssets" class="form-check-input" data-project-remove-assets /><span class="form-check-label">Remove stored documents, photos and attachments</span></label>
+                    <label class="form-check"><input asp-for="Command.Acknowledge" class="form-check-input" data-project-acknowledge /><span class="form-check-label">I understand that this permanently removes the project and cannot be reversed.</span></label>
+                </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-success" data-admin-project-submit data-action="restore">
-                    Restore project
-                </button>
-            </div>
-        </div>
-    </div>
+            <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary" data-project-submit><i class="bi bi-arrow-counterclockwise"></i> Restore project</button></div>
+        </form>
+    </div></div>
 </div>
 
-<div class="modal fade" id="projectPurgeModal" tabindex="-1" aria-labelledby="projectPurgeModalLabel" aria-hidden="true" data-remove-assets-default="@(Model.RemoveAssetsByDefault ? "true" : "false")">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 class="modal-title fs-5" id="projectPurgeModalLabel">Delete project permanently</h2>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-danger" role="alert">
-                    This will permanently delete <strong data-project-name>this project</strong>, its history and related uploads. This action cannot be undone.
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="removeAssetsCheckbox" data-admin-remove-assets @(Model.RemoveAssetsByDefault ? "checked" : null)>
-                    <label class="form-check-label" for="removeAssetsCheckbox">Also delete stored assets (documents, photos, attachments)</label>
-                </div>
-                <div class="text-danger small d-none mt-2" data-admin-project-error role="alert"></div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger" data-admin-project-submit data-action="purge">
-                    Delete permanently
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-@section Scripts {
-    <script src="~/js/admin/project-trash.js" asp-append-version="true" defer></script>
-}
+@section Scripts { <script src="~/js/admin/admin-project-trash.js" asp-append-version="true" defer></script> }

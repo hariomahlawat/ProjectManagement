@@ -194,7 +194,9 @@ public sealed class ProliferationOverviewService
 
         var query = _db.ProliferationYearPreferences
             .AsNoTracking()
-            .Where(p => p.Mode != YearPreferenceMode.UseYearlyAndGranular);
+            .Where(p =>
+                (p.Source == ProliferationSource.Sdd && p.Mode != YearPreferenceMode.UseYearlyAndGranular) ||
+                (p.Source == ProliferationSource.Abw515 && p.Mode != YearPreferenceMode.UseYearly));
 
         if (request.ProjectId.HasValue)
         {

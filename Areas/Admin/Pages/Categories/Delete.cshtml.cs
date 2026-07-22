@@ -1,76 +1,89 @@
-using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
-using ProjectManagement.Data;
-using ProjectManagement.Models;
+using ProjectManagement.Configuration;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData;
 
-namespace ProjectManagement.Areas.Admin.Pages.Categories
+namespace ProjectManagement.Areas.Admin.Pages.Categories;
+
+[Authorize(Policy = AdminPolicies.MasterDataManage)]
+public sealed class DeleteModel : PageModel
 {
-    public class DeleteModel : PageModel
+    private readonly IMasterDataAdministrationQueryService _query;
+    private readonly IAdminMasterDataCommandService _commands;
+
+    public DeleteModel(
+        IMasterDataAdministrationQueryService query,
+        IAdminMasterDataCommandService commands)
     {
-        private readonly ApplicationDbContext _db;
+        _query = query ?? throw new ArgumentNullException(nameof(query));
+        _commands = commands ?? throw new ArgumentNullException(nameof(commands));
+    }
 
-        public DeleteModel(ApplicationDbContext db)
+    public CategoryImpact? Impact { get; private set; }
+
+    [BindProperty]
+    public string RowVersion { get; set; } = string.Empty;
+
+    [BindProperty]
+    public string Confirmation { get; set; } = string.Empty;
+
+    public bool CanDelete => Impact is { DirectUsageCount: 0, DirectChildCount: 0 };
+
+    public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
+    {
+        Impact = await _query.GetCategoryImpactAsync(MasterDataCategoryKind.Project, id, cancellationToken);
+        if (Impact is null) return NotFound();
+        RowVersion = Impact.RowVersion;
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostAsync(int id, CancellationToken cancellationToken)
+    {
+        Impact = await _query.GetCategoryImpactAsync(MasterDataCategoryKind.Project, id, cancellationToken);
+        if (Impact is null) return NotFound();
+
+        if (!CanDelete)
         {
-            _db = db;
-        }
-
-        [BindProperty]
-        public ProjectCategory? Category { get; set; }
-
-        [TempData]
-        public string? StatusMessage { get; set; }
-
-        public async Task<IActionResult> OnGetAsync(int id)
-        {
-            var category = await _db.ProjectCategories
-                .Include(c => c.Parent)
-                .AsNoTracking()
-                .SingleOrDefaultAsync(c => c.Id == id);
-
-            if (category is null)
-            {
-                return NotFound();
-            }
-
-            Category = category;
+            ModelState.AddModelError(string.Empty, "This category is referenced by projects or contains child categories. Deactivate it instead of deleting it.");
             return Page();
         }
 
-        public async Task<IActionResult> OnPostAsync(int id)
+        if (!string.Equals(Confirmation?.Trim(), Impact.Name, StringComparison.Ordinal))
         {
-            var category = await _db.ProjectCategories.SingleOrDefaultAsync(c => c.Id == id);
-            if (category is null)
-            {
-                return NotFound();
-            }
+            ModelState.AddModelError(nameof(Confirmation), $"Type '{Impact.Name}' exactly to confirm deletion.");
+            return Page();
+        }
 
-            var childCount = await _db.ProjectCategories.CountAsync(c => c.ParentId == id);
-            if (childCount > 0)
-            {
-                await _db.Entry(category).Reference(c => c.Parent).LoadAsync();
-                var childLabel = childCount == 1 ? "child category" : "child categories";
-                ModelState.AddModelError(string.Empty, $"This project category has {childCount} {childLabel}. Reassign or delete them first.");
-                Category = category;
-                return Page();
-            }
+        if (!TryDecode(RowVersion, out var rowVersion))
+        {
+            ModelState.AddModelError(string.Empty, "The record version is invalid. Reload the page and try again.");
+            return Page();
+        }
 
-            var projectCount = await _db.Projects.CountAsync(p => p.CategoryId == id);
-            if (projectCount > 0)
-            {
-                await _db.Entry(category).Reference(c => c.Parent).LoadAsync();
-                var projectLabel = projectCount == 1 ? "project" : "projects";
-                ModelState.AddModelError(string.Empty, $"Cannot delete yet. {projectCount} {projectLabel} currently use this project category. Reassign them before deleting.");
-                Category = category;
-                return Page();
-            }
+        var result = await _commands.DeleteProjectCategoryAsync(id, rowVersion, cancellationToken);
+        if (!result.Succeeded)
+        {
+            ModelState.AddModelError(string.Empty, result.UserMessage ?? "The category could not be deleted.");
+            return Page();
+        }
 
-            _db.ProjectCategories.Remove(category);
-            await _db.SaveChangesAsync();
+        TempData[FlashMessageKeys.AdminMasterDataSuccess] = result.UserMessage;
+        return RedirectToPage("Index");
+    }
 
-            TempData["StatusMessage"] = $"Deleted '{category.Name}'.";
-            return RedirectToPage("Index");
+    private static bool TryDecode(string? value, out byte[] rowVersion)
+    {
+        try
+        {
+            rowVersion = string.IsNullOrWhiteSpace(value) ? Array.Empty<byte>() : Convert.FromBase64String(value);
+            return rowVersion.Length > 0;
+        }
+        catch (FormatException)
+        {
+            rowVersion = Array.Empty<byte>();
+            return false;
         }
     }
 }

@@ -1,28 +1,68 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Calendar.DeletedModel
+@using ProjectManagement.Services.Admin
 @{
-    ViewData["Title"] = "Deleted Events";
+    ViewData["Title"] = "Deleted calendar events";
+    var firstItem = Model.Result.TotalCount == 0 ? 0 : ((Model.Result.Page - 1) * Model.Result.PageSize) + 1;
+    var lastItem = Math.Min(Model.Result.TotalCount, Model.Result.Page * Model.Result.PageSize);
 }
 
-<h2 class="h5 mb-3">Deleted Events</h2>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 
-<table class="table table-sm">
-  <thead>
-    <tr><th>Title</th><th>Start</th><th></th></tr>
-  </thead>
-  <tbody>
-  @foreach (var ev in Model.Events)
-  {
-    <tr>
-      <td>@ev.Title</td>
-      <td>@ev.Start</td>
-      <td>
-        <form method="post" asp-page-handler="Restore" asp-route-id="@ev.Id" class="d-inline">
-          <button type="submit" class="btn btn-sm btn-link">Restore</button>
-        </form>
-      </td>
-    </tr>
-  }
-  </tbody>
-</table>
+<section class="admin-recovery-metric-grid admin-recovery-metric-grid--compact" aria-label="Calendar recovery summary">
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__icon"><i class="bi bi-calendar-x"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.TotalCount</strong><span>Deleted events</span><small>Current filter scope</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-arrow-repeat"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.RecurringCount</strong><span>Recurring series</span><small>Series definition retained</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__icon"><i class="bi bi-calendar2-week"></i></span><span class="admin-monitoring-metric__copy"><strong>@Model.Result.AllDayCount</strong><span>All-day events</span><small>Original dates preserved</small></span></article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--success"><span class="admin-monitoring-metric__icon"><i class="bi bi-shield-check"></i></span><span class="admin-monitoring-metric__copy"><strong>Restorable</strong><span>Event metadata retained</span><small>Audit trail recorded</small></span></article>
+</section>
 
+<section class="admin-panel" aria-labelledby="deleted-events-title">
+    <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Recovery directory</div><h2 id="deleted-events-title">Deleted events</h2></div><span class="admin-panel__meta">Showing @firstItem–@lastItem of @Model.Result.TotalCount</span></header>
+
+    <form method="get" class="admin-filter-toolbar admin-recovery-filter-toolbar admin-recovery-filter-toolbar--calendar">
+        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--search"><label asp-for="Search">Search</label><div class="admin-search-control"><i class="bi bi-search"></i><input asp-for="Search" class="form-control" placeholder="Title, location, creator or description" /></div></div>
+        <div class="admin-filter-toolbar__field"><label asp-for="Category">Category</label><select asp-for="Category" class="form-select"><option value="">All categories</option>@foreach (var category in Model.Categories) { <option value="@category">@category</option> }</select></div>
+        <div class="admin-filter-toolbar__field"><label asp-for="DeletedFrom">Deleted from</label><input asp-for="DeletedFrom" type="date" class="form-control" /></div>
+        <div class="admin-filter-toolbar__field"><label asp-for="DeletedTo">Deleted to</label><input asp-for="DeletedTo" type="date" class="form-control" /></div>
+        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--page-size"><label asp-for="PageSize">Rows</label><select asp-for="PageSize" class="form-select">@foreach (var size in new[] { 10, 25, 50, 100 }) { <option value="@size">@size</option> }</select></div>
+        <input type="hidden" asp-for="PageNumber" value="1" />
+        <div class="admin-filter-toolbar__actions"><button type="submit" class="btn btn-primary"><i class="bi bi-funnel"></i> Apply</button><a asp-page="./Deleted" class="btn btn-outline-secondary">Clear</a></div>
+    </form>
+
+    @if (Model.Result.Items.Count == 0)
+    {
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-calendar-check", Title = "No deleted events", Description = "No deleted calendar events match the current recovery filters." })" />
+    }
+    else
+    {
+        <div class="admin-table-wrap"><table class="admin-data-table admin-recovery-table"><thead><tr><th>Event</th><th>Original schedule</th><th>Ownership</th><th>Deletion record</th><th class="text-end">Action</th></tr></thead><tbody>
+        @foreach (var item in Model.Result.Items)
+        {
+            <tr>
+                <td><div class="admin-table-primary">@item.Title</div><div class="admin-table-tags"><span class="admin-status-pill admin-status-pill--neutral">@item.Category</span>@if (item.IsRecurring){<span class="admin-status-pill admin-status-pill--info"><i class="bi bi-arrow-repeat"></i> Recurring series</span>}@if (item.IsAllDay){<span class="admin-status-pill admin-status-pill--neutral">All day</span>}</div>@if (!string.IsNullOrWhiteSpace(item.Location)){<div class="admin-table-secondary mt-2"><i class="bi bi-geo-alt"></i> @item.Location</div>}</td>
+                <td><div class="admin-table-primary">@Model.FormatSchedule(item)</div><div class="admin-table-secondary">Restoration returns this schedule to the shared calendar.</div></td>
+                <td><div class="admin-table-secondary">Created by</div><div class="admin-table-primary">@(item.CreatedByName ?? "User unavailable")</div></td>
+                <td><div class="admin-table-primary">@Model.FormatDeletedAt(item.DeletedAtUtc)</div><div class="admin-table-secondary">By @(item.DeletedByName ?? "User unavailable")</div></td>
+                <td class="text-end"><button type="button" class="btn btn-sm btn-outline-primary" data-calendar-restore data-event-id="@item.Id" data-event-title="@item.Title" data-event-schedule="@Model.FormatSchedule(item)" data-event-recurring="@(item.IsRecurring ? "true" : "false")" data-bs-toggle="modal" data-bs-target="#calendarRestoreModal"><i class="bi bi-arrow-counterclockwise"></i> Restore</button></td>
+            </tr>
+        }
+        </tbody></table></div>
+    }
+
+    @if (Model.Result.TotalPages > 1)
+    {
+        <nav class="admin-pagination" aria-label="Deleted event pages"><a class="btn btn-sm btn-outline-secondary @(Model.Result.Page <= 1 ? "disabled" : null)" href="@Model.PageUrl(Model.Result.Page - 1)">Previous</a><span>Page @Model.Result.Page of @Model.Result.TotalPages</span><a class="btn btn-sm btn-outline-secondary @(Model.Result.Page >= Model.Result.TotalPages ? "disabled" : null)" href="@Model.PageUrl(Model.Result.Page + 1)">Next</a></nav>
+    }
+</section>
+
+<div class="modal fade" id="calendarRestoreModal" tabindex="-1" aria-labelledby="calendarRestoreTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered"><div class="modal-content admin-controlled-modal"><form method="post" asp-page-handler="Restore" data-calendar-restore-form>
+        <input type="hidden" asp-for="RestoreEventId" data-calendar-event-id /><input type="hidden" asp-for="Search" /><input type="hidden" asp-for="Category" /><input type="hidden" asp-for="DeletedFrom" /><input type="hidden" asp-for="DeletedTo" /><input type="hidden" asp-for="PageNumber" /><input type="hidden" asp-for="PageSize" />
+        <div class="modal-header"><div><div class="admin-panel__eyebrow">Calendar recovery</div><h2 class="modal-title fs-5" id="calendarRestoreTitle">Restore event</h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-body"><div class="admin-record-summary"><span class="admin-record-summary__icon"><i class="bi bi-calendar-event"></i></span><div><strong data-calendar-event-title>Selected event</strong><small data-calendar-event-schedule>Original schedule</small></div></div><div class="admin-inline-notice"><i class="bi bi-info-circle"></i><span data-calendar-restore-explanation>The event will return to the shared calendar with its original schedule and metadata.</span></div></div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary" data-calendar-submit><i class="bi bi-arrow-counterclockwise"></i> Restore event</button></div>
+    </form></div></div>
+</div>
+
+@section Scripts { <script src="~/js/admin/admin-calendar-recovery.js" asp-append-version="true" defer></script> }

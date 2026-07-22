@@ -46,6 +46,7 @@ using ProjectManagement.Hosted;
 using ProjectManagement.Hubs;
 using ProjectManagement.Services.Approvals;
 using ProjectManagement.Infrastructure;
+using ProjectManagement.Infrastructure.Usage;
 using ProjectManagement.Infrastructure.Activities;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Stages;
@@ -53,10 +54,20 @@ using ProjectManagement.Services;
 using ProjectManagement.Services.Activities;
 using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.ActionTasks;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.AccessGovernance;
+using ProjectManagement.Services.Admin.Calendar;
+using ProjectManagement.Services.Admin.Ingestion;
+using ProjectManagement.Services.Admin.MasterData;
+using ProjectManagement.Services.Admin.MasterData.Integrity;
+using ProjectManagement.Services.Admin.Maintenance;
+using ProjectManagement.Services.Admin.Recovery;
 using ProjectManagement.Services.Dashboard;
 using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Documents;
 using ProjectManagement.Services.Ffc;
+using ProjectManagement.Services.Ffc.Exports;
+using ProjectManagement.Services.Ffc.Presentation;
 using ProjectManagement.Services.IndustryPartners;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Notifications;
@@ -66,6 +77,8 @@ using ProjectManagement.Services.Ocr;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.ProjectOfficeReports.Training;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.ProjectBriefings;
+using ProjectManagement.Services.ProjectBriefings.Presentation;
 using ProjectManagement.Services.Remarks;
 using ProjectManagement.Services.Reports.ProgressReview;
 using ProjectManagement.Services.Scheduling;
@@ -74,6 +87,7 @@ using ProjectManagement.Services.Text;
 using ProjectManagement.Services.Startup;
 using ProjectManagement.Services.Security;
 using ProjectManagement.Services.Storage;
+using ProjectManagement.Services.Usage;
 using ProjectManagement.Utilities;
 using ProjectManagement.Utilities.Reporting;
 using System;
@@ -181,6 +195,11 @@ builder.Services
 
 builder.Services.AddAuthorization(options =>
 {
+    // SECTION: Administrative capability policies
+    // The authoritative catalogue also drives Access Governance, navigation and tests.
+    AdminCapabilityCatalog.RegisterPolicies(options);
+    options.AddPolicy(Policies.Usage.View, policy =>
+        policy.RequireRole(Policies.Usage.ViewerRoles));
     options.AddPolicy("Project.Create", policy =>
         policy.RequireRole("Admin", "HoD"));
 
@@ -237,6 +256,10 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(Policies.IndustryPartners.ManageAllowedRoles));
     options.AddPolicy(Policies.IndustryPartners.Delete, policy =>
         policy.RequireRole(Policies.IndustryPartners.DeleteAllowedRoles));
+    options.AddPolicy(Policies.IndustryPartners.AddContact, policy =>
+        policy.RequireAuthenticatedUser());
+    options.AddPolicy(Policies.IndustryPartners.ManageAnyContact, policy =>
+        policy.RequireRole(Policies.IndustryPartners.ContactOverrideRoles));
     options.AddPolicy("DocRepo.View", policy =>
     policy.RequireAuthenticatedUser());
 
@@ -257,7 +280,11 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("ActionTracker.Access", policy =>
         policy.RequireRole(RoleNames.Comdt, RoleNames.HoD, RoleNames.ProjectOfficer, RoleNames.Mco, RoleNames.Ta, RoleNames.Ito));
 
-    // SECTION: Conference remark authorization policy
+    // SECTION: Project briefing deck authorization policy
+    options.AddPolicy(Policies.ProjectBriefingDecks.Manage, policy =>
+        policy.RequireRole(Policies.ProjectBriefingDecks.ManageAllowedRoles));
+
+    // SECTION: Conference review authorization policy
     options.AddPolicy(Policies.ConferenceRemarks.Manage, policy =>
         policy.RequireRole(Policies.ConferenceRemarks.ManageAllowedRoles));
 
@@ -449,6 +476,18 @@ builder.Services.AddScoped<IActivityTypeService, ActivityTypeService>();
 builder.Services.AddScoped<IActivityExportService, ActivityExportService>();
 builder.Services.Configure<UserLifecycleOptions>(
     builder.Configuration.GetSection("UserLifecycle"));
+builder.Services.AddOptions<AdminLoginMonitoringOptions>()
+    .Bind(builder.Configuration.GetSection(AdminLoginMonitoringOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<AdminLoginMonitoringOptions>, AdminLoginMonitoringOptionsValidator>();
+builder.Services.AddOptions<AdminRecoveryOptions>()
+    .Bind(builder.Configuration.GetSection(AdminRecoveryOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<AdminRecoveryOptions>, AdminRecoveryOptionsValidator>();
+builder.Services.AddOptions<ErpUsageOptions>()
+    .Bind(builder.Configuration.GetSection(ErpUsageOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<ErpUsageOptions>, ErpUsageOptionsValidator>();
 builder.Services.Configure<IprAttachmentOptions>(
     builder.Configuration.GetSection("IprAttachments"));
 builder.Services.Configure<FfcAttachmentOptions>(
@@ -457,7 +496,7 @@ builder.Services.Configure<FileDownloadOptions>(
     builder.Configuration.GetSection("FileDownload"));
 builder.Services.Configure<CompendiumPdfOptions>(
     builder.Configuration.GetSection("CompendiumPdf"));
-builder.Services.AddSingleton<IprAttachmentStorage>();
+builder.Services.AddScoped<IprAttachmentStorage>();
 builder.Services.AddScoped<IFileSecurityValidator, FileSecurityValidator>();
 builder.Services.AddScoped<IFfcAttachmentStorage, FfcAttachmentStorage>();
 builder.Services.AddScoped<IIprReadService, IprReadService>();
@@ -465,6 +504,49 @@ builder.Services.AddScoped<IIprWriteService, IprWriteService>();
 builder.Services.AddScoped<IUserLifecycleService, UserLifecycleService>();
 builder.Services.AddHostedService<UserPurgeWorker>();
 builder.Services.AddSingleton<IClock, SystemClock>();
+// SECTION: Shared Admin module foundations
+builder.Services.AddScoped<IAdminTimeService, AdminTimeService>();
+builder.Services.AddSingleton<IAdminRoleDescriptorCatalog, AdminRoleDescriptorCatalog>();
+builder.Services.AddSingleton<IAuditActionPresentationCatalog, AuditActionPresentationCatalog>();
+builder.Services.AddSingleton<IAdminClientDescriptorService, AdminClientDescriptorService>();
+builder.Services.AddSingleton<IAdminCapabilityCatalog, AdminCapabilityCatalog>();
+builder.Services.AddSingleton<IAdminAuditPayloadParser, AdminAuditPayloadParser>();
+builder.Services.AddSingleton<IAdminAuditEntityLinkResolver, AdminAuditEntityLinkResolver>();
+builder.Services.AddSingleton<IAdminWorkerStatusRegistry, AdminWorkerStatusRegistry>();
+builder.Services.AddSingleton<IAdminNavigationUrlBuilder, AdminNavigationUrlBuilder>();
+builder.Services.AddScoped<IUserAccountStateResolver, UserAccountStateResolver>();
+builder.Services.AddScoped<ISafeCsvWriter, SafeCsvWriter>();
+builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
+builder.Services.AddScoped<IAdminHierarchyValidationService, AdminHierarchyValidationService>();
+builder.Services.AddScoped<IAdminMasterDataCommandService, AdminMasterDataCommandService>();
+builder.Services.AddScoped<IMasterDataAdministrationQueryService, MasterDataAdministrationQueryService>();
+builder.Services.AddScoped<IAdminMasterDataIntegrityService, AdminMasterDataIntegrityService>();
+builder.Services.AddScoped<ICelebrationAdministrationService, CelebrationAdministrationService>();
+builder.Services.AddScoped<ICalendarRecoveryService, CalendarRecoveryService>();
+builder.Services.AddScoped<IHolidayAdminService, HolidayAdminService>();
+builder.Services.AddScoped<IOfficeCalendarService, OfficeCalendarService>();
+builder.Services.AddSingleton<IErpUsageModuleCatalog, ErpUsageModuleCatalog>();
+builder.Services.AddScoped<IUserActivityRecorder, UserActivityRecorder>();
+builder.Services.AddScoped<IErpUsageQueryService, ErpUsageQueryService>();
+builder.Services.AddScoped<IErpCommandAdoptionQueryService, ErpCommandAdoptionQueryService>();
+builder.Services.AddScoped<IErpUsagePatternQueryService, ErpUsagePatternQueryService>();
+builder.Services.AddHostedService<UserActivityRetentionWorker>();
+builder.Services.AddSingleton<IPdfIngestionRunGate, PdfIngestionRunGate>();
+builder.Services.AddSingleton<IPdfIngestionRunHistory, PdfIngestionRunHistory>();
+builder.Services.AddScoped<IPdfIngestionCoordinator, PdfIngestionCoordinator>();
+builder.Services.AddScoped<IAdminRecoverySummaryService, AdminRecoverySummaryService>();
+builder.Services.AddScoped<IProjectRecoveryQueryService, ProjectRecoveryQueryService>();
+builder.Services.AddScoped<IDocumentRecoveryQueryService, DocumentRecoveryQueryService>();
+builder.Services.AddScoped<IAdminMaintenanceSummaryService, AdminMaintenanceSummaryService>();
+builder.Services.AddScoped<ILegacyImportPreflightService, LegacyImportPreflightService>();
+builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
+builder.Services.AddScoped<IAdminLoginOverviewService, AdminLoginOverviewService>();
+builder.Services.AddScoped<IAdminLoginMonitoringService, AdminLoginMonitoringService>();
+builder.Services.AddScoped<IAdminUserQueryService, AdminUserQueryService>();
+builder.Services.AddScoped<IAdminAccessGovernanceService, AdminAccessGovernanceService>();
+builder.Services.AddScoped<IAdminLogQueryService, AdminLogQueryService>();
+builder.Services.AddScoped<IDatabaseHealthService, DatabaseHealthService>();
+builder.Services.AddScoped<IAdminSystemHealthService, AdminSystemHealthService>();
 builder.Services.AddSingleton<IActionTrackerClock, SystemActionTrackerClock>();
 builder.Services.AddScoped<ITodoService, TodoService>();
 // SECTION: My Notebook services
@@ -478,17 +560,19 @@ builder.Services.AddScoped<INotebookTodoImportService, NotebookTodoImportService
 // SECTION: Project Ideas services
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaReadService>();
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaCommandService>();
-builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.IProjectIdeaCommandService>(sp =>
-    sp.GetRequiredService<ProjectManagement.Services.ProjectIdeas.ProjectIdeaCommandService>());
+builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.IProjectIdeaCommandService>(serviceProvider =>
+    serviceProvider.GetRequiredService<ProjectManagement.Services.ProjectIdeas.ProjectIdeaCommandService>());
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaPermissionService>();
 builder.Services.AddScoped<ProjectManagement.Services.ProjectIdeas.ProjectIdeaDocumentService>();
 // SECTION: Project Officer workspace services
 builder.Services.AddScoped<ProjectManagement.Services.Navigation.DefaultLandingPageResolver>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectOfficerWorkspaceService>();
+builder.Services.AddScoped<ProjectManagement.Services.Workspace.IProjectOfficerConferenceActionQuery, ProjectManagement.Services.Workspace.ProjectOfficerConferenceActionQuery>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerWorkloadReadService, ProjectManagement.Services.Workspace.OfficerWorkloadReadService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IOfficerConferenceReadService, ProjectManagement.Services.Workspace.OfficerConferenceReadService>();
 builder.Services.AddScoped<ProjectManagement.Services.ConferenceRemarks.IConferenceRemarkCommandService, ProjectManagement.Services.ConferenceRemarks.ConferenceRemarkCommandService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.IConferenceTaskCommandService, ProjectManagement.Services.Workspace.ConferenceTaskCommandService>();
+builder.Services.AddScoped<ProjectManagement.Services.Workspace.IConferenceIdeaCommandService, ProjectManagement.Services.Workspace.ConferenceIdeaCommandService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.CommandWorkspaceService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.ProjectRecordHealthService>();
 builder.Services.AddScoped<ProjectManagement.Services.Workspace.WorkspaceNudgeService>();
@@ -521,8 +605,24 @@ builder.Services.AddHostedService<ProjectRetentionWorker>();
 builder.Services.AddScoped<PlanDraftService>();
 builder.Services.AddScoped<PlanApprovalService>();
 builder.Services.AddScoped<INavigationProvider, RoleBasedNavigationProvider>();
+
+// SECTION: Proliferation read-model services
+// Shared aggregate reader used by overview, tracker, summary and export services.
+builder.Services.AddScoped<ProliferationAggregateReadService>();
 builder.Services.AddScoped<ProliferationOverviewService>();
 builder.Services.AddScoped<IProliferationSummaryReadService, ProliferationSummaryReadService>();
+builder.Services.AddScoped<ProliferationDataQualityService>();
+builder.Services.AddScoped<IProliferationProjectReadService, ProliferationProjectReadService>();
+
+// SECTION: Project briefing decks
+builder.Services.AddScoped<IProjectBriefingSelectionService, ProjectBriefingSelectionService>();
+builder.Services.AddScoped<IProjectBriefingCostResolver, ProjectBriefingCostResolver>();
+builder.Services.AddScoped<IProjectBriefingExternalStatusService, ProjectBriefingExternalStatusService>();
+builder.Services.AddScoped<IProjectBriefingPhotoLoader, ProjectBriefingPhotoLoader>();
+builder.Services.AddScoped<IProjectBriefingDeckService, ProjectBriefingDeckService>();
+builder.Services.AddScoped<IProjectBriefingDataService, ProjectBriefingDataService>();
+builder.Services.AddScoped<IProjectBriefingPowerPointExportService, ProjectBriefingPowerPointExportService>();
+builder.Services.AddSingleton<IProjectBriefingSlideComposer, ProjectBriefingSlideComposer>();
 
 // SECTION: Simulators Compendium (Projects module)
 builder.Services.AddScoped<ICompendiumReadService, CompendiumReadService>();
@@ -532,6 +632,8 @@ builder.Services.AddScoped<ProliferationSubmissionService>();
 builder.Services.AddScoped<ProliferationManageService>();
 // SECTION: Proliferation reports services
 builder.Services.AddScoped<ProliferationReportsService>();
+builder.Services.AddScoped<ProliferationAnalysisService>();
+builder.Services.AddScoped<ProliferationAnalysisExcelBuilder>();
 builder.Services.AddSingleton<IWorkflowStageMetadataProvider, WorkflowStageMetadataProvider>();
 builder.Services.AddSingleton<IWorkflowChecklistProvider, WorkflowChecklistProvider>();
 builder.Services.AddScoped<IProjectStageWorkflowPolicy, ProjectStageWorkflowPolicy>();
@@ -636,7 +738,21 @@ builder.Services.AddScoped<TrainingTrackerReadService>();
 builder.Services.AddScoped<TrainingWriteService>();
 builder.Services.AddScoped<ITrainingNotificationService, TrainingNotificationService>();
 builder.Services.AddScoped<ITrainingExportService, TrainingExportService>();
+builder.Services.AddScoped<IFfcPortfolioService, FfcPortfolioService>();
+builder.Services.AddScoped<IFfcFootprintService, FfcFootprintService>();
+builder.Services.AddScoped<IFfcPresentationDataService, FfcPresentationDataService>();
+builder.Services.AddScoped<IFfcPowerPointExportService, FfcPowerPointExportService>();
+builder.Services.AddSingleton<IFfcPresentationMapRenderer, FfcPresentationMapRenderer>();
+builder.Services.AddSingleton<IFfcSlideComposer, FfcSlideComposer>();
+builder.Services.AddScoped<IFfcProgressService, FfcProgressService>();
 builder.Services.AddScoped<IFfcQueryService, FfcQueryService>();
+builder.Services.AddSingleton<FfcDetailedWordDocumentBuilder>();
+builder.Services.AddSingleton<FfcDetailedExcelWorkbookBuilder>();
+builder.Services.AddScoped<IFfcDetailedTableExportService, FfcDetailedTableExportService>();
+builder.Services.AddScoped<IFfcRecordWorkspaceService, FfcRecordWorkspaceService>();
+builder.Services.AddScoped<IFfcRecordCommandService, FfcRecordCommandService>();
+builder.Services.AddScoped<IFfcProjectCommandService, FfcProjectCommandService>();
+builder.Services.AddScoped<IFfcAttachmentCommandService, FfcAttachmentCommandService>();
 builder.Services.AddScoped<IProgressReviewService, ProgressReviewService>();
 builder.Services.AddSingleton<ITrainingExcelWorkbookBuilder, TrainingExcelWorkbookBuilder>();
 builder.Services.AddOptions<ProjectPhotoOptions>()
@@ -1136,12 +1252,50 @@ app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<ErpUsageMiddleware>();
 app.UseAntiforgery();
 
 app.MapHub<NotificationsHub>("/hubs/notifications")
     .RequireAuthorization();
 
 app.MapControllers();
+
+app.MapPost("/api/usage/heartbeat", async (
+        ErpUsageHeartbeatRequest request,
+        HttpContext httpContext,
+        IAntiforgery antiforgery,
+        IErpUsageModuleCatalog moduleCatalog,
+        IUserActivityRecorder recorder,
+        CancellationToken cancellationToken) =>
+    {
+        try
+        {
+            await antiforgery.ValidateRequestAsync(httpContext);
+        }
+        catch (AntiforgeryValidationException)
+        {
+            return Results.BadRequest(new { message = "The request could not be validated." });
+        }
+
+        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (!moduleCatalog.IsKnownModule(request.ModuleKey))
+        {
+            return Results.BadRequest(new { message = "The ERP module is not recognised." });
+        }
+
+        await recorder.RecordAsync(
+            userId,
+            request.ModuleKey,
+            UserActivitySignal.InteractiveHeartbeat,
+            cancellationToken: cancellationToken);
+        return Results.NoContent();
+    })
+    .RequireAuthorization();
 
 // Calendar API endpoints
 var eventsApi = app.MapGroup("/calendar/events");
@@ -1332,9 +1486,10 @@ eventsApi.MapGet("", async (ApplicationDbContext db,
 }).RequireAuthorization();
 
 eventsApi.MapGet("/holidays", async (
-        ApplicationDbContext db,
+        IOfficeCalendarService officeCalendar,
         [FromQuery(Name = "start")] DateTimeOffset start,
-        [FromQuery(Name = "end")] DateTimeOffset end) =>
+        [FromQuery(Name = "end")] DateTimeOffset end,
+        CancellationToken cancellationToken) =>
 {
     if (end <= start)
     {
@@ -1347,38 +1502,23 @@ eventsApi.MapGet("/holidays", async (
     }
 
     var tz = IstClock.TimeZone;
-
     var localStart = TimeZoneInfo.ConvertTime(start, tz);
     var localEnd = TimeZoneInfo.ConvertTime(end, tz);
-
     var startDate = DateOnly.FromDateTime(localStart.Date);
     var endDate = DateOnly.FromDateTime(localEnd.Date);
+    var days = await officeCalendar.GetCalendarDaysAsync(startDate, endDate, cancellationToken);
 
-    var holidays = await db.Holidays
-        .AsNoTracking()
-        .Where(h => h.Date >= startDate && h.Date < endDate)
-        .OrderBy(h => h.Date)
-        .ToListAsync();
-
-    var items = holidays
-        .Select(h =>
-        {
-            var holidayStartLocal = h.Date.ToDateTime(TimeOnly.MinValue);
-            var holidayEndLocal = h.Date.AddDays(1).ToDateTime(TimeOnly.MinValue);
-
-            var startLocalOffset = new DateTimeOffset(holidayStartLocal, tz.GetUtcOffset(holidayStartLocal));
-            var endLocalOffset = new DateTimeOffset(holidayEndLocal, tz.GetUtcOffset(holidayEndLocal));
-
-            return new CalendarHolidayVm(
-                Date: h.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                Name: h.Name,
-                SkipWeekends: null,
-                StartUtc: startLocalOffset.ToUniversalTime(),
-                EndUtc: endLocalOffset.ToUniversalTime());
-        })
-        .ToList();
-
-    return Results.Ok(items);
+    return Results.Ok(days.Select(day => new CalendarHolidayDayVm(
+        Date: day.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+        IsOfficeClosed: day.IsOfficeClosed,
+        ClosureType: day.ClosureType,
+        Entries: day.Entries.Select(entry => new CalendarHolidayEntryVm(
+            entry.Id,
+            entry.Name,
+            entry.Type.ToString(),
+            entry.IsObservedAsOfficeHoliday,
+            entry.AffectsSchedule,
+            entry.AuthorityReference)).ToArray())));
 }).RequireAuthorization();
 
 eventsApi.MapGet("/{id:guid}", async (Guid id, ApplicationDbContext db) =>
@@ -1584,11 +1724,6 @@ projectsApi.MapPost("/{id:int}/restore-trash", async (
     ProjectModerationService moderation,
     CancellationToken cancellationToken) =>
 {
-    if (!httpContext.User.IsInRole("Admin"))
-    {
-        return Results.Forbid();
-    }
-
     var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
     if (string.IsNullOrEmpty(userId))
     {
@@ -1597,7 +1732,7 @@ projectsApi.MapPost("/{id:int}/restore-trash", async (
 
     var result = await moderation.RestoreFromTrashAsync(id, userId, cancellationToken);
     return MapProjectModerationResult(result);
-});
+}).RequireAuthorization(AdminPolicies.RecoveryManage);
 
 projectsApi.MapPost("/{id:int}/purge", async (
     int id,
@@ -1606,11 +1741,6 @@ projectsApi.MapPost("/{id:int}/purge", async (
     PurgeProjectRequest request,
     CancellationToken cancellationToken) =>
 {
-    if (!httpContext.User.IsInRole("Admin"))
-    {
-        return Results.Forbid();
-    }
-
     var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
     if (string.IsNullOrEmpty(userId))
     {
@@ -1619,7 +1749,7 @@ projectsApi.MapPost("/{id:int}/purge", async (
 
     var result = await moderation.PurgeAsync(id, userId, request.RemoveAssets, cancellationToken);
     return MapProjectModerationResult(result);
-});
+}).RequireAuthorization(AdminPolicies.RecoveryManage);
 
 var processFlowApi = app.MapGroup("/api/processes/{version}/flow")
     .RequireAuthorization("Checklist.View");

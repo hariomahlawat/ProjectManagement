@@ -1,0 +1,59 @@
+@using ProjectManagement.ViewModels.Workspace
+@model ProjectOfficerProjectTableRenderVm
+@if (!Model.Rows.Any())
+{
+    <div class="po-empty"><i class="bi bi-kanban" aria-hidden="true"></i><div><strong>No assigned projects</strong><span>Projects assigned to you will appear here.</span></div></div>
+}
+else
+{
+    <div class="po-project-summary-list @(Model.Compact ? "is-compact" : string.Empty)">
+        @foreach (var row in Model.Rows)
+        {
+            var timelineCss = WorkspaceDisplayHelpers.TimelineStatusCss(row);
+            var critical = row.UpdateStatus.Equals("ActionRequired", StringComparison.OrdinalIgnoreCase) || timelineCss == "danger";
+            var warning = !critical && (row.UpdateStatus.Equals("Attention", StringComparison.OrdinalIgnoreCase) || timelineCss == "warning" || row.RecordGapCount > 0);
+            var tone = critical ? "danger" : warning ? "warning" : "good";
+            var attentionTitle = row.HasOverdueCurrentStage || row.HasCurrentStageIssue || row.HasBackfill
+                ? WorkspaceDisplayHelpers.TimelineStatusLabel(row)
+                : row.UpdateStatus is "ActionRequired" or "Attention"
+                    ? WorkspaceDisplayHelpers.ProjectUpdateStatusLabel(row)
+                    : row.RecordGapCount > 0
+                        ? $"{row.RecordGapCount} record gap{(row.RecordGapCount == 1 ? string.Empty : "s")}" 
+                        : "Current";
+            var attentionDetail = row.HasOverdueCurrentStage || row.HasCurrentStageIssue || row.HasBackfill
+                ? WorkspaceDisplayHelpers.TimelineStatusDetail(row)
+                : row.UpdateStatus is "ActionRequired" or "Attention"
+                    ? WorkspaceDisplayHelpers.ProjectUpdateStatusDetail(row)
+                    : $"{row.RecordHealthPercent}% record completeness";
+            var fullActionLabel = WorkspaceDisplayHelpers.ProjectNextActionLabel(row);
+            var compactActionLabel = fullActionLabel.Equals("Set current-stage PDC", StringComparison.OrdinalIgnoreCase)
+                ? "Set PDC"
+                : fullActionLabel;
+
+            <article class="po-project-summary po-project-summary--@tone @(Model.Compact ? "po-project-summary--compact" : string.Empty)">
+                <span class="po-project-summary__rail" aria-hidden="true"></span>
+                <div class="po-project-summary__identity">
+                    <a href="@row.OpenUrl">@row.ProjectName</a>
+                    <span><b>@row.CurrentStageCode</b> · @WorkspaceDisplayHelpers.CurrentStageDurationLabel(row)</span>
+                </div>
+                <div class="po-project-summary__attention">
+                    <strong>@attentionTitle</strong>
+                    @if (!Model.Compact)
+                    {
+                        <span>@attentionDetail</span>
+                    }
+                </div>
+                <div class="po-project-summary__records">
+                    <strong>@row.RecordHealthPercent%</strong>
+                    <span>@row.RecordGapCount gap@(row.RecordGapCount == 1 ? string.Empty : "s")</span>
+                </div>
+                <a class="po-project-summary__action"
+                   href="@row.NextActionUrl"
+                   aria-label="@fullActionLabel for @row.ProjectName"
+                   title="@fullActionLabel">
+                    <span>@(Model.Compact ? compactActionLabel : fullActionLabel)</span><i class="bi bi-arrow-right" aria-hidden="true"></i>
+                </a>
+            </article>
+        }
+    </div>
+}

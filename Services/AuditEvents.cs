@@ -462,7 +462,8 @@ public static class Audit
             int? year,
             string preferenceUserId,
             string actorUserId,
-            string changeType)
+            string changeType,
+            string? reason = null)
         {
             var data = new Dictionary<string, string?>
             {
@@ -470,7 +471,8 @@ public static class Audit
                 ["Source"] = source.ToDisplayName(),
                 ["Year"] = year?.ToString(CultureInfo.InvariantCulture),
                 ["PreferenceUserId"] = preferenceUserId,
-                ["ChangeType"] = changeType
+                ["ChangeType"] = changeType,
+                ["Reason"] = reason
             };
 
             return new AuditEvent("ProjectOfficeReports.Proliferation.PreferenceChanged", actorUserId, data);
@@ -533,14 +535,16 @@ public static class Audit
             ProliferationSource source,
             int year,
             bool approved,
-            string decidedByUserId)
+            string decidedByUserId,
+            string? reason = null)
         {
             var data = new Dictionary<string, string?>
             {
                 ["ProjectId"] = projectId.ToString(),
                 ["Source"] = source.ToDisplayName(),
                 ["Year"] = year.ToString(CultureInfo.InvariantCulture),
-                ["Approved"] = approved ? "true" : "false"
+                ["Approved"] = approved ? "true" : "false",
+                ["Reason"] = reason
             };
 
             return new AuditEvent("ProjectOfficeReports.ProliferationYearlyDecided", decidedByUserId, data);
@@ -551,14 +555,16 @@ public static class Audit
             ProliferationSource source,
             DateOnly proliferationDate,
             bool approved,
-            string decidedByUserId)
+            string decidedByUserId,
+            string? reason = null)
         {
             var data = new Dictionary<string, string?>
             {
                 ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
                 ["Source"] = source.ToDisplayName(),
                 ["ProliferationDate"] = proliferationDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                ["Approved"] = approved ? "true" : "false"
+                ["Approved"] = approved ? "true" : "false",
+                ["Reason"] = reason
             };
 
             return new AuditEvent("ProjectOfficeReports.ProliferationGranularDecided", decidedByUserId, data);
@@ -584,6 +590,34 @@ public static class Audit
             };
 
             return new AuditEvent("ProjectOfficeReports.Proliferation.YearlyRecorded", actorUserId, data);
+        }
+
+        public static AuditEvent ProliferationDataQualityCorrected(
+            Guid recordId,
+            string recordKind,
+            int projectId,
+            ProliferationSource source,
+            string? oldValue,
+            string? newValue,
+            string? oldQuantity,
+            string? newQuantity,
+            string reason,
+            string actorUserId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["RecordId"] = recordId.ToString(),
+                ["RecordKind"] = recordKind,
+                ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
+                ["Source"] = source.ToDisplayName(),
+                ["OldValue"] = oldValue,
+                ["NewValue"] = newValue,
+                ["OldQuantity"] = oldQuantity,
+                ["NewQuantity"] = newQuantity,
+                ["Reason"] = reason
+            };
+
+            return new AuditEvent("ProjectOfficeReports.Proliferation.DataQualityCorrected", actorUserId, data);
         }
 
         public static AuditEvent ProliferationGranularRecorded(

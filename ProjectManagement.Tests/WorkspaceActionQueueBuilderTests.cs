@@ -49,7 +49,7 @@ public sealed class WorkspaceActionQueueBuilderTests
 
         Assert.Equal(3, result.TotalCount);
         Assert.Equal(2, result.Items.Count(item => item.Type == "Timeline"));
-        Assert.Contains(result.Items, item => item.Title == "Current-stage project" && item.ActionText == "Update dates");
+        Assert.Contains(result.Items, item => item.Title == "Current-stage project" && item.ActionText == "Set current-stage PDC");
         Assert.Contains(result.Items, item => item.Title == "Historical project" && item.ActionText == "Complete timeline");
 
         Assert.Equal(2, result.Groups.Count);
@@ -105,14 +105,18 @@ public sealed class WorkspaceActionQueueBuilderTests
         {
             new WorkspaceTaskVm
             {
+                TaskId = 1,
                 Title = "Shared title",
+                DueDate = new DateOnly(2026, 7, 10),
                 IsOverdue = true,
                 DaysOverdue = 2,
                 OpenUrl = "/Tasks/1"
             },
             new WorkspaceTaskVm
             {
+                TaskId = 2,
                 Title = "Shared title",
+                DueDate = new DateOnly(2026, 7, 11),
                 IsOverdue = true,
                 DaysOverdue = 1,
                 OpenUrl = "/Tasks/2"
@@ -202,6 +206,55 @@ public sealed class WorkspaceActionQueueBuilderTests
             Array.Empty<WorkspaceProjectMatrixRowVm>());
 
         Assert.Equal(4, result.TotalCount);
-        Assert.Single(result.Items);
+        Assert.Equal(2, result.Items.Count);
+        var aggregate = Assert.Single(result.Items, item => item.WorkItemKey == "aots:inbox");
+        Assert.Equal(3, aggregate.RepresentedActionCount);
+        Assert.Equal(4, result.Summary.AotsCount);
     }
+    [Fact]
+    public void Build_PrioritisesPendingConferenceDirectionAndGroupsItWithItsProject()
+    {
+        var rows = new[]
+        {
+            new WorkspaceProjectMatrixRowVm
+            {
+                ProjectId = 42,
+                ProjectName = "Directed project",
+                HasCurrentStageIssue = true,
+                IsCurrentStagePdcMissing = true,
+                TimelineUrl = "/Projects/42/Timeline"
+            }
+        };
+        var directions = new[]
+        {
+            new WorkspaceConferenceDirectionActionVm
+            {
+                Kind = ConferenceItemKind.Project,
+                ItemId = 42,
+                ProjectId = 42,
+                Title = "Directed project",
+                DirectionText = "Submit the revised concept paper.",
+                IssuedAtUtc = new DateTime(2026, 7, 12, 8, 0, 0, DateTimeKind.Utc),
+                ActionUrl = "/Projects/42/Remarks"
+            }
+        };
+
+        var result = WorkspaceActionQueueBuilder.Build(
+            Array.Empty<WorkspaceAttentionItemVm>(),
+            Array.Empty<WorkspaceTaskVm>(),
+            Array.Empty<WorkspaceAttentionItemVm>(),
+            Array.Empty<WorkspaceIdeaVm>(),
+            Array.Empty<WorkspaceAotsDocumentVm>(),
+            0,
+            rows,
+            directions);
+
+        Assert.Equal(2, result.TotalCount);
+        Assert.Equal("Conference", result.Items[0].Type);
+        Assert.Equal("Add progress", result.Items[0].ActionText);
+        var group = Assert.Single(result.Groups);
+        Assert.Equal(42, group.ProjectId);
+        Assert.Equal(new[] { "Conference", "Timeline" }, group.Actions.Select(item => item.Type));
+    }
+
 }

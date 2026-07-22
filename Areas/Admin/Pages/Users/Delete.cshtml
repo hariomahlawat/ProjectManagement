@@ -1,49 +1,147 @@
 @page "{id}"
 @model ProjectManagement.Areas.Admin.Pages.Users.DeleteModel
-<nav aria-label="breadcrumb" class="mb-2">
-  <ol class="breadcrumb small mb-0">
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Users/Index">Users</a></li>
-    <li class="breadcrumb-item active" aria-current="page">Delete</li>
-  </ol>
-</nav>
-<h4 class="mb-2">Delete account?</h4>
-@if (Model.UserEntity?.PendingDeletion ?? false)
-{
-    var due = Model.UserEntity.DeletionRequestedUtc!.Value.AddMinutes(Model.Options.UndoWindowMinutes);
-    <div class="alert alert-warning">
-        Account scheduled for deletion at @TimeFmt.ToIst(due).
-    </div>
-    @if (DateTime.UtcNow < due)
-    {
-        <form method="post" asp-page-handler="Undo">
-            <button class="btn btn-danger" type="submit">Undo</button>
-            <a asp-page="Index" class="btn btn-secondary">Back</a>
-        </form>
-    }
-    else
-    {
-        <a asp-page="Index" class="btn btn-secondary">Back</a>
-    }
+@{
+    ViewData["Title"] = Model.Account?.AccountState.State == AdminUserAccountState.PendingDeletion
+        ? "Review deletion request"
+        : "Delete account";
 }
-else if (Model.UserEntity is not null)
+
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+
+@if (Model.Account is not null)
 {
-<div class="pm-card pm-shadow p-4 p-md-5">
-  <p>Deleting an account permanently removes the user’s sign-in and access. Project records previously created by this user will <strong>not</strong> be removed, but they may lose their owner/author link and any remarks or comments may lose their association. Only delete accounts that were created by mistake. For all other cases, <strong>disable</strong> the account instead.</p>
-  <p>This action can be undone for the next <strong>@Model.Options.UndoWindowMinutes minutes</strong>, after which it is irreversible.</p>
-  <form method="post" id="deleteForm">
-    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-    <input id="confirmUser" asp-for="ConfirmUser" class="form-control" placeholder="Type username to confirm" data-expected="@Model.UserEntity.UserName" data-button="btnDelete" />
-    <div class="form-check mt-2">
-      <input class="form-check-input" asp-for="Ack" id="ack" />
-      <label class="form-check-label" for="ack">I understand this is permanent after the undo window.</label>
+    <div class="admin-operation-layout">
+        <section class="admin-operation-card admin-operation-card--danger" aria-labelledby="delete-account-title">
+            <partial name="~/Areas/Admin/Pages/Shared/_AdminUserIdentity.cshtml" model="Model.Account" />
+            <div class="admin-operation-card__content">
+                @if (Model.Account.AccountState.State == AdminUserAccountState.PendingDeletion)
+                {
+                    <div class="admin-operation-heading">
+                        <span class="admin-operation-heading__icon admin-operation-heading__icon--danger"><i class="bi bi-hourglass-split" aria-hidden="true"></i></span>
+                        <div>
+                            <h2 id="delete-account-title">Deletion is pending</h2>
+                            <p>The account is disabled and scheduled for permanent removal after the configured undo window.</p>
+                        </div>
+                    </div>
+
+                    <dl class="admin-definition-list admin-definition-list--boxed">
+                        <div>
+                            <dt>Requested</dt>
+                            <dd>@Model.FormatIst(Model.Account.DeletionRequestedUtc)</dd>
+                        </div>
+                        <div>
+                            <dt>Requested by</dt>
+                            <dd>@(Model.Account.DeletionRequestedBy ?? "Unknown administrator")</dd>
+                        </div>
+                        <div>
+                            <dt>Scheduled removal</dt>
+                            <dd class="text-danger-emphasis">@Model.FormatIst(Model.Account.ScheduledPurgeUtc)</dd>
+                        </div>
+                    </dl>
+
+                    @if (Model.UndoWindowOpen)
+                    {
+                        <div class="admin-inline-notice admin-inline-notice--warning">
+                            <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+                            <span>Withdrawing the request restores the account state that existed before deletion was requested.</span>
+                        </div>
+                        <form method="post" asp-page-handler="Undo" class="admin-operation-actions">
+                            <a asp-page="./Details" asp-route-id="@Model.Account.Id" class="btn btn-outline-secondary">Back</a>
+                            <button class="btn btn-warning" type="submit">
+                                <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+                                Withdraw deletion request
+                            </button>
+                        </form>
+                    }
+                    else
+                    {
+                        <div class="admin-inline-notice admin-inline-notice--danger">
+                            <i class="bi bi-exclamation-octagon" aria-hidden="true"></i>
+                            <span>The undo window has expired. The lifecycle worker will remove the account when the purge operation runs.</span>
+                        </div>
+                        <div class="admin-operation-actions">
+                            <a asp-page="./Details" asp-route-id="@Model.Account.Id" class="btn btn-outline-secondary">Back to account</a>
+                        </div>
+                    }
+                }
+                else if (!Model.Account.CanRequestHardDelete)
+                {
+                    <div class="admin-operation-heading">
+                        <span class="admin-operation-heading__icon admin-operation-heading__icon--warning"><i class="bi bi-shield-exclamation" aria-hidden="true"></i></span>
+                        <div>
+                            <h2 id="delete-account-title">Permanent deletion is not available</h2>
+                            <p>This account is outside the controlled hard-deletion window. Preserve audit and ownership history by disabling the account instead.</p>
+                        </div>
+                    </div>
+                    <div class="admin-operation-actions">
+                        <a asp-page="./Details" asp-route-id="@Model.Account.Id" class="btn btn-outline-secondary">Back</a>
+                        <a asp-page="./Disable" asp-route-id="@Model.Account.Id" class="btn btn-warning">
+                            <i class="bi bi-person-slash" aria-hidden="true"></i>
+                            Disable account
+                        </a>
+                    </div>
+                }
+                else
+                {
+                    <div class="admin-operation-heading">
+                        <span class="admin-operation-heading__icon admin-operation-heading__icon--danger"><i class="bi bi-person-x" aria-hidden="true"></i></span>
+                        <div>
+                            <h2 id="delete-account-title">Request permanent deletion</h2>
+                            <p>Use this only when an account was created by mistake. Normal departures and access changes must be handled by disabling the account.</p>
+                        </div>
+                    </div>
+
+                    <div class="admin-inline-notice admin-inline-notice--danger">
+                        <i class="bi bi-exclamation-octagon" aria-hidden="true"></i>
+                        <div>
+                            <strong>High-impact operation</strong>
+                            <span>Permanent removal may break user attribution and ownership links after the undo window expires.</span>
+                        </div>
+                    </div>
+
+                    <form method="post" class="admin-operation-form" data-admin-confirmation novalidate>
+                        <div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
+                        <div class="admin-confirmation-box">
+                            <label asp-for="ConfirmUser">Type <strong>@Model.Account.UserName</strong> to confirm</label>
+                            <input asp-for="ConfirmUser"
+                                   class="form-control"
+                                   autocomplete="off"
+                                   spellcheck="false"
+                                   data-admin-confirm-username
+                                   data-expected="@Model.Account.UserName" />
+                            <span asp-validation-for="ConfirmUser" class="text-danger"></span>
+
+                            <label class="admin-confirm-check">
+                                <input asp-for="Acknowledge" class="form-check-input" data-admin-confirm-ack />
+                                <span>I confirm this account was created by mistake and understand that permanent removal follows after the undo window.</span>
+                            </label>
+                            <span asp-validation-for="Acknowledge" class="text-danger"></span>
+                        </div>
+
+                        <div class="admin-operation-actions">
+                            <a asp-page="./Details" asp-route-id="@Model.Account.Id" class="btn btn-outline-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-danger" data-admin-confirm-submit>
+                                <i class="bi bi-person-x" aria-hidden="true"></i>
+                                Request deletion
+                            </button>
+                        </div>
+                    </form>
+                }
+            </div>
+        </section>
+
+        <aside class="admin-operation-guidance">
+            <h2>Retention rule</h2>
+            <ul>
+                <li>Delete only accounts created in error and still within the configured hard-delete window.</li>
+                <li>Disable established accounts to retain accountability, project ownership and audit history.</li>
+                <li>Deletion requests remain reversible only until the scheduled purge time.</li>
+            </ul>
+        </aside>
     </div>
-    <button id="btnDelete" type="button" class="btn btn-danger mt-3" data-bs-toggle="modal" data-bs-target="#confirmDelete" disabled>Delete account</button>
-    <a asp-page="Index" class="btn btn-secondary mt-3">Cancel</a>
-  </form>
-  <partial name="../Shared/_ConfirmModal" model="@(new ConfirmModal("confirmDelete", "Delete account", "This action cannot be undone after the grace period.", "deleteForm", "Delete"))" />
-</div>
+}
+
 @section Scripts {
-  <script type="module" src="~/js/users/confirm-user.js" asp-append-version="true"></script>
-}
+    <partial name="_ValidationScriptsPartial" />
+    <script type="module" src="~/js/admin/admin-users.js" asp-append-version="true"></script>
 }

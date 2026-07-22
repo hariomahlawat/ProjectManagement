@@ -17,6 +17,7 @@ export const SaveState = Object.freeze({
   Idle: 'idle',
   Saving: 'saving',
   Saved: 'saved',
+  Forbidden: 'forbidden',
   Error: 'error'
 });
 
@@ -136,6 +137,51 @@ export function initNotebookEditor(board, view, options = {}) {
   };
   const focusableSelector = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
+  function accessLevel(target = item) {
+    return String(target?.accessLevel || 'None').toLowerCase();
+  }
+
+  function hasCapability(target, property, minimumAccess) {
+    if (typeof target?.[property] === 'boolean') return target[property];
+    const rank = { none: 0, viewer: 1, editor: 2, owner: 3 };
+    return (rank[accessLevel(target)] || 0) >= minimumAccess;
+  }
+
+  const canEditContent = (target = item) => hasCapability(target, 'canEditContent', 2);
+  const canManageMetadata = (target = item) => hasCapability(target, 'canManageMetadata', 3);
+
+  function applyAccessMode(target = item) {
+    if (!modal || !target) return;
+    const editable = canEditContent(target);
+    const metadata = canManageMetadata(target);
+    const title = modal.querySelector('[data-modal-title]');
+    const body = modal.querySelector('[data-modal-body]');
+    const toolbar = modal.querySelector('[data-notebook-editor-toolbar]');
+    const labelHost = modal.querySelector('[data-notebook-label-picker]');
+    const banner = modal.querySelector('[data-notebook-access-banner]');
+    const bannerText = modal.querySelector('[data-notebook-access-text]');
+    const bannerIcon = modal.querySelector('[data-notebook-access-icon]');
+
+    if (title) title.readOnly = !editable;
+    if (body) body.readOnly = !editable;
+    checklist?.setReadOnly?.(!editable);
+    if (toolbar) toolbar.hidden = !metadata;
+    if (labelHost) labelHost.hidden = !metadata;
+    modal.classList.toggle('is-read-only', !editable);
+
+    const level = accessLevel(target);
+    if (banner) banner.hidden = level === 'owner';
+    if (bannerText && level !== 'owner') {
+      const owner = target.ownerDisplayName || 'the note owner';
+      bannerText.textContent = level === 'viewer'
+        ? `View only · Shared by ${owner}`
+        : level === 'editor'
+          ? `Can edit · Shared by ${owner}`
+          : 'You no longer have access to this note.';
+    }
+    if (bannerIcon) bannerIcon.className = `bi ${level === 'editor' ? 'bi-pencil-square' : level === 'none' ? 'bi-shield-x' : 'bi-eye'}`;
+  }
+
   function setSaveStatus(text, state = SaveState.Idle) {
     const el = modal?.querySelector('[data-notebook-save-state]');
     if (el) {
@@ -222,6 +268,7 @@ export function initNotebookEditor(board, view, options = {}) {
   }
 
   function markChanged(field) {
+    if (!canEditContent()) return;
     editRevision[field] += 1;
     dirtyState[field] = true;
     if (!draftSourceVersion) draftSourceVersion = item?.version ?? null;
@@ -250,6 +297,7 @@ export function initNotebookEditor(board, view, options = {}) {
   }
 
   function scheduleAutosave() {
+    if (!canEditContent()) return;
     if (isConflictBlocked()) {
       preserveUnsavedDraft();
       return;
@@ -270,6 +318,8 @@ export function initNotebookEditor(board, view, options = {}) {
 
   function configureAutosave() {
     autosave?.stop();
+    autosave = null;
+    if (!canEditContent()) return;
     autosave = createAutosave({
       save: saveEditorPayload,
       onSaving: () => {
@@ -285,7 +335,7 @@ export function initNotebookEditor(board, view, options = {}) {
     const pin = modal.querySelector('[data-modal-pin]');
     pin?.classList.toggle('is-active', Boolean(item?.isPinned));
     if (pin) {
-      const isOwner = String(item?.accessLevel || 'Owner').toLowerCase() === 'owner';
+      const isOwner = canManageMetadata();
       pin.hidden = !isOwner;
       pin.setAttribute('aria-label', item?.isPinned ? 'Unpin note' : 'Pin note');
       pin.disabled = conflictState.active || !isOwner;
@@ -296,7 +346,7 @@ export function initNotebookEditor(board, view, options = {}) {
     item = updated;
     colourPicker?.setValue(updated.colorKey || '');
     labelPicker?.setValue((updated.labels || []).map((label) => label?.name ?? label));
-    const isOwner = String(updated.accessLevel || 'Owner').toLowerCase() === 'owner';
+    const isOwner = canManageMetadata(updated);
     const labelHost = modal.querySelector('[data-notebook-label-picker]');
     if (labelHost) labelHost.hidden = !isOwner;
     modal.dataset.itemType = String(updated.type || 'Note').toLowerCase();
@@ -318,6 +368,8 @@ export function initNotebookEditor(board, view, options = {}) {
     resetEditRevision();
     draftSourceVersion = updated.version ?? null;
     clearValidationBlock();
+    applyAccessMode(updated);
+    configureAutosave();
     renderPin();
   }
 
@@ -383,6 +435,9 @@ export function initNotebookEditor(board, view, options = {}) {
   }
 
   async function saveEditorPayload(data, operation = {}) {
+    if (!canEditContent()) {
+      throw new NotebookApiError('This note is shared with you in view-only mode.', { status: 403, code: 'notebook_view_only' });
+    }
     const submittedRows = item.type === 'Checklist' ? structuredCloneSafe(data.checklistRows || []) : [];
     const submittedRevision = { ...editRevision };
     const requestPayload = { ...data, version: item.version };
@@ -476,6 +531,15 @@ export function initNotebookEditor(board, view, options = {}) {
       setSaveStatus(currentSaveError.message, currentSaveError.kind);
     }
 
+    if (currentSaveError.kind === 'forbidden') {
+      preserveUnsavedDraft();
+      autosave?.cancel?.({ abortActive: true });
+      autosave?.stop?.();
+      autosave = null;
+      applyAccessMode({ ...(item || {}), accessLevel: 'Viewer', canEditContent: false, canManageMetadata: false });
+      void refreshAccessAfterForbidden();
+    }
+
     if (currentSaveError.kind === 'validation') {
       renderValidationErrors(currentSaveError.validationErrors);
       const submittedPayload = buildCurrentPayload();
@@ -499,12 +563,34 @@ export function initNotebookEditor(board, view, options = {}) {
     return { retryable: isRetryableSaveError(error) && !isConflictBlocked() };
   }
 
+  async function refreshAccessAfterForbidden() {
+    if (!item?.id) return;
+    try {
+      const latest = await NotebookApi.getItem(item.id);
+      item = latest;
+      applyAccessMode(latest);
+      renderPin();
+      if (accessLevel(latest) === 'viewer') {
+        setSaveStatus('Your permission was changed to View only. Unsaved changes were not saved.', SaveState.Forbidden);
+      } else if (canEditContent(latest)) {
+        configureAutosave();
+        setSaveStatus('Only the note owner can change that setting.', SaveState.Forbidden);
+      }
+    } catch (refreshError) {
+      if (refreshError?.status === 404 || refreshError?.status === 403) {
+        applyAccessMode({ ...(item || {}), accessLevel: 'None', canEditContent: false, canManageMetadata: false });
+        setSaveStatus('Your access to this note was removed. Unsaved changes were not saved.', SaveState.Forbidden);
+      }
+    }
+  }
+
   function isDevelopment() {
     return document.documentElement.dataset.environment === 'Development' || location.hostname === 'localhost';
   }
 
   async function disposeCurrentItem() {
-    if (!item || !autosave) return;
+    if (!item) return;
+    if (!autosave) return;
     if (isConflictBlocked()) {
       preserveUnsavedDraft();
       autosave.cancel();
@@ -569,6 +655,7 @@ export function initNotebookEditor(board, view, options = {}) {
   }
 
   async function restoreStoredDraftIfNeeded() {
+    if (!canEditContent()) return;
     const storedDraft = readStoredDraft(item.id);
     if (!storedDraft) return;
 
@@ -621,7 +708,11 @@ export function initNotebookEditor(board, view, options = {}) {
   async function copyUnsavedContent() {
     const copied = await copyLocalChanges();
     if (copied) {
-      setSaveStatus('Unsaved note text copied. Sign in again before saving.', currentSaveError?.kind || 'session-expired');
+      const state = currentSaveError?.kind || SaveState.Error;
+      const message = state === 'session-expired'
+        ? 'Unsaved note text copied. Sign in again before saving.'
+        : 'Unsaved note text copied.';
+      setSaveStatus(message, state);
     }
   }
 
@@ -668,7 +759,7 @@ export function initNotebookEditor(board, view, options = {}) {
   }
 
   async function retrySave() {
-    if (isConflictBlocked()) return;
+    if (isConflictBlocked() || !canEditContent() || !autosave) return;
     const button = modal.querySelector('[data-notebook-retry]');
     button.disabled = true;
     try {
@@ -708,7 +799,7 @@ export function initNotebookEditor(board, view, options = {}) {
   }
 
   async function useMyChanges() {
-    if (!conflictState.active || conflictState.resolving || !item) return;
+    if (!conflictState.active || conflictState.resolving || !item || !canEditContent()) return;
     const confirmed = await confirmNotebookAction({ title: 'Replace the newer saved version?', message: 'Your current changes will be saved over the newer version of this note.', detail: 'Use Reload latest instead to keep the newer saved version.', confirmText: 'Use my changes', tone: 'warning' });
     if (!confirmed) return;
 
@@ -799,7 +890,7 @@ export function initNotebookEditor(board, view, options = {}) {
   }
 
   async function changeColour(colorKey, previousColorKey) {
-    if (!item || isConflictBlocked()) {
+    if (!item || !canManageMetadata() || isConflictBlocked()) {
       colourPicker?.setValue(previousColorKey || '');
       return;
     }
@@ -845,7 +936,7 @@ export function initNotebookEditor(board, view, options = {}) {
   }
 
   async function changeLabels(labels, previousLabels) {
-    if (!item || isConflictBlocked()) {
+    if (!item || !canManageMetadata() || isConflictBlocked()) {
       labelPicker?.setValue(previousLabels || []);
       return;
     }
@@ -882,7 +973,7 @@ export function initNotebookEditor(board, view, options = {}) {
   }
 
   async function pinItem() {
-    if (!item || isConflictBlocked()) return;
+    if (!item || !canManageMetadata() || isConflictBlocked()) return;
     const button = modal.querySelector('[data-modal-pin]');
     button.disabled = true;
     try {
@@ -915,12 +1006,11 @@ export function initNotebookEditor(board, view, options = {}) {
     if (item && item.id !== id) await disposeCurrentItem();
     trigger = document.activeElement;
     item = await NotebookApi.getItem(id);
-    configureAutosave();
     renderMode();
     await restoreStoredDraftIfNeeded();
     modal.hidden = false;
     setBackgroundInert(true);
-    modal.querySelector('[data-modal-title]').focus();
+    (canEditContent() ? modal.querySelector('[data-modal-title]') : modal.querySelector('[data-close]:not(.notebook-modal__backdrop)'))?.focus();
     if (openOptions.pushHistory !== false) {
       openedByPushState = true;
       history.pushState({ ...(history.state || {}), notebookModal: true, notebookNoteId: id }, '', buildNoteUrl(id));
@@ -952,12 +1042,20 @@ export function initNotebookEditor(board, view, options = {}) {
 
   function syncExternalUpdate(updated) {
     if (!item || item.id !== updated.id) return;
+    const lostEditAccess = canEditContent(item) && !canEditContent(updated);
+    if (lostEditAccess && (hasDirtyChanges() || autosave?.hasPending?.())) {
+      preserveUnsavedDraft();
+      autosave?.cancel?.({ abortActive: true });
+      autosave?.stop?.();
+      autosave = null;
+      item = updated;
+      applyAccessMode(updated);
+      renderPin();
+      setSaveStatus('Your permission was changed to View only. Unsaved changes were not saved.', SaveState.Forbidden);
+      return;
+    }
     if (hasDirtyChanges() || autosave?.hasPending?.()) {
-      activateConflict({
-        type: ConflictType.ExternalUpdate,
-        pendingServerItem: updated,
-        message: 'This note changed elsewhere.'
-      });
+      activateConflict({ type: ConflictType.ExternalUpdate, pendingServerItem: updated, message: 'This note changed elsewhere.' });
       return;
     }
 

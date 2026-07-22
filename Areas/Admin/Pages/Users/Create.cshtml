@@ -2,75 +2,147 @@
 @model ProjectManagement.Areas.Admin.Pages.Users.CreateModel
 @{
     ViewData["Title"] = "Create user";
+    var roleGrid = new AdminRoleSelectionGridModel
+    {
+        Roles = Model.RoleOptions,
+        SelectedRoles = Model.Input.Roles,
+        InputName = "Input.Roles",
+        IdPrefix = "create-role"
+    };
 }
-<nav aria-label="breadcrumb" class="mb-2">
-  <ol class="breadcrumb small mb-0">
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Users/Index">Users</a></li>
-    <li class="breadcrumb-item active" aria-current="page">Create</li>
-  </ol>
-</nav>
-<h4 class="mb-2">Create user</h4>
-<div class="pm-card pm-shadow p-4 p-md-5">
-  <form method="post">
-    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
-    <div class="mb-3">
-      <label asp-for="Input.UserName" class="form-label"></label>
-      <input asp-for="Input.UserName" class="form-control"
-             maxlength="32" pattern="^[a-zA-Z0-9_.-]+$" autocomplete="username" />
-      <span asp-validation-for="Input.UserName" class="text-danger"></span>
-    </div>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
 
-    <div class="mb-3">
-      <label asp-for="Input.Rank" class="form-label"></label>
-      <input asp-for="Input.Rank" class="form-control" maxlength="32" />
-      <span asp-validation-for="Input.Rank" class="text-danger"></span>
-    </div>
+<form method="post" class="admin-user-form" novalidate>
+    <div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div>
 
-    <div class="mb-3">
-      <label asp-for="Input.FullName" class="form-label"></label>
-      <input asp-for="Input.FullName" class="form-control" maxlength="100" />
-      <span asp-validation-for="Input.FullName" class="text-danger"></span>
-    </div>
-
-    <div class="mb-3">
-      <label asp-for="Input.Password" class="form-label"></label>
-      <div class="password-container">
-        <input asp-for="Input.Password" class="form-control" autocomplete="new-password" />
-        <button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false">
-          <i class="eye-open bi bi-eye"></i>
-          <i class="eye-closed bi bi-eye-slash" hidden></i>
-        </button>
-      </div>
-      <div class="mt-2 d-flex gap-2">
-        <button type="button" id="generatePwd" class="btn btn-sm btn-outline-secondary">Generate</button>
-        <button type="button" id="copyPwd" class="btn btn-sm btn-outline-secondary">Copy</button>
-      </div>
-      <span class="form-text pm-field-hint">Minimum 8 characters. The user will be forced to change it at first login.</span>
-      <span asp-validation-for="Input.Password" class="text-danger"></span>
-    </div>
-
-    <fieldset class="mb-3">
-      <legend class="form-label">Roles</legend>
-      @foreach (var role in Model.Roles)
-      {
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" name="Input.Roles" value="@role" id="create-role-@role" @(Model.Input.Roles.Contains(role) ? "checked" : null) />
-          <label class="form-check-label" for="create-role-@role">@role</label>
+    <section class="admin-form-section" aria-labelledby="create-user-identity-title">
+        <header class="admin-form-section__header">
+            <span class="admin-form-section__step">01</span>
+            <div>
+                <h2 id="create-user-identity-title">Identity</h2>
+                <p>Enter the official account identity used throughout PRISM records and audit history.</p>
+            </div>
+        </header>
+        <div class="admin-form-section__body">
+            <div class="admin-form-grid admin-form-grid--three">
+                <div class="admin-field">
+                    <label asp-for="Input.UserName"></label>
+                    <input asp-for="Input.UserName" class="form-control" maxlength="32" autocomplete="username" />
+                    <span class="admin-field__hint">Permanent sign-in name. Use 3–32 letters, numbers or . _ -</span>
+                    <span asp-validation-for="Input.UserName" class="text-danger"></span>
+                </div>
+                <div class="admin-field">
+                    <label asp-for="Input.Rank"></label>
+                    <input asp-for="Input.Rank" class="form-control" maxlength="32" autocomplete="organization-title" />
+                    <span class="admin-field__hint">Official rank or appointment prefix.</span>
+                    <span asp-validation-for="Input.Rank" class="text-danger"></span>
+                </div>
+                <div class="admin-field">
+                    <label asp-for="Input.FullName"></label>
+                    <input asp-for="Input.FullName" class="form-control" maxlength="100" autocomplete="name" />
+                    <span class="admin-field__hint">Displayed across workspaces, reports and audit entries.</span>
+                    <span asp-validation-for="Input.FullName" class="text-danger"></span>
+                </div>
+            </div>
         </div>
-      }
-      <span asp-validation-for="Input.Roles" class="text-danger"></span>
-    </fieldset>
+    </section>
 
-    <div class="d-flex gap-2">
-      <button class="btn btn-primary" type="submit">Create</button>
-      <a asp-page="Index" class="btn btn-secondary">Cancel</a>
-    </div>
-  </form>
-</div>
+    <section class="admin-form-section admin-form-section--compact" aria-labelledby="create-user-classification-title">
+        <header class="admin-form-section__header">
+            <span class="admin-form-section__step">02</span>
+            <div>
+                <h2 id="create-user-classification-title">Analytics classification</h2>
+                <p>Classify the identity explicitly so service and test accounts do not distort command adoption reporting.</p>
+            </div>
+        </header>
+        <div class="admin-form-section__body">
+            <div class="admin-field admin-field--bounded">
+                <label asp-for="Input.AccountKind"></label>
+                <select asp-for="Input.AccountKind" class="form-select">
+                    <option value="Human">Human account</option>
+                    <option value="Service">Service account</option>
+                    <option value="Test">Test account</option>
+                </select>
+                <span class="admin-field__hint">Human accounts are included in command adoption analytics by default. Changes are recorded in the administrative audit trail.</span>
+                <span asp-validation-for="Input.AccountKind" class="text-danger"></span>
+            </div>
+        </div>
+    </section>
+
+    <section class="admin-form-section" aria-labelledby="create-user-password-title">
+        <header class="admin-form-section__header">
+            <span class="admin-form-section__step">03</span>
+            <div>
+                <h2 id="create-user-password-title">Temporary password</h2>
+                <p>Issue a secure temporary password. The user will be required to replace it at first sign-in.</p>
+            </div>
+        </header>
+        <div class="admin-form-section__body">
+            <div class="admin-password-layout">
+                <div class="admin-field">
+                    <label asp-for="Input.Password"></label>
+                    <div class="password-container">
+                        <input asp-for="Input.Password"
+                               class="form-control"
+                               autocomplete="new-password"
+                               data-generated-length="@Model.GeneratedPasswordLength"
+                               data-required-unique="@Model.RequiredUniqueCharacters"
+                               minlength="@Model.MinimumPasswordLength" />
+                        <button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false">
+                            <i class="eye-open bi bi-eye" aria-hidden="true"></i>
+                            <i class="eye-closed bi bi-eye-slash" aria-hidden="true" hidden></i>
+                        </button>
+                    </div>
+                    <span asp-validation-for="Input.Password" class="text-danger"></span>
+                    <div class="admin-password-actions">
+                        <button type="button" id="generatePwd" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-stars" aria-hidden="true"></i> Generate secure password
+                        </button>
+                        <button type="button" id="copyPwd" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-clipboard" aria-hidden="true"></i> Copy
+                        </button>
+                    </div>
+                </div>
+                <aside class="admin-security-note">
+                    <span class="admin-security-note__icon"><i class="bi bi-shield-check" aria-hidden="true"></i></span>
+                    <div>
+                        <strong>Password policy</strong>
+                        <p>@Model.PasswordPolicyDescription</p>
+                        <p>Share the temporary password through an approved secure channel. Do not place it in remarks or email subject lines.</p>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </section>
+
+    <section class="admin-form-section" aria-labelledby="create-user-roles-title">
+        <header class="admin-form-section__header">
+            <span class="admin-form-section__step">04</span>
+            <div>
+                <h2 id="create-user-roles-title">Roles and access</h2>
+                <p>Assign only the roles required for the user’s current duties. Privileged roles require additional scrutiny.</p>
+            </div>
+        </header>
+        <div class="admin-form-section__body">
+            <partial name="~/Areas/Admin/Pages/Shared/_AdminRoleSelectionGrid.cshtml" model="roleGrid" />
+            <span asp-validation-for="Input.Roles" class="text-danger"></span>
+        </div>
+    </section>
+
+    <footer class="admin-form-actions">
+        <a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a>
+        <button class="btn btn-primary" type="submit">
+            <i class="bi bi-person-plus" aria-hidden="true"></i>
+            Create user
+        </button>
+    </footer>
+</form>
 
 @section Scripts {
+    <partial name="_ValidationScriptsPartial" />
     <script type="module" src="~/js/utils/password-toggle.js"></script>
     <script type="module" src="~/js/users/create.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/admin/admin-users.js" asp-append-version="true"></script>
 }

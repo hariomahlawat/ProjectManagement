@@ -330,11 +330,15 @@ namespace ProjectManagement.Tests
 
             Assert.True(response.IsSuccessStatusCode, body);
 
-            var items = JsonSerializer.Deserialize<List<CalendarHolidayVm>>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var items = JsonSerializer.Deserialize<List<CalendarHolidayDayVm>>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             Assert.NotNull(items);
-            var holiday = Assert.Single(items!);
+            var day = Assert.Single(items!);
+            Assert.True(day.IsOfficeClosed);
+            Assert.Equal("Gazetted", day.ClosureType);
+            Assert.Equal("2024-12-25", day.Date);
+            var holiday = Assert.Single(day.Entries);
             Assert.Equal("Founders Day", holiday.Name);
-            Assert.Equal("2024-12-25", holiday.Date);
+            Assert.True(holiday.AffectsSchedule);
         }
 
         [Fact]

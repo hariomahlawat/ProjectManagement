@@ -34,5 +34,6 @@ public enum NotificationKind
     ActionTaskAddedToSprint = 109,
     NotebookShared = 120,
     NotebookAccessRemoved = 121,
-    NotebookCollaborationLeft = 122
+    NotebookCollaborationLeft = 122,
+    NotebookAccessChanged = 123
 }

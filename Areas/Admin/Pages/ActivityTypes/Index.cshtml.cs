@@ -1,104 +1,126 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Areas.Admin.Models;
+using ProjectManagement.Configuration;
 using ProjectManagement.Services.Activities;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData;
 
 namespace ProjectManagement.Areas.Admin.Pages.ActivityTypes;
 
-[Authorize(Roles = "Admin,HoD")]
+[Authorize(Policy = AdminPolicies.ActivityTypesManage)]
 public sealed class IndexModel : PageModel
 {
-    private readonly IActivityTypeService _activityTypeService;
+    private readonly IMasterDataAdministrationQueryService _query;
+    private readonly IActivityTypeService _activityTypes;
+    private readonly IAdminTimeService _time;
+    private readonly IAuthorizationService _authorization;
 
-    public IndexModel(IActivityTypeService activityTypeService)
+    public IndexModel(
+        IMasterDataAdministrationQueryService query,
+        IActivityTypeService activityTypes,
+        IAdminTimeService time,
+        IAuthorizationService authorization)
     {
-        _activityTypeService = activityTypeService;
+        _query = query ?? throw new ArgumentNullException(nameof(query));
+        _activityTypes = activityTypes ?? throw new ArgumentNullException(nameof(activityTypes));
+        _time = time ?? throw new ArgumentNullException(nameof(time));
+        _authorization = authorization ?? throw new ArgumentNullException(nameof(authorization));
     }
 
-    public IReadOnlyList<ActivityTypeRow> ActivityTypes { get; private set; } = Array.Empty<ActivityTypeRow>();
+    [BindProperty(SupportsGet = true, Name = "q")]
+    public string? Search { get; set; }
 
-    [TempData]
-    public string? StatusMessage { get; set; }
+    [BindProperty(SupportsGet = true)]
+    public string Status { get; set; } = "active";
 
-    [TempData]
-    public string? ErrorMessage { get; set; }
+    [BindProperty(SupportsGet = true, Name = "pageNumber")]
+    public int PageNumber { get; set; } = 1;
+
+    [BindProperty(SupportsGet = true)]
+    public int PageSize { get; set; } = 25;
+
+    public ActivityTypeDirectoryResult Result { get; private set; } = new(
+        Array.Empty<ActivityTypeAdminRow>(),
+        0, 0, 0, 0, 0,
+        1, 25, 1,
+        string.Empty,
+        "active");
+
+    public AdminPageHeaderModel Header { get; private set; } = new();
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        ActivityTypes = await LoadActivityTypesAsync(cancellationToken);
+        Result = await _query.GetActivityTypesAsync(
+            new ActivityTypeDirectoryRequest(Search, Status, PageNumber, PageSize),
+            cancellationToken);
+        Search = Result.Search;
+        Status = Result.Status;
+        PageNumber = Result.Page;
+        PageSize = Result.PageSize;
+        var canOpenCentre = (await _authorization.AuthorizeAsync(User, AdminPolicies.MasterDataManage)).Succeeded;
+        BuildHeader(canOpenCentre);
     }
 
     public async Task<IActionResult> OnPostToggleAsync(int id, CancellationToken cancellationToken)
     {
-        var types = await _activityTypeService.ListAsync(cancellationToken);
-        var existing = types.FirstOrDefault(t => t.Id == id);
-        if (existing is null)
-        {
-            return NotFound();
-        }
-
         try
         {
-            await _activityTypeService.UpdateAsync(
+            var existing = (await _activityTypes.ListAsync(cancellationToken)).FirstOrDefault(item => item.Id == id);
+            if (existing is null) return NotFound();
+
+            await _activityTypes.UpdateAsync(
                 id,
-                new ActivityTypeInput(existing.Name, existing.Description, !existing.IsActive),
+                new ActivityTypeInput(existing.Name, existing.Description, !existing.IsActive, existing.RowVersion),
                 cancellationToken);
 
-            StatusMessage = existing.IsActive
+            TempData[FlashMessageKeys.AdminMasterDataSuccess] = existing.IsActive
                 ? $"Deactivated '{existing.Name}'."
                 : $"Activated '{existing.Name}'.";
         }
         catch (ActivityAuthorizationException)
         {
-            ErrorMessage = "You are not authorised to manage activity types.";
+            TempData[FlashMessageKeys.AdminMasterDataError] = "You are not authorised to manage activity types.";
         }
-        catch (ActivityValidationException ex)
+        catch (ActivityValidationException exception)
         {
-            ErrorMessage = string.Join(" ", ex.Errors.SelectMany(e => e.Value));
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
+            TempData[FlashMessageKeys.AdminMasterDataError] = string.Join(" ", exception.Errors.SelectMany(item => item.Value));
         }
 
-        return RedirectToPage();
+        return RedirectToPage(new { q = Search, status = Status, pageNumber = Math.Max(1, PageNumber), pageSize = PageSize });
     }
 
-    private async Task<IReadOnlyList<ActivityTypeRow>> LoadActivityTypesAsync(CancellationToken cancellationToken)
-    {
-        var types = await _activityTypeService.ListAsync(cancellationToken);
+    public string FormatIst(DateTimeOffset? value) =>
+        value.HasValue ? _time.FormatIst(value.Value) : "Not recorded";
 
-        return types
-            .OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(t => new ActivityTypeRow
+    private void BuildHeader(bool canOpenCentre)
+    {
+        var actions = new List<AdminPageActionModel>();
+        if (canOpenCentre)
+        {
+            actions.Add(new AdminPageActionModel
             {
-                Id = t.Id,
-                Name = t.Name,
-                Description = t.Description,
-                IsActive = t.IsActive,
-                LastModifiedAtUtc = t.LastModifiedAtUtc,
-                LastModifiedByUserId = t.LastModifiedByUserId
-            })
-            .ToList();
-    }
+                Text = "Master data centre",
+                Href = Url.Page("/MasterData/Index", new { area = "Admin" }),
+                Icon = "bi-arrow-left"
+            });
+        }
+        actions.Add(new AdminPageActionModel
+        {
+            Text = "Add activity type",
+            Href = Url.Page("./Create", new { area = "Admin" }),
+            Icon = "bi-plus-lg",
+            IsPrimary = true
+        });
 
-    public sealed class ActivityTypeRow
-    {
-        public int Id { get; init; }
-
-        public string Name { get; init; } = string.Empty;
-
-        public string? Description { get; init; }
-
-        public bool IsActive { get; init; }
-
-        public DateTimeOffset? LastModifiedAtUtc { get; init; }
-
-        public string? LastModifiedByUserId { get; init; }
+        Header = new AdminPageHeaderModel
+        {
+            Eyebrow = "Master data · Operational classification",
+            Title = "Activity types",
+            Description = "Maintain the controlled activity classifications available in planning and reporting workflows.",
+            Icon = "bi-list-task",
+            Actions = actions
+        };
     }
 }

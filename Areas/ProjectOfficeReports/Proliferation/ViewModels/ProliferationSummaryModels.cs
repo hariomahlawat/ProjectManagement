@@ -35,3 +35,8 @@ public sealed record ProliferationSummarySourceTotals(
     int Total,
     int Sdd,
     int Abw515);
+
+public sealed record TechnicalCategoryBreakdownRow(
+    int? TechnicalCategoryId,
+    string Name,
+    int Total);

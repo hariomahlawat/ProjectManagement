@@ -1,96 +1,98 @@
-using System;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Admin;
 
-namespace ProjectManagement.Services
+namespace ProjectManagement.Services;
+
+public sealed class TodoPurgeWorker : BackgroundService
 {
-    public class TodoPurgeWorker : BackgroundService
+    private const string WorkerKey = "todo-retention";
+
+    private readonly IServiceProvider _services;
+    private readonly ILogger<TodoPurgeWorker> _logger;
+    private readonly int _retentionDays;
+    private readonly IAdminWorkerStatusRegistry? _status;
+    private bool _loggedMissingDeletedUtc;
+
+    public TodoPurgeWorker(
+        IServiceProvider services,
+        ILogger<TodoPurgeWorker> logger,
+        IOptions<TodoOptions> options,
+        IAdminWorkerStatusRegistry? status = null)
     {
-        // SECTION: Fields
-        private readonly IServiceProvider _sp;
-        private readonly ILogger<TodoPurgeWorker> _log;
-        private readonly int _retentionDays;
-        private bool _loggedMissingDeletedUtc;
+        _services = services ?? throw new ArgumentNullException(nameof(services));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _retentionDays = options?.Value.RetentionDays ?? throw new ArgumentNullException(nameof(options));
+        _status = status;
+        _status?.Register(WorkerKey, "Task retention", TimeSpan.FromHours(24));
+    }
 
-        // SECTION: Constructor
-        public TodoPurgeWorker(IServiceProvider sp, ILogger<TodoPurgeWorker> log, IOptions<TodoOptions> options)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        try
         {
-            _sp = sp;
-            _log = log;
-            _retentionDays = options.Value.RetentionDays;
-        }
+            using var timer = new PeriodicTimer(TimeSpan.FromHours(24));
+            await RunCycleAsync(stoppingToken);
 
-        // SECTION: Background processing
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            try
+            while (await timer.WaitForNextTickAsync(stoppingToken))
             {
-                using var timer = new PeriodicTimer(TimeSpan.FromHours(24));
-
-                await PurgeAsync(stoppingToken);
-
-                while (await timer.WaitForNextTickAsync(stoppingToken))
-                {
-                    await PurgeAsync(stoppingToken);
-                }
-            }
-            catch (TaskCanceledException)
-            {
-                // Allow graceful shutdown
-            }
-            catch (OperationCanceledException)
-            {
-                // Allow graceful shutdown
-            }
-            catch (Exception ex)
-            {
-                _log.LogError(ex, "Todo purge worker failed.");
+                await RunCycleAsync(stoppingToken);
             }
         }
-
-        private async Task PurgeAsync(CancellationToken stoppingToken)
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            if (stoppingToken.IsCancellationRequested)
-            {
-                return;
-            }
-
-            using var scope = _sp.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-            var columnCount = await db.Database
-                .SqlQueryRaw<long>("SELECT COUNT(*) AS \"Value\" FROM information_schema.columns WHERE table_name='TodoItems' AND column_name='DeletedUtc'")
-                .SingleAsync(stoppingToken);
-            var hasDeletedUtc = columnCount > 0;
-
-            if (!hasDeletedUtc)
-            {
-                if (!_loggedMissingDeletedUtc)
-                {
-                    _loggedMissingDeletedUtc = true;
-                    _log.LogWarning("TodoItems.DeletedUtc missing; skipping purge.");
-                }
-
-                return;
-            }
-
-            var cutoff = DateTimeOffset.UtcNow.AddDays(-_retentionDays);
-            var deleted = await db.TodoItems
-                .Where(t => t.DeletedUtc != null && t.DeletedUtc < cutoff)
-                .ExecuteDeleteAsync(stoppingToken);
-
-            if (deleted > 0)
-            {
-                _log.LogInformation("Purged {Count} todo items", deleted);
-            }
+            // Graceful shutdown.
         }
+        catch (Exception exception)
+        {
+            _status?.MarkFailed(WorkerKey, exception);
+            _logger.LogError(exception, "Todo purge worker failed.");
+        }
+    }
+
+    private async Task RunCycleAsync(CancellationToken cancellationToken)
+    {
+        _status?.MarkStarted(WorkerKey);
+        try
+        {
+            var result = await PurgeAsync(cancellationToken);
+            _status?.MarkSucceeded(WorkerKey, result);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _status?.MarkFailed(WorkerKey, exception);
+            throw;
+        }
+    }
+
+    private async Task<string> PurgeAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        using var scope = _services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var columnCount = await db.Database
+            .SqlQueryRaw<long>("SELECT COUNT(*) AS \"Value\" FROM information_schema.columns WHERE table_name='TodoItems' AND column_name='DeletedUtc'")
+            .SingleAsync(cancellationToken);
+
+        if (columnCount == 0)
+        {
+            if (!_loggedMissingDeletedUtc)
+            {
+                _loggedMissingDeletedUtc = true;
+                _logger.LogWarning("TodoItems.DeletedUtc missing; skipping purge.");
+            }
+            return "Skipped because TodoItems.DeletedUtc is unavailable.";
+        }
+
+        var cutoff = DateTimeOffset.UtcNow.AddDays(-_retentionDays);
+        var deleted = await db.TodoItems
+            .Where(todo => todo.DeletedUtc != null && todo.DeletedUtc < cutoff)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        if (deleted > 0) _logger.LogInformation("Purged {Count} todo items", deleted);
+        return $"Purged {deleted} task record(s).";
     }
 }

@@ -1,26 +1,66 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Documents.IngestExternalPdfsModel
 @{
-    ViewData["Title"] = "Ingest external PDFs";
+    ViewData["Title"] = "PDF ingestion";
+    var current = Model.Result;
 }
 
-<h1 class="mb-4">Ingest external PDFs</h1>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
 
-<p class="text-muted">Run this tool to copy PDF attachments from other modules into the document repository for OCR and global search.</p>
-
-<form method="post" class="mb-4">
-    <button type="submit" class="btn btn-primary">Start ingestion</button>
-</form>
-
-@if (Model.Processed > 0 || Model.SkippedMissing > 0)
-{
-    <div class="alert alert-secondary">
-        <p class="mb-1">Processed: <strong>@Model.Processed</strong></p>
-        <p class="mb-0">Skipped (missing files): <strong>@Model.SkippedMissing</strong></p>
+<section class="admin-panel admin-ingestion-control" aria-labelledby="ingestion-control-title">
+    <div class="admin-ingestion-control__body">
+        <span class="admin-ingestion-control__icon"><i class="bi bi-file-earmark-arrow-up"></i></span>
+        <div><div class="admin-panel__eyebrow">Preflight and execution</div><h2 id="ingestion-control-title">Controlled ingestion run</h2><p>The coordinator skips existing repository links, processes each source independently and prevents overlapping runs. Source records remain unchanged.</p><div class="admin-ingestion-principles"><span><i class="bi bi-shield-check"></i> Audit required before start</span><span><i class="bi bi-lock"></i> Single active run</span><span><i class="bi bi-arrow-repeat"></i> Existing links retained</span></div></div>
     </div>
+    <form method="post" asp-page-handler="Run" data-pdf-ingestion-form>
+        <button type="submit" class="btn btn-primary btn-lg" disabled="@Model.IsRunning" data-pdf-ingestion-submit><i class="bi @(Model.IsRunning ? "bi-hourglass-split" : "bi-play-circle")"></i> @(Model.IsRunning ? "Run in progress" : "Start ingestion")</button>
+    </form>
+</section>
+
+@if (current is not null)
+{
+    <section class="admin-monitoring-metrics admin-monitoring-metrics--six" aria-label="Ingestion run results">
+        <article class="admin-monitoring-metric admin-monitoring-metric--neutral"><span class="admin-monitoring-metric__copy"><strong>@current.Discovered</strong><span>Discovered</span><small>Eligible source records</small></span></article>
+        <article class="admin-monitoring-metric admin-monitoring-metric--success"><span class="admin-monitoring-metric__copy"><strong>@current.IngestedOrLinked</strong><span>Linked</span><small>New repository links</small></span></article>
+        <article class="admin-monitoring-metric admin-monitoring-metric--info"><span class="admin-monitoring-metric__copy"><strong>@current.AlreadyLinked</strong><span>Already linked</span><small>Idempotently skipped</small></span></article>
+        <article class="admin-monitoring-metric admin-monitoring-metric--warning"><span class="admin-monitoring-metric__copy"><strong>@current.Missing</strong><span>Missing</span><small>Source file unavailable</small></span></article>
+        <article class="admin-monitoring-metric admin-monitoring-metric--danger"><span class="admin-monitoring-metric__copy"><strong>@current.Failed</strong><span>Failed</span><small>Requires investigation</small></span></article>
+        <article class="admin-monitoring-metric admin-monitoring-metric--@(current.Status == "Completed" ? "success" : current.Status == "Failed" ? "danger" : "warning")"><span class="admin-monitoring-metric__copy"><strong>@current.Status</strong><span>Run status</span><small>@Model.FormatDuration(current.Duration)</small></span></article>
+    </section>
+
+    <div class="admin-maintenance-run-grid">
+        <section class="admin-panel" aria-labelledby="source-summary-title">
+            <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Run @current.RunId.ToString()[..8]</div><h2 id="source-summary-title">Source summary</h2></div><span class="admin-panel__meta">@Model.FormatTime(current.CompletedAtUtc)</span></header>
+            <div class="admin-table-wrap"><table class="admin-data-table"><thead><tr><th>Source</th><th class="text-end">Discovered</th><th class="text-end">Linked</th><th class="text-end">Existing</th><th class="text-end">Missing</th><th class="text-end">Failed</th></tr></thead><tbody>@foreach (var source in current.Sources){<tr><td><div class="admin-table-primary">@source.Source</div></td><td class="text-end">@source.Discovered</td><td class="text-end">@source.IngestedOrLinked</td><td class="text-end">@source.AlreadyLinked</td><td class="text-end">@source.Missing</td><td class="text-end">@source.Failed</td></tr>}</tbody></table></div>
+            <footer class="admin-panel__footer">Started @Model.FormatTime(current.StartedAtUtc) · Initiated by @(current.InitiatedBy ?? "System")@if (!string.IsNullOrWhiteSpace(current.TraceId)){<span> · Trace @current.TraceId</span>}</footer>
+        </section>
+
+        <section class="admin-panel" aria-labelledby="recent-ingestion-title">
+            <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Instance history</div><h2 id="recent-ingestion-title">Recent runs</h2></div></header>
+            @if (Model.RecentRuns.Count == 0)
+            {
+                <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-clock-history", Title = "No completed runs", Description = "Run history is retained for this application instance." })" />
+            }
+            else
+            {
+                <div class="admin-maintenance-run-list">@foreach (var run in Model.RecentRuns){<a asp-page="./IngestExternalPdfs" asp-route-RunId="@run.RunId" class="@(run.RunId == current.RunId ? "active" : null)"><span class="admin-status-dot admin-status-dot--@(run.Status == "Completed" ? "success" : run.Status == "Failed" ? "danger" : "warning")"></span><div><strong>@run.Status</strong><small>@Model.FormatTime(run.CompletedAtUtc) · @run.Discovered discovered</small></div><i class="bi bi-chevron-right"></i></a>}</div>
+            }
+        </section>
+    </div>
+
+    @if (current.Failures.Count > 0)
+    {
+        <section class="admin-panel" aria-labelledby="ingestion-failures-title">
+            <header class="admin-panel__header"><div><div class="admin-panel__eyebrow">Exception report</div><h2 id="ingestion-failures-title">Missing or failed source items</h2></div><a class="btn btn-sm btn-outline-secondary" asp-page-handler="FailureReport" asp-route-runId="@current.RunId"><i class="bi bi-download"></i> Download CSV</a></header>
+            <div class="admin-table-wrap"><table class="admin-data-table"><thead><tr><th>Source</th><th>Source item</th><th>File</th><th>Result</th></tr></thead><tbody>@foreach (var failure in current.Failures){<tr><td><span class="admin-status-pill admin-status-pill--neutral">@failure.Source</span></td><td><code>@failure.SourceItemId</code></td><td class="admin-break-word">@failure.FileName</td><td>@failure.Message</td></tr>}</tbody></table></div>
+            @if (current.Missing + current.Failed > current.Failures.Count){<footer class="admin-panel__footer">Only the first @current.Failures.Count details are retained in the instance report. Review application logs for the complete source list.</footer>}
+        </section>
+    }
+}
+else
+{
+    <section class="admin-panel"><partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-file-earmark-arrow-up", Title = "No ingestion result available", Description = "Start a controlled run to link eligible external PDF attachments into the document repository." })" /></section>
 }
 
-@if (TempData["StatusMessage"] is string status && !string.IsNullOrWhiteSpace(status))
-{
-    <div class="alert alert-info mt-3">@status</div>
-}
+@section Scripts { <script src="~/js/admin/admin-maintenance.js" asp-append-version="true" defer></script> }

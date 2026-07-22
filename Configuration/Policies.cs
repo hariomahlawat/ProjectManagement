@@ -57,12 +57,28 @@ public static class Policies
         };
     }
 
+
+    // SECTION: ERP usage intelligence
+    public static class Usage
+    {
+        public const string View = "ERP.Usage.View";
+
+        public static readonly string[] ViewerRoles =
+        {
+            RoleNames.Admin,
+            RoleNames.Comdt,
+            RoleNames.HoD
+        };
+    }
+
     // SECTION: Industry partners policies
     public static class IndustryPartners
     {
         public const string View = "IndustryPartners.View";
         public const string Manage = "IndustryPartners.Manage";
         public const string Delete = "IndustryPartners.Delete";
+        public const string AddContact = "IndustryPartners.Contact.Add";
+        public const string ManageAnyContact = "IndustryPartners.Contact.ManageAny";
 
         public static readonly string[] ViewAllowedRoles =
         {
@@ -86,6 +102,13 @@ public static class Policies
         {
             RoleNames.Admin,
             RoleNames.HoD
+        };
+
+        public static readonly string[] ContactOverrideRoles =
+        {
+            RoleNames.Admin,
+            RoleNames.HoD,
+            RoleNames.Comdt
         };
     }
 
@@ -112,6 +135,18 @@ public static class Policies
             "Project Office"
         };
     }
+    // SECTION: Project briefing decks
+    public static class ProjectBriefingDecks
+    {
+        public const string Manage = "ProjectBriefingDecks.Manage";
+
+        public static readonly string[] ManageAllowedRoles =
+        {
+            RoleNames.Comdt,
+            RoleNames.HoD
+        };
+    }
+
     // SECTION: Conference remark policies
     public static class ConferenceRemarks
     {

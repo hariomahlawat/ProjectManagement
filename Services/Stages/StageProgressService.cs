@@ -14,6 +14,8 @@ using ProjectManagement.Models.Plans;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
 
+using ProjectManagement.Services.Scheduling;
+
 namespace ProjectManagement.Services;
 
 public class StageProgressService
@@ -24,6 +26,7 @@ public class StageProgressService
     private readonly ProjectFactsReadService _factsRead;
     private readonly IStageNotificationService _stageNotifications;
     private readonly IProjectStageWorkflowPolicy _workflowPolicy;
+    private readonly IOfficeCalendarService? _officeCalendar;
 
     public StageProgressService(
         ApplicationDbContext db,
@@ -31,7 +34,8 @@ public class StageProgressService
         IAuditService audit,
         ProjectFactsReadService factsRead,
         IStageNotificationService stageNotifications,
-        IProjectStageWorkflowPolicy workflowPolicy)
+        IProjectStageWorkflowPolicy workflowPolicy,
+        IOfficeCalendarService? officeCalendar = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -39,6 +43,7 @@ public class StageProgressService
         _factsRead = factsRead ?? throw new ArgumentNullException(nameof(factsRead));
         _stageNotifications = stageNotifications ?? throw new ArgumentNullException(nameof(stageNotifications));
         _workflowPolicy = workflowPolicy ?? throw new ArgumentNullException(nameof(workflowPolicy));
+        _officeCalendar = officeCalendar;
     }
 
     public Task UpdateStageStatusAsync(
@@ -405,10 +410,17 @@ public class StageProgressService
             return completedOn;
         }
 
-        var holidays = await _db.Holidays
-            .AsNoTracking()
-            .Select(h => h.Date)
-            .ToListAsync(ct);
+        var holidays = _officeCalendar is not null
+            ? (await _officeCalendar.GetNonWorkingDatesAsync(
+                completedOn.AddYears(-1),
+                completedOn.AddYears(2),
+                ct)).ToList()
+            : await _db.Holidays
+                .AsNoTracking()
+                .Where(h => h.Type == ProjectManagement.Models.Scheduling.HolidayType.Gazetted || h.IsObservedAsOfficeHoliday)
+                .Select(h => h.Date)
+                .Distinct()
+                .ToListAsync(ct);
 
         var calendar = new WorkingCalendar(holidays, settings.IncludeWeekends, settings.SkipHolidays);
         return calendar.NextWorkingDay(completedOn);

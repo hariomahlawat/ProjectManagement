@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
+using System.Linq;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Api
@@ -87,8 +88,30 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
     {
         public int Id { get; set; }
         public string Name { get; set; } = default!;
+        public string? Acronym { get; set; }
         public string? Code { get; set; }
-        public string Display => string.IsNullOrWhiteSpace(Code) ? Name : $"{Name} ({Code})";
+        public string? ProjectCategory { get; set; }
+        public string? TechnicalCategory { get; set; }
+        public string Status { get; set; } = "Completed";
+        public string Display => Name;
+        public string SecondaryDisplay
+        {
+            get
+            {
+                var parts = new[] { Code, TechnicalCategory ?? ProjectCategory }
+                    .Where(value => !string.IsNullOrWhiteSpace(value));
+                return string.Join(" · ", parts);
+            }
+        }
+    }
+
+    public sealed class ProliferationProjectLookupResponseDto
+    {
+        public int Total { get; set; }
+        public int Returned { get; set; }
+        public string EligibilityDescription { get; set; } = "Completed projects eligible for proliferation entry.";
+        public IReadOnlyList<ProliferationProjectLookupDto> Items { get; set; }
+            = Array.Empty<ProliferationProjectLookupDto>();
     }
 
     // Create Yearly
@@ -101,7 +124,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         [MaxLength(500)] public string? Remarks { get; set; }
     }
 
-    // Create Granular (SDD only)
+    // Create detailed entry
     public class ProliferationGranularCreateDto
     {
         [Required] public int ProjectId { get; set; }
@@ -116,9 +139,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
     public sealed class ProliferationYearPreferenceDto
     {
         [Required] public int ProjectId { get; set; }
-        [Required] public ProliferationSource Source { get; set; } // Sdd only configurable
+        [Required] public ProliferationSource Source { get; set; } // SDD and 515 ABW are configurable
         [Range(2000, 3000)] public int Year { get; set; }
         [Required] public YearPreferenceMode Mode { get; set; } // Auto, UseYearly, UseGranular, UseYearlyAndGranular
+        [MaxLength(500)] public string? Reason { get; set; }
     }
 
     public sealed class ProliferationManageListQueryDto
@@ -235,6 +259,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
         [Required]
         public string RowVersion { get; set; } = string.Empty;
+
+        [MaxLength(500)]
+        public string? Reason { get; set; }
     }
 
     public sealed class ProliferationYearlyUpdateDto : ProliferationYearlyCreateDto
@@ -248,4 +275,123 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         [Required]
         public string RowVersion { get; set; } = default!;
     }
+
+    public sealed class ProliferationGroupedQueryDto
+    {
+        public int? ProjectId { get; set; }
+        public ProliferationSource? Source { get; set; }
+        public int? Year { get; set; }
+        public string? Search { get; set; }
+        public int Page { get; set; } = 1;
+        public int PageSize { get; set; } = 25;
+    }
+
+    public sealed class ProliferationGroupedDetailedEntryDto
+    {
+        public Guid Id { get; set; }
+        public string ProliferationDate { get; set; } = default!;
+        public string UnitName { get; set; } = default!;
+        public int Quantity { get; set; }
+        public string? Remarks { get; set; }
+    }
+
+    public sealed class ProliferationGroupedRowDto
+    {
+        public int ProjectId { get; set; }
+        public string ProjectName { get; set; } = default!;
+        public string? ProjectCode { get; set; }
+        public ProliferationSource Source { get; set; }
+        public string SourceLabel { get; set; } = default!;
+        public int Year { get; set; }
+        public int AnnualQuantity { get; set; }
+        public int DetailedQuantity { get; set; }
+        public int DetailedEntryCount { get; set; }
+        public int ReportedTotal { get; set; }
+        public string CalculationLabel { get; set; } = default!;
+        public string EffectiveMode { get; set; } = default!;
+        public bool HasCountingException { get; set; }
+        public DateTime? LastUpdatedOnUtc { get; set; }
+        public IReadOnlyList<ProliferationGroupedDetailedEntryDto> DetailedEntries { get; set; }
+            = Array.Empty<ProliferationGroupedDetailedEntryDto>();
+    }
+
+    public sealed class ProliferationGroupedResponseDto
+    {
+        public int Total { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+        public IReadOnlyList<ProliferationGroupedRowDto> Items { get; set; }
+            = Array.Empty<ProliferationGroupedRowDto>();
+    }
+
+    public sealed class ProliferationDataQualityQueryDto
+    {
+        public int? ProjectId { get; set; }
+        public string? IssueType { get; set; }
+        public string? Search { get; set; }
+        public int Page { get; set; } = 1;
+        public int PageSize { get; set; } = 25;
+    }
+
+    public sealed class ProliferationDataQualityIssueDto
+    {
+        public string IssueKey { get; set; } = default!;
+        public string IssueType { get; set; } = default!;
+        public string Severity { get; set; } = default!;
+        public string RecordKind { get; set; } = default!;
+        public Guid RecordId { get; set; }
+        public int ProjectId { get; set; }
+        public string ProjectName { get; set; } = default!;
+        public string? ProjectCode { get; set; }
+        public ProliferationSource Source { get; set; }
+        public string SourceLabel { get; set; } = default!;
+        public int? Year { get; set; }
+        public string? ProliferationDate { get; set; }
+        public string? UnitName { get; set; }
+        public int Quantity { get; set; }
+        public string ApprovalStatus { get; set; } = default!;
+        public DateTime LastUpdatedOnUtc { get; set; }
+        public string RowVersion { get; set; } = default!;
+        public string Description { get; set; } = default!;
+        public bool CanCorrect { get; set; }
+        public int RelatedRecordCount { get; set; }
+    }
+
+    public sealed class ProliferationDataQualityResponseDto
+    {
+        public int Total { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+        public int InvalidDateOrYearCount { get; set; }
+        public int MissingUnitCount { get; set; }
+        public int InvalidQuantityCount { get; set; }
+        public int PossibleDuplicateCount { get; set; }
+        public IReadOnlyList<ProliferationDataQualityIssueDto> Items { get; set; }
+            = Array.Empty<ProliferationDataQualityIssueDto>();
+    }
+
+    public sealed class ProliferationDataQualityCorrectionDto
+    {
+        [Required]
+        public string RecordKind { get; set; } = default!;
+
+        [Required]
+        public string RowVersion { get; set; } = default!;
+
+        [Range(2000, 3000)]
+        public int? CorrectedYear { get; set; }
+
+        public DateTime? CorrectedDateUtc { get; set; }
+
+        [MaxLength(200)]
+        public string? CorrectedUnitName { get; set; }
+
+        [Range(0, int.MaxValue)]
+        public int? CorrectedQuantity { get; set; }
+
+        [Required, MaxLength(500)]
+        public string Reason { get; set; } = default!;
+    }
+
+
 }

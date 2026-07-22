@@ -1,0 +1,75 @@
+@using ProjectManagement.Helpers
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.DetailsModel
+
+<div class="offcanvas offcanvas-end ffc-workspace-drawer"
+     tabindex="-1"
+     id="ffcAttachmentEditor"
+     aria-labelledby="ffcAttachmentEditorLabel"
+     data-bs-backdrop="static"
+     data-bs-keyboard="false">
+    <div class="offcanvas-header ffc-workspace-drawer__header">
+        <div>
+            <div class="ffc-workspace-drawer__eyebrow">@Model.Workspace.CountryName · @Model.Workspace.Year</div>
+            <h2 class="offcanvas-title" id="ffcAttachmentEditorLabel">Add attachment</h2>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+
+    <form method="post"
+          enctype="multipart/form-data"
+          asp-page-handler="UploadAttachment"
+          asp-route-id="@Model.Workspace.RecordId"
+          class="ffc-workspace-drawer__form"
+          data-ffc-dirty-form
+          data-ffc-attachment-form>
+        <input type="hidden" asp-for="ReturnUrl" />
+
+        <div class="offcanvas-body ffc-workspace-drawer__body">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+            <section class="ffc-drawer-section">
+                <label asp-for="AttachmentInput.UploadFile" class="form-label">File</label>
+                <label class="ffc-upload-zone" data-ffc-upload-zone>
+                    <input asp-for="AttachmentInput.UploadFile"
+                           type="file"
+                           accept="application/pdf,image/jpeg,image/png,image/webp"
+                           class="visually-hidden"
+                           data-max-file-size="@Model.MaxFileSizeBytes"
+                           data-ffc-upload-input />
+                    <span class="bi bi-cloud-arrow-up ffc-upload-zone__icon" aria-hidden="true"></span>
+                    <strong>Drop a PDF or image here</strong>
+                    <span>or choose a file</span>
+                    <small>PDF, JPEG, PNG or WEBP · maximum @FileSizeFormatter.FormatFileSize(Model.MaxFileSizeBytes)</small>
+                    <span class="ffc-upload-zone__selection" data-ffc-upload-selection>No file selected</span>
+                </label>
+                <span asp-validation-for="AttachmentInput.UploadFile" class="text-danger"></span>
+                <span class="text-danger" data-ffc-upload-client-error hidden></span>
+            </section>
+
+            <section class="ffc-drawer-section">
+                <label asp-for="AttachmentInput.Caption" class="form-label">Caption <span class="text-body-secondary">(optional)</span></label>
+                <input asp-for="AttachmentInput.Caption"
+                       class="form-control"
+                       placeholder="A clear title for this document or image" />
+                <div class="form-text">When left blank, the original file name is used.</div>
+                <span asp-validation-for="AttachmentInput.Caption" class="text-danger"></span>
+            </section>
+
+            <div class="ffc-upload-assurance" role="note">
+                <span class="bi bi-shield-check" aria-hidden="true"></span>
+                <span>PDF and image files are security-checked and duplicate-checked before storage.</span>
+            </div>
+        </div>
+
+        <div class="ffc-workspace-drawer__footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+            <button type="submit"
+                    class="btn btn-primary"
+                    data-ffc-upload-submit
+                    data-ffc-submitting-text="Uploading…"
+                    disabled>
+                Upload attachment
+            </button>
+        </div>
+    </form>
+</div>

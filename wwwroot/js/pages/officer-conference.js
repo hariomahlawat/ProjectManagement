@@ -3,8 +3,82 @@ const root = document.querySelector('[data-officer-conference]');
 if (root) {
     const antiforgeryToken = root.querySelector('.oc-antiforgery input[name="__RequestVerificationToken"]')?.value ?? '';
     const selector = root.querySelector('[data-officer-selector]');
+    const stickyShell = root.querySelector('[data-oc-sticky-shell]');
+    const stickyHeader = root.querySelector('[data-oc-sticky-header]');
+    const applicationTopbar = document.querySelector('.pm-topbar');
     let openEditor = null;
+    let openIdeaEditor = null;
     let openTaskEditor = null;
+    let stickyFrame = 0;
+    let stickyState = false;
+    const directionHistoryState = new WeakMap();
+
+    // Use separate enter and release thresholds so fractional-pixel layout changes near
+    // the sticky boundary cannot repeatedly add and remove the state class.
+    const stickyEnterOffset = 1;
+    const stickyReleaseOffset = 8;
+
+    const readElementHeight = (element, fallback) => {
+        if (!element) return fallback;
+        const height = Math.ceil(element.getBoundingClientRect().height);
+        return Number.isFinite(height) && height > 0 ? height : fallback;
+    };
+
+    const setCssPixelValue = (target, propertyName, value) => {
+        const nextValue = `${value}px`;
+        if (target.style.getPropertyValue(propertyName) !== nextValue) {
+            target.style.setProperty(propertyName, nextValue);
+        }
+    };
+
+    const syncStickyHeaderHeight = () => {
+        if (!stickyShell || !stickyHeader) return;
+
+        const topbarHeight = readElementHeight(applicationTopbar, 52);
+        const stickyHeaderHeight = readElementHeight(stickyHeader, 64);
+        setCssPixelValue(root, '--oc-topbar-height', topbarHeight);
+        setCssPixelValue(root, '--oc-sticky-header-height', stickyHeaderHeight);
+
+        const scrollPaddingTop = `${topbarHeight + stickyHeaderHeight + 12}px`;
+        if (document.documentElement.style.scrollPaddingTop !== scrollPaddingTop) {
+            document.documentElement.style.scrollPaddingTop = scrollPaddingTop;
+        }
+
+        // The conference toolbar is intentionally non-sticky on narrow layouts. Avoid
+        // applying a stale visual state when the responsive rule changes its position.
+        const stickyLayoutEnabled = window.getComputedStyle(stickyShell).position === 'sticky';
+        const shellTop = stickyShell.getBoundingClientRect().top;
+        const nextStickyState = stickyLayoutEnabled && window.scrollY > 0
+            ? stickyState
+                ? shellTop <= topbarHeight + stickyReleaseOffset
+                : shellTop <= topbarHeight + stickyEnterOffset
+            : false;
+
+        if (nextStickyState !== stickyState) {
+            stickyState = nextStickyState;
+            stickyShell.classList.toggle('is-stuck', stickyState);
+        }
+    };
+
+    const scheduleStickySync = () => {
+        if (stickyFrame) return;
+        stickyFrame = window.requestAnimationFrame(() => {
+            stickyFrame = 0;
+            syncStickyHeaderHeight();
+        });
+    };
+
+    if (stickyShell && stickyHeader) {
+        syncStickyHeaderHeight();
+        window.addEventListener('scroll', scheduleStickySync, { passive: true });
+        window.addEventListener('resize', scheduleStickySync, { passive: true });
+
+        if ('ResizeObserver' in window) {
+            const stickyResizeObserver = new ResizeObserver(scheduleStickySync);
+            stickyResizeObserver.observe(stickyHeader);
+            if (applicationTopbar) stickyResizeObserver.observe(applicationTopbar);
+        }
+    }
 
     const formatIstDateTime = (value) => {
         if (!value) return '';
@@ -73,6 +147,9 @@ if (root) {
         if (openEditor && openEditor !== editor) {
             closeEditor(openEditor);
         }
+        if (openIdeaEditor) {
+            closeIdeaEditor(openIdeaEditor);
+        }
         if (openTaskEditor) {
             closeTaskEditor(openTaskEditor);
         }
@@ -85,6 +162,232 @@ if (root) {
 
         const input = editor.querySelector('[data-oc-input]');
         requestAnimationFrame(() => input?.focus());
+    };
+
+    const getIdeaAddButton = (editor) => editor?.closest('[data-oc-section="ideas"]')?.querySelector('[data-oc-idea-add]') ?? null;
+
+    const clearIdeaErrors = (editor) => {
+        editor?.querySelectorAll('[data-oc-idea-error]').forEach((element) => {
+            element.textContent = '';
+        });
+        editor?.querySelectorAll('[data-oc-idea-input]').forEach((input) => {
+            input.removeAttribute('aria-invalid');
+        });
+    };
+
+    const ideaFormIsComplete = (editor) => {
+        const title = editor?.querySelector('[data-oc-idea-input="Title"]')?.value.trim() ?? '';
+        const description = editor?.querySelector('[data-oc-idea-input="Description"]')?.value.trim() ?? '';
+        const hod = editor?.querySelector('[data-oc-idea-input="AssignedHodUserId"]');
+        const hasHod = !hod || hod.value.trim().length > 0;
+        return title.length > 0
+            && description.length > 0
+            && hasHod
+            && (typeof editor.checkValidity !== 'function' || editor.checkValidity());
+    };
+
+    const syncIdeaSaveState = (editor) => {
+        const save = editor?.querySelector('[data-oc-idea-save]');
+        if (save) save.disabled = !ideaFormIsComplete(editor) || editor.classList.contains('is-saving');
+    };
+
+    const closeIdeaEditor = (editor, { clear = true, restoreFocus = false } = {}) => {
+        if (!editor) return;
+
+        editor.hidden = true;
+        editor.classList.remove('is-saving');
+        editor.setAttribute('aria-busy', 'false');
+        clearIdeaErrors(editor);
+
+        const feedback = editor.querySelector('[data-oc-idea-feedback]');
+        if (feedback) {
+            feedback.textContent = '';
+            feedback.classList.remove('is-error');
+        }
+
+        if (clear) editor.reset();
+        syncIdeaSaveState(editor);
+
+        const addButton = getIdeaAddButton(editor);
+        addButton?.setAttribute('aria-expanded', 'false');
+        if (restoreFocus) addButton?.focus();
+        if (openIdeaEditor === editor) openIdeaEditor = null;
+    };
+
+    const openIdeaCreation = (section) => {
+        const editor = section?.querySelector('[data-oc-idea-editor]');
+        if (!editor) return;
+
+        if (openEditor) closeEditor(openEditor);
+        if (openTaskEditor) closeTaskEditor(openTaskEditor);
+        if (openIdeaEditor && openIdeaEditor !== editor) closeIdeaEditor(openIdeaEditor);
+
+        editor.hidden = false;
+        editor.setAttribute('aria-busy', 'false');
+        clearIdeaErrors(editor);
+        getIdeaAddButton(editor)?.setAttribute('aria-expanded', 'true');
+        openIdeaEditor = editor;
+        syncIdeaSaveState(editor);
+
+        requestAnimationFrame(() => editor.querySelector('[data-oc-idea-input="Title"]')?.focus());
+    };
+
+    const applyIdeaErrors = (editor, errors) => {
+        if (!errors || typeof errors !== 'object') return;
+
+        Object.entries(errors).forEach(([field, messages]) => {
+            const input = editor.querySelector(`[data-oc-idea-input="${field}"]`);
+            const error = editor.querySelector(`[data-oc-idea-error="${field}"]`);
+            const message = Array.isArray(messages) ? messages[0] : String(messages ?? '');
+            if (input) input.setAttribute('aria-invalid', 'true');
+            if (error) error.textContent = message;
+        });
+    };
+
+
+    const ensureColumnHeadings = (section, itemLabel) => {
+        if (!section || section.querySelector('.oc-column-headings')) return;
+
+        const headings = document.createElement('div');
+        headings.className = 'oc-column-headings';
+        headings.setAttribute('aria-hidden', 'true');
+        [itemLabel, 'Conference direction', 'Progress after direction'].forEach((text) => {
+            const span = document.createElement('span');
+            span.textContent = text;
+            headings.append(span);
+        });
+
+        const anchor = section.querySelector('[data-oc-item-list]')
+            ?? section.querySelector('[data-oc-idea-item-template], [data-oc-task-item-template]');
+        anchor?.before(headings);
+    };
+
+    const appendCreatedIdea = (idea) => {
+        const section = root.querySelector('[data-oc-section="ideas"]');
+        const template = section?.querySelector('[data-oc-idea-item-template]');
+        if (!section || !template || !idea) return null;
+
+        const item = template.content.firstElementChild.cloneNode(true);
+        const currentOfficerId = section.querySelector('[data-oc-idea-editor]')?.dataset.officerId ?? '';
+        const itemKind = String(idea.kind ?? 2);
+        const itemId = String(idea.itemId ?? '');
+        const editorId = `oc-editor-${itemKind}-${itemId}`;
+        const feedbackId = `${editorId}-feedback`;
+
+        item.dataset.officerId = currentOfficerId;
+        item.dataset.itemKind = itemKind;
+        item.dataset.itemId = itemId;
+
+        const title = item.querySelector('[data-oc-new-idea-title]');
+        if (title) {
+            title.textContent = idea.title ?? 'New idea';
+            title.href = idea.openUrl ?? '#';
+        }
+
+        const state = item.querySelector('[data-oc-new-idea-state]');
+        if (state) state.textContent = idea.currentStateName ?? idea.currentStateCode ?? 'Active';
+
+        const context = item.querySelector('[data-oc-new-idea-context]');
+        if (context) context.textContent = idea.currentContext ?? 'Created just now';
+
+        const openLink = item.querySelector('[data-oc-new-idea-open]');
+        if (openLink) openLink.href = idea.openUrl ?? '#';
+
+        const addDirection = item.querySelector('[data-oc-add]');
+        addDirection?.setAttribute('aria-controls', editorId);
+
+        const directionEditor = item.querySelector('[data-oc-editor]');
+        if (directionEditor) {
+            directionEditor.id = editorId;
+            directionEditor.querySelector('input[name="officerUserId"]').value = currentOfficerId;
+            directionEditor.querySelector('input[name="kind"]').value = itemKind;
+            directionEditor.querySelector('input[name="itemId"]').value = itemId;
+            const textarea = directionEditor.querySelector('[data-oc-input]');
+            const feedback = directionEditor.querySelector('[data-oc-feedback]');
+            if (textarea) textarea.setAttribute('aria-describedby', feedbackId);
+            if (feedback) feedback.id = feedbackId;
+        }
+
+        ensureColumnHeadings(section, 'Idea');
+        let list = section.querySelector('[data-oc-item-list]');
+        if (!list) {
+            list = document.createElement('div');
+            list.className = 'oc-item-list';
+            list.dataset.ocItemList = '';
+            section.querySelector('[data-oc-section-empty]')?.remove();
+            template.before(list);
+        }
+        list.prepend(item);
+
+        const count = section.querySelector('[data-oc-section-count]');
+        const nextCount = Number.parseInt(count?.textContent ?? '0', 10) + 1;
+        if (count) count.textContent = String(nextCount);
+
+        const headerCount = root.querySelector('[data-oc-header-idea-count]');
+        const headerLabel = root.querySelector('[data-oc-header-idea-label]');
+        if (headerCount) headerCount.textContent = String(nextCount);
+        if (headerLabel) headerLabel.textContent = nextCount === 1 ? 'idea' : 'ideas';
+
+        item.classList.add('is-saved');
+        window.setTimeout(() => item.classList.remove('is-saved'), 1200);
+        return item;
+    };
+
+    const saveIdea = async (editor) => {
+        if (!editor || editor.classList.contains('is-saving')) return;
+        if (!ideaFormIsComplete(editor)) {
+            editor.reportValidity?.();
+            return;
+        }
+
+        const save = editor.querySelector('[data-oc-idea-save]');
+        const feedback = editor.querySelector('[data-oc-idea-feedback]');
+        editor.classList.add('is-saving');
+        editor.setAttribute('aria-busy', 'true');
+        clearIdeaErrors(editor);
+        if (save) save.disabled = true;
+        if (feedback) {
+            feedback.textContent = 'Creating idea…';
+            feedback.classList.remove('is-error');
+        }
+
+        const data = new FormData(editor);
+        if (antiforgeryToken && !data.has('__RequestVerificationToken')) {
+            data.append('__RequestVerificationToken', antiforgeryToken);
+        }
+
+        try {
+            const response = await fetch(editor.action, {
+                method: 'POST',
+                body: data,
+                headers: antiforgeryToken ? { 'X-CSRF-TOKEN': antiforgeryToken } : {},
+                credentials: 'same-origin'
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                applyIdeaErrors(editor, payload.errors);
+                const reference = payload.traceId ? ` Reference: ${payload.traceId}.` : '';
+                throw new Error(`${payload.message || 'The idea could not be created.'}${reference}`);
+            }
+
+            const item = appendCreatedIdea(payload.idea);
+            closeIdeaEditor(editor, { restoreFocus: true });
+            if (item) {
+                setRowStatus(item, 'Idea created.');
+                item.querySelector('[data-oc-new-idea-title]')?.focus({ preventScroll: true });
+            }
+        } catch (error) {
+            editor.classList.remove('is-saving');
+            editor.setAttribute('aria-busy', 'false');
+            syncIdeaSaveState(editor);
+            const message = error instanceof Error ? error.message : 'The idea could not be created.';
+            if (feedback) {
+                feedback.textContent = message;
+                feedback.classList.add('is-error');
+            }
+            const firstInvalid = editor.querySelector('[aria-invalid="true"]');
+            (firstInvalid ?? editor.querySelector('[data-oc-idea-input="Title"]'))?.focus();
+        }
     };
 
     const getTaskAddButton = (editor) => editor?.closest('[data-oc-section="tasks"]')?.querySelector('[data-oc-task-add]') ?? null;
@@ -141,6 +444,7 @@ if (root) {
         if (!editor) return;
 
         if (openEditor) closeEditor(openEditor);
+        if (openIdeaEditor) closeIdeaEditor(openIdeaEditor);
         if (openTaskEditor && openTaskEditor !== editor) closeTaskEditor(openTaskEditor);
 
         editor.hidden = false;
@@ -218,6 +522,7 @@ if (root) {
             if (feedback) feedback.id = feedbackId;
         }
 
+        ensureColumnHeadings(section, 'Task');
         let list = section.querySelector('[data-oc-item-list]');
         if (!list) {
             list = document.createElement('div');
@@ -355,19 +660,81 @@ if (root) {
         });
     };
 
-    const buildDirection = (direction, item) => {
+    const readDirectionCount = (item) => {
+        const value = Number.parseInt(item?.dataset.directionCount ?? '0', 10);
+        return Number.isFinite(value) && value > 0 ? value : 0;
+    };
+
+    const buildDirectionHistoryNavigator = ({ sequenceNumber, totalDirections, isLatest }) => {
+        if (totalDirections <= 1) return null;
+
+        const navigator = document.createElement('div');
+        navigator.className = 'oc-direction-history';
+        navigator.dataset.ocDirectionHistory = '';
+        navigator.setAttribute('aria-label', 'Conference direction history navigation');
+
+        const older = document.createElement('button');
+        older.type = 'button';
+        older.className = 'oc-direction-history__button';
+        older.dataset.ocDirectionOlder = '';
+        older.setAttribute('aria-label', 'Show older conference direction');
+        older.title = 'Show older conference direction';
+        older.disabled = sequenceNumber <= 1;
+        const olderIcon = document.createElement('i');
+        olderIcon.className = 'bi bi-chevron-left';
+        olderIcon.setAttribute('aria-hidden', 'true');
+        older.append(olderIcon);
+
+        const position = document.createElement('span');
+        position.className = 'oc-direction-history__position';
+        position.dataset.ocDirectionPosition = '';
+        position.setAttribute('aria-live', 'polite');
+        position.textContent = `${isLatest ? 'Latest' : 'Historical'} · ${sequenceNumber} of ${totalDirections}`;
+
+        const newer = document.createElement('button');
+        newer.type = 'button';
+        newer.className = 'oc-direction-history__button';
+        newer.dataset.ocDirectionNewer = '';
+        newer.setAttribute('aria-label', 'Show newer conference direction');
+        newer.title = 'Show newer conference direction';
+        newer.disabled = sequenceNumber >= totalDirections;
+        const newerIcon = document.createElement('i');
+        newerIcon.className = 'bi bi-chevron-right';
+        newerIcon.setAttribute('aria-hidden', 'true');
+        newer.append(newerIcon);
+
+        navigator.append(older, position, newer);
+        return navigator;
+    };
+
+    const buildDirection = (direction, item, cycle = {}) => {
+        const totalDirections = Number.parseInt(
+            String(cycle.totalDirections ?? readDirectionCount(item) ?? 1),
+            10
+        ) || 1;
+        const sequenceNumber = Number.parseInt(
+            String(cycle.sequenceNumber ?? totalDirections),
+            10
+        ) || totalDirections;
+        const isLatest = cycle.isLatest ?? sequenceNumber === totalDirections;
+
         const wrapper = document.createElement('div');
         wrapper.className = 'oc-direction';
         wrapper.dataset.ocDirectionContent = '';
+        wrapper.dataset.directionSequence = String(sequenceNumber);
+        wrapper.dataset.directionTotal = String(totalDirections);
+        wrapper.dataset.directionLatest = String(isLatest);
+        wrapper.setAttribute(
+            'aria-label',
+            `${isLatest ? 'Latest' : 'Historical'} conference direction, ${sequenceNumber} of ${totalDirections}`
+        );
 
-        const label = document.createElement('div');
-        label.className = 'oc-direction__label';
-        const labelText = document.createElement('span');
-        const icon = document.createElement('i');
-        icon.className = 'bi bi-file-earmark-check';
-        icon.setAttribute('aria-hidden', 'true');
-        labelText.append(icon, document.createTextNode('Latest conference direction'));
-        label.append(labelText);
+        const navigator = buildDirectionHistoryNavigator({
+            sequenceNumber,
+            totalDirections,
+            isLatest
+        });
+        if (navigator) wrapper.append(navigator);
 
         const instruction = document.createElement('div');
         instruction.className = 'oc-direction__instruction';
@@ -376,7 +743,7 @@ if (root) {
         body.className = 'oc-direction__body';
         body.dataset.ocDirectionBody = '';
         body.id = `oc-direction-body-${item.dataset.itemKind}-${item.dataset.itemId}`;
-        body.textContent = direction.body;
+        body.textContent = direction.body ?? '';
 
         const toggle = document.createElement('button');
         toggle.type = 'button';
@@ -391,9 +758,10 @@ if (root) {
         const timestamp = document.createElement('time');
         timestamp.className = 'oc-direction__timestamp';
         timestamp.dateTime = direction.createdAtUtc ?? '';
-        timestamp.textContent = formatIstDateTime(direction.createdAtUtc);
+        const formattedTimestamp = formatIstDateTime(direction.createdAtUtc);
+        timestamp.textContent = formattedTimestamp ? `Issued ${formattedTimestamp}` : '';
 
-        wrapper.append(label, instruction, timestamp);
+        wrapper.append(instruction, timestamp);
         return wrapper;
     };
 
@@ -464,10 +832,6 @@ if (root) {
         if (!host) return;
 
         host.replaceChildren();
-        const label = document.createElement('span');
-        label.className = 'oc-progress-label';
-        label.textContent = 'Progress after direction';
-        host.append(label);
 
         const entries = Array.isArray(payload.progressEntries) ? payload.progressEntries : [];
         if (entries.length > 0) {
@@ -487,17 +851,193 @@ if (root) {
         }
     };
 
-    const applySavedDirection = (item, payload) => {
+
+    const setHistoryNavigatorBusy = (item, busy, message = '') => {
+        const navigator = item?.querySelector('[data-oc-direction-history]');
+        if (!navigator) return;
+
+        navigator.classList.toggle('is-loading', busy);
+        navigator.querySelectorAll('button').forEach((button) => {
+            button.disabled = busy;
+        });
+        const position = navigator.querySelector('[data-oc-direction-position]');
+        if (position && message) position.textContent = message;
+    };
+
+    const renderDirectionCycle = (item, cycle) => {
+        if (!item || !cycle?.direction) return;
+
         const directionHost = item.querySelector('[data-oc-direction]');
         if (directionHost) {
-            const direction = buildDirection(payload.direction, item);
+            const direction = buildDirection(cycle.direction, item, cycle);
+            directionHost.replaceChildren(direction);
+            directionHost.classList.remove('oc-item__direction--empty');
+            configureDirectionToggle(direction);
+        }
+
+        renderProgress(item, cycle);
+        item.classList.toggle('is-viewing-history', !cycle.isLatest);
+        item.dataset.directionView = cycle.isLatest ? 'latest' : 'historical';
+    };
+
+    const loadDirectionHistory = async (item) => {
+        const existing = directionHistoryState.get(item);
+        if (existing?.status === 'loaded') return existing;
+        if (existing?.status === 'loading' && existing.promise) return existing.promise;
+
+        const state = existing ?? {
+            status: 'idle',
+            cycles: [],
+            currentIndex: Math.max(readDirectionCount(item) - 1, 0),
+            promise: null
+        };
+        state.status = 'loading';
+        setHistoryNavigatorBusy(item, true, 'Loading history…');
+
+        state.promise = (async () => {
+            const url = new URL(window.location.pathname, window.location.origin);
+            url.searchParams.set('handler', 'DirectionHistory');
+            url.searchParams.set('officerUserId', item.dataset.officerId ?? '');
+            url.searchParams.set('kind', item.dataset.itemKind ?? '');
+            url.searchParams.set('itemId', item.dataset.itemId ?? '');
+
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: { Accept: 'application/json' },
+                    credentials: 'same-origin',
+                    cache: 'no-store'
+                });
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    const reference = payload.traceId ? ` Reference: ${payload.traceId}.` : '';
+                    throw new Error(`${payload.message || 'Direction history could not be loaded.'}${reference}`);
+                }
+
+                const cycles = Array.isArray(payload.cycles) ? payload.cycles : [];
+                if (cycles.length === 0) {
+                    throw new Error('No conference-direction history is available for this item.');
+                }
+
+                state.status = 'loaded';
+                state.cycles = cycles;
+                state.currentIndex = cycles.length - 1;
+                item.dataset.directionCount = String(cycles.length);
+                setRowStatus(item, '');
+                return state;
+            } catch (error) {
+                state.status = 'error';
+                state.promise = null;
+                const message = error instanceof Error
+                    ? error.message
+                    : 'Direction history could not be loaded.';
+                setHistoryNavigatorBusy(item, false, 'History unavailable');
+                const navigator = item.querySelector('[data-oc-direction-history]');
+                const older = navigator?.querySelector('[data-oc-direction-older]');
+                if (older) {
+                    older.disabled = false;
+                    older.title = 'Retry loading older conference direction';
+                }
+                const newer = navigator?.querySelector('[data-oc-direction-newer]');
+                if (newer) newer.disabled = true;
+                setRowStatus(item, message, true);
+                throw error;
+            }
+        })();
+
+        directionHistoryState.set(item, state);
+        return state.promise;
+    };
+
+    const navigateDirectionHistory = async (item, delta) => {
+        if (!item || !Number.isInteger(delta) || delta === 0) return;
+
+        try {
+            const state = await loadDirectionHistory(item);
+            const nextIndex = Math.min(
+                state.cycles.length - 1,
+                Math.max(0, state.currentIndex + delta)
+            );
+            if (nextIndex === state.currentIndex && item.dataset.directionView) {
+                renderDirectionCycle(item, state.cycles[nextIndex]);
+                return;
+            }
+
+            state.currentIndex = nextIndex;
+            renderDirectionCycle(item, state.cycles[nextIndex]);
+            requestAnimationFrame(() => {
+                const preferredSelector = delta < 0
+                    ? '[data-oc-direction-older]'
+                    : '[data-oc-direction-newer]';
+                const alternateSelector = delta < 0
+                    ? '[data-oc-direction-newer]'
+                    : '[data-oc-direction-older]';
+                const preferred = item.querySelector(preferredSelector);
+                const alternate = item.querySelector(alternateSelector);
+                const focusTarget = preferred && !preferred.disabled ? preferred : alternate;
+                focusTarget?.focus({ preventScroll: true });
+            });
+        } catch {
+            // The row-local status and retry state are applied by loadDirectionHistory.
+        }
+    };
+
+    const returnToLatestDirection = (item) => {
+        const state = directionHistoryState.get(item);
+        if (state?.status !== 'loaded' || state.cycles.length === 0) return;
+
+        state.currentIndex = state.cycles.length - 1;
+        renderDirectionCycle(item, state.cycles[state.currentIndex]);
+    };
+
+    const applySavedDirection = (item, payload) => {
+        const nextDirectionCount = readDirectionCount(item) + 1;
+        item.dataset.directionCount = String(nextDirectionCount);
+        item.dataset.latestDirectionId = String(payload.direction?.id ?? '');
+        item.dataset.directionView = 'latest';
+        item.classList.remove('is-viewing-history');
+        directionHistoryState.delete(item);
+
+        const directionHost = item.querySelector('[data-oc-direction]');
+        if (directionHost) {
+            const direction = buildDirection(payload.direction, item, {
+                sequenceNumber: nextDirectionCount,
+                totalDirections: nextDirectionCount,
+                isLatest: true
+            });
             directionHost.replaceChildren(direction);
             directionHost.classList.remove('oc-item__direction--empty');
             configureDirectionToggle(direction);
         }
 
         renderProgress(item, payload);
-        item.querySelector('.oc-item__actions')?.classList.remove('oc-item__actions--empty');
+
+        const actions = item.querySelector('.oc-item__actions');
+        if (actions) {
+            actions.classList.remove('oc-item__actions--empty');
+            if (!actions.querySelector('[data-oc-add]')) {
+                const editor = item.querySelector('[data-oc-editor]');
+                const addButton = document.createElement('button');
+                addButton.type = 'button';
+                addButton.className = 'oc-add-direction';
+                addButton.dataset.ocAdd = '';
+                addButton.dataset.ocDirectionAction = '';
+                addButton.setAttribute('aria-controls', editor?.id ?? '');
+                addButton.setAttribute('aria-expanded', 'false');
+
+                const icon = document.createElement('i');
+                icon.className = 'bi bi-plus-circle';
+                icon.setAttribute('aria-hidden', 'true');
+                const label = document.createElement('span');
+                label.textContent = 'Issue further direction';
+                addButton.append(icon, label);
+                actions.prepend(addButton);
+            }
+        }
+
+        const saveLabel = item.querySelector('[data-oc-save-label]');
+        if (saveLabel) saveLabel.textContent = 'Issue further direction';
+
         item.classList.remove('is-saved');
         void item.offsetWidth;
         item.classList.add('is-saved');
@@ -568,6 +1108,18 @@ if (root) {
     });
 
     root.addEventListener('click', (event) => {
+        const addIdeaButton = event.target.closest('[data-oc-idea-add]');
+        if (addIdeaButton) {
+            openIdeaCreation(addIdeaButton.closest('[data-oc-section="ideas"]'));
+            return;
+        }
+
+        const cancelIdeaButton = event.target.closest('[data-oc-idea-cancel]');
+        if (cancelIdeaButton) {
+            closeIdeaEditor(cancelIdeaButton.closest('[data-oc-idea-editor]'), { restoreFocus: true });
+            return;
+        }
+
         const addTaskButton = event.target.closest('[data-oc-task-add]');
         if (addTaskButton) {
             openTaskCreation(addTaskButton.closest('[data-oc-section="tasks"]'));
@@ -577,6 +1129,18 @@ if (root) {
         const cancelTaskButton = event.target.closest('[data-oc-task-cancel]');
         if (cancelTaskButton) {
             closeTaskEditor(cancelTaskButton.closest('[data-oc-task-editor]'), { restoreFocus: true });
+            return;
+        }
+
+        const olderDirectionButton = event.target.closest('[data-oc-direction-older]');
+        if (olderDirectionButton) {
+            void navigateDirectionHistory(olderDirectionButton.closest('[data-oc-item]'), -1);
+            return;
+        }
+
+        const newerDirectionButton = event.target.closest('[data-oc-direction-newer]');
+        if (newerDirectionButton) {
+            void navigateDirectionHistory(newerDirectionButton.closest('[data-oc-item]'), 1);
             return;
         }
 
@@ -598,7 +1162,9 @@ if (root) {
 
         const addButton = event.target.closest('[data-oc-add]');
         if (addButton) {
-            openInlineEditor(addButton.closest('[data-oc-item]'));
+            const item = addButton.closest('[data-oc-item]');
+            returnToLatestDirection(item);
+            openInlineEditor(item);
             return;
         }
 
@@ -609,6 +1175,22 @@ if (root) {
     });
 
     root.addEventListener('input', (event) => {
+        const ideaInput = event.target.closest('[data-oc-idea-input]');
+        if (ideaInput) {
+            const editor = ideaInput.closest('[data-oc-idea-editor]');
+            ideaInput.removeAttribute('aria-invalid');
+            const field = ideaInput.dataset.ocIdeaInput;
+            const error = editor?.querySelector(`[data-oc-idea-error="${field}"]`);
+            if (error) error.textContent = '';
+            const feedback = editor?.querySelector('[data-oc-idea-feedback]');
+            if (feedback?.classList.contains('is-error')) {
+                feedback.textContent = '';
+                feedback.classList.remove('is-error');
+            }
+            syncIdeaSaveState(editor);
+            return;
+        }
+
         const taskInput = event.target.closest('[data-oc-task-input]');
         if (taskInput) {
             const editor = taskInput.closest('[data-oc-task-editor]');
@@ -640,12 +1222,33 @@ if (root) {
     });
 
     root.addEventListener('change', (event) => {
+        const ideaInput = event.target.closest('[data-oc-idea-input]');
+        if (ideaInput) {
+            syncIdeaSaveState(ideaInput.closest('[data-oc-idea-editor]'));
+            return;
+        }
+
         const taskInput = event.target.closest('[data-oc-task-input]');
         if (!taskInput) return;
         syncTaskSaveState(taskInput.closest('[data-oc-task-editor]'));
     });
 
     root.addEventListener('keydown', (event) => {
+        const ideaEditor = event.target.closest('[data-oc-idea-editor]');
+        if (ideaEditor) {
+            if (event.key === 'Escape') {
+                if (ideaEditor.classList.contains('is-saving')) return;
+                event.preventDefault();
+                closeIdeaEditor(ideaEditor, { restoreFocus: true });
+                return;
+            }
+            if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                void saveIdea(ideaEditor);
+                return;
+            }
+        }
+
         const taskEditor = event.target.closest('[data-oc-task-editor]');
         if (taskEditor) {
             if (event.key === 'Escape') {
@@ -680,6 +1283,13 @@ if (root) {
     });
 
     root.addEventListener('submit', (event) => {
+        const ideaEditor = event.target.closest('[data-oc-idea-editor]');
+        if (ideaEditor) {
+            event.preventDefault();
+            void saveIdea(ideaEditor);
+            return;
+        }
+
         const taskEditor = event.target.closest('[data-oc-task-editor]');
         if (taskEditor) {
             event.preventDefault();
@@ -700,6 +1310,7 @@ if (root) {
     window.addEventListener('resize', () => {
         window.clearTimeout(resizeTimer);
         resizeTimer = window.setTimeout(() => {
+            syncStickyHeaderHeight();
             root.querySelectorAll('[data-oc-direction-content]').forEach(configureDirectionToggle);
             root.querySelectorAll('[data-oc-progress-entry]').forEach(configureProgressToggle);
         }, 120);

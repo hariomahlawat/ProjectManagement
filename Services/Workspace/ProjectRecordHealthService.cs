@@ -29,6 +29,32 @@ public sealed class ProjectRecordHealthService
         _procurementRead = procurementRead;
     }
 
+    public async Task<IReadOnlyDictionary<int, WorkspaceRecordHealthVm>> CalculateForProjectIdsAsync(
+        IReadOnlyCollection<int> projectIds,
+        string userId,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(projectIds);
+
+        var ids = projectIds
+            .Where(projectId => projectId > 0)
+            .Distinct()
+            .ToArray();
+
+        if (ids.Length == 0)
+        {
+            return new Dictionary<int, WorkspaceRecordHealthVm>();
+        }
+
+        var projects = await _db.Projects
+            .AsNoTracking()
+            .Include(project => project.ProjectStages)
+            .Where(project => ids.Contains(project.Id) && !project.IsDeleted)
+            .ToListAsync(ct);
+
+        return await CalculateForProjectsAsync(projects, userId, ct);
+    }
+
     // The score combines fixed project-record requirements (description, documents,
     // photographs and video) with procurement and timeline fields that become applicable
     // as the project progresses. The weights and thresholds are intentionally stable.

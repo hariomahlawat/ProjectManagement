@@ -540,6 +540,11 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("Remarks")
                         .HasColumnType("text");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -553,11 +558,20 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("LinkedProjectId")
                         .HasDatabaseName("IX_FfcProjects_LinkedProjectId");
 
+                    b.HasIndex("FfcRecordId", "LinkedProjectId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_FfcProjects_Record_LinkedProject")
+                        .HasFilter("\"LinkedProjectId\" IS NOT NULL");
+
                     b.ToTable("FfcProjects", null, t =>
                         {
                             t.HasCheckConstraint("CK_FfcProjects_DeliveredOn_RequiresFlag", "\"DeliveredOn\" IS NULL OR \"IsDelivered\" = TRUE");
 
                             t.HasCheckConstraint("CK_FfcProjects_InstalledOn_RequiresFlag", "\"InstalledOn\" IS NULL OR \"IsInstalled\" = TRUE");
+
+                            t.HasCheckConstraint("CK_FfcProjects_Installed_RequiresDelivered", "\"IsInstalled\" = FALSE OR \"IsDelivered\" = TRUE");
+
+                            t.HasCheckConstraint("CK_FfcProjects_InstallationDate_NotBeforeDeliveryDate", "\"DeliveredOn\" IS NULL OR \"InstalledOn\" IS NULL OR \"InstalledOn\" >= \"DeliveredOn\"");
 
                             t.HasCheckConstraint("CK_FfcProjects_Quantity_Positive", "\"Quantity\" > 0");
                         });
@@ -651,7 +665,9 @@ namespace ProjectManagement.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CountryId", "Year")
-                        .HasDatabaseName("IX_FfcRecords_CountryId_Year");
+                        .IsUnique()
+                        .HasDatabaseName("UX_FfcRecords_CountryId_Year_Active")
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.HasIndex("IpaYes", "GslYes", "DeliveryYes", "InstallationYes")
                         .HasDatabaseName("IX_FfcRecords_StatusFlags");
@@ -3158,6 +3174,11 @@ namespace ProjectManagement.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer");
 
+                    b.Property<int>("AccountKind")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("text");
@@ -3173,6 +3194,10 @@ namespace ProjectManagement.Migrations
 
                     b.Property<DateTime?>("DeletionRequestedUtc")
                         .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("DeletionPreviousStateJson")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<string>("DisabledByUserId")
                         .HasColumnType("text");
@@ -3252,6 +3277,8 @@ namespace ProjectManagement.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("AccountKind");
+
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
 
@@ -3259,13 +3286,17 @@ namespace ProjectManagement.Migrations
                         .IsUnique()
                         .HasDatabaseName("UserNameIndex");
 
-                    b.ToTable("AspNetUsers", (string)null);
+                    b.ToTable("AspNetUsers", (string)null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AspNetUsers_AccountKind", "\"AccountKind\" IN (1, 2, 3)");
+                        });
 
                     b.HasData(
                         new
                         {
                             Id = "system",
                             AccessFailedCount = 0,
+                            AccountKind = 2,
                             ConcurrencyStamp = "bb6d6cb5-52dd-432c-95d4-6b6a92d6a0d3",
                             CreatedUtc = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Email = "system@example.local",
@@ -3338,6 +3369,8 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("TimeUtc");
 
                     b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "TimeUtc");
 
                     b.HasIndex("UserName");
 
@@ -3703,6 +3736,10 @@ namespace ProjectManagement.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
                     b.Property<DateTimeOffset>("CreatedUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -3796,6 +3833,11 @@ namespace ProjectManagement.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp without time zone")
                         .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
 
                     b.HasKey("Id");
 
@@ -4304,6 +4346,130 @@ namespace ProjectManagement.Migrations
                     b.ToTable("StagePlans");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("CostMode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
+                    b.Property<string>("HandlingMarking")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<bool>("IncludeProjectCategorySummary")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IncludeStageSummary")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IncludeTechnicalCategorySummary")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("LastGeneratedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("OwnerUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("PresentationMode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("SelectionRulesJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LastModifiedByUserId");
+
+                    b.HasIndex("UpdatedAtUtc")
+                        .HasDatabaseName("IX_ProjectBriefingDecks_UpdatedAtUtc");
+
+                    b.HasIndex("OwnerUserId")
+                        .HasDatabaseName("IX_ProjectBriefingDecks_OwnerUserId");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProjectBriefingDecks_NormalizedName");
+
+                    b.ToTable("ProjectBriefingDecks");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeckItem", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("AddedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("BriefDescriptionOverride")
+                        .HasMaxLength(1200)
+                        .HasColumnType("character varying(1200)");
+
+                    b.Property<long>("DeckId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeckId", "ProjectId")
+                        .IsUnique();
+
+                    b.HasIndex("DeckId", "SortOrder");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("ProjectBriefingDeckItems");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Project", b =>
                 {
                     b.Property<int>("Id")
@@ -4664,6 +4830,11 @@ namespace ProjectManagement.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
                         .HasDefaultValue(0);
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
 
                     b.HasKey("Id");
 
@@ -5617,6 +5788,11 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("integer")
                         .HasDefaultValue(0);
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Name");
@@ -6040,20 +6216,167 @@ namespace ProjectManagement.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AuthorityReference")
+                        .HasMaxLength(240)
+                        .HasColumnType("character varying(240)");
+
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
+
+                    b.Property<bool>("IsObservedAsOfficeHoliday")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(160)
                         .HasColumnType("character varying(160)");
 
+                    b.Property<string>("ObservanceChangedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime?>("ObservanceChangedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ObservanceRemarks")
+                        .HasMaxLength(1200)
+                        .HasColumnType("character varying(1200)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<int>("Type")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
                     b.HasKey("Id");
 
-                    b.HasIndex("Date")
+                    b.HasIndex("Date");
+
+                    b.HasIndex("Date", "Type");
+
+                    b.ToTable("Holidays", t =>
+                        {
+                            t.HasCheckConstraint("CK_Holidays_GazettedObserved", "\"Type\" <> 1 OR \"IsObservedAsOfficeHoliday\" = TRUE");
+
+                            t.HasCheckConstraint("CK_Holidays_Type", "\"Type\" IN (1, 2)");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Usage.UserActivityBucket", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateOnly>("ActivityDateIst")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("BucketStartUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("FirstSeenUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("HadInteractiveHeartbeat")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HadNavigation")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("HeartbeatCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("LastSeenUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ModuleKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("NavigationCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActivityDateIst", "UserId");
+
+                    b.HasIndex("ModuleKey", "ActivityDateIst");
+
+                    b.HasIndex("UserId", "BucketStartUtc", "ModuleKey")
                         .IsUnique();
 
-                    b.ToTable("Holidays");
+                    b.ToTable("UserActivityBuckets");
+                });
+
+
+            modelBuilder.Entity("ProjectManagement.Models.Usage.UserActivityDailySummary", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateOnly>("ActivityDateIst")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("FirstSeenUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("HadInteractiveHeartbeat")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HadAdministrativeAction")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HadOperationalAction")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HadNavigation")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("HeartbeatCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("AdministrativeActionCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("LastSeenUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("NavigationCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OperationalActionCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActivityDateIst");
+
+                    b.HasIndex("UserId", "ActivityDateIst")
+                        .IsUnique();
+
+                    b.ToTable("UserActivityDailySummaries");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Scheduling.ProjectPlanDuration", b =>
@@ -6192,6 +6515,11 @@ namespace ProjectManagement.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp without time zone")
                         .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
 
                     b.HasKey("Id");
 
@@ -6584,6 +6912,11 @@ namespace ProjectManagement.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
                         .HasDefaultValue(0);
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
 
                     b.HasKey("Id");
 
@@ -7421,6 +7754,43 @@ namespace ProjectManagement.Migrations
                     b.Navigation("PlanVersion");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "LastModifiedByUser")
+                        .WithMany()
+                        .HasForeignKey("LastModifiedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "OwnerUser")
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("LastModifiedByUser");
+
+                    b.Navigation("OwnerUser");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeckItem", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", "Deck")
+                        .WithMany("Items")
+                        .HasForeignKey("DeckId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Deck");
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Project", b =>
                 {
                     b.HasOne("ProjectManagement.Models.ProjectCategory", "Category")
@@ -8222,6 +8592,11 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Rows");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
+                {
+                    b.Navigation("Items");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Project", b =>
                 {
                     b.Navigation("Documents");
@@ -8314,6 +8689,7 @@ namespace ProjectManagement.Migrations
                 });
 
             // SECTION: My Notebook module
+
             modelBuilder.Entity("ProjectManagement.Models.NotebookItem", b =>
                 {
                     b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid");
@@ -8394,6 +8770,28 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("NotebookItemId");
                     b.HasIndex("UploadedById");
                     b.ToTable("NotebookAttachments");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Usage.UserActivityBucket", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Usage.UserActivityDailySummary", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.NotebookItem", b =>

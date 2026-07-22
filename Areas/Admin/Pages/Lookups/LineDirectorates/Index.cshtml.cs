@@ -1,31 +1,27 @@
-using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
-using ProjectManagement.Data;
+using ProjectManagement.Areas.Admin.Models;
+using ProjectManagement.Configuration;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData;
 
 namespace ProjectManagement.Areas.Admin.Pages.Lookups.LineDirectorates;
 
-[Authorize(Roles = "Admin")]
-public class IndexModel : PageModel
+[Authorize(Policy = AdminPolicies.MasterDataManage)]
+public sealed class IndexModel : PageModel
 {
-    private readonly ApplicationDbContext _db;
+    private readonly IMasterDataAdministrationQueryService _query;
+    private readonly IAdminMasterDataCommandService _commands;
 
-    public IndexModel(ApplicationDbContext db)
+    public IndexModel(IMasterDataAdministrationQueryService query, IAdminMasterDataCommandService commands)
     {
-        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _query = query ?? throw new ArgumentNullException(nameof(query));
+        _commands = commands ?? throw new ArgumentNullException(nameof(commands));
     }
 
-    private const int PageSize = 20;
-
-    [BindProperty(SupportsGet = true)]
-    [Display(Name = "Search")]
-    public string? Q { get; set; }
+    [BindProperty(SupportsGet = true, Name = "q")]
+    public string? Search { get; set; }
 
     [BindProperty(SupportsGet = true)]
     public string Status { get; set; } = "active";
@@ -33,125 +29,65 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true, Name = "pageNumber")]
     public int PageNumber { get; set; } = 1;
 
-    public IReadOnlyList<Row> Items { get; private set; } = Array.Empty<Row>();
+    [BindProperty(SupportsGet = true)]
+    public int PageSize { get; set; } = 25;
 
-    public int TotalCount { get; private set; }
+    public FlatLookupDirectoryResult Result { get; private set; } = new(
+        MasterDataFlatLookupKind.LineDirectorate,
+        Array.Empty<FlatLookupAdminRow>(),
+        0, 0, 0, 0, 0,
+        1, 25, 1,
+        string.Empty,
+        "active");
 
-    public int TotalPages { get; private set; }
+    public AdminPageHeaderModel Header { get; private set; } = new();
+    public AdminFlatLookupDirectoryModel DirectoryModel { get; private set; } = new();
 
-    [TempData]
-    public string? StatusMessage { get; set; }
-
-    public async Task OnGetAsync()
+    public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        var query = _db.LineDirectorates.AsNoTracking();
-
-        var statusFilter = (Status ?? "active").Trim().ToLowerInvariant();
-        query = statusFilter switch
-        {
-            "inactive" => query.Where(l => !l.IsActive),
-            "all" => query,
-            _ => query.Where(l => l.IsActive)
-        };
-
-        if (!string.IsNullOrWhiteSpace(Q))
-        {
-            var term = Q.Trim();
-            query = query.Where(l => EF.Functions.ILike(l.Name, $"%{term}%"));
-        }
-
-        query = query
-            .OrderBy(l => l.SortOrder)
-            .ThenBy(l => l.Name);
-
-        TotalCount = await query.CountAsync();
-        TotalPages = Math.Max(1, (int)Math.Ceiling(TotalCount / (double)PageSize));
-
-        if (PageNumber < 1)
-        {
-            PageNumber = 1;
-        }
-        else if (PageNumber > TotalPages)
-        {
-            PageNumber = TotalPages;
-        }
-
-        Items = await query
-            .Skip((PageNumber - 1) * PageSize)
-            .Take(PageSize)
-            .Select(l => new Row
-            {
-                Id = l.Id,
-                Name = l.Name,
-                SortOrder = l.SortOrder,
-                IsActive = l.IsActive,
-                ProjectCount = l.Projects.Count
-            })
-            .ToListAsync();
+        Result = await _query.GetFlatLookupAsync(
+            MasterDataFlatLookupKind.LineDirectorate,
+            new FlatLookupDirectoryRequest(Search, Status, PageNumber, PageSize),
+            cancellationToken);
+        Search = Result.Search;
+        Status = Result.Status;
+        PageNumber = Result.Page;
+        PageSize = Result.PageSize;
+        BuildPresentation();
     }
 
-    public async Task<IActionResult> OnPostMoveAsync(int id, int offset)
+    public async Task<IActionResult> OnPostMoveAsync(int id, int offset, CancellationToken cancellationToken)
     {
-        if (offset == 0)
+        var result = await _commands.MoveLineDirectorateAsync(id, offset, cancellationToken);
+        TempData[result.Succeeded ? FlashMessageKeys.AdminMasterDataSuccess : FlashMessageKeys.AdminMasterDataError] = result.UserMessage;
+        return RedirectToPage(new { q = Search, status = Status, pageNumber = Math.Max(1, PageNumber), pageSize = PageSize });
+    }
+
+    private void BuildPresentation()
+    {
+        Header = new AdminPageHeaderModel
         {
-            StatusMessage = "No changes made.";
-            return RedirectToPage(new { q = Q, status = Status, pageNumber = PageNumber });
-        }
-
-        var lineDirectorate = await _db.LineDirectorates.SingleOrDefaultAsync(l => l.Id == id);
-        if (lineDirectorate is null)
-        {
-            return NotFound();
-        }
-
-        var siblings = await _db.LineDirectorates
-            .OrderBy(l => l.SortOrder)
-            .ThenBy(l => l.Name)
-            .ToListAsync();
-
-        var index = siblings.FindIndex(l => l.Id == id);
-        if (index < 0)
-        {
-            StatusMessage = "Unable to reorder line directorates.";
-            return RedirectToPage(new { q = Q, status = Status, pageNumber = PageNumber });
-        }
-
-        var targetIndex = Math.Clamp(index + offset, 0, siblings.Count - 1);
-        if (targetIndex == index)
-        {
-            StatusMessage = offset < 0
-                ? $"'{lineDirectorate.Name}' is already at the top."
-                : $"'{lineDirectorate.Name}' is already at the bottom.";
-            return RedirectToPage(new { q = Q, status = Status, pageNumber = PageNumber });
-        }
-
-        var moving = siblings[index];
-        siblings.RemoveAt(index);
-        siblings.Insert(targetIndex, moving);
-
-        for (var i = 0; i < siblings.Count; i++)
-        {
-            if (siblings[i].SortOrder != i)
+            Eyebrow = "Master data · Reference list",
+            Title = "Line directorates",
+            Description = "Maintain the controlled line directorates associated with project sponsorship.",
+            Icon = "bi-diagram-2",
+            Actions = new[]
             {
-                siblings[i].SortOrder = i;
+                new AdminPageActionModel { Text = "Master data centre", Href = Url.Page("/MasterData/Index", new { area = "Admin" }), Icon = "bi-arrow-left" },
+                new AdminPageActionModel { Text = "Add line directorate", Href = Url.Page("./Create", new { area = "Admin" }), Icon = "bi-plus-lg", IsPrimary = true }
             }
-        }
-
-        await _db.SaveChangesAsync();
-
-        StatusMessage = offset < 0
-            ? $"Moved '{lineDirectorate.Name}' up."
-            : $"Moved '{lineDirectorate.Name}' down.";
-
-        return RedirectToPage(new { q = Q, status = Status, pageNumber = PageNumber });
-    }
-
-    public sealed class Row
-    {
-        public int Id { get; init; }
-        public string Name { get; init; } = string.Empty;
-        public int SortOrder { get; init; }
-        public bool IsActive { get; init; }
-        public int ProjectCount { get; init; }
+        };
+        DirectoryModel = new AdminFlatLookupDirectoryModel
+        {
+            Result = Result,
+            SingularLabel = "line directorate",
+            PluralLabel = "Line directorates",
+            Description = "line directorates associated with project sponsorship",
+            Icon = "bi-diagram-2",
+            IndexPage = "/Lookups/LineDirectorates/Index",
+            CreatePage = "/Lookups/LineDirectorates/Create",
+            EditPage = "/Lookups/LineDirectorates/Edit",
+            DeactivatePage = "/Lookups/LineDirectorates/Deactivate"
+        };
     }
 }

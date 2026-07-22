@@ -1,0 +1,92 @@
+@page
+@model ProjectManagement.Areas.Admin.Pages.Recovery.IndexModel
+@using ProjectManagement.Services.Navigation.ModuleNav
+@{
+    ViewData["Title"] = "Recovery centre";
+}
+
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+
+<section class="admin-recovery-metric-grid" aria-label="Recovery summary">
+    <a class="admin-monitoring-metric admin-monitoring-metric--@(Model.Summary.TrashedProjects > 0 ? "warning" : "neutral")"
+       href="@Model.Path(AdminNavigationKeys.ProjectTrash)">
+        <span class="admin-monitoring-metric__icon"><i class="bi bi-trash3" aria-hidden="true"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Summary.TrashedProjects</strong><span>Projects in trash</span><small>@Model.Summary.ProjectRetentionDays-day retention</small></span>
+    </a>
+    <a class="admin-monitoring-metric admin-monitoring-metric--@(Model.Summary.RecycledDocuments > 0 ? "warning" : "neutral")"
+       href="@Model.Path(AdminNavigationKeys.DocumentRecycle)">
+        <span class="admin-monitoring-metric__icon"><i class="bi bi-recycle" aria-hidden="true"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Summary.RecycledDocuments</strong><span>Documents in recycle bin</span><small>@Model.FormatBytes(Model.Summary.RecycledDocumentBytes)</small></span>
+    </a>
+    <a class="admin-monitoring-metric admin-monitoring-metric--@(Model.Summary.DeletedEvents > 0 ? "warning" : "neutral")"
+       href="@Model.Path(AdminNavigationKeys.DeletedEvents)">
+        <span class="admin-monitoring-metric__icon"><i class="bi bi-calendar-x" aria-hidden="true"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Summary.DeletedEvents</strong><span>Deleted events</span><small>Available for restoration</small></span>
+    </a>
+    <a class="admin-monitoring-metric admin-monitoring-metric--neutral"
+       href="@Model.Path(AdminNavigationKeys.ArchivedProjects)">
+        <span class="admin-monitoring-metric__icon"><i class="bi bi-archive" aria-hidden="true"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Summary.ArchivedProjects</strong><span>Archived projects</span><small>Operational archive</small></span>
+    </a>
+    <a class="admin-monitoring-metric admin-monitoring-metric--@(Model.Summary.DueForPurge > 0 ? "danger" : Model.Summary.DueSoon > 0 ? "warning" : "neutral")"
+       href="@Model.Path(AdminNavigationKeys.ProjectTrash)">
+        <span class="admin-monitoring-metric__icon"><i class="bi bi-hourglass-split" aria-hidden="true"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.Summary.DueForPurge</strong><span>Due for purge</span><small>@Model.Summary.DueSoon due within @Model.Summary.DueSoonWindowDays day(s)</small></span>
+    </a>
+</section>
+
+<div class="admin-recovery-dashboard-grid">
+    <section class="admin-panel" aria-labelledby="recovery-queues-title">
+        <header class="admin-panel__header">
+            <div><div class="admin-panel__eyebrow">Recoverable records</div><h2 id="recovery-queues-title">Recovery queues</h2></div>
+        </header>
+        <div class="admin-recovery-link-list">
+            <a href="@Model.Path(AdminNavigationKeys.ProjectTrash)"><span class="admin-recovery-link-list__icon"><i class="bi bi-trash3"></i></span><span class="admin-recovery-link-list__copy"><strong>Project trash</strong><small>Restore complete project records or conduct a controlled purge.</small></span><b>@Model.Summary.TrashedProjects</b><i class="bi bi-chevron-right"></i></a>
+            <a href="@Model.Path(AdminNavigationKeys.DocumentRecycle)"><span class="admin-recovery-link-list__icon"><i class="bi bi-recycle"></i></span><span class="admin-recovery-link-list__copy"><strong>Document recycle bin</strong><small>Restore or permanently remove project documents and stored files.</small></span><b>@Model.Summary.RecycledDocuments</b><i class="bi bi-chevron-right"></i></a>
+            <a href="@Model.Path(AdminNavigationKeys.DeletedEvents)"><span class="admin-recovery-link-list__icon"><i class="bi bi-calendar-x"></i></span><span class="admin-recovery-link-list__copy"><strong>Deleted calendar events</strong><small>Review event context before restoring shared calendar entries.</small></span><b>@Model.Summary.DeletedEvents</b><i class="bi bi-chevron-right"></i></a>
+            <a href="@Model.Path(AdminNavigationKeys.ArchivedProjects)"><span class="admin-recovery-link-list__icon"><i class="bi bi-archive"></i></span><span class="admin-recovery-link-list__copy"><strong>Archived projects</strong><small>Return operationally archived projects to the active portfolio.</small></span><b>@Model.Summary.ArchivedProjects</b><i class="bi bi-chevron-right"></i></a>
+        </div>
+    </section>
+
+    <section class="admin-panel" aria-labelledby="recovery-retention-title">
+        <header class="admin-panel__header">
+            <div><div class="admin-panel__eyebrow">Retention posture</div><h2 id="recovery-retention-title">Project trash schedule</h2></div>
+        </header>
+        <div class="admin-recovery-retention">
+            <div class="admin-recovery-retention__status admin-recovery-retention__status--@(Model.Summary.DueForPurge > 0 ? "danger" : "success")">
+                <span><i class="bi @(Model.Summary.DueForPurge > 0 ? "bi-exclamation-octagon" : "bi-check-circle")"></i></span>
+                <div><strong>@(Model.Summary.DueForPurge > 0 ? "Action required" : "Within policy")</strong><p>@(Model.Summary.DueForPurge > 0 ? $"{Model.Summary.DueForPurge} project(s) have reached the configured purge threshold." : "No trashed projects have exceeded the configured retention period.")</p></div>
+            </div>
+            <dl>
+                <div><dt>Configured retention</dt><dd>@Model.Summary.ProjectRetentionDays days</dd></div>
+                <div><dt>Due within @Model.Summary.DueSoonWindowDays days</dt><dd>@Model.Summary.DueSoon</dd></div>
+                <div><dt>Permanent deletion</dt><dd>Administrator confirmation required</dd></div>
+                <div><dt>Document recycle</dt><dd>Manual review; no inferred purge deadline</dd></div>
+            </dl>
+        </div>
+    </section>
+</div>
+
+<section class="admin-panel" aria-labelledby="recent-recovery-title">
+    <header class="admin-panel__header">
+        <div><div class="admin-panel__eyebrow">Audit trail</div><h2 id="recent-recovery-title">Recent recovery operations</h2></div>
+        <a class="admin-panel__link" asp-area="Admin" asp-page="/Logs/Index" asp-route-Category="Recovery">View audit logs <i class="bi bi-arrow-right"></i></a>
+    </header>
+    @if (Model.Summary.RecentOperations.Count == 0)
+    {
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-clock-history", Title = "No recent recovery operations", Description = "Restore and purge activity will appear here when recorded." })" />
+    }
+    else
+    {
+        <div class="admin-recovery-activity-list">
+            @foreach (var operation in Model.Summary.RecentOperations)
+            {
+                <article>
+                    <span class="admin-recovery-activity-list__icon admin-recovery-activity-list__icon--@operation.Tone"><i class="bi @operation.Icon"></i></span>
+                    <div><strong>@operation.Title</strong><small>@(string.IsNullOrWhiteSpace(operation.Detail) ? operation.Action : operation.Detail)</small></div>
+                    <div class="admin-recovery-activity-list__meta"><span>@(operation.Actor ?? "System")</span><time datetime="@operation.WhenUtc.ToString("O")">@Model.FormatTime(operation.WhenUtc)</time></div>
+                </article>
+            }
+        </div>
+    }
+</section>

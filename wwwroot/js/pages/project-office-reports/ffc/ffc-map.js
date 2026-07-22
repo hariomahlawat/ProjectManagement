@@ -116,7 +116,7 @@
             return '' +
                 '<div class="ffc-map-popup">' +
                 '<div class="ffc-map-popup__title">' + name + '</div>' +
-                '<div class="ffc-map-popup__subtitle">No FFC projects / simulator units recorded.</div>' +
+                '<div class="ffc-map-popup__subtitle">No FFC projects or simulator quantity recorded.</div>' +
                 '</div>';
         }
 
@@ -125,10 +125,10 @@
             '<div class="ffc-map-popup__title">' + name + '</div>' +
             (iso ? '<div class="ffc-map-popup__subtitle">ISO ' + iso + '</div>' : '') +
             '<dl class="ffc-map-popup__metrics">' +
-            '<div><dt>Total units</dt><dd><strong>' + formatNumber(total) + '</strong></dd></div>' +
-            '<div><dt>Installed units</dt><dd>' + formatNumber(installed) + '</dd></div>' +
+            '<div><dt>Total quantity</dt><dd><strong>' + formatNumber(total) + '</strong></dd></div>' +
+            '<div><dt>Installed quantity</dt><dd>' + formatNumber(installed) + '</dd></div>' +
             '<div><dt>Delivered (not installed)</dt><dd>' + formatNumber(delivered) + '</dd></div>' +
-            '<div><dt>Planned units</dt><dd>' + formatNumber(planned) + '</dd></div>' +
+            '<div><dt>Planned quantity</dt><dd>' + formatNumber(planned) + '</dd></div>' +
             '</dl>' +
             '<button type="button" class="btn btn-link btn-sm ffc-map-popup__cta" data-country-id="' + (country && country.countryId != null ? country.countryId : '') + '" data-country-iso3="' + (iso || '') + '">View projects in detailed table</button>' +
             '</div>';
@@ -300,7 +300,7 @@
 
                 var legendTitle = document.createElement('h2');
                 legendTitle.className = 'h6 mb-3';
-                legendTitle.textContent = 'Total project units';
+                legendTitle.textContent = 'Total project quantity';
 
                 var legendRamp = document.createElement('div');
                 legendRamp.className = 'legend-ramp ffc-legend-ramp';
@@ -313,7 +313,7 @@
                 legendNotes.innerHTML = '' +
                     '<div class="ffc-legend-note__item">' +
                     '<span class="ffc-legend-note__sample"></span>' +
-                    '<span>Solid border – has completed units</span>' +
+                    '<span>Solid border – includes completed quantity</span>' +
                     '</div>' +
                     '<div class="ffc-legend-note__item">' +
                     '<span class="ffc-legend-note__sample ffc-legend-note__sample--dashed"></span>' +

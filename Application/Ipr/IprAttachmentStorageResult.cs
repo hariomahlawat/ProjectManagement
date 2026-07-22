@@ -1,3 +1,7 @@
 namespace ProjectManagement.Application.Ipr;
 
-public sealed record IprAttachmentStorageResult(string StorageKey, string FileName, long FileSize);
+public sealed record IprAttachmentStorageResult(
+    string StorageKey,
+    string FileName,
+    long FileSize,
+    string ContentType);

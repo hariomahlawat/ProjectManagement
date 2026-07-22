@@ -48,7 +48,7 @@ public sealed class IprExcelWorkbookBuilder : IIprExcelWorkbookBuilder
             "Status",
             "Filed by",
             "Filing date",
-            "Grant date",
+            "Protection date",
             "Project",
             "Remarks"
         };
@@ -77,7 +77,7 @@ public sealed class IprExcelWorkbookBuilder : IIprExcelWorkbookBuilder
             worksheet.Cell(rowNumber, 2).Value = record.Title ?? string.Empty;
             worksheet.Cell(rowNumber, 3).Value = record.FilingNumber ?? string.Empty;
             worksheet.Cell(rowNumber, 4).Value = record.Type == IprType.Copyright ? "Copyright" : "Patent";
-            worksheet.Cell(rowNumber, 5).Value = GetStatusLabel(record.Status);
+            worksheet.Cell(rowNumber, 5).Value = GetStatusLabel(record.Status, record.Type);
             worksheet.Cell(rowNumber, 6).Value = record.FiledBy ?? string.Empty;
 
             if (record.FiledAtUtc.HasValue)
@@ -101,12 +101,13 @@ public sealed class IprExcelWorkbookBuilder : IIprExcelWorkbookBuilder
         }
     }
 
-    private static string GetStatusLabel(IprStatus status)
+    private static string GetStatusLabel(IprStatus status, IprType type)
         => status switch
         {
-            IprStatus.FilingUnderProcess => "Filed",
-            IprStatus.Filed => "Filed",
-            IprStatus.Granted => "Granted",
+            IprStatus.FilingUnderProcess or IprStatus.Filed
+                => type == IprType.Copyright ? "Registration pending" : "Patent pending",
+            IprStatus.Granted
+                => type == IprType.Copyright ? "Copyright registered" : "Patent granted",
             IprStatus.Rejected => "Rejected",
             IprStatus.Withdrawn => "Withdrawn",
             _ => status.ToString()

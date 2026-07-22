@@ -1,59 +1,174 @@
 @model ProjectManagement.Pages.IndustryPartners.IndexModel
-@{ var p = Model.SelectedPartner!; }
-<div class="ip-section" data-linked-project-section>
-    <div class="ip-section-header">
-        <h3 class="ip-section-title">Linked projects</h3>
-        <small class="ip-section-note">Connect project records to this partner.</small>
-    </div>
-    <div class="ip-section-body">
-        <div class="d-flex flex-wrap gap-2 mb-3" data-existing-links>
-            @foreach (var link in p.LinkedProjects)
-            {
-                <span class="ip-chip" data-project-id="@link.ProjectId">
-                    <span class="ip-chip-text">@link.ProjectName</span>
-                    @if (Model.CanManage)
-                    {
-                        <form method="post" asp-page-handler="UnlinkProject" class="d-inline">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="partnerId" value="@p.Id" />
-                            <input type="hidden" name="projectId" value="@link.ProjectId" />
-                            <button type="submit" class="ip-chip-action" aria-label="Unlink @link.ProjectName">×</button>
-                        </form>
-                    }
-                </span>
-            }
-            @if (!p.LinkedProjects.Any())
-            {
-                <div class="ip-empty-text">No linked projects yet.</div>
-            }
-        </div>
+@{
+    var partner = Model.SelectedPartner!;
+    var contextualProject = Model.ProjectContext;
+    var contextualLink = contextualProject is null
+        ? null
+        : partner.LinkedProjects.FirstOrDefault(link => link.ProjectId == contextualProject.Id);
+    var showAddForm = Model.CanManageOrganisation && contextualProject is not null && contextualLink is null;
+}
 
-        @if (Model.CanManage)
-        {
-            <form method="post" asp-page-handler="LinkProject" class="row g-2" data-link-project-form>
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="partnerId" value="@p.Id" />
-                <div class="col-sm-8 ip-typeahead">
-                    <input class="form-control form-control-sm ip-input"
-                           name="projectSearch"
-                           placeholder="Search project by name or file number"
-                           autocomplete="off"
-                           data-project-search
-                           aria-expanded="false"
-                           aria-autocomplete="list" />
-
-                    <input type="hidden" name="projectId" data-project-id required />
-
-                    <div class="ip-typeahead-results d-none" data-project-results role="listbox"></div>
-
-                    <div class="form-text text-danger d-none" data-project-error>
-                        Select a project from the list.
-                    </div>
-                </div>
-                <div class="col-sm-4">
-                    <button class="btn btn-sm btn-outline-primary w-100" type="submit" data-link-project-submit disabled>Link project</button>
-                </div>
-            </form>
-        }
+<div class="ip-section-heading">
+    <div>
+        <h3>JDP history</h3>
+        <p>Current, completed and archived projects can be linked.</p>
     </div>
 </div>
+
+@if (contextualProject is not null)
+{
+    if (contextualLink is not null)
+    {
+        <div class="ip-context-result ip-context-result-success">
+            <i class="bi bi-check-circle" aria-hidden="true"></i>
+            <div>
+                <strong>Already linked as JDP to @contextualProject.Name</strong>
+                <span>@(string.IsNullOrWhiteSpace(contextualProject.CaseFileNumber) ? "JDP association recorded" : contextualProject.CaseFileNumber)</span>
+            </div>
+        </div>
+    }
+    else if (Model.CanManageOrganisation)
+    {
+        <div class="ip-context-result">
+            <i class="bi bi-link-45deg" aria-hidden="true"></i>
+            <div>
+                <strong>Link as JDP to @contextualProject.Name</strong>
+                <span>@(string.IsNullOrWhiteSpace(contextualProject.CaseFileNumber) ? "Project already selected" : contextualProject.CaseFileNumber)</span>
+            </div>
+        </div>
+    }
+}
+
+@if (Model.CanManageOrganisation)
+{
+    <div class="ip-inline-create @(showAddForm ? null : "d-none")" data-collapsible-panel="project-add-panel">
+        <div class="ip-inline-create-title">
+            <strong>New JDP association</strong>
+            @if (contextualProject is null)
+            {
+                <span>Select a project to add to this organisation's JDP history.</span>
+            }
+        </div>
+        <form method="post" asp-page-handler="LinkProject" data-project-association-form>
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="partnerId" value="@partner.Id" />
+            <input type="hidden" name="q" value="@Model.Q" />
+            <input type="hidden" name="filter" value="@Model.Filter" />
+            <input type="hidden" name="p" value="@Model.PageNumber" />
+            <input type="hidden" name="associationProjectId" value="@(contextualProject?.Id)" data-project-id />
+            <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
+
+            @if (contextualProject is null)
+            {
+                <div class="mb-3 ip-project-picker">
+                    <label class="form-label" for="projectAssociationSearch">Project</label>
+                    <div class="ip-search-control">
+                        <i class="bi bi-search" aria-hidden="true"></i>
+                        <input id="projectAssociationSearch"
+                               class="form-control"
+                               placeholder="Search by project name or file number"
+                               autocomplete="off"
+                               data-project-search
+                               aria-expanded="false"
+                               aria-autocomplete="list" />
+                    </div>
+                    <div class="ip-typeahead-results d-none" data-project-results role="listbox"></div>
+                    <div class="ip-inline-error d-none" data-project-error>Select a project from the search results.</div>
+                </div>
+            }
+            else
+            {
+                <div class="ip-selected-project mb-3">
+                    <i class="bi bi-folder2-open" aria-hidden="true"></i>
+                    <div>
+                        <strong>@contextualProject.Name</strong>
+                        @if (!string.IsNullOrWhiteSpace(contextualProject.CaseFileNumber))
+                        {
+                            <span>@contextualProject.CaseFileNumber</span>
+                        }
+                    </div>
+                </div>
+            }
+
+            <div class="ip-form-actions ip-form-actions-compact">
+                @if (contextualProject is null)
+                {
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-hide-panel="project-add-panel">Cancel</button>
+                    <button type="submit" class="btn btn-sm btn-primary" data-project-link-submit disabled>Link as JDP</button>
+                }
+                else
+                {
+                    <button type="submit" class="btn btn-sm btn-primary" data-project-link-submit data-submit-once>Link as JDP</button>
+                }
+            </div>
+        </form>
+    </div>
+}
+
+@if (partner.LinkedProjects.Count == 0)
+{
+    <div class="ip-tab-empty">
+        <div class="ip-empty-icon"><i class="bi bi-folder2" aria-hidden="true"></i></div>
+        <h4>No JDP association recorded</h4>
+        <p>This can remain a contact-only organisation. JDP history is optional.</p>
+    </div>
+}
+else
+{
+    <div class="ip-project-history-list">
+        @foreach (var link in partner.LinkedProjects)
+        {
+            <article class="ip-project-history-card">
+                <div class="ip-project-link-read">
+                    <div class="ip-project-status-icon ip-project-status-@(link.ProjectStatusLabel == "Ongoing" ? "ongoing" : "past")">
+                        <i class="bi bi-folder2-open" aria-hidden="true"></i>
+                    </div>
+                    <div class="min-w-0 flex-grow-1">
+                        <div class="ip-contact-title-row">
+                            <a asp-page="/Projects/Overview" asp-route-id="@link.ProjectId" class="ip-project-name">@link.ProjectName</a>
+                            <span class="ip-status-badge ip-status-@(link.ProjectStatusLabel == "Ongoing" ? "current" : "past")">@link.ProjectStatusLabel</span>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(link.CaseFileNumber))
+                        {
+                            <div class="ip-row-meta">@link.CaseFileNumber</div>
+                        }
+                        <div class="ip-relationship-line">
+                            <span>Joint Development Partner</span>
+                            <span>Linked @link.LinkedUtc.LocalDateTime.ToString("dd MMM yyyy")</span>
+                        </div>
+                    </div>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-light ip-more-button" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions for @link.ProjectName">
+                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a asp-page="/Projects/Overview" asp-route-id="@link.ProjectId" class="dropdown-item">
+                                    <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i> Open project
+                                </a>
+                            </li>
+                            @if (Model.CanManageOrganisation)
+                            {
+                                <li><hr class="dropdown-divider" /></li>
+                                <li>
+                                    <form method="post" asp-page-handler="UnlinkProject" data-confirm-form="Remove this JDP association? The organisation and project will remain in PRISM.">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="partnerId" value="@partner.Id" />
+                                        <input type="hidden" name="associationProjectId" value="@link.ProjectId" />
+                                        <input type="hidden" name="projectId" value="@Model.ContextProjectId" />
+                                        <input type="hidden" name="q" value="@Model.Q" />
+                                        <input type="hidden" name="filter" value="@Model.Filter" />
+                                        <input type="hidden" name="p" value="@Model.PageNumber" />
+                                        <button type="submit" class="dropdown-item text-danger">
+                                            <i class="bi bi-link-45deg" aria-hidden="true"></i> Remove JDP association
+                                        </button>
+                                    </form>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            </article>
+        }
+    </div>
+}

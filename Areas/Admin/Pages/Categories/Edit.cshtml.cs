@@ -1,155 +1,97 @@
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
-using ProjectManagement.Models;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.MasterData;
 
-namespace ProjectManagement.Areas.Admin.Pages.Categories
+namespace ProjectManagement.Areas.Admin.Pages.Categories;
+
+[Authorize(Policy = AdminPolicies.MasterDataManage)]
+public sealed class EditModel : PageModel
 {
-    public class EditModel : PageModel
-    {
-        private readonly ApplicationDbContext _db;
+    private readonly ApplicationDbContext _db;
+    private readonly IAdminMasterDataCommandService _commands;
 
-        public EditModel(ApplicationDbContext db)
+    public EditModel(ApplicationDbContext db, IAdminMasterDataCommandService commands)
+    {
+        _db = db;
+        _commands = commands;
+    }
+
+    [BindProperty]
+    public InputModel Input { get; set; } = new();
+
+    public IList<SelectListItem> ParentOptions { get; private set; } = new List<SelectListItem>();
+
+    public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
+    {
+        var category = await _db.ProjectCategories.AsNoTracking().SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (category is null)
         {
-            _db = db;
+            return NotFound();
         }
 
-        [BindProperty]
-        public InputModel Input { get; set; } = new();
-
-        public IList<SelectListItem> ParentOptions { get; private set; } = new List<SelectListItem>();
-
-        [TempData]
-        public string? StatusMessage { get; set; }
-
-        public async Task<IActionResult> OnGetAsync(int id)
+        Input = new InputModel
         {
-            var category = await _db.ProjectCategories.AsNoTracking().SingleOrDefaultAsync(c => c.Id == id);
-            if (category is null)
-            {
-                return NotFound();
-            }
+            Id = category.Id,
+            Name = category.Name,
+            ParentId = category.ParentId,
+            IsActive = category.IsActive,
+            RowVersion = category.RowVersion
+        };
 
-            Input = new InputModel
-            {
-                Id = category.Id,
-                Name = category.Name,
-                ParentId = category.ParentId,
-                IsActive = category.IsActive
-            };
+        ParentOptions = await CategorySelectListBuilder.BuildAsync(_db, category.ParentId, category.Id);
+        return Page();
+    }
 
-            ParentOptions = await CategorySelectListBuilder.BuildAsync(_db, category.ParentId, category.Id);
+    public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
+    {
+        ParentOptions = await CategorySelectListBuilder.BuildAsync(_db, Input.ParentId, Input.Id);
+        if (!ModelState.IsValid)
+        {
             return Page();
         }
 
-        public async Task<IActionResult> OnPostAsync()
+        var result = await _commands.UpdateProjectCategoryAsync(
+            new CategoryUpdateCommand(Input.Id, Input.Name, Input.ParentId, Input.IsActive, Input.RowVersion),
+            cancellationToken);
+
+        if (!result.Succeeded)
         {
-            ParentOptions = await CategorySelectListBuilder.BuildAsync(_db, Input.ParentId, Input.Id);
-
-            if (!ModelState.IsValid)
-            {
-                return Page();
-            }
-
-            var category = await _db.ProjectCategories.SingleOrDefaultAsync(c => c.Id == Input.Id);
-            if (category is null)
+            if (result.ErrorCode == "NotFound")
             {
                 return NotFound();
             }
 
-            if (Input.ParentId == category.Id)
-            {
-                ModelState.AddModelError("Input.ParentId", "A category cannot be its own parent.");
-                return Page();
-            }
-
-            if (Input.ParentId.HasValue)
-            {
-                var descendants = await GetDescendantIdsAsync(category.Id);
-                if (descendants.Contains(Input.ParentId.Value))
-                {
-                    ModelState.AddModelError("Input.ParentId", "A category cannot move under one of its descendants.");
-                    return Page();
-                }
-            }
-
-            var trimmedName = Input.Name.Trim();
-            var duplicateExists = await _db.ProjectCategories
-                .AnyAsync(c => c.ParentId == Input.ParentId && c.Name == trimmedName && c.Id != category.Id);
-
-            if (duplicateExists)
-            {
-                ModelState.AddModelError("Input.Name", "A category with this name already exists under the selected parent.");
-                return Page();
-            }
-
-            var parentChanged = category.ParentId != Input.ParentId;
-
-            category.Name = trimmedName;
-            category.IsActive = Input.IsActive;
-            category.ParentId = Input.ParentId;
-
-            if (parentChanged)
-            {
-                var nextSort = await _db.ProjectCategories
-                    .Where(c => c.ParentId == Input.ParentId && c.Id != category.Id)
-                    .Select(c => c.SortOrder)
-                    .DefaultIfEmpty(-1)
-                    .MaxAsync();
-
-                category.SortOrder = nextSort + 1;
-            }
-
-            await _db.SaveChangesAsync();
-
-            TempData["StatusMessage"] = $"Updated '{category.Name}'.";
-
-            return RedirectToPage("Index");
+            var key = result.ErrorCode is "ParentNotFound" or "SelfParent" or "DescendantParent" or "HierarchyCycleDetected"
+                ? "Input.ParentId"
+                : result.ErrorCode == "DuplicateName" ? "Input.Name" : string.Empty;
+            ModelState.AddModelError(key, result.UserMessage ?? "The category could not be updated.");
+            return Page();
         }
 
-        private async Task<HashSet<int>> GetDescendantIdsAsync(int categoryId)
-        {
-            var relationships = await _db.ProjectCategories
-                .AsNoTracking()
-                .Select(c => new { c.Id, c.ParentId })
-                .ToListAsync();
+        TempData[FlashMessageKeys.AdminMasterDataSuccess] = result.UserMessage;
+        return RedirectToPage("Index");
+    }
 
-            var lookup = relationships.ToLookup(x => x.ParentId);
-            var results = new HashSet<int>();
+    public sealed class InputModel
+    {
+        [Required]
+        public int Id { get; set; }
 
-            void Visit(int parentId)
-            {
-                foreach (var child in lookup[parentId])
-                {
-                    if (results.Add(child.Id))
-                    {
-                        Visit(child.Id);
-                    }
-                }
-            }
+        [Required, StringLength(120)]
+        public string Name { get; set; } = string.Empty;
 
-            Visit(categoryId);
-            return results;
-        }
+        public int? ParentId { get; set; }
 
-        public class InputModel
-        {
-            [Required]
-            public int Id { get; set; }
+        public bool IsActive { get; set; }
 
-            [Required]
-            [MaxLength(120)]
-            public string Name { get; set; } = string.Empty;
-
-            public int? ParentId { get; set; }
-
-            public bool IsActive { get; set; }
-        }
+        [Required]
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
 }

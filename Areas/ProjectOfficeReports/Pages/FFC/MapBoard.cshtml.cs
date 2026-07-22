@@ -1,26 +1,26 @@
-// -----------------------------------------------------------------------------
-// Usings
-// -----------------------------------------------------------------------------
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
-// -----------------------------------------------------------------------------
-// Namespace
-// -----------------------------------------------------------------------------
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 
 [Authorize]
-public class MapBoardModel : PageModel
+public sealed class MapBoardModel : PageModel
 {
-    // -------------------------------------------------------------------------
-    // Handlers
-    // -------------------------------------------------------------------------
-    public void OnGet()
-    {
-        FfcBreadcrumbs.Set(
-            ViewData,
-            ("FFC Proposals", Url.Page("/FFC/Index", new { area = "ProjectOfficeReports" })),
-            ("Country board", null));
-    }
+    public IActionResult OnGet(
+        short? year = null,
+        long? countryId = null,
+        string? q = null,
+        string? sort = null)
+        => RedirectToPage(
+            "/FFC/Footprint",
+            new
+            {
+                area = "ProjectOfficeReports",
+                view = "cards",
+                year,
+                countryId,
+                q,
+                sort
+            });
 }

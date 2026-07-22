@@ -1,0 +1,130 @@
+@using System.Globalization
+@using ProjectManagement.Services.Ffc
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.DetailsModel
+@{
+    static string CompletionLabel(FfcCompletionState state) => state switch
+    {
+        FfcCompletionState.Complete => "Complete",
+        FfcCompletionState.Partial => "Partial",
+        _ => "Pending"
+    };
+
+    static string CompletionClass(FfcCompletionState state) => state switch
+    {
+        FfcCompletionState.Complete => "is-complete",
+        FfcCompletionState.Partial => "is-partial",
+        _ => "is-pending"
+    };
+}
+
+<section class="ffc-workspace-summary" aria-labelledby="ffc-workspace-summary-title">
+    <h2 id="ffc-workspace-summary-title" class="visually-hidden">Record summary</h2>
+
+    <div class="ffc-workspace-summary__metrics">
+        <div class="ffc-workspace-metric">
+            <span class="ffc-workspace-metric__label">IPA</span>
+            <span class="ffc-workspace-status @(Model.Workspace.Ipa.IsCompleted ? "is-complete" : "is-pending")">
+                @(Model.Workspace.Ipa.IsCompleted ? "Completed" : "Pending")
+            </span>
+            @if (Model.Workspace.Ipa.IsCompleted)
+            {
+                if (Model.Workspace.Ipa.CompletedOn.HasValue)
+                {
+                    <span class="ffc-workspace-metric__detail">
+                        @Model.Workspace.Ipa.CompletedOn.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture)
+                    </span>
+                }
+                else
+                {
+                    <span class="ffc-workspace-metric__detail ffc-workspace-metric__detail--warning">
+                        <span class="bi bi-exclamation-circle" aria-hidden="true"></span>
+                        Completion date missing
+                    </span>
+                }
+            }
+        </div>
+
+        <div class="ffc-workspace-metric">
+            <span class="ffc-workspace-metric__label">GSL</span>
+            <span class="ffc-workspace-status @(Model.Workspace.Gsl.IsCompleted ? "is-complete" : "is-pending")">
+                @(Model.Workspace.Gsl.IsCompleted ? "Completed" : "Pending")
+            </span>
+            @if (Model.Workspace.Gsl.IsCompleted)
+            {
+                if (Model.Workspace.Gsl.CompletedOn.HasValue)
+                {
+                    <span class="ffc-workspace-metric__detail">
+                        @Model.Workspace.Gsl.CompletedOn.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture)
+                    </span>
+                }
+                else
+                {
+                    <span class="ffc-workspace-metric__detail ffc-workspace-metric__detail--warning">
+                        <span class="bi bi-exclamation-circle" aria-hidden="true"></span>
+                        Completion date missing
+                    </span>
+                }
+            }
+        </div>
+
+        <div class="ffc-workspace-metric ffc-workspace-metric--units">
+            <span class="ffc-workspace-metric__label">Quantity status</span>
+            <div class="ffc-workspace-unit-line">
+                <span><strong>@Model.Workspace.UnitSummary.InstalledUnits</strong> installed</span>
+                <span><strong>@Model.Workspace.UnitSummary.DeliveredNotInstalledUnits</strong> delivered</span>
+                <span><strong>@Model.Workspace.UnitSummary.PlannedUnits</strong> planned</span>
+            </div>
+            <div class="ffc-workspace-unit-states">
+                <span class="ffc-workspace-status @CompletionClass(Model.Workspace.UnitSummary.DeliveryState)">
+                    Delivery @CompletionLabel(Model.Workspace.UnitSummary.DeliveryState)
+                </span>
+                <span class="ffc-workspace-status @CompletionClass(Model.Workspace.UnitSummary.InstallationState)">
+                    Installation @CompletionLabel(Model.Workspace.UnitSummary.InstallationState)
+                </span>
+            </div>
+        </div>
+
+        <div class="ffc-workspace-metric">
+            <span class="ffc-workspace-metric__label">Last updated</span>
+            <strong>@Model.Workspace.UpdatedAt.ToString("d MMM yyyy", CultureInfo.InvariantCulture)</strong>
+            <span class="ffc-workspace-metric__detail">
+                Created @Model.Workspace.CreatedAt.ToString("d MMM yyyy", CultureInfo.InvariantCulture)
+            </span>
+        </div>
+    </div>
+
+    <div class="ffc-workspace-summary__narrative">
+        <div>
+            <span class="ffc-workspace-summary__narrative-label">Overall status</span>
+            @if (string.IsNullOrWhiteSpace(Model.Workspace.OverallRemarks))
+            {
+                <p class="text-body-secondary mb-0">No overall remarks recorded.</p>
+            }
+            else
+            {
+                <p class="mb-0">@Model.Workspace.OverallRemarks</p>
+            }
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(Model.Workspace.Ipa.Remarks) ||
+             !string.IsNullOrWhiteSpace(Model.Workspace.Gsl.Remarks))
+        {
+            <div class="ffc-workspace-summary__milestone-notes">
+                @if (!string.IsNullOrWhiteSpace(Model.Workspace.Ipa.Remarks))
+                {
+                    <div>
+                        <span>IPA remarks</span>
+                        <p>@Model.Workspace.Ipa.Remarks</p>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.Workspace.Gsl.Remarks))
+                {
+                    <div>
+                        <span>GSL remarks</span>
+                        <p>@Model.Workspace.Gsl.Remarks</p>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</section>

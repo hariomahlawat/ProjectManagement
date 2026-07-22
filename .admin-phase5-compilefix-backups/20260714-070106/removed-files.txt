@@ -1,0 +1,2 @@
+﻿Areas/Admin/Pages/Categories/_CategoryTree.cshtml
+Areas/Admin/Pages/TechnicalCategories/_CategoryTree.cshtml

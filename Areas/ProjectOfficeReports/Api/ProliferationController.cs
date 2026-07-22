@@ -23,6 +23,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
     [ApiController]
     [Route("api/proliferation")]
     [Authorize]
+    [AutoValidateAntiforgeryToken]
     public sealed class ProliferationController : ControllerBase
     {
         private readonly ApplicationDbContext _db;
@@ -30,7 +31,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         private readonly ProliferationSubmissionService _submitSvc;
         private readonly ProliferationManageService _manageSvc;
         private readonly ProliferationOverviewService _overviewSvc;
+        private readonly ProliferationAggregateReadService _aggregateSvc;
         private readonly IProliferationExportService _exportService;
+        private readonly ProliferationDataQualityService _dataQualityService;
         private readonly ILogger<ProliferationController> _logger;
 
         public ProliferationController(
@@ -39,7 +42,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             ProliferationSubmissionService submitSvc,
             ProliferationManageService manageSvc,
             ProliferationOverviewService overviewSvc,
+            ProliferationAggregateReadService aggregateSvc,
             IProliferationExportService exportService,
+            ProliferationDataQualityService dataQualityService,
             ILogger<ProliferationController> logger)
         {
             _db = db;
@@ -47,7 +52,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             _submitSvc = submitSvc;
             _manageSvc = manageSvc;
             _overviewSvc = overviewSvc;
+            _aggregateSvc = aggregateSvc;
             _exportService = exportService;
+            _dataQualityService = dataQualityService;
             _logger = logger;
         }
 
@@ -123,9 +130,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                     SourceLabel = item.Source.ToDisplayName(),
                     Year = item.Year,
                     Mode = item.Mode,
-                    ModeLabel = item.Mode.ToString(),
+                    ModeLabel = ProliferationAggregateReadService.GetCalculationLabel(item.Mode, item.Source),
                     EffectiveMode = item.EffectiveMode,
-                    EffectiveModeLabel = item.EffectiveMode.ToString(),
+                    EffectiveModeLabel = ProliferationAggregateReadService.GetCalculationLabel(item.EffectiveMode, item.Source),
                     SetByUserId = item.SetByUserId,
                     SetByDisplayName = item.SetByDisplayName,
                     SetOnUtc = item.SetOnUtc,
@@ -156,10 +163,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 "Project Code",
                 "Source",
                 "Year",
-                "Configured Mode",
-                "Effective Mode",
-                "Has Approved Yearly",
-                "Has Approved Granular",
+                "Configured counting rule",
+                "Effective counting rule",
+                "Has approved annual quantity",
+                "Has approved detailed entries",
                 "Set By",
                 "Set By User ID",
                 "Updated On (UTC)"
@@ -185,7 +192,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             }
 
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
-            var fileName = $"proliferation-preference-overrides-{timestamp}.csv";
+            var fileName = $"proliferation-counting-exceptions-{timestamp}.csv";
             var buffer = Encoding.UTF8.GetBytes(builder.ToString());
             return File(buffer, "text/csv", fileName);
         }
@@ -249,11 +256,12 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
         [HttpGet("projects")]
         [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
-        public async Task<ActionResult<IReadOnlyList<ProliferationProjectLookupDto>>> GetEligibleProjects(
+        public async Task<ActionResult<ProliferationProjectLookupResponseDto>> GetEligibleProjects(
             [FromQuery] string? q,
             [FromQuery] int? projectCategoryId,
             [FromQuery] int? technicalCategoryId,
-            CancellationToken ct)
+            [FromQuery] int take = 200,
+            CancellationToken ct = default)
         {
             var projects = _db.Projects
                 .AsNoTracking()
@@ -269,26 +277,91 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 projects = projects.Where(p => p.TechnicalCategoryId == technicalCategoryId.Value);
             }
 
-            if (!string.IsNullOrWhiteSpace(q))
-            {
-                var term = $"%{EscapeLikePattern(q.Trim())}%";
-                projects = projects.Where(p =>
-                    EF.Functions.ILike(p.Name, term, "\\") ||
-                    (p.CaseFileNumber != null && EF.Functions.ILike(p.CaseFileNumber, term, "\\")));
-            }
-
-            var results = await projects
-                .OrderBy(p => p.Name)
-                .Take(25)
-                .Select(p => new ProliferationProjectLookupDto
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Code = p.CaseFileNumber
-                })
+            var candidates = await projects
+                .Select(p => new ProjectLookupCandidate(
+                    p.Id,
+                    p.Name,
+                    p.CaseFileNumber,
+                    p.Category != null ? p.Category.Name : null,
+                    p.TechnicalCategory != null ? p.TechnicalCategory.Name : null))
                 .ToListAsync(ct);
 
-            return results;
+            var term = NormalizeProjectSearchText(q);
+            var limit = Math.Clamp(take, 1, 500);
+
+            IEnumerable<ProjectLookupCandidate> ranked = candidates;
+            if (!string.IsNullOrWhiteSpace(term))
+            {
+                ranked = candidates
+                    .Select(project => new { Project = project, Rank = GetProjectSearchRank(project, term) })
+                    .Where(item => item.Rank < int.MaxValue)
+                    .OrderBy(item => item.Rank)
+                    .ThenBy(item => item.Project.Name, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(item => item.Project.Code, StringComparer.OrdinalIgnoreCase)
+                    .Select(item => item.Project);
+            }
+            else
+            {
+                ranked = candidates
+                    .OrderBy(project => project.Name, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(project => project.Code, StringComparer.OrdinalIgnoreCase);
+            }
+
+            var matched = ranked.ToList();
+            var items = matched
+                .Take(limit)
+                .Select(ToProjectLookupDto)
+                .ToList();
+
+            return Ok(new ProliferationProjectLookupResponseDto
+            {
+                Total = matched.Count,
+                Returned = items.Count,
+                Items = items
+            });
+        }
+
+        [HttpGet("projects/{id:int}")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
+        public async Task<ActionResult<ProliferationProjectLookupDto>> GetEligibleProjectById(
+            int id,
+            [FromQuery] int? projectCategoryId,
+            [FromQuery] int? technicalCategoryId,
+            CancellationToken ct)
+        {
+            if (id <= 0)
+            {
+                return BadRequest("A valid project id is required.");
+            }
+
+            var projects = _db.Projects
+                .AsNoTracking()
+                .Where(p =>
+                    p.Id == id &&
+                    !p.IsDeleted &&
+                    !p.IsArchived &&
+                    p.LifecycleStatus == ProjectLifecycleStatus.Completed);
+
+            if (projectCategoryId.HasValue)
+            {
+                projects = projects.Where(p => p.CategoryId == projectCategoryId.Value);
+            }
+
+            if (technicalCategoryId.HasValue)
+            {
+                projects = projects.Where(p => p.TechnicalCategoryId == technicalCategoryId.Value);
+            }
+
+            var project = await projects
+                .Select(p => new ProjectLookupCandidate(
+                    p.Id,
+                    p.Name,
+                    p.CaseFileNumber,
+                    p.Category != null ? p.Category.Name : null,
+                    p.TechnicalCategory != null ? p.TechnicalCategory.Name : null))
+                .FirstOrDefaultAsync(ct);
+
+            return project is null ? NotFound() : Ok(ToProjectLookupDto(project));
         }
 
         [HttpGet("lookups")]
@@ -324,6 +397,242 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 ProjectCategories = projectCategories,
                 TechnicalCategories = technicalCategories
             };
+        }
+
+        [HttpGet("groups")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
+        public async Task<ActionResult<ProliferationGroupedResponseDto>> GetGroupedRecords(
+            [FromQuery] ProliferationGroupedQueryDto query,
+            CancellationToken ct)
+        {
+            var page = Math.Max(1, query.Page);
+            var pageSize = Math.Clamp(query.PageSize <= 0 ? 25 : query.PageSize, 10, 100);
+
+            var aggregates = await _aggregateSvc.GetApprovedAggregatesAsync(query.ProjectId, ct);
+            IEnumerable<ProliferationAggregateRow> filtered = aggregates;
+
+            if (query.Source.HasValue)
+            {
+                filtered = filtered.Where(x => x.Source == query.Source.Value);
+            }
+
+            if (query.Year.HasValue)
+            {
+                filtered = filtered.Where(x => x.Year == query.Year.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(query.Search))
+            {
+                var term = query.Search.Trim();
+                var like = $"%{EscapeLikePattern(term)}%";
+
+                var matchingDetailed = await _db.ProliferationGranularEntries
+                    .AsNoTracking()
+                    .Where(x => x.ApprovalStatus == ApprovalStatus.Approved)
+                    .Where(x =>
+                        EF.Functions.ILike(x.UnitName, like, "\\") ||
+                        (x.Remarks != null && EF.Functions.ILike(x.Remarks, like, "\\")))
+                    .Select(x => new { x.ProjectId, x.Source, Year = x.ProliferationDate.Year })
+                    .Distinct()
+                    .ToListAsync(ct);
+
+                var matchingAnnual = await _db.ProliferationYearlies
+                    .AsNoTracking()
+                    .Where(x => x.ApprovalStatus == ApprovalStatus.Approved && x.Remarks != null)
+                    .Where(x => EF.Functions.ILike(x.Remarks!, like, "\\"))
+                    .Select(x => new { x.ProjectId, x.Source, x.Year })
+                    .Distinct()
+                    .ToListAsync(ct);
+
+                var matchingKeys = matchingDetailed
+                    .Select(x => (x.ProjectId, x.Source, x.Year))
+                    .Concat(matchingAnnual.Select(x => (x.ProjectId, x.Source, x.Year)))
+                    .ToHashSet();
+
+                filtered = filtered.Where(x =>
+                    x.ProjectName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    (!string.IsNullOrWhiteSpace(x.ProjectCode) &&
+                     x.ProjectCode.Contains(term, StringComparison.OrdinalIgnoreCase)) ||
+                    matchingKeys.Contains((x.ProjectId, x.Source, x.Year)));
+            }
+
+            var ordered = filtered
+                .OrderBy(x => x.ProjectName, StringComparer.OrdinalIgnoreCase)
+                .ThenByDescending(x => x.Year)
+                .ThenBy(x => x.Source)
+                .ToList();
+
+            var total = ordered.Count;
+            var items = ordered
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(row => new ProliferationGroupedRowDto
+                {
+                    ProjectId = row.ProjectId,
+                    ProjectName = row.ProjectName,
+                    ProjectCode = row.ProjectCode,
+                    Source = row.Source,
+                    SourceLabel = row.SourceLabel,
+                    Year = row.Year,
+                    AnnualQuantity = row.AnnualQuantity,
+                    DetailedQuantity = row.DetailedQuantity,
+                    DetailedEntryCount = row.DetailedEntryCount,
+                    ReportedTotal = row.ReportedTotal,
+                    CalculationLabel = row.CalculationLabel,
+                    EffectiveMode = row.EffectiveMode.ToString(),
+                    HasCountingException = row.HasCountingException,
+                    LastUpdatedOnUtc = row.LastUpdatedOnUtc
+                })
+                .ToList();
+
+            return Ok(new ProliferationGroupedResponseDto
+            {
+                Total = total,
+                Page = page,
+                PageSize = pageSize,
+                Items = items
+            });
+        }
+
+        [HttpGet("groups/{projectId:int}/entries")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
+        public async Task<ActionResult<IReadOnlyList<ProliferationGroupedDetailedEntryDto>>> GetGroupedDetailedEntries(
+            int projectId,
+            [FromQuery] ProliferationSource source,
+            [FromQuery] int year,
+            CancellationToken ct)
+        {
+            if (projectId <= 0)
+            {
+                return BadRequest("A valid project id is required.");
+            }
+
+            if (source is not (ProliferationSource.Sdd or ProliferationSource.Abw515))
+            {
+                return BadRequest("A valid source is required.");
+            }
+
+            if (year is < 2000 or > 3000)
+            {
+                return BadRequest("Year must be between 2000 and 3000.");
+            }
+
+            var rows = await _db.ProliferationGranularEntries
+                .AsNoTracking()
+                .Where(x =>
+                    x.ProjectId == projectId &&
+                    x.Source == source &&
+                    x.ProliferationDate.Year == year &&
+                    x.ApprovalStatus == ApprovalStatus.Approved)
+                .OrderByDescending(x => x.ProliferationDate)
+                .ThenBy(x => x.UnitName)
+                .Select(x => new ProliferationGroupedDetailedEntryProjection(
+                    x.Id,
+                    x.ProjectId,
+                    x.Source,
+                    x.ProliferationDate.Year,
+                    x.ProliferationDate,
+                    x.UnitName,
+                    x.Quantity,
+                    x.Remarks))
+                .ToListAsync(ct);
+
+            var entries = rows
+                .Select(x => new ProliferationGroupedDetailedEntryDto
+                {
+                    Id = x.Id,
+                    ProliferationDate = x.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    UnitName = x.UnitName,
+                    Quantity = x.Quantity,
+                    Remarks = x.Remarks
+                })
+                .ToList();
+
+            return Ok(entries);
+        }
+
+        [HttpGet("data-quality")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ApproveProliferationTracker)]
+        public async Task<ActionResult<ProliferationDataQualityResponseDto>> GetDataQualityIssues(
+            [FromQuery] ProliferationDataQualityQueryDto query,
+            CancellationToken ct)
+        {
+            var result = await _dataQualityService.GetIssuesAsync(
+                new ProliferationDataQualityQuery(query.ProjectId, query.IssueType, query.Search, query.Page, query.PageSize),
+                ct);
+
+            return Ok(new ProliferationDataQualityResponseDto
+            {
+                Total = result.Total,
+                Page = result.Page,
+                PageSize = result.PageSize,
+                InvalidDateOrYearCount = result.InvalidDateOrYearCount,
+                MissingUnitCount = result.MissingUnitCount,
+                InvalidQuantityCount = result.InvalidQuantityCount,
+                PossibleDuplicateCount = result.PossibleDuplicateCount,
+                Items = result.Items.Select(item => new ProliferationDataQualityIssueDto
+                {
+                    IssueKey = item.IssueKey,
+                    IssueType = item.IssueType,
+                    Severity = item.Severity,
+                    RecordKind = item.RecordKind == ProliferationRecordKind.Yearly ? "yearly" : "granular",
+                    RecordId = item.RecordId,
+                    ProjectId = item.ProjectId,
+                    ProjectName = item.ProjectName,
+                    ProjectCode = item.ProjectCode,
+                    Source = item.Source,
+                    SourceLabel = item.SourceLabel,
+                    Year = item.Year,
+                    ProliferationDate = item.ProliferationDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    UnitName = item.UnitName,
+                    Quantity = item.Quantity,
+                    ApprovalStatus = item.ApprovalStatus.ToString(),
+                    LastUpdatedOnUtc = item.LastUpdatedOnUtc,
+                    RowVersion = item.RowVersion,
+                    Description = item.Description,
+                    CanCorrect = item.CanCorrect,
+                    RelatedRecordCount = item.RelatedRecordCount
+                }).ToList()
+            });
+        }
+
+        [HttpPost("data-quality/{kind}/{id:guid}/correct")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ApproveProliferationTracker)]
+        public async Task<IActionResult> CorrectDataQualityIssue(
+            string kind,
+            Guid id,
+            [FromBody] ProliferationDataQualityCorrectionDto dto,
+            CancellationToken ct)
+        {
+            var recordKind = ParseKind(kind);
+            if (!recordKind.HasValue)
+            {
+                return BadRequest("Record kind must be yearly or granular.");
+            }
+
+            if (!string.Equals(dto.RecordKind, kind, StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest("Record kind does not match the selected issue.");
+            }
+
+            DateOnly? correctedDate = dto.CorrectedDateUtc.HasValue
+                ? DateOnly.FromDateTime(dto.CorrectedDateUtc.Value)
+                : null;
+
+            var result = await _dataQualityService.CorrectAsync(
+                new ProliferationDataQualityCorrection(
+                    recordKind.Value,
+                    id,
+                    dto.RowVersion,
+                    dto.CorrectedYear,
+                    correctedDate,
+                    dto.CorrectedUnitName,
+                    dto.CorrectedQuantity,
+                    dto.Reason),
+                User,
+                ct);
+
+            return ToActionResult(result);
         }
 
         [HttpGet("overview")]
@@ -755,7 +1064,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 return BadRequest("Only completed projects are eligible");
 
             var result = await _submitSvc.CreateYearlyAsync(dto, User, ct);
-            return result.Success ? Ok() : BadRequest(result.Error);
+            return result.Success ? Ok(new { id = result.EntityId }) : BadRequest(result.Error);
         }
 
         [HttpPost("granular")]
@@ -770,7 +1079,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             try
             {
                 var result = await _submitSvc.CreateGranularAsync(dto, User, ct);
-                return result.Success ? Ok() : BadRequest(result.Error);
+                return result.Success ? Ok(new { id = result.EntityId }) : BadRequest(result.Error);
             }
             catch (DbUpdateException ex)
             {
@@ -778,8 +1087,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 _logger.LogError(ex, "Granular save failed. {Message}", root.Message);
 
                 return Problem(
-                    title: "Database update failed",
-                    detail: root.Message,
+                    title: "Unable to save the detailed entry",
+                    detail: "The entry could not be saved. Review the values and try again.",
                     statusCode: StatusCodes.Status400BadRequest);
             }
         }
@@ -809,7 +1118,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 return BadRequest("Decision payload is required.");
             }
 
-            var result = await _submitSvc.DecideYearlyAsync(id, dto.Approve, dto.RowVersion, User, ct);
+            var result = await _submitSvc.DecideYearlyAsync(id, dto.Approve, dto.RowVersion, dto.Reason, User, ct);
             return ToActionResult(result);
         }
 
@@ -822,7 +1131,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 return BadRequest("Decision payload is required.");
             }
 
-            var result = await _submitSvc.DecideGranularAsync(id, dto.Approve, dto.RowVersion, User, ct);
+            var result = await _submitSvc.DecideGranularAsync(id, dto.Approve, dto.RowVersion, dto.Reason, User, ct);
             return ToActionResult(result);
         }
 
@@ -878,9 +1187,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         [Authorize(Policy = ProjectOfficeReportsPolicies.ApproveProliferationTracker)]
         public async Task<IActionResult> SetPreference([FromBody] ProliferationYearPreferenceDto dto, CancellationToken ct)
         {
-            if (dto.Source == ProliferationSource.Abw515 && dto.Mode != YearPreferenceMode.Auto)
-                return BadRequest("ABW 515 uses Yearly totals and cannot be overridden");
-
             var ok = await _submitSvc.SetYearPreferenceAsync(dto, User, ct);
             return ok.Success ? Ok() : BadRequest(ok.Error);
         }
@@ -904,6 +1210,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 FromDate: from,
                 ToDate: to,
                 Source: q.Source,
+                ProjectId: q.ProjectId,
                 ProjectCategoryId: q.ProjectCategoryId,
                 TechnicalCategoryId: q.TechnicalCategoryId,
                 Search: q.Search,
@@ -923,7 +1230,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         {
             if (result.Success)
             {
-                return noContent ? NoContent() : Ok();
+                return noContent ? NoContent() : Ok(new { id = result.EntityId });
             }
 
             if (string.Equals(result.Error, "Record not found.", StringComparison.OrdinalIgnoreCase))
@@ -941,17 +1248,106 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 return string.Empty;
             }
 
-            var needsEscaping = value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r');
+            // Prevent spreadsheet applications from interpreting exported text as a formula.
+            var safeValue = value[0] is '=' or '+' or '-' or '@' or '\t'
+                ? $"'{value}"
+                : value;
+
+            var needsEscaping = safeValue.Contains(',') || safeValue.Contains('"') || safeValue.Contains('\n') || safeValue.Contains('\r');
             if (!needsEscaping)
             {
-                return value;
+                return safeValue;
             }
 
-            var escaped = value.Replace("\"", "\"\"");
+            var escaped = safeValue.Replace("\"", "\"\"");
             return $"\"{escaped}\"";
         }
 
         // SECTION: Search helpers
+        private static ProliferationProjectLookupDto ToProjectLookupDto(ProjectLookupCandidate project)
+            => new()
+            {
+                Id = project.Id,
+                Name = project.Name,
+                Acronym = ExtractProjectAcronym(project.Name, project.Code),
+                Code = project.Code,
+                ProjectCategory = project.ProjectCategory,
+                TechnicalCategory = project.TechnicalCategory,
+                Status = "Completed"
+            };
+
+        private static int GetProjectSearchRank(ProjectLookupCandidate project, string normalizedTerm)
+        {
+            var normalizedName = NormalizeProjectSearchText(project.Name);
+            var normalizedCode = NormalizeProjectSearchText(project.Code);
+            var normalizedAcronym = NormalizeProjectSearchText(ExtractProjectAcronym(project.Name, project.Code));
+
+            if (!string.IsNullOrEmpty(normalizedAcronym) && normalizedAcronym == normalizedTerm) return 0;
+            if (!string.IsNullOrEmpty(normalizedCode) && normalizedCode == normalizedTerm) return 1;
+            if (normalizedName.StartsWith(normalizedTerm, StringComparison.Ordinal)) return 2;
+            if (!string.IsNullOrEmpty(normalizedAcronym) && normalizedAcronym.StartsWith(normalizedTerm, StringComparison.Ordinal)) return 3;
+            if (!string.IsNullOrEmpty(normalizedCode) && normalizedCode.Contains(normalizedTerm, StringComparison.Ordinal)) return 4;
+            if (normalizedName.Contains(normalizedTerm, StringComparison.Ordinal)) return 5;
+            return int.MaxValue;
+        }
+
+        private static string NormalizeProjectSearchText(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+            var builder = new StringBuilder(value.Length);
+            foreach (var character in value)
+            {
+                if (char.IsLetterOrDigit(character))
+                {
+                    builder.Append(char.ToUpperInvariant(character));
+                }
+            }
+            return builder.ToString();
+        }
+
+        private static string? ExtractProjectAcronym(string? name, string? code)
+        {
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                var close = name.LastIndexOf(')');
+                var open = close > 0 ? name.LastIndexOf('(', close) : -1;
+                if (open >= 0 && close > open + 1)
+                {
+                    var parenthetical = NormalizeProjectSearchText(name[(open + 1)..close]);
+                    if (parenthetical.Length is >= 2 and <= 20 && parenthetical.Any(char.IsLetter))
+                    {
+                        return parenthetical;
+                    }
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(code))
+            {
+                var segments = code
+                    .Split(new[] { '/', '\\', '-', '_', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(segment => NormalizeProjectSearchText(segment))
+                    .Where(segment => segment.Length is >= 2 and <= 20 && segment.Any(char.IsLetter))
+                    .Where(segment => !segment.Equals("SDD", StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(segment => segment.Length)
+                    .ToList();
+                if (segments.Count > 0) return segments[0];
+            }
+
+            if (string.IsNullOrWhiteSpace(name)) return null;
+            var ignored = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "A", "AN", "AND", "BASED", "FOR", "OF", "ON", "THE", "TO", "WITH"
+            };
+            var initials = name
+                .Split(new[] { ' ', '-', '/', '(', ')', '[', ']' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(word => !ignored.Contains(word))
+                .Where(word => word.Any(char.IsLetterOrDigit))
+                .Select(word => char.ToUpperInvariant(word.First(char.IsLetterOrDigit)))
+                .Take(12)
+                .ToArray();
+            return initials.Length >= 2 ? new string(initials) : null;
+        }
+
         private static string EscapeLikePattern(string value)
         {
             return value
@@ -1011,6 +1407,13 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         private static string EncodeRowVersion(byte[]? rowVersion)
             => rowVersion is { Length: > 0 } ? Convert.ToBase64String(rowVersion) : string.Empty;
 
+        private sealed record ProjectLookupCandidate(
+            int Id,
+            string Name,
+            string? Code,
+            string? ProjectCategory,
+            string? TechnicalCategory);
+
         private sealed record OverviewRowProjection(
             int ProjectId,
             int Year,
@@ -1025,6 +1428,16 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             YearPreferenceMode? Mode);
 
         private sealed record CombinationKey(int ProjectId, ProliferationSource Source, int Year);
+
+        private sealed record ProliferationGroupedDetailedEntryProjection(
+            Guid Id,
+            int ProjectId,
+            ProliferationSource Source,
+            int Year,
+            DateOnly Date,
+            string UnitName,
+            int Quantity,
+            string? Remarks);
 
     }
 }

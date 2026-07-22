@@ -77,13 +77,13 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
                     user.LoginCount = user.LoginCount + 1;
                     await _signInManager.UserManager.UpdateAsync(user);
                     await HttpContext.RequestServices.GetRequiredService<IAuditService>()
-                        .LogAsync("LoginSuccess", userName: user.UserName, userId: user.Id, http: HttpContext);
+                        .LogAsync(AuthenticationEventNames.AuditLoginSuccess, userName: user.UserName, userId: user.Id, http: HttpContext);
 
                     _db.AuthEvents.Add(new AuthEvent
                     {
                         UserId = user.Id,
                         WhenUtc = when,
-                        Event = "LoginSucceeded",
+                        Event = AuthenticationEventNames.LoginSucceeded,
                         Ip = ip,
                         UserAgent = ua
                     });
@@ -109,19 +109,19 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
             {
                 _logger.LogWarning("Login failed. Account locked out for user: {User}", Input.UserName);
                 await HttpContext.RequestServices.GetRequiredService<IAuditService>()
-                    .LogAsync("LoginLockedOut", message: Input.UserName, level: "Warning", userName: Input.UserName, http: HttpContext);
+                    .LogAsync(AuthenticationEventNames.AuditLoginLockedOut, message: Input.UserName, level: "Warning", userName: Input.UserName, http: HttpContext);
             }
             else if (result.IsNotAllowed)
             {
                 _logger.LogWarning("Login failed. Not allowed for user: {User}", Input.UserName);
                 await HttpContext.RequestServices.GetRequiredService<IAuditService>()
-                    .LogAsync("LoginFailed", message: $"Not allowed for {Input.UserName}", level: "Warning", userName: Input.UserName, http: HttpContext);
+                    .LogAsync(AuthenticationEventNames.AuditLoginFailed, message: $"Not allowed for {Input.UserName}", level: "Warning", userName: Input.UserName, http: HttpContext);
             }
             else
             {
                 _logger.LogWarning("Login failed. Invalid credentials for user: {User}", Input.UserName);
                 await HttpContext.RequestServices.GetRequiredService<IAuditService>()
-                    .LogAsync("LoginFailed", message: $"Invalid credentials for {Input.UserName}", level: "Warning", userName: Input.UserName, http: HttpContext);
+                    .LogAsync(AuthenticationEventNames.AuditLoginFailed, message: $"Invalid credentials for {Input.UserName}", level: "Warning", userName: Input.UserName, http: HttpContext);
             }
 
             return Page();

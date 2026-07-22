@@ -1,0 +1,15 @@
+PRISM Proliferation Corrective Release - Static Validation
+Generated: 2026-07-15T17:53:45Z
+
+JavaScript syntax:
+PASS wwwroot/js/components/proliferation-project-picker.js
+PASS wwwroot/js/pages/project-office-reports/proliferation-summary-charts.js
+PASS wwwroot/js/pages/proliferation-dashboard.js
+PASS wwwroot/js/pages/proliferation-manage.js
+PASS wwwroot/js/pages/proliferation-report-launcher.js
+PASS wwwroot/js/pages/proliferation-reports.js
+PASS Razor literal ID uniqueness
+PASS C# lexical delimiter check (12 changed files)
+PASS Razor local script references
+
+NOTE: .NET SDK/compiler was not available in this environment; dotnet build and dotnet test were not executed.

@@ -1,38 +1,97 @@
 @page
-@attribute [Authorize(Roles="Admin,HoD")]
 @model ProjectManagement.Pages.Settings.Holidays.IndexModel
+@using ProjectManagement.Models.Scheduling
 @{
     ViewData["Title"] = "Holidays";
 }
 
-<h5>Holidays</h5>
-<a class="btn btn-sm btn-primary mb-3" asp-page="Create">Add</a>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="Model.Header" />
+<partial name="~/Areas/Admin/Pages/Shared/_AdminFlashMessages.cshtml" />
 
-@if (Model.Items.Count == 0)
-{
-    <div class="alert alert-info" role="status">No holidays have been recorded yet.</div>
-}
-else
-{
-    <table class="table table-sm align-middle">
-        <thead>
-            <tr>
-                <th scope="col">Date</th>
-                <th scope="col">Name</th>
-                <th scope="col" class="text-end">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-        @foreach (var holiday in Model.Items)
-        {
-            <tr>
-                <td>@holiday.Date.ToString("dd MMM yyyy")</td>
-                <td>@holiday.Name</td>
-                <td class="text-end">
-                    <a class="btn btn-sm btn-outline-danger" asp-page="Delete" asp-route-id="@holiday.Id">Delete</a>
-                </td>
-            </tr>
-        }
-        </tbody>
-    </table>
-}
+<section class="admin-master-summary-grid admin-holiday-summary" aria-label="Holiday summary">
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral">
+        <span class="admin-monitoring-metric__icon"><i class="bi bi-calendar2-check"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.GazettedCount</strong><span>Gazetted Holidays</span><small>Office closed</small></span>
+    </article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--info">
+        <span class="admin-monitoring-metric__icon"><i class="bi bi-info-square"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.RestrictedCount</strong><span>Restricted Holidays</span><small>Full notified list</small></span>
+    </article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--warning">
+        <span class="admin-monitoring-metric__icon"><i class="bi bi-building-check"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.ObservedRestrictedCount</strong><span>RH office holidays</span><small>Declared by the office</small></span>
+    </article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--neutral">
+        <span class="admin-monitoring-metric__icon"><i class="bi bi-calendar-x"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.OfficeHolidayDateCount</strong><span>Total office holidays</span><small>Distinct non-working dates</small></span>
+    </article>
+    <article class="admin-monitoring-metric admin-monitoring-metric--info">
+        <span class="admin-monitoring-metric__icon"><i class="bi bi-calendar-event"></i></span>
+        <span class="admin-monitoring-metric__copy"><strong>@Model.UpcomingOfficeHolidayCount</strong><span>Upcoming closures</span><small>On or after today</small></span>
+    </article>
+</section>
+
+<section class="admin-panel" aria-labelledby="holiday-directory-title">
+    <header class="admin-panel__header">
+        <div><div class="admin-panel__eyebrow">Calendar year @Model.Year</div><h2 id="holiday-directory-title">Holiday directory</h2></div>
+        <span class="admin-panel__meta">@Model.Items.Count matching record@(Model.Items.Count == 1 ? string.Empty : "s")</span>
+    </header>
+
+    <form method="get" class="admin-filter-toolbar admin-holiday-toolbar">
+        <div class="admin-year-stepper" aria-label="Select calendar year">
+            <a class="btn btn-outline-secondary" asp-route-year="@(Model.Year - 1)" asp-route-type="@Model.Type" asp-route-officeStatus="@Model.OfficeStatus" asp-route-search="@Model.Search" aria-label="Previous year"><i class="bi bi-chevron-left"></i></a>
+            <div class="admin-filter-toolbar__field"><label asp-for="Year">Year</label><select asp-for="Year" class="form-select">@foreach (var year in Model.AvailableYears){<option value="@year">@year</option>}</select></div>
+            <a class="btn btn-outline-secondary" asp-route-year="@(Model.Year + 1)" asp-route-type="@Model.Type" asp-route-officeStatus="@Model.OfficeStatus" asp-route-search="@Model.Search" aria-label="Next year"><i class="bi bi-chevron-right"></i></a>
+        </div>
+        <div class="admin-filter-toolbar__field"><label asp-for="Type">Classification</label><select asp-for="Type" class="form-select"><option value="">All classifications</option><option value="@HolidayType.Gazetted">Gazetted</option><option value="@HolidayType.Restricted">Restricted</option></select></div>
+        <div class="admin-filter-toolbar__field"><label asp-for="OfficeStatus">Office status</label><select asp-for="OfficeStatus" class="form-select"><option value="">All statuses</option><option value="closed">Office closed</option><option value="informational">Information only</option></select></div>
+        <div class="admin-filter-toolbar__field admin-filter-toolbar__field--grow"><label asp-for="Search">Search</label><input asp-for="Search" class="form-control" placeholder="Holiday or authority reference" /></div>
+        <div class="admin-filter-toolbar__actions"><button class="btn btn-primary" type="submit"><i class="bi bi-funnel"></i>Apply</button><a class="btn btn-outline-secondary" asp-page="./Index" asp-route-year="@Model.Year">Clear</a></div>
+    </form>
+
+    @if (Model.Items.Count == 0)
+    {
+        <partial name="~/Areas/Admin/Pages/Shared/_AdminEmptyState.cshtml" model="@(new ProjectManagement.Areas.Admin.Models.AdminEmptyStateModel { Icon = "bi-calendar-week", Title = $"No matching holiday entries for {Model.Year}", Description = "Adjust the filters or add the first Gazetted or Restricted Holiday entry for this year.", ActionText = "Add holiday entry", ActionHref = Url.Page("./Create", new { year = Model.Year }) })" />
+    }
+    else
+    {
+        <div class="admin-data-table-wrap">
+            <table class="admin-data-table admin-holiday-table">
+                <thead><tr><th>Date</th><th>Holiday</th><th>Classification</th><th>Office status</th><th>Schedule effect</th><th>Authority/reference</th><th class="admin-data-table__actions">Actions</th></tr></thead>
+                <tbody>
+                @foreach (var holiday in Model.Items)
+                {
+                    var isGazetted = holiday.Type == HolidayType.Gazetted;
+                    var observedRh = holiday.Type == HolidayType.Restricted && holiday.IsObservedAsOfficeHoliday;
+                    <tr>
+                        <td><div class="admin-activity-value"><strong>@holiday.Date.ToString("dd MMM yyyy")</strong><span>@holiday.Date.DayOfWeek</span></div></td>
+                        <td><div class="admin-directory-identity"><strong>@holiday.Name</strong>@if (!string.IsNullOrWhiteSpace(holiday.ObservanceRemarks)){<span>@holiday.ObservanceRemarks</span>}</div></td>
+                        <td><span class="admin-holiday-pill @(isGazetted ? "admin-holiday-pill--gazetted" : "admin-holiday-pill--restricted")">@(isGazetted ? "Gazetted Holiday" : "Restricted Holiday")</span></td>
+                        <td>
+                            @if (isGazetted)
+                            {<span class="admin-status-pill admin-status-pill--danger">Office holiday</span>}
+                            else if (observedRh)
+                            {<span class="admin-status-pill admin-status-pill--warning">RH · Office holiday</span>}
+                            else
+                            {<span class="admin-status-pill admin-status-pill--neutral">Information only · Office open</span>}
+                        </td>
+                        <td><span class="admin-status-pill admin-status-pill--@(holiday.AffectsSchedule ? "danger" : "neutral")">@(holiday.AffectsSchedule ? "Non-working day" : "No schedule impact")</span></td>
+                        <td>@if (string.IsNullOrWhiteSpace(holiday.AuthorityReference)){<span class="text-muted">—</span>}else{<span>@holiday.AuthorityReference</span>}</td>
+                        <td class="admin-data-table__actions"><div class="dropdown"><button class="btn btn-sm btn-icon" type="button" data-bs-toggle="dropdown" aria-label="Actions for @holiday.Name"><i class="bi bi-three-dots"></i></button><ul class="dropdown-menu dropdown-menu-end">
+                            @if (holiday.Type == HolidayType.Restricted && !holiday.IsObservedAsOfficeHoliday)
+                            {<li><a class="dropdown-item" asp-page="./Observe" asp-route-id="@holiday.Id"><i class="bi bi-building-check"></i>Declare as office holiday</a></li>}
+                            @if (holiday.Type == HolidayType.Restricted && holiday.IsObservedAsOfficeHoliday)
+                            {<li><a class="dropdown-item" asp-page="./WithdrawObservance" asp-route-id="@holiday.Id"><i class="bi bi-building-dash"></i>Withdraw office observance</a></li>}
+                            <li><a class="dropdown-item" asp-page="./Edit" asp-route-id="@holiday.Id"><i class="bi bi-pencil-square"></i>Edit</a></li>
+                            <li><hr class="dropdown-divider" /></li>
+                            <li><a class="dropdown-item text-danger" asp-page="./Delete" asp-route-id="@holiday.Id"><i class="bi bi-trash3"></i>Delete</a></li>
+                        </ul></div></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<section class="admin-guidance-strip"><span><i class="bi bi-info-circle"></i></span><div><strong>Classification and office observance are separate</strong><p>All Restricted Holidays remain visible on the calendar. Only Gazetted Holidays and Restricted Holidays declared as office holidays are treated as non-working days in future schedule calculations.</p></div></section>

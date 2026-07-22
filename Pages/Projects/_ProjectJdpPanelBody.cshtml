@@ -20,7 +20,7 @@ else
         @foreach (var partner in Model.JdpPartners)
         {
             <a class="pm-summary-row-link pm-summary-row-link--stacked"
-               href="/IndustryPartners?id=@partner.Id"
+               href="/IndustryPartners?id=@partner.Id&amp;projectId=@Model.Project.Id&amp;tab=projects"
                title="Open industry partner details">
                 <span class="pm-summary-row-main">
                     <span class="pm-summary-row-title">@partner.Name</span>

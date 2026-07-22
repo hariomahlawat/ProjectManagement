@@ -44,7 +44,7 @@ public sealed class IprIndexPageTests
         using var userManager = CreateUserManager(db);
         var exportService = new StubIprExportService();
 
-        var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService);
+        var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService, CreateAttachmentOptions());
         ConfigurePageContext(page, CreatePrincipal("viewer", "Viewer"));
         page.Mode = "create";
 
@@ -65,7 +65,7 @@ public sealed class IprIndexPageTests
         using var userManager = CreateUserManager(db);
         var exportService = new StubIprExportService();
 
-        var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService)
+        var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService, CreateAttachmentOptions())
         {
             Input = new IndexModel.RecordInput
             {
@@ -94,11 +94,12 @@ public sealed class IprIndexPageTests
 
         try
         {
-            var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService)
+            var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService, CreateAttachmentOptions())
             {
                 Input = new IndexModel.RecordInput
                 {
                     FilingNumber = "IPR-600",
+                    Title = "Copyright training package",
                     Type = IprType.Copyright,
                     Status = IprStatus.Granted,
                     FiledBy = "  Analyst  ",
@@ -112,6 +113,7 @@ public sealed class IprIndexPageTests
             var result = await page.OnPostCreateAsync(CancellationToken.None);
 
             var redirect = Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal("./Index", redirect.PageName);
             Assert.Equal("edit", redirect.RouteValues?["mode"]);
             var createdId = Assert.IsType<int>(redirect.RouteValues?["id"]);
             Assert.Equal("IPR record created.", page.TempData["ToastMessage"]);
@@ -123,6 +125,148 @@ public sealed class IprIndexPageTests
             Assert.Equal("Analyst", created.FiledBy);
             Assert.Equal(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero), created.FiledAtUtc);
             Assert.Equal(new DateTimeOffset(2024, 2, 20, 0, 0, 0, TimeSpan.Zero), created.GrantedAtUtc);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+
+    [Fact]
+    public async Task OnPostEditAsync_AssignsProjectAndIgnoresUnrelatedCommandValidation()
+    {
+        await using var db = CreateDbContext();
+        var readService = new IprReadService(db);
+        var (writeService, root) = CreateWriteService(db, new DateTimeOffset(2024, 5, 1, 0, 0, 0, TimeSpan.Zero));
+        var authorizationService = new AllowAuthorizationService();
+        using var userManager = CreateUserManager(db);
+        var exportService = new StubIprExportService();
+
+        try
+        {
+            var project = new Project
+            {
+                Name = "VR based Tac RP",
+                CreatedByUserId = "editor",
+                LifecycleStatus = ProjectLifecycleStatus.Active
+            };
+            db.Projects.Add(project);
+            await db.SaveChangesAsync();
+
+            var created = await writeService.CreateAsync(new IprRecord
+            {
+                IprFilingNumber = "30102/26",
+                Title = "Remote Pilot Aircraft Simulator",
+                Type = IprType.Patent,
+                Status = IprStatus.Filed,
+                FiledBy = "Lt Col Suresh Kumar Dash",
+                FiledAtUtc = new DateTimeOffset(2024, 4, 2, 0, 0, 0, TimeSpan.Zero)
+            });
+
+            var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService, CreateAttachmentOptions())
+            {
+                Tab = "records",
+                Input = new IndexModel.RecordInput
+                {
+                    Id = created.Id,
+                    FilingNumber = created.IprFilingNumber,
+                    Title = created.Title,
+                    Type = created.Type,
+                    Status = created.Status,
+                    FiledBy = created.FiledBy,
+                    FiledOn = new DateOnly(2024, 4, 2),
+                    ProjectId = project.Id,
+                    RowVersion = Convert.ToBase64String(created.RowVersion)
+                }
+            };
+
+            ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.EditAllowedRoles[0]));
+            page.ModelState.AddModelError("DeleteRequest.RowVersion", "Unrelated command validation error.");
+            page.ModelState.AddModelError("RemoveAttachment.RowVersion", "Unrelated command validation error.");
+
+            var result = await page.OnPostEditAsync(CancellationToken.None);
+
+            var redirect = Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal("./Index", redirect.PageName);
+            Assert.Equal("edit", redirect.RouteValues?["mode"]);
+            Assert.Equal(created.Id, Assert.IsType<int>(redirect.RouteValues?["id"]));
+            Assert.Equal("IPR record updated.", page.TempData["ToastMessage"]);
+            Assert.DoesNotContain(page.ModelState.Keys, key => key.StartsWith("DeleteRequest", StringComparison.Ordinal));
+            Assert.DoesNotContain(page.ModelState.Keys, key => key.StartsWith("RemoveAttachment", StringComparison.Ordinal));
+
+            db.ChangeTracker.Clear();
+            var stored = await db.IprRecords.AsNoTracking().SingleAsync(record => record.Id == created.Id);
+            Assert.Equal(project.Id, stored.ProjectId);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task OnPostEditAsync_WhenProjectWasDeleted_RetainsRegisterAndAddsProjectFieldError()
+    {
+        await using var db = CreateDbContext();
+        var readService = new IprReadService(db);
+        var (writeService, root) = CreateWriteService(db, new DateTimeOffset(2024, 5, 1, 0, 0, 0, TimeSpan.Zero));
+        var authorizationService = new AllowAuthorizationService();
+        using var userManager = CreateUserManager(db);
+        var exportService = new StubIprExportService();
+
+        try
+        {
+            var deletedProject = new Project
+            {
+                Name = "Deleted project",
+                CreatedByUserId = "editor",
+                IsDeleted = true
+            };
+            db.Projects.Add(deletedProject);
+            await db.SaveChangesAsync();
+
+            var created = await writeService.CreateAsync(new IprRecord
+            {
+                IprFilingNumber = "IPR-INVALID-PROJECT",
+                Title = "Invalid project test",
+                Type = IprType.Patent,
+                Status = IprStatus.Filed,
+                FiledAtUtc = new DateTimeOffset(2024, 4, 2, 0, 0, 0, TimeSpan.Zero)
+            });
+
+            var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService, CreateAttachmentOptions())
+            {
+                Tab = "records",
+                Input = new IndexModel.RecordInput
+                {
+                    Id = created.Id,
+                    FilingNumber = created.IprFilingNumber,
+                    Title = created.Title,
+                    Type = created.Type,
+                    Status = created.Status,
+                    FiledOn = new DateOnly(2024, 4, 2),
+                    ProjectId = deletedProject.Id,
+                    RowVersion = Convert.ToBase64String(created.RowVersion)
+                }
+            };
+
+            ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.EditAllowedRoles[0]));
+
+            var result = await page.OnPostEditAsync(CancellationToken.None);
+
+            Assert.IsType<PageResult>(result);
+            Assert.Equal("edit", page.Mode);
+            Assert.Equal(1, page.Kpis.Total);
+            Assert.Equal(1, page.TotalCount);
+            Assert.Equal(deletedProject.Id, page.Input.ProjectId);
+            Assert.DoesNotContain(page.ProjectPickerOptions, project => project.Id == deletedProject.Id);
+
+            var key = $"{nameof(IndexModel.Input)}.{nameof(IndexModel.RecordInput.ProjectId)}";
+            Assert.True(page.ModelState.TryGetValue(key, out var entry));
+            Assert.Equal(
+                "The selected project is no longer available. Select another project.",
+                Assert.Single(entry.Errors).ErrorMessage);
         }
         finally
         {
@@ -142,11 +286,12 @@ public sealed class IprIndexPageTests
 
         try
         {
-            var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService)
+            var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService, CreateAttachmentOptions())
             {
                 Input = new IndexModel.RecordInput
                 {
                     FilingNumber = "IPR-700",
+                    Title = "Filed patent",
                     Type = IprType.Patent,
                     Status = IprStatus.Filed
                 }
@@ -161,8 +306,13 @@ public sealed class IprIndexPageTests
             var key = $"{nameof(IndexModel.Input)}.{nameof(IndexModel.RecordInput.FiledOn)}";
             Assert.True(page.ModelState.TryGetValue(key, out var entry));
             var message = Assert.Single(entry.Errors).ErrorMessage;
-            Assert.Equal("Filed date is required once the record is not under filing.", message);
+            Assert.Equal("Filed date is required.", message);
             Assert.False(page.ModelState.TryGetValue(string.Empty, out _));
+            Assert.Equal("create", page.Mode);
+            Assert.Equal("IPR-700", page.Input.FilingNumber);
+            Assert.Equal("Filed patent", page.Input.Title);
+            Assert.Equal(IprType.Patent, page.Input.Type);
+            Assert.Equal(IprStatus.Filed, page.Input.Status);
         }
         finally
         {
@@ -182,11 +332,12 @@ public sealed class IprIndexPageTests
 
         try
         {
-            var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService)
+            var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService, CreateAttachmentOptions())
             {
                 Input = new IndexModel.RecordInput
                 {
                     FilingNumber = "IPR-710",
+                    Title = "Granted patent",
                     Type = IprType.Patent,
                     Status = IprStatus.Granted,
                     FiledOn = new DateOnly(2024, 4, 10),
@@ -203,12 +354,12 @@ public sealed class IprIndexPageTests
             var filedKey = $"{nameof(IndexModel.Input)}.{nameof(IndexModel.RecordInput.FiledOn)}";
             Assert.True(page.ModelState.TryGetValue(filedKey, out var filedEntry));
             var filedMessage = Assert.Single(filedEntry.Errors).ErrorMessage;
-            Assert.Equal("Grant date cannot be earlier than the filing date.", filedMessage);
+            Assert.Equal("Protection date cannot be earlier than the filing date.", filedMessage);
 
             var grantedKey = $"{nameof(IndexModel.Input)}.{nameof(IndexModel.RecordInput.GrantedOn)}";
             Assert.True(page.ModelState.TryGetValue(grantedKey, out var grantedEntry));
             var grantedMessage = Assert.Single(grantedEntry.Errors).ErrorMessage;
-            Assert.Equal("Grant date cannot be earlier than the filing date.", grantedMessage);
+            Assert.Equal("Protection date cannot be earlier than the filing date.", grantedMessage);
         }
         finally
         {
@@ -226,7 +377,7 @@ public sealed class IprIndexPageTests
         using var userManager = CreateUserManager(db);
         var exportService = new StubIprExportService();
 
-        var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService);
+        var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService, CreateAttachmentOptions());
         ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.EditAllowedRoles[0]));
 
         var result = await page.OnGetAsync(CancellationToken.None);
@@ -239,6 +390,80 @@ public sealed class IprIndexPageTests
 
         var formOptionValues = page.TypeFormOptions.Select(o => o.Value).ToArray();
         Assert.Equal(expectedValues, formOptionValues);
+    }
+
+    [Fact]
+    public async Task OnGetAsync_BuildsPatentAndCopyrightBreakdownForFiledProtectedAndPending()
+    {
+        await using var db = CreateDbContext();
+        db.IprRecords.AddRange(
+            new IprRecord
+            {
+                IprFilingNumber = "PAT-PENDING",
+                Title = "Pending patent",
+                Type = IprType.Patent,
+                Status = IprStatus.Filed,
+                FiledAtUtc = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            },
+            new IprRecord
+            {
+                IprFilingNumber = "PAT-GRANTED",
+                Title = "Granted patent",
+                Type = IprType.Patent,
+                Status = IprStatus.Granted,
+                FiledAtUtc = new DateTimeOffset(2023, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                GrantedAtUtc = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            },
+            new IprRecord
+            {
+                IprFilingNumber = "CR-PENDING",
+                Title = "Pending copyright",
+                Type = IprType.Copyright,
+                Status = IprStatus.Filed,
+                FiledAtUtc = new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero)
+            },
+            new IprRecord
+            {
+                IprFilingNumber = "CR-REGISTERED",
+                Title = "Registered copyright",
+                Type = IprType.Copyright,
+                Status = IprStatus.Granted,
+                FiledAtUtc = new DateTimeOffset(2023, 2, 1, 0, 0, 0, TimeSpan.Zero),
+                GrantedAtUtc = new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero)
+            });
+        await db.SaveChangesAsync();
+
+        using var userManager = CreateUserManager(db);
+        var page = new IndexModel(
+            db,
+            new IprReadService(db),
+            new StubIprWriteService(),
+            new AllowAuthorizationService(),
+            userManager,
+            new StubIprExportService(),
+            CreateAttachmentOptions());
+        ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.EditAllowedRoles[0]));
+
+        var result = await page.OnGetAsync(CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Equal(4, page.Kpis.Total);
+        Assert.Equal(2, page.Kpis.Granted);
+        Assert.Equal(2, page.Kpis.Filed);
+
+        var patent = page.TypeBreakdown.Single(item => item.Type == IprType.Patent);
+        Assert.Equal("Patent", patent.TypeLabel);
+        Assert.Equal(2, patent.Filed);
+        Assert.Equal(1, patent.Protected);
+        Assert.Equal(1, patent.Pending);
+        Assert.Equal("granted", patent.ProtectedVerb);
+
+        var copyright = page.TypeBreakdown.Single(item => item.Type == IprType.Copyright);
+        Assert.Equal("Copyright", copyright.TypeLabel);
+        Assert.Equal(2, copyright.Filed);
+        Assert.Equal(1, copyright.Protected);
+        Assert.Equal(1, copyright.Pending);
+        Assert.Equal("registered", copyright.ProtectedVerb);
     }
 
     private static ApplicationDbContext CreateDbContext()
@@ -294,17 +519,23 @@ public sealed class IprIndexPageTests
             NullLogger<UserManager<ApplicationUser>>.Instance);
     }
 
+    private static IOptions<IprAttachmentOptions> CreateAttachmentOptions()
+    {
+        return Options.Create(new IprAttachmentOptions
+        {
+            MaxFileSizeBytes = 1024 * 1024,
+            AllowedContentTypes = new List<string> { "application/pdf" },
+            AllowedExtensions = new List<string> { ".pdf" }
+        });
+    }
+
     private static (IIprWriteService Service, string RootPath) CreateWriteService(ApplicationDbContext db, DateTimeOffset? now = null)
     {
         var clock = FakeClock.AtUtc(now ?? new DateTimeOffset(2024, 5, 1, 0, 0, 0, TimeSpan.Zero));
         var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
 
-        var options = Options.Create(new IprAttachmentOptions
-        {
-            MaxFileSizeBytes = 1024 * 1024,
-            AllowedContentTypes = new List<string> { "application/pdf" }
-        });
+        var options = CreateAttachmentOptions();
 
         var uploadRootProvider = new TestUploadRootProvider(root);
         var pathResolver = new UploadPathResolver(uploadRootProvider);

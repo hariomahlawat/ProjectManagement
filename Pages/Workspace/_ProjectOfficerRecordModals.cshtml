@@ -1,0 +1,220 @@
+@using ProjectManagement.ViewModels.Workspace
+@model ProjectOfficerWorkspaceVm
+@{
+    var vm = Model;
+    var allRecordHealthRows = vm.RecordHealth
+        .Where(health => health.ProjectId > 0)
+        .OrderBy(health => health.HealthPercent)
+        .ThenBy(health => health.ProjectName)
+        .ToList();
+    var projectsWithRecordGaps = allRecordHealthRows.Where(health => health.RecordGapCount > 0).ToList();
+}
+<div class="modal fade po-record-modal po-record-overview-modal" id="recordHealthAll" tabindex="-1" aria-labelledby="recordHealthAllLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header po-record-modal__header">
+                <div>
+                    <span class="po-record-modal__eyebrow">Assigned portfolio</span>
+                    <h2 class="modal-title" id="recordHealthAllLabel">All record gaps</h2>
+                    <p>Every incomplete record is grouped by project with a direct correction action.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body po-record-modal__body">
+                <div class="po-record-overview__summary">
+                    <div><strong>@vm.RecordGapCount</strong><span>Total gaps</span></div>
+                    <div><strong>@projectsWithRecordGaps.Count</strong><span>Projects affected</span></div>
+                    <div><strong>@vm.AssignedProjectCount</strong><span>Assigned projects</span></div>
+                </div>
+
+                @if (!projectsWithRecordGaps.Any())
+                {
+                    <div class="po-record-complete-state">
+                        <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                        <div><strong>Portfolio records complete</strong><span>No record gaps remain across your assigned projects.</span></div>
+                    </div>
+                }
+                else
+                {
+                    <div class="po-record-overview__projects">
+                        @foreach (var health in projectsWithRecordGaps)
+                        {
+                            var overviewHealthCss = WorkspaceDisplayHelpers.HealthCss(health.HealthPercent);
+                            <section class="po-record-overview-project po-record-overview-project--@overviewHealthCss" aria-labelledby="recordOverviewProject-@health.ProjectId">
+                                <header>
+                                    <div>
+                                        <h3 id="recordOverviewProject-@health.ProjectId">@health.ProjectName</h3>
+                                        <span>@health.HealthPercent% complete · @health.RecordGapCount gap@(health.RecordGapCount == 1 ? "" : "s")</span>
+                                    </div>
+                                    <a href="@health.OpenUrl">Open project<i class="bi bi-arrow-right"></i></a>
+                                </header>
+                                <progress class="po-record-overview-project__bar" value="@health.HealthPercent" max="100" aria-label="@health.ProjectName record completeness: @health.HealthPercent percent">@health.HealthPercent%</progress>
+                                <div class="po-record-overview-project__gaps">
+                                    @foreach (var gap in health.GapDetails.OrderBy(gap => gap.Priority).ThenBy(gap => gap.FieldLabel))
+                                    {
+                                        <article class="po-record-overview-gap">
+                                            <span class="po-record-overview-gap__icon"><i class="bi @gap.Icon" aria-hidden="true"></i></span>
+                                            <div>
+                                                <strong>@gap.FieldLabel</strong>
+                                                <span>@gap.Reason</span>
+                                            </div>
+                                            <a href="@gap.ActionUrl">@gap.ActionText<i class="bi bi-arrow-right"></i></a>
+                                        </article>
+                                    }
+                                </div>
+                            </section>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="modal-footer po-record-modal__footer">
+                <span><i class="bi bi-info-circle"></i>Select a project percentage in the workspace for its full score breakdown.</span>
+                <button type="button" class="po-btn po-btn--primary" data-bs-dismiss="modal">Done</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@foreach (var health in allRecordHealthRows)
+{
+    var healthCss = WorkspaceDisplayHelpers.HealthCss(health.HealthPercent);
+    <div class="modal fade po-record-modal" id="recordHealth-@health.ProjectId" tabindex="-1" aria-labelledby="recordHealthLabel-@health.ProjectId" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header po-record-modal__header">
+                    <div>
+                        <span class="po-record-modal__eyebrow">Project record completeness</span>
+                        <h2 class="modal-title" id="recordHealthLabel-@health.ProjectId">@health.ProjectName</h2>
+                        <p>The score covers required project records, supporting media, and fields applicable to the current stage.</p>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body po-record-modal__body">
+                    <div class="po-record-summary po-record-summary--@healthCss">
+                        <div class="po-record-summary__score">
+                            <strong>@health.HealthPercent%</strong>
+                            <span>@health.HealthLabel</span>
+                        </div>
+                        <progress class="po-record-summary__progress" value="@health.HealthPercent" max="100" aria-label="@health.HealthPercent percent complete">@health.HealthPercent%</progress>
+                        <div class="po-record-summary__meta">
+                            <strong>@health.RecordGapCount record gap@(health.RecordGapCount == 1 ? "" : "s")</strong>
+                            <span>Every deduction below maps to a specific record gap and correction action.</span>
+                        </div>
+                    </div>
+
+                    <section class="po-component-section" aria-labelledby="componentScores-@health.ProjectId">
+                        <div class="po-record-modal__section-head">
+                            <div>
+                                <h3 id="componentScores-@health.ProjectId">Score breakdown</h3>
+                                <p>Component scores total 100 points.</p>
+                            </div>
+                        </div>
+                        <div class="po-component-grid">
+                            @foreach (var component in health.Components)
+                            {
+                                var componentPercent = component.MaximumPoints <= 0 ? 100 : (int)Math.Round(component.EarnedPoints / component.MaximumPoints * 100m);
+                                var componentCss = component.Status.ToLowerInvariant();
+                                <article class="po-component-card po-component-card--@componentCss">
+                                    <div class="po-component-card__top">
+                                        <span>@component.Label</span>
+                                        <strong>@component.EarnedPoints.ToString("0.##")/@component.MaximumPoints.ToString("0.##")</strong>
+                                    </div>
+                                    <progress class="po-component-card__bar" value="@componentPercent" max="100" aria-label="@component.Label: @componentPercent percent complete">@componentPercent%</progress>
+                                    <div class="po-component-card__foot">
+                                        <span class="po-component-status">@component.Status</span>
+                                        @if (component.Gaps.Count > 0)
+                                        {
+                                            <span>@component.Gaps.Count pending</span>
+                                        }
+                                    </div>
+                                </article>
+                            }
+                        </div>
+                    </section>
+
+                    <section class="po-pending-section" aria-labelledby="pendingFields-@health.ProjectId">
+                        <div class="po-record-modal__section-head">
+                            <div>
+                                <h3 id="pendingFields-@health.ProjectId">Exact record gaps</h3>
+                                <p>Complete these items to improve the score.</p>
+                            </div>
+                        </div>
+                        @if (!health.GapDetails.Any())
+                        {
+                            <div class="po-record-complete-state">
+                                <i class="bi bi-check2-circle"></i>
+                                <div><strong>Record complete</strong><span>No record gaps remain.</span></div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="po-pending-groups">
+                                @foreach (var group in health.GapDetails.GroupBy(gap => gap.Component))
+                                {
+                                    <div class="po-pending-group">
+                                        <h4>@group.Key <span>@group.Count()</span></h4>
+                                        <div class="po-pending-list">
+                                            @foreach (var gap in group)
+                                            {
+                                                <article class="po-pending-field">
+                                                    <span class="po-pending-field__icon"><i class="bi @gap.Icon"></i></span>
+                                                    <div class="po-pending-field__content">
+                                                        <div class="po-pending-field__title">
+                                                            <strong>@gap.FieldLabel</strong>
+                                                            <span class="po-field-status po-field-status--@gap.Status.ToLowerInvariant()">@gap.Status</span>
+                                                        </div>
+                                                        <p>@gap.Reason</p>
+                                                        <small>@gap.MaximumPoints.ToString("0.##") point@(gap.MaximumPoints == 1 ? "" : "s") affected</small>
+                                                    </div>
+                                                    <a class="po-pending-field__action" href="@gap.ActionUrl">@gap.ActionText<i class="bi bi-arrow-right"></i></a>
+                                                </article>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </section>
+                </div>
+                <div class="modal-footer po-record-modal__footer">
+                    <span><i class="bi bi-shield-check"></i>Not-applicable and not-yet-applicable fields do not reduce the score.</span>
+                    <a class="po-btn po-btn--secondary" href="@health.OpenUrl">Open project overview</a>
+                    <button type="button" class="po-btn po-btn--primary" data-bs-dismiss="modal">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="modal fade po-record-help-modal" id="recordCompletenessHelp" tabindex="-1" aria-labelledby="recordCompletenessHelpLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <span class="po-record-modal__eyebrow">How the score works</span>
+                    <h2 class="modal-title" id="recordCompletenessHelpLabel">Record completeness</h2>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body po-record-help">
+                <p class="po-record-help__lead">The score measures how much of the project information that should exist at the present stage has actually been recorded.</p>
+                <div class="po-record-help__principles">
+                    <div><i class="bi bi-diagram-3"></i><strong>Stage-aware</strong><span>Procurement and timeline fields are stage-aware; documents and supporting media are assessed for every active project.</span></div>
+                    <div><i class="bi bi-percent"></i><strong>Proportional</strong><span>Partially completed categories receive proportionate marks.</span></div>
+                    <div><i class="bi bi-clock-history"></i><strong>Historical dates</strong><span>Completed historical stages assess Actual Completion. Actual Start may be inferred and does not reduce the score.</span></div>
+                    <div><i class="bi bi-calendar2-week"></i><strong>Current-stage PDC</strong><span>The active stage assesses its start date and PDC. An overdue date affects schedule health, not completeness.</span></div>
+                </div>
+                <div class="po-record-help__weights">
+                    <div><span>Core project profile</span><strong>15</strong></div>
+                    <div><span>Procurement at a glance</span><strong>25</strong></div>
+                    <div><span>Historical stage actual dates</span><strong>20</strong></div>
+                    <div><span>Current-stage timeline (PDC)</span><strong>15</strong></div>
+                    <div><span>Published project documents</span><strong>15</strong></div>
+                    <div><span>Supporting media</span><strong>10</strong></div>
+                </div>
+                <p class="po-record-help__note"><i class="bi bi-info-circle"></i>Not-applicable and not-yet-applicable fields are excluded. Select any project percentage to see its exact record gaps and direct correction links.</p>
+            </div>
+            <div class="modal-footer"><button type="button" class="po-btn po-btn--primary" data-bs-dismiss="modal">Understood</button></div>
+        </div>
+    </div>
+</div>

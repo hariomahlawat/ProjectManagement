@@ -18,6 +18,9 @@ namespace ProjectManagement.Models
         // SECTION: Audit timestamps
         public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 
+        // SECTION: Account classification
+        public UserAccountKind AccountKind { get; set; } = UserAccountKind.Human;
+
         // SECTION: Account state
         public bool IsDisabled { get; set; }
         public DateTime? DisabledUtc { get; set; }
@@ -27,6 +30,10 @@ namespace ProjectManagement.Models
         public bool PendingDeletion { get; set; }
         public DateTime? DeletionRequestedUtc { get; set; }
         public string? DeletionRequestedByUserId { get; set; }
+
+        // Snapshot of the account state immediately before a hard-delete request.
+        // Used to restore the exact enabled/disabled and lockout state during the undo window.
+        public string? DeletionPreviousStateJson { get; set; }
 
         // SECTION: Role preferences
         public string? DefaultUserRoleId { get; set; }

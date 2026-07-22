@@ -5,6 +5,7 @@ using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using QuestPDF.Fluent;
+using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 
 namespace ProjectManagement.Utilities.Reporting;
@@ -40,7 +41,7 @@ internal static class MarkdownPdfRenderer
                     case HeadingBlock heading:
                         col.Item().Text(text =>
                         {
-                            text.DefaultTextStyle(TextStyle.Default
+                            text.DefaultTextStyle(BaseTextStyle
                                 .FontSize(HeadingSize(heading.Level))
                                 .SemiBold()
                                 .FontColor("#0F172A"));
@@ -51,7 +52,7 @@ internal static class MarkdownPdfRenderer
                     case ParagraphBlock paragraph:
                         col.Item().Text(text =>
                         {
-                            text.DefaultTextStyle(TextStyle.Default
+                            text.DefaultTextStyle(BaseTextStyle
                                 .FontSize(10)
                                 .FontColor("#0F172A")
                                 .LineHeight(1.25f));
@@ -122,7 +123,7 @@ internal static class MarkdownPdfRenderer
                             case ParagraphBlock paragraph:
                                 itemCol.Item().Text(text =>
                                 {
-                                    text.DefaultTextStyle(TextStyle.Default
+                                    text.DefaultTextStyle(BaseTextStyle
                                         .FontSize(10)
                                         .FontColor("#0F172A")
                                         .LineHeight(1.25f));
@@ -176,7 +177,7 @@ internal static class MarkdownPdfRenderer
                             case ParagraphBlock paragraph:
                                 quoteColumn.Item().Text(text =>
                                 {
-                                    text.DefaultTextStyle(TextStyle.Default
+                                    text.DefaultTextStyle(BaseTextStyle
                                         .FontSize(10)
                                         .FontColor("#0F172A")
                                         .LineHeight(1.25f));
@@ -319,6 +320,9 @@ internal static class MarkdownPdfRenderer
 
         return span;
     }
+
+    private static TextStyle BaseTextStyle => TextStyle.Default
+        .DisableFontFeature(FontFeatures.StandardLigatures);
 
     private static string InlineText(Inline inline)
     {

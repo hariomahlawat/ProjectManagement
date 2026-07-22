@@ -1,404 +1,245 @@
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Globalization;
-using System.Linq;
 using System.Security.Claims;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.EntityFrameworkCore;
-using ProjectManagement.Data;
-using ProjectManagement.Infrastructure;
-using ProjectManagement.Models;
-using ProjectManagement.Models.Stages;
-using ProjectManagement.Services;
+using Microsoft.Extensions.Options;
+using ProjectManagement.Areas.Admin.Models;
+using ProjectManagement.Configuration;
+using ProjectManagement.Services.Admin;
+using ProjectManagement.Services.Admin.Recovery;
 using ProjectManagement.Services.Documents;
+using ProjectManagement.Services.Navigation;
+using ProjectManagement.Services.Navigation.ModuleNav;
 
 namespace ProjectManagement.Areas.Admin.Pages.Documents;
 
-[Authorize(Roles = "Admin")]
-public class RecycleModel : PageModel
+[Authorize(Policy = AdminPolicies.RecoveryManage)]
+public sealed class RecycleModel : PageModel
 {
-    private readonly ApplicationDbContext _db;
+    private readonly IDocumentRecoveryQueryService _query;
     private readonly IDocumentService _documents;
-    private readonly IAuditService _audit;
+    private readonly IAdminNavigationUrlBuilder _navigation;
+    private readonly IAdminTimeService _time;
+    private readonly ILogger<RecycleModel> _logger;
+    private readonly AdminRecoveryOptions _options;
 
-    public RecycleModel(ApplicationDbContext db, IDocumentService documents, IAuditService audit)
+    public RecycleModel(
+        IDocumentRecoveryQueryService query,
+        IDocumentService documents,
+        IAdminNavigationUrlBuilder navigation,
+        IAdminTimeService time,
+        ILogger<RecycleModel> logger,
+        IOptions<AdminRecoveryOptions> options)
     {
-        _db = db;
-        _documents = documents;
-        _audit = audit;
+        _query = query ?? throw new ArgumentNullException(nameof(query));
+        _documents = documents ?? throw new ArgumentNullException(nameof(documents));
+        _navigation = navigation ?? throw new ArgumentNullException(nameof(navigation));
+        _time = time ?? throw new ArgumentNullException(nameof(time));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
     }
 
-    [BindProperty(SupportsGet = true)]
-    public int? ProjectId { get; set; }
+    [BindProperty(SupportsGet = true)] public string? Search { get; set; }
+    [BindProperty(SupportsGet = true)] public int? ProjectId { get; set; }
+    [BindProperty(SupportsGet = true)] public string? StageCode { get; set; }
+    [BindProperty(SupportsGet = true), DataType(DataType.Date)] public DateTime? DeletedFrom { get; set; }
+    [BindProperty(SupportsGet = true), DataType(DataType.Date)] public DateTime? DeletedTo { get; set; }
+    [BindProperty(SupportsGet = true)] public string? DeletedBy { get; set; }
+    [BindProperty(SupportsGet = true)] public int PageNumber { get; set; } = 1;
+    [BindProperty(SupportsGet = true)] public int PageSize { get; set; } = 25;
+    [BindProperty] public DocumentRecoveryCommand Command { get; set; } = new();
 
-    [BindProperty(SupportsGet = true)]
-    public string? StageCode { get; set; }
+    public AdminPageHeaderModel Header { get; private set; } = new();
+    public DocumentRecoveryPage Result { get; private set; } =
+        new(Array.Empty<DocumentRecoveryRow>(), 0, 0, 1, 25, Array.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>(), Array.Empty<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>());
+    public int MaximumBulkDocuments => _options.MaximumBulkDocuments;
 
-    [BindProperty(SupportsGet = true)]
-    [DataType(DataType.Date)]
-    public DateTime? DeletedFrom { get; set; }
-
-    [BindProperty(SupportsGet = true)]
-    [DataType(DataType.Date)]
-    public DateTime? DeletedTo { get; set; }
-
-    [BindProperty(SupportsGet = true)]
-    public string? DeletedBy { get; set; }
-
-    [BindProperty(SupportsGet = true)]
-    public int? SizeMinMb { get; set; }
-
-    [BindProperty(SupportsGet = true)]
-    public int? SizeMaxMb { get; set; }
-
-    [BindProperty]
-    public List<int> SelectedIds { get; set; } = new();
-
-    [TempData]
-    public string? StatusMessage { get; set; }
-
-    [TempData]
-    public string? ErrorMessage { get; set; }
-
-    public IReadOnlyList<SelectListItem> ProjectOptions { get; private set; } = Array.Empty<SelectListItem>();
-
-    public IReadOnlyList<SelectListItem> StageOptions { get; private set; } = Array.Empty<SelectListItem>();
-
-    public IReadOnlyList<DocumentRow> Rows { get; private set; } = Array.Empty<DocumentRow>();
-
-    public int TotalCount { get; private set; }
-
-    public long TotalSizeBytes { get; private set; }
-
-    public string TotalSizeDisplay => DocumentRow.FormatFileSize(TotalSizeBytes);
-
-    public async Task OnGetAsync()
+    public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        await LoadAsync();
+        NormalizeFilters();
+        await LoadAsync(cancellationToken);
     }
 
-    public async Task<IActionResult> OnPostRestoreAsync(int id)
+    public async Task<IActionResult> OnPostExecuteAsync(CancellationToken cancellationToken)
     {
-        var actorId = GetUserId();
-        try
+        NormalizeFilters();
+        var action = Command.Action?.Trim().ToLowerInvariant();
+        var ids = ResolveIds(action);
+        if (ids.Count == 0)
         {
-            var document = await _documents.RestoreAsync(id, actorId, HttpContext.RequestAborted);
-            StatusMessage = $"Restored '{document.Title}' (#{document.Id}).";
-        }
-        catch (Exception ex)
-        {
-            ErrorMessage = ex.Message;
+            SetError("Select at least one recoverable document.");
+            return RedirectToPage(RouteValues());
         }
 
-        return RedirectToPage(GetRouteValues());
-    }
-
-    public async Task<IActionResult> OnPostHardDeleteAsync(int id)
-    {
-        var actorId = GetUserId();
-        var success = new List<int>();
-        try
+        if (ids.Count > _options.MaximumBulkDocuments)
         {
-            var existing = await _db.ProjectDocuments
-                .Where(d => d.Id == id && d.Status == ProjectDocumentStatus.SoftDeleted)
-                .Select(d => new { d.Id })
-                .FirstOrDefaultAsync(HttpContext.RequestAborted);
+            SetError($"A maximum of {_options.MaximumBulkDocuments} documents can be processed in one operation.");
+            return RedirectToPage(RouteValues());
+        }
 
-            if (existing == null)
+        var selection = await _query.GetSelectionSummaryAsync(ids, cancellationToken);
+        if (selection.EligibleCount == 0)
+        {
+            SetError("The selected documents are no longer available in the recycle bin.");
+            return RedirectToPage(RouteValues());
+        }
+
+        if (action is "delete" or "delete-selected")
+        {
+            if (!Command.Acknowledge || !string.Equals(Command.Confirmation?.Trim(), "DELETE", StringComparison.Ordinal))
             {
-                ErrorMessage = "Document not found or already removed.";
-                return RedirectToPage(GetRouteValues());
-            }
-
-            await _documents.HardDeleteAsync(id, actorId, HttpContext.RequestAborted);
-            success.Add(id);
-            StatusMessage = "Permanently deleted 1 document.";
-        }
-        catch (Exception ex)
-        {
-            ErrorMessage = ex.Message;
-        }
-
-        if (success.Count > 0)
-        {
-            await Audit.Events.ProjectDocumentsHardDeletedBulk(actorId, success)
-                .WriteAsync(_audit);
-        }
-
-        return RedirectToPage(GetRouteValues());
-    }
-
-    public async Task<IActionResult> OnPostHardDeleteSelectedAsync()
-    {
-        if (SelectedIds == null || SelectedIds.Count == 0)
-        {
-            ErrorMessage = "Select at least one document.";
-            return RedirectToPage(GetRouteValues());
-        }
-
-        var actorId = GetUserId();
-        var requested = SelectedIds.Distinct().ToList();
-
-        var existingSet = new HashSet<int>(await _db.ProjectDocuments.AsNoTracking()
-            .Where(d => requested.Contains(d.Id) && d.Status == ProjectDocumentStatus.SoftDeleted)
-            .Select(d => d.Id)
-            .ToListAsync(HttpContext.RequestAborted));
-
-        var successes = new List<int>();
-        var failures = new List<string>();
-
-        foreach (var docId in requested)
-        {
-            if (!existingSet.Contains(docId))
-            {
-                failures.Add($"#{docId} missing");
-                continue;
-            }
-
-            try
-            {
-                await _documents.HardDeleteAsync(docId, actorId, HttpContext.RequestAborted);
-                successes.Add(docId);
-            }
-            catch (Exception ex)
-            {
-                failures.Add($"#{docId} {ex.Message}");
+                SetError("Type DELETE and acknowledge that permanent deletion cannot be undone.");
+                return RedirectToPage(RouteValues());
             }
         }
-
-        if (successes.Count > 0)
+        else if (action is not ("restore" or "restore-selected"))
         {
-            StatusMessage = successes.Count == 1
-                ? "Permanently deleted 1 document."
-                : $"Permanently deleted {successes.Count} documents.";
-
-            await Audit.Events.ProjectDocumentsHardDeletedBulk(actorId, successes)
-                .WriteAsync(_audit);
+            SetError("The requested document recovery operation is not supported.");
+            return RedirectToPage(RouteValues());
         }
 
-        if (failures.Count > 0)
-        {
-            ErrorMessage = $"Some deletions failed: {string.Join(", ", failures)}";
-        }
+        var actor = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(actor)) return Challenge();
 
-        return RedirectToPage(GetRouteValues());
-    }
-
-    public async Task<IActionResult> OnPostRestoreSelectedAsync()
-    {
-        if (SelectedIds == null || SelectedIds.Count == 0)
-        {
-            ErrorMessage = "Select at least one document.";
-            return RedirectToPage(GetRouteValues());
-        }
-
-        var actorId = GetUserId();
-        var requested = SelectedIds.Distinct().ToList();
-
-        var existingDocs = await _db.ProjectDocuments.AsNoTracking()
-            .Where(d => requested.Contains(d.Id) && d.Status == ProjectDocumentStatus.SoftDeleted)
-            .Select(d => new { d.Id, d.ProjectId })
-            .ToListAsync(HttpContext.RequestAborted);
-
-        if (existingDocs.Count == 0)
-        {
-            ErrorMessage = "Selected documents were not found.";
-            return RedirectToPage(GetRouteValues());
-        }
-
-        var successes = new List<int>();
-        var failures = new List<string>();
-
-        foreach (var doc in existingDocs)
+        var succeeded = 0;
+        var failed = new List<int>();
+        foreach (var id in ids)
         {
             try
             {
-                await _documents.RestoreAsync(doc.Id, actorId, HttpContext.RequestAborted);
-                successes.Add(doc.Id);
+                if (action is "restore" or "restore-selected")
+                    await _documents.RestoreAsync(id, actor, cancellationToken);
+                else
+                    await _documents.HardDeleteAsync(id, actor, cancellationToken);
+                succeeded++;
             }
-            catch (Exception ex)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                failures.Add($"#{doc.Id} {ex.Message}");
+                throw;
+            }
+            catch (Exception exception)
+            {
+                failed.Add(id);
+                _logger.LogError(exception, "Document recovery operation {Action} failed for document {DocumentId}", action, id);
             }
         }
 
-        if (successes.Count > 0)
+        var operation = action.StartsWith("restore", StringComparison.Ordinal) ? "restored" : "permanently deleted";
+        if (failed.Count == 0)
         {
-            StatusMessage = successes.Count == 1
-                ? "Restored 1 document."
-                : $"Restored {successes.Count} documents.";
-
-            await Audit.Events.ProjectDocumentsRestoredBulk(actorId, successes)
-                .WriteAsync(_audit);
+            TempData[FlashMessageKeys.AdminRecoverySuccess] =
+                succeeded == 1 ? $"Document {operation}." : $"{succeeded} documents {operation}.";
+        }
+        else
+        {
+            TempData[FlashMessageKeys.AdminRecoveryError] =
+                $"{succeeded} document(s) were {operation}; {failed.Count} could not be processed. Review the audit log and retry the failed records.";
         }
 
-        if (failures.Count > 0)
-        {
-            ErrorMessage = $"Some restores failed: {string.Join(", ", failures)}";
-        }
-
-        return RedirectToPage(GetRouteValues());
+        return RedirectToPage(RouteValues());
     }
 
-    private async Task LoadAsync()
+    public string FormatTime(DateTimeOffset? value) => _time.FormatIst(value);
+    public string FormatBytes(long bytes)
     {
-        ProjectOptions = await _db.Projects.AsNoTracking()
-            .OrderBy(p => p.Name)
-            .Select(p => new SelectListItem(p.Name, p.Id.ToString(CultureInfo.InvariantCulture)))
-            .ToListAsync();
-
-        StageOptions = StageCodes.All
-            .Select(code => new SelectListItem(StageCodes.DisplayNameOf(code), code))
-            .ToList();
-
-        var query = _db.ProjectDocuments
-            .AsNoTracking()
-            .Where(d => d.Status == ProjectDocumentStatus.SoftDeleted)
-            .AsQueryable();
-
-        if (ProjectId.HasValue)
-        {
-            query = query.Where(d => d.ProjectId == ProjectId.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(StageCode))
-        {
-            query = query.Where(d => d.Stage != null && d.Stage.StageCode == StageCode);
-        }
-
-        if (DeletedFrom.HasValue)
-        {
-            var fromUtc = ConvertToUtc(DeletedFrom.Value);
-            query = query.Where(d => d.ArchivedAtUtc >= fromUtc);
-        }
-
-        if (DeletedTo.HasValue)
-        {
-            var toUtc = ConvertToUtc(DeletedTo.Value.AddDays(1).AddTicks(-1));
-            query = query.Where(d => d.ArchivedAtUtc <= toUtc);
-        }
-
-        if (!string.IsNullOrWhiteSpace(DeletedBy))
-        {
-            var term = DeletedBy.Trim();
-            if (SupportsILike())
-            {
-                query = query.Where(d =>
-                    (d.ArchivedByUser != null && EF.Functions.ILike(d.ArchivedByUser.FullName ?? string.Empty, $"%{term}%")) ||
-                    (d.ArchivedByUser != null && EF.Functions.ILike(d.ArchivedByUser.UserName ?? string.Empty, $"%{term}%")) ||
-                    (d.ArchivedByUserId != null && EF.Functions.ILike(d.ArchivedByUserId, $"%{term}%")));
-            }
-            else
-            {
-                var lowered = term.ToLowerInvariant();
-                query = query.Where(d =>
-                    (d.ArchivedByUser != null && d.ArchivedByUser.FullName != null && d.ArchivedByUser.FullName.ToLower().Contains(lowered)) ||
-                    (d.ArchivedByUser != null && d.ArchivedByUser.UserName != null && d.ArchivedByUser.UserName.ToLower().Contains(lowered)) ||
-                    (d.ArchivedByUserId != null && d.ArchivedByUserId.ToLower().Contains(lowered)));
-            }
-        }
-
-        if (SizeMinMb.HasValue)
-        {
-            var minBytes = (long)Math.Max(SizeMinMb.Value, 0) * 1024 * 1024;
-            query = query.Where(d => d.FileSize >= minBytes);
-        }
-
-        if (SizeMaxMb.HasValue)
-        {
-            var maxBytes = (long)Math.Max(SizeMaxMb.Value, 0) * 1024 * 1024;
-            query = query.Where(d => d.FileSize <= maxBytes);
-        }
-
-        TotalCount = await query.CountAsync(HttpContext.RequestAborted);
-        TotalSizeBytes = await query.SumAsync(d => (long?)d.FileSize, HttpContext.RequestAborted) ?? 0;
-
-        Rows = await query
-            .OrderByDescending(d => d.ArchivedAtUtc)
-            .Select(d => new DocumentRow
-            {
-                DocumentId = d.Id,
-                ProjectId = d.ProjectId,
-                ProjectName = d.Project.Name,
-                StageCode = d.Stage != null ? d.Stage.StageCode : null,
-                Title = d.Title,
-                OriginalFileName = d.OriginalFileName,
-                FileSize = d.FileSize,
-                DeletedAtUtc = d.ArchivedAtUtc,
-                DeletedByUserId = d.ArchivedByUserId,
-                DeletedByUserName = d.ArchivedByUser != null ? (d.ArchivedByUser.FullName ?? d.ArchivedByUser.UserName) : null
-            })
-            .ToListAsync(HttpContext.RequestAborted);
+        var size = (double)Math.Max(0, bytes);
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        var index = 0;
+        while (size >= 1024 && index < units.Length - 1) { size /= 1024; index++; }
+        return $"{size:0.##} {units[index]}";
     }
 
-    private static bool SupportsILike()
-        => EF.Functions.GetType().GetMethod("ILike") != null;
-
-    private static DateTimeOffset ConvertToUtc(DateTime date)
+    public string PageUrl(int page) => Url.Page(null, new
     {
-        var unspecified = DateTime.SpecifyKind(date, DateTimeKind.Unspecified);
-        var utc = TimeZoneInfo.ConvertTimeToUtc(unspecified, IstClock.TimeZone);
-        return new DateTimeOffset(utc, TimeSpan.Zero);
-    }
-
-    private object GetRouteValues() => new
-    {
+        Search,
         ProjectId,
         StageCode,
-        DeletedFrom = DeletedFrom?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-        DeletedTo = DeletedTo?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+        DeletedFrom = DeletedFrom?.ToString("yyyy-MM-dd"),
+        DeletedTo = DeletedTo?.ToString("yyyy-MM-dd"),
         DeletedBy,
-        SizeMinMb,
-        SizeMaxMb
+        PageNumber = page,
+        PageSize
+    }) ?? "#";
+
+    private async Task LoadAsync(CancellationToken cancellationToken)
+    {
+        Result = await _query.QueryAsync(new DocumentRecoveryQuery(
+            Search,
+            ProjectId,
+            StageCode,
+            DeletedFrom.HasValue ? DateOnly.FromDateTime(DeletedFrom.Value) : null,
+            DeletedTo.HasValue ? DateOnly.FromDateTime(DeletedTo.Value) : null,
+            DeletedBy,
+            PageNumber,
+            PageSize), cancellationToken);
+        PageNumber = Result.Page;
+        PageSize = Result.PageSize;
+        Header = new AdminPageHeaderModel
+        {
+            Eyebrow = "Recovery and retention",
+            Title = "Document recycle bin",
+            Description = "Restore project documents or permanently remove selected records and stored files through a controlled operation.",
+            Icon = "bi-recycle",
+            Actions = new[]
+            {
+                new AdminPageActionModel
+                {
+                    Text = "Recovery centre",
+                    Href = _navigation.GetPath(HttpContext, AdminNavigationKeys.RecoveryCentre),
+                    Icon = "bi-arrow-left"
+                }
+            }
+        };
+    }
+
+    private IReadOnlyList<int> ResolveIds(string? action)
+    {
+        IEnumerable<int> source = action is "restore-selected" or "delete-selected"
+            ? Command.SelectedIds
+            : Command.DocumentId > 0 ? new[] { Command.DocumentId } : Array.Empty<int>();
+        return source.Where(id => id > 0).Distinct().Take(_options.MaximumBulkDocuments + 1).ToArray();
+    }
+
+    private void NormalizeFilters()
+    {
+        Search = Normalize(Search, 200);
+        StageCode = Normalize(StageCode, 32);
+        DeletedBy = Normalize(DeletedBy, 160);
+        PageNumber = Math.Max(1, PageNumber);
+        PageSize = PageSize is 10 or 25 or 50 or 100 ? PageSize : _options.DefaultPageSize;
+        if (DeletedFrom.HasValue) DeletedFrom = DeletedFrom.Value.Date;
+        if (DeletedTo.HasValue) DeletedTo = DeletedTo.Value.Date;
+        if (DeletedFrom.HasValue && DeletedTo.HasValue && DeletedFrom > DeletedTo)
+            (DeletedFrom, DeletedTo) = (DeletedTo, DeletedFrom);
+    }
+
+    private object RouteValues() => new
+    {
+        Search,
+        ProjectId,
+        StageCode,
+        DeletedFrom = DeletedFrom?.ToString("yyyy-MM-dd"),
+        DeletedTo = DeletedTo?.ToString("yyyy-MM-dd"),
+        DeletedBy,
+        PageNumber,
+        PageSize
     };
 
-    private string GetUserId()
-        => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
-
-    public sealed class DocumentRow
+    private void SetError(string message) => TempData[FlashMessageKeys.AdminRecoveryError] = message;
+    private static string? Normalize(string? value, int maxLength)
     {
-        public int DocumentId { get; init; }
-        public int ProjectId { get; init; }
-        public string ProjectName { get; init; } = string.Empty;
-        public string? StageCode { get; init; }
-        public string Title { get; init; } = string.Empty;
-        public string OriginalFileName { get; init; } = string.Empty;
-        public long FileSize { get; init; }
-        public DateTimeOffset? DeletedAtUtc { get; init; }
-        public string? DeletedByUserId { get; init; }
-        public string? DeletedByUserName { get; init; }
+        var normalized = value?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized)) return null;
+        return normalized.Length <= maxLength ? normalized : normalized[..maxLength];
+    }
 
-        public string StageDisplayName => StageCode is null ? "—" : StageCodes.DisplayNameOf(StageCode);
-
-        public string DeletedByDisplay => !string.IsNullOrWhiteSpace(DeletedByUserName)
-            ? DeletedByUserName!
-            : (DeletedByUserId ?? "—");
-
-        public string FileSizeDisplay => FormatFileSize(FileSize);
-
-        public static string FormatFileSize(long bytes)
-        {
-            if (bytes < 1024)
-            {
-                return $"{bytes} B";
-            }
-
-            double size = bytes / 1024d;
-            string[] units = { "KB", "MB", "GB", "TB", "PB" };
-            int unitIndex = 0;
-
-            while (size >= 1024 && unitIndex < units.Length - 1)
-            {
-                size /= 1024;
-                unitIndex++;
-            }
-
-            return string.Format(CultureInfo.InvariantCulture, "{0:0.##} {1}", size, units[unitIndex]);
-        }
+    public sealed class DocumentRecoveryCommand
+    {
+        public string? Action { get; set; }
+        public int DocumentId { get; set; }
+        public List<int> SelectedIds { get; set; } = new();
+        [MaxLength(16)] public string? Confirmation { get; set; }
+        public bool Acknowledge { get; set; }
     }
 }

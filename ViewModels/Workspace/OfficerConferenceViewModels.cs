@@ -28,6 +28,8 @@ public sealed class OfficerConferenceVm
     public IReadOnlyList<OfficerConferenceOfficerOptionVm> OfficerOptions { get; init; }
         = Array.Empty<OfficerConferenceOfficerOptionVm>();
 
+    public ErpActivityStripVm ActivityStrip { get; init; } = new();
+
     public IReadOnlyList<OfficerConferenceSectionVm> Sections { get; init; }
         = Array.Empty<OfficerConferenceSectionVm>();
 }
@@ -35,7 +37,10 @@ public sealed class OfficerConferenceVm
 public sealed record OfficerConferenceOfficerOptionVm(
     string UserId,
     string DisplayName,
-    bool IsSelected);
+    bool IsSelected,
+    int ProjectCount = 0,
+    int IdeaCount = 0,
+    int OtherTaskCount = 0);
 
 public sealed class OfficerConferenceSectionVm
 {
@@ -58,8 +63,10 @@ public sealed class OfficerConferenceItemVm
     public string? CurrentContext { get; init; }
     public string? AttentionText { get; init; }
     public bool RequiresAttention { get; init; }
+    public WorkspaceRecordHealthVm? RecordHealth { get; init; }
 
     public ConferenceDirectionVm? LatestDirection { get; init; }
+    public int DirectionCount { get; init; }
     public IReadOnlyList<ConferenceProgressEntryVm> ProgressEntries { get; init; }
         = Array.Empty<ConferenceProgressEntryVm>();
     public string? EmptyProgressText { get; init; }
@@ -91,6 +98,25 @@ public sealed class ConferenceDirectionVm
 }
 
 
+public sealed class ConferenceDirectionCycleVm
+{
+    public ConferenceDirectionVm Direction { get; init; } = new();
+    public IReadOnlyList<ConferenceProgressEntryVm> ProgressEntries { get; init; }
+        = Array.Empty<ConferenceProgressEntryVm>();
+    public string? EmptyProgressText { get; init; }
+    public int SequenceNumber { get; init; }
+    public int TotalDirections { get; init; }
+    public bool IsLatest { get; init; }
+}
+
+public sealed class ConferenceDirectionHistoryVm
+{
+    public ConferenceItemKind Kind { get; init; }
+    public int ItemId { get; init; }
+    public IReadOnlyList<ConferenceDirectionCycleVm> Cycles { get; init; }
+        = Array.Empty<ConferenceDirectionCycleVm>();
+}
+
 public sealed class AddConferenceDirectionInput
 {
     [Required]
@@ -121,6 +147,49 @@ public sealed record AddConferenceRemarkResult(
     string ProgressSummary,
     string? LatestProgressText);
 
+
+
+
+public sealed class CreateConferenceIdeaInput
+{
+    [Display(Name = "Idea title")]
+    [Required]
+    [StringLength(200)]
+    public string Title { get; set; } = string.Empty;
+
+    [Display(Name = "Concept / problem statement")]
+    [Required]
+    [StringLength(2000)]
+    public string Description { get; set; } = string.Empty;
+
+    [Display(Name = "HoD oversight")]
+    [StringLength(450)]
+    public string? AssignedHodUserId { get; set; }
+}
+
+public sealed record CreateConferenceIdeaRequest(
+    string OfficerUserId,
+    string Title,
+    string Description,
+    string? AssignedHodUserId);
+
+public sealed record CreateConferenceIdeaResult(OfficerConferenceItemVm Idea);
+
+public sealed class ConferenceIdeaCreationOptionsVm
+{
+    public bool CanCreate { get; init; }
+    public bool RequiresHodSelection { get; init; }
+    public string? FixedHodUserId { get; init; }
+    public string? FixedHodDisplayName { get; init; }
+    public string? UnavailableReason { get; init; }
+    public IReadOnlyList<ConferenceHodOptionVm> HodOptions { get; init; }
+        = Array.Empty<ConferenceHodOptionVm>();
+}
+
+public sealed record ConferenceHodOptionVm(
+    string UserId,
+    string DisplayName,
+    bool IsSelected);
 
 public sealed class CreateConferenceTaskInput
 {
@@ -159,6 +228,7 @@ public sealed class OfficerConferenceSectionRenderVm
     public string OfficerDisplayName { get; init; } = string.Empty;
     public DateTime MinimumTaskDueDate { get; init; }
     public DateTime DefaultTaskDueDate { get; init; }
+    public ConferenceIdeaCreationOptionsVm IdeaCreation { get; init; } = new();
     public OfficerConferenceSectionVm Section { get; init; } = new();
 }
 

@@ -72,7 +72,7 @@ export function initNotebookApp() {
   const refreshCounts = async () => applyCounts(await NotebookApi.getCounts());
   const labels = hydrateNotebookLabelCatalog(document);
   const editor = initNotebookEditor(board, view, { shell, showGlobalError, applyCounts });
-  const createEditor = initNotebookCreateEditor(board, view, { shell, showGlobalError, applyCounts });
+  const createEditor = initNotebookCreateEditor(board, view, { shell, showGlobalError, applyCounts, showToast: showNotebookToast });
   const labelManager = initNotebookLabelManager(document.querySelector('[data-notebook-label-manager]'), {
     showGlobalError,
     onCatalogChange: (labels) => renderNotebookLabelNavigation(shell, labels)
@@ -132,7 +132,7 @@ export function initNotebookApp() {
   applyBoardView(localStorage.getItem(storageKey) || shell.dataset.boardView || 'grid');
   const masonryGrid = initNotebookMasonryGrid(shell);
   const dragOrder = initNotebookDragOrder(shell, board, { api: NotebookApi, showError: showGlobalError, showToast: showNotebookToast });
-  const collaborators = initNotebookCollaborators(document, { board, view, applyCounts, showError: showGlobalError });
+  const collaborators = initNotebookCollaborators(document, { board, view, applyCounts, showError: showGlobalError, onItemUpdated: (updated) => editor.syncExternalUpdate?.(updated) });
 
   // SECTION: Accessible, single-open card action menus
   const closeNotebookMenus = (except = null, { restoreFocus = false } = {}) => {
@@ -339,7 +339,7 @@ export function initNotebookApp() {
     } catch (error) { showGlobalError(error.message || 'Trash could not be emptied.'); button.disabled = false; }
   });
 
-  document.addEventListener('keydown', async (event) => { if (event.key !== 'Escape') return; if (createEditor.isOpen()) { event.preventDefault(); createEditor.close(); return; } if (editor.isOpen()) { event.preventDefault(); await editor.requestClose(); return; } if (composer?.isOpen()) { event.preventDefault(); await composer.close(); } });
+  document.addEventListener('keydown', async (event) => { if (event.key !== 'Escape') return; if (createEditor.isOpen()) { event.preventDefault(); await createEditor.requestClose(); return; } if (editor.isOpen()) { event.preventDefault(); await editor.requestClose(); return; } if (composer?.isOpen()) { event.preventDefault(); await composer.close(); } });
   window.addEventListener('popstate', async () => { try { const id = new URL(location.href).searchParams.get('note'); id ? await editor.open(id, { pushHistory: false }) : await editor.requestClose({ fromHistory: true }); } catch (error) { showGlobalError(error.message || 'Unable to open the note.'); } });
   const initialUrl = new URL(location.href);
   if (initialUrl.searchParams.get('mode') === 'new') {

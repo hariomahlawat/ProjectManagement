@@ -50,6 +50,35 @@ public sealed class WorkspaceUpcomingEventQueryTests
     }
 
     [Fact]
+    public async Task LoadResultAsync_ReportsExactTotalBeyondPreviewLimit()
+    {
+        await using var db = CreateContext();
+        var now = new DateTime(2026, 7, 2, 4, 0, 0, DateTimeKind.Utc);
+
+        db.Users.Add(new ApplicationUser
+        {
+            Id = "po-total",
+            UserName = "po-total",
+            FullName = "Project Officer",
+            ShowCelebrationsInCalendar = false
+        });
+        db.Events.AddRange(Enumerable.Range(1, 7).Select(index =>
+            NewEvent($"Event {index}", now.AddDays(index), now.AddDays(index).AddHours(1))));
+        await db.SaveChangesAsync();
+
+        var result = await WorkspaceUpcomingEventQuery.LoadResultAsync(
+            db,
+            "po-total",
+            now,
+            default,
+            windowDays: 14,
+            maxItems: 5);
+
+        Assert.Equal(7, result.TotalCount);
+        Assert.Equal(5, result.Items.Count);
+    }
+
+    [Fact]
     public async Task LoadAsync_RespectsUserCelebrationPreference()
     {
         await using var db = CreateContext();

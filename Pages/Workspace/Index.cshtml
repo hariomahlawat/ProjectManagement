@@ -1,15 +1,34 @@
 @page "/Workspace"
 @model ProjectManagement.Pages.Workspace.IndexModel
 @{
-    ViewData["Title"] = Model.IsCommandMode ? "Comdt / HoD Workspace" : "My Workspace";
+    ViewData["Title"] = Model.IsCommandMode
+        ? Model.CommandWorkspace.ActiveView switch
+        {
+            "portfolio" => "Project Portfolio | Comdt / HoD Workspace",
+            "adoption" => "ERP Adoption | Comdt / HoD Workspace",
+            "usage-pattern" => "ERP Usage Pattern | Comdt / HoD Workspace",
+            "my-activity" => "My ERP Activity | Comdt / HoD Workspace",
+            _ => "Officer Workload | Comdt / HoD Workspace"
+        }
+        : Model.View switch
+        {
+            "actions" => "Action Queue | Project Officer Workspace",
+            "projects" => "Assigned Projects | Project Officer Workspace",
+            "tasks" => "Assigned Tasks | Project Officer Workspace",
+            "ideas" => "My Ideas | Project Officer Workspace",
+            "follow-ups" => "Follow-ups | Project Officer Workspace",
+            "documents" => "My Documents | Project Officer Workspace",
+            "activity" => "My ERP Activity | Project Officer Workspace",
+            _ => "Project Officer Workspace"
+        };
     ViewData["UseFullWidth"] = true;
-    ViewData["PageShell"] = "wide";
+    ViewData["PageShell"] = "workspace";
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/command-workspace.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/erp-activity-strip.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/workspace.css" asp-append-version="true" />
 }
-
 
 @if (Model.IsCommandMode)
 {

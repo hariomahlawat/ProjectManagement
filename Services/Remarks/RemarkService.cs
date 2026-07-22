@@ -119,20 +119,32 @@ public sealed class RemarkService : IRemarkService
         var audit = CreateAudit(remark, RemarkAuditAction.Created, request.Actor.ActorRole, request.Actor.UserId, now, request.Meta);
         _db.RemarkAudits.Add(audit);
         await _db.SaveChangesAsync(cancellationToken);
+
+        transaction.RegisterAfterCommit(async afterCommitToken =>
+        {
+            try
+            {
+                LogDecision("Create", true, null, request.Actor, remark.Id, remark.ProjectId);
+                _metrics.RecordCreated();
+                await _notification.NotifyRemarkCreatedAsync(remark, request.Actor, project, afterCommitToken);
+            }
+            catch (OperationCanceledException exception)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "Post-commit processing was cancelled for remark {RemarkId}.",
+                    remark.Id);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(
+                    exception,
+                    "Failed to complete post-commit processing for remark {RemarkId}.",
+                    remark.Id);
+            }
+        });
+
         await transaction.CommitAsync(cancellationToken);
-
-        LogDecision("Create", true, null, request.Actor, remark.Id, remark.ProjectId);
-        _metrics.RecordCreated();
-
-        try
-        {
-            await _notification.NotifyRemarkCreatedAsync(remark, request.Actor, project, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to dispatch remark notifications for remark {RemarkId}.", remark.Id);
-        }
-
         return remark;
     }
 
@@ -307,10 +319,25 @@ public sealed class RemarkService : IRemarkService
         var audit = CreateAudit(remark, RemarkAuditAction.Edited, actorRole, request.Actor.UserId, now, request.Meta);
         _db.RemarkAudits.Add(audit);
         await _db.SaveChangesAsync(cancellationToken);
+
+        transaction.RegisterAfterCommit(_ =>
+        {
+            try
+            {
+                LogDecision("Edit", true, null, request.Actor, remark.Id, remark.ProjectId);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(
+                    exception,
+                    "Failed to complete post-commit logging for edited remark {RemarkId}.",
+                    remark.Id);
+            }
+
+            return Task.CompletedTask;
+        });
+
         await transaction.CommitAsync(cancellationToken);
-
-        LogDecision("Edit", true, null, request.Actor, remark.Id, remark.ProjectId);
-
         return remark;
     }
 
@@ -357,11 +384,26 @@ public sealed class RemarkService : IRemarkService
         var audit = CreateAudit(remark, RemarkAuditAction.Deleted, remark.DeletedByRole ?? request.Actor.ActorRole, request.Actor.UserId, now, request.Meta);
         _db.RemarkAudits.Add(audit);
         await _db.SaveChangesAsync(cancellationToken);
+
+        transaction.RegisterAfterCommit(_ =>
+        {
+            try
+            {
+                LogDecision("SoftDelete", true, null, request.Actor, remark.Id, remark.ProjectId);
+                _metrics.RecordDeleted();
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(
+                    exception,
+                    "Failed to complete post-commit processing for deleted remark {RemarkId}.",
+                    remark.Id);
+            }
+
+            return Task.CompletedTask;
+        });
+
         await transaction.CommitAsync(cancellationToken);
-
-        LogDecision("SoftDelete", true, null, request.Actor, remark.Id, remark.ProjectId);
-        _metrics.RecordDeleted();
-
         return true;
     }
 

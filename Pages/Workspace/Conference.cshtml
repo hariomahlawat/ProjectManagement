@@ -1,116 +1,203 @@
-@page "/Workspace/Conference/{officerUserId}"
+@page "/Workspace/Conference/{officerUserId?}"
 @model ProjectManagement.Pages.Workspace.ConferenceModel
 @using ProjectManagement.ViewModels.Workspace
 @{
-    ViewData["Title"] = $"{Model.Conference.OfficerDisplayName} · Conference Review";
+    ViewData["Title"] = Model.HasSelectedOfficer
+        ? $"{Model.Conference.OfficerDisplayName} · Conference Review"
+        : "Conference Review | Comdt / HoD Workspace";
     ViewData["UseFullWidth"] = true;
-    ViewData["PageShell"] = "wide";
+    ViewData["PageShell"] = "workspace";
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/command-workspace.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/erp-activity-strip.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/officer-conference.css" asp-append-version="true" />
 }
 
-<div class="officer-conference" data-officer-conference>
-    <form method="post" class="oc-antiforgery" aria-hidden="true">
-        @Html.AntiForgeryToken()
-    </form>
+<div class="command-workspace is-nav-expanded command-workspace--conference" data-command-workspace>
+    @await Html.PartialAsync("_CommandWorkspaceRail", Model.CommandRail)
 
-    <header class="oc-header">
-        <div class="oc-header__identity">
-            <a asp-page="/Workspace/Index"
-               asp-route-mode="command"
-               asp-route-view="officers"
-               class="oc-back"
-               aria-label="Back to officer workload"
-               title="Back to officer workload">
-                <i class="bi bi-arrow-left" aria-hidden="true"></i>
-            </a>
-            <span class="oc-avatar">@Model.Conference.OfficerInitial</span>
-            <div>
-                <span class="oc-eyebrow">Officer conference review</span>
-                <h1>@Model.Conference.OfficerDisplayName</h1>
-                <p>
-                    <span><strong>@Model.Conference.ProjectCount</strong> @(Model.Conference.ProjectCount == 1 ? "project" : "projects")</span>
-                    <span><strong>@Model.Conference.IdeaCount</strong> @(Model.Conference.IdeaCount == 1 ? "idea" : "ideas")</span>
-                    <span><strong data-oc-header-task-count>@Model.Conference.OtherTaskCount</strong> <span data-oc-header-task-label>@(Model.Conference.OtherTaskCount == 1 ? "other task" : "other tasks")</span></span>
-                </p>
-            </div>
+    <main class="cw-workspace-content cw-workspace-content--conference">
+<div class="officer-conference @(Model.HasSelectedOfficer ? string.Empty : "officer-conference--landing")" data-officer-conference>
+    @if (!Model.HasSelectedOfficer)
+    {
+        <section class="oc-landing" aria-labelledby="oc-landing-title">
+            <header class="oc-landing__header">
+                <span class="oc-landing__mark" aria-hidden="true"><i class="bi bi-clipboard2-check"></i></span>
+                <div class="oc-landing__heading">
+                    <span class="oc-eyebrow">Project monitoring</span>
+                    <div class="oc-landing__title-row">
+                        <h1 id="oc-landing-title">Conference review</h1>
+                        <span class="oc-landing__count">@Model.OfficerOptions.Count @(Model.OfficerOptions.Count == 1 ? "officer" : "officers")</span>
+                    </div>
+                    <p>Select a Project Officer to review assigned work, issue directions and examine subsequent progress.</p>
+                </div>
+            </header>
+
+            @if (Model.OfficerOptions.Count == 0)
+            {
+                <div class="oc-landing__empty" role="status">
+                    <i class="bi bi-people" aria-hidden="true"></i>
+                    <strong>No Project Officers in scope</strong>
+                    <span>The conference review will become available when officer workload is assigned.</span>
+                </div>
+            }
+            else
+            {
+                <div class="oc-landing__officers" aria-label="Project Officers available for conference review">
+                    @foreach (var option in Model.OfficerOptions)
+                    {
+                        var initial = string.IsNullOrWhiteSpace(option.DisplayName)
+                            ? "P"
+                            : option.DisplayName.Trim()[0].ToString().ToUpperInvariant();
+                        <a asp-page="/Workspace/Conference"
+                           asp-route-officerUserId="@option.UserId"
+                           class="oc-officer-card">
+                            <span class="oc-officer-card__avatar" aria-hidden="true">@initial</span>
+                            <span class="oc-officer-card__body">
+                                <strong>@option.DisplayName</strong>
+                                <small>
+                                    @option.ProjectCount @(option.ProjectCount == 1 ? "project" : "projects")
+                                    · @option.IdeaCount @(option.IdeaCount == 1 ? "idea" : "ideas")
+                                    · @option.OtherTaskCount @(option.OtherTaskCount == 1 ? "other task" : "other tasks")
+                                </small>
+                            </span>
+                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                        </a>
+                    }
+                </div>
+            }
+        </section>
+    }
+    else
+    {
+        <form method="post" class="oc-antiforgery" aria-hidden="true">
+            @Html.AntiForgeryToken()
+        </form>
+
+        <div class="oc-sticky-shell" data-oc-sticky-shell>
+            <header class="oc-header" data-oc-sticky-header>
+                <div class="oc-header__identity">
+                    <a href="@Url.Content("~/Workspace/Conference")"
+                       class="oc-back"
+                       aria-label="Back to conference review"
+                       title="Back to conference review">
+                        <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                    </a>
+                    <span class="oc-avatar">@Model.Conference.OfficerInitial</span>
+                    <div>
+                        <span class="oc-eyebrow">Officer conference review</span>
+                        <h1>@Model.Conference.OfficerDisplayName</h1>
+                        <p>
+                            <span class="oc-header__metric"><strong>@Model.Conference.ProjectCount</strong> @(Model.Conference.ProjectCount == 1 ? "project" : "projects")</span>
+                            <span class="oc-header__metric"><strong data-oc-header-idea-count>@Model.Conference.IdeaCount</strong> <span data-oc-header-idea-label>@(Model.Conference.IdeaCount == 1 ? "idea" : "ideas")</span></span>
+                            <span class="oc-header__metric oc-header__metric--tasks @(Model.Conference.OtherTaskCount == 0 ? "is-zero" : string.Empty)"><strong data-oc-header-task-count>@Model.Conference.OtherTaskCount</strong> <span data-oc-header-task-label>@(Model.Conference.OtherTaskCount == 1 ? "other task" : "other tasks")</span></span>
+                        </p>
+                    </div>
+                </div>
+
+                <a asp-page="/Workspace/Index"
+                   asp-route-mode="command"
+                   asp-route-view="usage-pattern"
+                   asp-route-PatternDays="30"
+                   asp-route-PatternUserId="@Model.Conference.OfficerUserId"
+                   class="oc-header__activity"
+                   aria-label="Open 30-day ERP usage pattern for @Model.Conference.OfficerDisplayName"
+                   title="Open 30-day ERP usage pattern">
+                    @await Html.PartialAsync(
+                        "_ErpActivityStrip",
+                        new ErpActivityStripRenderVm
+                        {
+                            Activity = Model.Conference.ActivityStrip,
+                            Title = "ERP activity",
+                            Variant = "header",
+                            ShowTitle = true,
+                            ShowSummary = false,
+                            ShowLegend = false
+                        })
+                </a>
+
+                <nav class="oc-officer-nav" aria-label="Officer conference navigation">
+                    @if (!string.IsNullOrWhiteSpace(Model.Conference.PreviousOfficerUserId))
+                    {
+                        <a asp-page="/Workspace/Conference"
+                           asp-route-officerUserId="@Model.Conference.PreviousOfficerUserId"
+                           class="oc-nav-button"
+                           aria-label="Previous officer"
+                           title="Previous officer">
+                            <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="oc-nav-button is-disabled" aria-hidden="true"><i class="bi bi-chevron-left"></i></span>
+                    }
+
+                    <label class="oc-officer-select">
+                        <span class="visually-hidden">Select officer</span>
+                        <select data-officer-selector>
+                            @foreach (var option in Model.Conference.OfficerOptions)
+                            {
+                                var optionUrl = Url.Page(
+                                    "/Workspace/Conference",
+                                    new { officerUserId = option.UserId });
+                                if (option.IsSelected)
+                                {
+                                    <option value="@optionUrl" selected>@option.DisplayName</option>
+                                }
+                                else
+                                {
+                                    <option value="@optionUrl">@option.DisplayName</option>
+                                }
+                            }
+                        </select>
+                        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                    </label>
+
+                    @if (!string.IsNullOrWhiteSpace(Model.Conference.NextOfficerUserId))
+                    {
+                        <a asp-page="/Workspace/Conference"
+                           asp-route-officerUserId="@Model.Conference.NextOfficerUserId"
+                           class="oc-nav-button"
+                           aria-label="Next officer"
+                           title="Next officer">
+                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="oc-nav-button is-disabled" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
+                    }
+                </nav>
+            </header>
         </div>
 
-        <nav class="oc-officer-nav" aria-label="Officer conference navigation">
-            @if (!string.IsNullOrWhiteSpace(Model.Conference.PreviousOfficerUserId))
+        <main class="oc-sections">
+            @foreach (var section in Model.Conference.Sections)
             {
-                <a asp-page="/Workspace/Conference"
-                   asp-route-officerUserId="@Model.Conference.PreviousOfficerUserId"
-                   class="oc-nav-button"
-                   aria-label="Previous officer"
-                   title="Previous officer">
-                    <i class="bi bi-chevron-left" aria-hidden="true"></i>
-                </a>
-            }
-            else
-            {
-                <span class="oc-nav-button is-disabled" aria-hidden="true"><i class="bi bi-chevron-left"></i></span>
-            }
-
-            <label class="oc-officer-select">
-                <span class="visually-hidden">Select officer</span>
-                <select data-officer-selector>
-                    @foreach (var option in Model.Conference.OfficerOptions)
+                @await Html.PartialAsync(
+                    "_ConferenceSection",
+                    new OfficerConferenceSectionRenderVm
                     {
-                        var optionUrl = Url.Page(
-                            "/Workspace/Conference",
-                            new { officerUserId = option.UserId });
-                        if (option.IsSelected)
-                        {
-                            <option value="@optionUrl" selected>@option.DisplayName</option>
-                        }
-                        else
-                        {
-                            <option value="@optionUrl">@option.DisplayName</option>
-                        }
-                    }
-                </select>
-                <i class="bi bi-chevron-down" aria-hidden="true"></i>
-            </label>
-
-            @if (!string.IsNullOrWhiteSpace(Model.Conference.NextOfficerUserId))
-            {
-                <a asp-page="/Workspace/Conference"
-                   asp-route-officerUserId="@Model.Conference.NextOfficerUserId"
-                   class="oc-nav-button"
-                   aria-label="Next officer"
-                   title="Next officer">
-                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
-                </a>
+                        OfficerUserId = Model.Conference.OfficerUserId,
+                        OfficerDisplayName = Model.Conference.OfficerDisplayName,
+                        MinimumTaskDueDate = Model.MinimumTaskDueDate,
+                        DefaultTaskDueDate = Model.DefaultTaskDueDate,
+                        IdeaCreation = Model.IdeaCreation,
+                        Section = section
+                    })
             }
-            else
-            {
-                <span class="oc-nav-button is-disabled" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
-            }
-        </nav>
-    </header>
-
-    <main class="oc-sections">
-        @foreach (var section in Model.Conference.Sections)
-        {
-            @await Html.PartialAsync(
-                "_ConferenceSection",
-                new OfficerConferenceSectionRenderVm
-                {
-                    OfficerUserId = Model.Conference.OfficerUserId,
-                    OfficerDisplayName = Model.Conference.OfficerDisplayName,
-                    MinimumTaskDueDate = Model.MinimumTaskDueDate,
-                    DefaultTaskDueDate = Model.DefaultTaskDueDate,
-                    Section = section
-                })
-        }
+        </main>
+    }
+</div>
     </main>
-
 </div>
 
 @section Scripts {
-    <script type="module" src="~/js/pages/officer-conference.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/pages/command-workspace.js" asp-append-version="true"></script>
+    @if (Model.HasSelectedOfficer)
+    {
+        <script type="module" src="~/js/pages/officer-conference.js" asp-append-version="true"></script>
+    }
 }

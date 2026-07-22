@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Models.Activities;
+using ProjectManagement.Services.Admin.MasterData;
 
 namespace ProjectManagement.Services.Activities;
 
@@ -63,10 +64,10 @@ internal sealed class ActivityTypeValidator : IActivityTypeValidator
         }
 
         var existingTypes = await _activityTypeRepository.ListAsync(cancellationToken);
-        var normalizedName = input.Name.Trim();
+        var normalizedName = MasterDataName.Normalize(input.Name);
         var duplicate = existingTypes
             .Where(x => existing is null || x.Id != existing.Id)
-            .Any(x => string.Equals(x.Name, normalizedName, StringComparison.OrdinalIgnoreCase));
+            .Any(x => string.Equals(MasterDataName.Canonical(x.Name), MasterDataName.Canonical(normalizedName), StringComparison.Ordinal));
 
         if (duplicate)
         {

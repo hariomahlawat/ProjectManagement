@@ -1,4 +1,4 @@
-/* global bootstrap */
+/* global bootstrap, ProliferationProjectPicker */
 (() => {
   const Modal = window.bootstrap?.Modal ?? null;
   const Collapse = window.bootstrap?.Collapse ?? null;
@@ -10,8 +10,12 @@
   const editorCard = document.querySelector('#pf-editor');
   const manageLayout = document.querySelector('#pf-manage-layout');
   const commandElements = {
+    title: document.querySelector('[data-command-title]'),
     scope: document.querySelector('[data-command-scope]'),
-    updated: document.querySelector('[data-command-updated-value]')
+    updated: document.querySelector('[data-command-updated-value]'),
+    updatedWrap: document.querySelector('[data-command-updated-wrap]'),
+    typeBadge: document.querySelector('#pf-editor-type-badge'),
+    saveLabel: document.querySelector('[data-save-label]')
   };
   const decisionButtons = {
     approve: document.querySelector('#pf-approve'),
@@ -30,15 +34,18 @@
     id: '',
     kind: '',
     status: '',
-    rowVersion: ''
+    rowVersion: '',
+    sourceLabel: '',
+    projectId: '',
+    source: '',
+    year: '',
+    quantity: ''
   };
   if (!listCard || !editorCard) {
     return;
   }
 
   const storageKey = 'proliferation-manage-filters';
-  resetApprovalUi();
-  updateDecisionButtons();
   const overridesStorageKey = 'proliferation-manage-preference-overrides';
   const api = {
     list: '/api/proliferation/list',
@@ -51,7 +58,10 @@
     deleteGranular: (id, rowVersion) => `/api/proliferation/granular/${id}?rowVersion=${encodeURIComponent(rowVersion)}`,
     setPreference: '/api/proliferation/year-preference',
     decideYearly: (id) => `/api/proliferation/yearly/${id}/decision`,
-    decideGranular: (id) => `/api/proliferation/granular/${id}/decision`
+    decideGranular: (id) => `/api/proliferation/granular/${id}/decision`,
+    groups: '/api/proliferation/groups',
+    unitSuggestions: '/api/proliferation/reports/unit-suggestions',
+    projects: '/api/proliferation/projects'
   };
 
   const listEl = document.querySelector('#pf-list');
@@ -67,6 +77,13 @@
     status: '',
     search: ''
   };
+
+  let activeWorkspace = pageRoot?.dataset?.initialWorkspace || 'records';
+  let storedRecordStatus = '';
+
+  function isApprovalWorkspace() {
+    return activeWorkspace === 'approvals';
+  }
 
   function getCsrfToken() {
     const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')?.trim();
@@ -87,6 +104,15 @@
   function sanitizeYear(value) {
     const text = String(value ?? '').trim();
     return /^[0-9]{4}$/.test(text) ? text : '';
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   const pager = {
@@ -167,6 +193,7 @@
     kind: document.querySelector('#pf-kind'),
     rowVersion: document.querySelector('#pf-row-version'),
     project: document.querySelector('#pf-project'),
+    projectSearch: document.querySelector('#pf-project-search'),
     source: document.querySelector('#pf-source'),
     year: document.querySelector('#pf-year'),
     date: document.querySelector('#pf-date'),
@@ -175,8 +202,91 @@
     remarks: document.querySelector('#pf-remarks'),
     btnSave: document.querySelector('#pf-save'),
     btnReset: document.querySelector('#pf-reset'),
-    btnDelete: document.querySelector('#pf-delete')
+    btnAddAnother: document.querySelector('#pf-add-another'),
+    btnDelete: document.querySelector('#pf-delete'),
+    impact: document.querySelector('#pf-editor-impact'),
+    impactCurrent: document.querySelector('[data-impact-current]'),
+    impactNext: document.querySelector('[data-impact-next]'),
+    impactNextLabel: document.querySelector('[data-impact-next-label]'),
+    impactNote: document.querySelector('[data-impact-note]'),
+    unitSuggestions: document.querySelector('#pf-unit-suggestions'),
+    duplicateWarning: document.querySelector('#pf-duplicate-warning'),
+    requiredSummary: document.querySelector('#pf-required-summary')
   };
+
+  if (editor.date) {
+    const maxDate = new Date();
+    maxDate.setUTCDate(maxDate.getUTCDate() + 30);
+    editor.date.max = maxDate.toISOString().slice(0, 10);
+  }
+
+  let editorBaseline = '';
+
+  function serializeEditorState() {
+    return JSON.stringify({
+      kind: editor.kind?.value || 'granular',
+      projectId: editor.project?.value || '',
+      source: editor.source?.value || '',
+      year: editor.year?.value || '',
+      date: editor.date?.value || '',
+      unit: editor.unit?.value?.trim() || '',
+      quantity: editor.qty?.value || '',
+      remarks: editor.remarks?.value?.trim() || ''
+    });
+  }
+
+  function markEditorClean() {
+    editorBaseline = serializeEditorState();
+  }
+
+  function isEditorDirty() {
+    return Boolean(editorBaseline) && serializeEditorState() !== editorBaseline;
+  }
+
+  function confirmDiscardChanges() {
+    if (!isEditorDirty()) {
+      return true;
+    }
+
+    return window.confirm('You have unsaved changes. Continue without saving them?');
+  }
+
+  function beginNewEntry(kind, options = {}) {
+    const target = kind === 'yearly' ? 'yearly' : 'granular';
+    if (!confirmDiscardChanges()) {
+      return false;
+    }
+
+    const preserveContext = options.preserveContext === true;
+    const context = preserveContext
+      ? {
+          projectId: editor.project?.value || '',
+          project: editorProjectPicker?.getSelected() || null,
+          source: editor.source?.value || '',
+          year: editor.year?.value || ''
+        }
+      : null;
+
+    resetEditor(target);
+
+    if (context) {
+      if (context.project) {
+        editorProjectPicker?.setSelection(context.project, { notify: false, dispatch: false });
+      } else if (context.projectId) {
+        editorProjectPicker?.initializeById(context.projectId, { notify: false, dispatch: false });
+      }
+      if (editor.source && context.source && hasOption(editor.source, context.source)) {
+        editor.source.value = context.source;
+      }
+      if (editor.year && context.year) {
+        editor.year.value = context.year;
+      }
+      updateSaveButtonState();
+      markEditorClean();
+    }
+
+    return true;
+  }
 
   const fieldErrors = {
     project: document.querySelector('[data-field-error="project"]'),
@@ -188,7 +298,7 @@
   };
 
   const fieldStates = {
-    project: { input: editor.project, error: fieldErrors.project, touched: false },
+    project: { input: editor.projectSearch || editor.project, error: fieldErrors.project, touched: false },
     source: { input: editor.source, error: fieldErrors.source, touched: false },
     year: { input: editor.year, error: fieldErrors.year, touched: false },
     date: { input: editor.date, error: fieldErrors.date, touched: false },
@@ -207,9 +317,9 @@
   }
 
   function getActiveFieldNames() {
-    const base = ['project', 'source', 'year', 'qty'];
+    const base = ['project', 'source', 'qty'];
     if (editor.kind?.value === 'yearly') {
-      return base;
+      return [...base, 'year'];
     }
     return [...base, 'date', 'unit'];
   }
@@ -241,8 +351,8 @@
           return 'Enter a four-digit year.';
         }
         const value = Number(raw);
-        if (value < 2000 || value > 3000) {
-          return 'Year must be between 2000 and 3000.';
+        if (value < 2000 || value > new Date().getUTCFullYear() + 1) {
+          return `Year must be between 2000 and ${new Date().getUTCFullYear() + 1}.`;
         }
         return '';
       }
@@ -253,6 +363,16 @@
         const value = (editor.date?.value ?? '').toString().trim();
         if (!value) {
           return 'Select a proliferation date.';
+        }
+        const selected = new Date(`${value}T00:00:00Z`);
+        const minimum = new Date('2000-01-01T00:00:00Z');
+        const maximum = new Date();
+        maximum.setUTCDate(maximum.getUTCDate() + 30);
+        if (Number.isNaN(selected.getTime()) || selected < minimum) {
+          return 'Date cannot be earlier than 01 Jan 2000.';
+        }
+        if (selected > maximum) {
+          return 'Date cannot be more than 30 days in the future.';
         }
         return '';
       }
@@ -344,6 +464,15 @@
       }
     });
     let formValid = true;
+    const incomplete = [];
+    const fieldLabels = {
+      project: 'project',
+      source: 'source',
+      year: 'year',
+      date: 'proliferation date',
+      unit: 'receiving unit',
+      qty: 'quantity'
+    };
     activeNames.forEach((name) => {
       const state = getFieldState(name);
       if (!state) return;
@@ -351,9 +480,18 @@
       const valid = validateField(name, { display });
       if (!valid) {
         formValid = false;
+        incomplete.push(fieldLabels[name] || name);
       }
     });
+    if (editor.requiredSummary) {
+      editor.requiredSummary.textContent = incomplete.length
+        ? `Complete: ${incomplete.join(', ')}.`
+        : 'All required fields are complete.';
+      editor.requiredSummary.classList.toggle('text-success', incomplete.length === 0);
+      editor.requiredSummary.classList.toggle('text-muted', incomplete.length > 0);
+    }
     editor.btnSave.disabled = !formValid;
+    editor.btnSave.setAttribute('aria-disabled', editor.btnSave.disabled ? 'true' : 'false');
   }
 
   function validateForm(options = {}) {
@@ -399,6 +537,7 @@
     if (state === 'loading') {
       saveButtonState.busy = true;
       editor.btnSave.disabled = true;
+      editor.btnSave.setAttribute('aria-disabled', 'true');
       editor.btnSave.setAttribute('aria-busy', 'true');
       editor.btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span><span>Saving…</span>';
       return;
@@ -406,6 +545,7 @@
     if (state === 'success') {
       saveButtonState.busy = false;
       editor.btnSave.disabled = true;
+      editor.btnSave.setAttribute('aria-disabled', 'true');
       editor.btnSave.setAttribute('aria-busy', 'false');
       editor.btnSave.innerHTML = '<span class="me-1" aria-hidden="true">✓</span><span>Saved</span>';
       saveButtonState.successTimer = window.setTimeout(() => {
@@ -422,6 +562,17 @@
 
   ['project', 'source', 'year', 'date', 'unit', 'qty'].forEach((name) => {
     attachValidationHandlers(name);
+    const input = getFieldState(name)?.input;
+    if (input) {
+      input.addEventListener(input.tagName === 'SELECT' ? 'change' : 'input', scheduleEditorImpact);
+      input.addEventListener(input.tagName === 'SELECT' ? 'change' : 'input', scheduleDuplicateCheck);
+    }
+  });
+
+  editor.unit?.addEventListener('focus', refreshUnitSuggestions);
+  editor.unit?.addEventListener('input', () => {
+    window.clearTimeout(unitSuggestionTimer);
+    unitSuggestionTimer = window.setTimeout(refreshUnitSuggestions, 250);
   });
 
   clearValidationState();
@@ -429,6 +580,7 @@
 
   const filterInputs = {
     project: document.querySelector('#pf-filter-project'),
+    projectSearch: document.querySelector('#pf-filter-project-search'),
     source: document.querySelector('#pf-filter-source'),
     year: document.querySelector('#pf-filter-year'),
     kind: document.querySelector('#pf-filter-type'),
@@ -447,14 +599,91 @@
     toggle: overridesCard ? overridesCard.querySelector('#pf-overrides-collapse-toggle') : null,
     tableBody: overridesCard ? overridesCard.querySelector('#pf-overrides-body') : null,
     summary: overridesCard ? overridesCard.querySelector('#pf-overrides-summary') : null,
+    footer: overridesCard ? overridesCard.querySelector('#pf-overrides-summary')?.closest('.card-footer') : null,
     reset: overridesCard ? overridesCard.querySelector('#pf-overrides-reset') : null,
     project: overridesCard ? overridesCard.querySelector('#pf-overrides-project') : null,
+    projectSearch: overridesCard ? overridesCard.querySelector('#pf-overrides-project-search') : null,
     source: overridesCard ? overridesCard.querySelector('#pf-overrides-source') : null,
     year: overridesCard ? overridesCard.querySelector('#pf-overrides-year') : null,
     search: overridesCard ? overridesCard.querySelector('#pf-overrides-search') : null,
     refresh: overridesCard ? overridesCard.querySelector('#pf-overrides-refresh') : null,
-    export: document.querySelector('#pf-overrides-export')
+    export: document.querySelector('#pf-overrides-export'),
+    ruleEditor: overridesCard ? overridesCard.querySelector('#pf-rule-editor') : null,
+    ruleProject: overridesCard ? overridesCard.querySelector('#pf-rule-project') : null,
+    ruleProjectSearch: overridesCard ? overridesCard.querySelector('#pf-rule-project-search') : null,
+    ruleSource: overridesCard ? overridesCard.querySelector('#pf-rule-source') : null,
+    ruleYear: overridesCard ? overridesCard.querySelector('#pf-rule-year') : null,
+    ruleMode: overridesCard ? overridesCard.querySelector('#pf-rule-mode') : null,
+    ruleSave: overridesCard ? overridesCard.querySelector('#pf-rule-save') : null,
+    ruleGuidance: overridesCard ? overridesCard.querySelector('#pf-rule-guidance') : null,
+    ruleDefaultBadge: overridesCard ? overridesCard.querySelector('#pf-rule-default-badge') : null,
+    ruleReason: overridesCard ? overridesCard.querySelector('#pf-rule-reason') : null,
+    ruleReasonWrap: overridesCard ? overridesCard.querySelector('#pf-rule-reason-wrap') : null,
+    ruleImpact: overridesCard ? overridesCard.querySelector('#pf-rule-impact') : null
   };
+  let editorProjectPicker = null;
+  let filterProjectPicker = null;
+  let overridesProjectPicker = null;
+  let ruleProjectPicker = null;
+
+  function buildProjectPicker(input, valueInput, options = {}) {
+    const suggestions = options.suggestions || input?.closest('[data-project-search-picker]')?.querySelector('[role="listbox"]');
+    if (!input || !valueInput || !suggestions || typeof window.ProliferationProjectPicker !== 'function') return null;
+    return new window.ProliferationProjectPicker({
+      input,
+      hiddenInput: valueInput,
+      suggestions,
+      clearButton: input.closest('[data-project-search-picker]')?.querySelector('.pf-project-picker__clear'),
+      statusElement: input.closest('[data-project-search-picker]')?.querySelector('[role="status"]'),
+      endpoint: api.projects,
+      minimumLength: 0,
+      maxVisible: 8,
+      onSelected: options.onSelected,
+      onCleared: options.onCleared
+    });
+  }
+
+  function initProjectPickers() {
+    editorProjectPicker = buildProjectPicker(editor.projectSearch, editor.project, {
+      onSelected: () => {
+        fieldStates.project.touched = true;
+        validateField('project', { display: true });
+        updateSaveButtonState();
+        scheduleEditorImpact();
+        scheduleDuplicateCheck();
+        editor.source?.focus();
+      },
+      onCleared: () => {
+        fieldStates.project.touched = true;
+        validateField('project', { display: true });
+        updateSaveButtonState();
+        scheduleEditorImpact();
+        scheduleDuplicateCheck();
+      }
+    });
+
+    filterProjectPicker = buildProjectPicker(filterInputs.projectSearch, filterInputs.project, {
+      onSelected: project => updateFilter('projectId', String(project.id)),
+      onCleared: () => updateFilter('projectId', '')
+    });
+
+    overridesProjectPicker = buildProjectPicker(overridesElements.projectSearch, overridesElements.project, {
+      onSelected: project => updateOverridesFilter('projectId', String(project.id)),
+      onCleared: () => updateOverridesFilter('projectId', '')
+    });
+
+    ruleProjectPicker = buildProjectPicker(overridesElements.ruleProjectSearch, overridesElements.ruleProject, {
+      onSelected: () => {
+        refreshRuleImpact();
+        updateRuleActionState();
+      },
+      onCleared: () => {
+        refreshRuleImpact();
+        updateRuleActionState();
+      }
+    });
+  }
+
   const overridesOverviewUrl = overridesCard?.dataset?.overviewUrl ?? '';
   const overridesExportUrl = overridesCard?.dataset?.exportUrl ?? '';
   const overridesState = {
@@ -468,6 +697,16 @@
   };
   const overridesRows = new Map();
   let overridesSearchTimer = null;
+  let listController = null;
+  let listSequence = 0;
+  let overridesController = null;
+  let rulePreviewController = null;
+  let editorImpactController = null;
+  let editorImpactTimer = null;
+  let unitSuggestionController = null;
+  let unitSuggestionTimer = null;
+  let duplicateCheckController = null;
+  let duplicateCheckTimer = null;
 
   const deleteModalElements = (() => {
     const element = document.querySelector('#pf-delete-modal');
@@ -476,6 +715,9 @@
       element,
       project: element.querySelector('[data-confirm-project]'),
       date: element.querySelector('[data-confirm-date]'),
+      source: element.querySelector('[data-confirm-source]'),
+      quantity: element.querySelector('[data-confirm-quantity]'),
+      status: element.querySelector('[data-confirm-status]'),
       type: element.querySelector('[data-confirm-type]'),
       confirm: element.querySelector('[data-confirm-accept]'),
       cancel: element.querySelector('[data-confirm-cancel]')
@@ -483,17 +725,57 @@
   })();
 
   let deleteModalTrigger = null;
+  const rejectModalElements = (() => {
+    const element = document.querySelector('#pf-reject-modal');
+    if (!element) return null;
+    return {
+      element,
+      reason: element.querySelector('#pf-reject-reason'),
+      error: element.querySelector('#pf-reject-reason-error'),
+      confirm: element.querySelector('#pf-reject-confirm')
+    };
+  })();
+
+  async function readErrorResponse(response, fallback) {
+    const text = await response.text().catch(() => '');
+    if (!text) return fallback;
+    try {
+      const payload = JSON.parse(text);
+      if (payload?.message) return String(payload.message);
+      if (payload?.detail) return String(payload.detail);
+      if (payload?.title && payload.title !== 'One or more validation errors occurred.') return String(payload.title);
+      if (payload?.errors && typeof payload.errors === 'object') {
+        const messages = Object.values(payload.errors)
+          .flatMap(value => Array.isArray(value) ? value : [value])
+          .map(value => String(value || '').trim())
+          .filter(Boolean);
+        if (messages.length) return messages.join(' ');
+      }
+    } catch {
+      // Never surface arbitrary HTML/plain-text server responses.
+    }
+    return response.status >= 500 ? `${fallback} Please try again.` : fallback;
+  }
 
   function toast(message, variant = 'success') {
     if (!message || !toastHost) return;
     const wrapper = document.createElement('div');
     wrapper.className = `toast align-items-center text-bg-${variant} border-0`;
     wrapper.role = 'status';
-    wrapper.innerHTML = `
-      <div class="d-flex">
-        <div class="toast-body">${message}</div>
-        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-      </div>`;
+
+    const layout = document.createElement('div');
+    layout.className = 'd-flex';
+    const body = document.createElement('div');
+    body.className = 'toast-body';
+    body.textContent = String(message);
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'btn-close btn-close-white me-2 m-auto';
+    close.setAttribute('data-bs-dismiss', 'toast');
+    close.setAttribute('aria-label', 'Close');
+    layout.append(body, close);
+    wrapper.append(layout);
+
     toastHost.append(wrapper);
     const instance = bootstrap?.Toast?.getOrCreateInstance(wrapper, { delay: 3500 }) ?? null;
     wrapper.addEventListener('hidden.bs.toast', () => wrapper.remove(), { once: true });
@@ -537,6 +819,7 @@
     const context = bootDefaults.editor || {};
     if (editor.project && context.projectId && hasOption(editor.project, context.projectId)) {
       editor.project.value = context.projectId;
+      editorProjectPicker?.initializeById(context.projectId, { notify: false, dispatch: false }).then(() => markEditorClean());
     }
     if (editor.source && context.source && hasOption(editor.source, context.source)) {
       editor.source.value = context.source;
@@ -654,9 +937,12 @@
   function applyOverrideFiltersToInputs() {
     if (!overridesCard) return;
     if (overridesElements.project) {
-      overridesElements.project.value = hasOption(overridesElements.project, overridesState.filters.projectId)
+      const projectId = hasOption(overridesElements.project, overridesState.filters.projectId)
         ? overridesState.filters.projectId
         : '';
+      overridesElements.project.value = projectId;
+      if (projectId) overridesProjectPicker?.initializeById(projectId, { notify: false, dispatch: false });
+      else overridesProjectPicker?.clear({ notify: false, dispatch: false });
     }
     if (overridesElements.source) {
       overridesElements.source.value = hasOption(overridesElements.source, overridesState.filters.source)
@@ -676,9 +962,18 @@
     return Boolean(projectId || source || year || search);
   }
 
+  function updateOverridesFooterVisibility() {
+    if (!overridesElements.footer) return;
+    const hasSummary = Boolean(overridesElements.summary?.textContent?.trim());
+    const hasReset = Boolean(overridesElements.reset && !overridesElements.reset.classList.contains('d-none'));
+    overridesElements.footer.classList.toggle('d-none', !hasSummary && !hasReset);
+  }
+
   function updateOverridesResetVisibility() {
-    if (!overridesElements.reset) return;
-    overridesElements.reset.classList.toggle('d-none', !overridesFiltersActive());
+    if (overridesElements.reset) {
+      overridesElements.reset.classList.toggle('d-none', !overridesFiltersActive());
+    }
+    updateOverridesFooterVisibility();
   }
 
   function updateOverridesExportAvailability(enabled) {
@@ -735,7 +1030,11 @@
   }
 
   function getScopeLabel(kind) {
-    return kind === 'yearly' ? 'Yearly total' : 'Granular entry';
+    return kind === 'yearly' ? 'Annual quantity' : 'Detailed entry';
+  }
+
+  function setCommandTitle(text) {
+    if (commandElements.title) commandElements.title.textContent = text || 'Current record';
   }
 
   function setCommandScope(kind) {
@@ -749,6 +1048,7 @@
     if (!commandElements.updated) return;
     const text = value ? formatDateTime(value) : '';
     commandElements.updated.textContent = text || '—';
+    commandElements.updatedWrap?.classList.toggle('d-none', !text);
     if (value) {
       commandElements.updated.setAttribute('data-timestamp', value);
     } else {
@@ -770,6 +1070,7 @@
   }
 
   function resetApprovalUi() {
+    approvalElements.container?.classList.add('d-none');
     if (approvalElements.badge) {
       const { text, className } = getStatusBadgeConfig('');
       approvalElements.badge.textContent = text;
@@ -797,6 +1098,7 @@
       return;
     }
 
+    approvalElements.container.classList.remove('d-none');
     const statusRaw = (detail.approvalStatus ?? detail.ApprovalStatus ?? '').toString().toLowerCase();
     const { text, className } = getStatusBadgeConfig(statusRaw || 'pending');
     if (approvalElements.badge) {
@@ -844,28 +1146,51 @@
     }
   }
 
-  function updateDecisionButtons() {
-    const hasApproveButton = Boolean(decisionButtons.approve);
-    const hasRejectButton = Boolean(decisionButtons.reject);
-    if (!hasApproveButton && !hasRejectButton) {
-      return;
-    }
+  function getSaveActionText() {
+    const status = (currentRecord.status || '').toLowerCase();
+    if (!currentRecord.id) return 'Save';
+    if (status === 'approved') return canApproveRecords ? 'Save correction' : 'Submit amendment';
+    if (status === 'rejected') return 'Resubmit';
+    return 'Save changes';
+  }
 
+  function updateContextualActions() {
     const hasRecord = Boolean(currentRecord.id);
     const status = (currentRecord.status || '').toLowerCase();
-    const disableAll = !canApproveRecords || decisionButtons.busy || !hasRecord;
+    const pending = hasRecord && status === 'pending';
 
-    if (hasApproveButton) {
-      const disabled = disableAll || status === 'approved';
-      decisionButtons.approve.disabled = disabled;
-      decisionButtons.approve.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+    if (decisionButtons.approve) {
+      const visible = canApproveRecords && pending;
+      decisionButtons.approve.classList.toggle('d-none', !visible);
+      decisionButtons.approve.disabled = !visible || decisionButtons.busy;
+      decisionButtons.approve.setAttribute('aria-disabled', decisionButtons.approve.disabled ? 'true' : 'false');
+    }
+    if (decisionButtons.reject) {
+      const visible = canApproveRecords && pending;
+      decisionButtons.reject.classList.toggle('d-none', !visible);
+      decisionButtons.reject.disabled = !visible || decisionButtons.busy;
+      decisionButtons.reject.setAttribute('aria-disabled', decisionButtons.reject.disabled ? 'true' : 'false');
+    }
+    if (editor.btnDelete) {
+      const visible = !isApprovalWorkspace() && hasRecord && (status !== 'approved' || canApproveRecords);
+      editor.btnDelete.classList.toggle('d-none', !visible);
+      editor.btnDelete.disabled = !visible;
+    }
+    if (editor.btnSave) {
+      const visible = !isApprovalWorkspace();
+      editor.btnSave.classList.toggle('d-none', !visible);
+      if (!visible) editor.btnSave.disabled = true;
     }
 
-    if (hasRejectButton) {
-      const disabled = disableAll || status === 'rejected';
-      decisionButtons.reject.disabled = disabled;
-      decisionButtons.reject.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+    const label = getSaveActionText();
+    saveButtonState.defaultContent = `<i class="bi bi-check2" aria-hidden="true"></i> <span data-save-label>${label}</span>`;
+    if (!saveButtonState.busy && editor.btnSave) {
+      editor.btnSave.innerHTML = saveButtonState.defaultContent;
     }
+  }
+
+  function updateDecisionButtons() {
+    updateContextualActions();
   }
 
   function setDecisionBusy(busy) {
@@ -875,7 +1200,10 @@
 
   function applyFiltersToInputs() {
     if (filterInputs.project) {
-      filterInputs.project.value = hasOption(filterInputs.project, filters.projectId) ? filters.projectId : '';
+      const projectId = hasOption(filterInputs.project, filters.projectId) ? filters.projectId : '';
+      filterInputs.project.value = projectId;
+      if (projectId) filterProjectPicker?.initializeById(projectId, { notify: false, dispatch: false });
+      else filterProjectPicker?.clear({ notify: false, dispatch: false });
     }
     if (filterInputs.source) {
       filterInputs.source.value = hasOption(filterInputs.source, filters.source) ? filters.source : '';
@@ -905,6 +1233,51 @@
     return option ? option.textContent.trim() : '';
   }
 
+  function normalizeSourceToken(value) {
+    return String(value ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+  }
+
+  function resolveSourceSelectValue(detail) {
+    if (!editor.source || !detail) return '';
+    const rawCandidates = [
+      detail.sourceValue,
+      detail.SourceValue,
+      detail.source,
+      detail.Source,
+      detail.sourceLabel,
+      detail.SourceLabel
+    ].filter((value) => value !== undefined && value !== null && String(value).trim() !== '');
+
+    for (const candidate of rawCandidates) {
+      if (hasOption(editor.source, candidate)) return String(candidate);
+    }
+
+    const aliases = new Map([
+      ['1', '1'],
+      ['sdd', '1'],
+      ['simulatordevelopmentdivision', '1'],
+      ['2', '2'],
+      ['abw515', '2'],
+      ['515abw', '2'],
+      ['armybaseworkshop515', '2']
+    ]);
+
+    for (const candidate of rawCandidates) {
+      const token = normalizeSourceToken(candidate);
+      const aliased = aliases.get(token);
+      if (aliased && hasOption(editor.source, aliased)) return aliased;
+
+      const matchingOption = Array.from(editor.source.options).find((option) =>
+        normalizeSourceToken(option.textContent) === token);
+      if (matchingOption) return matchingOption.value;
+    }
+
+    return '';
+  }
+
   function renderFilterChips() {
     const host = filterInputs.chips;
     if (!host) return;
@@ -919,7 +1292,7 @@
       chips.push({ key: 'source', label: 'Source', value: label });
     }
     if (filters.kind) {
-      const label = getOptionLabel(filterInputs.kind, filters.kind) || (filters.kind === 'granular' ? 'Granular' : 'Yearly');
+      const label = getOptionLabel(filterInputs.kind, filters.kind) || (filters.kind === 'granular' ? 'Detailed entry' : 'Annual quantity');
       chips.push({ key: 'kind', label: 'Type', value: label });
     }
     if (filters.status) {
@@ -968,7 +1341,7 @@
     filters.source = '';
     filters.year = '';
     filters.kind = '';
-    filters.status = '';
+    filters.status = isApprovalWorkspace() ? 'pending' : '';
     filters.search = '';
     pager.page = 1;
     applyFiltersToInputs();
@@ -985,6 +1358,7 @@
     switch (key) {
       case 'project':
         if (filterInputs.project) filterInputs.project.value = '';
+        filterProjectPicker?.clear({ notify: false, dispatch: false });
         updateFilter('projectId', '');
         break;
       case 'source':
@@ -996,8 +1370,13 @@
         updateFilter('kind', '');
         break;
       case 'status':
-        if (filterInputs.status) filterInputs.status.value = '';
-        updateFilter('status', '');
+        if (isApprovalWorkspace()) {
+          if (filterInputs.status) filterInputs.status.value = 'pending';
+          updateFilter('status', 'pending');
+        } else {
+          if (filterInputs.status) filterInputs.status.value = '';
+          updateFilter('status', '');
+        }
         break;
       case 'year':
         if (filterInputs.year) filterInputs.year.value = '';
@@ -1099,7 +1478,8 @@
     if (!overridesElements.summary) return;
     const count = overridesRows.size;
     if (count === 0) {
-      overridesElements.summary.textContent = 'No overrides configured.';
+      overridesElements.summary.textContent = '';
+      updateOverridesFooterVisibility();
       return;
     }
 
@@ -1107,8 +1487,8 @@
     if (stats) {
       const breakdown = [];
       if (stats.both) breakdown.push(`${stats.both} with both data types`);
-      if (stats.granularOnly) breakdown.push(`${stats.granularOnly} granular-only`);
-      if (stats.yearlyOnly) breakdown.push(`${stats.yearlyOnly} yearly-only`);
+      if (stats.granularOnly) breakdown.push(`${stats.granularOnly} detailed-only`);
+      if (stats.yearlyOnly) breakdown.push(`${stats.yearlyOnly} annual-only`);
       if (stats.none) breakdown.push(`${stats.none} without approved data`);
       if (stats.autoFallback) breakdown.push(`${stats.autoFallback} auto fallback`);
       if (breakdown.length) {
@@ -1129,11 +1509,12 @@
       }
     }
 
-    let summary = count === 1 ? '1 override loaded.' : `${count} overrides loaded.`;
+    let summary = count === 1 ? '1 counting exception loaded.' : `${count} counting exceptions loaded.`;
     if (detailParts.length) {
       summary = `${summary} ${detailParts.join(' ')}`;
     }
     overridesElements.summary.textContent = summary;
+    updateOverridesFooterVisibility();
   }
 
   function renderOverrides(rows) {
@@ -1141,9 +1522,10 @@
     overridesRows.clear();
 
     if (!rows || rows.length === 0) {
-      overridesElements.tableBody.innerHTML = '<tr><td colspan="6" class="text-muted">No overrides found.</td></tr>';
+      overridesElements.tableBody.innerHTML = '<tr><td colspan="6" class="text-muted">No counting exceptions configured.</td></tr>';
       updateOverridesSummary();
       updateOverridesExportAvailability(false);
+      updateRuleActionState();
       return;
     }
 
@@ -1181,21 +1563,21 @@
     };
 
     const markup = normalizedRows.map((row) => {
-      const projectCode = row.projectCode ? `<div class="small text-muted">${row.projectCode}</div>` : '';
-      const scope = `<div class="small text-muted">${row.sourceLabel} · ${row.year}</div>`;
+      const projectCode = row.projectCode ? `<div class="small text-muted">${escapeHtml(row.projectCode)}</div>` : '';
+      const scope = `<div class="small text-muted">${escapeHtml(row.sourceLabel)} · ${escapeHtml(row.year)}</div>`;
       const updated = formatDateTime(row.setOnUtc);
       const coverageBadges = [];
       if (row.hasYearly && row.hasGranular) {
         stats.both += 1;
-        coverageBadges.push('<span class="badge text-bg-success">Yearly + Granular present</span>');
+        coverageBadges.push('<span class="badge text-bg-success">Annual + detailed records present</span>');
       } else if (row.hasGranular) {
         stats.granularOnly += 1;
-        coverageBadges.push('<span class="badge text-bg-primary">Granular present</span>');
-        coverageBadges.push('<span class="badge text-bg-light text-wrap">No yearly total</span>');
+        coverageBadges.push('<span class="badge text-bg-primary">Detailed records present</span>');
+        coverageBadges.push('<span class="badge text-bg-light text-wrap">No annual quantity</span>');
       } else if (row.hasYearly) {
         stats.yearlyOnly += 1;
-        coverageBadges.push('<span class="badge text-bg-primary">Yearly present</span>');
-        coverageBadges.push('<span class="badge text-bg-light text-wrap">No granular data</span>');
+        coverageBadges.push('<span class="badge text-bg-primary">Annual quantity present</span>');
+        coverageBadges.push('<span class="badge text-bg-light text-wrap">No detailed entries</span>');
       } else {
         stats.none += 1;
         coverageBadges.push('<span class="badge text-bg-warning text-dark">No approved data</span>');
@@ -1210,16 +1592,16 @@
       const effectiveTotalDisplay = effectiveTotal === null ? '—' : effectiveTotal.toLocaleString();
       const actions = `
         <div class="btn-group btn-group-sm" role="group">
-          <button type="button" class="btn btn-outline-secondary" data-action="focus-list" data-id="${row.id}">List</button>
-          <button type="button" class="btn btn-outline-secondary" data-action="prefill" data-id="${row.id}">Editor</button>
-          <button type="button" class="btn btn-outline-secondary" data-action="overview" data-id="${row.id}">Overview</button>
-          <button type="button" class="btn btn-outline-danger" data-action="clear" data-id="${row.id}">Clear</button>
+          <button type="button" class="btn btn-outline-secondary" data-action="focus-list" data-id="${escapeHtml(row.id)}">Records</button>
+          <button type="button" class="btn btn-outline-primary" data-action="edit-rule" data-id="${escapeHtml(row.id)}">Edit rule</button>
+          <button type="button" class="btn btn-outline-secondary" data-action="project" data-id="${escapeHtml(row.id)}">Project total</button>
+          <button type="button" class="btn btn-outline-danger" data-action="clear" data-id="${escapeHtml(row.id)}">Use default</button>
         </div>`;
 
       return `
         <tr>
           <td>
-            <div class="fw-semibold">${row.projectName}</div>
+            <div class="fw-semibold">${escapeHtml(row.projectName)}</div>
             ${projectCode}
           </td>
           <td>${scope}</td>
@@ -1227,25 +1609,28 @@
             <div class="d-flex flex-wrap gap-1">${coverageBadges.join('')}</div>
           </td>
           <td>
-            <div class="fw-semibold">${row.modeLabel}</div>
-            <div class="small text-muted">Effective: ${row.effectiveModeLabel}</div>
-            <div class="small">Total in play: <span class="fw-semibold">${effectiveTotalDisplay}</span></div>
+            <div class="fw-semibold">${escapeHtml(row.modeLabel)}</div>
+            <div class="small text-muted">Effective: ${escapeHtml(row.effectiveModeLabel)}</div>
+            <div class="small">Total in play: <span class="fw-semibold">${escapeHtml(effectiveTotalDisplay)}</span></div>
           </td>
           <td>
-            <div class="fw-semibold">${row.setByDisplayName}</div>
-            <div class="small text-muted">${updated}</div>
+            <div class="fw-semibold">${escapeHtml(row.setByDisplayName)}</div>
+            <div class="small text-muted">${escapeHtml(updated)}</div>
           </td>
           <td class="text-end">${actions}</td>
         </tr>`;
     }).join('');
 
-    overridesElements.tableBody.innerHTML = markup || '<tr><td colspan="6" class="text-muted">No overrides found.</td></tr>';
+    overridesElements.tableBody.innerHTML = markup || '<tr><td colspan="6" class="text-muted">No counting exceptions configured.</td></tr>';
     updateOverridesSummary(stats);
     updateOverridesExportAvailability(overridesRows.size > 0);
+    updateRuleActionState();
   }
 
   async function fetchOverrides() {
     if (!overridesCard || !overridesElements.tableBody) return;
+    overridesController?.abort();
+    overridesController = new AbortController();
     const params = new URLSearchParams();
     if (overridesState.filters.projectId) params.set('projectId', overridesState.filters.projectId);
     if (overridesState.filters.source) params.set('source', overridesState.filters.source);
@@ -1259,21 +1644,21 @@
     updateOverridesExportAvailability(false);
 
     try {
-      const response = await fetch(`${api.overrides}?${params.toString()}`, { headers: { Accept: 'application/json' } });
+      const response = await fetch(`${api.overrides}?${params.toString()}`, { headers: { Accept: 'application/json' }, signal: overridesController.signal });
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || 'Unable to load overrides');
+        throw new Error(await readErrorResponse(response, 'Unable to load counting exceptions'));
       }
       const data = await response.json();
       const rows = Array.isArray(data) ? data : [];
       renderOverrides(rows);
     } catch (error) {
-      overridesElements.tableBody.innerHTML = '<tr><td colspan="6" class="text-danger">Failed to load overrides.</td></tr>';
+      if (error.name === 'AbortError') return;
+      overridesElements.tableBody.innerHTML = '<tr><td colspan="6" class="text-danger">Failed to load counting exceptions.</td></tr>';
       if (overridesElements.summary) {
         overridesElements.summary.textContent = '';
       }
       updateOverridesExportAvailability(false);
-      toast(error.message || 'Unable to load overrides', 'danger');
+      toast(error.message || 'Unable to load counting exceptions', 'danger');
     }
   }
 
@@ -1365,40 +1750,387 @@
     renderFilterChips();
     fetchList();
     listCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    toast('List filters updated for this override.', 'info');
+    toast('List filters updated for this counting exception.', 'info');
   }
 
-  function prefillEditorFromOverride(row) {
-    if (!row) return;
-    resetEditor('yearly');
-    if (editor.project && hasOption(editor.project, row.projectId)) {
-      editor.project.value = String(row.projectId);
+  function getSourceDefaultMode(sourceValue) {
+    return Number(sourceValue) === 2 ? 'UseYearly' : 'UseYearlyAndGranular';
+  }
+
+  function calculateRuleTotal(mode, annual, detailed) {
+    if (mode === 'UseYearly') return annual;
+    if (mode === 'UseGranular') return detailed;
+    if (mode === 'Auto') return detailed > 0 ? detailed : annual;
+    return annual + detailed;
+  }
+
+  function getEditorTargetYear() {
+    if (editor.kind?.value === 'yearly') {
+      return Number(editor.year?.value || 0);
     }
-    if (editor.source && row.sourceValue !== null && row.sourceValue !== undefined) {
-      const sourceValue = String(row.sourceValue);
-      if (hasOption(editor.source, sourceValue)) {
-        editor.source.value = sourceValue;
+    const date = editor.date?.value || '';
+    return /^\d{4}-/.test(date) ? Number(date.slice(0, 4)) : 0;
+  }
+
+  function hideEditorImpact() {
+    editor.impact?.classList.add('d-none');
+  }
+
+  async function refreshEditorImpact() {
+    const projectId = Number(editor.project?.value || 0);
+    const source = Number(editor.source?.value || 0);
+    const year = getEditorTargetYear();
+    const quantity = Number(editor.qty?.value || 0);
+    const kind = editor.kind?.value === 'yearly' ? 'yearly' : 'granular';
+    if (!editor.impact || projectId <= 0 || ![1, 2].includes(source) || year < 2000 || !Number.isFinite(quantity) || quantity < (kind === 'granular' ? 1 : 0)) {
+      hideEditorImpact();
+      return;
+    }
+
+    editorImpactController?.abort();
+    editorImpactController = new AbortController();
+    try {
+      const params = new URLSearchParams({ projectId: String(projectId), source: String(source), year: String(year), page: '1', pageSize: '10' });
+      const response = await fetch(`${api.groups}?${params}`, { headers: { Accept: 'application/json' }, signal: editorImpactController.signal });
+      if (!response.ok) throw new Error('Unable to load calculation preview');
+      const data = await response.json();
+      const row = Array.isArray(data.items) ? data.items.find((x) => Number(x.projectId) === projectId && Number(x.source) === source && Number(x.year) === year) : null;
+      let annual = Number(row?.annualQuantity || 0);
+      let detailed = Number(row?.detailedQuantity || 0);
+      const current = Number(row?.reportedTotal || 0);
+      const sameCombination = currentRecord.id &&
+        Number(currentRecord.projectId) === projectId &&
+        Number(currentRecord.source) === source &&
+        Number(currentRecord.year) === year;
+      if (sameCombination && (currentRecord.status || '').toLowerCase() === 'approved') {
+        const previousQuantity = Number(currentRecord.quantity || 0);
+        if (currentRecord.kind === 'yearly') annual = Math.max(0, annual - previousQuantity);
+        else detailed = Math.max(0, detailed - previousQuantity);
+      }
+      if (kind === 'yearly') annual += quantity;
+      else detailed += quantity;
+      const mode = row?.effectiveMode || getSourceDefaultMode(source);
+      const afterApproval = calculateRuleTotal(mode, annual, detailed);
+      if (editor.impactCurrent) editor.impactCurrent.textContent = formatNumber(current);
+      if (editor.impactNext) editor.impactNext.textContent = formatNumber(afterApproval);
+      if (editor.impactNextLabel) editor.impactNextLabel.textContent = canApproveRecords ? 'After save' : 'After approval';
+      if (editor.impactNote) {
+        const hasBothRecordTypes = Number(row?.annualQuantity || 0) > 0 && Number(row?.detailedQuantity || 0) > 0;
+        const modeLabel = row?.effectiveModeLabel || ({
+          UseYearly: 'Annual quantity only',
+          UseGranular: 'Detailed entries only',
+          UseYearlyAndGranular: 'Annual quantity + detailed entries',
+          Auto: 'Detailed entries where available; otherwise annual quantity'
+        }[mode] || mode);
+        const quantityIsCounted = kind === 'yearly'
+          ? mode === 'UseYearly' || mode === 'UseYearlyAndGranular' || (mode === 'Auto' && detailed <= 0)
+          : mode === 'UseGranular' || mode === 'UseYearlyAndGranular' || mode === 'Auto';
+        const approvalTiming = canApproveRecords
+          ? 'The saved record will be approved immediately.'
+          : 'The reported total changes only after approval.';
+        editor.impactNote.textContent = hasBothRecordTypes
+          ? `Annual and detailed records already exist for ${year}. Counting rule: ${modeLabel}. This quantity ${quantityIsCounted ? 'will' : 'will not'} affect the reported total. ${approvalTiming}`
+          : `${modeLabel}. This quantity ${quantityIsCounted ? 'will' : 'will not'} affect the reported total. ${approvalTiming}`;
+      }
+      editor.impact.classList.remove('d-none');
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      hideEditorImpact();
+    }
+  }
+
+  function scheduleEditorImpact() {
+    window.clearTimeout(editorImpactTimer);
+    editorImpactTimer = window.setTimeout(refreshEditorImpact, 250);
+  }
+
+  function hideDuplicateWarning() {
+    editor.duplicateWarning?.classList.add('d-none');
+  }
+
+  function normaliseComparableText(value) {
+    return String(value ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+  }
+
+  function scheduleDuplicateCheck() {
+    window.clearTimeout(duplicateCheckTimer);
+    hideDuplicateWarning();
+    if (editor.kind?.value !== 'granular') return;
+    duplicateCheckTimer = window.setTimeout(checkForDuplicateEntry, 260);
+  }
+
+  async function checkForDuplicateEntry() {
+    const projectId = Number(editor.project?.value || 0);
+    const source = Number(editor.source?.value || 0);
+    const date = editor.date?.value || '';
+    const unit = normaliseComparableText(editor.unit?.value);
+    const quantity = Number(editor.qty?.value || 0);
+    if (projectId <= 0 || source <= 0 || !date || !unit || quantity <= 0) return;
+
+    duplicateCheckController?.abort();
+    duplicateCheckController = new AbortController();
+    const params = new URLSearchParams({
+      projectId: String(projectId),
+      source: String(source),
+      year: date.slice(0, 4),
+      kind: 'granular',
+      approvalStatus: 'approved',
+      page: '1',
+      pageSize: '100',
+      search: editor.unit?.value?.trim() || ''
+    });
+
+    try {
+      const response = await fetch(`${api.list}?${params}`, {
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+        signal: duplicateCheckController.signal
+      });
+      if (!response.ok) return;
+      const payload = await response.json();
+      const duplicate = (Array.isArray(payload?.items) ? payload.items : []).some(item => {
+        if (String(item.id || '') === String(editor.id?.value || '')) return false;
+        return formatDate(item.proliferationDateUtc) === date
+          && normaliseComparableText(item.unitName) === unit
+          && Number(item.quantity) === quantity
+          && String(item.approvalStatus || '').toLowerCase() === 'approved';
+      });
+      editor.duplicateWarning?.classList.toggle('d-none', !duplicate);
+    } catch (error) {
+      if (error?.name !== 'AbortError') hideDuplicateWarning();
+    }
+  }
+
+  async function refreshUnitSuggestions() {
+    if (!editor.unitSuggestions || editor.kind?.value !== 'granular') return;
+    const query = editor.unit?.value?.trim() || '';
+    unitSuggestionController?.abort();
+    unitSuggestionController = new AbortController();
+    try {
+      const params = new URLSearchParams({ take: '20' });
+      if (query) params.set('q', query);
+      const response = await fetch(`${api.unitSuggestions}?${params}`, { headers: { Accept: 'application/json' }, signal: unitSuggestionController.signal });
+      if (!response.ok) return;
+      const rows = await response.json();
+      editor.unitSuggestions.replaceChildren();
+      (Array.isArray(rows) ? rows : []).forEach((value) => {
+        const option = document.createElement('option');
+        option.value = value;
+        editor.unitSuggestions.append(option);
+      });
+    } catch (error) {
+      if (error.name !== 'AbortError') editor.unitSuggestions?.replaceChildren();
+    }
+  }
+
+  async function refreshRuleImpact() {
+    const projectId = Number(overridesElements.ruleProject?.value || 0);
+    const source = Number(overridesElements.ruleSource?.value || 0);
+    const year = Number(overridesElements.ruleYear?.value || 0);
+    const host = overridesElements.ruleImpact;
+    if (!host || !Number.isInteger(projectId) || projectId <= 0 || ![1, 2].includes(source) || year < 2000) {
+      host?.classList.add('d-none');
+      return;
+    }
+    rulePreviewController?.abort();
+    rulePreviewController = new AbortController();
+    host.classList.remove('d-none');
+    host.textContent = 'Loading calculation impact…';
+    try {
+      const qs = new URLSearchParams({ projectId: String(projectId), source: String(source), year: String(year), page: '1', pageSize: '1' });
+      const response = await fetch(`${api.groups}?${qs}`, { headers: { Accept: 'application/json' }, signal: rulePreviewController.signal });
+      if (!response.ok) throw new Error('Unable to load calculation');
+      const data = await response.json();
+      const row = Array.isArray(data.items) ? data.items[0] : null;
+      const annual = Number(row?.annualQuantity || 0);
+      const detailed = Number(row?.detailedQuantity || 0);
+      const current = Number(row?.reportedTotal || 0);
+      const selected = overridesElements.ruleMode?.value || 'default';
+      const mode = selected === 'default' ? getSourceDefaultMode(source) : selected;
+      const next = calculateRuleTotal(mode, annual, detailed);
+      host.replaceChildren();
+      const title = document.createElement('strong');
+      title.textContent = 'Calculation impact';
+      const text = document.createElement('span');
+      text.textContent = `Annual ${formatNumber(annual)} · detailed ${formatNumber(detailed)} · current reported total ${formatNumber(current)} · after change ${formatNumber(next)}`;
+      host.append(title, text);
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      host.textContent = 'Calculation impact could not be loaded.';
+    }
+  }
+
+  function findRuleScopeOverride() {
+    const projectId = Number(overridesElements.ruleProject?.value || 0);
+    const source = Number(overridesElements.ruleSource?.value || 0);
+    const year = Number(overridesElements.ruleYear?.value || 0);
+    if (!Number.isInteger(projectId) || projectId <= 0 || ![1, 2].includes(source) || year < 2000) {
+      return null;
+    }
+    return Array.from(overridesRows.values()).find((row) =>
+      Number(row.projectId) === projectId &&
+      Number(row.sourceValue ?? row.source) === source &&
+      Number(row.year) === year) || null;
+  }
+
+  function updateRuleActionState() {
+    const button = overridesElements.ruleSave;
+    if (!button) return;
+    const projectId = Number(overridesElements.ruleProject?.value || 0);
+    const source = Number(overridesElements.ruleSource?.value || 0);
+    const year = Number(overridesElements.ruleYear?.value || 0);
+    const selectedMode = overridesElements.ruleMode?.value || 'default';
+    const reason = overridesElements.ruleReason?.value?.trim() || '';
+    const validScope = Number.isInteger(projectId) && projectId > 0 && [1, 2].includes(source) && Number.isInteger(year) && year >= 2000 && year <= new Date().getUTCFullYear() + 1;
+    const existingOverride = validScope ? findRuleScopeOverride() : null;
+    const restoringDefault = selectedMode === 'default';
+    const visible = validScope && (!restoringDefault || Boolean(existingOverride));
+    const enabled = visible && (restoringDefault || Boolean(reason));
+
+    button.classList.toggle('d-none', !visible);
+    button.disabled = !enabled;
+    button.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+    button.textContent = restoringDefault ? 'Restore source default' : 'Save exception';
+  }
+
+  function updateRuleGuidance() {
+    if (!overridesElements.ruleSource) return;
+    const isAbw = Number(overridesElements.ruleSource.value) === 2;
+    if (overridesElements.ruleDefaultBadge) {
+      overridesElements.ruleDefaultBadge.textContent = isAbw
+        ? '515 ABW default: annual quantity'
+        : 'SDD default: annual + detailed';
+    }
+    const selectedMode = overridesElements.ruleMode?.value || 'default';
+    if (overridesElements.ruleGuidance) {
+      if (selectedMode === 'default') {
+        overridesElements.ruleGuidance.textContent = isAbw
+          ? '515 ABW normally counts the approved annual quantity. Detailed entries remain available for reference.'
+          : 'SDD normally adds the annual quantity and approved detailed entries.';
+      } else {
+        overridesElements.ruleGuidance.textContent = 'This creates a deliberate exception for the selected project, source and year.';
       }
     }
-    if (editor.year) {
-      editor.year.value = String(row.year ?? defaults.year);
+    const isException = selectedMode !== 'default';
+    overridesElements.ruleReasonWrap?.classList.toggle('d-none', !isException);
+    if (overridesElements.ruleReason) {
+      overridesElements.ruleReason.required = isException;
+      overridesElements.ruleReason.classList.remove('is-invalid');
+      if (!isException) overridesElements.ruleReason.value = '';
     }
-    setTab('yearly');
-    editor.project?.focus();
-    editorCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    toast('Editor prefilled from override.', 'info');
+    updateRuleActionState();
+    refreshRuleImpact();
+  }
+
+  function editRuleFromOverride(row) {
+    if (!row || !overridesElements.ruleEditor) return;
+    if (overridesElements.ruleProject) {
+      ensureFilterOption(overridesElements.ruleProject, row.projectId, row.projectName);
+      overridesElements.ruleProject.value = String(row.projectId ?? '');
+      ruleProjectPicker?.initializeById(row.projectId, { notify: false, dispatch: false });
+    }
+    if (overridesElements.ruleSource && row.sourceValue !== null && row.sourceValue !== undefined) {
+      overridesElements.ruleSource.value = String(row.sourceValue);
+    }
+    if (overridesElements.ruleYear) {
+      overridesElements.ruleYear.value = String(row.year ?? defaults.year);
+    }
+    if (overridesElements.ruleMode) {
+      const allowed = ['UseYearlyAndGranular', 'UseYearly', 'UseGranular', 'Auto'];
+      overridesElements.ruleMode.value = allowed.includes(row.mode) ? row.mode : 'default';
+    }
+    if (overridesElements.ruleReason) overridesElements.ruleReason.value = '';
+    updateRuleGuidance();
+    overridesElements.ruleEditor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    overridesElements.ruleMode?.focus();
+  }
+
+  function openProjectTotal(row) {
+    const projectId = Number(row?.projectId);
+    if (!Number.isInteger(projectId) || projectId <= 0) return;
+    window.open(`/ProjectOfficeReports/Proliferation/Project/${encodeURIComponent(projectId)}`, '_blank', 'noopener');
+  }
+
+  async function saveCountingRule() {
+    const projectId = Number(overridesElements.ruleProject?.value || 0);
+    const source = Number(overridesElements.ruleSource?.value || 0);
+    const year = Number(overridesElements.ruleYear?.value || 0);
+    const selected = overridesElements.ruleMode?.value || 'default';
+    const reason = overridesElements.ruleReason?.value?.trim() || '';
+
+    if (!Number.isInteger(projectId) || projectId <= 0) {
+      toast('Select a project for the counting rule.', 'warning');
+      (overridesElements.ruleProjectSearch || overridesElements.ruleProject)?.focus();
+      return;
+    }
+    if (![1, 2].includes(source)) {
+      toast('Select a valid source.', 'warning');
+      overridesElements.ruleSource?.focus();
+      return;
+    }
+    if (!Number.isInteger(year) || year < 2000 || year > new Date().getUTCFullYear() + 1) {
+      toast('Enter a valid four digit year.', 'warning');
+      overridesElements.ruleYear?.focus();
+      return;
+    }
+
+    if (selected !== 'default' && !reason) {
+      toast('Enter a reason for the counting exception.', 'warning');
+      overridesElements.ruleReason?.classList.add('is-invalid');
+      overridesElements.ruleReason?.focus();
+      return;
+    }
+
+    const mode = selected === 'default' ? getSourceDefaultMode(source) : selected;
+    const allowed = ['UseYearlyAndGranular', 'UseYearly', 'UseGranular', 'Auto'];
+    if (!allowed.includes(mode)) {
+      toast('Select a valid counting rule.', 'warning');
+      overridesElements.ruleMode?.focus();
+      return;
+    }
+
+    const button = overridesElements.ruleSave;
+    const original = button?.innerHTML || 'Save counting rule';
+    if (button) {
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Saving…';
+    }
+
+    try {
+      const response = await fetch(api.setPreference, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
+        body: JSON.stringify({ projectId, source, year, mode, reason: reason || null })
+      });
+      if (!response.ok) {
+        throw new Error(await readErrorResponse(response, 'Unable to save the counting rule.'));
+      }
+
+      toast(selected === 'default' ? 'Source default restored.' : 'Counting rule saved.', 'success');
+      if (overridesElements.ruleReason) overridesElements.ruleReason.value = '';
+      await fetchOverrides();
+      await refreshRuleImpact();
+    } catch (error) {
+      toast(error.message || 'Unable to save the counting rule.', 'danger');
+    } finally {
+      if (button) {
+        button.innerHTML = original;
+        updateRuleActionState();
+      }
+    }
   }
 
   async function clearOverride(row) {
     if (!row) return;
-    const confirmed = window.confirm('Clear this preference override and return to defaults?');
+    const confirmed = window.confirm('Return this project-year to its source default counting rule?');
     if (!confirmed) return;
     try {
       const payload = {
         projectId: row.projectId,
         source: row.sourceValue ?? row.source,
         year: row.year,
-        mode: 'UseYearlyAndGranular'
+        mode: Number(row.sourceValue ?? row.source) === 2 ? 'UseYearly' : 'UseYearlyAndGranular',
+        reason: 'Restored source default'
       };
       const response = await fetch(api.setPreference, {
         method: 'POST',
@@ -1406,14 +2138,14 @@
         body: JSON.stringify(payload)
       });
       if (!response.ok) {
-        const text = await response.text();
+        const message = await readErrorResponse(response, 'Unable to restore the source default');
         if (response.status === 403) {
           openOverview(row, '#preferences');
-          throw new Error(text || 'You do not have permission to change preferences. Try updating them from the overview.');
+          throw new Error(message || 'You do not have permission to change this counting rule.');
         }
-        throw new Error(text || 'Unable to clear override');
+        throw new Error(message);
       }
-      toast('Preference override cleared.', 'success');
+      toast('Counting exception cleared.', 'success');
       emitDeepLinkEvent('override-cleared', {
         targetProjectId: row.projectId ? String(row.projectId) : '',
         targetSource: row.sourceValue !== null && row.sourceValue !== undefined
@@ -1423,12 +2155,12 @@
       });
       fetchOverrides();
     } catch (error) {
-      toast(error.message || 'Unable to clear override', 'danger');
+      toast(error.message || 'Unable to restore the source default', 'danger');
     }
   }
 
   function confirmDeletion(details = {}) {
-    const fallbackType = details.type === 'yearly' ? 'yearly total' : 'record';
+    const fallbackType = details.type === 'yearly' ? 'annual quantity' : 'record';
     const fallbackProject = details.project ? ` for ${details.project}` : '';
     const fallbackDate = details.dateOrYear ? ` (${details.dateOrYear})` : '';
     const fallbackMessage = `Are you sure you want to delete this ${fallbackType}${fallbackProject}${fallbackDate}?`;
@@ -1452,15 +2184,16 @@
     }
 
     if (deleteModalElements.type) {
-      const typeLabel = details.type === 'yearly' ? 'yearly total' : 'record';
+      const typeLabel = details.type === 'yearly' ? 'annual quantity' : 'record';
       deleteModalElements.type.textContent = typeLabel;
     }
     if (deleteModalElements.project) {
       deleteModalElements.project.textContent = details.project || 'this project';
     }
-    if (deleteModalElements.date) {
-      deleteModalElements.date.textContent = details.dateOrYear || 'the selected period';
-    }
+    if (deleteModalElements.date) deleteModalElements.date.textContent = details.dateOrYear || 'the selected period';
+    if (deleteModalElements.source) deleteModalElements.source.textContent = details.source || '—';
+    if (deleteModalElements.quantity) deleteModalElements.quantity.textContent = details.quantity || '—';
+    if (deleteModalElements.status) deleteModalElements.status.textContent = details.status || '—';
 
     if (deleteModalElements.cancel) {
       deleteModalElements.cancel.disabled = false;
@@ -1519,6 +2252,9 @@
 
   async function fetchList() {
     if (!listEl) return;
+    const sequence = ++listSequence;
+    listController?.abort();
+    listController = new AbortController();
     const params = new URLSearchParams();
     if (filters.projectId) params.set('projectId', filters.projectId);
     if (filters.source) params.set('source', filters.source);
@@ -1533,10 +2269,10 @@
     countEl.textContent = '';
 
     try {
-      const response = await fetch(`${api.list}?${params.toString()}`, { headers: { Accept: 'application/json' } });
+      const response = await fetch(`${api.list}?${params.toString()}`, { headers: { Accept: 'application/json' }, signal: listController.signal });
+      if (sequence !== listSequence) return;
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || 'Unable to load list');
+        throw new Error(await readErrorResponse(response, 'Unable to load list'));
       }
       const data = await response.json();
       pager.page = Number(data.page) || pager.page;
@@ -1547,6 +2283,7 @@
       renderPager();
       renderCount();
     } catch (error) {
+      if (error.name === 'AbortError') return;
       pager.total = 0;
       renderList([]);
       renderPager();
@@ -1619,6 +2356,33 @@
       exportOverrides();
     });
 
+    if (overridesElements.ruleProject && bootDefaults.overrides?.projectId) {
+      overridesElements.ruleProject.value = bootDefaults.overrides.projectId;
+      ruleProjectPicker?.initializeById(bootDefaults.overrides.projectId, { notify: false, dispatch: false });
+    }
+    if (overridesElements.ruleSource) {
+      overridesElements.ruleSource.value = bootDefaults.overrides?.source || '1';
+    }
+    if (overridesElements.ruleYear) {
+      overridesElements.ruleYear.value = bootDefaults.overrides?.year || String(defaults.year);
+    }
+    updateRuleGuidance();
+    overridesElements.ruleProject?.addEventListener('change', () => {
+      refreshRuleImpact();
+      updateRuleActionState();
+    });
+    overridesElements.ruleSource?.addEventListener('change', updateRuleGuidance);
+    overridesElements.ruleYear?.addEventListener('change', () => {
+      refreshRuleImpact();
+      updateRuleActionState();
+    });
+    overridesElements.ruleMode?.addEventListener('change', updateRuleGuidance);
+    overridesElements.ruleReason?.addEventListener('input', () => {
+      overridesElements.ruleReason.classList.remove('is-invalid');
+      updateRuleActionState();
+    });
+    overridesElements.ruleSave?.addEventListener('click', saveCountingRule);
+
     overridesElements.tableBody?.addEventListener('click', (event) => {
       const button = event.target.closest('button[data-action][data-id]');
       if (!button) return;
@@ -1627,13 +2391,13 @@
       if (!id || !action) return;
       const row = overridesRows.get(id);
       if (!row) {
-        toast('Override details not found. Refresh and try again.', 'warning');
+        toast('Counting exception details not found. Refresh and try again.', 'warning');
         return;
       }
-      if (action === 'overview') {
-        openOverview(row, '#overview');
-      } else if (action === 'prefill') {
-        prefillEditorFromOverride(row);
+      if (action === 'project') {
+        openProjectTotal(row);
+      } else if (action === 'edit-rule') {
+        editRuleFromOverride(row);
       } else if (action === 'focus-list') {
         focusListFromOverride(row);
       } else if (action === 'clear') {
@@ -1647,7 +2411,10 @@
   function renderList(items) {
     if (!listEl) return;
     if (!items || items.length === 0) {
-      listEl.innerHTML = '<div class="list-group-item text-muted" data-placeholder>No records found.</div>';
+      const emptyMessage = isApprovalWorkspace()
+        ? 'No proliferation records are awaiting approval.'
+        : 'No records match the current filters.';
+      listEl.innerHTML = `<div class="list-group-item text-muted" data-placeholder>${escapeHtml(emptyMessage)}</div>`;
       applyBootFocusIfNeeded();
       return;
     }
@@ -1658,7 +2425,8 @@
       const sourceLabel = item.sourceLabel ?? '';
       const quantity = formatNumber(item.quantity ?? item.totalQuantity);
       const dateText = item.proliferationDateUtc ? formatDate(item.proliferationDateUtc) : (item.year ?? '');
-      const subtitleParts = [sourceLabel, dateText].filter(Boolean);
+      const unitName = kind === 'granular' ? (item.unitName ?? '').trim() : '';
+      const subtitleParts = [sourceLabel, dateText, unitName].filter(Boolean);
       const approval = item.approvalStatus ? `Status: ${item.approvalStatus}` : '';
       const subtitle = [subtitleParts.join(' · '), approval].filter(Boolean).join(' • ');
       const updatedValue = item.lastUpdatedOnUtc ?? item.LastUpdatedOnUtc ?? '';
@@ -1670,11 +2438,11 @@
         <button class="list-group-item list-group-item-action${activeClass}" data-id="${item.id}" data-kind="${kind}"${updatedAttr}${currentAttr} type="button">
           <div class="d-flex justify-content-between align-items-start gap-3">
             <div>
-              <div class="fw-semibold">${project}</div>
-              <div class="small text-muted">${subtitle}</div>
+              <div class="fw-semibold">${escapeHtml(project)}</div>
+              <div class="small text-muted">${escapeHtml(subtitle)}</div>
             </div>
             <div class="text-end">
-              <div class="fw-semibold">${quantity}</div>
+              <div class="fw-semibold">${escapeHtml(quantity)}</div>
             </div>
           </div>
         </button>`;
@@ -1686,10 +2454,13 @@
 
   function renderCount() {
     if (!countEl) return;
+    const footer = countEl.closest('.card-footer');
     if (!pager.total) {
-      countEl.textContent = 'No records to display.';
+      countEl.textContent = '';
+      footer?.classList.add('d-none');
       return;
     }
+    footer?.classList.remove('d-none');
     const start = (pager.page - 1) * pager.pageSize + 1;
     const end = Math.min(pager.page * pager.pageSize, pager.total);
     countEl.textContent = `Showing ${start}-${end} of ${pager.total}`;
@@ -1767,61 +2538,73 @@
     if (!button) return;
     const id = button.getAttribute('data-id');
     const kind = button.getAttribute('data-kind');
-    if (!id || !kind) return;
-    if (listEl) {
-      listEl.querySelectorAll('.list-group-item.active').forEach((item) => {
-        item.classList.remove('active');
-        item.removeAttribute('aria-current');
-      });
-    }
-    button.classList.add('active');
-    button.setAttribute('aria-current', 'true');
+    if (!id || !kind || !confirmDiscardChanges()) return;
+
     const metadata = {
       updated: button.dataset.updated || ''
     };
-    loadIntoEditor(kind, id, metadata).catch((err) => {
-      toast(err.message || 'Unable to load entry', 'danger');
-    });
+
+    loadIntoEditor(kind, id, metadata)
+      .then(() => {
+        if (listEl) {
+          listEl.querySelectorAll('.list-group-item.active').forEach((item) => {
+            item.classList.remove('active');
+            item.removeAttribute('aria-current');
+          });
+        }
+        button.classList.add('active');
+        button.setAttribute('aria-current', 'true');
+      })
+      .catch((err) => {
+        toast(err.message || 'Unable to load entry', 'danger');
+      });
   });
 
-  function enforceSourceForKind(kind) {
-    const options = Array.from(editor.source?.options ?? []);
-    if (!options.length) return;
-    if (kind === 'granular') {
-      options.forEach((opt) => {
-        if (!opt.value) return;
-        const isSdd = Number(opt.value) === Number(defaults.granularSource);
-        opt.disabled = !isSdd;
-      });
-      const selected = options.find((opt) => !opt.disabled) ?? options.find((opt) => opt.value);
-      if (selected) {
-        editor.source.value = selected.value;
-      }
-    } else {
-      options.forEach((opt) => {
-        opt.disabled = false;
-      });
-    }
+  function enforceSourceForKind() {
+    Array.from(editor.source?.options ?? []).forEach((option) => {
+      option.disabled = false;
+    });
   }
 
   function setTab(kind, options = {}) {
     const target = kind === 'yearly' ? 'yearly' : 'granular';
     const updateHash = options.updateHash !== false;
-    document.querySelectorAll('#pf-editor-tabs .nav-link').forEach((btn) => {
-      const active = btn.dataset.target === target;
-      btn.classList.toggle('active', active);
-      btn.setAttribute('aria-selected', active ? 'true' : 'false');
-    });
     editor.kind.value = target;
     const isGranular = target === 'granular';
     document.querySelectorAll('.granular-only').forEach((el) => {
       el.classList.toggle('d-none', !isGranular);
     });
+    document.querySelectorAll('.yearly-only').forEach((el) => {
+      el.classList.toggle('d-none', isGranular);
+    });
+    if (editor.year) {
+      editor.year.readOnly = false;
+      editor.year.removeAttribute('aria-readonly');
+      editor.year.required = !isGranular;
+    }
     if (editor.date) editor.date.required = isGranular;
     if (editor.unit) editor.unit.required = isGranular;
     if (editor.qty) editor.qty.min = isGranular ? 1 : 0;
     enforceSourceForKind(target);
     setCommandScope(target);
+    if (commandElements.typeBadge) {
+      commandElements.typeBadge.textContent = isGranular ? 'Detailed entry' : 'Annual quantity';
+    }
+
+    const guidance = document.querySelector('[data-guidance-text]');
+    const quantityLabel = document.querySelector('[data-quantity-label]');
+    const quantityHelp = document.querySelector('[data-quantity-help]');
+    if (guidance) {
+      guidance.textContent = isGranular
+        ? 'Use a detailed entry when the proliferation date, receiving unit and quantity are known.'
+        : 'Use an annual quantity for records that do not have individual date and unit details. Enter only the quantity not already represented by detailed entries.';
+    }
+    if (quantityLabel) quantityLabel.textContent = isGranular ? 'Quantity' : 'Annual quantity';
+    if (quantityHelp) {
+      quantityHelp.textContent = isGranular
+        ? 'Enter the quantity received by the selected unit on this date.'
+        : 'Enter only the aggregate quantity for which detailed entries are unavailable.';
+    }
     if (updateHash) {
       const newHash = `#${target}`;
       if (window.location.hash !== newHash) {
@@ -1829,23 +2612,53 @@
       }
     }
     updateSaveButtonState();
+    updateContextualActions();
+    scheduleEditorImpact();
   }
 
-  document.querySelector('#tab-granular')?.addEventListener('click', () => setTab('granular'));
-  document.querySelector('#tab-yearly')?.addEventListener('click', () => setTab('yearly'));
+
+  editor.date?.addEventListener('change', () => {
+    const value = editor.date.value || '';
+    if (value.length >= 4 && editor.kind?.value === 'granular') {
+      editor.year.value = value.slice(0, 4);
+      validateField('year', { display: true });
+      updateSaveButtonState();
+      scheduleEditorImpact();
+    }
+  });
+
+  document.querySelector('#tab-granular')?.addEventListener('click', () => {
+    if (editor.kind?.value !== 'granular') {
+      beginNewEntry('granular', { preserveContext: true });
+    }
+  });
+  document.querySelector('#tab-yearly')?.addEventListener('click', () => {
+    if (editor.kind?.value !== 'yearly') {
+      beginNewEntry('yearly', { preserveContext: true });
+    }
+  });
+
+  document.querySelectorAll('[data-new-proliferation]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const kind = button.dataset.newProliferation === 'yearly' ? 'yearly' : 'granular';
+      if (!beginNewEntry(kind, { preserveContext: true })) return;
+      document.querySelector('#pf-detail-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      (editor.projectSearch || editor.project)?.focus();
+    });
+  });
 
   async function loadIntoEditor(kind, id, metadata = {}) {
     const endpoint = kind === 'yearly' ? api.yearly(id) : api.granular(id);
     const response = await fetch(endpoint, { headers: { Accept: 'application/json' } });
     if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || 'Failed to load entry');
+      throw new Error(await readErrorResponse(response, 'Failed to load entry'));
     }
     const detail = await response.json();
     editor.id.value = detail.id ?? '';
     editor.rowVersion.value = detail.rowVersion ?? '';
     editor.project.value = String(detail.projectId ?? '');
-    editor.source.value = String(detail.source ?? '');
+    await editorProjectPicker?.initializeById(detail.projectId, { notify: false, dispatch: false });
+    const resolvedSource = resolveSourceSelectValue(detail);
     editor.year.value = String(detail.year ?? defaults.year);
     if (kind === 'granular') {
       const iso = formatDate(detail.proliferationDateUtc ?? detail.proliferationDate);
@@ -1862,6 +2675,9 @@
       editor.qty.value = detail.totalQuantity ?? '';
       setTab('yearly');
     }
+    if (editor.source) {
+      editor.source.value = resolvedSource;
+    }
     editor.remarks.value = detail.remarks ?? '';
     editor.btnDelete.disabled = false;
     const statusValue = (detail.approvalStatus ?? detail.ApprovalStatus ?? '').toString().toLowerCase();
@@ -1869,6 +2685,13 @@
     currentRecord.kind = kind;
     currentRecord.status = statusValue;
     currentRecord.rowVersion = detail.rowVersion ?? '';
+    currentRecord.sourceLabel = getOptionLabel(editor.source, editor.source.value) || '';
+    currentRecord.projectId = String(detail.projectId ?? '');
+    currentRecord.source = resolvedSource;
+    currentRecord.year = String(kind === 'yearly' ? (detail.year ?? '') : (editor.year?.value || ''));
+    currentRecord.quantity = kind === 'yearly' ? String(detail.totalQuantity ?? '') : String(detail.quantity ?? '');
+    const projectLabel = editorProjectPicker?.getSelected()?.display || getOptionLabel(editor.project, editor.project.value) || 'Selected project';
+    setCommandTitle(projectLabel);
     const updatedValue = detail.lastUpdatedOnUtc ?? detail.LastUpdatedOnUtc ?? (typeof metadata === 'object' && metadata ? metadata.updated || '' : '');
     setCommandUpdated(updatedValue);
     updateApprovalUi(detail);
@@ -1876,6 +2699,9 @@
     clearValidationState();
     setSaveButtonState('idle');
     updateSaveButtonState();
+    markEditorClean();
+    scheduleEditorImpact();
+    scheduleDuplicateCheck();
   }
 
   editor.form?.addEventListener('submit', async (event) => {
@@ -1901,22 +2727,39 @@
         body: JSON.stringify(payload)
       });
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || 'Save failed');
+        throw new Error(await readErrorResponse(response, 'Save failed'));
       }
-      toast('Entry saved successfully.', 'success');
+      const result = await response.json().catch(() => ({}));
+      const savedId = id || result.id;
       await fetchList();
-      resetEditor(kind === 'yearly' ? 'yearly' : 'granular');
+      if (savedId) {
+        await loadIntoEditor(kind, savedId);
+        const normalizedStatus = String(currentRecord.status || '').toLowerCase();
+        const message = normalizedStatus === 'approved'
+          ? 'Entry saved and approved.'
+          : normalizedStatus === 'pending'
+            ? 'Entry saved and submitted for approval.'
+            : 'Entry saved successfully.';
+        toast(message, 'success');
+        if (!id) editor.btnAddAnother?.classList.remove('d-none');
+      } else {
+        resetEditor(kind);
+        toast('Entry saved successfully.', 'success');
+      }
       setSaveButtonState('success');
+      window.dispatchEvent(new CustomEvent('proliferation:recordchanged'));
     } catch (error) {
       setSaveButtonState('idle');
       toast(error.message || 'Unable to save entry', 'danger');
     }
   });
 
-  async function decideRecord(approve) {
+  async function decideRecord(approve, reason = null) {
     if (!canApproveRecords || !currentRecord.id) {
-      return;
+      return false;
+    }
+    if (!confirmDiscardChanges()) {
+      return false;
     }
 
     const kind = currentRecord.kind === 'yearly' ? 'yearly' : 'granular';
@@ -1924,11 +2767,11 @@
     const rowVersion = editor.rowVersion.value || currentRecord.rowVersion;
     if (!rowVersion) {
       toast('Refresh the record before taking action.', 'warning');
-      return;
+      return false;
     }
 
     const endpoint = kind === 'yearly' ? api.decideYearly(id) : api.decideGranular(id);
-    const payload = { approve: Boolean(approve), rowVersion };
+    const payload = { approve: Boolean(approve), rowVersion, reason };
 
     setDecisionBusy(true);
     try {
@@ -1938,14 +2781,16 @@
         body: JSON.stringify(payload)
       });
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || 'Unable to update approval status');
+        throw new Error(await readErrorResponse(response, 'Unable to update approval status'));
       }
       toast(approve ? 'Entry approved.' : 'Entry rejected.', approve ? 'success' : 'warning');
       await fetchList();
       await loadIntoEditor(kind, id);
+      window.dispatchEvent(new CustomEvent('proliferation:recordchanged'));
+      return true;
     } catch (error) {
       toast(error.message || 'Unable to update approval status', 'danger');
+      return false;
     } finally {
       setDecisionBusy(false);
     }
@@ -1959,9 +2804,9 @@
 
     if (!Number.isFinite(projectId) || projectId <= 0) return null;
     if (!Number.isFinite(source) || source <= 0) return null;
-    if (!Number.isFinite(year) || year < 2000) return null;
 
     if (kind === 'yearly') {
+      if (!Number.isFinite(year) || year < 2000) return null;
       const quantity = Number(editor.qty?.value ?? '');
       if (!Number.isFinite(quantity) || quantity < 0) return null;
       const payload = {
@@ -1999,8 +2844,14 @@
   }
 
   editor.btnReset?.addEventListener('click', () => {
+    if (!confirmDiscardChanges()) return;
     const currentKind = editor.kind.value;
     resetEditor(currentKind);
+  });
+
+  editor.btnAddAnother?.addEventListener('click', () => {
+    beginNewEntry(editor.kind?.value || 'granular', { preserveContext: true });
+    (editor.kind?.value === 'yearly' ? editor.qty : editor.date)?.focus();
   });
 
   decisionButtons.approve?.addEventListener('click', () => {
@@ -2010,9 +2861,31 @@
   });
 
   decisionButtons.reject?.addEventListener('click', () => {
-    decideRecord(false).catch((error) => {
-      toast(error.message || 'Unable to update approval status', 'danger');
-    });
+    if (!rejectModalElements || !Modal) {
+      const reason = window.prompt('Reason for rejection');
+      if (!reason?.trim()) return;
+      decideRecord(false, reason.trim());
+      return;
+    }
+    rejectModalElements.reason.value = '';
+    rejectModalElements.error.classList.add('d-none');
+    Modal.getOrCreateInstance(rejectModalElements.element).show();
+  });
+
+  rejectModalElements?.confirm?.addEventListener('click', async () => {
+    const reason = rejectModalElements.reason?.value?.trim() || '';
+    if (!reason) {
+      rejectModalElements.error?.classList.remove('d-none');
+      rejectModalElements.reason?.focus();
+      return;
+    }
+    rejectModalElements.confirm.disabled = true;
+    try {
+      const succeeded = await decideRecord(false, reason);
+      if (succeeded) Modal?.getOrCreateInstance(rejectModalElements.element)?.hide();
+    } finally {
+      rejectModalElements.confirm.disabled = false;
+    }
   });
 
   editor.btnDelete?.addEventListener('click', async () => {
@@ -2025,7 +2898,7 @@
       toast('The record is out of date. Reload the entry before deleting.', 'warning');
       return;
     }
-    const projectText = editor.project?.selectedOptions?.[0]?.text?.trim() || '';
+    const projectText = editorProjectPicker?.getSelected()?.display || editor.project?.selectedOptions?.[0]?.text?.trim() || '';
     const dateOrYear = kind === 'yearly'
       ? (editor.year?.value?.trim() || '')
       : formatDate(editor.date?.value || '');
@@ -2033,6 +2906,9 @@
       project: projectText,
       type: kind,
       dateOrYear,
+      source: currentRecord.sourceLabel,
+      quantity: editor.qty?.value || currentRecord.quantity,
+      status: currentRecord.status || 'Unknown',
       trigger: editor.btnDelete
     });
     if (!confirmed) return;
@@ -2041,12 +2917,12 @@
       const url = kind === 'yearly' ? api.deleteYearly(id, rowVersion) : api.deleteGranular(id, rowVersion);
       const response = await fetch(url, { method: 'DELETE', headers: { 'X-CSRF-TOKEN': getCsrfToken() }, credentials: 'same-origin' });
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || 'Delete failed');
+        throw new Error(await readErrorResponse(response, 'Delete failed'));
       }
       toast('Entry deleted.', 'warning');
       await fetchList();
       resetEditor(kind);
+      window.dispatchEvent(new CustomEvent('proliferation:recordchanged'));
     } catch (error) {
       editor.btnDelete.disabled = false;
       toast(error.message || 'Unable to delete entry', 'danger');
@@ -2055,6 +2931,7 @@
 
   function resetEditor(preferredKind = 'granular') {
     editor.form?.reset();
+    editorProjectPicker?.clear({ notify: false, dispatch: false });
     editor.id.value = '';
     editor.rowVersion.value = '';
     editor.qty.value = '';
@@ -2063,6 +2940,7 @@
     if (editor.date) editor.date.value = '';
     if (editor.unit) editor.unit.value = '';
     editor.btnDelete && (editor.btnDelete.disabled = true);
+    editor.btnAddAnother?.classList.add('d-none');
     clearValidationState();
     setTab(preferredKind, { updateHash: false });
     setCommandUpdated('');
@@ -2070,6 +2948,12 @@
     currentRecord.kind = preferredKind === 'yearly' ? 'yearly' : 'granular';
     currentRecord.status = '';
     currentRecord.rowVersion = '';
+    currentRecord.sourceLabel = '';
+    currentRecord.projectId = '';
+    currentRecord.source = '';
+    currentRecord.year = '';
+    currentRecord.quantity = '';
+    setCommandTitle(preferredKind === 'yearly' ? 'New annual quantity' : 'New detailed entry');
     resetApprovalUi();
     updateDecisionButtons();
     if (listEl) {
@@ -2079,6 +2963,10 @@
       });
     }
     setSaveButtonState('idle');
+    hideEditorImpact();
+    hideDuplicateWarning();
+    updateContextualActions();
+    markEditorClean();
   }
 
   function getHashKind() {
@@ -2091,11 +2979,122 @@
 
   function handleHashChange() {
     const kind = getHashKind();
-    if (!kind) return;
-    setTab(kind, { updateHash: false });
+    if (!kind || kind === editor.kind?.value) return;
+    if (!beginNewEntry(kind, { preserveContext: true })) {
+      window.history.replaceState(null, '', `#${editor.kind?.value || 'granular'}`);
+    }
   }
 
+  function setEditorReviewMode(enabled) {
+    editor.form?.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach((control) => {
+      control.disabled = Boolean(enabled);
+    });
+    editorProjectPicker?.setDisabled(Boolean(enabled));
+    editorCard?.classList.toggle('pf-manage-card--review', Boolean(enabled));
+  }
+
+  function updateListWorkspaceCopy() {
+    const heading = document.querySelector('#pf-list-heading');
+    const subtitle = document.querySelector('#pf-list-subtitle');
+    const guidance = document.querySelector('#pf-list-guidance');
+    if (isApprovalWorkspace()) {
+      if (heading) heading.textContent = 'Pending records';
+      if (subtitle) subtitle.textContent = 'Select a submitted record to review and decide.';
+      if (guidance) guidance.textContent = 'Choose a pending record below. Approval uses the last saved values.';
+    } else {
+      if (heading) heading.textContent = 'Existing records';
+      if (subtitle) subtitle.textContent = 'Select a record to review or edit it.';
+      if (guidance) guidance.textContent = 'Choose a record below. Use the buttons above to start a new entry.';
+    }
+  }
+
+  function applyWorkspace(workspace) {
+    const next = workspace || 'records';
+    if (next === activeWorkspace && ((next === 'approvals') === (filters.status === 'pending'))) {
+      updateListWorkspaceCopy();
+      return;
+    }
+
+    if (next === 'approvals') {
+      if (activeWorkspace !== 'approvals') storedRecordStatus = filters.status || '';
+      activeWorkspace = 'approvals';
+      filters.status = 'pending';
+      if (filterInputs.status) {
+        filterInputs.status.value = 'pending';
+        filterInputs.status.disabled = true;
+      }
+      setEditorReviewMode(true);
+      if (!currentRecord.id || currentRecord.status.toLowerCase() !== 'pending') {
+        resetEditor(currentRecord.kind || 'granular');
+        setCommandTitle('Select a pending record');
+        setCommandScope('Review');
+        if (approvalElements.status) approvalElements.status.textContent = 'Select a pending record to review.';
+      }
+      pager.page = 1;
+      updateListWorkspaceCopy();
+      updateContextualActions();
+      renderFilterChips();
+      saveFilters();
+      fetchList();
+      return;
+    }
+
+    const wasApproval = activeWorkspace === 'approvals';
+    activeWorkspace = next;
+    setEditorReviewMode(false);
+    if (wasApproval) {
+      filters.status = storedRecordStatus || '';
+      if (filterInputs.status) {
+        filterInputs.status.disabled = false;
+        filterInputs.status.value = hasOption(filterInputs.status, filters.status) ? filters.status : '';
+      }
+      pager.page = 1;
+      renderFilterChips();
+      saveFilters();
+      fetchList();
+    } else if (filterInputs.status) {
+      filterInputs.status.disabled = false;
+    }
+    updateListWorkspaceCopy();
+    updateContextualActions();
+    updateSaveButtonState();
+  }
+
+  pageRoot?.querySelectorAll('[data-workspace]').forEach((tab) => {
+    tab.addEventListener('click', (event) => {
+      const requested = tab.dataset.workspace || 'records';
+      if (requested === activeWorkspace || requested !== 'approvals' || !isEditorDirty()) return;
+      if (!window.confirm('You have unsaved changes. Open the approval queue and discard them?')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }, true);
+  });
+
+  window.addEventListener('proliferation:workspacechange', (event) => {
+    applyWorkspace(event.detail?.workspace || 'records');
+  });
+
   window.addEventListener('hashchange', handleHashChange);
+  window.addEventListener('pagehide', () => {
+    listController?.abort();
+    overridesController?.abort();
+    rulePreviewController?.abort();
+    editorImpactController?.abort();
+    unitSuggestionController?.abort();
+    duplicateCheckController?.abort();
+    window.clearTimeout(duplicateCheckTimer);
+    editorProjectPicker?.destroy();
+    filterProjectPicker?.destroy();
+    overridesProjectPicker?.destroy();
+    ruleProjectPicker?.destroy();
+  }, { once: true });
+
+  window.addEventListener('beforeunload', (event) => {
+    if (!isEditorDirty()) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
 
   function initFilters() {
     loadFiltersFromStorage();
@@ -2155,19 +3154,21 @@
   }
 
   function init() {
+    initProjectPickers();
     initFilters();
     applyBootEditorDefaults();
     setCommandUpdated('');
     initOverrides();
+
     const hashKind = getHashKind();
     const bootKind = bootDefaults.editor?.kind || bootDefaults.filters?.kind || '';
-    if (hashKind) {
-      setTab(hashKind, { updateHash: false });
-    } else if (bootKind) {
-      setTab(bootKind, { updateHash: false });
-    } else {
-      setTab('granular', { updateHash: false });
-    }
+    const initialKind = hashKind || bootKind || 'granular';
+
+    setTab(initialKind, { updateHash: false });
+    resetApprovalUi();
+    updateContextualActions();
+    setSaveButtonState('idle');
+    markEditorClean();
     fetchList();
   }
 

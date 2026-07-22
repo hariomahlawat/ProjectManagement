@@ -1,37 +1,17 @@
 @page "{id:int}"
 @model ProjectManagement.Areas.Admin.Pages.Lookups.LineDirectorates.EditModel
-@{ 
-    ViewData["Title"] = "Edit Line Directorate";
+@using ProjectManagement.Areas.Admin.Models
+@{
+    ViewData["Title"] = "Edit line directorate";
+    var header = new AdminPageHeaderModel { Eyebrow = "Master data · Line directorates", Title = $"Edit {Model.Input.Name}", Description = "Update the governed reference name while preserving its directory position.", Icon = "bi-pencil-square", Actions = new[] { new AdminPageActionModel { Text = "Back to line directorates", Href = Url.Page("./Index"), Icon = "bi-arrow-left" } } };
 }
-
-<nav aria-label="breadcrumb" class="mb-2">
-  <ol class="breadcrumb small mb-0">
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
-    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Lookups/LineDirectorates/Index">Line Directorates</a></li>
-    <li class="breadcrumb-item active" aria-current="page">Edit</li>
-  </ol>
-</nav>
-<h1 class="mb-4">Edit Line Directorate</h1>
-
-<form method="post" class="col-md-6">
-    <input asp-for="Input.Id" type="hidden" />
-    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-    <div class="mb-3">
-        <label asp-for="Input.Name" class="form-label"></label>
-        <input asp-for="Input.Name" class="form-control" />
-        <span asp-validation-for="Input.Name" class="text-danger"></span>
-    </div>
-    <div class="mb-3">
-        <label asp-for="Input.SortOrder" class="form-label"></label>
-        <input asp-for="Input.SortOrder" class="form-control" type="number" />
-        <span asp-validation-for="Input.SortOrder" class="text-danger"></span>
-    </div>
-    <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary">Save changes</button>
-        <a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a>
-    </div>
+<partial name="~/Areas/Admin/Pages/Shared/_AdminPageHeader.cshtml" model="header" />
+<div class="admin-form-layout">
+<form method="post" class="admin-panel admin-form-panel" novalidate><input asp-for="Input.Id" type="hidden" /><input asp-for="Input.RowVersion" type="hidden" /><input asp-for="Input.SortOrder" type="hidden" />
+<header class="admin-form-section__header"><span>01</span><div><h2>Reference details</h2><p>Existing project references remain linked after a rename.</p></div></header>
+<div class="admin-form-section__body"><div asp-validation-summary="ModelOnly" class="admin-validation-summary" role="alert"></div><div class="admin-form-grid"><div class="admin-field"><label asp-for="Input.Name"></label><input asp-for="Input.Name" class="form-control" maxlength="200" autocomplete="off" /><span asp-validation-for="Input.Name" class="text-danger"></span></div></div><div class="admin-inline-note"><i class="bi bi-arrow-down-up" aria-hidden="true"></i><span>Display order is managed only from the directory to prevent duplicate or conflicting positions.</span></div></div>
+<footer class="admin-form-actions"><a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a><button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i>Save changes</button></footer>
 </form>
-
-@section Scripts {
-    <partial name="_ValidationScriptsPartial" />
-}
+<aside class="admin-guidance-card"><span class="admin-guidance-card__icon"><i class="bi bi-shield-check"></i></span><h2>Change control</h2><p>Duplicate names and stale concurrent edits are rejected without changing the record.</p></aside>
+</div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

@@ -50,7 +50,7 @@ namespace ProjectManagement.Tests
 
             var http = new HttpContextAccessor();
             var audit = new AuditService(context, http);
-            return new UserLifecycleService(userManager, audit, Options.Create(options ?? new UserLifecycleOptions()));
+            return new UserLifecycleService(context, userManager, audit, Options.Create(options ?? new UserLifecycleOptions()), new FixedClock(DateTimeOffset.UtcNow));
         }
 
         [Fact]
@@ -152,6 +152,69 @@ namespace ProjectManagement.Tests
             var user = new ApplicationUser { UserName = "u", CreatedUtc = DateTime.UtcNow };
             await um.CreateAsync(user, "Passw0rd!");
             await Assert.ThrowsAsync<InvalidOperationException>(() => svc.DisableAsync(user.Id, user.Id, "reason"));
+        }
+
+        [Fact]
+        public async Task UndoDeletionRestoresPreviouslyActiveAccount()
+        {
+            var svc = CreateService(null, out var ctx, out var um, out var rm);
+            var user = new ApplicationUser
+            {
+                UserName = "active-user",
+                CreatedUtc = DateTime.UtcNow,
+                IsDisabled = false,
+                LockoutEnabled = true,
+                LockoutEnd = null
+            };
+            await um.CreateAsync(user, "Passw0rd!");
+
+            Assert.True((await svc.RequestHardDeleteAsync(user.Id, "actor")).Allowed);
+            Assert.True(await svc.UndoHardDeleteAsync(user.Id, "actor"));
+
+            var restored = await um.FindByIdAsync(user.Id);
+            Assert.NotNull(restored);
+            Assert.False(restored!.IsDisabled);
+            Assert.False(restored.PendingDeletion);
+            Assert.Null(restored.LockoutEnd);
+            Assert.Null(restored.DeletionPreviousStateJson);
+        }
+
+        [Fact]
+        public async Task UndoDeletionRestoresPreviouslyDisabledAccount()
+        {
+            var svc = CreateService(null, out var ctx, out var um, out var rm);
+            var originalDisabledUtc = DateTime.UtcNow.AddHours(-2);
+            var originalLockoutEnd = DateTimeOffset.UtcNow.AddDays(2);
+            var user = new ApplicationUser
+            {
+                UserName = "disabled-user",
+                CreatedUtc = DateTime.UtcNow,
+                IsDisabled = true,
+                DisabledUtc = originalDisabledUtc,
+                DisabledByUserId = "previous-admin",
+                LockoutEnabled = true,
+                LockoutEnd = originalLockoutEnd,
+                AccessFailedCount = 3
+            };
+            await um.CreateAsync(user, "Passw0rd!");
+
+            Assert.True((await svc.RequestHardDeleteAsync(user.Id, "actor")).Allowed);
+            Assert.True(await svc.UndoHardDeleteAsync(user.Id, "actor"));
+
+            var restored = await um.FindByIdAsync(user.Id);
+            Assert.NotNull(restored);
+            Assert.True(restored!.IsDisabled);
+            Assert.Equal(originalDisabledUtc, restored.DisabledUtc);
+            Assert.Equal("previous-admin", restored.DisabledByUserId);
+            Assert.Equal(originalLockoutEnd, restored.LockoutEnd);
+            Assert.Equal(3, restored.AccessFailedCount);
+            Assert.False(restored.PendingDeletion);
+        }
+
+        private sealed class FixedClock : IClock
+        {
+            public FixedClock(DateTimeOffset utcNow) => UtcNow = utcNow;
+            public DateTimeOffset UtcNow { get; }
         }
     }
 }

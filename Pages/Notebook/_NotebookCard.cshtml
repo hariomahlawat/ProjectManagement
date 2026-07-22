@@ -42,14 +42,15 @@
         else
         {
             var ownerName = FriendlyFirstName(owner?.DisplayName ?? item.OwnerDisplayName);
-            sharingText = $"Shared by {ownerName}";
-            sharingTitle = $"Shared by {owner?.DisplayName ?? item.OwnerDisplayName}";
+            var accessLabel = item.AccessLevel == NotebookAccessLevel.Viewer ? "View only" : "Can edit";
+            sharingText = $"Shared by {ownerName} · {accessLabel}";
+            sharingTitle = $"Shared by {owner?.DisplayName ?? item.OwnerDisplayName}. Permission: {accessLabel}.";
         }
     }
 }
 
 @* SECTION: Notebook board card *@
-<article data-note-id="@item.Id" data-notebook-card-id="@item.Id" data-version="@item.Version" data-labels="@System.Text.Json.JsonSerializer.Serialize(item.Tags)" data-is-pinned="@item.IsPinned.ToString().ToLowerInvariant()" data-access-level="@item.AccessLevel" data-owner-id="@item.OwnerId" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty) @(item.Status == NotebookItemStatus.Completed ? "is-completed" : string.Empty)">
+<article data-note-id="@item.Id" data-notebook-card-id="@item.Id" data-version="@item.Version" data-labels="@System.Text.Json.JsonSerializer.Serialize(item.Tags)" data-is-pinned="@item.IsPinned.ToString().ToLowerInvariant()" data-access-level="@item.AccessLevel" data-owner-id="@item.OwnerId" data-can-edit-content="@item.CanEditContent.ToString().ToLowerInvariant()" data-can-manage-metadata="@item.CanManageMetadata.ToString().ToLowerInvariant()" class="notebook-card @colorClass @(isSelected ? "is-selected" : string.Empty) @(item.ReminderAtUtc is not null ? "has-due-action" : string.Empty) @(item.Status == NotebookItemStatus.Completed ? "is-completed" : string.Empty)">
     @if (!isTrash && item.Status == NotebookItemStatus.Active && item.AccessLevel == NotebookAccessLevel.Owner)
     {
         <button type="button" class="notebook-card-drag-handle" data-notebook-drag-handle hidden aria-label="Rearrange @item.Title" aria-grabbed="false" title="Drag to rearrange"><i class="bi bi-grip-vertical" aria-hidden="true"></i></button>
@@ -86,15 +87,24 @@
                     foreach (var checklistItem in item.ChecklistPreviewItems)
                     {
                         <div class="notebook-check-row">
-                            <button type="button"
-                                    class="notebook-check-toggle @(checklistItem.IsDone ? "is-done" : string.Empty)"
-                                    data-action="@(isTrash ? null : "toggle-checklist")"
-                                    data-item-id="@item.Id"
-                                    data-row-id="@checklistItem.Id"
-                                    data-is-done="@checklistItem.IsDone.ToString().ToLowerInvariant()"
-                                    aria-label="@(checklistItem.IsDone ? "Mark item incomplete" : "Mark item complete")">
-                                <i class="bi @(checklistItem.IsDone ? "bi-check-square" : "bi-square")" aria-hidden="true"></i><span>@checklistItem.Text</span>
-                            </button>
+                            @if (!isTrash && item.CanToggleChecklist)
+                            {
+                                <button type="button"
+                                        class="notebook-check-toggle @(checklistItem.IsDone ? "is-done" : string.Empty)"
+                                        data-action="toggle-checklist"
+                                        data-item-id="@item.Id"
+                                        data-row-id="@checklistItem.Id"
+                                        data-is-done="@checklistItem.IsDone.ToString().ToLowerInvariant()"
+                                        aria-label="@(checklistItem.IsDone ? "Mark item incomplete" : "Mark item complete")">
+                                    <i class="bi @(checklistItem.IsDone ? "bi-check-square" : "bi-square")" aria-hidden="true"></i><span>@checklistItem.Text</span>
+                                </button>
+                            }
+                            else
+                            {
+                                <span class="notebook-check-toggle notebook-check-toggle--readonly @(checklistItem.IsDone ? "is-done" : string.Empty)" aria-label="@(checklistItem.IsDone ? "Completed checklist item" : "Incomplete checklist item")">
+                                    <i class="bi @(checklistItem.IsDone ? "bi-check-square" : "bi-square")" aria-hidden="true"></i><span>@checklistItem.Text</span>
+                                </span>
+                            }
                         </div>
                     }
                     <strong>@item.ChecklistDone/@item.ChecklistTotal complete</strong>

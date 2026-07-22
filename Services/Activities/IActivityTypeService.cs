@@ -14,4 +14,4 @@ public interface IActivityTypeService
     Task<IReadOnlyList<ActivityType>> ListAsync(CancellationToken cancellationToken = default);
 }
 
-public sealed record ActivityTypeInput(string Name, string? Description, bool IsActive);
+public sealed record ActivityTypeInput(string Name, string? Description, bool IsActive, byte[]? RowVersion = null);

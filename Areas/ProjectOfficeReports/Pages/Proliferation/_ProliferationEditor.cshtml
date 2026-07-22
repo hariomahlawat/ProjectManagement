@@ -1,7 +1,5 @@
 @using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels
-
 @model ProliferationEditorBootVm
-
 @{
     var defaults = Model.Defaults;
     var defaultProjectId = defaults.ProjectId?.ToString() ?? string.Empty;
@@ -13,102 +11,127 @@
         ProliferationRecordKind.Granular => "granular",
         _ => string.Empty
     };
-
 }
 
 <div class="pf-manage-stack">
-    <div class="card shadow-sm pf-manage-card pf-manage-card--editor" id="pf-editor"
+    <div class="card pf-manage-card pf-manage-card--editor" id="pf-editor"
          data-current-year="@Model.CurrentYear"
          data-boot-project-id="@defaultProjectId"
          data-boot-source="@defaultSource"
          data-boot-year="@defaultYear"
          data-boot-kind="@defaultKind">
-        <div class="card-header border-0 pb-0">
-            <div class="d-flex flex-column gap-3">
-                <div>
-                    <h3 class="card-title h5 mb-0">Edit proliferation data</h3>
-                    <p class="card-subtitle text-muted small mb-0">Switch between granular entries and yearly totals for the selected project.</p>
+        <div class="card-header pf-editor-card-header">
+            <div class="pf-editor-card-header__content">
+                <div class="pf-editor-card-header__title-row">
+                    <h3 class="card-title h5 mb-0" data-command-title>New detailed entry</h3>
+                    <span class="badge rounded-pill text-bg-primary" id="pf-editor-type-badge" data-command-scope>Detailed entry</span>
                 </div>
-                <ul class="nav nav-tabs card-header-tabs" id="pf-editor-tabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="tab-granular" data-target="granular" type="button" role="tab">Granular Entry</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="tab-yearly" data-target="yearly" type="button" role="tab">Yearly Total</button>
-                    </li>
-                </ul>
+                <p class="card-subtitle text-muted small mb-0" data-guidance-text>Use a detailed entry when the proliferation date, receiving unit and quantity are known.</p>
+                <div class="pf-editor-card-header__meta d-none" data-command-updated-wrap>
+                    Updated <span data-command-updated-value>—</span>
+                </div>
             </div>
         </div>
         <div class="card-body">
-            <div class="bg-light border rounded-3 p-3 mb-4" id="pf-approval-panel" data-approval-container>
+            <div class="bg-light border rounded-2 p-2 mb-3 d-none" id="pf-approval-panel" data-approval-container>
                 <div class="d-flex flex-wrap align-items-center gap-2">
-                    <span class="badge text-bg-secondary" data-approval-badge>Awaiting selection</span>
-                    <span class="fw-semibold" data-approval-status>Select a record to review approval status.</span>
+                    <span class="badge text-bg-secondary" data-approval-badge>New record</span>
+                    <span class="fw-semibold" data-approval-status>Complete the form and save.</span>
                 </div>
                 <div class="small text-muted mt-2" data-approval-submitted>Submitted: —</div>
                 <div class="small text-muted" data-approval-updated>Last updated: —</div>
                 <div class="small text-muted" data-approval-decided hidden>Decision: —</div>
             </div>
+
+            <div class="pf-editor-impact d-none mb-4" id="pf-editor-impact" aria-live="polite">
+                <div>
+                    <span>Current reported total</span>
+                    <strong data-impact-current>—</strong>
+                </div>
+                <i class="bi bi-arrow-right" aria-hidden="true"></i>
+                <div>
+                    <span data-impact-next-label>After save</span>
+                    <strong data-impact-next>—</strong>
+                </div>
+                <p data-impact-note></p>
+            </div>
+
             <form id="pf-form" novalidate>
                 <input type="hidden" id="pf-id" />
                 <input type="hidden" id="pf-kind" value="granular" />
                 <input type="hidden" id="pf-row-version" />
 
-                <div class="mb-3">
-                    <label class="form-label" for="pf-project">Project name / simulator name</label>
-                    <select id="pf-project" class="form-select" aria-describedby="pf-project-error" required>
-                        @foreach (var project in Model.CompletedProjects)
-                        {
-                            <option value="@project.Id">@project.DisplayName</option>
-                        }
-                    </select>
+                <div class="mb-2">
+                    <partial name="~/Areas/ProjectOfficeReports/Pages/Proliferation/Partials/_ProjectSearchPicker.cshtml"
+                             model="@(new ProliferationProjectPickerModel(
+                                 InputId: "pf-project-search",
+                                 ValueInputId: "pf-project",
+                                 SuggestionsId: "pf-project-suggestions",
+                                 Label: "Project",
+                                 Projects: Model.CompletedProjects,
+                                 Required: true,
+                                 ErrorElementId: "pf-project-error",
+                                 EligibilityText: "Search completed projects eligible for proliferation entry.",
+                                 RecentStorageKey: "prism-proliferation-entry-recent-projects"))" />
                     <div class="form-text text-danger small d-none" id="pf-project-error" data-field-error="project" aria-live="polite"></div>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label" for="pf-source">Source</label>
-                    <select id="pf-source" class="form-select" aria-describedby="pf-source-error" required>
-                        @foreach (var source in Model.SourceOptions)
-                        {
-                            <option value="@source.Value">@source.Label</option>
-                        }
-                    </select>
-                    <div class="form-text text-danger small d-none" id="pf-source-error" data-field-error="source" aria-live="polite"></div>
-                </div>
-
-                <div class="row g-3">
+                <div class="row g-2">
                     <div class="col-sm-6">
+                        <label class="form-label" for="pf-source">Source</label>
+                        <select id="pf-source" class="form-select" aria-describedby="pf-source-error" required>
+                            @foreach (var source in Model.SourceOptions)
+                            {
+                                <option value="@source.Value">@source.Label</option>
+                            }
+                        </select>
+                        <div class="form-text text-danger small d-none" id="pf-source-error" data-field-error="source" aria-live="polite"></div>
+                    </div>
+                    <div class="col-sm-6 yearly-only">
                         <label class="form-label" for="pf-year">Year</label>
                         <input id="pf-year" type="number" class="form-control" min="2000" max="3000" value="@Model.CurrentYear" aria-describedby="pf-year-error" required />
                         <div class="form-text text-danger small d-none" id="pf-year-error" data-field-error="year" aria-live="polite"></div>
                     </div>
-                    <div class="col-sm-6 granular-only">
+                </div>
+
+                <div class="row g-2 granular-only mt-0">
+                    <div class="col-sm-6">
                         <label class="form-label" for="pf-date">Proliferation date</label>
-                        <input id="pf-date" type="date" class="form-control" aria-describedby="pf-date-error" />
+                        <input id="pf-date" type="date" min="2000-01-01" class="form-control" aria-describedby="pf-date-error" />
                         <div class="form-text text-danger small d-none" id="pf-date-error" data-field-error="date" aria-live="polite"></div>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label" for="pf-unit">Receiving unit</label>
+                        <input id="pf-unit" type="text" class="form-control" maxlength="200" list="pf-unit-suggestions" aria-describedby="pf-unit-error" autocomplete="off" />
+                        <datalist id="pf-unit-suggestions"></datalist>
+                        <div class="form-text text-danger small d-none" id="pf-unit-error" data-field-error="unit" aria-live="polite"></div>
                     </div>
                 </div>
 
-                <div class="granular-only mt-3">
-                    <label class="form-label" for="pf-unit">Unit name</label>
-                    <input id="pf-unit" type="text" class="form-control" maxlength="200" aria-describedby="pf-unit-error" />
-                    <div class="form-text text-danger small d-none" id="pf-unit-error" data-field-error="unit" aria-live="polite"></div>
-                </div>
-
-                <div class="mt-3">
-                    <label class="form-label" for="pf-qty">Quantity</label>
-                    <input id="pf-qty" type="number" min="0" class="form-control" aria-describedby="pf-qty-error" required />
+                <div class="mt-2">
+                    <label class="form-label" for="pf-qty"><span data-quantity-label>Quantity</span></label>
+                    <input id="pf-qty" type="number" min="0" class="form-control" aria-describedby="pf-qty-error pf-qty-help" required />
+                    <div class="form-text" id="pf-qty-help" data-quantity-help>Enter the quantity received by the selected unit on this date.</div>
                     <div class="form-text text-danger small d-none" id="pf-qty-error" data-field-error="qty" aria-live="polite"></div>
                 </div>
 
-                <div class="mt-3">
-                    <label class="form-label" for="pf-remarks">Remarks</label>
-                    <textarea id="pf-remarks" class="form-control" rows="3" maxlength="500" aria-describedby="pf-remarks-help"></textarea>
-                    <div class="form-text text-muted small" id="pf-remarks-help">Optional</div>
+                <div class="mt-2">
+                    <label class="form-label" for="pf-remarks">Remarks <span class="text-muted fw-normal">(optional)</span></label>
+                    <textarea id="pf-remarks" class="form-control" rows="2" maxlength="500"></textarea>
                 </div>
 
-                <div class="mt-4 d-flex flex-wrap justify-content-end gap-2">
-                    <button class="btn btn-outline-secondary" id="pf-reset" type="button">Reset</button>
+                <div class="alert alert-warning py-2 px-3 mt-3 mb-0 d-none" id="pf-duplicate-warning" role="status" aria-live="polite">
+                    <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+                    <span>An apparently identical approved entry already exists. Verify the project, source, date, unit and quantity before saving.</span>
+                </div>
+
+                <div class="small text-muted mt-3" id="pf-required-summary" aria-live="polite"></div>
+
+                <div class="mt-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <button class="btn btn-link btn-sm text-decoration-none d-none" id="pf-add-another" type="button">
+                        <i class="bi bi-plus-lg" aria-hidden="true"></i> Add another for this project
+                    </button>
+                    <button class="btn btn-outline-secondary ms-auto" id="pf-reset" type="button">Clear</button>
                 </div>
             </form>
         </div>

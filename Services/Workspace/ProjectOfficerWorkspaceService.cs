@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectIdeas;
@@ -10,6 +11,8 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.ActionTasks;
 using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Services.Usage;
+using ProjectManagement.Services;
 using ProjectManagement.ViewModels.Workspace;
 
 namespace ProjectManagement.Services.Workspace;
@@ -24,6 +27,9 @@ public sealed class ProjectOfficerWorkspaceService
     private readonly IActionTrackerClock _clock;
     private readonly IAotsUnreadService _aotsUnreadService;
     private readonly IOfficerWorkloadReadService _officerWorkloadReadService;
+    private readonly IProjectOfficerConferenceActionQuery _conferenceActions;
+    private readonly IErpUsageQueryService _erpUsage;
+    private readonly IMemoryCache _cache;
 
     public ProjectOfficerWorkspaceService(
         ApplicationDbContext db,
@@ -33,7 +39,10 @@ public sealed class ProjectOfficerWorkspaceService
         ActionTaskMyWorkQueueBuilder myWorkQueueBuilder,
         IActionTrackerClock clock,
         IAotsUnreadService aotsUnreadService,
-        IOfficerWorkloadReadService officerWorkloadReadService)
+        IOfficerWorkloadReadService officerWorkloadReadService,
+        IProjectOfficerConferenceActionQuery conferenceActions,
+        IErpUsageQueryService erpUsage,
+        IMemoryCache cache)
     {
         _db = db;
         _users = users;
@@ -43,176 +52,543 @@ public sealed class ProjectOfficerWorkspaceService
         _clock = clock;
         _aotsUnreadService = aotsUnreadService;
         _officerWorkloadReadService = officerWorkloadReadService;
+        _conferenceActions = conferenceActions;
+        _erpUsage = erpUsage;
+        _cache = cache;
     }
 
     // SECTION: Workspace composition
-    public async Task<ProjectOfficerWorkspaceVm> GetProjectOfficerWorkspaceAsync(string userId, ClaimsPrincipal principal, CancellationToken ct)
-    {
-        var today = DateOnly.FromDateTime(_clock.IstToday);
-        var istNow = IstClock.ToIst(_clock.UtcNow);
-        var istMonthStart = new DateTime(
-            istNow.Year,
-            istNow.Month,
-            1,
-            0,
-            0,
-            0,
-            DateTimeKind.Unspecified);
-        var monthStartUtc = istMonthStart
-            .AddHours(-5)
-            .AddMinutes(-30);
-        var user = await _users.FindByIdAsync(userId);
-        var myProjectsUrl = WorkspaceRouteHelper.MyProjects(userId);
+    public Task<ProjectOfficerWorkspaceVm> GetProjectOfficerWorkspaceAsync(
+        string userId,
+        ClaimsPrincipal principal,
+        CancellationToken ct)
+        => GetProjectOfficerWorkspaceAsync(
+            userId,
+            principal,
+            ProjectOfficerWorkspaceView.Overview,
+            includeDocuments: true,
+            ct);
 
+    public Task<ProjectOfficerWorkspaceVm> GetProjectOfficerWorkspaceAsync(
+        string userId,
+        ClaimsPrincipal principal,
+        bool includeDocuments,
+        CancellationToken ct)
+        => GetProjectOfficerWorkspaceAsync(
+            userId,
+            principal,
+            ProjectOfficerWorkspaceView.Overview,
+            includeDocuments,
+            ct);
+
+    public async Task<ProjectOfficerWorkspaceVm> GetProjectOfficerWorkspaceAsync(
+        string userId,
+        ClaimsPrincipal principal,
+        ProjectOfficerWorkspaceView view,
+        bool includeDocuments,
+        CancellationToken ct,
+        string? activityPeriod = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+        ArgumentNullException.ThrowIfNull(principal);
+
+        var today = DateOnly.FromDateTime(_clock.IstToday);
+        var user = await _users.FindByIdAsync(userId);
+        var navigation = await LoadNavigationSummaryAsync(
+            userId,
+            today,
+            includeActionCount: view is not ProjectOfficerWorkspaceView.Overview and not ProjectOfficerWorkspaceView.Actions,
+            ct);
+        var vm = CreateWorkspaceShell(userId, principal, user, navigation);
+
+        switch (view)
+        {
+            case ProjectOfficerWorkspaceView.Actions:
+                await PopulateActionQueueAsync(vm, userId, today, ct);
+                break;
+            case ProjectOfficerWorkspaceView.Projects:
+                await PopulateProjectsAsync(vm, userId, today, ct);
+                break;
+            case ProjectOfficerWorkspaceView.Tasks:
+                await PopulateTasksAsync(vm, userId, today, ct);
+                break;
+            case ProjectOfficerWorkspaceView.Ideas:
+                await PopulateIdeasAsync(vm, userId, today, ct);
+                break;
+            case ProjectOfficerWorkspaceView.FollowUps:
+                await PopulateFollowUpsAsync(vm, userId, ct);
+                break;
+            case ProjectOfficerWorkspaceView.Documents:
+                if (includeDocuments)
+                {
+                    vm.DocumentHub = await LoadDocumentHubAsync(userId, navigation.AotsUnreadCount, ct);
+                }
+                break;
+            case ProjectOfficerWorkspaceView.Activity:
+                vm.ActivityYear = await _erpUsage.GetActivityYearAsync(
+                    userId,
+                    period: activityPeriod,
+                    recentDays: 30,
+                    cancellationToken: ct);
+                vm.ActivityStrip = vm.ActivityYear.Recent;
+                break;
+            default:
+                await PopulateOverviewAsync(vm, userId, today, ct);
+                break;
+        }
+
+        vm.GeneratedAtUtc = DateTime.SpecifyKind(_clock.UtcNow, DateTimeKind.Utc);
+        return vm;
+    }
+
+    private ProjectOfficerWorkspaceVm CreateWorkspaceShell(
+        string userId,
+        ClaimsPrincipal principal,
+        ApplicationUser? user,
+        ProjectOfficerNavigationSummary navigation)
+        => new()
+        {
+            UserDisplayName = string.IsNullOrWhiteSpace(user?.FullName)
+                ? principal.Identity?.Name ?? "Project Officer"
+                : user.FullName,
+            MyProjectsUrl = WorkspaceRouteHelper.MyProjects(userId),
+            AssignedProjectCount = navigation.AssignedProjectCount,
+            OfficialTaskCount = navigation.AssignedTaskCount,
+            AssignedIdeaCount = navigation.AssignedIdeaCount,
+            NavigationActionCount = navigation.ActionCount,
+            NavigationFollowUpCount = navigation.FollowUpCount,
+            AotsUnreadCount = navigation.AotsUnreadCount,
+            AotsUrl = WorkspaceRouteHelper.AotsInbox()
+        };
+
+    private async Task PopulateOverviewAsync(
+        ProjectOfficerWorkspaceVm vm,
+        string userId,
+        DateOnly today,
+        CancellationToken ct)
+    {
         var projects = await LoadAssignedProjectsAsync(userId, ct);
         var tasks = await LoadOtherAssignedTasksAsync(userId, today, ct);
-        var ideaVms = await LoadProjectIdeasAsync(userId, today, ct);
+        var ideas = await LoadProjectIdeasAsync(userId, today, ct);
         var reminders = await LoadPersonalRemindersAsync(userId, ct);
+        var health = await _health.CalculateForProjectsAsync(projects, userId, ct);
+        var matrixRows = BuildProjectMatrix(projects, health, userId, today);
+        var operational = await LoadOperationalContextAsync(
+            userId,
+            today,
+            projects,
+            tasks,
+            ideas,
+            matrixRows,
+            vm.AotsUnreadCount,
+            ct);
+
         var commandWorkloadCard = await _officerWorkloadReadService.GetOfficerAsync(userId, ct);
-        var upcomingEvents = await WorkspaceUpcomingEventQuery.LoadAsync(
+        var upcomingEvents = await WorkspaceUpcomingEventQuery.LoadResultAsync(
             _db,
             userId,
             _clock.UtcNow,
-            ct);
-        var health = await _health.CalculateForProjectsAsync(projects, userId, ct);
-        var allMatrixRows = projects
-            .Select(project => BuildMatrixRow(project, health[project.Id], userId, today))
+            ct,
+            windowDays: 14,
+            maxItems: 5);
+        var activityStrip = await _erpUsage.GetActivityStripAsync(userId, days: 30, cancellationToken: ct);
+        var averageHealth = health.Count == 0
+            ? 0
+            : (int)Math.Round(health.Values.Average(item => item.HealthPercent));
+
+        ApplyOperationalContext(vm, operational);
+        CacheNavigationActionCount(userId, operational.ActionQueue.TotalCount);
+        vm.NavigationFollowUpCount = reminders.Count;
+        vm.ProjectMatrix = matrixRows;
+        vm.OfficialTasks = tasks;
+        vm.Ideas = OrderIdeas(ideas);
+        vm.PersonalReminders = reminders;
+        vm.RecordHealth = health.Values
+            .OrderBy(item => item.HealthPercent)
+            .ThenBy(item => item.ProjectName)
+            .ToList();
+        vm.RecordGapCount = health.Values.Sum(item => item.GapDetails.Count);
+        vm.ProjectsNeedingAttentionCount = matrixRows.Count(RequiresProjectAttention);
+        vm.ProjectTimelineIssueCount = matrixRows.Count(HasProjectTimelineIssue);
+        vm.PortfolioHealthPercent = averageHealth;
+        vm.PortfolioHealthLabel = HealthSummaryLabel(health.Count, averageHealth);
+        vm.RecordHealthSummaryLabel = HealthSummaryLabel(health.Count, averageHealth);
+        vm.CommandWorkloadCard = commandWorkloadCard;
+        vm.UpcomingEvents = upcomingEvents.Items;
+        vm.UpcomingEventCount = upcomingEvents.TotalCount;
+        vm.ActivityStrip = activityStrip;
+    }
+
+    private async Task PopulateActionQueueAsync(
+        ProjectOfficerWorkspaceVm vm,
+        string userId,
+        DateOnly today,
+        CancellationToken ct)
+    {
+        var projects = await LoadAssignedProjectsAsync(userId, ct);
+        var tasks = await LoadOtherAssignedTasksAsync(userId, today, ct);
+        var ideas = await LoadProjectIdeasAsync(userId, today, ct);
+        var actionRows = projects
+            .Select(project => BuildActionProjectRow(project, userId, today))
             .OrderBy(ProjectAttentionRank)
-            .ThenByDescending(row => row.RecordGapCount)
             .ThenByDescending(row => row.DaysInCurrentStage ?? 0)
             .ThenBy(row => row.ProjectName)
             .ToList();
-        var matrix = allMatrixRows.Take(8).ToList();
+        var operational = await LoadOperationalContextAsync(
+            userId,
+            today,
+            projects,
+            tasks,
+            ideas,
+            actionRows,
+            vm.AotsUnreadCount,
+            ct);
 
+        ApplyOperationalContext(vm, operational);
+        CacheNavigationActionCount(userId, operational.ActionQueue.TotalCount);
+        vm.ProjectTimelineIssueCount = actionRows.Count(HasProjectTimelineIssue);
+    }
+
+    private async Task PopulateProjectsAsync(
+        ProjectOfficerWorkspaceVm vm,
+        string userId,
+        DateOnly today,
+        CancellationToken ct)
+    {
+        var projects = await LoadAssignedProjectsAsync(userId, ct);
+        var health = await _health.CalculateForProjectsAsync(projects, userId, ct);
+        var matrixRows = BuildProjectMatrix(projects, health, userId, today);
+        var averageHealth = health.Count == 0
+            ? 0
+            : (int)Math.Round(health.Values.Average(item => item.HealthPercent));
+
+        vm.ProjectMatrix = matrixRows;
+        vm.RecordHealth = health.Values
+            .OrderBy(item => item.HealthPercent)
+            .ThenBy(item => item.ProjectName)
+            .ToList();
+        vm.RecordGapCount = health.Values.Sum(item => item.GapDetails.Count);
+        vm.ProjectsNeedingAttentionCount = matrixRows.Count(RequiresProjectAttention);
+        vm.ProjectTimelineIssueCount = matrixRows.Count(HasProjectTimelineIssue);
+        vm.PortfolioHealthPercent = averageHealth;
+        vm.PortfolioHealthLabel = HealthSummaryLabel(health.Count, averageHealth);
+        vm.RecordHealthSummaryLabel = HealthSummaryLabel(health.Count, averageHealth);
+    }
+
+    private async Task PopulateTasksAsync(
+        ProjectOfficerWorkspaceVm vm,
+        string userId,
+        DateOnly today,
+        CancellationToken ct)
+    {
+        var tasks = await LoadOtherAssignedTasksAsync(userId, today, ct);
+        vm.OfficialTasks = tasks;
+        vm.OverdueTaskCount = tasks.Count(task => task.IsOverdue);
+        vm.OfficialTaskCount = tasks.Count;
+    }
+
+    private async Task PopulateIdeasAsync(
+        ProjectOfficerWorkspaceVm vm,
+        string userId,
+        DateOnly today,
+        CancellationToken ct)
+    {
+        var ideas = await LoadProjectIdeasAsync(userId, today, ct);
+        vm.Ideas = OrderIdeas(ideas);
+        vm.AssignedIdeaCount = ideas.Count;
+        vm.IdeasNeedingUpdateCount = ideas.Count(idea => idea.NeedsUpdate);
+    }
+
+    private async Task PopulateFollowUpsAsync(
+        ProjectOfficerWorkspaceVm vm,
+        string userId,
+        CancellationToken ct)
+    {
+        var reminders = await LoadPersonalRemindersAsync(userId, ct);
+        var upcomingEvents = await WorkspaceUpcomingEventQuery.LoadResultAsync(
+            _db,
+            userId,
+            _clock.UtcNow,
+            ct,
+            windowDays: 14,
+            maxItems: 5);
+
+        vm.PersonalReminders = reminders;
+        vm.UpcomingEvents = upcomingEvents.Items;
+        vm.UpcomingEventCount = upcomingEvents.TotalCount;
+        vm.NavigationFollowUpCount = reminders.Count;
+    }
+
+    private async Task<ProjectOfficerOperationalContext> LoadOperationalContextAsync(
+        string userId,
+        DateOnly today,
+        IReadOnlyList<Project> projects,
+        IReadOnlyList<WorkspaceTaskVm> tasks,
+        IReadOnlyList<WorkspaceIdeaVm> ideas,
+        IReadOnlyList<WorkspaceProjectMatrixRowVm> projectRows,
+        int aotsUnreadCount,
+        CancellationToken ct)
+    {
         var remarksDue = _nudges.BuildRemarksDue(projects, userId, today).ToList();
         var returnedItems = await BuildReturnedItemsAsync(userId, ct);
         var officialTasksDue = tasks
-            .Where(t => t.IsOverdue || IsDueSoon(t.DueDateUtc, today))
-            .OrderByDescending(t => t.IsOverdue)
-            .ThenBy(t => t.DueDateUtc ?? DateTime.MaxValue)
-            .Take(5)
+            .Where(task => task.IsOverdue || IsDueSoon(task.DueDate, today))
+            .OrderByDescending(task => task.IsOverdue)
+            .ThenBy(task => task.DueDate)
             .ToList();
-        var ideasNeedingUpdate = ideaVms
-            .Where(i => i.NeedsUpdate)
-            .OrderByDescending(i => i.LastActivityAtUtc)
-            .Take(5)
+        var ideasNeedingUpdate = ideas
+            .Where(idea => idea.NeedsUpdate)
+            .OrderBy(idea => idea.LastActivityAtUtc)
             .ToList();
-        var aotsUnreadCount = await _aotsUnreadService.GetUnreadCountAsync(userId, ct);
         var aotsDocuments = await LoadUnreadAotsDocumentsAsync(userId, ct);
-        var timelineAlerts = _nudges.BuildTimelineAlerts(projects, today).ToList();
-        var actionQueueResult = WorkspaceActionQueueBuilder.Build(
+        var pendingConferenceDirections = await _conferenceActions.GetPendingAsync(
+            userId,
+            projects.ToDictionary(project => project.Id, project => project.Name),
+            ideas.ToDictionary(idea => idea.IdeaId, idea => idea.Title),
+            tasks.ToDictionary(task => task.TaskId, task => task.Title),
+            ct);
+        var actionQueue = WorkspaceActionQueueBuilder.Build(
             returnedItems,
             officialTasksDue,
             remarksDue,
             ideasNeedingUpdate,
             aotsDocuments,
             aotsUnreadCount,
-            allMatrixRows);
-        var actionQueue = actionQueueResult.Items;
-        var dailyActionCount = actionQueueResult.TotalCount;
+            projectRows,
+            pendingConferenceDirections);
 
-        var pending = returnedItems
-            .Concat(remarksDue)
-            .Concat(officialTasksDue.Select(ToAttentionItem))
-            .Concat(ideasNeedingUpdate.Select(ToAttentionItem))
-            .Concat(aotsDocuments.Select(ToAttentionItem))
-            .Concat(timelineAlerts)
-            .GroupBy(i => $"{i.Type}:{i.Title}")
-            .Select(g => g
-                .OrderBy(i => WorkspaceSeverityRank(i.Severity))
-                .ThenBy(i => WorkspacePendingPriority(i.Detail))
-                .ThenByDescending(i => i.DueOrEventDateUtc)
-                .First())
-            .OrderBy(i => WorkspaceSeverityRank(i.Severity))
-            .ThenBy(i => WorkspacePendingPriority(i.Detail))
-            .ThenByDescending(i => i.DueOrEventDateUtc)
+        return new ProjectOfficerOperationalContext(
+            actionQueue,
+            remarksDue,
+            returnedItems,
+            officialTasksDue,
+            ideasNeedingUpdate,
+            aotsDocuments,
+            pendingConferenceDirections);
+    }
+
+    private static void ApplyOperationalContext(
+        ProjectOfficerWorkspaceVm vm,
+        ProjectOfficerOperationalContext operational)
+    {
+        var queue = operational.ActionQueue;
+        vm.ActionQueue = queue.Items;
+        vm.ActionQueueGroups = queue.Groups;
+        vm.AllActionQueue = queue.AllItems;
+        vm.AllActionQueueGroups = queue.AllGroups;
+        vm.ActionQueueTotalCount = queue.TotalCount;
+        vm.NavigationActionCount = queue.TotalCount;
+        vm.DailyActionCount = queue.TotalCount;
+        vm.ActionSummary = queue.Summary;
+        vm.ActionProjectCount = queue.Summary.ProjectCount;
+        vm.ActionIdeaCount = queue.Summary.IdeaCount;
+        vm.ActionTaskCount = queue.Summary.TaskCount;
+        vm.PendingConferenceDirectionCount = queue.Summary.ConferenceDirectionCount;
+        vm.RemarksDueCount = operational.RemarksDue.Count;
+        vm.OfficialTasksDue = operational.OfficialTasksDue;
+        vm.IdeasNeedingUpdate = operational.IdeasNeedingUpdate;
+        vm.IdeasNeedingUpdateCount = operational.IdeasNeedingUpdate.Count;
+        vm.AotsDocuments = operational.AotsDocuments;
+        vm.ReturnedItems = operational.ReturnedItems.Take(5).ToList();
+    }
+
+    private IReadOnlyList<WorkspaceProjectMatrixRowVm> BuildProjectMatrix(
+        IReadOnlyList<Project> projects,
+        IReadOnlyDictionary<int, WorkspaceRecordHealthVm> health,
+        string userId,
+        DateOnly today)
+        => projects
+            .Select(project => BuildMatrixRow(project, health[project.Id], userId, today))
+            .OrderBy(ProjectAttentionRank)
+            .ThenByDescending(row => row.RecordGapCount)
+            .ThenByDescending(row => row.DaysInCurrentStage ?? 0)
+            .ThenBy(row => row.ProjectName)
             .ToList();
 
-        var taskRows = await _db.ActionTasks
-            .AsNoTracking()
-            .Where(t => !t.IsDeleted && t.AssignedToUserId == userId && t.Status != ActionTaskStatuses.Closed && t.Status != ActionTaskStatuses.Backlog)
-            .OrderBy(t => t.DueDate)
-            .ToListAsync(ct);
-        var myWorkQueue = _myWorkQueueBuilder.Build(taskRows, activeSprint: null);
-        var waitingOnOthers = await BuildWaitingOnOthersAsync(userId, myWorkQueue.SubmittedAwaitingClosureTasks, ct);
-        var engagement = await BuildEngagementAsync(userId, user, monthStartUtc, ct);
-        var avgHealth = health.Count == 0 ? 0 : (int)Math.Round(health.Values.Average(h => h.HealthPercent));
-        var improveProjectsResult = BuildImproveProjects(health.Values, maxProjects: 3);
+    private static IReadOnlyList<WorkspaceIdeaVm> OrderIdeas(IReadOnlyList<WorkspaceIdeaVm> ideas)
+        => ideas
+            .OrderByDescending(idea => idea.NeedsUpdate)
+            .ThenByDescending(idea => idea.LastActivityAtUtc)
+            .ToList();
 
-        var vm = new ProjectOfficerWorkspaceVm
+    private static string HealthSummaryLabel(int projectCount, int averageHealth)
+        => projectCount == 0
+            ? "Not applicable"
+            : averageHealth >= 80
+                ? "Good"
+                : averageHealth >= 60
+                    ? "Attention"
+                    : "Needs Work";
+
+    private async Task<ProjectOfficerNavigationSummary> LoadNavigationSummaryAsync(
+        string userId,
+        DateOnly today,
+        bool includeActionCount,
+        CancellationToken ct)
+    {
+        var cacheKey = NavigationActionCountCacheKey(userId);
+        var cachedActionCount = 0;
+        var hasCachedActionCount = includeActionCount
+            && _cache.TryGetValue(cacheKey, out cachedActionCount);
+        var calculateActionCount = includeActionCount && !hasCachedActionCount;
+
+        IReadOnlyList<Project>? projects = null;
+        IReadOnlyList<WorkspaceTaskVm>? tasks = null;
+
+        int assignedProjectCount;
+        if (calculateActionCount)
         {
-            UserDisplayName = string.IsNullOrWhiteSpace(user?.FullName)
-                ? principal.Identity?.Name ?? "Project Officer"
-                : user.FullName,
-            PortfolioHealthPercent = avgHealth,
-            PortfolioHealthLabel = health.Count == 0 ? "Not applicable" : avgHealth >= 80 ? "Good" : avgHealth >= 60 ? "Attention" : "Needs Work",
-            RecordHealthSummaryLabel = health.Count == 0 ? "Not applicable" : avgHealth >= 80 ? "Good" : avgHealth >= 60 ? "Attention" : "Needs Work",
-            AssignedProjectCount = projects.Count,
-            PendingWithMeCount = pending.Count,
-            DailyActionCount = dailyActionCount,
-            OverdueTaskCount = tasks.Count(t => t.IsOverdue),
-            RemarksDueCount = remarksDue.Count,
-            OfficialTaskCount = officialTasksDue.Count,
-            IdeasNeedingUpdateCount = ideaVms.Count(i => i.NeedsUpdate),
-            AotsUnreadCount = aotsUnreadCount,
-            AotsUrl = WorkspaceRouteHelper.AotsInbox(),
-            RecordGapCount = health.Values.Sum(h => h.GapDetails.Count),
-            ProjectsNeedingAttentionCount = allMatrixRows.Count(RequiresProjectAttention),
-            ProjectTimelineIssueCount = allMatrixRows.Count(HasProjectTimelineIssue),
-            AssignedIdeaCount = ideaVms.Count,
-            Engagement = engagement,
-            CommandChips = BuildCommandChips(
-                remarksDue.Count,
-                aotsUnreadCount,
-                officialTasksDue.Count,
-                ideasNeedingUpdate.Count),
-            DataCompletenessInsight = BuildDataCompletenessInsight(projects.Count, health),
-            PendingWithMe = pending.Take(5).ToList(),
-            ActionQueue = actionQueue,
-            ActionQueueGroups = actionQueueResult.Groups,
-            ActionQueueTotalCount = actionQueueResult.TotalCount,
-            RemarksDue = remarksDue.Take(5).ToList(),
-            OfficialTasksDue = officialTasksDue,
-            IdeasNeedingUpdate = ideasNeedingUpdate,
-            AotsDocuments = aotsDocuments,
-            ReturnedItems = returnedItems.Take(5).ToList(),
-            TimelineAlerts = timelineAlerts.Take(5).ToList(),
-            WaitingOnOthers = waitingOnOthers.Take(5).ToList(),
-            ProjectMatrix = matrix,
-            OfficialTasks = tasks.Take(5).ToList(),
-            Ideas = ideaVms
-                .OrderByDescending(i => i.NeedsUpdate)
-                .ThenByDescending(i => i.LastActivityAtUtc)
-                .Take(4)
-                .ToList(),
-            RecordHealth = health.Values
-                .OrderBy(h => h.HealthPercent)
-                .ThenBy(h => h.ProjectName)
-                .ToList(),
-            ImproveScoreItems = BuildImproveScoreItems(health.Values, maxItems: 4),
-            ImproveProjects = improveProjectsResult.Items,
-            ImproveProjectsTotalCount = improveProjectsResult.TotalCount,
-            NextBestAction = BuildNextBestAction(actionQueue, timelineAlerts),
-            PersonalReminders = reminders,
-            CommandWorkloadCard = commandWorkloadCard,
-            UpcomingEvents = upcomingEvents,
-            QuickActions = BuildQuickActions(userId),
-            MyProjectsUrl = myProjectsUrl,
-            GeneratedAtUtc = DateTime.SpecifyKind(_clock.UtcNow, DateTimeKind.Utc)
-        };
+            projects = await LoadAssignedProjectsAsync(userId, ct);
+            assignedProjectCount = projects.Count;
+        }
+        else
+        {
+            assignedProjectCount = await _db.Projects
+                .AsNoTracking()
+                .CountAsync(project =>
+                    project.LeadPoUserId == userId
+                    && !project.IsDeleted
+                    && !project.IsArchived
+                    && project.LifecycleStatus == ProjectLifecycleStatus.Active,
+                    ct);
+        }
 
-        vm.RailItems = BuildRailItems(vm);
-        return vm;
+        int assignedTaskCount;
+        if (calculateActionCount)
+        {
+            tasks = await LoadOtherAssignedTasksAsync(userId, today, ct);
+            assignedTaskCount = tasks.Count;
+        }
+        else
+        {
+            assignedTaskCount = await _db.ActionTasks
+                .AsNoTracking()
+                .CountAsync(task =>
+                    !task.IsDeleted
+                    && task.AssignedToUserId == userId
+                    && task.Status != ActionTaskStatuses.Closed
+                    && task.Status != ActionTaskStatuses.Backlog,
+                    ct);
+        }
+
+        var ideaSummaries = await LoadProjectIdeaProjectionsAsync(userId, ct);
+        var ideas = ideaSummaries.Select(idea => BuildWorkspaceIdeaVm(idea, today)).ToList();
+        var assignedIdeaCount = ideas.Count;
+        var endTodayUtc = EndOfIstOperatingDayUtc();
+        var reminderFollowUpCount = await _db.NotebookItems
+            .AsNoTracking()
+            .CountAsync(item =>
+                item.OwnerId == userId
+                && item.DeletedAtUtc == null
+                && item.Status == NotebookItemStatus.Active
+                && (item.IsPinned || (item.ReminderAtUtc != null && item.ReminderAtUtc < endTodayUtc)),
+                ct);
+
+        var aotsUnreadCount = await _aotsUnreadService.GetUnreadCountAsync(userId, ct);
+        int? actionCount = hasCachedActionCount ? cachedActionCount : null;
+
+        if (calculateActionCount && projects is not null && tasks is not null)
+        {
+            actionCount = await CalculateNavigationActionCountAsync(
+                userId,
+                today,
+                projects,
+                tasks,
+                ideas,
+                aotsUnreadCount,
+                ct);
+            CacheNavigationActionCount(userId, actionCount.Value);
+        }
+
+        return new ProjectOfficerNavigationSummary(
+            assignedProjectCount,
+            assignedTaskCount,
+            assignedIdeaCount,
+            reminderFollowUpCount,
+            aotsUnreadCount,
+            actionCount);
     }
+
+    private async Task<int> CalculateNavigationActionCountAsync(
+        string userId,
+        DateOnly today,
+        IReadOnlyList<Project> projects,
+        IReadOnlyList<WorkspaceTaskVm> tasks,
+        IReadOnlyList<WorkspaceIdeaVm> ideas,
+        int aotsUnreadCount,
+        CancellationToken ct)
+    {
+        var projectRows = projects.Select(project => BuildActionProjectRow(project, userId, today)).ToList();
+        var remarksDue = _nudges.BuildRemarksDue(projects, userId, today).ToList();
+        var returnedItems = await BuildReturnedItemsAsync(userId, ct);
+        var officialTasksDue = tasks
+            .Where(task => task.IsOverdue || IsDueSoon(task.DueDate, today))
+            .ToList();
+        var ideasNeedingUpdate = ideas.Where(idea => idea.NeedsUpdate).ToList();
+        var aotsDocuments = await LoadUnreadAotsDocumentsAsync(userId, ct);
+        var conferenceDirections = await _conferenceActions.GetPendingAsync(
+            userId,
+            projects.ToDictionary(project => project.Id, project => project.Name),
+            ideas.ToDictionary(idea => idea.IdeaId, idea => idea.Title),
+            tasks.ToDictionary(task => task.TaskId, task => task.Title),
+            ct);
+
+        return WorkspaceActionQueueBuilder.Build(
+            returnedItems,
+            officialTasksDue,
+            remarksDue,
+            ideasNeedingUpdate,
+            aotsDocuments,
+            aotsUnreadCount,
+            projectRows,
+            conferenceDirections).TotalCount;
+    }
+
+    private static string NavigationActionCountCacheKey(string userId)
+        => $"workspace:project-officer:{userId}:action-count";
+
+    private void CacheNavigationActionCount(string userId, int count)
+        => _cache.Set(
+            NavigationActionCountCacheKey(userId),
+            count,
+            new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(30)
+            });
+
+    private DateTimeOffset EndOfIstOperatingDayUtc()
+    {
+        var endTodayLocal = DateTime.SpecifyKind(_clock.IstToday.AddDays(1), DateTimeKind.Unspecified);
+        return new DateTimeOffset(
+            TimeZoneInfo.ConvertTimeToUtc(endTodayLocal, IstClock.TimeZone),
+            TimeSpan.Zero);
+    }
+
+    private sealed record ProjectOfficerNavigationSummary(
+        int AssignedProjectCount,
+        int AssignedTaskCount,
+        int AssignedIdeaCount,
+        int FollowUpCount,
+        int AotsUnreadCount,
+        int? ActionCount);
+
+    private sealed record ProjectOfficerOperationalContext(
+        WorkspaceActionQueueBuildResult ActionQueue,
+        IReadOnlyList<WorkspaceAttentionItemVm> RemarksDue,
+        IReadOnlyList<WorkspaceAttentionItemVm> ReturnedItems,
+        IReadOnlyList<WorkspaceTaskVm> OfficialTasksDue,
+        IReadOnlyList<WorkspaceIdeaVm> IdeasNeedingUpdate,
+        IReadOnlyList<WorkspaceAotsDocumentVm> AotsDocuments,
+        IReadOnlyList<WorkspaceConferenceDirectionActionVm> ConferenceDirections);
 
     // SECTION: Assigned projects include current-stage context for the workspace matrix.
     private async Task<IReadOnlyList<Project>> LoadAssignedProjectsAsync(string userId, CancellationToken ct)
     {
         return await _db.Projects
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(p => p.ProjectStages)
             .Include(p => p.Remarks)
-            .Include(p => p.Documents)
             .Where(p =>
                 p.LeadPoUserId == userId &&
                 !p.IsDeleted &&
@@ -246,43 +622,65 @@ public sealed class ProjectOfficerWorkspaceService
             .ToList();
     }
 
-    // SECTION: Project ideas are loaded before preview trimming so stale and assigned counts remain accurate.
-    private async Task<IReadOnlyList<WorkspaceIdeaVm>> LoadProjectIdeasAsync(string userId, DateOnly today, CancellationToken ct)
+    // SECTION: Project-idea projections avoid loading three child collections for count-only workspace views.
+    private async Task<IReadOnlyList<ProjectIdeaProjection>> LoadProjectIdeaProjectionsAsync(
+        string userId,
+        CancellationToken ct)
     {
-        var ideas = await _db.ProjectIdeas
+        return await _db.ProjectIdeas
             .AsNoTracking()
-            .Include(i => i.Comments)
-            .Include(i => i.Notes)
-            .Include(i => i.Documents)
-            .Where(i =>
-                !i.IsDeleted &&
-                i.AssignedProjectOfficerUserId == userId &&
-                i.Status != ProjectIdeaStatuses.Archived)
-            .OrderByDescending(i => i.UpdatedAt)
+            .Where(idea =>
+                !idea.IsDeleted
+                && idea.AssignedProjectOfficerUserId == userId
+                && idea.Status != ProjectIdeaStatuses.Archived)
+            .OrderByDescending(idea => idea.UpdatedAt)
+            .Select(idea => new ProjectIdeaProjection(
+                idea.Id,
+                idea.Title,
+                idea.Status,
+                idea.UpdatedAt,
+                idea.Comments
+                    .Where(comment => !comment.IsDeleted)
+                    .Select(comment => (DateTime?)comment.CreatedAt)
+                    .Max(),
+                idea.Notes
+                    .Where(note => !note.IsDeleted)
+                    .Select(note => (DateTime?)note.UpdatedAt)
+                    .Max(),
+                idea.Documents
+                    .Where(document => !document.IsDeleted)
+                    .Select(document => (DateTime?)document.UploadedAt)
+                    .Max(),
+                idea.Comments.Count(comment => !comment.IsDeleted),
+                idea.Documents.Count(document => !document.IsDeleted)))
             .ToListAsync(ct);
-
-        return ideas.Select(i => BuildWorkspaceIdeaVm(i, today)).ToList();
     }
 
-    // SECTION: Personal reminders stay separate from the operational action queue.
-    private async Task<IReadOnlyList<WorkspaceReminderVm>> LoadPersonalRemindersAsync(string userId, CancellationToken ct)
+    private async Task<IReadOnlyList<WorkspaceIdeaVm>> LoadProjectIdeasAsync(
+        string userId,
+        DateOnly today,
+        CancellationToken ct)
     {
-        var endTodayLocal = DateTime.SpecifyKind(_clock.IstToday.AddDays(1), DateTimeKind.Unspecified);
-        var endTodayUtc = new DateTimeOffset(
-            TimeZoneInfo.ConvertTimeToUtc(endTodayLocal, IstClock.TimeZone),
-            TimeSpan.Zero);
+        var ideas = await LoadProjectIdeaProjectionsAsync(userId, ct);
+        return ideas.Select(idea => BuildWorkspaceIdeaVm(idea, today)).ToList();
+    }
+
+    // SECTION: Follow-ups contain reminders that are due or intentionally pinned by the officer.
+    private async Task<IReadOnlyList<WorkspaceReminderVm>> LoadPersonalRemindersAsync(
+        string userId,
+        CancellationToken ct)
+    {
+        var endTodayUtc = EndOfIstOperatingDayUtc();
 
         return await _db.NotebookItems
             .AsNoTracking()
             .Where(item =>
-                item.OwnerId == userId &&
-                item.DeletedAtUtc == null &&
-                item.Status == NotebookItemStatus.Active &&
-                item.ReminderAtUtc != null &&
-                item.ReminderAtUtc < endTodayUtc)
+                item.OwnerId == userId
+                && item.DeletedAtUtc == null
+                && item.Status == NotebookItemStatus.Active
+                && (item.IsPinned || (item.ReminderAtUtc != null && item.ReminderAtUtc < endTodayUtc)))
             .OrderByDescending(item => item.IsPinned)
             .ThenBy(item => item.ReminderAtUtc)
-            .Take(5)
             .Select(item => new WorkspaceReminderVm
             {
                 ReminderId = item.Id,
@@ -295,11 +693,18 @@ public sealed class ProjectOfficerWorkspaceService
             .ToListAsync(ct);
     }
 
-    // SECTION: Task rows are converted once so counts and previews share one model.
-    private static WorkspaceTaskVm BuildWorkspaceTaskVm(ActionTaskItem row, HashSet<int> overdueTaskIds, DateOnly today)
+    // SECTION: Task due dates are date-only business values; no artificial UTC conversion is applied.
+    private static WorkspaceTaskVm BuildWorkspaceTaskVm(
+        ActionTaskItem row,
+        HashSet<int> overdueTaskIds,
+        DateOnly today)
     {
-        var dueDateUtc = DateTime.SpecifyKind(row.DueDate.Date, DateTimeKind.Utc);
-        var daysOverdue = overdueTaskIds.Contains(row.Id) ? today.DayNumber - DateOnly.FromDateTime(row.DueDate.Date).DayNumber : (int?)null;
+        var dueDate = DateOnly.FromDateTime(row.DueDate);
+        var isOverdue = overdueTaskIds.Contains(row.Id);
+        var daysOverdue = isOverdue
+            ? Math.Max(0, today.DayNumber - dueDate.DayNumber)
+            : (int?)null;
+        var daysUntilDue = dueDate.DayNumber - today.DayNumber;
 
         return new WorkspaceTaskVm
         {
@@ -308,113 +713,75 @@ public sealed class ProjectOfficerWorkspaceService
             ContextLabel = "Other assigned task",
             Priority = row.Priority,
             Status = row.Status,
-            DueDateUtc = dueDateUtc,
-            IsOverdue = daysOverdue.HasValue,
+            DueDate = dueDate,
+            IsOverdue = isOverdue,
+            IsDueSoon = !isOverdue && daysUntilDue is >= 0 and <= 3,
             DaysOverdue = daysOverdue,
             OpenUrl = WorkspaceRouteHelper.ActionTask(row.Id)
         };
     }
 
-    // SECTION: Idea activity is centralized so preview and stale counts use identical rules.
-    private static WorkspaceIdeaVm BuildWorkspaceIdeaVm(ProjectIdea idea, DateOnly today)
+    // SECTION: Idea activity is computed from the projected latest child timestamps.
+    private static WorkspaceIdeaVm BuildWorkspaceIdeaVm(ProjectIdeaProjection idea, DateOnly today)
     {
-        var last = new[] { idea.UpdatedAt }
-            .Concat(idea.Comments.Where(c => !c.IsDeleted).Select(c => c.CreatedAt))
-            .Concat(idea.Notes.Where(n => !n.IsDeleted).Select(n => n.UpdatedAt))
-            .Concat(idea.Documents.Where(d => !d.IsDeleted).Select(d => d.UploadedAt))
-            .DefaultIfEmpty(idea.UpdatedAt)
-            .Max();
+        var lastActivity = Latest(
+            idea.UpdatedAt,
+            idea.LastCommentAt,
+            idea.LastNoteAt,
+            idea.LastDocumentAt);
 
         return new WorkspaceIdeaVm
         {
             IdeaId = idea.Id,
             Title = idea.Title,
             Status = ProjectIdeaStatuses.ToDisplay(idea.Status),
-            LastActivityAtUtc = last,
-            NeedsUpdate = (today.DayNumber - WorkspaceNudgeService.ToIstDate(last).DayNumber) > 15 &&
-                (idea.Status == ProjectIdeaStatuses.Active || idea.Status == ProjectIdeaStatuses.OnHold),
-            CommentCount = idea.Comments.Count(c => !c.IsDeleted),
-            DocumentCount = idea.Documents.Count(d => !d.IsDeleted),
+            LastActivityAtUtc = lastActivity,
+            NeedsUpdate = IsIdeaUpdateDue(idea, today),
+            CommentCount = idea.CommentCount,
+            DocumentCount = idea.DocumentCount,
             OpenUrl = WorkspaceRouteHelper.ProjectIdea(idea.Id)
         };
     }
 
-    // SECTION: Due-soon detection uses the workspace IST operating date.
-    private static bool IsDueSoon(DateTime? dueDateUtc, DateOnly today)
+    private static bool IsIdeaUpdateDue(ProjectIdeaProjection idea, DateOnly today)
     {
-        if (!dueDateUtc.HasValue)
+        if (idea.Status != ProjectIdeaStatuses.Active && idea.Status != ProjectIdeaStatuses.OnHold)
         {
             return false;
         }
 
-        var due = DateOnly.FromDateTime(dueDateUtc.Value);
-        var days = due.DayNumber - today.DayNumber;
-
-        return days >= 0 && days <= 3;
+        var lastActivity = Latest(
+            idea.UpdatedAt,
+            idea.LastCommentAt,
+            idea.LastNoteAt,
+            idea.LastDocumentAt);
+        return today.DayNumber - WorkspaceNudgeService.ToIstDate(lastActivity).DayNumber > 15;
     }
 
-    // SECTION: Next best action mirrors the daily queue, falling back to timeline follow-up only when daily actions are clear.
-    private static WorkspaceAttentionItemVm? BuildNextBestAction(
-        IReadOnlyList<WorkspaceActionQueueItemVm> actionQueue,
-        IReadOnlyList<WorkspaceAttentionItemVm> timelineAlerts)
+    private static DateTime Latest(DateTime baseline, params DateTime?[] candidates)
+        => candidates
+            .Where(candidate => candidate.HasValue)
+            .Select(candidate => candidate!.Value)
+            .Append(baseline)
+            .Max();
+
+    // SECTION: Due-soon detection uses the workspace operating date without timezone coercion.
+    private static bool IsDueSoon(DateOnly dueDate, DateOnly today)
     {
-        var first = actionQueue.FirstOrDefault();
-
-        if (first is not null)
-        {
-            return new WorkspaceAttentionItemVm
-            {
-                Type = first.Type,
-                Title = first.Title,
-                Detail = first.Detail,
-                Severity = first.Severity,
-                BadgeText = first.BadgeText,
-                ActionText = first.ActionText,
-                ActionUrl = first.ActionUrl,
-                DueOrEventDateUtc = first.SortDateUtc
-            };
-        }
-
-        return timelineAlerts.FirstOrDefault();
+        var days = dueDate.DayNumber - today.DayNumber;
+        return days is >= 0 and <= 3;
     }
 
-    private static WorkspaceAttentionItemVm ToAttentionItem(WorkspaceTaskVm task) => new()
-    {
-        Type = "Task",
-        Title = task.Title,
-        Detail = task.IsOverdue
-            ? task.DaysOverdue.HasValue ? $"Assigned task overdue by {task.DaysOverdue.Value} days" : "Assigned task overdue"
-            : "Assigned task due soon",
-        Severity = task.IsOverdue ? "Danger" : "Warning",
-        BadgeText = "Task",
-        ActionText = "Open Task",
-        ActionUrl = task.OpenUrl,
-        DueOrEventDateUtc = task.DueDateUtc
-    };
-
-    private static WorkspaceAttentionItemVm ToAttentionItem(WorkspaceAotsDocumentVm document) => new()
-    {
-        Type = "AOTS",
-        Title = document.Subject,
-        Detail = "Unread AOTS document",
-        Severity = "Warning",
-        BadgeText = "AOTS",
-        ActionText = "Review",
-        ActionUrl = document.OpenUrl,
-        DueOrEventDateUtc = document.CreatedAtUtc
-    };
-
-    private static WorkspaceAttentionItemVm ToAttentionItem(WorkspaceIdeaVm idea) => new()
-    {
-        Type = "Idea",
-        Title = idea.Title,
-        Detail = "Project idea needs update",
-        Severity = "Warning",
-        BadgeText = "Idea",
-        ActionText = "Open Idea",
-        ActionUrl = idea.OpenUrl,
-        DueOrEventDateUtc = idea.LastActivityAtUtc
-    };
+    private sealed record ProjectIdeaProjection(
+        int Id,
+        string Title,
+        string Status,
+        DateTime UpdatedAt,
+        DateTime? LastCommentAt,
+        DateTime? LastNoteAt,
+        DateTime? LastDocumentAt,
+        int CommentCount,
+        int DocumentCount);
 
     // SECTION: AOTS documents reuse the repository unread-view rule for daily review.
     private async Task<IReadOnlyList<WorkspaceAotsDocumentVm>> LoadUnreadAotsDocumentsAsync(
@@ -446,25 +813,203 @@ public sealed class ProjectOfficerWorkspaceService
     }
 
 
-    // SECTION: Waiting-on-others summarizes submissions that are no longer actionable by the PO.
-    private async Task<IReadOnlyList<WorkspaceAttentionItemVm>> BuildWaitingOnOthersAsync(string userId, IReadOnlyList<ActionTaskItem> submittedAwaitingClosureTasks, CancellationToken ct)
+    // SECTION: Personal document hub reuses canonical repository records.
+    private async Task<WorkspaceDocumentHubVm> LoadDocumentHubAsync(
+        string userId,
+        int aotsUnreadCount,
+        CancellationToken ct)
     {
-        var items = new List<WorkspaceAttentionItemVm>();
-        items.AddRange(submittedAwaitingClosureTasks.Select(t => new WorkspaceAttentionItemVm { Type = "Task", Title = t.Title, Detail = "Submitted and awaiting closure", Severity = "Info", BadgeText = "Task", ActionText = "View", ActionUrl = WorkspaceRouteHelper.ActionTask(t.Id), DueOrEventDateUtc = DateTime.SpecifyKind(t.SubmittedOn?.Date ?? t.DueDate.Date, DateTimeKind.Utc) }));
+        const int previewLimit = 12;
+        var returnUrl = WorkspaceRouteHelper.ProjectOfficerWorkspace("documents");
 
-        var pendingPlans = await _db.PlanVersions.AsNoTracking().Include(p => p.Project).Where(p => p.SubmittedByUserId == userId && p.Status == PlanVersionStatus.PendingApproval).OrderByDescending(p => p.SubmittedOn).Take(5).ToListAsync(ct);
-        items.AddRange(pendingPlans.Select(p => new WorkspaceAttentionItemVm { Type = "Timeline", Title = p.Project?.Name ?? "Timeline plan", Detail = "Timeline plan submitted, pending approval", Severity = "Info", BadgeText = "Plan", ActionText = "View status", ActionUrl = WorkspaceRouteHelper.ProjectTimeline(p.ProjectId), DueOrEventDateUtc = p.SubmittedOn?.UtcDateTime }));
+        var favouriteRows = await (
+                from favourite in _db.DocRepoFavourites.AsNoTracking()
+                join document in _db.Documents.AsNoTracking() on favourite.DocumentId equals document.Id
+                where favourite.UserId == userId
+                      && !document.IsDeleted
+                      && !document.IsExternal
+                      && document.IsActive
+                orderby favourite.CreatedAtUtc descending
+                select new
+                {
+                    document.Id,
+                    document.Subject,
+                    document.DocumentDate,
+                    document.CreatedAtUtc,
+                    document.IsAots,
+                    Office = document.OfficeCategory.Name,
+                    Category = document.DocumentCategory.Name
+                })
+            .Take(previewLimit)
+            .ToListAsync(ct);
 
-        var pendingStages = await _db.StageChangeRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.DecisionStatus == "Pending").OrderByDescending(r => r.RequestedOn).Take(5).ToListAsync(ct);
-        items.AddRange(pendingStages.Select(r => new WorkspaceAttentionItemVm { Type = "Stage", Title = r.StageCode, Detail = "Stage update awaiting HoD approval", Severity = "Info", BadgeText = "Stage", ActionText = "View", ActionUrl = WorkspaceRouteHelper.ProjectOverview(r.ProjectId), DueOrEventDateUtc = r.RequestedOn.UtcDateTime }));
+        var favouriteCount = await (
+                from favourite in _db.DocRepoFavourites.AsNoTracking()
+                join document in _db.Documents.AsNoTracking() on favourite.DocumentId equals document.Id
+                where favourite.UserId == userId
+                      && !document.IsDeleted
+                      && !document.IsExternal
+                      && document.IsActive
+                select document.Id)
+            .CountAsync(ct);
 
-        var pendingMeta = await _db.ProjectMetaChangeRequests.AsNoTracking().Include(r => r.Project).Where(r => r.RequestedByUserId == userId && r.DecisionStatus == "Pending").OrderByDescending(r => r.RequestedOnUtc).Take(5).ToListAsync(ct);
-        items.AddRange(pendingMeta.Select(r => new WorkspaceAttentionItemVm { Type = "Metadata", Title = r.Project?.Name ?? "Metadata change", Detail = "Project details update awaiting approval", Severity = "Info", BadgeText = "Meta", ActionText = "View", ActionUrl = WorkspaceRouteHelper.ProjectOverview(r.ProjectId), DueOrEventDateUtc = r.RequestedOnUtc.UtcDateTime }));
+        var viewedRows = await _db.DocRepoAudits
+            .AsNoTracking()
+            .Where(audit =>
+                audit.ActorUserId == userId
+                && audit.DocumentId.HasValue
+                && audit.EventType == DocRepoAuditEventTypes.Viewed)
+            .GroupBy(audit => audit.DocumentId!.Value)
+            .Select(group => new
+            {
+                DocumentId = group.Key,
+                LastViewedAtUtc = group.Max(audit => audit.OccurredAtUtc)
+            })
+            .OrderByDescending(row => row.LastViewedAtUtc)
+            .Take(previewLimit)
+            .ToListAsync(ct);
 
-        var pendingDocuments = await _db.ProjectDocumentRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.Status == ProjectDocumentRequestStatus.Submitted).OrderByDescending(r => r.RequestedAtUtc).Take(5).ToListAsync(ct);
-        items.AddRange(pendingDocuments.Select(r => new WorkspaceAttentionItemVm { Type = "Document", Title = r.Title, Detail = "Document request pending moderation", Severity = "Info", BadgeText = "Doc", ActionText = "View", ActionUrl = WorkspaceRouteHelper.ProjectOverview(r.ProjectId), DueOrEventDateUtc = r.RequestedAtUtc.UtcDateTime }));
-        return items.OrderByDescending(i => i.DueOrEventDateUtc).Take(12).ToList();
+        var recentCount = await (
+                from audit in _db.DocRepoAudits.AsNoTracking()
+                join document in _db.Documents.AsNoTracking() on audit.DocumentId equals (Guid?)document.Id
+                where audit.ActorUserId == userId
+                      && audit.EventType == DocRepoAuditEventTypes.Viewed
+                      && !document.IsDeleted
+                      && !document.IsExternal
+                      && document.IsActive
+                select document.Id)
+            .Distinct()
+            .CountAsync(ct);
+
+        var viewedIds = viewedRows.Select(row => row.DocumentId).ToArray();
+        var viewedDocuments = viewedIds.Length == 0
+            ? new Dictionary<Guid, WorkspaceDocumentProjection>()
+            : (await _db.Documents
+                .AsNoTracking()
+                .Where(document =>
+                    viewedIds.Contains(document.Id)
+                    && !document.IsDeleted
+                    && !document.IsExternal
+                    && document.IsActive)
+                .Select(document => new WorkspaceDocumentProjection(
+                    document.Id,
+                    document.Subject,
+                    document.DocumentDate,
+                    document.CreatedAtUtc,
+                    document.IsAots,
+                    document.OfficeCategory.Name,
+                    document.DocumentCategory.Name))
+                .ToListAsync(ct))
+                .ToDictionary(document => document.Id);
+
+        var recent = viewedRows
+            .Where(row => viewedDocuments.ContainsKey(row.DocumentId))
+            .Select(row =>
+            {
+                var document = viewedDocuments[row.DocumentId];
+                return new WorkspaceDocumentVm
+                {
+                    DocumentId = document.Id,
+                    Subject = document.Subject,
+                    Office = document.Office,
+                    Category = document.Category,
+                    DocumentDate = document.DocumentDate,
+                    CreatedAtUtc = document.CreatedAtUtc,
+                    LastViewedAtUtc = row.LastViewedAtUtc,
+                    IsAots = document.IsAots,
+                    OpenUrl = WorkspaceRouteHelper.DocumentReader(document.Id, returnUrl)
+                };
+            })
+            .ToList();
+
+        var aotsRows = await _db.Documents
+            .AsNoTracking()
+            .Where(document =>
+                document.IsAots
+                && !document.IsDeleted
+                && !document.IsExternal
+                && document.IsActive)
+            .OrderByDescending(document => document.DocumentDate.HasValue)
+            .ThenByDescending(document => document.DocumentDate)
+            .ThenByDescending(document => document.CreatedAtUtc)
+            .Take(previewLimit)
+            .Select(document => new
+            {
+                document.Id,
+                document.Subject,
+                document.DocumentDate,
+                document.CreatedAtUtc,
+                Office = document.OfficeCategory.Name,
+                Category = document.DocumentCategory.Name,
+                IsSeen = _db.DocRepoAotsViews.Any(view => view.DocumentId == document.Id && view.UserId == userId)
+            })
+            .ToListAsync(ct);
+
+        var uploadedRows = await _db.Documents
+            .AsNoTracking()
+            .Where(document =>
+                document.CreatedByUserId == userId
+                && !document.IsDeleted
+                && !document.IsExternal
+                && document.IsActive)
+            .OrderByDescending(document => document.CreatedAtUtc)
+            .Take(previewLimit)
+            .Select(document => new
+            {
+                document.Id,
+                document.Subject,
+                document.DocumentDate,
+                document.CreatedAtUtc,
+                document.IsAots,
+                Office = document.OfficeCategory.Name,
+                Category = document.DocumentCategory.Name
+            })
+            .ToListAsync(ct);
+
+        var uploadedCount = await _db.Documents
+            .AsNoTracking()
+            .CountAsync(document =>
+                document.CreatedByUserId == userId
+                && !document.IsDeleted
+                && !document.IsExternal
+                && document.IsActive, ct);
+
+        return new WorkspaceDocumentHubVm
+        {
+            FavouriteCount = favouriteCount,
+            AotsUnreadCount = aotsUnreadCount,
+            RecentCount = recentCount,
+            UploadedByMeCount = uploadedCount,
+            Favourites = favouriteRows.Select(row => new WorkspaceDocumentVm
+            {
+                DocumentId = row.Id, Subject = row.Subject, Office = row.Office, Category = row.Category,
+                DocumentDate = row.DocumentDate, CreatedAtUtc = row.CreatedAtUtc, IsAots = row.IsAots, IsFavourite = true,
+                OpenUrl = WorkspaceRouteHelper.DocumentReader(row.Id, returnUrl)
+            }).ToList(),
+            Aots = aotsRows.Select(row => new WorkspaceDocumentVm
+            {
+                DocumentId = row.Id, Subject = row.Subject, Office = row.Office, Category = row.Category,
+                DocumentDate = row.DocumentDate, CreatedAtUtc = row.CreatedAtUtc, IsAots = true, IsUnreadAots = !row.IsSeen,
+                OpenUrl = WorkspaceRouteHelper.DocumentReader(row.Id, returnUrl)
+            }).ToList(),
+            Recent = recent,
+            UploadedByMe = uploadedRows.Select(row => new WorkspaceDocumentVm
+            {
+                DocumentId = row.Id, Subject = row.Subject, Office = row.Office, Category = row.Category,
+                DocumentDate = row.DocumentDate, CreatedAtUtc = row.CreatedAtUtc, IsAots = row.IsAots,
+                OpenUrl = WorkspaceRouteHelper.DocumentReader(row.Id, returnUrl)
+            }).ToList()
+        };
     }
+
+    private sealed record WorkspaceDocumentProjection(
+        Guid Id,
+        string Subject,
+        DateOnly? DocumentDate,
+        DateTime CreatedAtUtc,
+        bool IsAots,
+        string Office,
+        string Category);
 
     // SECTION: Returned items are surfaced as actionable corrections for the PO.
     private async Task<IReadOnlyList<WorkspaceAttentionItemVm>> BuildReturnedItemsAsync(string userId, CancellationToken ct)
@@ -475,34 +1020,104 @@ public sealed class ProjectOfficerWorkspaceService
         var rejectedPlanProjectIds = rejectedPlans.Select(p => p.ProjectId).ToArray();
         var newerPlanProjects = await _db.PlanVersions.AsNoTracking().Where(p => rejectedPlanProjectIds.Contains(p.ProjectId) && (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Approved)).Select(p => new { p.ProjectId, EventAt = p.SubmittedOn ?? p.ApprovedOn ?? p.CreatedOn }).ToListAsync(ct);
         rejectedPlans = rejectedPlans.Where(p => !newerPlanProjects.Any(n => n.ProjectId == p.ProjectId && p.RejectedOn.HasValue && n.EventAt > p.RejectedOn.Value)).Take(5).ToList();
-        items.AddRange(rejectedPlans.Select(p => new WorkspaceAttentionItemVm { Type = "Timeline", Title = p.Project?.Name ?? "Timeline plan", Detail = "Timeline plan returned for correction", Severity = "Danger", BadgeText = "Returned", ActionText = "Correct", ActionUrl = WorkspaceRouteHelper.ProjectTimeline(p.ProjectId), DueOrEventDateUtc = p.RejectedOn?.UtcDateTime }));
+        items.AddRange(rejectedPlans.Select(p => new WorkspaceAttentionItemVm
+        {
+            ProjectId = p.ProjectId,
+            WorkItemKey = $"project:{p.ProjectId}",
+            Type = "Timeline",
+            Title = p.Project?.Name ?? "Timeline plan",
+            Detail = "Timeline plan returned for correction",
+            Severity = "Danger",
+            BadgeText = "Returned",
+            ActionText = "Correct",
+            ActionUrl = WorkspaceRouteHelper.ProjectTimeline(p.ProjectId),
+            DueOrEventDateUtc = p.RejectedOn?.UtcDateTime
+        }));
 
         var rejectedStages = await _db.StageChangeRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.DecisionStatus == "Rejected" && r.DecidedOn.HasValue && r.DecidedOn.Value >= returnedCutoffUtc).OrderByDescending(r => r.DecidedOn).Take(10).ToListAsync(ct);
         var rejectedStageProjectIds = rejectedStages.Select(r => r.ProjectId).ToArray();
         var newerStageProjects = await _db.StageChangeRequests.AsNoTracking().Where(r => rejectedStageProjectIds.Contains(r.ProjectId) && (r.DecisionStatus == "Pending" || r.DecisionStatus == "Approved")).Select(r => new { r.ProjectId, EventAt = r.DecidedOn ?? r.RequestedOn }).ToListAsync(ct);
         rejectedStages = rejectedStages.Where(r => !newerStageProjects.Any(n => n.ProjectId == r.ProjectId && r.DecidedOn.HasValue && n.EventAt > r.DecidedOn.Value)).Take(5).ToList();
-        items.AddRange(rejectedStages.Select(r => new WorkspaceAttentionItemVm { Type = "Stage", Title = r.StageCode, Detail = "Stage update returned by HoD", Severity = "Danger", BadgeText = "Returned", ActionText = "Correct", ActionUrl = WorkspaceRouteHelper.ProjectTimeline(r.ProjectId), DueOrEventDateUtc = r.DecidedOn?.UtcDateTime }));
+        items.AddRange(rejectedStages.Select(r => new WorkspaceAttentionItemVm
+        {
+            ProjectId = r.ProjectId,
+            WorkItemKey = $"project:{r.ProjectId}",
+            Type = "Stage",
+            Title = r.StageCode,
+            Detail = "Stage update returned by HoD",
+            Severity = "Danger",
+            BadgeText = "Returned",
+            ActionText = "Correct",
+            ActionUrl = WorkspaceRouteHelper.ProjectTimeline(r.ProjectId),
+            DueOrEventDateUtc = r.DecidedOn?.UtcDateTime
+        }));
 
         var rejectedMeta = await _db.ProjectMetaChangeRequests.AsNoTracking().Include(r => r.Project).Where(r => r.RequestedByUserId == userId && r.DecisionStatus == "Rejected" && r.DecidedOnUtc.HasValue && r.DecidedOnUtc.Value >= returnedCutoffUtc).OrderByDescending(r => r.DecidedOnUtc).Take(10).ToListAsync(ct);
         var rejectedMetaProjectIds = rejectedMeta.Select(r => r.ProjectId).ToArray();
         var newerMetaProjects = await _db.ProjectMetaChangeRequests.AsNoTracking().Where(r => rejectedMetaProjectIds.Contains(r.ProjectId) && (r.DecisionStatus == "Pending" || r.DecisionStatus == "Approved")).Select(r => new { r.ProjectId, EventAt = r.DecidedOnUtc ?? r.RequestedOnUtc }).ToListAsync(ct);
         rejectedMeta = rejectedMeta.Where(r => !newerMetaProjects.Any(n => n.ProjectId == r.ProjectId && r.DecidedOnUtc.HasValue && n.EventAt > r.DecidedOnUtc.Value)).Take(5).ToList();
-        items.AddRange(rejectedMeta.Select(r => new WorkspaceAttentionItemVm { Type = "Metadata", Title = r.Project?.Name ?? "Metadata change", Detail = "Project details update returned by HoD", Severity = "Danger", BadgeText = "Returned", ActionText = "Correct", ActionUrl = WorkspaceRouteHelper.ProjectMetaRequest(r.ProjectId), DueOrEventDateUtc = r.DecidedOnUtc?.UtcDateTime }));
+        items.AddRange(rejectedMeta.Select(r => new WorkspaceAttentionItemVm
+        {
+            ProjectId = r.ProjectId,
+            WorkItemKey = $"project:{r.ProjectId}",
+            Type = "Metadata",
+            Title = r.Project?.Name ?? "Metadata change",
+            Detail = "Project details update returned by HoD",
+            Severity = "Danger",
+            BadgeText = "Returned",
+            ActionText = "Correct",
+            ActionUrl = WorkspaceRouteHelper.ProjectMetaRequest(r.ProjectId),
+            DueOrEventDateUtc = r.DecidedOnUtc?.UtcDateTime
+        }));
 
         var rejectedDocuments = await _db.ProjectDocumentRequests.AsNoTracking().Where(r => r.RequestedByUserId == userId && r.Status == ProjectDocumentRequestStatus.Rejected && r.ReviewedAtUtc.HasValue && r.ReviewedAtUtc.Value >= returnedCutoffUtc).OrderByDescending(r => r.ReviewedAtUtc).Take(10).ToListAsync(ct);
         var rejectedDocumentProjectIds = rejectedDocuments.Select(r => r.ProjectId).ToArray();
         var newerDocumentProjects = await _db.ProjectDocumentRequests.AsNoTracking().Where(r => rejectedDocumentProjectIds.Contains(r.ProjectId) && (r.Status == ProjectDocumentRequestStatus.Submitted || r.Status == ProjectDocumentRequestStatus.Approved)).Select(r => new { r.ProjectId, EventAt = r.ReviewedAtUtc ?? r.RequestedAtUtc }).ToListAsync(ct);
         rejectedDocuments = rejectedDocuments.Where(r => !newerDocumentProjects.Any(n => n.ProjectId == r.ProjectId && r.ReviewedAtUtc.HasValue && n.EventAt > r.ReviewedAtUtc.Value)).Take(5).ToList();
-        items.AddRange(rejectedDocuments.Select(r => new WorkspaceAttentionItemVm { Type = "Document", Title = r.Title, Detail = "Document request rejected", Severity = "Danger", BadgeText = "Returned", ActionText = "Correct", ActionUrl = WorkspaceRouteHelper.ProjectDocumentRequest(r.ProjectId), DueOrEventDateUtc = r.ReviewedAtUtc?.UtcDateTime }));
+        items.AddRange(rejectedDocuments.Select(r => new WorkspaceAttentionItemVm
+        {
+            ProjectId = r.ProjectId,
+            WorkItemKey = $"project:{r.ProjectId}",
+            Type = "Document",
+            Title = r.Title,
+            Detail = "Document request rejected",
+            Severity = "Danger",
+            BadgeText = "Returned",
+            ActionText = "Correct",
+            ActionUrl = WorkspaceRouteHelper.ProjectDocumentRequest(r.ProjectId),
+            DueOrEventDateUtc = r.ReviewedAtUtc?.UtcDateTime
+        }));
         return items.OrderByDescending(i => i.DueOrEventDateUtc).Take(12).ToList();
     }
+    private WorkspaceProjectMatrixRowVm BuildActionProjectRow(Project project, string userId, DateOnly today)
+    {
+        var neutralHealth = new WorkspaceRecordHealthVm
+        {
+            ProjectId = project.Id,
+            ProjectName = project.Name,
+            HealthPercent = 100
+        };
+
+        return BuildMatrixRow(project, neutralHealth, userId, today);
+    }
+
     private WorkspaceProjectMatrixRowVm BuildMatrixRow(Project p, WorkspaceRecordHealthVm health, string userId, DateOnly today)
     {
         var stage = WorkspaceNudgeService.GetCurrentStage(p);
-        var action = _nudges.GetNextAction(p, health, userId, today, out var url);
         var last = WorkspaceNudgeService.LastPoRemark(p, userId);
+        var updateStatus = _nudges.GetUpdateStatus(last, today);
+        var action = _nudges.GetNextAction(p, health, userId, today, out var url);
         var overdue = _nudges.IsCurrentStageOverdue(stage, today);
         var issue = _nudges.HasCurrentStageTimelineIssue(stage);
+
+        if (!overdue
+            && !issue
+            && !p.ProjectStages.Any(s => s.Status == StageStatus.Completed && !s.CompletedOn.HasValue)
+            && updateStatus is "ActionRequired" or "Attention")
+        {
+            action = "Add remark";
+            url = WorkspaceRouteHelper.ProjectRemarks(p.Id);
+        }
 
         var currentStagePdc = stage?.PlannedDue;
         var daysUntilCurrentStagePdc = currentStagePdc.HasValue
@@ -525,7 +1140,7 @@ public sealed class ProjectOfficerWorkspaceService
             IsCurrentStageStartMissing = stage?.Status == StageStatus.InProgress && !stage.ActualStart.HasValue,
             IsCurrentStagePdcMissing = stage?.Status == StageStatus.InProgress && !stage.PlannedDue.HasValue,
             IsCurrentStageNotStarted = stage?.Status == StageStatus.NotStarted,
-            UpdateStatus = _nudges.GetUpdateStatus(last, today),
+            UpdateStatus = updateStatus,
             TimelineStatus = p.ProjectStages.Any(s => s.Status == StageStatus.Completed && !s.CompletedOn.HasValue) || overdue
                 ? "ActionRequired"
                 : issue ? "Attention" : "Ok",
@@ -563,392 +1178,4 @@ public sealed class ProjectOfficerWorkspaceService
         => row.UpdateStatus is "ActionRequired" or "Attention"
             || HasProjectTimelineIssue(row)
             || row.RecordGapCount > 0;
-
-    // SECTION: Pending item ordering keeps returned corrections above lower-priority nudges.
-    private static int WorkspaceSeverityRank(string severity) => severity switch
-    {
-        "Danger" => 0,
-        "Warning" => 1,
-        "Info" => 2,
-        _ => 3
-    };
-
-    private static int WorkspacePendingPriority(string detail)
-    {
-        if (detail.Contains("returned", StringComparison.OrdinalIgnoreCase) ||
-            detail.Contains("rejected", StringComparison.OrdinalIgnoreCase)) return 0;
-        if (detail.Contains("backfill", StringComparison.OrdinalIgnoreCase)) return 1;
-        if (detail.Contains("overdue", StringComparison.OrdinalIgnoreCase)) return 2;
-        if (detail.Contains("actual start", StringComparison.OrdinalIgnoreCase)) return 3;
-        if (detail.Contains("planned due", StringComparison.OrdinalIgnoreCase)) return 4;
-        if (detail.Contains("remark", StringComparison.OrdinalIgnoreCase)) return 5;
-        return 6;
-    }
-
-    private async Task<WorkspaceEngagementVm> BuildEngagementAsync(string userId, ApplicationUser? user, DateTime monthStart, CancellationToken ct)
-    {
-        // SECTION: ERP engagement dates are materialized before DateTimeOffset-to-DateTime conversion to avoid provider coercion failures.
-        var monthStartOffset = new DateTimeOffset(monthStart, TimeSpan.Zero);
-        var authEvents = await _db.AuthEvents.AsNoTracking().Where(a => a.UserId == userId && a.Event == "LoginSucceeded" && a.WhenUtc >= monthStartOffset).Select(a => a.WhenUtc).ToListAsync(ct);
-        var auditDates = await _db.AuditLogs.AsNoTracking().Where(a => a.UserId == userId && a.TimeUtc >= monthStart).Select(a => a.TimeUtc.Date).ToListAsync(ct);
-        var remarkRows = await _db.Remarks.AsNoTracking().Where(r => r.AuthorUserId == userId && !r.IsDeleted && r.CreatedAtUtc >= monthStart).Select(r => r.CreatedAtUtc).ToListAsync(ct);
-        var taskAuditRows = await _db.ActionTaskAuditLogs.AsNoTracking().Where(a => a.PerformedByUserId == userId && a.PerformedAt >= monthStart).Select(a => a.PerformedAt).ToListAsync(ct);
-        var documentRows = await _db.ProjectDocuments.AsNoTracking().Where(d => d.UploadedByUserId == userId && d.Status == ProjectDocumentStatus.Published && d.UploadedAtUtc >= monthStartOffset).Select(d => d.UploadedAtUtc).ToListAsync(ct);
-        var ideaCommentRows = await _db.ProjectIdeaComments.AsNoTracking().Where(c => c.CreatedByUserId == userId && !c.IsDeleted && c.CreatedAt >= monthStart).Select(c => c.CreatedAt).ToListAsync(ct);
-        var ideaNoteRows = await _db.ProjectIdeaNotes.AsNoTracking().Where(n => n.CreatedByUserId == userId && !n.IsDeleted && n.UpdatedAt >= monthStart).Select(n => n.UpdatedAt).ToListAsync(ct);
-        var ideaDocumentRows = await _db.ProjectIdeaDocuments.AsNoTracking().Where(d => d.UploadedByUserId == userId && !d.IsDeleted && d.UploadedAt >= monthStart).Select(d => d.UploadedAt).ToListAsync(ct);
-
-        var activeDates = authEvents.Select(x => x.UtcDateTime.Date)
-            .Concat(auditDates)
-            .Concat(remarkRows.Select(x => x.Date))
-            .Concat(taskAuditRows.Select(x => x.Date))
-            .Concat(documentRows.Select(x => x.UtcDateTime.Date))
-            .Concat(ideaCommentRows.Select(x => x.Date))
-            .Concat(ideaNoteRows.Select(x => x.Date))
-            .Concat(ideaDocumentRows.Select(x => x.Date))
-            .Distinct()
-            .ToList();
-
-        return new WorkspaceEngagementVm
-        {
-            LastLoginUtc = user?.LastLoginUtc,
-            LastActivityUtc = activeDates
-                .OrderByDescending(d => d)
-                .Select(d => (DateTime?)d)
-                .FirstOrDefault() ?? user?.LastLoginUtc,
-            LoginsThisMonth = authEvents.Count,
-            ActiveDaysThisMonth = activeDates.Count,
-            ActionsRecordedThisMonth = auditDates.Count
-                + remarkRows.Count
-                + taskAuditRows.Count
-                + documentRows.Count
-                + ideaCommentRows.Count
-                + ideaNoteRows.Count
-                + ideaDocumentRows.Count,
-            RemarksPostedThisMonth = remarkRows.Count,
-            TasksUpdatedThisMonth = taskAuditRows.Count,
-            DocumentsUploadedThisMonth = documentRows.Count + ideaDocumentRows.Count,
-            EngagementLabel = activeDates.Count >= 8 ? "Active" : "Getting Started"
-        };
-    }
-    // SECTION: Improve-score actions convert record health gaps into direct correction links.
-    private static IReadOnlyList<WorkspaceImprovementVm> BuildImproveScoreItems(IEnumerable<WorkspaceRecordHealthVm> healthRows, int maxItems)
-    {
-        var items = new List<WorkspaceImprovementVm>();
-
-        foreach (var health in healthRows.OrderBy(h => h.HealthPercent))
-        {
-            foreach (var gap in health.Gaps)
-            {
-                items.Add(new WorkspaceImprovementVm
-                {
-                    ProjectId = health.ProjectId,
-                    ProjectName = health.ProjectName,
-                    Gap = gap,
-                    Label = WorkspaceDisplayHelpers.ImprovementLabel(gap),
-                    Url = ResolveImprovementUrl(health.ProjectId, gap),
-                    Severity = health.HealthPercent < 60 ? "Danger" : "Warning"
-                });
-            }
-        }
-
-        return items
-            .GroupBy(i => i.Label)
-            .Select(g => g.First())
-            .Take(maxItems)
-            .ToList();
-    }
-
-    // SECTION: Improvement routing points each gap to the most relevant correction workflow.
-    private static string ResolveImprovementUrl(int projectId, string gap)
-    {
-        if (gap.Contains("remark", StringComparison.OrdinalIgnoreCase))
-        {
-            return WorkspaceRouteHelper.ProjectRemarks(projectId);
-        }
-
-        if (gap.Contains("backfill", StringComparison.OrdinalIgnoreCase) ||
-            gap.Contains("current stage timeline", StringComparison.OrdinalIgnoreCase))
-        {
-            return WorkspaceRouteHelper.ProjectTimeline(projectId);
-        }
-
-        if (gap.Contains("photo", StringComparison.OrdinalIgnoreCase))
-        {
-            return WorkspaceRouteHelper.ProjectPhotos(projectId);
-        }
-
-        if (gap.Contains("video", StringComparison.OrdinalIgnoreCase))
-        {
-            return WorkspaceRouteHelper.ProjectVideos(projectId);
-        }
-
-        if (gap.Contains("document", StringComparison.OrdinalIgnoreCase))
-        {
-            return WorkspaceRouteHelper.ProjectDocumentsTab(projectId);
-        }
-
-        if (gap.Contains("budget", StringComparison.OrdinalIgnoreCase))
-        {
-            return WorkspaceRouteHelper.ProjectOverview(projectId);
-        }
-
-        if (gap.Contains("description", StringComparison.OrdinalIgnoreCase))
-        {
-            return WorkspaceRouteHelper.ProjectMetaRequest(projectId);
-        }
-
-        return WorkspaceRouteHelper.ProjectOverview(projectId);
-    }
-
-    private sealed record WorkspaceImproveProjectsBuildResult(
-        IReadOnlyList<WorkspaceProjectImprovementVm> Items,
-        int TotalCount);
-
-    // SECTION: Group record-health gaps by project to avoid repetitive right-rail rows.
-    private static WorkspaceImproveProjectsBuildResult BuildImproveProjects(
-        IEnumerable<WorkspaceRecordHealthVm> healthRows,
-        int maxProjects)
-    {
-        var projectsWithGaps = healthRows
-            .Where(h => h.GapDetails.Any())
-            .OrderBy(h => h.HealthPercent)
-            .ThenByDescending(h => h.GapDetails.Count)
-            .ToList();
-
-        var items = projectsWithGaps
-            .Take(maxProjects)
-            .Select(h =>
-            {
-                var gapDetails = h.GapDetails
-                    .Select(gap => new WorkspaceProjectGapDetailVm
-                    {
-                        Label = gap.FieldLabel,
-                        ActionText = gap.ActionText,
-                        ActionUrl = gap.ActionUrl,
-                        Icon = gap.Icon,
-                        Severity = gap.Status == "Pending" ? "Warning" : "Info"
-                    })
-                    .ToList();
-
-                return new WorkspaceProjectImprovementVm
-                {
-                    ProjectId = h.ProjectId,
-                    ProjectName = h.ProjectName,
-                    FixCount = h.GapDetails.Count,
-                    FixLabels = gapDetails
-                        .Take(3)
-                        .Select(detail => detail.Label)
-                        .ToList(),
-                    GapDetails = gapDetails,
-                    HealthPercent = h.HealthPercent,
-                    RecordHealth = h,
-                    HealthLabel = WorkspaceDisplayHelpers.HealthBandLabel(h.HealthPercent),
-                    HealthCss = WorkspaceDisplayHelpers.HealthCss(h.HealthPercent),
-                    Url = WorkspaceRouteHelper.ProjectOverview(h.ProjectId),
-                    Severity = h.HealthPercent < 60 ? "Danger" : "Warning"
-                };
-            })
-            .ToList();
-
-        return new WorkspaceImproveProjectsBuildResult(items, projectsWithGaps.Count);
-    }
-
-    // SECTION: Gap details map record-completeness output to direct correction actions.
-    private static WorkspaceProjectGapDetailVm BuildGapDetail(int projectId, string gap)
-    {
-        if (gap.Contains("description", StringComparison.OrdinalIgnoreCase))
-        {
-            return new WorkspaceProjectGapDetailVm
-            {
-                Label = "Brief description pending",
-                ActionText = "Edit details",
-                ActionUrl = WorkspaceRouteHelper.ProjectMetaRequest(projectId),
-                Icon = "bi-card-text",
-                Severity = "Warning"
-            };
-        }
-
-        if (gap.Contains("photo", StringComparison.OrdinalIgnoreCase))
-        {
-            return new WorkspaceProjectGapDetailVm
-            {
-                Label = "Add project photos",
-                ActionText = "Add photos",
-                ActionUrl = WorkspaceRouteHelper.ProjectPhotos(projectId),
-                Icon = "bi-images",
-                Severity = "Warning"
-            };
-        }
-
-        if (gap.Contains("document", StringComparison.OrdinalIgnoreCase))
-        {
-            return new WorkspaceProjectGapDetailVm
-            {
-                Label = "Upload project documents",
-                ActionText = "Upload",
-                ActionUrl = WorkspaceRouteHelper.ProjectDocumentsTab(projectId),
-                Icon = "bi-file-earmark-text",
-                Severity = "Warning"
-            };
-        }
-
-        if (gap.Contains("video", StringComparison.OrdinalIgnoreCase))
-        {
-            return new WorkspaceProjectGapDetailVm
-            {
-                Label = "Add project video",
-                ActionText = "Add video",
-                ActionUrl = WorkspaceRouteHelper.ProjectVideos(projectId),
-                Icon = "bi-camera-video",
-                Severity = "Warning"
-            };
-        }
-
-        if (IsProcurementGap(gap))
-        {
-            return new WorkspaceProjectGapDetailVm
-            {
-                Label = gap,
-                ActionText = "Update procurement",
-                ActionUrl = WorkspaceRouteHelper.ProjectOverview(projectId),
-                Icon = "bi-currency-rupee",
-                Severity = "Warning"
-            };
-        }
-
-        if (IsTimelineGap(gap))
-        {
-            return new WorkspaceProjectGapDetailVm
-            {
-                Label = gap,
-                ActionText = gap.Contains("Current-stage", StringComparison.OrdinalIgnoreCase)
-                    ? "Update PDC"
-                    : "Complete dates",
-                ActionUrl = WorkspaceRouteHelper.ProjectTimeline(projectId),
-                Icon = "bi-calendar-check",
-                Severity = "Warning"
-            };
-        }
-
-        return new WorkspaceProjectGapDetailVm
-        {
-            Label = gap,
-            ActionText = "Open",
-            ActionUrl = WorkspaceRouteHelper.ProjectOverview(projectId),
-            Icon = "bi-exclamation-circle",
-            Severity = "Warning"
-        };
-    }
-
-    private static bool IsProcurementGap(string gap)
-        => gap.Contains("Cost pending", StringComparison.OrdinalIgnoreCase)
-           || gap.Contains("Supply Order Date pending", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsTimelineGap(string gap)
-        => gap.Contains("Current-stage", StringComparison.OrdinalIgnoreCase)
-           || gap.Contains("actual start missing", StringComparison.OrdinalIgnoreCase)
-           || gap.Contains("actual completion missing", StringComparison.OrdinalIgnoreCase);
-
-    // SECTION: Quick actions keep only durable workspace destinations.
-    private static IReadOnlyList<WorkspaceQuickActionVm> BuildQuickActions(string userId)
-    {
-        return new[]
-        {
-            new WorkspaceQuickActionVm { Text = "Open My Projects", Url = WorkspaceRouteHelper.MyProjects(userId), Icon = "bi-kanban" },
-            new WorkspaceQuickActionVm { Text = "Open Task Management", Url = WorkspaceRouteHelper.ActionTasksMyWork(), Icon = "bi-list-check" },
-            new WorkspaceQuickActionVm { Text = "Open My Project Ideas", Url = WorkspaceRouteHelper.ProjectIdeasMine(), Icon = "bi-lightbulb" },
-            new WorkspaceQuickActionVm { Text = "Open AOTS Inbox", Url = WorkspaceRouteHelper.AotsInbox(), Icon = "bi-file-earmark-text" },
-            new WorkspaceQuickActionVm { Text = "Open My Notebook", Url = WorkspaceRouteHelper.PersonalReminders(), Icon = "bi-journal-bookmark" }
-        };
-    }
-
-    // SECTION: Command-bar composition chips summarize actionable work without adding dashboard clutter.
-    private static IReadOnlyList<WorkspaceCommandChipVm> BuildCommandChips(
-        int remarksDueCount,
-        int aotsUnreadCount,
-        int otherAssignedTasksDueCount,
-        int ideasNeedingUpdateCount)
-    {
-        return new List<WorkspaceCommandChipVm>
-        {
-            new() { Label = remarksDueCount == 1 ? "Remark" : "Remarks", Count = remarksDueCount, Icon = "bi-chat-left-text", State = remarksDueCount > 0 ? "Attention" : "Clear" },
-            new() { Label = "AOTS", Count = aotsUnreadCount, Icon = "bi-file-earmark-text", State = aotsUnreadCount > 0 ? "Attention" : "Clear" },
-            new() { Label = "Other Tasks", Count = otherAssignedTasksDueCount, Icon = "bi-list-check", State = otherAssignedTasksDueCount > 0 ? "Attention" : "Clear" },
-            new() { Label = "Ideas", Count = ideasNeedingUpdateCount, Icon = "bi-lightbulb", State = ideasNeedingUpdateCount > 0 ? "Attention" : "Clear" }
-        };
-    }
-
-    // SECTION: Project data completeness insights convert record-health gaps into useful portfolio signals.
-    private static WorkspaceDataCompletenessInsightVm BuildDataCompletenessInsight(
-        int assignedProjectsCount,
-        IReadOnlyDictionary<int, WorkspaceRecordHealthVm> health)
-    {
-        if (assignedProjectsCount == 0)
-        {
-            return new WorkspaceDataCompletenessInsightVm();
-        }
-
-        var healthItems = health.Values.ToList();
-        if (!healthItems.Any())
-        {
-            return new WorkspaceDataCompletenessInsightVm { AssignedProjectsCount = assignedProjectsCount };
-        }
-
-        var gapGroups = healthItems
-            .SelectMany(h => h.Gaps)
-            .Select(WorkspaceDisplayHelpers.ShortGapLabel)
-            .GroupBy(label => label)
-            .Select(group => new { Label = group.Key, Count = group.Count() })
-            .OrderByDescending(group => group.Count)
-            .ThenBy(group => group.Label)
-            .Take(6)
-            .ToList();
-
-        var maxGapCount = gapGroups.Count > 0 ? gapGroups.Max(group => group.Count) : 0;
-        var gapFrequencies = gapGroups
-            .Select(group => new WorkspaceGapFrequencyVm
-            {
-                Label = group.Label,
-                Count = group.Count,
-                PercentOfMax = maxGapCount == 0 ? 0 : Math.Max(8, (int)Math.Round(group.Count * 100m / maxGapCount))
-            })
-            .ToList();
-
-        var best = healthItems
-            .OrderByDescending(h => h.HealthPercent)
-            .ThenBy(h => h.ProjectName)
-            .FirstOrDefault();
-        var worst = healthItems
-            .OrderBy(h => h.HealthPercent)
-            .ThenByDescending(h => h.GapDetails.Count)
-            .ThenBy(h => h.ProjectName)
-            .FirstOrDefault();
-
-        return new WorkspaceDataCompletenessInsightVm
-        {
-            AverageCompletenessPercent = (int)Math.Round(healthItems.Average(h => h.HealthPercent)),
-            ProjectsWithGapsCount = healthItems.Count(h => h.Gaps.Any()),
-            AssignedProjectsCount = assignedProjectsCount,
-            MostCommonGapLabel = gapFrequencies.FirstOrDefault()?.Label ?? "None",
-            BestProjectName = best?.ProjectName,
-            BestProjectScore = best?.HealthPercent,
-            NeedsMostAttentionProjectName = worst?.ProjectName,
-            NeedsMostAttentionProjectScore = worst?.HealthPercent,
-            GapFrequencies = gapFrequencies
-        };
-    }
-
-    // SECTION: Local workspace rail uses unique section anchors for deterministic scroll navigation.
-    private static IReadOnlyList<WorkspaceRailItemVm> BuildRailItems(ProjectOfficerWorkspaceVm vm)
-    {
-        return new List<WorkspaceRailItemVm>
-        {
-            new() { Label = "Today", Icon = "bi-calendar-check", Anchor = "#today", Count = vm.DailyActionCount, IsPrimary = true },
-            new() { Label = "Action Queue", Icon = "bi-list-check", Anchor = "#action-queue", Count = vm.ActionQueueTotalCount },
-            new() { Label = "Assigned Projects", Icon = "bi-kanban", Anchor = "#assigned-projects", Count = vm.AssignedProjectCount },
-            new() { Label = "Follow-ups", Icon = "bi-bell", Anchor = "#follow-ups", Count = vm.PersonalReminders.Count + vm.AssignedIdeaCount },
-            new() { Label = "Upcoming", Icon = "bi-calendar-event", Anchor = "#upcoming-events", Count = vm.UpcomingEvents.Count }
-        };
-    }
 }

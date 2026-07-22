@@ -1,0 +1,29 @@
+@using ProjectManagement.ViewModels.Workspace
+@model ProjectManagement.Pages.Workspace.IndexModel
+@{
+    var vm = Model.Workspace;
+    var showFilters = vm.ActionQueueTotalCount > 10;
+}
+<div class="po-workspace po-workspace--embedded po-dedicated-page">
+    <header class="po-dedicated-hero">
+        <div><span class="po-eyebrow">My work</span><h1>Action queue</h1><p>Outstanding actions grouped by work item and ordered by operational priority.</p></div>
+        <div class="po-dedicated-hero__metric"><strong>@vm.ActionQueueTotalCount</strong><span>requiring attention</span></div>
+    </header>
+
+    <section class="po-panel po-actions-panel">
+        @if (showFilters)
+        {
+            <div class="po-list-toolbar po-list-toolbar--actions" data-po-action-filters>
+                <label class="po-list-toolbar__search"><span class="visually-hidden">Search actions</span><i class="bi bi-search" aria-hidden="true"></i><input type="search" placeholder="Search work items or actions" data-po-action-search /></label>
+                <label><span class="visually-hidden">Action type</span><select data-po-action-type><option value="">All action types</option><option value="returned">Returned</option><option value="conference">Conference direction</option><option value="timeline">Timeline</option><option value="remark">Remark/update</option><option value="task">Task</option><option value="idea">Idea</option><option value="aots">AOTS</option></select></label>
+                <button type="button" data-po-clear-filters disabled>Reset</button>
+            </div>
+        }
+
+        @await Html.PartialAsync("_ProjectOfficerActionGroups", new ProjectOfficerActionGroupsRenderVm { Groups = vm.AllActionQueueGroups })
+        @if (showFilters)
+        {
+            <div class="po-filter-empty" data-po-filter-empty hidden>No actions match the selected filters.</div>
+        }
+    </section>
+</div>

@@ -7,52 +7,66 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
+using ProjectManagement.Application.Ipr;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
-using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr;
 
 [Authorize(Policy = Policies.Ipr.View)]
-public class DownloadModel : PageModel
+public sealed class DownloadModel : PageModel
 {
     private readonly ApplicationDbContext _db;
-    private readonly IUploadRootProvider _uploadRootProvider;
+    private readonly IprAttachmentStorage _storage;
+    private readonly ILogger<DownloadModel> _logger;
 
-    public DownloadModel(ApplicationDbContext db, IUploadRootProvider uploadRootProvider)
+    public DownloadModel(
+        ApplicationDbContext db,
+        IprAttachmentStorage storage,
+        ILogger<DownloadModel> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
-        _uploadRootProvider = uploadRootProvider ?? throw new ArgumentNullException(nameof(uploadRootProvider));
+        _storage = storage ?? throw new ArgumentNullException(nameof(storage));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<IActionResult> OnGetAsync(int iprRecordId, int attachmentId, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetAsync(
+        int iprRecordId,
+        int attachmentId,
+        CancellationToken cancellationToken)
     {
         if (iprRecordId <= 0 || attachmentId <= 0)
         {
             return NotFound();
         }
 
-        var attachment = await _db.IprAttachments.AsNoTracking()
+        var attachment = await _db.IprAttachments
+            .AsNoTracking()
             .FirstOrDefaultAsync(
                 x => x.IprRecordId == iprRecordId &&
                      x.Id == attachmentId &&
                      !x.IsArchived,
                 cancellationToken);
 
-        if (attachment is null)
+        if (attachment is null || string.IsNullOrWhiteSpace(attachment.StorageKey))
         {
             return NotFound();
         }
 
-        if (string.IsNullOrWhiteSpace(attachment.StorageKey))
+        Stream stream;
+        try
         {
-            return NotFound();
+            stream = await _storage.OpenReadAsync(attachment.StorageKey, cancellationToken);
         }
-
-        var absolutePath = ResolveAbsolutePath(attachment.StorageKey);
-        if (!System.IO.File.Exists(absolutePath))
+        catch (Exception ex) when (ex is FileNotFoundException or IOException or UnauthorizedAccessException or InvalidOperationException)
         {
+            _logger.LogWarning(
+                ex,
+                "Unable to open IPR attachment {AttachmentId} for record {RecordId}.",
+                attachmentId,
+                iprRecordId);
             return NotFound();
         }
 
@@ -60,17 +74,8 @@ public class DownloadModel : PageModel
         var contentType = string.IsNullOrWhiteSpace(attachment.ContentType)
             ? "application/octet-stream"
             : attachment.ContentType;
-        var isPdf = IsPdf(contentType, downloadName);
-
-        FileStream stream;
-        try
-        {
-            stream = new FileStream(absolutePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        }
-        catch
-        {
-            return NotFound();
-        }
+        var isPdf = string.Equals(contentType, "application/pdf", StringComparison.OrdinalIgnoreCase) ||
+                    downloadName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
 
         var result = new FileStreamResult(stream, contentType)
         {
@@ -88,38 +93,23 @@ public class DownloadModel : PageModel
             result.FileDownloadName = downloadName;
         }
 
-        Response.Headers[HeaderNames.ContentLength] = attachment.FileSize.ToString(CultureInfo.InvariantCulture);
+        if (attachment.FileSize > 0)
+        {
+            Response.Headers[HeaderNames.ContentLength] =
+                attachment.FileSize.ToString(CultureInfo.InvariantCulture);
+        }
 
         return result;
-    }
-
-    private string ResolveAbsolutePath(string storageKey)
-    {
-        var relative = storageKey
-            .Replace('/', Path.DirectorySeparatorChar)
-            .Replace('\\', Path.DirectorySeparatorChar);
-
-        return Path.Combine(_uploadRootProvider.RootPath, relative);
     }
 
     private static string SanitizeFileName(string? original)
     {
         if (string.IsNullOrWhiteSpace(original))
         {
-            return "attachment";
+            return "attachment.pdf";
         }
 
         var fileName = Path.GetFileName(original);
-        return string.IsNullOrWhiteSpace(fileName) ? "attachment" : fileName;
-    }
-
-    private static bool IsPdf(string contentType, string fileName)
-    {
-        if (string.Equals(contentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
+        return string.IsNullOrWhiteSpace(fileName) ? "attachment.pdf" : fileName;
     }
 }

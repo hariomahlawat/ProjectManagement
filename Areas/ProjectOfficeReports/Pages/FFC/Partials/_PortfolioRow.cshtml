@@ -1,0 +1,321 @@
+@using System
+@using System.Globalization
+@using ProjectManagement.Models
+@using ProjectManagement.Services.Ffc
+@model FfcPortfolioRecordRow
+@{
+    static string Percent(double value) => value.ToString("0.###", CultureInfo.InvariantCulture) + "%";
+
+    static string MilestoneClass(bool complete) => complete
+        ? "ffc-status-chip--complete"
+        : "ffc-status-chip--pending";
+
+    static string CompletionClass(FfcCompletionState state) => state switch
+    {
+        FfcCompletionState.Complete => "ffc-status-chip--complete",
+        FfcCompletionState.Partial => "ffc-status-chip--partial",
+        _ => "ffc-status-chip--pending"
+    };
+
+    static string CompletionLabel(FfcCompletionState state) => state switch
+    {
+        FfcCompletionState.Complete => "Complete",
+        FfcCompletionState.Partial => "Partial",
+        _ => "Pending"
+    };
+
+    static string PositionClass(FfcUnitPosition position) => position switch
+    {
+        FfcUnitPosition.Installed => "ffc-project-position--installed",
+        FfcUnitPosition.DeliveredAwaitingInstallation => "ffc-project-position--delivered",
+        _ => "ffc-project-position--planned"
+    };
+
+    static string PositionLabel(FfcUnitPosition position) => position switch
+    {
+        FfcUnitPosition.Installed => "Installed",
+        FfcUnitPosition.DeliveredAwaitingInstallation => "Delivered",
+        _ => "Planned"
+    };
+
+    static string LifecycleClass(ProjectLifecycleStatus? status) => status switch
+    {
+        ProjectLifecycleStatus.Completed => "ffc-project-lifecycle--completed",
+        ProjectLifecycleStatus.Cancelled => "ffc-project-lifecycle--cancelled",
+        _ => "ffc-project-lifecycle--active"
+    };
+
+    static string LifecycleLabel(ProjectLifecycleStatus? status) => status switch
+    {
+        ProjectLifecycleStatus.Completed => "Completed",
+        ProjectLifecycleStatus.Cancelled => "Cancelled",
+        ProjectLifecycleStatus.Active => "Active",
+        _ => string.Empty
+    };
+
+    var detailsId = $"ffc-record-{Model.RecordId}";
+    var canManage = User.IsInRole("Admin") || User.IsInRole("HoD");
+    var overallPosition = string.IsNullOrWhiteSpace(Model.OverallRemarks)
+        ? "No overall remarks recorded."
+        : Model.OverallRemarks.Trim();
+    var hasMilestoneRemarks = !string.IsNullOrWhiteSpace(Model.Ipa.Remarks) ||
+                              !string.IsNullOrWhiteSpace(Model.Gsl.Remarks);
+    var request = ViewContext.HttpContext.Request;
+    var currentReturnUrl = $"{request.PathBase}{request.Path}{request.QueryString}";
+}
+
+<article class="ffc-portfolio-row" data-ffc-record-id="@Model.RecordId">
+    <details id="@detailsId" class="ffc-portfolio-row__details" data-ffc-portfolio-row>
+        <summary class="ffc-portfolio-row__summary" aria-controls="@detailsId-panel">
+            <div class="ffc-portfolio-row__identity">
+                <div class="ffc-portfolio-row__country-line">
+                    <a asp-area="ProjectOfficeReports"
+                       asp-page="/FFC/Records/Details"
+                       asp-route-id="@Model.RecordId"
+                       asp-route-returnUrl="@currentReturnUrl"
+                       class="ffc-portfolio-row__country"
+                       data-ffc-row-link>
+                        @Model.CountryName
+                    </a>
+                    <span class="ffc-portfolio-row__iso">@Model.IsoCode</span>
+                    <span class="ffc-portfolio-row__year">@Model.Year</span>
+                </div>
+                <div class="ffc-portfolio-row__record-meta">
+                    <span>@Model.ProjectCount project@(Model.ProjectCount == 1 ? string.Empty : "s")</span>
+                    <span aria-hidden="true">·</span>
+                    <span>Qty @Model.TotalUnits</span>
+                    @if (Model.AttachmentCount > 0)
+                    {
+                        <span aria-hidden="true">·</span>
+                        <span><span class="bi bi-paperclip" aria-hidden="true"></span> @Model.AttachmentCount</span>
+                    }
+                </div>
+            </div>
+
+            <div class="ffc-portfolio-row__milestones" aria-label="Record milestones">
+                <div class="ffc-milestone-summary">
+                    <span class="ffc-milestone-summary__label">IPA</span>
+                    <span class="ffc-status-chip @MilestoneClass(Model.Ipa.IsCompleted)">
+                        @(Model.Ipa.IsCompleted ? "Completed" : "Pending")
+                    </span>
+                    @if (Model.Ipa.CompletedOn.HasValue)
+                    {
+                        <span class="ffc-milestone-summary__date">@Model.Ipa.CompletedOn.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture)</span>
+                    }
+                </div>
+                <div class="ffc-milestone-summary">
+                    <span class="ffc-milestone-summary__label">GSL</span>
+                    <span class="ffc-status-chip @MilestoneClass(Model.Gsl.IsCompleted)">
+                        @(Model.Gsl.IsCompleted ? "Completed" : "Pending")
+                    </span>
+                    @if (Model.Gsl.CompletedOn.HasValue)
+                    {
+                        <span class="ffc-milestone-summary__date">@Model.Gsl.CompletedOn.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture)</span>
+                    }
+                </div>
+            </div>
+
+            <div class="ffc-portfolio-row__units">
+                <div class="ffc-row-unit-numbers">
+                    <span><strong>@Model.InstalledUnits</strong> installed</span>
+                    <span><strong>@Model.DeliveredNotInstalledUnits</strong> delivered</span>
+                    <span><strong>@Model.PlannedUnits</strong> planned</span>
+                </div>
+                <div class="ffc-segmented-bar ffc-segmented-bar--row"
+                     role="img"
+                     aria-label="Quantity status: @Model.InstalledUnits installed, @Model.DeliveredNotInstalledUnits delivered awaiting installation, and @Model.PlannedUnits planned">
+                    @if (Model.TotalUnits > 0)
+                    {
+                        <span class="ffc-segmented-bar__segment ffc-segmented-bar__segment--installed"
+                              style="width: @Percent(Model.InstalledShare)"></span>
+                        <span class="ffc-segmented-bar__segment ffc-segmented-bar__segment--delivered"
+                              style="width: @Percent(Model.DeliveredNotInstalledShare)"></span>
+                        <span class="ffc-segmented-bar__segment ffc-segmented-bar__segment--planned"
+                              style="width: @Percent(Model.PlannedShare)"></span>
+                    }
+                </div>
+                <div class="ffc-row-completion-states">
+                    <span class="ffc-status-chip @CompletionClass(Model.DeliveryState)">Delivery @CompletionLabel(Model.DeliveryState)</span>
+                    <span class="ffc-status-chip @CompletionClass(Model.InstallationState)">Installation @CompletionLabel(Model.InstallationState)</span>
+                </div>
+            </div>
+
+            <div class="ffc-portfolio-row__position">
+                <div class="ffc-portfolio-row__position-label">Current status</div>
+                <p class="ffc-portfolio-row__remarks">@overallPosition</p>
+                <div class="ffc-portfolio-row__updated">Record updated @Model.UpdatedAt.ToString("d MMM yyyy", CultureInfo.InvariantCulture)</div>
+            </div>
+
+            <span class="ffc-portfolio-row__expand-indicator" aria-hidden="true">
+                <span class="bi bi-chevron-down"></span>
+            </span>
+        </summary>
+
+        <div class="ffc-portfolio-row__expanded" id="@detailsId-panel">
+            @if (hasMilestoneRemarks)
+            {
+                <div class="ffc-record-detail-strip">
+                    @if (!string.IsNullOrWhiteSpace(Model.Ipa.Remarks))
+                    {
+                        <div>
+                            <span class="ffc-record-detail-strip__label">IPA remarks</span>
+                            <span>@Model.Ipa.Remarks</span>
+                        </div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.Gsl.Remarks))
+                    {
+                        <div>
+                            <span class="ffc-record-detail-strip__label">GSL remarks</span>
+                            <span>@Model.Gsl.Remarks</span>
+                        </div>
+                    }
+                </div>
+            }
+
+            <div class="ffc-project-rollup" aria-label="Projects for @Model.CountryName @Model.Year">
+                <div class="ffc-project-rollup__header">
+                    <h3>Project roll-up</h3>
+                    <span>@Model.ProjectCount project@(Model.ProjectCount == 1 ? string.Empty : "s")</span>
+                </div>
+
+                @if (Model.Projects.Count == 0)
+                {
+                    <div class="ffc-project-rollup__empty">
+                        No project entries have been added to this record.
+                    </div>
+                }
+                else
+                {
+                    <div class="ffc-project-table" role="table" aria-label="FFC project roll-up">
+                        <div class="ffc-project-table__head" role="row">
+                            <div role="columnheader">Project</div>
+                            <div role="columnheader">Qty</div>
+                            <div role="columnheader">Status</div>
+                            <div role="columnheader">Current progress</div>
+                        </div>
+
+                        @foreach (var project in Model.Projects)
+                        {
+                            var differentFfcName = !string.Equals(
+                                project.DisplayName,
+                                project.FfcName,
+                                StringComparison.OrdinalIgnoreCase);
+
+                            <div class="ffc-project-table__row" role="row">
+                                <div class="ffc-project-table__project" role="cell">
+                                    <div class="ffc-project-table__project-name">
+                                        @if (project.LinkedProjectId.HasValue)
+                                        {
+                                            <a asp-area=""
+                                               asp-page="/Projects/Overview"
+                                               asp-route-id="@project.LinkedProjectId.Value">
+                                                @project.DisplayName
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <span>@project.DisplayName</span>
+                                        }
+
+                                        @if (project.LifecycleStatus.HasValue)
+                                        {
+                                            <span class="ffc-project-lifecycle @LifecycleClass(project.LifecycleStatus)">
+                                                @LifecycleLabel(project.LifecycleStatus)
+                                            </span>
+                                        }
+                                    </div>
+
+                                    @if (differentFfcName)
+                                    {
+                                        <div class="ffc-project-table__secondary">FFC entry: @project.FfcName</div>
+                                    }
+
+                                    @if (!string.IsNullOrWhiteSpace(project.StageSummary) &&
+                                         project.LifecycleStatus == ProjectLifecycleStatus.Active)
+                                    {
+                                        <div class="ffc-project-table__secondary">@project.StageSummary</div>
+                                    }
+                                </div>
+                                <div class="ffc-project-table__quantity" role="cell">@project.Quantity</div>
+                                <div role="cell">
+                                    <span class="ffc-project-position @PositionClass(project.Position)">
+                                        @PositionLabel(project.Position)
+                                    </span>
+                                </div>
+                                <div class="ffc-project-table__progress" role="cell">
+                                    @if (string.IsNullOrWhiteSpace(project.CurrentProgress))
+                                    {
+                                        <span class="text-body-secondary">No progress recorded.</span>
+                                    }
+                                    else
+                                    {
+                                        @project.CurrentProgress
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </details>
+
+    <div class="ffc-portfolio-row__actions dropdown">
+        <button type="button"
+                class="btn btn-sm btn-light ffc-row-actions-button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+                aria-label="Actions for @Model.CountryName @Model.Year">
+            <span class="bi bi-three-dots-vertical" aria-hidden="true"></span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+                <a asp-area="ProjectOfficeReports"
+                   asp-page="/FFC/Records/Details"
+                   asp-route-id="@Model.RecordId"
+                   asp-route-returnUrl="@currentReturnUrl"
+                   class="dropdown-item">
+                    <span class="bi bi-box-arrow-in-right" aria-hidden="true"></span>
+                    Open record
+                </a>
+            </li>
+            @if (canManage)
+            {
+                <li>
+                    <a asp-area="ProjectOfficeReports"
+                       asp-page="/FFC/Records/Details"
+                       asp-route-id="@Model.RecordId"
+                       asp-route-editor="record"
+                       asp-route-returnUrl="@currentReturnUrl"
+                       class="dropdown-item">
+                        <span class="bi bi-pencil-square" aria-hidden="true"></span>
+                        Edit record
+                    </a>
+                </li>
+            }
+            <li><hr class="dropdown-divider" /></li>
+            <li>
+                <a asp-area="ProjectOfficeReports"
+                   asp-page="/FFC/Records/Details"
+                   asp-route-id="@Model.RecordId"
+                   asp-route-returnUrl="@currentReturnUrl"
+                   asp-fragment="projects"
+                   class="dropdown-item">
+                    <span class="bi bi-folder2-open" aria-hidden="true"></span>
+                    Projects
+                </a>
+            </li>
+            <li>
+                <a asp-area="ProjectOfficeReports"
+                   asp-page="/FFC/Records/Details"
+                   asp-route-id="@Model.RecordId"
+                   asp-route-returnUrl="@currentReturnUrl"
+                   asp-fragment="attachments"
+                   class="dropdown-item">
+                    <span class="bi bi-paperclip" aria-hidden="true"></span>
+                    Attachments
+                </a>
+            </li>
+        </ul>
+    </div>
+</article>

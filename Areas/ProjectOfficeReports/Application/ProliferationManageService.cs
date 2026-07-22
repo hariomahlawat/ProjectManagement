@@ -71,7 +71,7 @@ public sealed class ProliferationManageService
         var normalizedSource = source.HasValue && Enum.IsDefined(typeof(ProliferationSource), source.Value)
             ? source
             : null;
-        var normalizedYear = year is >= 2000 and <= 3000 ? year : null;
+        var normalizedYear = year.HasValue && ProliferationYearPolicy.IsValid(year.Value, DateTimeOffset.UtcNow) ? year : null;
         var normalizedKind = kind is ProliferationRecordKind.Yearly or ProliferationRecordKind.Granular
             ? kind
             : null;
@@ -107,6 +107,7 @@ public sealed class ProliferationManageService
                               ProjectCode = p.CaseFileNumber,
                               Source = y.Source,
                               UnitName = null,
+                              Remarks = y.Remarks,
                               Year = y.Year,
                               ProliferationDate = null,
                               Quantity = y.TotalQuantity,
@@ -127,6 +128,7 @@ public sealed class ProliferationManageService
                                 ProjectCode = p.CaseFileNumber,
                                 Source = g.Source,
                                 UnitName = g.UnitName,
+                                Remarks = g.Remarks,
                                 Year = g.ProliferationDate.Year,
                                 ProliferationDate = g.ProliferationDate,
                                 Quantity = g.Quantity,
@@ -168,14 +170,16 @@ public sealed class ProliferationManageService
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
             var trimmed = request.Search.Trim();
-            var like = $"%{trimmed}%";
+            var like = $"%{EscapeLikePattern(trimmed)}%";
             yearlyQuery = yearlyQuery.Where(x =>
-                EF.Functions.ILike(x.ProjectName, like) ||
-                (x.ProjectCode != null && EF.Functions.ILike(x.ProjectCode, like)));
+                EF.Functions.ILike(x.ProjectName, like, "\\") ||
+                (x.ProjectCode != null && EF.Functions.ILike(x.ProjectCode, like, "\\")) ||
+                (x.Remarks != null && EF.Functions.ILike(x.Remarks, like, "\\")));
             granularQuery = granularQuery.Where(x =>
-                EF.Functions.ILike(x.ProjectName, like) ||
-                (x.ProjectCode != null && EF.Functions.ILike(x.ProjectCode, like)) ||
-                (x.UnitName != null && EF.Functions.ILike(x.UnitName, like)));
+                EF.Functions.ILike(x.ProjectName, like, "\\") ||
+                (x.ProjectCode != null && EF.Functions.ILike(x.ProjectCode, like, "\\")) ||
+                (x.UnitName != null && EF.Functions.ILike(x.UnitName, like, "\\")) ||
+                (x.Remarks != null && EF.Functions.ILike(x.Remarks, like, "\\")));
         }
 
         IQueryable<ManageProjection> combined = request.Kind switch
@@ -275,16 +279,20 @@ public sealed class ProliferationManageService
             entity.RowVersion);
     }
 
+    private static string EscapeLikePattern(string value)
+        => value.Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("%", "\\%", StringComparison.Ordinal)
+            .Replace("_", "\\_", StringComparison.Ordinal);
+
     private async Task<IReadOnlyList<ProliferationCompletedProjectOption>> GetCompletedProjectsAsync(CancellationToken ct)
     {
-        // SECTION: Completed non-build projects for Proliferation manager dropdown
+        // SECTION: Completed projects available throughout the proliferation module
         var projects = await _db.Projects
             .AsNoTracking()
             .Where(p =>
                 !p.IsDeleted &&
                 !p.IsArchived &&
-                p.LifecycleStatus == ProjectLifecycleStatus.Completed &&
-                !p.IsBuild)
+                p.LifecycleStatus == ProjectLifecycleStatus.Completed)
             .OrderBy(p => p.Name)
             .ToListAsync(ct);
 
@@ -326,6 +334,7 @@ public sealed class ProliferationManageService
         public string? ProjectCode { get; init; }
         public ProliferationSource Source { get; init; }
         public string? UnitName { get; init; }
+        public string? Remarks { get; init; }
         public int Year { get; init; }
         public DateOnly? ProliferationDate { get; init; }
         public int Quantity { get; init; }

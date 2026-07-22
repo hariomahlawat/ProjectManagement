@@ -10,6 +10,7 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.ConferenceRemarks;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Usage;
 using ProjectManagement.ViewModels.Workspace;
 
 namespace ProjectManagement.Services.Workspace;
@@ -25,7 +26,11 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
     private readonly IOfficerWorkloadReadService _workload;
     private readonly IWorkflowStageMetadataProvider _workflowStageMetadataProvider;
     private readonly IClock _clock;
+    private readonly ProjectRecordHealthService? _recordHealth;
+    private readonly IErpUsageQueryService? _erpUsage;
 
+    // Retained for isolated conference-read tests and legacy composition roots. The
+    // application DI container resolves the complete constructor below.
     public OfficerConferenceReadService(
         ApplicationDbContext db,
         IOfficerWorkloadReadService workload,
@@ -37,6 +42,39 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         _workflowStageMetadataProvider = workflowStageMetadataProvider
             ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+    }
+
+    [Microsoft.Extensions.DependencyInjection.ActivatorUtilitiesConstructor]
+    public OfficerConferenceReadService(
+        ApplicationDbContext db,
+        IOfficerWorkloadReadService workload,
+        IWorkflowStageMetadataProvider workflowStageMetadataProvider,
+        IClock clock,
+        ProjectRecordHealthService recordHealth,
+        IErpUsageQueryService erpUsage)
+    {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _workload = workload ?? throw new ArgumentNullException(nameof(workload));
+        _workflowStageMetadataProvider = workflowStageMetadataProvider
+            ?? throw new ArgumentNullException(nameof(workflowStageMetadataProvider));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _recordHealth = recordHealth ?? throw new ArgumentNullException(nameof(recordHealth));
+        _erpUsage = erpUsage ?? throw new ArgumentNullException(nameof(erpUsage));
+    }
+
+
+    public async Task<IReadOnlyList<OfficerConferenceOfficerOptionVm>> GetOfficerOptionsAsync(
+        string requestingUserId,
+        string? selectedOfficerUserId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(requestingUserId))
+        {
+            return Array.Empty<OfficerConferenceOfficerOptionVm>();
+        }
+
+        var orderedOfficers = await _workload.GetAllAsync(requestingUserId, cancellationToken);
+        return BuildOfficerOptions(orderedOfficers, selectedOfficerUserId);
     }
 
     public async Task<OfficerConferenceVm?> GetAsync(
@@ -73,6 +111,18 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         var projectRows = await LoadProjectsAsync(projectIds, cancellationToken);
         var ideaRows = await LoadIdeasAsync(ideaIds, cancellationToken);
         var taskRows = await LoadTasksAsync(taskIds, cancellationToken);
+        var projectRecordHealth = _recordHealth is null
+            ? new Dictionary<int, WorkspaceRecordHealthVm>()
+            : await _recordHealth.CalculateForProjectIdsAsync(
+                projectIds,
+                selected.UserId,
+                cancellationToken);
+        var activityStrip = _erpUsage is null
+            ? new ErpActivityStripVm()
+            : await _erpUsage.GetActivityStripAsync(
+                selected.UserId,
+                days: 30,
+                cancellationToken: cancellationToken);
 
         var latestProjectDirections = (await LoadLatestProjectDirectionsAsync(projectIds, cancellationToken))
             .ToDictionary(direction => direction.ProjectId);
@@ -80,6 +130,9 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             .ToDictionary(direction => direction.ProjectIdeaId);
         var latestTaskDirections = (await LoadLatestTaskDirectionsAsync(taskIds, cancellationToken))
             .ToDictionary(direction => direction.TaskId);
+        var projectDirectionCounts = await LoadProjectDirectionCountsAsync(projectIds, cancellationToken);
+        var ideaDirectionCounts = await LoadIdeaDirectionCountsAsync(ideaIds, cancellationToken);
+        var taskDirectionCounts = await LoadTaskDirectionCountsAsync(taskIds, cancellationToken);
 
         // Only operational activity after the oldest latest direction can contribute to the
         // progress summaries. This prevents the conference view from loading complete remark
@@ -157,8 +210,10 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             projectRows,
             projectRemarks,
             latestProjectDirections,
+            projectDirectionCounts,
             authorNames,
             mcoUserIds,
+            projectRecordHealth,
             today);
         var ideaItems = BuildIdeaItems(
             selected,
@@ -166,21 +221,18 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             ideaComments,
             ideaNotes,
             latestIdeaDirections,
+            ideaDirectionCounts,
             authorNames);
         var taskItems = BuildTaskItems(
             selected,
             taskRows,
             taskUpdates,
             latestTaskDirections,
+            taskDirectionCounts,
             authorNames,
             today);
 
-        var officerOptions = orderedOfficers
-            .Select(officer => new OfficerConferenceOfficerOptionVm(
-                officer.UserId,
-                DisplayOfficerName(officer),
-                string.Equals(officer.UserId, selected.UserId, StringComparison.Ordinal)))
-            .ToList();
+        var officerOptions = BuildOfficerOptions(orderedOfficers, selected.UserId);
 
         return new OfficerConferenceVm
         {
@@ -198,6 +250,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                 ? orderedOfficers[selectedIndex.index + 1].UserId
                 : null,
             OfficerOptions = officerOptions,
+            ActivityStrip = activityStrip,
             Sections = new[]
             {
                 new OfficerConferenceSectionVm
@@ -224,6 +277,471 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
             }
         };
     }
+
+
+    public async Task<ConferenceDirectionHistoryVm?> GetDirectionHistoryAsync(
+        string requestingUserId,
+        string officerUserId,
+        ConferenceItemKind kind,
+        int itemId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(requestingUserId)
+            || string.IsNullOrWhiteSpace(officerUserId)
+            || itemId <= 0
+            || !Enum.IsDefined(kind))
+        {
+            return null;
+        }
+
+        var orderedOfficers = await _workload.GetAllAsync(requestingUserId, cancellationToken);
+        var selected = orderedOfficers.FirstOrDefault(officer => string.Equals(
+            officer.UserId,
+            officerUserId,
+            StringComparison.Ordinal));
+        if (selected is null)
+        {
+            return null;
+        }
+
+        return kind switch
+        {
+            ConferenceItemKind.Project when selected.Projects.Any(item => item.ProjectId == itemId)
+                => await BuildProjectDirectionHistoryAsync(selected, itemId, cancellationToken),
+            ConferenceItemKind.ProjectIdea when selected.Ideas.Any(item => item.IdeaId == itemId)
+                => await BuildIdeaDirectionHistoryAsync(itemId, cancellationToken),
+            ConferenceItemKind.ActionTask when selected.OtherTasks.Any(item => item.TaskId == itemId)
+                => await BuildTaskDirectionHistoryAsync(selected, itemId, cancellationToken),
+            _ => null
+        };
+    }
+
+    private async Task<ConferenceDirectionHistoryVm> BuildProjectDirectionHistoryAsync(
+        CommandOfficerWorkloadVm officer,
+        int projectId,
+        CancellationToken cancellationToken)
+    {
+        var project = (await LoadProjectsAsync(new[] { projectId }, cancellationToken)).SingleOrDefault();
+        if (project is null)
+        {
+            return EmptyHistory(ConferenceItemKind.Project, projectId);
+        }
+
+        var directions = await _db.Remarks
+            .AsNoTracking()
+            .Where(direction => direction.ProjectId == projectId
+                && !direction.IsDeleted
+                && direction.Type == RemarkType.Conference)
+            .OrderBy(direction => direction.CreatedAtUtc)
+            .ThenBy(direction => direction.Id)
+            .ToListAsync(cancellationToken);
+        if (directions.Count == 0)
+        {
+            return EmptyHistory(ConferenceItemKind.Project, projectId);
+        }
+
+        var assignedProjectOfficerId = string.IsNullOrWhiteSpace(project.LeadPoUserId)
+            ? officer.UserId
+            : project.LeadPoUserId;
+        var mcoUserIds = await LoadUserIdsInRoleAsync(RoleNames.Mco, cancellationToken);
+        var mcoUserIdArray = mcoUserIds.ToArray();
+        var firstDirection = directions[0];
+        var remarks = await _db.Remarks
+            .AsNoTracking()
+            .Where(remark => remark.ProjectId == projectId
+                && !remark.IsDeleted
+                && remark.Type != RemarkType.Conference
+                && (remark.AuthorUserId == assignedProjectOfficerId
+                    || remark.AuthorRole == RemarkActorRole.Mco
+                    || mcoUserIdArray.Contains(remark.AuthorUserId))
+                && remark.CreatedAtUtc >= firstDirection.CreatedAtUtc)
+            .OrderBy(remark => remark.CreatedAtUtc)
+            .ThenBy(remark => remark.Id)
+            .ToListAsync(cancellationToken);
+
+        var authorNames = await LoadAuthorNamesAsync(
+            directions.Select(direction => direction.AuthorUserId)
+                .Concat(remarks.Select(remark => remark.AuthorUserId)),
+            cancellationToken);
+        var cycles = new List<ConferenceDirectionCycleVm>(directions.Count);
+
+        for (var index = 0; index < directions.Count; index++)
+        {
+            var direction = directions[index];
+            var nextDirection = index + 1 < directions.Count ? directions[index + 1] : null;
+            var cycleRemarks = remarks
+                .Where(remark => IsAfter(
+                        remark.CreatedAtUtc,
+                        remark.Id,
+                        direction.CreatedAtUtc,
+                        direction.Id)
+                    && (nextDirection is null || IsBefore(
+                        remark.CreatedAtUtc,
+                        remark.Id,
+                        nextDirection.CreatedAtUtc,
+                        nextDirection.Id)))
+                .ToList();
+
+            var latestProjectOfficerRemark = cycleRemarks
+                .Where(remark => string.Equals(
+                    remark.AuthorUserId,
+                    assignedProjectOfficerId,
+                    StringComparison.Ordinal))
+                .OrderByDescending(remark => remark.CreatedAtUtc)
+                .ThenByDescending(remark => remark.Id)
+                .FirstOrDefault();
+            var latestMcoRemark = cycleRemarks
+                .Where(remark => (remark.AuthorRole == RemarkActorRole.Mco
+                        || mcoUserIds.Contains(remark.AuthorUserId))
+                    && !string.Equals(
+                        remark.AuthorUserId,
+                        assignedProjectOfficerId,
+                        StringComparison.Ordinal))
+                .OrderByDescending(remark => remark.CreatedAtUtc)
+                .ThenByDescending(remark => remark.Id)
+                .FirstOrDefault();
+
+            var progressEntries = new List<ConferenceProgressEntryVm>
+            {
+                latestProjectOfficerRemark is null
+                    ? new ConferenceProgressEntryVm
+                    {
+                        Label = "Project Officer",
+                        EmptyText = nextDirection is null
+                            ? "Progress update awaited. No Project Officer remark has been recorded since the direction was issued."
+                            : "No Project Officer remark was recorded before the next conference direction."
+                    }
+                    : BuildRemarkProgressEntry(
+                        "Project Officer",
+                        latestProjectOfficerRemark,
+                        authorNames)
+            };
+            if (latestMcoRemark is not null)
+            {
+                progressEntries.Add(BuildRemarkProgressEntry("MCO", latestMcoRemark, authorNames));
+            }
+
+            cycles.Add(new ConferenceDirectionCycleVm
+            {
+                Direction = new ConferenceDirectionVm
+                {
+                    Id = direction.Id,
+                    Body = ConferenceDirectionTextFormatter.ToDisplayText(direction.Body),
+                    AuthorName = ResolveAuthor(authorNames, direction.AuthorUserId),
+                    AuthorRole = DisplayRole(direction.AuthorRole),
+                    CreatedAtUtc = AsUtc(direction.CreatedAtUtc),
+                    SnapshotLabel = "Stage when issued",
+                    SnapshotValue = BuildStageSnapshot(direction.StageRef, direction.StageNameSnapshot)
+                },
+                ProgressEntries = progressEntries,
+                SequenceNumber = index + 1,
+                TotalDirections = directions.Count,
+                IsLatest = index == directions.Count - 1
+            });
+        }
+
+        return new ConferenceDirectionHistoryVm
+        {
+            Kind = ConferenceItemKind.Project,
+            ItemId = projectId,
+            Cycles = cycles
+        };
+    }
+
+    private async Task<ConferenceDirectionHistoryVm> BuildIdeaDirectionHistoryAsync(
+        int ideaId,
+        CancellationToken cancellationToken)
+    {
+        var idea = (await LoadIdeasAsync(new[] { ideaId }, cancellationToken)).SingleOrDefault();
+        if (idea is null)
+        {
+            return EmptyHistory(ConferenceItemKind.ProjectIdea, ideaId);
+        }
+
+        var directions = await _db.ProjectIdeaComments
+            .AsNoTracking()
+            .Where(direction => direction.ProjectIdeaId == ideaId
+                && !direction.IsDeleted
+                && direction.CommentType == ProjectIdeaCommentTypes.Conference)
+            .OrderBy(direction => direction.CreatedAt)
+            .ThenBy(direction => direction.Id)
+            .ToListAsync(cancellationToken);
+        if (directions.Count == 0)
+        {
+            return EmptyHistory(ConferenceItemKind.ProjectIdea, ideaId);
+        }
+
+        var firstDirection = directions[0];
+        var comments = await _db.ProjectIdeaComments
+            .AsNoTracking()
+            .Where(comment => comment.ProjectIdeaId == ideaId
+                && !comment.IsDeleted
+                && comment.CommentType != ProjectIdeaCommentTypes.Conference
+                && comment.CreatedAt >= firstDirection.CreatedAt)
+            .OrderBy(comment => comment.CreatedAt)
+            .ThenBy(comment => comment.Id)
+            .ToListAsync(cancellationToken);
+        var notes = await _db.ProjectIdeaNotes
+            .AsNoTracking()
+            .Where(note => note.ProjectIdeaId == ideaId
+                && !note.IsDeleted
+                && (note.CreatedAt >= firstDirection.CreatedAt
+                    || note.UpdatedAt >= firstDirection.CreatedAt))
+            .Select(note => new IdeaNoteRow(
+                note.Id,
+                note.ProjectIdeaId,
+                note.Title,
+                note.Body,
+                note.CreatedByUserId,
+                note.CreatedAt,
+                note.UpdatedAt))
+            .ToListAsync(cancellationToken);
+
+        var authorNames = await LoadAuthorNamesAsync(
+            directions.Select(direction => direction.CreatedByUserId)
+                .Concat(comments.Select(comment => comment.CreatedByUserId))
+                .Concat(notes.Select(note => note.CreatedByUserId)),
+            cancellationToken);
+        var cycles = new List<ConferenceDirectionCycleVm>(directions.Count);
+
+        for (var index = 0; index < directions.Count; index++)
+        {
+            var direction = directions[index];
+            var nextDirection = index + 1 < directions.Count ? directions[index + 1] : null;
+            var latestComment = comments
+                .Where(comment => IsAfter(
+                        comment.CreatedAt,
+                        comment.Id,
+                        direction.CreatedAt,
+                        direction.Id)
+                    && (nextDirection is null || IsBefore(
+                        comment.CreatedAt,
+                        comment.Id,
+                        nextDirection.CreatedAt,
+                        nextDirection.Id)))
+                .OrderByDescending(comment => comment.CreatedAt)
+                .ThenByDescending(comment => comment.Id)
+                .FirstOrDefault();
+            var latestNote = notes
+                .Where(note => NoteActivityAt(note) > direction.CreatedAt
+                    && (nextDirection is null || NoteActivityAt(note) < nextDirection.CreatedAt))
+                .OrderByDescending(NoteActivityAt)
+                .ThenByDescending(note => note.Id)
+                .FirstOrDefault();
+
+            var progressEntries = new List<ConferenceProgressEntryVm>();
+            if (latestComment is not null)
+            {
+                progressEntries.Add(new ConferenceProgressEntryVm
+                {
+                    Label = "Latest comment",
+                    Body = ConferenceDirectionTextFormatter.ToDisplayText(latestComment.CommentText),
+                    AuthorName = ResolveAuthor(authorNames, latestComment.CreatedByUserId),
+                    ActivityAtUtc = AsUtc(latestComment.CreatedAt)
+                });
+            }
+            if (latestNote is not null)
+            {
+                progressEntries.Add(new ConferenceProgressEntryVm
+                {
+                    Label = "Latest note",
+                    Title = latestNote.Title,
+                    Body = ConferenceDirectionTextFormatter.ToDisplayText(latestNote.Body),
+                    AuthorName = ResolveAuthor(authorNames, latestNote.CreatedByUserId),
+                    ActivityAtUtc = AsUtc(NoteActivityAt(latestNote))
+                });
+            }
+
+            cycles.Add(new ConferenceDirectionCycleVm
+            {
+                Direction = new ConferenceDirectionVm
+                {
+                    Id = direction.Id,
+                    Body = ConferenceDirectionTextFormatter.ToDisplayText(direction.CommentText),
+                    AuthorName = ResolveAuthor(authorNames, direction.CreatedByUserId),
+                    AuthorRole = DisplayRole(direction.CreatedByRole),
+                    CreatedAtUtc = AsUtc(direction.CreatedAt),
+                    SnapshotLabel = "Status when issued",
+                    SnapshotValue = ProjectIdeaStatuses.ToDisplay(direction.StatusSnapshot ?? idea.Status)
+                },
+                ProgressEntries = progressEntries,
+                EmptyProgressText = progressEntries.Count == 0
+                    ? nextDirection is null
+                        ? "Progress update awaited. No comment or note has been recorded since the direction was issued."
+                        : "No comment or note was recorded before the next conference direction."
+                    : null,
+                SequenceNumber = index + 1,
+                TotalDirections = directions.Count,
+                IsLatest = index == directions.Count - 1
+            });
+        }
+
+        return new ConferenceDirectionHistoryVm
+        {
+            Kind = ConferenceItemKind.ProjectIdea,
+            ItemId = ideaId,
+            Cycles = cycles
+        };
+    }
+
+    private async Task<ConferenceDirectionHistoryVm> BuildTaskDirectionHistoryAsync(
+        CommandOfficerWorkloadVm officer,
+        int taskId,
+        CancellationToken cancellationToken)
+    {
+        var task = (await LoadTasksAsync(new[] { taskId }, cancellationToken)).SingleOrDefault();
+        if (task is null)
+        {
+            return EmptyHistory(ConferenceItemKind.ActionTask, taskId);
+        }
+
+        var directions = await _db.ActionTaskUpdates
+            .AsNoTracking()
+            .Where(direction => direction.TaskId == taskId
+                && !direction.IsDeleted
+                && direction.UpdateType == ActionTaskUpdateTypes.Conference)
+            .OrderBy(direction => direction.CreatedAtUtc)
+            .ThenBy(direction => direction.Id)
+            .ToListAsync(cancellationToken);
+        if (directions.Count == 0)
+        {
+            return EmptyHistory(ConferenceItemKind.ActionTask, taskId);
+        }
+
+        var assignedTaskUserId = string.IsNullOrWhiteSpace(task.AssignedToUserId)
+            ? officer.UserId
+            : task.AssignedToUserId;
+        var firstDirection = directions[0];
+        var updates = await _db.ActionTaskUpdates
+            .AsNoTracking()
+            .Where(update => update.TaskId == taskId
+                && !update.IsDeleted
+                && update.UpdateType != ActionTaskUpdateTypes.Conference
+                && update.CreatedByUserId == assignedTaskUserId
+                && update.CreatedAtUtc >= firstDirection.CreatedAtUtc)
+            .OrderBy(update => update.CreatedAtUtc)
+            .ThenBy(update => update.Id)
+            .ToListAsync(cancellationToken);
+
+        var authorNames = await LoadAuthorNamesAsync(
+            directions.Select(direction => direction.CreatedByUserId)
+                .Concat(updates.Select(update => update.CreatedByUserId)),
+            cancellationToken);
+        var cycles = new List<ConferenceDirectionCycleVm>(directions.Count);
+
+        for (var index = 0; index < directions.Count; index++)
+        {
+            var direction = directions[index];
+            var nextDirection = index + 1 < directions.Count ? directions[index + 1] : null;
+            var latestUpdate = updates
+                .Where(update => IsAfter(
+                        update.CreatedAtUtc,
+                        update.Id,
+                        direction.CreatedAtUtc,
+                        direction.Id)
+                    && (nextDirection is null || IsBefore(
+                        update.CreatedAtUtc,
+                        update.Id,
+                        nextDirection.CreatedAtUtc,
+                        nextDirection.Id)))
+                .OrderByDescending(update => update.CreatedAtUtc)
+                .ThenByDescending(update => update.Id)
+                .FirstOrDefault();
+
+            var progressEntries = new List<ConferenceProgressEntryVm>
+            {
+                latestUpdate is null
+                    ? new ConferenceProgressEntryVm
+                    {
+                        Label = "Task Assignee",
+                        EmptyText = nextDirection is null
+                            ? "Progress update awaited. No task-assignee update has been recorded since the direction was issued."
+                            : "No task-assignee update was recorded before the next conference direction."
+                    }
+                    : new ConferenceProgressEntryVm
+                    {
+                        Label = "Task Assignee",
+                        Body = ConferenceDirectionTextFormatter.ToDisplayText(latestUpdate.Body),
+                        AuthorName = ResolveAuthor(authorNames, latestUpdate.CreatedByUserId),
+                        ActivityAtUtc = AsUtc(latestUpdate.CreatedAtUtc)
+                    }
+            };
+
+            cycles.Add(new ConferenceDirectionCycleVm
+            {
+                Direction = new ConferenceDirectionVm
+                {
+                    Id = direction.Id,
+                    Body = ConferenceDirectionTextFormatter.ToDisplayText(direction.Body),
+                    AuthorName = ResolveAuthor(authorNames, direction.CreatedByUserId),
+                    AuthorRole = DisplayRole(direction.CreatedByRole),
+                    CreatedAtUtc = AsUtc(direction.CreatedAtUtc),
+                    SnapshotLabel = "When issued",
+                    SnapshotValue = BuildTaskSnapshot(direction.StatusSnapshot, direction.DueDateSnapshot)
+                },
+                ProgressEntries = progressEntries,
+                SequenceNumber = index + 1,
+                TotalDirections = directions.Count,
+                IsLatest = index == directions.Count - 1
+            });
+        }
+
+        return new ConferenceDirectionHistoryVm
+        {
+            Kind = ConferenceItemKind.ActionTask,
+            ItemId = taskId,
+            Cycles = cycles
+        };
+    }
+
+    private async Task<Dictionary<string, string>> LoadAuthorNamesAsync(
+        IEnumerable<string> userIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = userIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (ids.Length == 0)
+        {
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+
+        var authors = await _db.Users
+            .AsNoTracking()
+            .Where(user => ids.Contains(user.Id))
+            .Select(user => new
+            {
+                user.Id,
+                Name = string.IsNullOrWhiteSpace(user.FullName)
+                    ? user.UserName ?? user.Id
+                    : user.FullName
+            })
+            .ToListAsync(cancellationToken);
+        return authors.ToDictionary(author => author.Id, author => author.Name, StringComparer.Ordinal);
+    }
+
+    private static ConferenceDirectionHistoryVm EmptyHistory(ConferenceItemKind kind, int itemId)
+        => new()
+        {
+            Kind = kind,
+            ItemId = itemId,
+            Cycles = Array.Empty<ConferenceDirectionCycleVm>()
+        };
+
+
+    private static IReadOnlyList<OfficerConferenceOfficerOptionVm> BuildOfficerOptions(
+        IReadOnlyList<CommandOfficerWorkloadVm> orderedOfficers,
+        string? selectedOfficerUserId)
+        => orderedOfficers
+            .Select(officer => new OfficerConferenceOfficerOptionVm(
+                officer.UserId,
+                DisplayOfficerName(officer),
+                string.Equals(officer.UserId, selectedOfficerUserId, StringComparison.Ordinal),
+                officer.ProjectCount,
+                officer.IdeaCount,
+                officer.OtherTaskCount))
+            .ToArray();
 
     private async Task<List<ProjectRow>> LoadProjectsAsync(
         int[] projectIds,
@@ -352,6 +870,64 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                         || (candidate.CreatedAtUtc == direction.CreatedAtUtc
                             && candidate.Id > direction.Id))))
                 .ToListAsync(cancellationToken);
+
+
+    private async Task<IReadOnlyDictionary<int, int>> LoadProjectDirectionCountsAsync(
+        int[] projectIds,
+        CancellationToken cancellationToken)
+    {
+        if (projectIds.Length == 0)
+        {
+            return new Dictionary<int, int>();
+        }
+
+        return await _db.Remarks
+            .AsNoTracking()
+            .Where(direction => projectIds.Contains(direction.ProjectId)
+                && !direction.IsDeleted
+                && direction.Type == RemarkType.Conference)
+            .GroupBy(direction => direction.ProjectId)
+            .Select(group => new { ItemId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.ItemId, item => item.Count, cancellationToken);
+    }
+
+    private async Task<IReadOnlyDictionary<int, int>> LoadIdeaDirectionCountsAsync(
+        int[] ideaIds,
+        CancellationToken cancellationToken)
+    {
+        if (ideaIds.Length == 0)
+        {
+            return new Dictionary<int, int>();
+        }
+
+        return await _db.ProjectIdeaComments
+            .AsNoTracking()
+            .Where(direction => ideaIds.Contains(direction.ProjectIdeaId)
+                && !direction.IsDeleted
+                && direction.CommentType == ProjectIdeaCommentTypes.Conference)
+            .GroupBy(direction => direction.ProjectIdeaId)
+            .Select(group => new { ItemId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.ItemId, item => item.Count, cancellationToken);
+    }
+
+    private async Task<IReadOnlyDictionary<int, int>> LoadTaskDirectionCountsAsync(
+        int[] taskIds,
+        CancellationToken cancellationToken)
+    {
+        if (taskIds.Length == 0)
+        {
+            return new Dictionary<int, int>();
+        }
+
+        return await _db.ActionTaskUpdates
+            .AsNoTracking()
+            .Where(direction => taskIds.Contains(direction.TaskId)
+                && !direction.IsDeleted
+                && direction.UpdateType == ActionTaskUpdateTypes.Conference)
+            .GroupBy(direction => direction.TaskId)
+            .Select(group => new { ItemId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.ItemId, item => item.Count, cancellationToken);
+    }
 
     private Task<List<Remark>> LoadProjectProgressRemarksAsync(
         IReadOnlyDictionary<int, Remark> latestDirections,
@@ -490,8 +1066,10 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         IReadOnlyList<ProjectRow> rows,
         IReadOnlyList<Remark> remarks,
         IReadOnlyDictionary<int, Remark> latestDirections,
+        IReadOnlyDictionary<int, int> directionCounts,
         IReadOnlyDictionary<string, string> authorNames,
         IReadOnlySet<string> mcoUserIds,
+        IReadOnlyDictionary<int, WorkspaceRecordHealthVm> recordHealth,
         DateOnly today)
     {
         var rowsById = rows.ToDictionary(row => row.Id);
@@ -603,7 +1181,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                     ? new ConferenceProgressEntryVm
                     {
                         Label = "Project Officer",
-                        EmptyText = "No remark by the Project Officer after the direction."
+                        EmptyText = "Progress update awaited. No Project Officer remark has been recorded since the direction was issued."
                     }
                     : BuildRemarkProgressEntry(
                         "Project Officer",
@@ -630,6 +1208,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                 CurrentContext = contextParts.Count == 0 ? null : string.Join(" · ", contextParts),
                 AttentionText = attentionText,
                 RequiresAttention = requiresAttention,
+                RecordHealth = recordHealth.GetValueOrDefault(row.Id),
                 LatestDirection = direction is null
                     ? null
                     : new ConferenceDirectionVm
@@ -642,6 +1221,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                         SnapshotLabel = "Stage when issued",
                         SnapshotValue = BuildStageSnapshot(direction.StageRef, direction.StageNameSnapshot)
                     },
+                DirectionCount = directionCounts.GetValueOrDefault(row.Id),
                 ProgressEntries = progressEntries,
                 EmptyProgressText = null,
                 ProgressSummary = string.Empty,
@@ -658,6 +1238,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         IReadOnlyList<ProjectIdeaComment> comments,
         IReadOnlyList<IdeaNoteRow> notes,
         IReadOnlyDictionary<int, ProjectIdeaComment> latestDirections,
+        IReadOnlyDictionary<int, int> directionCounts,
         IReadOnlyDictionary<string, string> authorNames)
     {
         var rowsById = rows.ToDictionary(row => row.Id);
@@ -750,9 +1331,10 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                         SnapshotLabel = "Status when issued",
                         SnapshotValue = ProjectIdeaStatuses.ToDisplay(direction.StatusSnapshot ?? row.Status)
                     },
+                DirectionCount = directionCounts.GetValueOrDefault(row.Id),
                 ProgressEntries = progressEntries,
                 EmptyProgressText = direction is not null && progressEntries.Count == 0
-                    ? "No comment or note after the direction."
+                    ? "Progress update awaited. No comment or note has been recorded since the direction was issued."
                     : null,
                 ProgressSummary = string.Empty,
                 LatestProgressText = null
@@ -770,6 +1352,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         IReadOnlyList<TaskRow> rows,
         IReadOnlyList<ActionTaskUpdate> updates,
         IReadOnlyDictionary<int, ActionTaskUpdate> latestDirections,
+        IReadOnlyDictionary<int, int> directionCounts,
         IReadOnlyDictionary<string, string> authorNames,
         DateOnly today)
     {
@@ -822,7 +1405,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                     ? new ConferenceProgressEntryVm
                     {
                         Label = "Task Assignee",
-                        EmptyText = "No update by the task assignee after the direction."
+                        EmptyText = "Progress update awaited. No task-assignee update has been recorded since the direction was issued."
                     }
                     : new ConferenceProgressEntryVm
                     {
@@ -856,6 +1439,7 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
                         SnapshotLabel = "When issued",
                         SnapshotValue = BuildTaskSnapshot(direction.StatusSnapshot, direction.DueDateSnapshot)
                     },
+                DirectionCount = directionCounts.GetValueOrDefault(row.Id),
                 ProgressEntries = progressEntries,
                 EmptyProgressText = null,
                 ProgressSummary = string.Empty,
@@ -902,6 +1486,14 @@ public sealed class OfficerConferenceReadService : IOfficerConferenceReadService
         int baselineId)
         => candidateAt > baselineAt
            || (candidateAt == baselineAt && candidateId > baselineId);
+
+    private static bool IsBefore(
+        DateTime candidateAt,
+        int candidateId,
+        DateTime boundaryAt,
+        int boundaryId)
+        => candidateAt < boundaryAt
+           || (candidateAt == boundaryAt && candidateId < boundaryId);
 
     private static string BuildStageSnapshot(string? stageRef, string? stageName)
     {
