@@ -40,7 +40,8 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("Latest external status for AURA", text, StringComparison.Ordinal);
         Assert.Contains("Stage-wise summary", text, StringComparison.Ordinal);
         Assert.Contains("Stage-wise project distribution", text, StringComparison.Ordinal);
-        Assert.Contains("PROJECT POSITION", text, StringComparison.Ordinal);
+        Assert.Contains("PRESENT STATUS", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("PROJECT POSITION", text, StringComparison.Ordinal);
         Assert.Contains("CAPABILITY OVERVIEW", text, StringComparison.Ordinal);
 
         Assert.DoesNotContain("reverse workflow order", text, StringComparison.OrdinalIgnoreCase);

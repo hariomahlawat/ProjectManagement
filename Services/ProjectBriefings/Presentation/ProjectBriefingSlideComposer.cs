@@ -571,13 +571,19 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         const double rightWidth = 7.48;
         const double contentTop = 1.28;
         const double contentBottom = 6.70;
+        const double sectionGap = .18;
 
         var hasPhoto = project.CoverPhoto is { Length: > 0 };
-        var photoHeight = hasPhoto ? 2.48 : 1.18;
-        canvas.AddRoundedRect(leftX, contentTop, leftWidth, photoHeight, CardBackground, Border, .08);
+        var costCards = CostCards(data.CostMode, project);
+        var costHeight = costCards.Count == 0 ? 0d : 1.03;
+        var costY = costCards.Count == 0 ? contentBottom : contentBottom - costHeight;
+        var positionBottom = costCards.Count == 0 ? contentBottom : costY - sectionGap;
+        var layout = CalculateDetailedLayout(project.ExternalStatus, hasPhoto, contentTop, positionBottom, sectionGap);
+
+        canvas.AddRoundedRect(leftX, contentTop, leftWidth, layout.PhotoHeight, CardBackground, Border, .08);
         if (hasPhoto)
         {
-            var imageHeight = photoHeight - .20;
+            var imageHeight = layout.PhotoHeight - .20;
             var imageWidth = imageHeight * 16d / 9d;
             var imageX = leftX + ((leftWidth - imageWidth) / 2d);
             canvas.AddImage(
@@ -591,22 +597,18 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         }
         else
         {
-            canvas.AddRect(leftX + .10, contentTop + .10, leftWidth - .20, photoHeight - .20, "EEF2F7", "E1E7EF");
-            canvas.AddRect(leftX + 1.55, contentTop + .39, 1.25, .06, "B7C2D0");
-            canvas.AddRect(leftX + 1.76, contentTop + .60, .83, .06, "CBD3DE");
-            canvas.AddText(leftX + .45, contentTop + .72, leftWidth - .90, .25,
-                "PHOTOGRAPH NOT AVAILABLE", 9.5, Muted, true, "ctr");
+            canvas.AddRect(leftX + .10, contentTop + .10, leftWidth - .20, layout.PhotoHeight - .20, "F3F5F8", "E1E7EF");
+            canvas.AddRect(leftX + 1.70, contentTop + .26, 1.00, .05, "C4CDD9");
+            canvas.AddRect(leftX + 1.87, contentTop + .43, .66, .05, "D4DAE3");
+            canvas.AddText(leftX + .45, contentTop + .51, leftWidth - .90, .20,
+                "PHOTOGRAPH NOT AVAILABLE", 8.7, Muted, true, "ctr");
         }
 
-        var positionY = contentTop + photoHeight + .18;
-        var costCards = CostCards(data.CostMode, project);
-        var costHeight = costCards.Count == 0 ? 0d : 1.03;
-        var positionHeight = Math.Max(1.52, contentBottom - positionY - costHeight - (costHeight > 0 ? .18 : 0));
-        AddProjectPositionCard(canvas, leftX, positionY, leftWidth, positionHeight, project);
+        var statusY = contentTop + layout.PhotoHeight + sectionGap;
+        AddPresentStatusCard(canvas, leftX, statusY, leftWidth, positionBottom - statusY, project);
 
         if (costCards.Count > 0)
         {
-            var costY = positionY + positionHeight + .18;
             if (costCards.Count == 2)
             {
                 AddInfoCard(canvas, leftX, costY, 2.11, costHeight,
@@ -634,13 +636,30 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
             contentBottom - contentTop - .92,
             overview.Text,
             overview.FontSize,
-            Text,
+            overview.Color,
             false,
             "l",
             "t");
     }
 
-    private static void AddProjectPositionCard(
+    private static DetailedSlideLayout CalculateDetailedLayout(
+        string? externalStatus,
+        bool hasPhoto,
+        double contentTop,
+        double positionBottom,
+        double sectionGap)
+    {
+        var normalized = NormalizePresentationText(externalStatus);
+        var estimatedLines = Math.Clamp(EstimateWrappedLines(normalized, 48), 1, 6);
+        var desiredStatusHeight = 1.50 + (estimatedLines * .205);
+        var available = Math.Max(2.2, positionBottom - contentTop - sectionGap);
+        var minimumPhoto = hasPhoto ? 1.48 : .78;
+        var maximumPhoto = hasPhoto ? 2.35 : .92;
+        var photoHeight = Math.Clamp(available - desiredStatusHeight, minimumPhoto, maximumPhoto);
+        return new DetailedSlideLayout(photoHeight);
+    }
+
+    private static void AddPresentStatusCard(
         SlideCanvas canvas,
         double x,
         double y,
@@ -649,46 +668,80 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         ProjectBriefingPresentationProject project)
     {
         canvas.AddRoundedRect(x, y, width, height, CardBackground, Border, .08);
-        canvas.AddText(x + .25, y + .18, width - .50, .22, "PROJECT POSITION", 9.5, Blue, true, "l");
+        canvas.AddText(x + .25, y + .18, width - .50, .22, "PRESENT STATUS", 9.5, Blue, true, "l");
         canvas.AddText(x + .25, y + .48, width - .50, .18, "PRESENT STAGE", 7.8, Muted, true, "l");
-        canvas.AddRoundedRect(x + .25, y + .70, Math.Min(width - .50, 2.65), .38, LightBlue, Blue, .06);
-        canvas.AddText(x + .37, y + .74, Math.Min(width - .74, 2.40), .28,
-            Truncate(project.PresentStage, 34), 10.5, Navy, true, "l");
+        canvas.AddRoundedRect(x + .25, y + .70, Math.Min(width - .50, 2.92), .38, LightBlue, Blue, .06);
+        canvas.AddText(x + .37, y + .74, Math.Min(width - .74, 2.66), .28,
+            TruncateAtWord(project.PresentStage, 42), 10.3, Navy, true, "l");
 
         var statusLabel = project.ExternalStatusDate.HasValue
             ? $"STATUS · {project.ExternalStatusDate.Value:dd MMM yyyy}"
             : "STATUS";
         canvas.AddText(x + .25, y + 1.18, width - .50, .20, statusLabel, 8.2, Blue, true, "l");
-        var statusHeight = Math.Max(.34, height - 1.48);
-        var statusFont = project.ExternalStatus.Length switch
+        var statusHeight = Math.Max(.30, height - 1.47);
+        var availableLines = Math.Max(1, (int)Math.Floor(statusHeight / .205));
+        var normalized = NormalizePresentationText(project.ExternalStatus);
+        var maximumCharacters = Math.Max(56, availableLines * 50);
+        var fitted = TruncateAtWord(normalized, maximumCharacters);
+        var estimatedLines = EstimateWrappedLines(fitted, 48);
+        var statusFont = estimatedLines switch
         {
-            <= 95 => 10.2,
-            <= 165 => 9.5,
-            _ => 8.8
+            <= 2 => 10.2,
+            <= 4 => 9.5,
+            _ => 8.9
         };
         canvas.AddText(x + .25, y + 1.43, width - .50, statusHeight,
-            Truncate(project.ExternalStatus, 300), statusFont, Text, false, "l", "t");
+            fitted, statusFont, Text, false, "l", "t");
     }
 
-    private static (string Text, double FontSize) FitOverview(string? value)
+    private static OverviewText FitOverview(string? value)
     {
-        var text = string.IsNullOrWhiteSpace(value)
-            ? "Brief description not recorded."
-            : value.Trim();
-        var maximum = 1200;
-        if (text.Length > maximum)
+        var normalized = NormalizePresentationText(value);
+        if (string.IsNullOrWhiteSpace(normalized)
+            || string.Equals(normalized, "Brief description not recorded.", StringComparison.OrdinalIgnoreCase))
         {
-            text = text[..maximum].TrimEnd() + "…";
+            return new OverviewText("Capability overview not recorded.", 12.5, Muted);
         }
 
+        var text = TruncateAtWord(normalized, 1600);
         var font = text.Length switch
         {
-            <= 420 => 14.5,
-            <= 700 => 13.5,
-            <= 950 => 12.5,
-            _ => 11.5
+            <= 450 => 14.5,
+            <= 780 => 13.5,
+            <= 1120 => 12.3,
+            _ => 11.3
         };
-        return (text, font);
+        return new OverviewText(text, font, Text);
+    }
+
+    private static string NormalizePresentationText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        return value
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Replace('\uF0B7', '•')
+            .Replace('', '•')
+            .Replace('◦', '•')
+            .Trim();
+    }
+
+    private static int EstimateWrappedLines(string? value, int charactersPerLine)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return 1;
+        return value
+            .Split('\n')
+            .Sum(line => Math.Max(1, (int)Math.Ceiling(line.Length / (double)Math.Max(1, charactersPerLine))));
+    }
+
+    private static string TruncateAtWord(string? value, int maximum)
+    {
+        var text = NormalizePresentationText(value);
+        if (text.Length <= maximum) return text;
+        var candidate = text[..Math.Max(1, maximum - 1)].TrimEnd();
+        var lastSpace = candidate.LastIndexOfAny(new[] { ' ', '\n', '\t' });
+        if (lastSpace > maximum * .72) candidate = candidate[..lastSpace].TrimEnd();
+        return candidate + "…";
     }
 
     private static string CategoryLine(ProjectBriefingPresentationProject project)
@@ -717,12 +770,13 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         }
         if (mode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both)
         {
+            var proliferationAvailable = project.ProliferationCost.IsAvailable;
             result.Add(new CostCard(
                 "PROLIFERATION COST",
-                project.ProliferationCost.IsAvailable ? project.ProliferationCost.DisplayValue : "Not recorded",
-                Green,
-                LightGreen,
-                "Indicative"));
+                proliferationAvailable ? project.ProliferationCost.DisplayValue : "Not recorded",
+                proliferationAvailable ? Green : Muted,
+                proliferationAvailable ? LightGreen : "F4F6F8",
+                proliferationAvailable ? "Indicative" : null));
         }
         return result;
     }
@@ -838,7 +892,9 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         }
     }
 
-    private sealed record CostCard(string Title, string Value, string Accent, string Fill, string Note);
+    private sealed record DetailedSlideLayout(double PhotoHeight);
+    private sealed record OverviewText(string Text, double FontSize, string Color);
+    private sealed record CostCard(string Title, string Value, string Accent, string Fill, string? Note);
     private sealed record NativeTableCell(string Value, double FontSize, string Color, bool Bold, string Align, string Fill);
     private sealed record SlidePlan(bool IsCover, Action<SlideCanvas, byte[]?> Render);
 
@@ -1032,7 +1088,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
                 .Select(line => $"""
 <a:p><a:pPr algn="{alignment}"/><a:r><a:rPr lang="en-IN" sz="{FontSize(fontSize)}" b="{(bold ? 1 : 0)}"><a:solidFill><a:srgbClr val="{CleanColor(color)}"/></a:solidFill><a:latin typeface="Aptos"/></a:rPr><a:t xml:space="preserve">{Escape(line)}</a:t></a:r><a:endParaRPr lang="en-IN" sz="{FontSize(fontSize)}"/></a:p>
 """);
-            return $"<p:txBody><a:bodyPr wrap=\"square\" lIns=\"45720\" rIns=\"45720\" tIns=\"22860\" bIns=\"22860\" anchor=\"{anchor}\"/><a:lstStyle/>{string.Join(string.Empty, paragraphs)}</p:txBody>";
+            return $"<p:txBody><a:bodyPr wrap=\"square\" vertOverflow=\"clip\" horzOverflow=\"clip\" lIns=\"45720\" rIns=\"45720\" tIns=\"22860\" bIns=\"22860\" anchor=\"{anchor}\"><a:normAutofit fontScale=\"92000\" lnSpcReduction=\"10000\"/></a:bodyPr><a:lstStyle/>{string.Join(string.Empty, paragraphs)}</p:txBody>";
         }
 
         private static string Alignment(string value) => value switch { "ctr" => "ctr", "r" => "r", _ => "l" };

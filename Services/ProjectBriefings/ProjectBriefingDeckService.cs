@@ -42,6 +42,14 @@ public interface IProjectBriefingDeckService
         string rowVersion,
         CancellationToken cancellationToken = default);
 
+    Task<ProjectBriefingMembershipUpdateResult> UpdateMembershipAsync(
+        long deckId,
+        string requestingUserId,
+        IReadOnlyCollection<int> addProjectIds,
+        IReadOnlyCollection<int> removeProjectIds,
+        string rowVersion,
+        CancellationToken cancellationToken = default);
+
     Task RemoveProjectAsync(
         long deckId,
         int projectId,
@@ -330,6 +338,85 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             $"{additions.Length} project(s) added to briefing deck.",
             new Dictionary<string, string?> { ["ProjectIds"] = string.Join(",", additions) });
         return additions.Length;
+    }
+
+    public async Task<ProjectBriefingMembershipUpdateResult> UpdateMembershipAsync(
+        long deckId,
+        string requestingUserId,
+        IReadOnlyCollection<int> addProjectIds,
+        IReadOnlyCollection<int> removeProjectIds,
+        string rowVersion,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await GetEntityAsync(deckId, userId, includeItems: true, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        EnsureVersion(deck, rowVersion);
+
+        var requestedRemovals = (removeProjectIds ?? Array.Empty<int>())
+            .Where(projectId => projectId > 0)
+            .Distinct()
+            .ToHashSet();
+        var requestedAdditions = (addProjectIds ?? Array.Empty<int>())
+            .Where(projectId => projectId > 0 && !requestedRemovals.Contains(projectId))
+            .Distinct()
+            .ToArray();
+        var validAdditions = requestedAdditions.Length == 0
+            ? Array.Empty<int>()
+            : (await _selectionService.ValidateProjectIdsAsync(requestedAdditions, cancellationToken)).ToArray();
+
+        var removedItems = deck.Items
+            .Where(item => requestedRemovals.Contains(item.ProjectId))
+            .ToArray();
+        if (removedItems.Length > 0)
+        {
+            _db.RemoveRange(removedItems);
+            foreach (var item in removedItems)
+            {
+                deck.Items.Remove(item);
+            }
+        }
+
+        var existing = deck.Items.Select(item => item.ProjectId).ToHashSet();
+        var additions = validAdditions.Where(existing.Add).ToArray();
+        const int maximumProjectsPerDeck = 120;
+        if (deck.Items.Count + additions.Length > maximumProjectsPerDeck)
+        {
+            throw new InvalidOperationException($"A briefing deck can contain up to {maximumProjectsPerDeck} projects. Remove projects or use a separate deck.");
+        }
+
+        if (removedItems.Length == 0 && additions.Length == 0)
+        {
+            return new ProjectBriefingMembershipUpdateResult(Encode(deck.RowVersion), 0, 0);
+        }
+
+        var nextOrder = deck.Items.Count == 0 ? 10 : deck.Items.Max(item => item.SortOrder) + 10;
+        var now = _clock.UtcNow.ToUniversalTime();
+        foreach (var projectId in additions)
+        {
+            deck.Items.Add(new ProjectBriefingDeckItem
+            {
+                ProjectId = projectId,
+                SortOrder = nextOrder,
+                AddedAtUtc = now
+            });
+            nextOrder += 10;
+        }
+
+        Touch(deck, userId);
+        await _db.SaveChangesAsync(cancellationToken);
+        await AuditAsync(
+            "ProjectBriefing.MembershipUpdated",
+            userId,
+            deck,
+            $"Briefing deck membership updated: {additions.Length} added, {removedItems.Length} removed.",
+            new Dictionary<string, string?>
+            {
+                ["AddedProjectIds"] = string.Join(",", additions),
+                ["RemovedProjectIds"] = string.Join(",", removedItems.Select(item => item.ProjectId))
+            });
+
+        return new ProjectBriefingMembershipUpdateResult(Encode(deck.RowVersion), additions.Length, removedItems.Length);
     }
 
     public async Task RemoveProjectAsync(

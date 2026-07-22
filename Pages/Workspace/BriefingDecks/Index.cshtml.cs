@@ -266,6 +266,52 @@ public sealed class IndexModel : PageModel
         return RedirectToPage(new { deckId });
     }
 
+    public async Task<IActionResult> OnPostUpdateMembershipAsync(
+        [FromBody] UpdateMembershipInput? input,
+        CancellationToken cancellationToken)
+    {
+        var userId = RequireUserId();
+        if (input is null || input.DeckId <= 0 || string.IsNullOrWhiteSpace(input.RowVersion))
+        {
+            return BadRequest(new { message = "The deck-membership request is invalid." });
+        }
+
+        try
+        {
+            var result = await _deckService.UpdateMembershipAsync(
+                input.DeckId,
+                userId,
+                input.AddProjectIds,
+                input.RemoveProjectIds,
+                input.RowVersion,
+                cancellationToken);
+            var deck = await _dataService.GetDeckAsync(input.DeckId, userId, cancellationToken)
+                ?? throw new KeyNotFoundException("The shared command deck was not found.");
+
+            return new JsonResult(new
+            {
+                saved = true,
+                result.AddedCount,
+                result.RemovedCount,
+                deck
+            });
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return new JsonResult(new
+            {
+                message = "This deck was updated by another user. Reload to review the latest version before applying your changes."
+            })
+            {
+                StatusCode = StatusCodes.Status409Conflict
+            };
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+        {
+            return BadRequest(new { message = exception.Message });
+        }
+    }
+
     public async Task<IActionResult> OnPostReorderAsync(
         [FromBody] ReorderInput? input,
         CancellationToken cancellationToken)
@@ -340,12 +386,37 @@ public sealed class IndexModel : PageModel
     }
 
     public async Task<IActionResult> OnGetSearchProjectsAsync(
+        long deckId,
         string? query,
         CancellationToken cancellationToken)
     {
-        _ = RequireUserId();
-        var projects = await _selectionService.SearchAsync(query, 30, cancellationToken);
-        return new JsonResult(projects);
+        var userId = RequireUserId();
+        if (deckId <= 0)
+        {
+            return BadRequest(new { message = "Select a valid shared deck before searching projects." });
+        }
+
+        var projects = await _selectionService.SearchAsync(query, 40, cancellationToken);
+        var deck = await _deckService.GetEntityAsync(deckId, userId, includeItems: true, cancellationToken);
+        if (deck is null)
+        {
+            return NotFound(new { message = "The shared command deck was not found." });
+        }
+
+        var membership = deck.Items.ToDictionary(item => item.ProjectId, item => item.SortOrder);
+        var rows = projects.Select(project => new ProjectBriefingManageSearchResultVm(
+            project.ProjectId,
+            project.ProjectName,
+            project.Lifecycle,
+            project.PresentStage,
+            project.ProjectCategory,
+            project.TechnicalCategory,
+            project.ProjectOfficer,
+            project.CaseFileNumber,
+            membership.ContainsKey(project.ProjectId),
+            membership.TryGetValue(project.ProjectId, out var sortOrder) ? sortOrder : null))
+            .ToArray();
+        return new JsonResult(rows);
     }
 
     public async Task<IActionResult> OnPostGenerateAsync(long deckId, CancellationToken cancellationToken)
@@ -483,6 +554,14 @@ public sealed class IndexModel : PageModel
         public List<int> ProjectIds { get; set; } = new();
         public int? CompletionYearFrom { get; set; }
         public int? CompletionYearTo { get; set; }
+        public string RowVersion { get; set; } = string.Empty;
+    }
+
+    public sealed class UpdateMembershipInput
+    {
+        public long DeckId { get; set; }
+        public List<int> AddProjectIds { get; set; } = new();
+        public List<int> RemoveProjectIds { get; set; } = new();
         public string RowVersion { get; set; } = string.Empty;
     }
 

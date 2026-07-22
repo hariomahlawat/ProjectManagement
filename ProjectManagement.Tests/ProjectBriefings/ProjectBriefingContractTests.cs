@@ -18,7 +18,7 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("Project category", page, StringComparison.Ordinal);
         Assert.Contains("Technical category", page, StringComparison.Ordinal);
         Assert.Contains("Available for proliferation", page, StringComparison.Ordinal);
-        Assert.Contains("Select individually", page, StringComparison.Ordinal);
+        Assert.Contains("Manage individually", page, StringComparison.Ordinal);
         Assert.Contains("Status <small>external remark</small>", page, StringComparison.Ordinal);
         Assert.Contains("Cost (R&amp;D)", page, StringComparison.Ordinal);
         Assert.Contains("Generate PowerPoint", page, StringComparison.Ordinal);
@@ -99,11 +99,32 @@ public sealed class ProjectBriefingContractTests
     {
         var composer = Read("ProjectBriefingSlideComposer.cs");
 
-        Assert.Contains("PROJECT POSITION", composer, StringComparison.Ordinal);
+        Assert.Contains("PRESENT STATUS", composer, StringComparison.Ordinal);
+        Assert.DoesNotContain("PROJECT POSITION", composer, StringComparison.Ordinal);
         Assert.Contains("CAPABILITY OVERVIEW", composer, StringComparison.Ordinal);
         Assert.Contains("const double rightWidth = 7.48", composer, StringComparison.Ordinal);
-        Assert.Contains("var photoHeight = hasPhoto ? 2.48 : 1.18", composer, StringComparison.Ordinal);
+        Assert.Contains("CalculateDetailedLayout", composer, StringComparison.Ordinal);
+        Assert.Contains("vertOverflow=\\\"clip\\\"", composer, StringComparison.Ordinal);
         Assert.Contains("FitOverview", composer, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public void Builder_ManagesMembershipWithoutFullPageReloadAndSearchesSelectedProjects()
+    {
+        var page = Read("Index.cshtml");
+        var script = Read("project-briefing-decks.js");
+        var service = Read("ProjectBriefingDeckService.cs");
+
+        Assert.Contains("data-membership-url", page, StringComparison.Ordinal);
+        Assert.Contains("Search within this deck", page, StringComparison.Ordinal);
+        Assert.Contains("In this deck", page, StringComparison.Ordinal);
+        Assert.Contains("Not in this deck", page, StringComparison.Ordinal);
+        Assert.Contains("Apply changes", page, StringComparison.Ordinal);
+        Assert.Contains("updateMembership", script, StringComparison.Ordinal);
+        Assert.Contains("sessionStorage", script, StringComparison.Ordinal);
+        Assert.Contains("UpdateMembershipAsync", service, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefing.MembershipUpdated", service, StringComparison.Ordinal);
     }
 
     [Fact]

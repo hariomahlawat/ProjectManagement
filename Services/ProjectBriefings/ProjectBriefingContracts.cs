@@ -153,6 +153,23 @@ public sealed record ProjectBriefingSearchResultVm(
     string? ProjectOfficer,
     string? CaseFileNumber);
 
+public sealed record ProjectBriefingManageSearchResultVm(
+    int ProjectId,
+    string ProjectName,
+    string Lifecycle,
+    string PresentStage,
+    string? ProjectCategory,
+    string? TechnicalCategory,
+    string? ProjectOfficer,
+    string? CaseFileNumber,
+    bool IsSelected,
+    int? SortOrder);
+
+public sealed record ProjectBriefingMembershipUpdateResult(
+    string RowVersion,
+    int AddedCount,
+    int RemovedCount);
+
 public sealed class ProjectBriefingDeckSettingsCommand
 {
     public string Name { get; init; } = string.Empty;
