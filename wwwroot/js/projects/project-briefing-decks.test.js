@@ -27,11 +27,13 @@ test('briefing deck selection tabs support keyboard navigation', () => {
   assert.match(source, /aria-selected/);
 });
 
-test('briefing deck slide order supports drag and keyboard reordering', () => {
+test('briefing deck slide order supports drag and keyboard reordering within stage groups', () => {
   assert.match(source, /window\.Sortable\.create/);
   assert.match(source, /ArrowUp/);
   assert.match(source, /ArrowDown/);
   assert.match(source, /saveProjectOrder/);
+  assert.match(source, /sameStage/);
+  assert.match(source, /Projects remain grouped by maturity/);
 });
 
 test('briefing-specific descriptions are saved without leaving the builder', () => {

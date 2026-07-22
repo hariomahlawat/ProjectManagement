@@ -96,19 +96,17 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             throw new InvalidOperationException("Add at least one project before generating the PowerPoint deck.");
         }
 
-        var itemByProject = snapshot.Items.ToDictionary(item => item.ProjectId);
         var projects = projectVms.Select(project =>
         {
-            var item = itemByProject[project.ProjectId];
             return new ProjectBriefingPresentationProject
             {
                 ProjectId = project.ProjectId,
                 ProjectName = project.ProjectName,
                 LifecycleStatus = project.LifecycleStatus,
                 LifecycleDisplay = project.LifecycleDisplay,
-                PresentStageCode = ResolveStageCode(item),
+                PresentStageCode = project.PresentStageCode,
                 PresentStage = project.PresentStage,
-                PresentStageOrder = ResolveStageOrder(item),
+                PresentStageOrder = project.PresentStageOrder,
                 ProjectCategory = project.ProjectCategory,
                 TechnicalCategory = project.TechnicalCategory,
                 CostRd = project.CostRd,
@@ -329,8 +327,6 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var photoProbes = await _photoLoader.ProbeAsync(photoReferences, cancellationToken);
 
         return items
-            .OrderBy(item => item.SortOrder)
-            .ThenBy(item => item.ItemId)
             .Select(item =>
             {
                 var coverPhotoId = coverByProject[item.ProjectId];
@@ -338,13 +334,16 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     ? photoProbes.GetValueOrDefault(coverPhotoId.Value)
                     : null;
                 var external = externalStatuses.GetValueOrDefault(item.ProjectId);
+                var stageCode = ResolveStageCode(item);
                 return new ProjectBriefingProjectVm
                 {
                     ProjectId = item.ProjectId,
                     ProjectName = item.ProjectName,
                     LifecycleStatus = item.LifecycleStatus,
                     LifecycleDisplay = ResolveLifecycleDisplay(item),
+                    PresentStageCode = stageCode,
                     PresentStage = ResolveStageName(item),
+                    PresentStageOrder = ProjectBriefingStageOrder.Resolve(item.LifecycleStatus, stageCode),
                     ProjectCategory = item.ProjectCategory,
                     TechnicalCategory = item.TechnicalCategory,
                     CostRd = costRd.GetValueOrDefault(item.ProjectId) ?? ProjectBriefingCostValue.Missing(),
@@ -363,6 +362,10 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     OpenUrl = $"/Projects/Overview/{item.ProjectId}"
                 };
             })
+            .OrderBy(project => project.PresentStageOrder)
+            .ThenBy(project => project.SortOrder)
+            .ThenBy(project => project.ProjectName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(project => project.ProjectId)
             .ToList();
     }
 
@@ -403,7 +406,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var stageSummary = projects
             .GroupBy(project => new { project.PresentStage, project.PresentStageOrder })
             .Select(group => new ProjectBriefingSummaryPoint(group.Key.PresentStage, group.Count(), group.Key.PresentStageOrder))
-            .OrderByDescending(point => point.Order)
+            .OrderBy(point => point.Order)
             .ThenBy(point => point.Label)
             .ToList();
 
@@ -547,16 +550,6 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             .ToArray();
         var index = OngoingStagePresentationPolicy.ResolveCurrentStageIndex(statuses);
         return codes[index];
-    }
-
-    private static int ResolveStageOrder(DeckItemSnapshot item)
-    {
-        if (item.LifecycleStatus == ProjectLifecycleStatus.Completed)
-        {
-            return 10_000;
-        }
-
-        return ProcurementWorkflow.OrderOf(item.WorkflowVersion, ResolveStageCode(item));
     }
 
     private static string Encode(byte[] value)

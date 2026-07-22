@@ -53,8 +53,34 @@ public sealed class ProjectBriefingSlideComposerTests
             .SelectMany(slide => slide.Slide.Descendants<A.Table>())
             .Count();
         Assert.True(nativeTables >= 2, "The stage and executive project tables must remain native editable PowerPoint tables.");
+
+        var firstTableXml = slides
+            .SelectMany(slide => slide.Slide.Descendants<A.Table>())
+            .First()
+            .OuterXml;
+        Assert.Contains("marL=\"100584\"", firstTableXml, StringComparison.Ordinal);
+        Assert.Contains("marR=\"100584\"", firstTableXml, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void Compose_AppliesEditorialLightToTheCoverAndBodySlides()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+
+        var (content, _) = composer.Compose(BuildData(
+            ProjectBriefingPresentationTheme.EditorialLight,
+            ProjectBriefingBrandingScope.AllSlides));
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+
+        Assert.Contains("F7F7F5", slides[0].Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("F7F7F5", slides[1].Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("181D25", slides[0].Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
+    }
 
     [Fact]
     public void Compose_AppliesGraphiteThemeAndEmbedsBothHeaderInsigniaOnEverySlide()
@@ -81,7 +107,7 @@ public sealed class ProjectBriefingSlideComposerTests
     }
 
     [Fact]
-    public void Compose_PaginatesFortyNineShortRowsIntoSevenBalancedProjectTables()
+    public void Compose_PaginatesFortyNineShortRowsIntoNineReadableProjectTables()
     {
         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
         var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
@@ -94,7 +120,7 @@ public sealed class ProjectBriefingSlideComposerTests
                 LifecycleDisplay = "Ongoing",
                 PresentStageCode = "DEV",
                 PresentStage = "Development",
-                PresentStageOrder = 70,
+                PresentStageOrder = ProjectBriefingStageOrder.Development,
                 CostRd = new ProjectBriefingCostValue(1_000_000m, ProjectBriefingCostBasis.L1, "₹10 Lakh", "L1"),
                 ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
                 ExternalStatus = "Development in progress.",
@@ -121,17 +147,70 @@ public sealed class ProjectBriefingSlideComposerTests
 
         var (content, slideCount) = composer.Compose(data);
 
-        Assert.Equal(9, slideCount); // cover + portfolio + seven project-table slides
+        Assert.Equal(11, slideCount); // cover + portfolio + nine project-table slides
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
         var tables = slides.SelectMany(slide => slide.Slide.Descendants<A.Table>()).ToArray();
-        Assert.Equal(7, tables.Length);
+        Assert.Equal(9, tables.Length);
 
         var text = string.Join("\n", slides
             .SelectMany(slide => slide.Slide.Descendants<A.Text>())
             .Select(node => node.Text));
-        Assert.Contains("Project status summary (7/7)", text, StringComparison.Ordinal);
+        Assert.Contains("Project status summary (9/9)", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Compose_UsesTheSameMaturityOrderForExecutiveRowsAndProjectSlides()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var projects = new[]
+        {
+            Project(1, "IPA PROJECT", ProjectLifecycleStatus.Active, "IPA", "In-Principle Approval", ProjectBriefingStageOrder.InPrincipleApproval, 10),
+            Project(2, "DEVELOPMENT PROJECT", ProjectLifecycleStatus.Active, "DEVP", "Development", ProjectBriefingStageOrder.Development, 30),
+            Project(3, "COMPLETED PROJECT", ProjectLifecycleStatus.Completed, "COMPLETED", "Completed", ProjectBriefingStageOrder.Completed, 20),
+            Project(4, "SUPPLY ORDER PROJECT", ProjectLifecycleStatus.Active, "SO", "Supply Order", ProjectBriefingStageOrder.SupplyOrder, 40)
+        };
+
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 51,
+            DeckName = "Maturity Order Review",
+            PresentationMode = ProjectBriefingPresentationMode.Combined,
+            CostMode = ProjectBriefingCostMode.None,
+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 22, 8, 0, 0, TimeSpan.Zero),
+            Projects = projects,
+            Summary = new ProjectBriefingPresentationSummary
+            {
+                ProjectCount = projects.Length,
+                OngoingCount = 3,
+                CompletedCount = 1
+            }
+        };
+
+        var (content, _) = composer.Compose(data);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+
+        var tableTexts = slides
+            .SelectMany(slide => slide.Slide.Descendants<A.Table>())
+            .SelectMany(table => table.Descendants<A.Text>())
+            .Select(node => node.Text)
+            .ToArray();
+        Assert.True(Array.IndexOf(tableTexts, "COMPLETED PROJECT") < Array.IndexOf(tableTexts, "DEVELOPMENT PROJECT"));
+        Assert.True(Array.IndexOf(tableTexts, "DEVELOPMENT PROJECT") < Array.IndexOf(tableTexts, "SUPPLY ORDER PROJECT"));
+        Assert.True(Array.IndexOf(tableTexts, "SUPPLY ORDER PROJECT") < Array.IndexOf(tableTexts, "IPA PROJECT"));
+
+        var slideTitles = slides
+            .Select(slide => slide.Slide.Descendants<A.Text>().Select(node => node.Text).FirstOrDefault())
+            .Where(value => value is not null)
+            .ToArray();
+        Assert.True(Array.IndexOf(slideTitles, "COMPLETED PROJECT") < Array.IndexOf(slideTitles, "DEVELOPMENT PROJECT"));
+        Assert.True(Array.IndexOf(slideTitles, "DEVELOPMENT PROJECT") < Array.IndexOf(slideTitles, "SUPPLY ORDER PROJECT"));
+        Assert.True(Array.IndexOf(slideTitles, "SUPPLY ORDER PROJECT") < Array.IndexOf(slideTitles, "IPA PROJECT"));
     }
 
     [Fact]
@@ -163,7 +242,7 @@ public sealed class ProjectBriefingSlideComposerTests
             LifecycleDisplay = "Ongoing",
             PresentStageCode = "DEV",
             PresentStage = "Development",
-            PresentStageOrder = 70,
+            PresentStageOrder = ProjectBriefingStageOrder.Development,
             ProjectCategory = "Other R&D Projects",
             TechnicalCategory = "AR / VR",
             CostRd = new ProjectBriefingCostValue(10_000_000m, ProjectBriefingCostBasis.L1, "₹1 Cr", "L1"),
@@ -205,6 +284,30 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.DoesNotContain("operational function,…", text, StringComparison.Ordinal);
     }
 
+    private static ProjectBriefingPresentationProject Project(
+        int projectId,
+        string name,
+        ProjectLifecycleStatus lifecycleStatus,
+        string stageCode,
+        string stage,
+        int stageOrder,
+        int sortOrder)
+        => new()
+        {
+            ProjectId = projectId,
+            ProjectName = name,
+            LifecycleStatus = lifecycleStatus,
+            LifecycleDisplay = lifecycleStatus == ProjectLifecycleStatus.Completed ? "Completed" : "Ongoing",
+            PresentStageCode = stageCode,
+            PresentStage = stage,
+            PresentStageOrder = stageOrder,
+            CostRd = ProjectBriefingCostValue.Missing(),
+            ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+            ExternalStatus = "Status available.",
+            BriefDescription = "Capability overview.",
+            SortOrder = sortOrder
+        };
+
     private static ProjectBriefingPresentationData BuildData(
         ProjectBriefingPresentationTheme presentationTheme = ProjectBriefingPresentationTheme.EditorialLight,
         ProjectBriefingBrandingScope brandingScope = ProjectBriefingBrandingScope.AllSlides)
@@ -219,7 +322,7 @@ public sealed class ProjectBriefingSlideComposerTests
                 LifecycleDisplay = "Ongoing",
                 PresentStageCode = "AON",
                 PresentStage = "Acceptance of Necessity",
-                PresentStageOrder = 30,
+                PresentStageOrder = ProjectBriefingStageOrder.AcceptanceOfNecessity,
                 ProjectCategory = "CoE",
                 TechnicalCategory = "AR / VR",
                 CostRd = new ProjectBriefingCostValue(39_530_000m, ProjectBriefingCostBasis.AoN, "₹3.95 Cr", "AoN"),
@@ -237,7 +340,7 @@ public sealed class ProjectBriefingSlideComposerTests
                 LifecycleDisplay = "Completed",
                 PresentStageCode = "COMPLETED",
                 PresentStage = "Completed",
-                PresentStageOrder = 10_000,
+                PresentStageOrder = ProjectBriefingStageOrder.Completed,
                 ProjectCategory = "CoE",
                 TechnicalCategory = "AI",
                 CostRd = new ProjectBriefingCostValue(28_000_000m, ProjectBriefingCostBasis.L1, "₹2.8 Cr", "L1"),
@@ -274,8 +377,8 @@ public sealed class ProjectBriefingSlideComposerTests
                 MissingPhotoCount = 2,
                 StageSummary = new[]
                 {
-                    new ProjectBriefingSummaryPoint("Completed", 1, 10_000),
-                    new ProjectBriefingSummaryPoint("Acceptance of Necessity", 1, 30)
+                    new ProjectBriefingSummaryPoint("Completed", 1, ProjectBriefingStageOrder.Completed),
+                    new ProjectBriefingSummaryPoint("Acceptance of Necessity", 1, ProjectBriefingStageOrder.AcceptanceOfNecessity)
                 }
             }
         };

@@ -18,9 +18,9 @@ internal sealed record ProjectBriefingTablePage<T>(
 
 internal static class ProjectBriefingTablePagination
 {
-    public const double AvailableBodyHeight = 5.28;
-    public const int PreferredRowsPerSlide = 7;
-    private const int MinimumBalancedFinalRows = 4;
+    public const double AvailableBodyHeight = 5.24;
+    public const int PreferredRowsPerSlide = 6;
+    private const int MinimumBalancedFinalRows = 3;
 
     public static IReadOnlyList<ProjectBriefingTablePage<T>> Paginate<T>(
         IReadOnlyList<T> items,
@@ -91,14 +91,14 @@ internal static class ProjectBriefingTablePagination
         ProjectBriefingTableRowMeasure row,
         ProjectBriefingCostMode costMode)
     {
-        var projectCharactersPerLine = costMode == ProjectBriefingCostMode.Both ? 28 : 34;
+        var projectCharactersPerLine = costMode == ProjectBriefingCostMode.Both ? 26 : 32;
         var statusCharactersPerLine = costMode switch
         {
-            ProjectBriefingCostMode.Both => 79,
-            ProjectBriefingCostMode.None => 104,
-            _ => 90
+            ProjectBriefingCostMode.Both => 74,
+            ProjectBriefingCostMode.None => 98,
+            _ => 84
         };
-        var stageCharactersPerLine = costMode == ProjectBriefingCostMode.None ? 25 : 22;
+        var stageCharactersPerLine = costMode == ProjectBriefingCostMode.None ? 23 : 20;
 
         var projectLines = EstimateLines(row.ProjectName, projectCharactersPerLine, maximum: 3);
         var statusLines = EstimateLines(row.ExternalStatus, statusCharactersPerLine, maximum: 4);
@@ -112,7 +112,7 @@ internal static class ProjectBriefingTablePagination
         };
 
         var lines = Math.Max(Math.Max(projectLines, statusLines), Math.Max(stageLines, costLines));
-        return Math.Clamp(.60 + ((lines - 2) * .09), .60, .87);
+        return Math.Clamp(.64 + ((lines - 2) * .10), .64, .92);
     }
 
     private static int EstimateLines(string value, int charactersPerLine, int maximum)

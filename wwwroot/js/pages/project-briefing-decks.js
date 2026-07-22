@@ -195,28 +195,23 @@ if (root) {
   const sortStatus = root.querySelector('[data-pbd-sort-status]');
   let sortable = null;
 
-  const updateSelectedToolbarHeight = () => {
-    if (!selectedToolbar) return;
-    root.style.setProperty('--pbd-selected-toolbar-height', `${Math.ceil(selectedToolbar.getBoundingClientRect().height)}px`);
-  };
-  updateSelectedToolbarHeight();
-  if (selectedToolbar && 'ResizeObserver' in window) {
-    const selectedToolbarObserver = new ResizeObserver(updateSelectedToolbarHeight);
-    selectedToolbarObserver.observe(selectedToolbar);
-  }
-
   if (selectedSearch) selectedSearch.value = sessionStorage.getItem(`${storagePrefix}selectedSearch`) || '';
   if (selectedStage) selectedStage.value = sessionStorage.getItem(`${storagePrefix}selectedStage`) || '';
   if (selectedReadiness) selectedReadiness.value = sessionStorage.getItem(`${storagePrefix}selectedReadiness`) || '';
 
   const currentRows = () => [...(sortableBody?.querySelectorAll('tr[data-project-id]') || [])];
+  const stageKey = (row) => `${row?.dataset.stageOrder || ''}:${row?.dataset.stageCode || row?.dataset.stage || ''}`;
+  const sameStage = (first, second) => stageKey(first) === stageKey(second);
   const selectedRowIds = () => currentRows()
     .filter((row) => row.querySelector('[data-pbd-row-select]')?.checked)
     .map((row) => Number(row.dataset.projectId));
 
   const refreshBulkActions = () => {
     const count = selectedRowIds().length;
-    [bulkTop, bulkBottom, bulkRemove].forEach((button) => { if (button) button.disabled = count === 0; });
+    const filtered = Boolean(normalize(selectedSearch?.value) || selectedStage?.value || selectedReadiness?.value);
+    if (bulkTop) bulkTop.disabled = count === 0 || filtered;
+    if (bulkBottom) bulkBottom.disabled = count === 0 || filtered;
+    if (bulkRemove) bulkRemove.disabled = count === 0;
   };
 
   const selectedFilterState = () => ({
@@ -343,8 +338,21 @@ if (root) {
       handle: '.pbd-drag',
       ghostClass: 'pbd-sort-ghost',
       chosenClass: 'pbd-sort-chosen',
-      onStart: () => setState(sortStatus, 'Reordering…', 'saving'),
-      onEnd: saveProjectOrder
+      onStart: () => setState(sortStatus, 'Reordering within present stage…', 'saving'),
+      onMove: (event) => {
+        const allowed = sameStage(event.dragged, event.related);
+        if (!allowed) {
+          setState(sortStatus, 'Projects remain grouped by maturity. Reorder only within the same stage.', 'error');
+        }
+        return allowed;
+      },
+      onEnd: (event) => {
+        if (event.oldIndex === event.newIndex) {
+          setState(sortStatus, 'No slide-order change.', 'saved');
+          return;
+        }
+        saveProjectOrder();
+      }
     });
     applySelectedFilters();
   };
@@ -368,6 +376,8 @@ if (root) {
     row.dataset.projectId = String(project.projectId);
     row.dataset.searchText = [project.projectName, project.lifecycleDisplay, project.presentStage, project.projectCategory, project.technicalCategory, project.externalStatus].filter(Boolean).join(' ');
     row.dataset.stage = project.presentStage || '';
+    row.dataset.stageCode = project.presentStageCode || '';
+    row.dataset.stageOrder = String(project.presentStageOrder ?? 10000);
     row.dataset.missingStatus = String(!project.externalStatus);
     row.dataset.missingCostRd = String(!project.costRd?.isAvailable);
     row.dataset.missingProliferation = String(!project.proliferationCost?.isAvailable);
@@ -387,8 +397,8 @@ if (root) {
     const drag = document.createElement('button');
     drag.type = 'button';
     drag.className = 'pbd-drag';
-    drag.title = 'Drag or use the up/down arrow keys to reorder';
-    drag.setAttribute('aria-label', `Reorder ${project.projectName}. Use the up or down arrow key.`);
+    drag.title = `Reorder within ${project.presentStage || 'this stage'}`;
+    drag.setAttribute('aria-label', `Reorder ${project.projectName} within ${project.presentStage || 'its present stage'}. Use the up or down arrow key.`);
     drag.setAttribute('aria-keyshortcuts', 'ArrowUp ArrowDown');
     drag.innerHTML = '<i class="bi bi-grip-vertical" aria-hidden="true"></i>';
     dragCell.append(drag);
@@ -491,9 +501,16 @@ if (root) {
     if (!selectedStage) return;
     const selected = selectedStage.value;
     selectedStage.replaceChildren(new Option('All stages', ''));
-    [...new Set(projects.map((project) => project.presentStage).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b))
-      .forEach((stage) => selectedStage.append(new Option(stage, stage)));
+    const stages = new Map();
+    projects.forEach((project) => {
+      if (!project.presentStage) return;
+      const current = stages.get(project.presentStage);
+      const order = Number(project.presentStageOrder ?? 10000);
+      if (current === undefined || order < current) stages.set(project.presentStage, order);
+    });
+    [...stages.entries()]
+      .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))
+      .forEach(([stage]) => selectedStage.append(new Option(stage, stage)));
     selectedStage.value = [...selectedStage.options].some((option) => option.value === selected) ? selected : '';
   };
 
@@ -590,12 +607,24 @@ if (root) {
   const moveSelected = async (toTop) => {
     const selected = new Set(selectedRowIds());
     if (selected.size === 0 || !sortableBody) return;
-    const rows = currentRows();
-    const moving = rows.filter((row) => selected.has(Number(row.dataset.projectId)));
-    const remaining = rows.filter((row) => !selected.has(Number(row.dataset.projectId)));
-    const ordered = toTop ? [...moving, ...remaining] : [...remaining, ...moving];
-    ordered.forEach((row) => sortableBody.append(row));
+
+    const stageGroups = [];
+    currentRows().forEach((row) => {
+      const key = stageKey(row);
+      const existing = stageGroups.at(-1);
+      if (!existing || existing.key !== key) stageGroups.push({ key, rows: [row] });
+      else existing.rows.push(row);
+    });
+
+    stageGroups.forEach((group) => {
+      const moving = group.rows.filter((row) => selected.has(Number(row.dataset.projectId)));
+      const remaining = group.rows.filter((row) => !selected.has(Number(row.dataset.projectId)));
+      const ordered = toTop ? [...moving, ...remaining] : [...remaining, ...moving];
+      ordered.forEach((row) => sortableBody.append(row));
+    });
+
     await saveProjectOrder();
+    setState(sortStatus, `Selected projects moved to the ${toTop ? 'top' : 'bottom'} of their stage.`, 'saved');
     applySelectedFilters();
   };
   bulkTop?.addEventListener('click', () => moveSelected(true));
@@ -608,6 +637,10 @@ if (root) {
     const target = event.key === 'ArrowUp' ? row?.previousElementSibling : row?.nextElementSibling;
     if (!(row instanceof HTMLTableRowElement) || !(target instanceof HTMLTableRowElement)) return;
     event.preventDefault();
+    if (!sameStage(row, target)) {
+      setState(sortStatus, 'This project is already at the edge of its present-stage group.', 'saved');
+      return;
+    }
     if (event.key === 'ArrowUp') sortableBody.insertBefore(row, target);
     else sortableBody.insertBefore(target, row);
     handle.focus();

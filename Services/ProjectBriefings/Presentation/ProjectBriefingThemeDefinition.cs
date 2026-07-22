@@ -66,10 +66,10 @@ public static class ProjectBriefingThemeCatalog
         Placeholder: "E6E8EA",
         BrandingPlate: "F4F4F2",
         BrandingPlateBorder: "D7DADE",
-        CoverCanvas: "181D25",
-        CoverSurface: "232A35",
-        CoverText: "F7F8FA",
-        CoverMuted: "B7BEC8")
+        CoverCanvas: "F7F7F5",
+        CoverSurface: "FFFFFF",
+        CoverText: "191B20",
+        CoverMuted: "5F6670")
     {
         IsDark = false
     };

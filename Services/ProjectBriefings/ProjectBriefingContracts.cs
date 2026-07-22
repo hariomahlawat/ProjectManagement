@@ -77,7 +77,9 @@ public sealed class ProjectBriefingProjectVm
     public string ProjectName { get; init; } = string.Empty;
     public string LifecycleDisplay { get; init; } = string.Empty;
     public ProjectLifecycleStatus LifecycleStatus { get; init; }
+    public string PresentStageCode { get; init; } = string.Empty;
     public string PresentStage { get; init; } = string.Empty;
+    public int PresentStageOrder { get; init; } = ProjectBriefingStageOrder.Unknown;
     public string? ProjectCategory { get; init; }
     public string? TechnicalCategory { get; init; }
     public ProjectBriefingCostValue CostRd { get; init; } = ProjectBriefingCostValue.Missing();

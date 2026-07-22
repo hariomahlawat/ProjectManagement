@@ -1,19 +1,98 @@
-PRISM Proliferation — Final Corrective Polish
-Static validation completed: 2026-07-16
+Project Briefing Deck — Static Validation
+Generated: 2026-07-22 16:50:42 UTC
 
-PASS  proliferation-manage.js: Node syntax validation
-PASS  proliferation-data-quality.js: Node syntax validation
-PASS  proliferation-manage-workspaces.js: Node syntax validation
-PASS  source enum/value/label resolution logic tests
-PASS  malformed date rendering tests: 0024 remains 0024
-PASS  two-digit correction suggestion test: 0024 -> 2024 candidate
-PASS  CSS brace balance
-PASS  Razor div balance for changed partials/pages
-PASS  unique Manage command hooks and action IDs
-PASS  server-side correction reason validation already present in ProliferationDataQualityService and DTO
+[1] JavaScript syntax
+PASS
 
-Not run in this environment:
-- dotnet build
-- dotnet test
+[2] JavaScript tests
+TAP version 13
+# Subtest: briefing deck JSON mutations use the configured antiforgery header and same-origin credentials
+ok 1 - briefing deck JSON mutations use the configured antiforgery header and same-origin credentials
+  ---
+  duration_ms: 1.695283
+  type: 'test'
+  ...
+# Subtest: briefing deck project search safely renders server values with textContent
+ok 2 - briefing deck project search safely renders server values with textContent
+  ---
+  duration_ms: 0.611056
+  type: 'test'
+  ...
+# Subtest: briefing deck selection tabs support keyboard navigation
+ok 3 - briefing deck selection tabs support keyboard navigation
+  ---
+  duration_ms: 4.538707
+  type: 'test'
+  ...
+# Subtest: briefing deck slide order supports drag and keyboard reordering within stage groups
+ok 4 - briefing deck slide order supports drag and keyboard reordering within stage groups
+  ---
+  duration_ms: 0.427623
+  type: 'test'
+  ...
+# Subtest: briefing-specific descriptions are saved without leaving the builder
+ok 5 - briefing-specific descriptions are saved without leaving the builder
+  ---
+  duration_ms: 0.302165
+  type: 'test'
+  ...
+# Subtest: PowerPoint generation downloads the returned pptx and reports slide count
+ok 6 - PowerPoint generation downloads the returned pptx and reports slide count
+  ---
+  duration_ms: 0.305257
+  type: 'test'
+  ...
+# Subtest: PowerPoint generation prevents duplicate submission and restores the button
+ok 7 - PowerPoint generation prevents duplicate submission and restores the button
+  ---
+  duration_ms: 0.39607
+  type: 'test'
+  ...
+# Subtest: briefing deck client updates optimistic concurrency after inline mutations
+ok 8 - briefing deck client updates optimistic concurrency after inline mutations
+  ---
+  duration_ms: 0.230821
+  type: 'test'
+  ...
+# Subtest: selected-project filtering reveals the first matching row without changing slide order
+ok 9 - selected-project filtering reveals the first matching row without changing slide order
+  ---
+  duration_ms: 0.74974
+  type: 'test'
+  ...
+# Subtest: inline membership changes preserve the current page position
+ok 10 - inline membership changes preserve the current page position
+  ---
+  duration_ms: 0.741131
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 179.65206
 
-Reason: .NET SDK is not installed in the execution environment.
+[3] Source-file integrity
+PASS Pages/Workspace/BriefingDecks/Index.cshtml
+PASS ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+PASS ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+PASS ProjectManagement.Tests/ProjectBriefings/ProjectBriefingStageOrderTests.cs
+PASS Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+PASS Services/ProjectBriefings/Presentation/ProjectBriefingThemeDefinition.cs
+PASS Services/ProjectBriefings/ProjectBriefingContracts.cs
+PASS Services/ProjectBriefings/ProjectBriefingDataService.cs
+PASS Services/ProjectBriefings/ProjectBriefingStageOrder.cs
+PASS Services/ProjectBriefings/ProjectBriefingTablePagination.cs
+PASS wwwroot/css/pages/project-briefing-decks.css
+PASS wwwroot/js/pages/project-briefing-decks.js
+PASS wwwroot/js/projects/project-briefing-decks.test.js
+
+[4] Required implementation assertions
+PASS
+
+[5] Environment limitation
+dotnet SDK not installed; C# compilation and xUnit execution were not available in this environment.

@@ -1,0 +1,947 @@
+diff --git a/Pages/Workspace/BriefingDecks/Index.cshtml b/Pages/Workspace/BriefingDecks/Index.cshtml
+index d4d9592..abf9ab3 100644
+--- a/Pages/Workspace/BriefingDecks/Index.cshtml
++++ b/Pages/Workspace/BriefingDecks/Index.cshtml
+@@ -496,9 +496,13 @@
+                                 </label>
+                                 <select class="form-select" data-pbd-selected-stage aria-label="Filter selected projects by present stage">
+                                     <option value="">All stages</option>
+-                                    @foreach (var stage in deck.Projects.Select(project => project.PresentStage).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(stage => stage))
++                                    @foreach (var stage in deck.Projects
++                                        .GroupBy(project => project.PresentStage, StringComparer.OrdinalIgnoreCase)
++                                        .Select(group => new { Name = group.Key, Order = group.Min(project => project.PresentStageOrder) })
++                                        .OrderBy(stage => stage.Order)
++                                        .ThenBy(stage => stage.Name))
+                                     {
+-                                        <option value="@stage">@stage</option>
++                                        <option value="@stage.Name">@stage.Name</option>
+                                     }
+                                 </select>
+                                 <select class="form-select" data-pbd-selected-readiness aria-label="Filter selected projects by content readiness">
+@@ -516,10 +520,11 @@
+                             </div>
+                             <div class="pbd-selected-actions">
+                                 <label><input type="checkbox" data-pbd-select-visible /> Select visible</label>
+-                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled data-pbd-bulk-top><i class="bi bi-arrow-bar-up" aria-hidden="true"></i> Move to top</button>
+-                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled data-pbd-bulk-bottom><i class="bi bi-arrow-bar-down" aria-hidden="true"></i> Move to bottom</button>
++                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled data-pbd-bulk-top><i class="bi bi-arrow-bar-up" aria-hidden="true"></i> Top of stage</button>
++                                <button type="button" class="btn btn-sm btn-outline-secondary" disabled data-pbd-bulk-bottom><i class="bi bi-arrow-bar-down" aria-hidden="true"></i> Bottom of stage</button>
+                                 <button type="button" class="btn btn-sm btn-outline-danger" disabled data-pbd-bulk-remove><i class="bi bi-trash" aria-hidden="true"></i> Remove selected</button>
+-                                <span class="pbd-filter-reorder-note" data-pbd-filter-reorder-note hidden>Clear filters to drag projects into slide order.</span>
++                                <span class="pbd-ordering-note">Completed projects are shown first; ongoing projects follow in maturity order.</span>
++                                <span class="pbd-filter-reorder-note" data-pbd-filter-reorder-note hidden>Clear filters to reorder projects within a stage.</span>
+                                 <span class="pbd-save-state" data-pbd-sort-status aria-live="polite"></span>
+                             </div>
+ 
+@@ -535,11 +540,11 @@
+                                         <tr>
+                                             <th class="pbd-select-column"><span class="visually-hidden">Select</span></th>
+                                             <th class="pbd-drag-column"><span class="visually-hidden">Order</span></th>
+-                                            <th>Project</th>
++                                            <th class="pbd-project-column">Project</th>
+                                             <th>Present stage</th>
+                                             <th>Cost (R&amp;D)</th>
+                                             <th>Proliferation cost</th>
+-                                            <th>Status <small>external remark</small></th>
++                                            <th class="pbd-status-column">Status <small>external remark</small></th>
+                                             <th>Deck readiness</th>
+                                             <th><span class="visually-hidden">Actions</span></th>
+                                         </tr>
+@@ -570,13 +575,15 @@
+                                             <tr data-project-id="@project.ProjectId"
+                                                 data-search-text="@searchText"
+                                                 data-stage="@project.PresentStage"
++                                                data-stage-code="@project.PresentStageCode"
++                                                data-stage-order="@project.PresentStageOrder"
+                                                 data-missing-status="@(string.IsNullOrWhiteSpace(project.ExternalStatus) ? "true" : "false")"
+                                                 data-missing-cost-rd="@(!project.CostRd.IsAvailable ? "true" : "false")"
+                                                 data-missing-proliferation="@(!project.ProliferationCost.IsAvailable ? "true" : "false")"
+                                                 data-missing-photo="@(!project.HasCoverPhoto ? "true" : "false")"
+                                                 data-missing-description="@(!hasCapabilityOverview ? "true" : "false")">
+                                                 <td class="pbd-select-column"><input type="checkbox" data-pbd-row-select aria-label="Select @project.ProjectName" /></td>
+-                                                <td class="pbd-drag-column"><button type="button" class="pbd-drag" aria-label="Reorder @project.ProjectName. Use the up or down arrow key." aria-keyshortcuts="ArrowUp ArrowDown" title="Drag or use the up/down arrow keys to reorder"><i class="bi bi-grip-vertical" aria-hidden="true"></i></button></td>
++                                                <td class="pbd-drag-column"><button type="button" class="pbd-drag" aria-label="Reorder @project.ProjectName within @project.PresentStage. Use the up or down arrow key." aria-keyshortcuts="ArrowUp ArrowDown" title="Reorder within @project.PresentStage"><i class="bi bi-grip-vertical" aria-hidden="true"></i></button></td>
+                                                 <td class="pbd-project-name">
+                                                     <a href="@project.OpenUrl" target="_blank" rel="noopener" title="@project.ProjectName">@project.ProjectName</a>
+                                                     <small>@project.LifecycleDisplay · @(project.ProjectCategory ?? "Not categorised") · @(project.TechnicalCategory ?? "No technical category")</small>
+diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+index b537122..18341c3 100644
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+@@ -77,12 +77,14 @@ public sealed class ProjectBriefingContractTests
+     }
+ 
+     [Fact]
+-    public void StageSummary_IsOneChartThenNativeTableInReverseWorkflowOrder()
++    public void StageSummary_UsesCanonicalMaturityOrderAcrossBuilderAndPresentation()
+     {
+         var dataSource = Read("ProjectBriefingDataService.cs");
+         var composer = Read("ProjectBriefingSlideComposer.cs");
+ 
+-        Assert.Contains("OrderByDescending(point => point.Order)", dataSource, StringComparison.Ordinal);
++        Assert.Contains("OrderBy(point => point.Order)", dataSource, StringComparison.Ordinal);
++        Assert.Contains("ProjectBriefingStageOrder.Resolve", dataSource, StringComparison.Ordinal);
++        Assert.Contains("OrderProjects(data.Projects)", composer, StringComparison.Ordinal);
+         Assert.Contains("AddStageSummarySlides", composer, StringComparison.Ordinal);
+         Assert.Contains("RenderStageSummaryTable", composer, StringComparison.Ordinal);
+         Assert.Contains("Stage-wise project distribution", composer, StringComparison.Ordinal);
+@@ -177,6 +179,22 @@ public sealed class ProjectBriefingContractTests
+         Assert.DoesNotContain("SIMULATOR DEVELOPMENT DIVISION · PRISM ERP", composer, StringComparison.Ordinal);
+     }
+ 
++    [Fact]
++    public void Builder_KeepsCanonicalStageGroupsAndReordersOnlyWithinAStage()
++    {
++        var page = Read("Index.cshtml");
++        var script = Read("project-briefing-decks.js");
++        var composer = Read("ProjectBriefingSlideComposer.cs");
++
++        Assert.Contains("Completed projects are shown first", page, StringComparison.Ordinal);
++        Assert.Contains("Top of stage", page, StringComparison.Ordinal);
++        Assert.Contains("data-stage-order", page, StringComparison.Ordinal);
++        Assert.Contains("sameStage", script, StringComparison.Ordinal);
++        Assert.Contains("Projects remain grouped by maturity", script, StringComparison.Ordinal);
++        Assert.Contains("NativeTableHorizontalMargin = .11", composer, StringComparison.Ordinal);
++        Assert.Contains("NativeTableVerticalMargin = .04", composer, StringComparison.Ordinal);
++    }
++
+     [Fact]
+     public void PhotoLoader_ValidatesActualFilesAndProducesPowerPointReadyJpeg()
+     {
+diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+index 4d35211..32774b4 100644
+--- a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+@@ -53,9 +53,35 @@ public sealed class ProjectBriefingSlideComposerTests
+             .SelectMany(slide => slide.Slide.Descendants<A.Table>())
+             .Count();
+         Assert.True(nativeTables >= 2, "The stage and executive project tables must remain native editable PowerPoint tables.");
++
++        var firstTableXml = slides
++            .SelectMany(slide => slide.Slide.Descendants<A.Table>())
++            .First()
++            .OuterXml;
++        Assert.Contains("marL=\"100584\"", firstTableXml, StringComparison.Ordinal);
++        Assert.Contains("marR=\"100584\"", firstTableXml, StringComparison.Ordinal);
+     }
+ 
+ 
++    [Fact]
++    public void Compose_AppliesEditorialLightToTheCoverAndBodySlides()
++    {
++        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
++        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
++
++        var (content, _) = composer.Compose(BuildData(
++            ProjectBriefingPresentationTheme.EditorialLight,
++            ProjectBriefingBrandingScope.AllSlides));
++
++        using var stream = new MemoryStream(content, writable: false);
++        using var document = PresentationDocument.Open(stream, false);
++        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
++
++        Assert.Contains("F7F7F5", slides[0].Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
++        Assert.Contains("F7F7F5", slides[1].Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
++        Assert.DoesNotContain("181D25", slides[0].Slide.OuterXml, StringComparison.OrdinalIgnoreCase);
++    }
++
+     [Fact]
+     public void Compose_AppliesGraphiteThemeAndEmbedsBothHeaderInsigniaOnEverySlide()
+     {
+@@ -81,7 +107,7 @@ public sealed class ProjectBriefingSlideComposerTests
+     }
+ 
+     [Fact]
+-    public void Compose_PaginatesFortyNineShortRowsIntoSevenBalancedProjectTables()
++    public void Compose_PaginatesFortyNineShortRowsIntoNineReadableProjectTables()
+     {
+         var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+         var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+@@ -94,7 +120,7 @@ public sealed class ProjectBriefingSlideComposerTests
+                 LifecycleDisplay = "Ongoing",
+                 PresentStageCode = "DEV",
+                 PresentStage = "Development",
+-                PresentStageOrder = 70,
++                PresentStageOrder = ProjectBriefingStageOrder.Development,
+                 CostRd = new ProjectBriefingCostValue(1_000_000m, ProjectBriefingCostBasis.L1, "₹10 Lakh", "L1"),
+                 ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+                 ExternalStatus = "Development in progress.",
+@@ -121,17 +147,70 @@ public sealed class ProjectBriefingSlideComposerTests
+ 
+         var (content, slideCount) = composer.Compose(data);
+ 
+-        Assert.Equal(9, slideCount); // cover + portfolio + seven project-table slides
++        Assert.Equal(11, slideCount); // cover + portfolio + nine project-table slides
+         using var stream = new MemoryStream(content, writable: false);
+         using var document = PresentationDocument.Open(stream, false);
+         var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+         var tables = slides.SelectMany(slide => slide.Slide.Descendants<A.Table>()).ToArray();
+-        Assert.Equal(7, tables.Length);
++        Assert.Equal(9, tables.Length);
+ 
+         var text = string.Join("\n", slides
+             .SelectMany(slide => slide.Slide.Descendants<A.Text>())
+             .Select(node => node.Text));
+-        Assert.Contains("Project status summary (7/7)", text, StringComparison.Ordinal);
++        Assert.Contains("Project status summary (9/9)", text, StringComparison.Ordinal);
++    }
++
++    [Fact]
++    public void Compose_UsesTheSameMaturityOrderForExecutiveRowsAndProjectSlides()
++    {
++        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
++        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
++        var projects = new[]
++        {
++            Project(1, "IPA PROJECT", ProjectLifecycleStatus.Active, "IPA", "In-Principle Approval", ProjectBriefingStageOrder.InPrincipleApproval, 10),
++            Project(2, "DEVELOPMENT PROJECT", ProjectLifecycleStatus.Active, "DEVP", "Development", ProjectBriefingStageOrder.Development, 30),
++            Project(3, "COMPLETED PROJECT", ProjectLifecycleStatus.Completed, "COMPLETED", "Completed", ProjectBriefingStageOrder.Completed, 20),
++            Project(4, "SUPPLY ORDER PROJECT", ProjectLifecycleStatus.Active, "SO", "Supply Order", ProjectBriefingStageOrder.SupplyOrder, 40)
++        };
++
++        var data = new ProjectBriefingPresentationData
++        {
++            DeckId = 51,
++            DeckName = "Maturity Order Review",
++            PresentationMode = ProjectBriefingPresentationMode.Combined,
++            CostMode = ProjectBriefingCostMode.None,
++            GeneratedAtUtc = new DateTimeOffset(2026, 7, 22, 8, 0, 0, TimeSpan.Zero),
++            Projects = projects,
++            Summary = new ProjectBriefingPresentationSummary
++            {
++                ProjectCount = projects.Length,
++                OngoingCount = 3,
++                CompletedCount = 1
++            }
++        };
++
++        var (content, _) = composer.Compose(data);
++
++        using var stream = new MemoryStream(content, writable: false);
++        using var document = PresentationDocument.Open(stream, false);
++        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
++
++        var tableTexts = slides
++            .SelectMany(slide => slide.Slide.Descendants<A.Table>())
++            .SelectMany(table => table.Descendants<A.Text>())
++            .Select(node => node.Text)
++            .ToArray();
++        Assert.True(Array.IndexOf(tableTexts, "COMPLETED PROJECT") < Array.IndexOf(tableTexts, "DEVELOPMENT PROJECT"));
++        Assert.True(Array.IndexOf(tableTexts, "DEVELOPMENT PROJECT") < Array.IndexOf(tableTexts, "SUPPLY ORDER PROJECT"));
++        Assert.True(Array.IndexOf(tableTexts, "SUPPLY ORDER PROJECT") < Array.IndexOf(tableTexts, "IPA PROJECT"));
++
++        var slideTitles = slides
++            .Select(slide => slide.Slide.Descendants<A.Text>().Select(node => node.Text).FirstOrDefault())
++            .Where(value => value is not null)
++            .ToArray();
++        Assert.True(Array.IndexOf(slideTitles, "COMPLETED PROJECT") < Array.IndexOf(slideTitles, "DEVELOPMENT PROJECT"));
++        Assert.True(Array.IndexOf(slideTitles, "DEVELOPMENT PROJECT") < Array.IndexOf(slideTitles, "SUPPLY ORDER PROJECT"));
++        Assert.True(Array.IndexOf(slideTitles, "SUPPLY ORDER PROJECT") < Array.IndexOf(slideTitles, "IPA PROJECT"));
+     }
+ 
+     [Fact]
+@@ -163,7 +242,7 @@ public sealed class ProjectBriefingSlideComposerTests
+             LifecycleDisplay = "Ongoing",
+             PresentStageCode = "DEV",
+             PresentStage = "Development",
+-            PresentStageOrder = 70,
++            PresentStageOrder = ProjectBriefingStageOrder.Development,
+             ProjectCategory = "Other R&D Projects",
+             TechnicalCategory = "AR / VR",
+             CostRd = new ProjectBriefingCostValue(10_000_000m, ProjectBriefingCostBasis.L1, "₹1 Cr", "L1"),
+@@ -205,6 +284,30 @@ public sealed class ProjectBriefingSlideComposerTests
+         Assert.DoesNotContain("operational function,…", text, StringComparison.Ordinal);
+     }
+ 
++    private static ProjectBriefingPresentationProject Project(
++        int projectId,
++        string name,
++        ProjectLifecycleStatus lifecycleStatus,
++        string stageCode,
++        string stage,
++        int stageOrder,
++        int sortOrder)
++        => new()
++        {
++            ProjectId = projectId,
++            ProjectName = name,
++            LifecycleStatus = lifecycleStatus,
++            LifecycleDisplay = lifecycleStatus == ProjectLifecycleStatus.Completed ? "Completed" : "Ongoing",
++            PresentStageCode = stageCode,
++            PresentStage = stage,
++            PresentStageOrder = stageOrder,
++            CostRd = ProjectBriefingCostValue.Missing(),
++            ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
++            ExternalStatus = "Status available.",
++            BriefDescription = "Capability overview.",
++            SortOrder = sortOrder
++        };
++
+     private static ProjectBriefingPresentationData BuildData(
+         ProjectBriefingPresentationTheme presentationTheme = ProjectBriefingPresentationTheme.EditorialLight,
+         ProjectBriefingBrandingScope brandingScope = ProjectBriefingBrandingScope.AllSlides)
+@@ -219,7 +322,7 @@ public sealed class ProjectBriefingSlideComposerTests
+                 LifecycleDisplay = "Ongoing",
+                 PresentStageCode = "AON",
+                 PresentStage = "Acceptance of Necessity",
+-                PresentStageOrder = 30,
++                PresentStageOrder = ProjectBriefingStageOrder.AcceptanceOfNecessity,
+                 ProjectCategory = "CoE",
+                 TechnicalCategory = "AR / VR",
+                 CostRd = new ProjectBriefingCostValue(39_530_000m, ProjectBriefingCostBasis.AoN, "₹3.95 Cr", "AoN"),
+@@ -237,7 +340,7 @@ public sealed class ProjectBriefingSlideComposerTests
+                 LifecycleDisplay = "Completed",
+                 PresentStageCode = "COMPLETED",
+                 PresentStage = "Completed",
+-                PresentStageOrder = 10_000,
++                PresentStageOrder = ProjectBriefingStageOrder.Completed,
+                 ProjectCategory = "CoE",
+                 TechnicalCategory = "AI",
+                 CostRd = new ProjectBriefingCostValue(28_000_000m, ProjectBriefingCostBasis.L1, "₹2.8 Cr", "L1"),
+@@ -274,8 +377,8 @@ public sealed class ProjectBriefingSlideComposerTests
+                 MissingPhotoCount = 2,
+                 StageSummary = new[]
+                 {
+-                    new ProjectBriefingSummaryPoint("Completed", 1, 10_000),
+-                    new ProjectBriefingSummaryPoint("Acceptance of Necessity", 1, 30)
++                    new ProjectBriefingSummaryPoint("Completed", 1, ProjectBriefingStageOrder.Completed),
++                    new ProjectBriefingSummaryPoint("Acceptance of Necessity", 1, ProjectBriefingStageOrder.AcceptanceOfNecessity)
+                 }
+             }
+         };
+diff --git a/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingStageOrderTests.cs b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingStageOrderTests.cs
+new file mode 100644
+index 0000000..41765e7
+--- /dev/null
++++ b/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingStageOrderTests.cs
+@@ -0,0 +1,43 @@
++using ProjectManagement.Models;
++using ProjectManagement.Models.Stages;
++using ProjectManagement.Services.ProjectBriefings;
++using Xunit;
++
++namespace ProjectManagement.Tests.ProjectBriefings;
++
++public sealed class ProjectBriefingStageOrderTests
++{
++    [Fact]
++    public void Resolve_OrdersProjectsFromCompletionBackToEarlyApproval()
++    {
++        var ranks = new[]
++        {
++            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Completed, StageCodes.PAYMENT),
++            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.DEVP),
++            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.SO),
++            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.EAS),
++            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.PNC),
++            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.COB),
++            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.BM),
++            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.TEC),
++            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.BID),
++            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.AON),
++            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.SOW),
++            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.IPA)
++        };
++
++        Assert.Equal(ranks.OrderBy(value => value), ranks);
++    }
++
++    [Fact]
++    public void Resolve_PlacesClosureStagesBeforeDevelopmentAndUnknownStagesLast()
++    {
++        Assert.True(ProjectBriefingStageOrder.Payment < ProjectBriefingStageOrder.Development);
++        Assert.True(ProjectBriefingStageOrder.AcceptanceTesting < ProjectBriefingStageOrder.Development);
++        Assert.True(ProjectBriefingStageOrder.Development < ProjectBriefingStageOrder.SupplyOrder);
++        Assert.True(ProjectBriefingStageOrder.InPrincipleApproval < ProjectBriefingStageOrder.Unknown);
++        Assert.Equal(
++            ProjectBriefingStageOrder.Unknown,
++            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, "UNMAPPED"));
++    }
++}
+diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+index cdc6196..f3e530e 100644
+--- a/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+@@ -133,7 +133,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
+         if (data.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects
+             or ProjectBriefingPresentationMode.Combined)
+         {
+-            foreach (var project in data.Projects.OrderBy(project => project.SortOrder))
++            foreach (var project in OrderProjects(data.Projects))
+             {
+                 var capturedProject = project;
+                 var capability = ProjectBriefingCapabilityPaginator.Paginate(project.BriefDescription);
+@@ -160,6 +160,14 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
+         return plans;
+     }
+ 
++    private static IOrderedEnumerable<ProjectBriefingPresentationProject> OrderProjects(
++        IEnumerable<ProjectBriefingPresentationProject> projects)
++        => projects
++            .OrderBy(project => project.PresentStageOrder)
++            .ThenBy(project => project.SortOrder)
++            .ThenBy(project => project.ProjectName, StringComparer.OrdinalIgnoreCase)
++            .ThenBy(project => project.ProjectId);
++
+     private static void RenderCover(
+         SlideCanvas canvas,
+         ProjectBriefingPresentationData data)
+@@ -512,7 +520,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
+ 
+     private static void AddExecutiveTableSlides(List<SlidePlan> plans, ProjectBriefingPresentationData data)
+     {
+-        var projects = data.Projects.OrderBy(project => project.SortOrder).ToArray();
++        var projects = OrderProjects(data.Projects).ToArray();
+         var pages = ProjectBriefingTablePagination.Paginate(
+             projects,
+             data.CostMode,
+@@ -555,19 +563,19 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
+         {
+             case ProjectBriefingCostMode.Both:
+                 headers.AddRange(new[] { "COST (R&D)", "PROLIFERATION COST", "PRESENT STAGE", "STATUS" });
+-                widths.AddRange(new[] { 2.50, 1.30, 1.40, 1.65, 5.30 });
++                widths.AddRange(new[] { 2.65, 1.25, 1.35, 1.65, 5.25 });
+                 break;
+             case ProjectBriefingCostMode.CostRdOnly:
+                 headers.AddRange(new[] { "COST (R&D)", "PRESENT STAGE", "STATUS" });
+-                widths.AddRange(new[] { 2.80, 1.45, 1.95, 5.95 });
++                widths.AddRange(new[] { 2.95, 1.40, 1.90, 5.90 });
+                 break;
+             case ProjectBriefingCostMode.ProliferationOnly:
+                 headers.AddRange(new[] { "PROLIFERATION COST", "PRESENT STAGE", "STATUS" });
+-                widths.AddRange(new[] { 2.80, 1.60, 1.95, 5.80 });
++                widths.AddRange(new[] { 2.95, 1.55, 1.90, 5.75 });
+                 break;
+             default:
+                 headers.AddRange(new[] { "PRESENT STAGE", "STATUS" });
+-                widths.AddRange(new[] { 2.95, 2.00, 7.20 });
++                widths.AddRange(new[] { 3.10, 1.95, 7.10 });
+                 break;
+         }
+ 
+@@ -593,7 +601,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
+                     10.0,
+                     project.CostRd.IsAvailable ? canvas.Theme.TextPrimary : canvas.Theme.TextMuted,
+                     project.CostRd.IsAvailable,
+-                    "l",
++                    "r",
+                     costFill));
+             }
+             if (data.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both)
+@@ -603,7 +611,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
+                     10.0,
+                     project.ProliferationCost.IsAvailable ? canvas.Theme.TextPrimary : canvas.Theme.TextMuted,
+                     project.ProliferationCost.IsAvailable,
+-                    "l",
++                    "r",
+                     costFill));
+             }
+ 
+@@ -632,7 +640,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
+             displayRowHeights = displayRowHeights.Select(height => height * scale).ToArray();
+         }
+ 
+-        var heights = new List<double> { .43 };
++        var heights = new List<double> { .48 };
+         heights.AddRange(displayRowHeights);
+         canvas.AddNativeTable(.58, 1.06, widths, heights, rows, "Project status summary table");
+     }
+@@ -1144,6 +1152,9 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
+ 
+     private sealed class SlideCanvas
+     {
++        private const double NativeTableHorizontalMargin = .11;
++        private const double NativeTableVerticalMargin = .04;
++
+         private readonly SlidePart _slidePart;
+         private readonly ProjectBriefingBrandingAssets _branding;
+         private readonly List<string> _elements = new();
+@@ -1262,7 +1273,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
+                     rowXml.Append($"""
+ <a:tc>
+   {BuildTableTextBody(cell)}
+-  <a:tcPr marL="45720" marR="45720" marT="22860" marB="22860" anchor="ctr">
++  <a:tcPr marL="{Emu(NativeTableHorizontalMargin)}" marR="{Emu(NativeTableHorizontalMargin)}" marT="{Emu(NativeTableVerticalMargin)}" marB="{Emu(NativeTableVerticalMargin)}" anchor="ctr">
+     <a:solidFill><a:srgbClr val="{CleanColor(cell.Fill)}"/></a:solidFill>
+     {TableBorders()}
+   </a:tcPr>
+diff --git a/Services/ProjectBriefings/Presentation/ProjectBriefingThemeDefinition.cs b/Services/ProjectBriefings/Presentation/ProjectBriefingThemeDefinition.cs
+index fe17405..5fe9936 100644
+--- a/Services/ProjectBriefings/Presentation/ProjectBriefingThemeDefinition.cs
++++ b/Services/ProjectBriefings/Presentation/ProjectBriefingThemeDefinition.cs
+@@ -66,10 +66,10 @@ public static class ProjectBriefingThemeCatalog
+         Placeholder: "E6E8EA",
+         BrandingPlate: "F4F4F2",
+         BrandingPlateBorder: "D7DADE",
+-        CoverCanvas: "181D25",
+-        CoverSurface: "232A35",
+-        CoverText: "F7F8FA",
+-        CoverMuted: "B7BEC8")
++        CoverCanvas: "F7F7F5",
++        CoverSurface: "FFFFFF",
++        CoverText: "191B20",
++        CoverMuted: "5F6670")
+     {
+         IsDark = false
+     };
+diff --git a/Services/ProjectBriefings/ProjectBriefingContracts.cs b/Services/ProjectBriefings/ProjectBriefingContracts.cs
+index 3593468..9d4e17f 100644
+--- a/Services/ProjectBriefings/ProjectBriefingContracts.cs
++++ b/Services/ProjectBriefings/ProjectBriefingContracts.cs
+@@ -77,7 +77,9 @@ public sealed class ProjectBriefingProjectVm
+     public string ProjectName { get; init; } = string.Empty;
+     public string LifecycleDisplay { get; init; } = string.Empty;
+     public ProjectLifecycleStatus LifecycleStatus { get; init; }
++    public string PresentStageCode { get; init; } = string.Empty;
+     public string PresentStage { get; init; } = string.Empty;
++    public int PresentStageOrder { get; init; } = ProjectBriefingStageOrder.Unknown;
+     public string? ProjectCategory { get; init; }
+     public string? TechnicalCategory { get; init; }
+     public ProjectBriefingCostValue CostRd { get; init; } = ProjectBriefingCostValue.Missing();
+diff --git a/Services/ProjectBriefings/ProjectBriefingDataService.cs b/Services/ProjectBriefings/ProjectBriefingDataService.cs
+index c785e96..0ef8033 100644
+--- a/Services/ProjectBriefings/ProjectBriefingDataService.cs
++++ b/Services/ProjectBriefings/ProjectBriefingDataService.cs
+@@ -96,19 +96,17 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+             throw new InvalidOperationException("Add at least one project before generating the PowerPoint deck.");
+         }
+ 
+-        var itemByProject = snapshot.Items.ToDictionary(item => item.ProjectId);
+         var projects = projectVms.Select(project =>
+         {
+-            var item = itemByProject[project.ProjectId];
+             return new ProjectBriefingPresentationProject
+             {
+                 ProjectId = project.ProjectId,
+                 ProjectName = project.ProjectName,
+                 LifecycleStatus = project.LifecycleStatus,
+                 LifecycleDisplay = project.LifecycleDisplay,
+-                PresentStageCode = ResolveStageCode(item),
++                PresentStageCode = project.PresentStageCode,
+                 PresentStage = project.PresentStage,
+-                PresentStageOrder = ResolveStageOrder(item),
++                PresentStageOrder = project.PresentStageOrder,
+                 ProjectCategory = project.ProjectCategory,
+                 TechnicalCategory = project.TechnicalCategory,
+                 CostRd = project.CostRd,
+@@ -329,8 +327,6 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+         var photoProbes = await _photoLoader.ProbeAsync(photoReferences, cancellationToken);
+ 
+         return items
+-            .OrderBy(item => item.SortOrder)
+-            .ThenBy(item => item.ItemId)
+             .Select(item =>
+             {
+                 var coverPhotoId = coverByProject[item.ProjectId];
+@@ -338,13 +334,16 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+                     ? photoProbes.GetValueOrDefault(coverPhotoId.Value)
+                     : null;
+                 var external = externalStatuses.GetValueOrDefault(item.ProjectId);
++                var stageCode = ResolveStageCode(item);
+                 return new ProjectBriefingProjectVm
+                 {
+                     ProjectId = item.ProjectId,
+                     ProjectName = item.ProjectName,
+                     LifecycleStatus = item.LifecycleStatus,
+                     LifecycleDisplay = ResolveLifecycleDisplay(item),
++                    PresentStageCode = stageCode,
+                     PresentStage = ResolveStageName(item),
++                    PresentStageOrder = ProjectBriefingStageOrder.Resolve(item.LifecycleStatus, stageCode),
+                     ProjectCategory = item.ProjectCategory,
+                     TechnicalCategory = item.TechnicalCategory,
+                     CostRd = costRd.GetValueOrDefault(item.ProjectId) ?? ProjectBriefingCostValue.Missing(),
+@@ -363,6 +362,10 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+                     OpenUrl = $"/Projects/Overview/{item.ProjectId}"
+                 };
+             })
++            .OrderBy(project => project.PresentStageOrder)
++            .ThenBy(project => project.SortOrder)
++            .ThenBy(project => project.ProjectName, StringComparer.OrdinalIgnoreCase)
++            .ThenBy(project => project.ProjectId)
+             .ToList();
+     }
+ 
+@@ -403,7 +406,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+         var stageSummary = projects
+             .GroupBy(project => new { project.PresentStage, project.PresentStageOrder })
+             .Select(group => new ProjectBriefingSummaryPoint(group.Key.PresentStage, group.Count(), group.Key.PresentStageOrder))
+-            .OrderByDescending(point => point.Order)
++            .OrderBy(point => point.Order)
+             .ThenBy(point => point.Label)
+             .ToList();
+ 
+@@ -549,16 +552,6 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
+         return codes[index];
+     }
+ 
+-    private static int ResolveStageOrder(DeckItemSnapshot item)
+-    {
+-        if (item.LifecycleStatus == ProjectLifecycleStatus.Completed)
+-        {
+-            return 10_000;
+-        }
+-
+-        return ProcurementWorkflow.OrderOf(item.WorkflowVersion, ResolveStageCode(item));
+-    }
+-
+     private static string Encode(byte[] value)
+         => value is { Length: > 0 } ? Convert.ToBase64String(value) : string.Empty;
+ 
+diff --git a/Services/ProjectBriefings/ProjectBriefingStageOrder.cs b/Services/ProjectBriefings/ProjectBriefingStageOrder.cs
+new file mode 100644
+index 0000000..75ca692
+--- /dev/null
++++ b/Services/ProjectBriefings/ProjectBriefingStageOrder.cs
+@@ -0,0 +1,58 @@
++using ProjectManagement.Models;
++using ProjectManagement.Models.Stages;
++
++namespace ProjectManagement.Services.ProjectBriefings;
++
++/// <summary>
++/// Defines the single presentation sequence used by the deck builder, executive
++/// tables, stage summaries and detailed project slides.
++/// </summary>
++public static class ProjectBriefingStageOrder
++{
++    public const int Completed = 0;
++    public const int TransferOfTechnology = 10;
++    public const int Payment = 20;
++    public const int AcceptanceTesting = 30;
++    public const int Development = 40;
++    public const int SupplyOrder = 50;
++    public const int EasApproval = 60;
++    public const int Pnc = 70;
++    public const int CommercialBidOpening = 80;
++    public const int Benchmarking = 90;
++    public const int TechnicalEvaluation = 100;
++    public const int BiddingTendering = 110;
++    public const int AcceptanceOfNecessity = 120;
++    public const int SowVetting = 130;
++    public const int InPrincipleApproval = 140;
++    public const int FeasibilityStudy = 150;
++    public const int Unknown = 10_000;
++
++    public static int Resolve(ProjectLifecycleStatus lifecycleStatus, string? stageCode)
++    {
++        if (lifecycleStatus == ProjectLifecycleStatus.Completed
++            || string.Equals(stageCode, "COMPLETED", StringComparison.OrdinalIgnoreCase))
++        {
++            return Completed;
++        }
++
++        return stageCode?.Trim().ToUpperInvariant() switch
++        {
++            StageCodes.TOT => TransferOfTechnology,
++            StageCodes.PAYMENT => Payment,
++            StageCodes.ATP => AcceptanceTesting,
++            StageCodes.DEVP => Development,
++            StageCodes.SO => SupplyOrder,
++            StageCodes.EAS => EasApproval,
++            StageCodes.PNC => Pnc,
++            StageCodes.COB => CommercialBidOpening,
++            StageCodes.BM => Benchmarking,
++            StageCodes.TEC => TechnicalEvaluation,
++            StageCodes.BID => BiddingTendering,
++            StageCodes.AON => AcceptanceOfNecessity,
++            StageCodes.SOW => SowVetting,
++            StageCodes.IPA => InPrincipleApproval,
++            StageCodes.FS => FeasibilityStudy,
++            _ => Unknown
++        };
++    }
++}
+diff --git a/Services/ProjectBriefings/ProjectBriefingTablePagination.cs b/Services/ProjectBriefings/ProjectBriefingTablePagination.cs
+index 0b19957..3275ec3 100644
+--- a/Services/ProjectBriefings/ProjectBriefingTablePagination.cs
++++ b/Services/ProjectBriefings/ProjectBriefingTablePagination.cs
+@@ -18,9 +18,9 @@ internal sealed record ProjectBriefingTablePage<T>(
+ 
+ internal static class ProjectBriefingTablePagination
+ {
+-    public const double AvailableBodyHeight = 5.28;
+-    public const int PreferredRowsPerSlide = 7;
+-    private const int MinimumBalancedFinalRows = 4;
++    public const double AvailableBodyHeight = 5.24;
++    public const int PreferredRowsPerSlide = 6;
++    private const int MinimumBalancedFinalRows = 3;
+ 
+     public static IReadOnlyList<ProjectBriefingTablePage<T>> Paginate<T>(
+         IReadOnlyList<T> items,
+@@ -91,14 +91,14 @@ internal static class ProjectBriefingTablePagination
+         ProjectBriefingTableRowMeasure row,
+         ProjectBriefingCostMode costMode)
+     {
+-        var projectCharactersPerLine = costMode == ProjectBriefingCostMode.Both ? 28 : 34;
++        var projectCharactersPerLine = costMode == ProjectBriefingCostMode.Both ? 26 : 32;
+         var statusCharactersPerLine = costMode switch
+         {
+-            ProjectBriefingCostMode.Both => 79,
+-            ProjectBriefingCostMode.None => 104,
+-            _ => 90
++            ProjectBriefingCostMode.Both => 74,
++            ProjectBriefingCostMode.None => 98,
++            _ => 84
+         };
+-        var stageCharactersPerLine = costMode == ProjectBriefingCostMode.None ? 25 : 22;
++        var stageCharactersPerLine = costMode == ProjectBriefingCostMode.None ? 23 : 20;
+ 
+         var projectLines = EstimateLines(row.ProjectName, projectCharactersPerLine, maximum: 3);
+         var statusLines = EstimateLines(row.ExternalStatus, statusCharactersPerLine, maximum: 4);
+@@ -112,7 +112,7 @@ internal static class ProjectBriefingTablePagination
+         };
+ 
+         var lines = Math.Max(Math.Max(projectLines, statusLines), Math.Max(stageLines, costLines));
+-        return Math.Clamp(.60 + ((lines - 2) * .09), .60, .87);
++        return Math.Clamp(.64 + ((lines - 2) * .10), .64, .92);
+     }
+ 
+     private static int EstimateLines(string value, int charactersPerLine, int maximum)
+diff --git a/wwwroot/css/pages/project-briefing-decks.css b/wwwroot/css/pages/project-briefing-decks.css
+index a944e21..f5477c8 100644
+--- a/wwwroot/css/pages/project-briefing-decks.css
++++ b/wwwroot/css/pages/project-briefing-decks.css
+@@ -848,17 +848,15 @@
+ 
+ .pbd-project-table {
+     width: 100%;
+-    min-width: 73rem;
++    min-width: 78rem;
+     border-collapse: separate;
+     border-spacing: 0;
+     font-size: .72rem;
+ }
+ 
+ .pbd-project-table th {
+-    position: sticky;
+-    top: calc(var(--topbar-height, 56px) + var(--pbd-selected-toolbar-height, 3.75rem));
+-    z-index: 2;
+-    padding: .55rem .5rem;
++    position: static;
++    padding: .58rem .72rem;
+     border-bottom: 1px solid #cbd5e1;
+     background: #f2f5f9;
+     color: #475467;
+@@ -878,12 +876,30 @@
+ }
+ 
+ .pbd-project-table td {
+-    padding: .57rem .5rem;
++    padding: .62rem .72rem;
+     border-bottom: 1px solid #e6ebf2;
+     color: #344054;
+     vertical-align: top;
+ }
+ 
++.pbd-project-table th.pbd-project-column,
++.pbd-project-table td.pbd-project-name,
++.pbd-project-table th.pbd-status-column,
++.pbd-project-table td.pbd-status {
++    padding-right: .92rem;
++    padding-left: .92rem;
++}
++
++.pbd-project-table th.pbd-select-column,
++.pbd-project-table td.pbd-select-column,
++.pbd-project-table th.pbd-drag-column,
++.pbd-project-table td.pbd-drag-column,
++.pbd-project-table th:last-child,
++.pbd-project-table td.pbd-row-actions {
++    padding-right: .35rem;
++    padding-left: .35rem;
++}
++
+ .pbd-project-table tbody tr:last-child td { border-bottom: 0; }
+ .pbd-project-table tbody tr:hover td { background: #fbfcff; }
+ .pbd-project-table tbody tr.pbd-sort-ghost td { background: #eaf2ff; }
+@@ -1203,6 +1219,7 @@
+     display: flex;
+     min-height: 2.75rem;
+     align-items: center;
++    flex-wrap: wrap;
+     gap: .45rem;
+     padding: .45rem .75rem;
+     border-bottom: 1px solid var(--pbd-border);
+@@ -1224,6 +1241,11 @@
+     padding: 0;
+ }
+ 
++.pbd-ordering-note {
++    color: var(--pbd-muted);
++    font-size: .66rem;
++}
++
+ .pbd-filter-reorder-note {
+     color: var(--pbd-amber);
+     font-size: .66rem;
+@@ -1247,6 +1269,7 @@
+ .pbd-status {
+     min-width: 15rem;
+     max-width: 24rem;
++    line-height: 1.42;
+ }
+ 
+ .pbd-status small {
+diff --git a/wwwroot/js/pages/project-briefing-decks.js b/wwwroot/js/pages/project-briefing-decks.js
+index a687ca3..1b1e3d9 100644
+--- a/wwwroot/js/pages/project-briefing-decks.js
++++ b/wwwroot/js/pages/project-briefing-decks.js
+@@ -195,28 +195,23 @@ if (root) {
+   const sortStatus = root.querySelector('[data-pbd-sort-status]');
+   let sortable = null;
+ 
+-  const updateSelectedToolbarHeight = () => {
+-    if (!selectedToolbar) return;
+-    root.style.setProperty('--pbd-selected-toolbar-height', `${Math.ceil(selectedToolbar.getBoundingClientRect().height)}px`);
+-  };
+-  updateSelectedToolbarHeight();
+-  if (selectedToolbar && 'ResizeObserver' in window) {
+-    const selectedToolbarObserver = new ResizeObserver(updateSelectedToolbarHeight);
+-    selectedToolbarObserver.observe(selectedToolbar);
+-  }
+-
+   if (selectedSearch) selectedSearch.value = sessionStorage.getItem(`${storagePrefix}selectedSearch`) || '';
+   if (selectedStage) selectedStage.value = sessionStorage.getItem(`${storagePrefix}selectedStage`) || '';
+   if (selectedReadiness) selectedReadiness.value = sessionStorage.getItem(`${storagePrefix}selectedReadiness`) || '';
+ 
+   const currentRows = () => [...(sortableBody?.querySelectorAll('tr[data-project-id]') || [])];
++  const stageKey = (row) => `${row?.dataset.stageOrder || ''}:${row?.dataset.stageCode || row?.dataset.stage || ''}`;
++  const sameStage = (first, second) => stageKey(first) === stageKey(second);
+   const selectedRowIds = () => currentRows()
+     .filter((row) => row.querySelector('[data-pbd-row-select]')?.checked)
+     .map((row) => Number(row.dataset.projectId));
+ 
+   const refreshBulkActions = () => {
+     const count = selectedRowIds().length;
+-    [bulkTop, bulkBottom, bulkRemove].forEach((button) => { if (button) button.disabled = count === 0; });
++    const filtered = Boolean(normalize(selectedSearch?.value) || selectedStage?.value || selectedReadiness?.value);
++    if (bulkTop) bulkTop.disabled = count === 0 || filtered;
++    if (bulkBottom) bulkBottom.disabled = count === 0 || filtered;
++    if (bulkRemove) bulkRemove.disabled = count === 0;
+   };
+ 
+   const selectedFilterState = () => ({
+@@ -343,8 +338,21 @@ if (root) {
+       handle: '.pbd-drag',
+       ghostClass: 'pbd-sort-ghost',
+       chosenClass: 'pbd-sort-chosen',
+-      onStart: () => setState(sortStatus, 'Reordering…', 'saving'),
+-      onEnd: saveProjectOrder
++      onStart: () => setState(sortStatus, 'Reordering within present stage…', 'saving'),
++      onMove: (event) => {
++        const allowed = sameStage(event.dragged, event.related);
++        if (!allowed) {
++          setState(sortStatus, 'Projects remain grouped by maturity. Reorder only within the same stage.', 'error');
++        }
++        return allowed;
++      },
++      onEnd: (event) => {
++        if (event.oldIndex === event.newIndex) {
++          setState(sortStatus, 'No slide-order change.', 'saved');
++          return;
++        }
++        saveProjectOrder();
++      }
+     });
+     applySelectedFilters();
+   };
+@@ -368,6 +376,8 @@ if (root) {
+     row.dataset.projectId = String(project.projectId);
+     row.dataset.searchText = [project.projectName, project.lifecycleDisplay, project.presentStage, project.projectCategory, project.technicalCategory, project.externalStatus].filter(Boolean).join(' ');
+     row.dataset.stage = project.presentStage || '';
++    row.dataset.stageCode = project.presentStageCode || '';
++    row.dataset.stageOrder = String(project.presentStageOrder ?? 10000);
+     row.dataset.missingStatus = String(!project.externalStatus);
+     row.dataset.missingCostRd = String(!project.costRd?.isAvailable);
+     row.dataset.missingProliferation = String(!project.proliferationCost?.isAvailable);
+@@ -387,8 +397,8 @@ if (root) {
+     const drag = document.createElement('button');
+     drag.type = 'button';
+     drag.className = 'pbd-drag';
+-    drag.title = 'Drag or use the up/down arrow keys to reorder';
+-    drag.setAttribute('aria-label', `Reorder ${project.projectName}. Use the up or down arrow key.`);
++    drag.title = `Reorder within ${project.presentStage || 'this stage'}`;
++    drag.setAttribute('aria-label', `Reorder ${project.projectName} within ${project.presentStage || 'its present stage'}. Use the up or down arrow key.`);
+     drag.setAttribute('aria-keyshortcuts', 'ArrowUp ArrowDown');
+     drag.innerHTML = '<i class="bi bi-grip-vertical" aria-hidden="true"></i>';
+     dragCell.append(drag);
+@@ -491,9 +501,16 @@ if (root) {
+     if (!selectedStage) return;
+     const selected = selectedStage.value;
+     selectedStage.replaceChildren(new Option('All stages', ''));
+-    [...new Set(projects.map((project) => project.presentStage).filter(Boolean))]
+-      .sort((a, b) => a.localeCompare(b))
+-      .forEach((stage) => selectedStage.append(new Option(stage, stage)));
++    const stages = new Map();
++    projects.forEach((project) => {
++      if (!project.presentStage) return;
++      const current = stages.get(project.presentStage);
++      const order = Number(project.presentStageOrder ?? 10000);
++      if (current === undefined || order < current) stages.set(project.presentStage, order);
++    });
++    [...stages.entries()]
++      .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))
++      .forEach(([stage]) => selectedStage.append(new Option(stage, stage)));
+     selectedStage.value = [...selectedStage.options].some((option) => option.value === selected) ? selected : '';
+   };
+ 
+@@ -590,12 +607,24 @@ if (root) {
+   const moveSelected = async (toTop) => {
+     const selected = new Set(selectedRowIds());
+     if (selected.size === 0 || !sortableBody) return;
+-    const rows = currentRows();
+-    const moving = rows.filter((row) => selected.has(Number(row.dataset.projectId)));
+-    const remaining = rows.filter((row) => !selected.has(Number(row.dataset.projectId)));
+-    const ordered = toTop ? [...moving, ...remaining] : [...remaining, ...moving];
+-    ordered.forEach((row) => sortableBody.append(row));
++
++    const stageGroups = [];
++    currentRows().forEach((row) => {
++      const key = stageKey(row);
++      const existing = stageGroups.at(-1);
++      if (!existing || existing.key !== key) stageGroups.push({ key, rows: [row] });
++      else existing.rows.push(row);
++    });
++
++    stageGroups.forEach((group) => {
++      const moving = group.rows.filter((row) => selected.has(Number(row.dataset.projectId)));
++      const remaining = group.rows.filter((row) => !selected.has(Number(row.dataset.projectId)));
++      const ordered = toTop ? [...moving, ...remaining] : [...remaining, ...moving];
++      ordered.forEach((row) => sortableBody.append(row));
++    });
++
+     await saveProjectOrder();
++    setState(sortStatus, `Selected projects moved to the ${toTop ? 'top' : 'bottom'} of their stage.`, 'saved');
+     applySelectedFilters();
+   };
+   bulkTop?.addEventListener('click', () => moveSelected(true));
+@@ -608,6 +637,10 @@ if (root) {
+     const target = event.key === 'ArrowUp' ? row?.previousElementSibling : row?.nextElementSibling;
+     if (!(row instanceof HTMLTableRowElement) || !(target instanceof HTMLTableRowElement)) return;
+     event.preventDefault();
++    if (!sameStage(row, target)) {
++      setState(sortStatus, 'This project is already at the edge of its present-stage group.', 'saved');
++      return;
++    }
+     if (event.key === 'ArrowUp') sortableBody.insertBefore(row, target);
+     else sortableBody.insertBefore(target, row);
+     handle.focus();
+diff --git a/wwwroot/js/projects/project-briefing-decks.test.js b/wwwroot/js/projects/project-briefing-decks.test.js
+index 5f46c38..c842280 100644
+--- a/wwwroot/js/projects/project-briefing-decks.test.js
++++ b/wwwroot/js/projects/project-briefing-decks.test.js
+@@ -27,11 +27,13 @@ test('briefing deck selection tabs support keyboard navigation', () => {
+   assert.match(source, /aria-selected/);
+ });
+ 
+-test('briefing deck slide order supports drag and keyboard reordering', () => {
++test('briefing deck slide order supports drag and keyboard reordering within stage groups', () => {
+   assert.match(source, /window\.Sortable\.create/);
+   assert.match(source, /ArrowUp/);
+   assert.match(source, /ArrowDown/);
+   assert.match(source, /saveProjectOrder/);
++  assert.match(source, /sameStage/);
++  assert.match(source, /Projects remain grouped by maturity/);
+ });
+ 
+ test('briefing-specific descriptions are saved without leaving the builder', () => {

@@ -848,17 +848,15 @@
 
 .pbd-project-table {
     width: 100%;
-    min-width: 73rem;
+    min-width: 78rem;
     border-collapse: separate;
     border-spacing: 0;
     font-size: .72rem;
 }
 
 .pbd-project-table th {
-    position: sticky;
-    top: calc(var(--topbar-height, 56px) + var(--pbd-selected-toolbar-height, 3.75rem));
-    z-index: 2;
-    padding: .55rem .5rem;
+    position: static;
+    padding: .58rem .72rem;
     border-bottom: 1px solid #cbd5e1;
     background: #f2f5f9;
     color: #475467;
@@ -878,10 +876,28 @@
 }
 
 .pbd-project-table td {
-    padding: .57rem .5rem;
+    padding: .62rem .72rem;
     border-bottom: 1px solid #e6ebf2;
     color: #344054;
     vertical-align: top;
+}
+
+.pbd-project-table th.pbd-project-column,
+.pbd-project-table td.pbd-project-name,
+.pbd-project-table th.pbd-status-column,
+.pbd-project-table td.pbd-status {
+    padding-right: .92rem;
+    padding-left: .92rem;
+}
+
+.pbd-project-table th.pbd-select-column,
+.pbd-project-table td.pbd-select-column,
+.pbd-project-table th.pbd-drag-column,
+.pbd-project-table td.pbd-drag-column,
+.pbd-project-table th:last-child,
+.pbd-project-table td.pbd-row-actions {
+    padding-right: .35rem;
+    padding-left: .35rem;
 }
 
 .pbd-project-table tbody tr:last-child td { border-bottom: 0; }
@@ -1203,6 +1219,7 @@
     display: flex;
     min-height: 2.75rem;
     align-items: center;
+    flex-wrap: wrap;
     gap: .45rem;
     padding: .45rem .75rem;
     border-bottom: 1px solid var(--pbd-border);
@@ -1222,6 +1239,11 @@
 .pbd-selected-actions .pbd-save-state {
     margin-left: auto;
     padding: 0;
+}
+
+.pbd-ordering-note {
+    color: var(--pbd-muted);
+    font-size: .66rem;
 }
 
 .pbd-filter-reorder-note {
@@ -1247,6 +1269,7 @@
 .pbd-status {
     min-width: 15rem;
     max-width: 24rem;
+    line-height: 1.42;
 }
 
 .pbd-status small {

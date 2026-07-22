@@ -133,7 +133,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         if (data.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects
             or ProjectBriefingPresentationMode.Combined)
         {
-            foreach (var project in data.Projects.OrderBy(project => project.SortOrder))
+            foreach (var project in OrderProjects(data.Projects))
             {
                 var capturedProject = project;
                 var capability = ProjectBriefingCapabilityPaginator.Paginate(project.BriefDescription);
@@ -159,6 +159,14 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
 
         return plans;
     }
+
+    private static IOrderedEnumerable<ProjectBriefingPresentationProject> OrderProjects(
+        IEnumerable<ProjectBriefingPresentationProject> projects)
+        => projects
+            .OrderBy(project => project.PresentStageOrder)
+            .ThenBy(project => project.SortOrder)
+            .ThenBy(project => project.ProjectName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(project => project.ProjectId);
 
     private static void RenderCover(
         SlideCanvas canvas,
@@ -512,7 +520,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
 
     private static void AddExecutiveTableSlides(List<SlidePlan> plans, ProjectBriefingPresentationData data)
     {
-        var projects = data.Projects.OrderBy(project => project.SortOrder).ToArray();
+        var projects = OrderProjects(data.Projects).ToArray();
         var pages = ProjectBriefingTablePagination.Paginate(
             projects,
             data.CostMode,
@@ -555,19 +563,19 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         {
             case ProjectBriefingCostMode.Both:
                 headers.AddRange(new[] { "COST (R&D)", "PROLIFERATION COST", "PRESENT STAGE", "STATUS" });
-                widths.AddRange(new[] { 2.50, 1.30, 1.40, 1.65, 5.30 });
+                widths.AddRange(new[] { 2.65, 1.25, 1.35, 1.65, 5.25 });
                 break;
             case ProjectBriefingCostMode.CostRdOnly:
                 headers.AddRange(new[] { "COST (R&D)", "PRESENT STAGE", "STATUS" });
-                widths.AddRange(new[] { 2.80, 1.45, 1.95, 5.95 });
+                widths.AddRange(new[] { 2.95, 1.40, 1.90, 5.90 });
                 break;
             case ProjectBriefingCostMode.ProliferationOnly:
                 headers.AddRange(new[] { "PROLIFERATION COST", "PRESENT STAGE", "STATUS" });
-                widths.AddRange(new[] { 2.80, 1.60, 1.95, 5.80 });
+                widths.AddRange(new[] { 2.95, 1.55, 1.90, 5.75 });
                 break;
             default:
                 headers.AddRange(new[] { "PRESENT STAGE", "STATUS" });
-                widths.AddRange(new[] { 2.95, 2.00, 7.20 });
+                widths.AddRange(new[] { 3.10, 1.95, 7.10 });
                 break;
         }
 
@@ -593,7 +601,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
                     10.0,
                     project.CostRd.IsAvailable ? canvas.Theme.TextPrimary : canvas.Theme.TextMuted,
                     project.CostRd.IsAvailable,
-                    "l",
+                    "r",
                     costFill));
             }
             if (data.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both)
@@ -603,7 +611,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
                     10.0,
                     project.ProliferationCost.IsAvailable ? canvas.Theme.TextPrimary : canvas.Theme.TextMuted,
                     project.ProliferationCost.IsAvailable,
-                    "l",
+                    "r",
                     costFill));
             }
 
@@ -632,7 +640,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
             displayRowHeights = displayRowHeights.Select(height => height * scale).ToArray();
         }
 
-        var heights = new List<double> { .43 };
+        var heights = new List<double> { .48 };
         heights.AddRange(displayRowHeights);
         canvas.AddNativeTable(.58, 1.06, widths, heights, rows, "Project status summary table");
     }
@@ -1144,6 +1152,9 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
 
     private sealed class SlideCanvas
     {
+        private const double NativeTableHorizontalMargin = .11;
+        private const double NativeTableVerticalMargin = .04;
+
         private readonly SlidePart _slidePart;
         private readonly ProjectBriefingBrandingAssets _branding;
         private readonly List<string> _elements = new();
@@ -1262,7 +1273,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
                     rowXml.Append($"""
 <a:tc>
   {BuildTableTextBody(cell)}
-  <a:tcPr marL="45720" marR="45720" marT="22860" marB="22860" anchor="ctr">
+  <a:tcPr marL="{Emu(NativeTableHorizontalMargin)}" marR="{Emu(NativeTableHorizontalMargin)}" marT="{Emu(NativeTableVerticalMargin)}" marB="{Emu(NativeTableVerticalMargin)}" anchor="ctr">
     <a:solidFill><a:srgbClr val="{CleanColor(cell.Fill)}"/></a:solidFill>
     {TableBorders()}
   </a:tcPr>

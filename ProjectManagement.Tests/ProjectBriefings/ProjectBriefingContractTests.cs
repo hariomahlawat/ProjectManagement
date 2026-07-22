@@ -77,12 +77,14 @@ public sealed class ProjectBriefingContractTests
     }
 
     [Fact]
-    public void StageSummary_IsOneChartThenNativeTableInReverseWorkflowOrder()
+    public void StageSummary_UsesCanonicalMaturityOrderAcrossBuilderAndPresentation()
     {
         var dataSource = Read("ProjectBriefingDataService.cs");
         var composer = Read("ProjectBriefingSlideComposer.cs");
 
-        Assert.Contains("OrderByDescending(point => point.Order)", dataSource, StringComparison.Ordinal);
+        Assert.Contains("OrderBy(point => point.Order)", dataSource, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingStageOrder.Resolve", dataSource, StringComparison.Ordinal);
+        Assert.Contains("OrderProjects(data.Projects)", composer, StringComparison.Ordinal);
         Assert.Contains("AddStageSummarySlides", composer, StringComparison.Ordinal);
         Assert.Contains("RenderStageSummaryTable", composer, StringComparison.Ordinal);
         Assert.Contains("Stage-wise project distribution", composer, StringComparison.Ordinal);
@@ -175,6 +177,22 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("ProjectBriefingThemeCatalog.Resolve", composer, StringComparison.Ordinal);
         Assert.Contains("AddBrandingImages", composer, StringComparison.Ordinal);
         Assert.DoesNotContain("SIMULATOR DEVELOPMENT DIVISION · PRISM ERP", composer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Builder_KeepsCanonicalStageGroupsAndReordersOnlyWithinAStage()
+    {
+        var page = Read("Index.cshtml");
+        var script = Read("project-briefing-decks.js");
+        var composer = Read("ProjectBriefingSlideComposer.cs");
+
+        Assert.Contains("Completed projects are shown first", page, StringComparison.Ordinal);
+        Assert.Contains("Top of stage", page, StringComparison.Ordinal);
+        Assert.Contains("data-stage-order", page, StringComparison.Ordinal);
+        Assert.Contains("sameStage", script, StringComparison.Ordinal);
+        Assert.Contains("Projects remain grouped by maturity", script, StringComparison.Ordinal);
+        Assert.Contains("NativeTableHorizontalMargin = .11", composer, StringComparison.Ordinal);
+        Assert.Contains("NativeTableVerticalMargin = .04", composer, StringComparison.Ordinal);
     }
 
     [Fact]
