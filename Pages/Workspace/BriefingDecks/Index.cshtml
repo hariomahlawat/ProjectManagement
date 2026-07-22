@@ -183,6 +183,10 @@
                                     Summary @deck.SlideEstimate.SummarySlides ·
                                     Tables @deck.SlideEstimate.ExecutiveTableSlides ·
                                     Project slides @deck.SlideEstimate.DetailedProjectSlides
+                                    @if (deck.SlideEstimate.CapabilityContinuationSlides > 0)
+                                    {
+                                        <text> · Capability continuations @deck.SlideEstimate.CapabilityContinuationSlides</text>
+                                    }
                                 </small>
                             </div>
                             <div class="pbd-preflight-gaps">

@@ -1,54 +1,56 @@
-# Project Briefing Deck Builder — Phase 3
+# Project Briefing Deck Builder — Phase 4
 
 ## Scope
 
-This package refines two areas of the existing Briefing Deck Builder:
+This package implements the approved **Audience Portfolio and Full Capability Content** refinement over the previously deployed Phase 3 Briefing Deck Builder.
 
-1. **Adaptive detailed-project PowerPoint slides**
-2. **Faster, searchable deck-membership management**
+### PowerPoint changes
 
-It is cumulative over the previously supplied **Phase 2** and **Audience Refinement** packages. Apply those earlier packages first if they are not already present.
+- Simplifies **Portfolio at a glance** to audience-facing portfolio facts:
+  - selected projects;
+  - ongoing projects;
+  - completed projects;
+  - Cost (R&D);
+  - proliferation cost.
+- Keeps preparation/readiness indicators on the web builder only; they are not repeated in the generated presentation.
+- Preserves the complete capability source text. The presentation pipeline no longer limits the project description to 1,200 characters before export.
+- Parses recognisable structure into presentation blocks:
+  - section headings;
+  - paragraphs;
+  - bullets;
+  - numbered items;
+  - lettered items.
+- Adds professional **Capability overview — continued** slides whenever the complete content cannot fit at a readable size on the main project slide.
+- Uses the same paginator for deck-size estimation and actual PowerPoint generation.
+- Removes the redundant `Proliferation` basis line from executive-table proliferation-cost cells.
+- Shows missing executive-table status as muted `Not recorded`; detailed project slides retain `No external status recorded`.
 
-## Implemented PowerPoint refinements
+### Deliberately unchanged
 
-- Renames **PROJECT POSITION** to **PRESENT STATUS**.
-- Dynamically allocates left-column height according to the latest external-status length.
-- Shrinks the photograph region when more status space is required.
-- Anchors cost cards to the bottom of the left column.
-- Clips and auto-fits text inside its own shape so that it cannot overlap adjacent cards.
-- Uses word-boundary truncation for exceptionally long status text.
-- Uses a compact no-photo placeholder.
-- Uses neutral styling for an unavailable proliferation cost; green is retained only for a recorded value.
-- Normalises common private-use bullet characters before writing capability text to PowerPoint.
-- Uses the quieter phrase **Capability overview not recorded.** for empty descriptions.
+- Photograph selection and integrity logic.
+- Inclusion of low-information detailed project slides.
+- Source-text editorial rewriting.
+- Cost and external-status data rules.
+- Existing shared-deck and membership-management behaviour.
 
-## Implemented builder UX
+## Files
 
-- Project removal is asynchronous and no longer reloads or jumps the page to the top.
-- Adds **Search within this deck** with stage and readiness filters.
-- Adds selected-row management:
-  - Select visible
-  - Move selected to top
-  - Move selected to bottom
-  - Remove selected
-- Disables drag-and-drop while the selected-project table is filtered to protect global slide order.
-- Renames **Select individually** to **Manage individually**.
-- Individual search now shows all matching projects, including projects already in the deck.
-- Search results show **IN DECK** / **NOT IN DECK** and are initially checked according to actual membership.
-- Users can add and remove projects in one batch through **Apply changes**.
-- Updates deck counts, readiness, estimated slide count and selected rows without a full-page reload.
-- Preserves active selection tab, selected-project filters and scroll position in the browser session.
-- Retains row-version concurrency checks for shared Comdt/HoD decks.
+Add:
 
-## Files to replace
+```text
+Services/ProjectBriefings/Presentation/ProjectBriefingCapabilityContracts.cs
+Services/ProjectBriefings/Presentation/ProjectBriefingCapabilityPaginator.cs
+Services/ProjectBriefings/Presentation/ProjectBriefingRichTextParser.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingCapabilityPaginationTests.cs
+```
+
+Replace:
 
 ```text
 Pages/Workspace/BriefingDecks/Index.cshtml
-Pages/Workspace/BriefingDecks/Index.cshtml.cs
 Services/ProjectBriefings/ProjectBriefingContracts.cs
-Services/ProjectBriefings/ProjectBriefingDeckService.cs
+Services/ProjectBriefings/ProjectBriefingDataService.cs
 Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
-wwwroot/css/pages/project-briefing-decks.css
 wwwroot/js/pages/project-briefing-decks.js
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
 ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
@@ -63,7 +65,7 @@ ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
 
 ## Deployment
 
-Stop the running application, copy the replacement files into the project root, then run:
+Stop PRISM, extract this ZIP into the project root and replace matching files.
 
 ```powershell
 Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
@@ -73,41 +75,26 @@ dotnet build .\ProjectManagement.csproj
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
 ```
 
-Restart PRISM and hard-refresh the browser (`Ctrl+F5`) so the updated JavaScript and CSS are loaded.
+Restart PRISM and hard-refresh the browser with `Ctrl+F5`.
 
 ## Verification
 
-### Builder
+Generate a combined deck containing a project with a long, structured capability description and verify:
 
-1. Open a shared deck with several projects.
-2. Remove one project near the bottom of the page.
-3. Confirm that the page does not jump to the top.
-4. Search within selected projects and apply stage/readiness filters.
-5. Open **Manage individually**, search for a project already in the deck, and confirm it appears checked with an **IN DECK** badge.
-6. Uncheck one project, check another, and select **Apply changes**.
-7. Confirm counts and rows update without a full-page refresh.
+1. The portfolio slide contains no status/photo/data-readiness indicators.
+2. The complete capability text appears across the main and continuation slides.
+3. Headings and list structures remain visually differentiated.
+4. No capability block ends with an artificial truncation ellipsis.
+5. The builder's estimated slide count matches the generated slide count.
+6. Executive proliferation-cost cells contain the amount only.
+7. Missing executive status displays as `Not recorded`.
 
-### PowerPoint
+## Validation performed while preparing this package
 
-Generate a detailed or combined deck containing:
+- JavaScript syntax check passed.
+- Changed C# files passed lexical delimiter validation.
+- Required Phase 4 source-contract checks passed.
+- Patch dry-run passed against the Phase 3 baseline.
+- ZIP integrity and SHA-256 verification passed.
 
-- a project with a photograph and a long external status;
-- a project without a photograph;
-- a project with and without proliferation cost;
-- a project whose capability description contains bullets.
-
-Confirm that:
-
-- the card is titled **PRESENT STATUS**;
-- status text remains inside its card;
-- cost cards do not overlap the status;
-- the photograph becomes slightly shorter when status text is longer;
-- missing proliferation cost uses neutral styling;
-- bullets render normally.
-
-## Preparation validation
-
-- JavaScript syntax check passed with Node.js.
-- C# lexical/bracket structure checks passed for all supplied C# files.
-- CSS parsing completed without syntax errors.
-- The .NET SDK is not installed in the preparation environment; the final `dotnet build` and .NET tests must therefore be run locally.
+The preparation runtime does not contain the .NET SDK. Run the final .NET build and tests locally before deployment.

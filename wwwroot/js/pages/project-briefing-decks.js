@@ -135,7 +135,8 @@ if (root) {
 
     if (slideTotal) slideTotal.textContent = `${estimate.totalSlides || 0} ${(estimate.totalSlides || 0) === 1 ? 'slide' : 'slides'}`;
     if (slideBreakdown) {
-      slideBreakdown.textContent = `Cover and portfolio ${estimate.coverAndPortfolioSlides || 0} · Summary ${estimate.summarySlides || 0} · Tables ${estimate.executiveTableSlides || 0} · Project slides ${estimate.detailedProjectSlides || 0}`;
+      const continuationSlides = Number(estimate.capabilityContinuationSlides || 0);
+      slideBreakdown.textContent = `Cover and portfolio ${estimate.coverAndPortfolioSlides || 0} · Summary ${estimate.summarySlides || 0} · Tables ${estimate.executiveTableSlides || 0} · Project slides ${estimate.detailedProjectSlides || 0}${continuationSlides > 0 ? ` · Capability continuations ${continuationSlides}` : ''}`;
     }
 
     if (activeSavedCard) {

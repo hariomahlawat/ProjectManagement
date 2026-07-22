@@ -1,13 +1,15 @@
 # Changed files
 
-| File | Purpose |
-|---|---|
-| `Pages/Workspace/BriefingDecks/Index.cshtml` | Manage-individually workflow, selected-project search/filter toolbar, bulk actions, live-update hooks |
-| `Pages/Workspace/BriefingDecks/Index.cshtml.cs` | Membership batch endpoint and membership-aware search results |
-| `Services/ProjectBriefings/ProjectBriefingContracts.cs` | Membership search and update contracts |
-| `Services/ProjectBriefings/ProjectBriefingDeckService.cs` | Atomic add/remove membership command with audit and concurrency protection |
-| `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs` | Adaptive photo/status geometry, overflow protection, Present Status terminology, bullet normalisation |
-| `wwwroot/css/pages/project-briefing-decks.css` | Management toolbar, membership badges, selected filters and responsive behaviour |
-| `wwwroot/js/pages/project-briefing-decks.js` | AJAX membership updates, filtering, batch management, live metrics and context preservation |
-| `ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs` | UX and adaptive-layout contract checks |
-| `ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs` | Updated Present Status slide assertions |
+- `Pages/Workspace/BriefingDecks/Index.cshtml`
+- `ProjectManagement.Tests/ProjectBriefings/ProjectBriefingCapabilityPaginationTests.cs`
+- `ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs`
+- `ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs`
+- `Services/ProjectBriefings/Presentation/ProjectBriefingCapabilityContracts.cs`
+- `Services/ProjectBriefings/Presentation/ProjectBriefingCapabilityPaginator.cs`
+- `Services/ProjectBriefings/Presentation/ProjectBriefingRichTextParser.cs`
+- `Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs`
+- `Services/ProjectBriefings/ProjectBriefingContracts.cs`
+- `Services/ProjectBriefings/ProjectBriefingDataService.cs`
+- `wwwroot/js/pages/project-briefing-decks.js`
+
+No migration, Program.cs, package, configuration or template change is included.

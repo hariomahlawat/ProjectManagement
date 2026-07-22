@@ -111,6 +111,7 @@ public sealed class ProjectBriefingSlideEstimateVm
     public int SummarySlides { get; init; }
     public int ExecutiveTableSlides { get; init; }
     public int DetailedProjectSlides { get; init; }
+    public int CapabilityContinuationSlides { get; init; }
 }
 
 public sealed record ProjectBriefingLookupOptionVm(int Id, string Name, int MatchCount = 0, int? ParentId = null);

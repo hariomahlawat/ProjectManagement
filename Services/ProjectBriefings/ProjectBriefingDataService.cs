@@ -7,6 +7,7 @@ using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.ProjectBriefings.Presentation;
 
 namespace ProjectManagement.Services.ProjectBriefings;
 
@@ -344,9 +345,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     HasCoverPhoto = probe?.IsReady == true,
                     CoverPhotoId = coverPhotoId,
                     CoverPhotoReadinessReason = probe?.FailureReason,
-                    BriefDescription = ProjectBriefingTextNormalizer.Normalize(
-                        item.BriefDescriptionOverride ?? item.ProjectDescription,
-                        1200),
+                    BriefDescription = ProjectBriefingTextNormalizer.NormalizeFull(
+                        item.BriefDescriptionOverride ?? item.ProjectDescription),
                     BriefDescriptionOverride = item.BriefDescriptionOverride,
                     SortOrder = item.SortOrder,
                     OpenUrl = $"/Projects/Overview/{item.ProjectId}"
@@ -448,12 +448,18 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     project.PresentStage,
                     project.ExternalStatus,
                     project.CostRd.IsAvailable && !string.IsNullOrWhiteSpace(project.CostRd.BasisDisplay),
-                    project.ProliferationCost.IsAvailable && !string.IsNullOrWhiteSpace(project.ProliferationCost.BasisDisplay)))
+                    hasProliferationCostBasis: false))
                 .Count
             : 0;
-        var detailSlides = presentationMode is ProjectBriefingPresentationMode.DetailedProjects
-            or ProjectBriefingPresentationMode.Combined
-            ? projects.Count
+
+        var includesDetailedSlides = presentationMode is ProjectBriefingPresentationMode.DetailedProjects
+            or ProjectBriefingPresentationMode.Combined;
+        var detailSlides = includesDetailedSlides ? projects.Count : 0;
+        var capabilityContinuationSlides = includesDetailedSlides
+            ? projects.Sum(project =>
+                ProjectBriefingCapabilityPaginator
+                    .Paginate(project.BriefDescription)
+                    .ContinuationSlideCount)
             : 0;
 
         return new ProjectBriefingSlideEstimateVm
@@ -462,7 +468,12 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             SummarySlides = summarySlides,
             ExecutiveTableSlides = executiveSlides,
             DetailedProjectSlides = detailSlides,
-            TotalSlides = 2 + summarySlides + executiveSlides + detailSlides
+            CapabilityContinuationSlides = capabilityContinuationSlides,
+            TotalSlides = 2
+                + summarySlides
+                + executiveSlides
+                + detailSlides
+                + capabilityContinuationSlides
         };
     }
 
@@ -622,6 +633,29 @@ public static partial class ProjectBriefingTextNormalizer
 
     [GeneratedRegex(@"\n{3,}", RegexOptions.Compiled)]
     private static partial Regex ExcessiveNewlinesRegex();
+
+    public static string NormalizeFull(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "Brief description not recorded.";
+        }
+
+        var normalized = value
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\r", "\n", StringComparison.Ordinal);
+        normalized = MarkdownImageRegex().Replace(normalized, string.Empty);
+        normalized = MarkdownLinkRegex().Replace(normalized, "$1");
+        normalized = HorizontalWhitespaceRegex().Replace(normalized, " ");
+        normalized = string.Join(
+            "\n",
+            normalized.Split('\n').Select(line => line.TrimEnd()));
+        normalized = ExcessiveNewlinesRegex().Replace(normalized, "\n\n").Trim();
+
+        return string.IsNullOrWhiteSpace(normalized)
+            ? "Brief description not recorded."
+            : normalized;
+    }
 
     public static string Normalize(string? value, int maximumLength)
     {

@@ -105,9 +105,28 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("const double rightWidth = 7.48", composer, StringComparison.Ordinal);
         Assert.Contains("CalculateDetailedLayout", composer, StringComparison.Ordinal);
         Assert.Contains("vertOverflow=\\\"clip\\\"", composer, StringComparison.Ordinal);
-        Assert.Contains("FitOverview", composer, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingCapabilityPaginator.Paginate", composer, StringComparison.Ordinal);
+        Assert.Contains("RenderCapabilityContinuation", composer, StringComparison.Ordinal);
+        Assert.DoesNotContain("FitOverview", composer, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AudienceDeck_RemovesBuilderReadinessAndUsesFullCapabilityPagination()
+    {
+        var composer = Read("ProjectBriefingSlideComposer.cs");
+        var dataSource = Read("ProjectBriefingDataService.cs");
+
+        Assert.DoesNotContain("STATUS MISSING", composer, StringComparison.Ordinal);
+        Assert.DoesNotContain("DATA READINESS", composer, StringComparison.Ordinal);
+        Assert.DoesNotContain("PowerPoint-ready photo", composer, StringComparison.Ordinal);
+        Assert.Contains("Available for {recorded} of {total} selected projects", composer, StringComparison.Ordinal);
+        Assert.Contains("CapabilityContinuationSlides", dataSource, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingCapabilityPaginator", dataSource, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingTextNormalizer.NormalizeFull", dataSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("ProjectBriefingTextNormalizer.Normalize(", dataSource, StringComparison.Ordinal);
+        Assert.Contains("ExecutiveStatus", composer, StringComparison.Ordinal);
+        Assert.Contains("includeBasis: false", composer, StringComparison.Ordinal);
+    }
 
     [Fact]
     public void Builder_ManagesMembershipWithoutFullPageReloadAndSearchesSelectedProjects()

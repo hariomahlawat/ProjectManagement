@@ -109,6 +109,77 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("Project status summary (7/7)", text, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Compose_PreservesCompleteCapabilityContentAcrossContinuationSlides()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var paragraphs = Enumerable.Range(1, 18)
+            .Select(index =>
+                $"Capability paragraph {index} explains the complete operational function, training application, system behaviour, user interaction, safety consideration and expected employment of the project without omitting audience-relevant information.")
+            .ToArray();
+        var description = string.Join(
+            "\n\n",
+            new[]
+            {
+                "Capability Overview",
+                paragraphs[0],
+                "Key Deliverables",
+                string.Join("\n", paragraphs.Skip(1).Take(8).Select((value, index) => $"• Deliverable {index + 1}: {value}")),
+                "Operational Impact",
+                string.Join("\n", paragraphs.Skip(9))
+            });
+
+        var project = new ProjectBriefingPresentationProject
+        {
+            ProjectId = 91,
+            ProjectName = "LONG CAPABILITY PROJECT",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            LifecycleDisplay = "Ongoing",
+            PresentStageCode = "DEV",
+            PresentStage = "Development",
+            PresentStageOrder = 70,
+            ProjectCategory = "Other R&D Projects",
+            TechnicalCategory = "AR / VR",
+            CostRd = new ProjectBriefingCostValue(10_000_000m, ProjectBriefingCostBasis.L1, "₹1 Cr", "L1"),
+            ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+            ExternalStatus = "Development in progress.",
+            BriefDescription = description,
+            SortOrder = 1
+        };
+
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 91,
+            DeckName = "Full Capability Review",
+            PresentationMode = ProjectBriefingPresentationMode.DetailedProjects,
+            CostMode = ProjectBriefingCostMode.CostRdOnly,
+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 22, 6, 0, 0, TimeSpan.Zero),
+            Projects = new[] { project },
+            Summary = new ProjectBriefingPresentationSummary
+            {
+                ProjectCount = 1,
+                OngoingCount = 1,
+                CostRdRecordedCount = 1,
+                TotalCostRdInRupees = 10_000_000m
+            }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.True(slideCount > 3, "Long capability content should create one or more continuation slides.");
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+        var text = string.Join("\n", slides
+            .SelectMany(slide => slide.Slide.Descendants<A.Text>())
+            .Select(node => node.Text));
+
+        Assert.Contains("CAPABILITY OVERVIEW — CONTINUED", text, StringComparison.Ordinal);
+        Assert.Contains(paragraphs[^1], text, StringComparison.Ordinal);
+        Assert.DoesNotContain("operational function,…", text, StringComparison.Ordinal);
+    }
+
     private static ProjectBriefingPresentationData BuildData()
     {
         var projects = new[]

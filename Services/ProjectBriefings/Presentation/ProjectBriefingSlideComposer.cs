@@ -141,8 +141,25 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         {
             foreach (var project in data.Projects.OrderBy(project => project.SortOrder))
             {
-                var captured = project;
-                plans.Add(new SlidePlan(false, (canvas, _) => RenderProjectDetail(canvas, data, captured)));
+                var capturedProject = project;
+                var capability = ProjectBriefingCapabilityPaginator.Paginate(project.BriefDescription);
+                var primaryPage = capability.Pages[0];
+                plans.Add(new SlidePlan(false, (canvas, _) =>
+                    RenderProjectDetail(canvas, data, capturedProject, primaryPage)));
+
+                var continuationPages = capability.Pages.Skip(1).ToArray();
+                for (var index = 0; index < continuationPages.Length; index++)
+                {
+                    var capturedPage = continuationPages[index];
+                    var capturedIndex = index;
+                    plans.Add(new SlidePlan(false, (canvas, _) =>
+                        RenderCapabilityContinuation(
+                            canvas,
+                            capturedProject,
+                            capturedPage,
+                            capturedIndex + 1,
+                            continuationPages.Length)));
+                }
             }
         }
 
@@ -202,52 +219,97 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         {
             ("SELECTED PROJECTS", data.Summary.ProjectCount, Blue),
             ("ONGOING", data.Summary.OngoingCount, Teal),
-            ("COMPLETED", data.Summary.CompletedCount, Green),
-            ("STATUS MISSING", data.Summary.MissingExternalStatusCount, data.Summary.MissingExternalStatusCount > 0 ? Amber : Green)
+            ("COMPLETED", data.Summary.CompletedCount, Green)
         };
 
+        const double cardWidth = 3.72;
+        const double cardGap = .44;
+        const double cardStartX = .65;
         for (var index = 0; index < cards.Length; index++)
         {
-            var x = .64 + (index * 3.08);
-            canvas.AddRoundedRect(x, 1.30, 2.73, 1.35, CardBackground, Border, .08);
-            canvas.AddRect(x, 1.30, .08, 1.35, cards[index].Item3);
-            canvas.AddText(x + .26, 1.56, 2.15, .48, cards[index].Item2.ToString(CultureInfo.InvariantCulture), 27, Text, true, "l");
-            canvas.AddText(x + .26, 2.12, 2.20, .28, cards[index].Item1, 10.5, Muted, true, "l");
+            var x = cardStartX + (index * (cardWidth + cardGap));
+            canvas.AddRoundedRect(x, 1.35, cardWidth, 1.58, CardBackground, Border, .08);
+            canvas.AddRect(x, 1.35, .08, 1.58, cards[index].Item3);
+            canvas.AddText(x + .28, 1.63, cardWidth - .56, .52,
+                cards[index].Item2.ToString(CultureInfo.InvariantCulture),
+                29,
+                Text,
+                true,
+                "l");
+            canvas.AddText(x + .28, 2.30, cardWidth - .56, .28,
+                cards[index].Item1,
+                10.8,
+                Muted,
+                true,
+                "l");
         }
 
-        var costMode = data.CostMode;
-        var showRd = costMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both;
-        var showProliferation = costMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both;
+        var showRd = data.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both;
+        var showProliferation = data.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both;
 
         if (showRd && showProliferation)
         {
-            AddCostSummaryCard(canvas, .67, 3.05, 5.85, "COST (R&D)", data.Summary.TotalCostRdInRupees,
-                data.Summary.CostRdRecordedCount, data.Summary.ProjectCount, Blue, LightBlue);
-            AddCostSummaryCard(canvas, 6.80, 3.05, 5.85, "PROLIFERATION COST", data.Summary.TotalProliferationCostInRupees,
-                data.Summary.ProliferationCostRecordedCount, data.Summary.ProjectCount, Green, LightGreen);
+            AddCostSummaryCard(
+                canvas,
+                .65,
+                3.42,
+                5.86,
+                "COST (R&D)",
+                data.Summary.TotalCostRdInRupees,
+                data.Summary.CostRdRecordedCount,
+                data.Summary.ProjectCount,
+                Blue,
+                LightBlue);
+            AddCostSummaryCard(
+                canvas,
+                6.82,
+                3.42,
+                5.86,
+                "PROLIFERATION COST",
+                data.Summary.TotalProliferationCostInRupees,
+                data.Summary.ProliferationCostRecordedCount,
+                data.Summary.ProjectCount,
+                Green,
+                LightGreen);
         }
         else if (showRd)
         {
-            AddCostSummaryCard(canvas, 2.05, 3.05, 9.22, "COST (R&D)", data.Summary.TotalCostRdInRupees,
-                data.Summary.CostRdRecordedCount, data.Summary.ProjectCount, Blue, LightBlue);
+            AddCostSummaryCard(
+                canvas,
+                2.00,
+                3.42,
+                9.33,
+                "COST (R&D)",
+                data.Summary.TotalCostRdInRupees,
+                data.Summary.CostRdRecordedCount,
+                data.Summary.ProjectCount,
+                Blue,
+                LightBlue);
         }
         else if (showProliferation)
         {
-            AddCostSummaryCard(canvas, 2.05, 3.05, 9.22, "PROLIFERATION COST", data.Summary.TotalProliferationCostInRupees,
-                data.Summary.ProliferationCostRecordedCount, data.Summary.ProjectCount, Green, LightGreen);
+            AddCostSummaryCard(
+                canvas,
+                2.00,
+                3.42,
+                9.33,
+                "PROLIFERATION COST",
+                data.Summary.TotalProliferationCostInRupees,
+                data.Summary.ProliferationCostRecordedCount,
+                data.Summary.ProjectCount,
+                Green,
+                LightGreen);
         }
         else
         {
-            canvas.AddRoundedRect(.67, 3.05, 11.98, 1.55, CardBackground, Border, .08);
-            canvas.AddText(.95, 3.47, 11.42, .35, "Cost information is not included in this deck.", 17, Text, true, "ctr");
+            canvas.AddRoundedRect(.65, 3.42, 12.03, 1.92, CardBackground, Border, .08);
+            canvas.AddText(.95, 4.10, 11.43, .38,
+                "Cost information is not included in this deck.",
+                18,
+                Text,
+                true,
+                "ctr");
         }
-
-        canvas.AddRoundedRect(.67, 5.00, 11.98, 1.35, CardBackground, Border, .08);
-        canvas.AddText(.94, 5.25, 3.1, .28, "DATA READINESS", 11, Muted, true, "l");
-        AddReadinessMetric(canvas, .95, 5.68, "External status", data.Summary.ProjectCount - data.Summary.MissingExternalStatusCount, data.Summary.ProjectCount, Blue);
-        AddReadinessMetric(canvas, 4.25, 5.68, "PowerPoint-ready photo", data.Summary.ProjectCount - data.Summary.MissingPhotoCount, data.Summary.ProjectCount, Teal);
-        AddReadinessMetric(canvas, 7.55, 5.68, "Cost (R&D)", data.Summary.CostRdRecordedCount, data.Summary.ProjectCount, Blue);
-        AddReadinessMetric(canvas, 10.15, 5.68, "Proliferation", data.Summary.ProliferationCostRecordedCount, data.Summary.ProjectCount, Green);
     }
 
     private static void AddCostSummaryCard(
@@ -262,26 +324,22 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         string accent,
         string fill)
     {
-        canvas.AddRoundedRect(x, y, width, 1.58, fill, accent, .08);
-        canvas.AddText(x + .28, y + .25, width - .56, .28, title, 11, accent, true, "l");
+        canvas.AddRoundedRect(x, y, width, 1.92, fill, accent, .08);
+        canvas.AddText(x + .30, y + .28, width - .60, .28, title, 11.2, accent, true, "l");
         var amountDisplay = recorded > 0
             ? ProjectBriefingCurrencyFormatter.FormatRupees(amount)
             : "Not recorded";
-        canvas.AddText(x + .28, y + .61, width - .56, .42, amountDisplay, 23, Text, true, "l");
-        canvas.AddText(x + .28, y + 1.12, width - .56, .24, $"Recorded for {recorded} of {total} projects", 9.5, Muted, false, "l");
-    }
-
-    private static void AddReadinessMetric(
-        SlideCanvas canvas,
-        double x,
-        double y,
-        string label,
-        int available,
-        int total,
-        string accent)
-    {
-        canvas.AddText(x, y, 1.35, .27, $"{available}/{total}", 16, accent, true, "l");
-        canvas.AddText(x + .75, y + .02, 2.0, .23, label, 9.5, Muted, true, "l");
+        canvas.AddText(x + .30, y + .70, width - .60, .48, amountDisplay, 25, Text, true, "l");
+        canvas.AddText(
+            x + .30,
+            y + 1.36,
+            width - .60,
+            .26,
+            $"Available for {recorded} of {total} selected projects",
+            9.8,
+            Muted,
+            false,
+            "l");
     }
 
     private static void AddStageSummarySlides(
@@ -436,7 +494,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
                 project.PresentStage,
                 project.ExternalStatus,
                 project.CostRd.IsAvailable && !string.IsNullOrWhiteSpace(project.CostRd.BasisDisplay),
-                project.ProliferationCost.IsAvailable && !string.IsNullOrWhiteSpace(project.ProliferationCost.BasisDisplay)));
+                hasProliferationCostBasis: false));
 
         for (var index = 0; index < pages.Count; index++)
         {
@@ -504,7 +562,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
             if (data.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both)
             {
                 cells.Add(Cell(
-                    CostCell(project.CostRd, "Not recorded"),
+                    CostCell(project.CostRd, "Not recorded", includeBasis: true),
                     10.0,
                     project.CostRd.IsAvailable ? Text : Muted,
                     project.CostRd.IsAvailable,
@@ -514,7 +572,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
             if (data.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both)
             {
                 cells.Add(Cell(
-                    CostCell(project.ProliferationCost, "Not recorded"),
+                    CostCell(project.ProliferationCost, "Not recorded", includeBasis: false),
                     10.0,
                     project.ProliferationCost.IsAvailable ? Text : Muted,
                     project.ProliferationCost.IsAvailable,
@@ -523,10 +581,11 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
             }
 
             cells.Add(Cell(Truncate(project.PresentStage, 42), 10.2, Text, false, "l", rowFill));
+            var executiveStatus = ExecutiveStatus(project.ExternalStatus);
             cells.Add(Cell(
-                Truncate(project.ExternalStatus, data.CostMode == ProjectBriefingCostMode.Both ? 225 : 265),
+                Truncate(executiveStatus, data.CostMode == ProjectBriefingCostMode.Both ? 225 : 265),
                 10.1,
-                string.Equals(project.ExternalStatus, "No external status recorded", StringComparison.Ordinal) ? Muted : Text,
+                string.Equals(executiveStatus, "Not recorded", StringComparison.Ordinal) ? Muted : Text,
                 false,
                 "l",
                 rowFill));
@@ -551,17 +610,27 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         canvas.AddNativeTable(.58, 1.06, widths, heights, rows, "Project status summary table");
     }
 
-    private static string CostCell(ProjectBriefingCostValue value, string missing)
+    private static string CostCell(
+        ProjectBriefingCostValue value,
+        string missing,
+        bool includeBasis)
         => value.IsAvailable
-            ? string.IsNullOrWhiteSpace(value.BasisDisplay)
-                ? value.DisplayValue
-                : $"{value.DisplayValue}\n{value.BasisDisplay}"
+            ? includeBasis && !string.IsNullOrWhiteSpace(value.BasisDisplay)
+                ? $"{value.DisplayValue}\n{value.BasisDisplay}"
+                : value.DisplayValue
             : missing;
+
+    private static string ExecutiveStatus(string? value)
+        => string.IsNullOrWhiteSpace(value)
+            || string.Equals(value, "No external status recorded", StringComparison.Ordinal)
+                ? "Not recorded"
+                : value.Trim();
 
     private static void RenderProjectDetail(
         SlideCanvas canvas,
         ProjectBriefingPresentationData data,
-        ProjectBriefingPresentationProject project)
+        ProjectBriefingPresentationProject project,
+        ProjectBriefingCapabilityPage capabilityPage)
     {
         AddSlideTitle(canvas, Truncate(project.ProjectName, 82), $"{project.LifecycleDisplay} · {CategoryLine(project)}");
 
@@ -623,23 +692,122 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
             }
         }
 
-        canvas.AddRoundedRect(rightX, contentTop, rightWidth, contentBottom - contentTop, CardBackground, Border, .08);
-        canvas.AddRect(rightX, contentTop, .08, contentBottom - contentTop, Teal);
-        canvas.AddText(rightX + .32, contentTop + .22, rightWidth - .62, .28,
-            "CAPABILITY OVERVIEW", 10.5, Teal, true, "l");
+        RenderCapabilityPanel(
+            canvas,
+            rightX,
+            contentTop,
+            rightWidth,
+            contentBottom - contentTop,
+            "CAPABILITY OVERVIEW",
+            capabilityPage);
+    }
 
-        var overview = FitOverview(project.BriefDescription);
-        canvas.AddText(
-            rightX + .32,
-            contentTop + .66,
-            rightWidth - .64,
-            contentBottom - contentTop - .92,
-            overview.Text,
-            overview.FontSize,
-            overview.Color,
-            false,
-            "l",
-            "t");
+    private static void RenderCapabilityContinuation(
+        SlideCanvas canvas,
+        ProjectBriefingPresentationProject project,
+        ProjectBriefingCapabilityPage capabilityPage,
+        int continuationPage,
+        int continuationPages)
+    {
+        AddSlideTitle(
+            canvas,
+            Truncate(project.ProjectName, 82),
+            $"{project.LifecycleDisplay} · {CategoryLine(project)}");
+
+        var heading = continuationPages > 1
+            ? $"CAPABILITY OVERVIEW — CONTINUED ({continuationPage}/{continuationPages})"
+            : "CAPABILITY OVERVIEW — CONTINUED";
+
+        RenderCapabilityPanel(
+            canvas,
+            .60,
+            1.28,
+            12.13,
+            5.42,
+            heading,
+            capabilityPage);
+    }
+
+    private static void RenderCapabilityPanel(
+        SlideCanvas canvas,
+        double x,
+        double y,
+        double width,
+        double height,
+        string heading,
+        ProjectBriefingCapabilityPage page)
+    {
+        canvas.AddRoundedRect(x, y, width, height, CardBackground, Border, .08);
+        canvas.AddRect(x, y, .08, height, Teal);
+        canvas.AddText(x + .32, y + .22, width - .62, .28, heading, 10.5, Teal, true, "l");
+
+        RenderCapabilityBlocks(
+            canvas,
+            x + .32,
+            y + .66,
+            width - .64,
+            page.Blocks);
+    }
+
+    private static void RenderCapabilityBlocks(
+        SlideCanvas canvas,
+        double x,
+        double y,
+        double width,
+        IReadOnlyList<ProjectBriefingCapabilityLayoutBlock> blocks)
+    {
+        var cursorY = y;
+        foreach (var block in blocks)
+        {
+            var textColor = block.IsMuted ? Muted : Text;
+            var bold = false;
+            var textX = x;
+            var textWidth = width;
+            var text = block.Text;
+
+            switch (block.Type)
+            {
+                case ProjectBriefingCapabilityBlockType.Heading:
+                    textColor = Teal;
+                    bold = true;
+                    break;
+
+                case ProjectBriefingCapabilityBlockType.Bullet:
+                case ProjectBriefingCapabilityBlockType.NumberedItem:
+                case ProjectBriefingCapabilityBlockType.LetteredItem:
+                    textX += .30;
+                    textWidth -= .30;
+                    if (!block.IsContinuation && !string.IsNullOrWhiteSpace(block.Marker))
+                    {
+                        canvas.AddText(
+                            x,
+                            cursorY,
+                            .26,
+                            block.TextHeight,
+                            block.Marker!,
+                            block.FontSize,
+                            textColor,
+                            block.Type != ProjectBriefingCapabilityBlockType.Bullet,
+                            "l",
+                            "t");
+                    }
+                    break;
+            }
+
+            canvas.AddText(
+                textX,
+                cursorY,
+                textWidth,
+                block.TextHeight,
+                text,
+                block.FontSize,
+                textColor,
+                bold,
+                "l",
+                "t");
+
+            cursorY += block.TotalHeight;
+        }
     }
 
     private static DetailedSlideLayout CalculateDetailedLayout(
@@ -692,26 +860,6 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         };
         canvas.AddText(x + .25, y + 1.43, width - .50, statusHeight,
             fitted, statusFont, Text, false, "l", "t");
-    }
-
-    private static OverviewText FitOverview(string? value)
-    {
-        var normalized = NormalizePresentationText(value);
-        if (string.IsNullOrWhiteSpace(normalized)
-            || string.Equals(normalized, "Brief description not recorded.", StringComparison.OrdinalIgnoreCase))
-        {
-            return new OverviewText("Capability overview not recorded.", 12.5, Muted);
-        }
-
-        var text = TruncateAtWord(normalized, 1600);
-        var font = text.Length switch
-        {
-            <= 450 => 14.5,
-            <= 780 => 13.5,
-            <= 1120 => 12.3,
-            _ => 11.3
-        };
-        return new OverviewText(text, font, Text);
     }
 
     private static string NormalizePresentationText(string? value)
@@ -893,7 +1041,6 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
     }
 
     private sealed record DetailedSlideLayout(double PhotoHeight);
-    private sealed record OverviewText(string Text, double FontSize, string Color);
     private sealed record CostCard(string Title, string Value, string Accent, string Fill, string? Note);
     private sealed record NativeTableCell(string Value, double FontSize, string Color, bool Bold, string Align, string Fill);
     private sealed record SlidePlan(bool IsCover, Action<SlideCanvas, byte[]?> Render);
