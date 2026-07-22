@@ -1,73 +1,55 @@
-# Project Briefing Deck Builder — Phase 2
+# Project Briefing Deck Builder — Audience-Ready Presentation Refinement
 
-## Shared Command Decks and Professional Presentation Hardening
+This is a focused ready-to-replace update for the existing Phase 2 Project Briefing Deck Builder.
 
-This package is a ready-to-replace update for the existing **Project Briefing Deck Builder** in PRISM ERP.
-
-It assumes the Phase 1 / v2 briefing-deck implementation is already present, including migration:
-
-```text
-20261202090000_AddProjectBriefingDecks
-```
-
-Extract the ZIP into the `ProjectManagement` project root and replace the matching files.
+It removes developer-facing explanations from generated PowerPoint decks and improves table density, typography and pagination. The shared-deck model, project selection, photographs, cost rules and external-status rules are unchanged.
 
 ## Implemented
 
-### Shared command decks
+### Audience-facing slide cleanup
 
-- Saved decks are now visible to every user authorised for the Comdt/HoD workspace.
-- `OwnerUserId` is retained as the creator/audit record and is no longer used as a visibility filter.
-- The latest modifying user is stored and shown in the saved-deck rail and deck header.
-- Shared deck names are unique across the command workspace.
-- Create, settings changes, project additions/removals, slide order, description overrides, duplication, generation and deletion continue to be audited.
-- Optimistic concurrency is enforced across settings, additions, removals, reordering, description changes and deletion.
+Removed from generated slides:
 
-### Builder UX
+- explanatory subtitles such as reverse-workflow descriptions;
+- implementation notes about editable shapes;
+- repeated explanations of the external-status and Cost (R&D) resolution rules;
+- the default centre-footer text `STATUS: LATEST EXTERNAL REMARK ONLY`.
 
-- New-deck placeholder changed to **Project Update Review**.
-- Saved-deck area is labelled **Shared decks**.
-- Added estimated slide count with cover/summary/table/project-slide breakdown.
-- Added pre-generation content-readiness warnings.
-- Photo readiness now means an image can actually be decoded for PowerPoint, not merely that a photo database record exists.
-- Readiness icons include explanatory tooltips and capability-overview status.
+Non-cover footers now contain only:
 
-### Stage-wise summary
+- `SIMULATOR DEVELOPMENT DIVISION · PRISM ERP`;
+- optional handling/classification marking when configured;
+- slide number.
 
-- All stage bars are rendered on one slide.
-- Stages are ordered by reverse workflow sequence, with Completed first and IPA last.
-- Share percentages are shown beside project counts.
-- A separate native editable PowerPoint table follows the chart.
-- The table contains Present stage, Projects and Share, plus a total row.
+The project-detail metadata line remains because lifecycle, project category and technical category are substantive briefing information.
 
-### Executive table deck
+### Summary slides
 
-- Slide title changed to **Project status summary**.
-- Native editable PowerPoint tables are retained.
-- Status receives the largest column.
-- Internal borders are lighter, alternate row shading is used, and missing values are visually muted.
-- Cost basis remains a smaller second line.
+- Stage chart title: **Stage-wise summary**.
+- Stage table title: **Stage-wise project distribution**.
+- Project-category and technical-category charts no longer contain redundant explanatory notes.
+- Chart labels, project counts and percentages use larger typography and better vertical centring.
+- Stage-table text and row heights are increased while retaining the complete stage distribution on one slide.
 
-### Detailed project slide
+### Project status tables
 
-- The slide is rebalanced to prioritise the project explanation.
-- Left column: photograph, combined **Project position** card, then cost card(s).
-- Project position contains both Present stage and latest External status.
-- Right column: enlarged **Capability overview** occupying nearly the full content height.
-- Capability overview supports substantially more text and deterministic readable font sizing.
-- The no-photo state uses a compact deliberate placeholder and releases space to project facts.
-- One selected cost expands to full width; two costs remain separate.
+- Uses intelligent pagination with a preferred maximum of seven project rows per slide.
+- Row height is estimated from wrapped project name, stage, status and cost-basis content.
+- A small final page is rebalanced with the preceding page where space permits.
+- The builder slide estimate uses the same pagination engine as PowerPoint generation, so the displayed estimate matches the generated deck.
+- For the reviewed 49-project Cost (R&D)-only deck, the project-status section becomes seven balanced slides instead of nine slides with a one-row final page.
+- Body text is increased to approximately 10–11 pt.
+- Status remains the widest column.
+- Project names receive more width and a higher truncation threshold.
+- Short rows expand to use the available slide height rather than leaving excessive unused space.
 
-### Photograph pipeline
+### Cost presentation
 
-- Added `ProjectBriefingPhotoLoader`.
-- Checks configured derivatives from larger to smaller sizes and then preserved master files.
-- Supports JPEG, PNG and WebP source files.
-- Verifies actual decodability for builder readiness.
-- Auto-orients and crops to a presentation-ready 16:9 JPEG using ImageSharp.
-- A missing or corrupt project photograph does not fail the complete deck generation.
+- The Cost (R&D) basis remains visible when a cost is recorded.
+- Missing Cost (R&D) no longer displays the internal fallback sequence `L1 → AoN → IPA` on the slide.
+- Portfolio cost cards show recorded-project coverage without explaining internal resolution logic.
 
-## Authoritative briefing rules retained
+## Authoritative rules retained in code
 
 ```text
 Status = latest non-deleted General External remark only
@@ -75,32 +57,30 @@ Cost (R&D) = L1 → AoN → IPA
 Proliferation cost = recorded indicative proliferation cost
 ```
 
-Cost (R&D) and proliferation cost remain separate and are never added into one combined value.
+These rules continue to govern the data, but they are no longer repeated throughout the audience deck.
 
-## Database migration
+## Files
 
-This phase adds:
+Add:
 
 ```text
-20261203090000_ShareProjectBriefingDecksAndHardenPresentation
+Services/ProjectBriefings/ProjectBriefingTablePagination.cs
 ```
 
-The migration:
+Replace:
 
-- adds `LastModifiedByUserId`;
-- backfills it from the deck creator;
-- converts deck-name uniqueness from per-user to command-workspace-wide;
-- safely renames duplicate pre-existing personal deck names;
-- adds shared-deck indexes and creator/modifier foreign keys.
-
-Back up the PostgreSQL database before applying the migration.
+```text
+Services/ProjectBriefings/ProjectBriefingDataService.cs
+Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+```
 
 ## Deployment
 
-1. Stop the running PRISM application.
-2. Back up the database and current source tree.
-3. Extract this ZIP into the project root and replace matching files.
-4. Run:
+1. Stop PRISM.
+2. Extract the ZIP into the `ProjectManagement` project root and replace matching files.
+3. Run:
 
 ```powershell
 Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
@@ -108,34 +88,26 @@ Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
 dotnet restore .\ProjectManagement.csproj
 dotnet build .\ProjectManagement.csproj
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
-dotnet ef database update
 ```
 
-The existing production startup migration process may also apply the migration automatically, but a controlled `dotnet ef database update` is recommended before deployment.
+No database migration, package update, configuration change or PowerPoint-template replacement is required.
 
-No package, appsettings or PowerPoint-template change is required.
+## Verification
 
-## Verification checklist
+Generate the same 49-project combined deck and confirm:
 
-After deployment, verify:
+1. The estimated deck size reduces from 64 to 62 slides.
+2. Stage and category slides contain no explanatory subtitle or implementation note.
+3. The centre footer is blank unless a handling marking is configured.
+4. The project-status section contains seven slides labelled `(1/7)` through `(7/7)`.
+5. Each project-status slide normally contains seven rows.
+6. Table text is larger and the table uses the available vertical space.
+7. No slide displays the internal Cost (R&D) fallback sequence for an unrecorded cost.
 
-1. A deck created by one Comdt/HoD user is visible to another.
-2. Another authorised user can edit and generate the shared deck.
-3. The stage chart is one slide and begins with Completed.
-4. A native stage table immediately follows the chart.
-5. Detailed slides use left facts and right Capability overview.
-6. Present stage and latest external status appear in one Project position card.
-7. Projects with usable cover photographs display them in PowerPoint.
-8. No-photo slides use the compact layout.
-9. The builder slide estimate matches the generated deck count.
-10. Cost and external-status policies remain unchanged.
+## Validation performed
 
-## Validation performed in the preparation environment
+- The new pagination rules were simulated against the reviewed 49-row deck and produced seven balanced pages of seven projects each.
+- Modified C# files passed delimiter and structural checks.
+- Production source was checked to confirm removal of the identified audience-inappropriate phrases.
 
-- Briefing-deck JavaScript tests: **8/8 passed**.
-- JavaScript syntax check passed.
-- Changed C# files passed lexical delimiter/static structural checks.
-- CSS parsed without errors.
-- Project and test `.csproj` files passed XML validation.
-
-The preparation environment does not contain the .NET SDK, so the final .NET build, EF migration validation and .NET test suite must be run locally before publishing.
+The preparation environment does not contain the .NET SDK. Run the local build and test commands above before publishing.

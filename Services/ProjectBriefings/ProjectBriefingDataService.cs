@@ -440,7 +440,16 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
 
         var executiveSlides = presentationMode is ProjectBriefingPresentationMode.ExecutiveTable
             or ProjectBriefingPresentationMode.Combined
-            ? (int)Math.Ceiling(projects.Count / (costMode == ProjectBriefingCostMode.Both ? 5d : 6d))
+            ? ProjectBriefingTablePagination.Paginate(
+                projects,
+                costMode,
+                project => ProjectBriefingTablePagination.Measure(
+                    project.ProjectName,
+                    project.PresentStage,
+                    project.ExternalStatus,
+                    project.CostRd.IsAvailable && !string.IsNullOrWhiteSpace(project.CostRd.BasisDisplay),
+                    project.ProliferationCost.IsAvailable && !string.IsNullOrWhiteSpace(project.ProliferationCost.BasisDisplay)))
+                .Count
             : 0;
         var detailSlides = presentationMode is ProjectBriefingPresentationMode.DetailedProjects
             or ProjectBriefingPresentationMode.Combined

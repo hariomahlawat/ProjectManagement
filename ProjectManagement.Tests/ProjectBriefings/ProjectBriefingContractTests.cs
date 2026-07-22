@@ -85,8 +85,13 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("OrderByDescending(point => point.Order)", dataSource, StringComparison.Ordinal);
         Assert.Contains("AddStageSummarySlides", composer, StringComparison.Ordinal);
         Assert.Contains("RenderStageSummaryTable", composer, StringComparison.Ordinal);
-        Assert.Contains("Stage-wise summary — table", composer, StringComparison.Ordinal);
+        Assert.Contains("Stage-wise project distribution", composer, StringComparison.Ordinal);
         Assert.DoesNotContain("data.Summary.StageSummary.Chunk", composer, StringComparison.Ordinal);
+        Assert.DoesNotContain("reverse workflow order", composer, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Bars are native editable PowerPoint shapes", composer, StringComparison.Ordinal);
+        Assert.DoesNotContain("STATUS: LATEST EXTERNAL REMARK ONLY", composer, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingTablePagination.Paginate", composer, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingTablePagination.Paginate", dataSource, StringComparison.Ordinal);
     }
 
     [Fact]

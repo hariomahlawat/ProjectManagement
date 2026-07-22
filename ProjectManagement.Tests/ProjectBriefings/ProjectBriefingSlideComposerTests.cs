@@ -39,14 +39,73 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("PROLIFERATION COST", text, StringComparison.Ordinal);
         Assert.Contains("Latest external status for AURA", text, StringComparison.Ordinal);
         Assert.Contains("Stage-wise summary", text, StringComparison.Ordinal);
-        Assert.Contains("Stage-wise summary — table", text, StringComparison.Ordinal);
+        Assert.Contains("Stage-wise project distribution", text, StringComparison.Ordinal);
         Assert.Contains("PROJECT POSITION", text, StringComparison.Ordinal);
         Assert.Contains("CAPABILITY OVERVIEW", text, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("reverse workflow order", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Bars are native editable PowerPoint shapes", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Cost (R&D) resolves L1", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("STATUS: LATEST EXTERNAL REMARK ONLY", text, StringComparison.Ordinal);
 
         var nativeTables = slides
             .SelectMany(slide => slide.Slide.Descendants<A.Table>())
             .Count();
         Assert.True(nativeTables >= 2, "The stage and executive project tables must remain native editable PowerPoint tables.");
+    }
+
+    [Fact]
+    public void Compose_PaginatesFortyNineShortRowsIntoSevenBalancedProjectTables()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var projects = Enumerable.Range(1, 49)
+            .Select(index => new ProjectBriefingPresentationProject
+            {
+                ProjectId = index,
+                ProjectName = $"Project {index:00}",
+                LifecycleStatus = ProjectLifecycleStatus.Active,
+                LifecycleDisplay = "Ongoing",
+                PresentStageCode = "DEV",
+                PresentStage = "Development",
+                PresentStageOrder = 70,
+                CostRd = new ProjectBriefingCostValue(1_000_000m, ProjectBriefingCostBasis.L1, "₹10 Lakh", "L1"),
+                ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+                ExternalStatus = "Development in progress.",
+                BriefDescription = "Brief capability description.",
+                SortOrder = index
+            })
+            .ToArray();
+
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 9,
+            DeckName = "Project Update Review",
+            PresentationMode = ProjectBriefingPresentationMode.ExecutiveTable,
+            CostMode = ProjectBriefingCostMode.CostRdOnly,
+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 22, 3, 30, 0, TimeSpan.Zero),
+            Projects = projects,
+            Summary = new ProjectBriefingPresentationSummary
+            {
+                ProjectCount = projects.Length,
+                OngoingCount = projects.Length,
+                CostRdRecordedCount = projects.Length
+            }
+        };
+
+        var (content, slideCount) = composer.Compose(data);
+
+        Assert.Equal(9, slideCount); // cover + portfolio + seven project-table slides
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+        var tables = slides.SelectMany(slide => slide.Slide.Descendants<A.Table>()).ToArray();
+        Assert.Equal(7, tables.Length);
+
+        var text = string.Join("\n", slides
+            .SelectMany(slide => slide.Slide.Descendants<A.Text>())
+            .Select(node => node.Text));
+        Assert.Contains("Project status summary (7/7)", text, StringComparison.Ordinal);
     }
 
     private static ProjectBriefingPresentationData BuildData()
