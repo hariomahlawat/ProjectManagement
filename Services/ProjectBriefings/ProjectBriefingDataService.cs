@@ -14,12 +14,12 @@ public interface IProjectBriefingDataService
 {
     Task<ProjectBriefingDeckVm?> GetDeckAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
         CancellationToken cancellationToken = default);
 
     Task<ProjectBriefingPresentationData> BuildPresentationDataAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
         CancellationToken cancellationToken = default);
 }
 
@@ -28,26 +28,29 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     private readonly ApplicationDbContext _db;
     private readonly IProjectBriefingCostResolver _costResolver;
     private readonly IProjectBriefingExternalStatusService _externalStatusService;
+    private readonly IProjectBriefingPhotoLoader _photoLoader;
     private readonly IClock _clock;
 
     public ProjectBriefingDataService(
         ApplicationDbContext db,
         IProjectBriefingCostResolver costResolver,
         IProjectBriefingExternalStatusService externalStatusService,
+        IProjectBriefingPhotoLoader photoLoader,
         IClock clock)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _costResolver = costResolver ?? throw new ArgumentNullException(nameof(costResolver));
         _externalStatusService = externalStatusService ?? throw new ArgumentNullException(nameof(externalStatusService));
+        _photoLoader = photoLoader ?? throw new ArgumentNullException(nameof(photoLoader));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     }
 
     public async Task<ProjectBriefingDeckVm?> GetDeckAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
         CancellationToken cancellationToken = default)
     {
-        var snapshot = await LoadSnapshotAsync(deckId, ownerUserId, cancellationToken);
+        var snapshot = await LoadSnapshotAsync(deckId, requestingUserId, cancellationToken);
         if (snapshot is null)
         {
             return null;
@@ -67,17 +70,22 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             HandlingMarking = snapshot.HandlingMarking,
             RowVersion = Encode(snapshot.RowVersion),
             UpdatedAtUtc = snapshot.UpdatedAtUtc,
+            CreatedByDisplay = snapshot.CreatedByDisplay,
+            LastModifiedByDisplay = snapshot.LastModifiedByDisplay,
             Projects = projects,
-            Readiness = BuildReadiness(projects)
+            Readiness = BuildReadiness(projects),
+            SlideEstimate = BuildSlideEstimate(snapshot.PresentationMode, snapshot.IncludeStageSummary,
+                snapshot.IncludeProjectCategorySummary, snapshot.IncludeTechnicalCategorySummary,
+                snapshot.CostMode, projects)
         };
     }
 
     public async Task<ProjectBriefingPresentationData> BuildPresentationDataAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
         CancellationToken cancellationToken = default)
     {
-        var snapshot = await LoadSnapshotAsync(deckId, ownerUserId, cancellationToken)
+        var snapshot = await LoadSnapshotAsync(deckId, requestingUserId, cancellationToken)
             ?? throw new KeyNotFoundException("The saved deck was not found.");
         var projectVms = await BuildProjectsAsync(snapshot.Items, cancellationToken);
         if (projectVms.Count == 0)
@@ -106,7 +114,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 ExternalStatusDate = project.ExternalStatusDate,
                 BriefDescription = project.BriefDescription,
                 SortOrder = project.SortOrder,
-                CoverPhotoId = project.CoverPhotoId
+                CoverPhotoId = project.CoverPhotoId,
+                CoverPhotoIsReady = project.HasCoverPhoto
             };
         }).ToList();
 
@@ -130,10 +139,10 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
 
     private async Task<DeckSnapshot?> LoadSnapshotAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
         CancellationToken cancellationToken)
     {
-        var userId = ownerUserId?.Trim();
+        var userId = requestingUserId?.Trim();
         if (string.IsNullOrWhiteSpace(userId))
         {
             throw new UnauthorizedAccessException("The current user could not be resolved.");
@@ -141,7 +150,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
 
         var deck = await _db.Set<ProjectBriefingDeck>()
             .AsNoTracking()
-            .Where(candidate => candidate.Id == deckId && candidate.OwnerUserId == userId)
+            .Where(candidate => candidate.Id == deckId)
             .Select(candidate => new DeckHeaderSnapshot(
                 candidate.Id,
                 candidate.Name,
@@ -153,6 +162,16 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 candidate.IncludeTechnicalCategorySummary,
                 candidate.HandlingMarking,
                 candidate.UpdatedAtUtc,
+                candidate.OwnerUser.FullName != string.Empty
+                    ? candidate.OwnerUser.FullName
+                    : candidate.OwnerUser.UserName ?? "Unknown user",
+                candidate.LastModifiedByUser != null
+                    ? (candidate.LastModifiedByUser.FullName != string.Empty
+                        ? candidate.LastModifiedByUser.FullName
+                        : candidate.LastModifiedByUser.UserName ?? "Unknown user")
+                    : (candidate.OwnerUser.FullName != string.Empty
+                        ? candidate.OwnerUser.FullName
+                        : candidate.OwnerUser.UserName ?? "Unknown user"),
                 candidate.RowVersion))
             .FirstOrDefaultAsync(cancellationToken);
         if (deck is null)
@@ -195,6 +214,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 deck.IncludeTechnicalCategorySummary,
                 deck.HandlingMarking,
                 deck.UpdatedAtUtc,
+                deck.CreatedByDisplay,
+                deck.LastModifiedByDisplay,
                 deck.RowVersion,
                 Array.Empty<DeckItemSnapshot>());
         }
@@ -268,6 +289,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             deck.IncludeTechnicalCategorySummary,
             deck.HandlingMarking,
             deck.UpdatedAtUtc,
+            deck.CreatedByDisplay,
+            deck.LastModifiedByDisplay,
             deck.RowVersion,
             items);
     }
@@ -286,12 +309,22 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var proliferation = await _costResolver.ResolveProliferationCostAsync(projectIds, cancellationToken);
         var externalStatuses = await _externalStatusService.GetLatestAsync(projectIds, cancellationToken);
 
+        var coverByProject = items.ToDictionary(item => item.ProjectId, ResolveCoverPhotoId);
+        var photoReferences = coverByProject
+            .Where(pair => pair.Value.HasValue)
+            .Select(pair => new ProjectBriefingPhotoReference(pair.Key, pair.Value!.Value))
+            .ToArray();
+        var photoProbes = await _photoLoader.ProbeAsync(photoReferences, cancellationToken);
+
         return items
             .OrderBy(item => item.SortOrder)
             .ThenBy(item => item.ItemId)
             .Select(item =>
             {
-                var coverPhotoId = ResolveCoverPhotoId(item);
+                var coverPhotoId = coverByProject[item.ProjectId];
+                var probe = coverPhotoId.HasValue
+                    ? photoProbes.GetValueOrDefault(coverPhotoId.Value)
+                    : null;
                 var external = externalStatuses.GetValueOrDefault(item.ProjectId);
                 return new ProjectBriefingProjectVm
                 {
@@ -307,11 +340,13 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                         ?? ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
                     ExternalStatus = external?.Body,
                     ExternalStatusDate = external?.EventDate,
-                    HasCoverPhoto = coverPhotoId.HasValue,
+                    HasSelectedCoverPhoto = coverPhotoId.HasValue,
+                    HasCoverPhoto = probe?.IsReady == true,
                     CoverPhotoId = coverPhotoId,
+                    CoverPhotoReadinessReason = probe?.FailureReason,
                     BriefDescription = ProjectBriefingTextNormalizer.Normalize(
                         item.BriefDescriptionOverride ?? item.ProjectDescription,
-                        900),
+                        1200),
                     BriefDescriptionOverride = item.BriefDescriptionOverride,
                     SortOrder = item.SortOrder,
                     OpenUrl = $"/Projects/Overview/{item.ProjectId}"
@@ -330,6 +365,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             CostRdAvailableCount = projects.Count(project => project.CostRd.IsAvailable),
             ProliferationCostAvailableCount = projects.Count(project => project.ProliferationCost.IsAvailable),
             CoverPhotoAvailableCount = projects.Count(project => project.HasCoverPhoto),
+            SelectedCoverPhotoCount = projects.Count(project => project.HasSelectedCoverPhoto),
             DescriptionAvailableCount = projects.Count(project =>
                 !string.Equals(
                     project.BriefDescription,
@@ -343,7 +379,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         var stageSummary = projects
             .GroupBy(project => new { project.PresentStage, project.PresentStageOrder })
             .Select(group => new ProjectBriefingSummaryPoint(group.Key.PresentStage, group.Count(), group.Key.PresentStageOrder))
-            .OrderBy(point => point.Order)
+            .OrderByDescending(point => point.Order)
             .ThenBy(point => point.Label)
             .ToList();
 
@@ -371,10 +407,53 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             TotalProliferationCostInRupees = projects.Sum(project => project.ProliferationCost.AmountInRupees ?? 0m),
             ProliferationCostRecordedCount = projects.Count(project => project.ProliferationCost.IsAvailable),
             MissingExternalStatusCount = projects.Count(project => string.Equals(project.ExternalStatus, "No external status recorded", StringComparison.Ordinal)),
-            MissingPhotoCount = projects.Count(project => !project.CoverPhotoId.HasValue),
+            MissingPhotoCount = projects.Count(project => !project.CoverPhotoIsReady),
             StageSummary = stageSummary,
             ProjectCategorySummary = projectCategorySummary,
             TechnicalCategorySummary = technicalCategorySummary
+        };
+    }
+
+    private static ProjectBriefingSlideEstimateVm BuildSlideEstimate(
+        ProjectBriefingPresentationMode presentationMode,
+        bool includeStageSummary,
+        bool includeProjectCategorySummary,
+        bool includeTechnicalCategorySummary,
+        ProjectBriefingCostMode costMode,
+        IReadOnlyList<ProjectBriefingProjectVm> projects)
+    {
+        var summarySlides = includeStageSummary ? 2 : 0;
+        if (includeProjectCategorySummary)
+        {
+            summarySlides += Math.Max(1, (int)Math.Ceiling(projects
+                .Select(project => project.ProjectCategory ?? "Not categorised")
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count() / 10d));
+        }
+        if (includeTechnicalCategorySummary)
+        {
+            summarySlides += Math.Max(1, (int)Math.Ceiling(projects
+                .Select(project => project.TechnicalCategory ?? "Not categorised")
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count() / 10d));
+        }
+
+        var executiveSlides = presentationMode is ProjectBriefingPresentationMode.ExecutiveTable
+            or ProjectBriefingPresentationMode.Combined
+            ? (int)Math.Ceiling(projects.Count / (costMode == ProjectBriefingCostMode.Both ? 5d : 6d))
+            : 0;
+        var detailSlides = presentationMode is ProjectBriefingPresentationMode.DetailedProjects
+            or ProjectBriefingPresentationMode.Combined
+            ? projects.Count
+            : 0;
+
+        return new ProjectBriefingSlideEstimateVm
+        {
+            CoverAndPortfolioSlides = 2,
+            SummarySlides = summarySlides,
+            ExecutiveTableSlides = executiveSlides,
+            DetailedProjectSlides = detailSlides,
+            TotalSlides = 2 + summarySlides + executiveSlides + detailSlides
         };
     }
 
@@ -450,6 +529,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         bool IncludeTechnicalCategorySummary,
         string? HandlingMarking,
         DateTimeOffset UpdatedAtUtc,
+        string CreatedByDisplay,
+        string LastModifiedByDisplay,
         byte[] RowVersion);
 
     private sealed record DeckItemBaseSnapshot(
@@ -476,6 +557,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         bool IncludeTechnicalCategorySummary,
         string? HandlingMarking,
         DateTimeOffset UpdatedAtUtc,
+        string CreatedByDisplay,
+        string LastModifiedByDisplay,
         byte[] RowVersion,
         IReadOnlyList<DeckItemSnapshot> Items);
 
@@ -525,8 +608,11 @@ public static partial class ProjectBriefingTextNormalizer
     [GeneratedRegex(@"[`*_~]{1,3}", RegexOptions.Compiled)]
     private static partial Regex MarkdownDecorationRegex();
 
-    [GeneratedRegex(@"\s+", RegexOptions.Compiled)]
-    private static partial Regex WhitespaceRegex();
+    [GeneratedRegex(@"[^\S\r\n]+", RegexOptions.Compiled)]
+    private static partial Regex HorizontalWhitespaceRegex();
+
+    [GeneratedRegex(@"\n{3,}", RegexOptions.Compiled)]
+    private static partial Regex ExcessiveNewlinesRegex();
 
     public static string Normalize(string? value, int maximumLength)
     {
@@ -542,10 +628,23 @@ public static partial class ProjectBriefingTextNormalizer
         normalized = MarkdownLinkRegex().Replace(normalized, "$1");
         normalized = MarkdownPrefixRegex().Replace(normalized, "$1");
         normalized = MarkdownDecorationRegex().Replace(normalized, string.Empty);
-        normalized = WhitespaceRegex().Replace(normalized, " ").Trim();
+        normalized = HorizontalWhitespaceRegex().Replace(normalized, " ");
+        normalized = string.Join(
+            "\n",
+            normalized.Split('\n').Select(line => line.Trim()));
+        normalized = ExcessiveNewlinesRegex().Replace(normalized, "\n\n").Trim();
 
-        return normalized.Length <= maximumLength
-            ? normalized
-            : normalized[..Math.Max(1, maximumLength - 1)].TrimEnd() + "…";
+        if (normalized.Length <= maximumLength)
+        {
+            return normalized;
+        }
+
+        var boundary = normalized.LastIndexOfAny(
+            new[] { ' ', '\n', '.', ';', ':' },
+            Math.Max(1, maximumLength - 2));
+        var take = boundary >= maximumLength * .72
+            ? boundary
+            : Math.Max(1, maximumLength - 1);
+        return normalized[..take].TrimEnd() + "…";
     }
 }

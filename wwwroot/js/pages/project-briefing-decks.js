@@ -37,10 +37,11 @@ if (root) {
     if (state) element.classList.add(`is-${state}`);
   };
 
+  const rowVersionInputs = [...root.querySelectorAll('input[name="RowVersion"], input[name="rowVersion"]')];
+  const currentRowVersion = () => rowVersionInputs[0]?.value || '';
   const updateRowVersion = (value) => {
     if (!value) return;
-    const input = root.querySelector('input[name="RowVersion"]');
-    if (input) input.value = value;
+    rowVersionInputs.forEach((input) => { input.value = value; });
   };
 
   // Open settings automatically for an empty collection without relying on a rendered boolean attribute.
@@ -200,7 +201,7 @@ if (root) {
     try {
       const payload = await requestJson(root.dataset.reorderUrl, {
         method: 'POST',
-        body: JSON.stringify({ deckId, projectIds })
+        body: JSON.stringify({ deckId, projectIds, rowVersion: currentRowVersion() })
       });
       updateRowVersion(payload?.rowVersion);
       setState(sortStatus, 'Slide order saved.', 'saved');
@@ -267,7 +268,12 @@ if (root) {
     try {
       const payload = await requestJson(root.dataset.descriptionUrl, {
         method: 'POST',
-        body: JSON.stringify({ deckId, projectId, value: descriptionValue?.value || null })
+        body: JSON.stringify({
+          deckId,
+          projectId,
+          value: descriptionValue?.value || null,
+          rowVersion: currentRowVersion()
+        })
       });
       updateRowVersion(payload?.rowVersion);
       const editorButton = root.querySelector(`[data-pbd-edit-description][data-project-id="${projectId}"]`);

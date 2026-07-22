@@ -43,6 +43,8 @@ public sealed record ProjectBriefingDeckSummaryVm(
     int ProjectCount,
     DateTimeOffset UpdatedAtUtc,
     DateTimeOffset? LastGeneratedAtUtc,
+    string CreatedByDisplay,
+    string LastModifiedByDisplay,
     string RowVersion);
 
 public sealed class ProjectBriefingDeckVm
@@ -58,8 +60,11 @@ public sealed class ProjectBriefingDeckVm
     public string? HandlingMarking { get; init; }
     public string RowVersion { get; init; } = string.Empty;
     public DateTimeOffset UpdatedAtUtc { get; init; }
+    public string CreatedByDisplay { get; init; } = string.Empty;
+    public string LastModifiedByDisplay { get; init; } = string.Empty;
     public IReadOnlyList<ProjectBriefingProjectVm> Projects { get; init; } = Array.Empty<ProjectBriefingProjectVm>();
     public ProjectBriefingReadinessVm Readiness { get; init; } = new();
+    public ProjectBriefingSlideEstimateVm SlideEstimate { get; init; } = new();
 }
 
 public sealed class ProjectBriefingProjectVm
@@ -75,8 +80,11 @@ public sealed class ProjectBriefingProjectVm
     public ProjectBriefingCostValue ProliferationCost { get; init; } = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation);
     public string? ExternalStatus { get; init; }
     public DateOnly? ExternalStatusDate { get; init; }
+    // HasCoverPhoto now means the selected photograph is actually readable and PowerPoint-ready.
     public bool HasCoverPhoto { get; init; }
+    public bool HasSelectedCoverPhoto { get; init; }
     public int? CoverPhotoId { get; init; }
+    public string? CoverPhotoReadinessReason { get; init; }
     public string BriefDescription { get; init; } = string.Empty;
     public string? BriefDescriptionOverride { get; init; }
     public int SortOrder { get; init; }
@@ -92,7 +100,17 @@ public sealed class ProjectBriefingReadinessVm
     public int CostRdAvailableCount { get; init; }
     public int ProliferationCostAvailableCount { get; init; }
     public int CoverPhotoAvailableCount { get; init; }
+    public int SelectedCoverPhotoCount { get; init; }
     public int DescriptionAvailableCount { get; init; }
+}
+
+public sealed class ProjectBriefingSlideEstimateVm
+{
+    public int TotalSlides { get; init; }
+    public int CoverAndPortfolioSlides { get; init; }
+    public int SummarySlides { get; init; }
+    public int ExecutiveTableSlides { get; init; }
+    public int DetailedProjectSlides { get; init; }
 }
 
 public sealed record ProjectBriefingLookupOptionVm(int Id, string Name, int MatchCount = 0, int? ParentId = null);
@@ -189,6 +207,7 @@ public sealed class ProjectBriefingPresentationProject
     public string BriefDescription { get; init; } = string.Empty;
     public int SortOrder { get; init; }
     public int? CoverPhotoId { get; init; }
+    public bool CoverPhotoIsReady { get; init; }
     public byte[]? CoverPhoto { get; set; }
     public string? CoverPhotoContentType { get; set; }
 }
@@ -210,3 +229,18 @@ public sealed class ProjectBriefingPresentationSummary
 }
 
 public sealed record ProjectBriefingSummaryPoint(string Label, int Count, int Order = int.MaxValue);
+
+public sealed record ProjectBriefingPhotoReference(int ProjectId, int PhotoId);
+
+public sealed record ProjectBriefingPhotoProbe(
+    int ProjectId,
+    int PhotoId,
+    bool IsReady,
+    string? FailureReason = null);
+
+public sealed record ProjectBriefingPhotoContent(
+    int ProjectId,
+    int PhotoId,
+    byte[] Content,
+    string ContentType,
+    string SourceVariant);

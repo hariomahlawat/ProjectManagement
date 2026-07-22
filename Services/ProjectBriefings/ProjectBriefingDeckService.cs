@@ -8,66 +8,71 @@ namespace ProjectManagement.Services.ProjectBriefings;
 public interface IProjectBriefingDeckService
 {
     Task<IReadOnlyList<ProjectBriefingDeckSummaryVm>> ListAsync(
-        string ownerUserId,
+        string requestingUserId,
         CancellationToken cancellationToken = default);
 
-    Task<ProjectBriefingDeck?> GetOwnedEntityAsync(
+    Task<ProjectBriefingDeck?> GetEntityAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
         bool includeItems,
         CancellationToken cancellationToken = default);
 
     Task<long> CreateAsync(
-        string ownerUserId,
+        string requestingUserId,
         string name,
         string? description,
         CancellationToken cancellationToken = default);
 
     Task<long> DuplicateAsync(
         long sourceDeckId,
-        string ownerUserId,
+        string requestingUserId,
         CancellationToken cancellationToken = default);
 
     Task UpdateSettingsAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
         ProjectBriefingDeckSettingsCommand command,
         CancellationToken cancellationToken = default);
 
     Task<int> AddProjectsAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
         IReadOnlyCollection<int> projectIds,
         string? selectionRulesJson,
+        string rowVersion,
         CancellationToken cancellationToken = default);
 
     Task RemoveProjectAsync(
         long deckId,
         int projectId,
-        string ownerUserId,
+        string requestingUserId,
+        string rowVersion,
         CancellationToken cancellationToken = default);
 
     Task<string> ReorderAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
         IReadOnlyList<int> orderedProjectIds,
+        string rowVersion,
         CancellationToken cancellationToken = default);
 
     Task<string> UpdateBriefDescriptionAsync(
         long deckId,
         int projectId,
-        string ownerUserId,
+        string requestingUserId,
         string? value,
+        string rowVersion,
         CancellationToken cancellationToken = default);
 
     Task DeleteAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
+        string rowVersion,
         CancellationToken cancellationToken = default);
 
     Task MarkGeneratedAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
         int slideCount,
         CancellationToken cancellationToken = default);
 }
@@ -95,13 +100,12 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     }
 
     public async Task<IReadOnlyList<ProjectBriefingDeckSummaryVm>> ListAsync(
-        string ownerUserId,
+        string requestingUserId,
         CancellationToken cancellationToken = default)
     {
-        var userId = NormalizeUserId(ownerUserId);
+        _ = NormalizeUserId(requestingUserId);
         var rows = await _db.Set<ProjectBriefingDeck>()
             .AsNoTracking()
-            .Where(deck => deck.OwnerUserId == userId)
             .OrderByDescending(deck => deck.UpdatedAtUtc)
             .ThenBy(deck => deck.Name)
             .Select(deck => new
@@ -114,6 +118,16 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 ProjectCount = deck.Items.Count,
                 deck.UpdatedAtUtc,
                 deck.LastGeneratedAtUtc,
+                CreatedByDisplay = deck.OwnerUser.FullName != string.Empty
+                    ? deck.OwnerUser.FullName
+                    : deck.OwnerUser.UserName ?? "Unknown user",
+                LastModifiedByDisplay = deck.LastModifiedByUser != null
+                    ? (deck.LastModifiedByUser.FullName != string.Empty
+                        ? deck.LastModifiedByUser.FullName
+                        : deck.LastModifiedByUser.UserName ?? "Unknown user")
+                    : (deck.OwnerUser.FullName != string.Empty
+                        ? deck.OwnerUser.FullName
+                        : deck.OwnerUser.UserName ?? "Unknown user"),
                 deck.RowVersion
             })
             .ToListAsync(cancellationToken);
@@ -127,17 +141,19 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
                 row.ProjectCount,
                 row.UpdatedAtUtc,
                 row.LastGeneratedAtUtc,
+                row.CreatedByDisplay,
+                row.LastModifiedByDisplay,
                 Encode(row.RowVersion)))
             .ToList();
     }
 
-    public Task<ProjectBriefingDeck?> GetOwnedEntityAsync(
+    public Task<ProjectBriefingDeck?> GetEntityAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
         bool includeItems,
         CancellationToken cancellationToken = default)
     {
-        var userId = NormalizeUserId(ownerUserId);
+        _ = NormalizeUserId(requestingUserId);
         IQueryable<ProjectBriefingDeck> query = _db.Set<ProjectBriefingDeck>();
         if (includeItems)
         {
@@ -147,24 +163,25 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         }
 
         return query.FirstOrDefaultAsync(
-            deck => deck.Id == deckId && deck.OwnerUserId == userId,
+            deck => deck.Id == deckId,
             cancellationToken);
     }
 
     public async Task<long> CreateAsync(
-        string ownerUserId,
+        string requestingUserId,
         string name,
         string? description,
         CancellationToken cancellationToken = default)
     {
-        var userId = NormalizeUserId(ownerUserId);
+        var userId = NormalizeUserId(requestingUserId);
         var normalizedName = NormalizeName(name);
-        await EnsureUniqueNameAsync(userId, normalizedName, excludedDeckId: null, cancellationToken);
+        await EnsureUniqueNameAsync(normalizedName, excludedDeckId: null, cancellationToken);
 
         var now = _clock.UtcNow.ToUniversalTime();
         var deck = new ProjectBriefingDeck
         {
             OwnerUserId = userId,
+            LastModifiedByUserId = userId,
             Name = CleanName(name),
             NormalizedName = normalizedName,
             Description = NormalizeDescription(description),
@@ -184,18 +201,19 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
     public async Task<long> DuplicateAsync(
         long sourceDeckId,
-        string ownerUserId,
+        string requestingUserId,
         CancellationToken cancellationToken = default)
     {
-        var userId = NormalizeUserId(ownerUserId);
-        var source = await GetOwnedEntityAsync(sourceDeckId, userId, includeItems: true, cancellationToken)
-            ?? throw new KeyNotFoundException("The saved deck was not found.");
+        var userId = NormalizeUserId(requestingUserId);
+        var source = await GetEntityAsync(sourceDeckId, userId, includeItems: true, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
 
-        var name = await BuildDuplicateNameAsync(userId, source.Name, cancellationToken);
+        var name = await BuildDuplicateNameAsync(source.Name, cancellationToken);
         var now = _clock.UtcNow.ToUniversalTime();
         var duplicate = new ProjectBriefingDeck
         {
             OwnerUserId = userId,
+            LastModifiedByUserId = userId,
             Name = name,
             NormalizedName = NormalizeName(name),
             Description = source.Description,
@@ -230,19 +248,19 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
     public async Task UpdateSettingsAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
         ProjectBriefingDeckSettingsCommand command,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
-        var userId = NormalizeUserId(ownerUserId);
-        var deck = await GetOwnedEntityAsync(deckId, userId, includeItems: false, cancellationToken)
-            ?? throw new KeyNotFoundException("The saved deck was not found.");
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
 
         EnsureVersion(deck, command.RowVersion);
         ValidateEnums(command.PresentationMode, command.CostMode);
         var normalizedName = NormalizeName(command.Name);
-        await EnsureUniqueNameAsync(userId, normalizedName, deckId, cancellationToken);
+        await EnsureUniqueNameAsync(normalizedName, deckId, cancellationToken);
 
         deck.Name = CleanName(command.Name);
         deck.NormalizedName = normalizedName;
@@ -253,7 +271,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         deck.IncludeProjectCategorySummary = command.IncludeProjectCategorySummary;
         deck.IncludeTechnicalCategorySummary = command.IncludeTechnicalCategorySummary;
         deck.HandlingMarking = NormalizeMarking(command.HandlingMarking);
-        Touch(deck);
+        Touch(deck, userId);
 
         await _db.SaveChangesAsync(cancellationToken);
         await AuditAsync("ProjectBriefing.DeckUpdated", userId, deck, "Project briefing deck settings updated.");
@@ -261,14 +279,16 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
     public async Task<int> AddProjectsAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
         IReadOnlyCollection<int> projectIds,
         string? selectionRulesJson,
+        string rowVersion,
         CancellationToken cancellationToken = default)
     {
-        var userId = NormalizeUserId(ownerUserId);
-        var deck = await GetOwnedEntityAsync(deckId, userId, includeItems: true, cancellationToken)
-            ?? throw new KeyNotFoundException("The saved deck was not found.");
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await GetEntityAsync(deckId, userId, includeItems: true, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        EnsureVersion(deck, rowVersion);
 
         var validIds = await _selectionService.ValidateProjectIdsAsync(projectIds, cancellationToken);
         var existing = deck.Items.Select(item => item.ProjectId).ToHashSet();
@@ -300,7 +320,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         {
             deck.SelectionRulesJson = selectionRulesJson;
         }
-        Touch(deck);
+        Touch(deck, userId);
 
         await _db.SaveChangesAsync(cancellationToken);
         await AuditAsync(
@@ -315,17 +335,19 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     public async Task RemoveProjectAsync(
         long deckId,
         int projectId,
-        string ownerUserId,
+        string requestingUserId,
+        string rowVersion,
         CancellationToken cancellationToken = default)
     {
-        var userId = NormalizeUserId(ownerUserId);
-        var deck = await GetOwnedEntityAsync(deckId, userId, includeItems: true, cancellationToken)
-            ?? throw new KeyNotFoundException("The saved deck was not found.");
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await GetEntityAsync(deckId, userId, includeItems: true, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        EnsureVersion(deck, rowVersion);
         var item = deck.Items.FirstOrDefault(candidate => candidate.ProjectId == projectId)
             ?? throw new KeyNotFoundException("The project is not part of this deck.");
 
         _db.Remove(item);
-        Touch(deck);
+        Touch(deck, userId);
         await _db.SaveChangesAsync(cancellationToken);
         await AuditAsync("ProjectBriefing.ProjectRemoved", userId, deck, "Project removed from briefing deck.",
             new Dictionary<string, string?> { ["ProjectId"] = projectId.ToString() });
@@ -333,13 +355,15 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
     public async Task<string> ReorderAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
         IReadOnlyList<int> orderedProjectIds,
+        string rowVersion,
         CancellationToken cancellationToken = default)
     {
-        var userId = NormalizeUserId(ownerUserId);
-        var deck = await GetOwnedEntityAsync(deckId, userId, includeItems: true, cancellationToken)
-            ?? throw new KeyNotFoundException("The saved deck was not found.");
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await GetEntityAsync(deckId, userId, includeItems: true, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        EnsureVersion(deck, rowVersion);
 
         var ordered = orderedProjectIds.Where(id => id > 0).Distinct().ToArray();
         var current = deck.Items.Select(item => item.ProjectId).OrderBy(id => id).ToArray();
@@ -355,7 +379,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         {
             item.SortOrder = orderByProject[item.ProjectId];
         }
-        Touch(deck);
+        Touch(deck, userId);
 
         await _db.SaveChangesAsync(cancellationToken);
         await AuditAsync("ProjectBriefing.ProjectsReordered", userId, deck, "Projects reordered in briefing deck.");
@@ -365,18 +389,20 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     public async Task<string> UpdateBriefDescriptionAsync(
         long deckId,
         int projectId,
-        string ownerUserId,
+        string requestingUserId,
         string? value,
+        string rowVersion,
         CancellationToken cancellationToken = default)
     {
-        var userId = NormalizeUserId(ownerUserId);
-        var deck = await GetOwnedEntityAsync(deckId, userId, includeItems: true, cancellationToken)
-            ?? throw new KeyNotFoundException("The saved deck was not found.");
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await GetEntityAsync(deckId, userId, includeItems: true, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        EnsureVersion(deck, rowVersion);
         var item = deck.Items.FirstOrDefault(candidate => candidate.ProjectId == projectId)
             ?? throw new KeyNotFoundException("The project is not part of this deck.");
 
         item.BriefDescriptionOverride = NormalizeBriefDescription(value);
-        Touch(deck);
+        Touch(deck, userId);
         await _db.SaveChangesAsync(cancellationToken);
         await AuditAsync("ProjectBriefing.DescriptionUpdated", userId, deck, "Project briefing description updated.",
             new Dictionary<string, string?> { ["ProjectId"] = projectId.ToString() });
@@ -385,12 +411,14 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
     public async Task DeleteAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
+        string rowVersion,
         CancellationToken cancellationToken = default)
     {
-        var userId = NormalizeUserId(ownerUserId);
-        var deck = await GetOwnedEntityAsync(deckId, userId, includeItems: false, cancellationToken)
-            ?? throw new KeyNotFoundException("The saved deck was not found.");
+        var userId = NormalizeUserId(requestingUserId);
+        var deck = await GetEntityAsync(deckId, userId, includeItems: false, cancellationToken)
+            ?? throw new KeyNotFoundException("The shared command deck was not found.");
+        EnsureVersion(deck, rowVersion);
 
         _db.Remove(deck);
         await _db.SaveChangesAsync(cancellationToken);
@@ -407,23 +435,23 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
     public async Task MarkGeneratedAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
         int slideCount,
         CancellationToken cancellationToken = default)
     {
-        var userId = NormalizeUserId(ownerUserId);
+        var userId = NormalizeUserId(requestingUserId);
         var now = _clock.UtcNow.ToUniversalTime();
 
-        // Generation metadata must not invalidate the editor's optimistic-concurrency token.
+        // Generation metadata must not invalidate a shared editor's optimistic-concurrency token.
         // ExecuteUpdate bypasses the tracked SaveChanges row-version rotation intentionally.
         var updated = await _db.Set<ProjectBriefingDeck>()
-            .Where(deck => deck.Id == deckId && deck.OwnerUserId == userId)
+            .Where(deck => deck.Id == deckId)
             .ExecuteUpdateAsync(
                 setters => setters.SetProperty(deck => deck.LastGeneratedAtUtc, now),
                 cancellationToken);
         if (updated == 0)
         {
-            throw new KeyNotFoundException("The saved deck was not found.");
+            throw new KeyNotFoundException("The shared command deck was not found.");
         }
 
         await TryAuditAsync(
@@ -438,24 +466,21 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
     }
 
     private async Task EnsureUniqueNameAsync(
-        string ownerUserId,
         string normalizedName,
         long? excludedDeckId,
         CancellationToken cancellationToken)
     {
         var exists = await _db.Set<ProjectBriefingDeck>()
             .AsNoTracking()
-            .AnyAsync(deck => deck.OwnerUserId == ownerUserId
-                && deck.NormalizedName == normalizedName
+            .AnyAsync(deck => deck.NormalizedName == normalizedName
                 && (!excludedDeckId.HasValue || deck.Id != excludedDeckId.Value), cancellationToken);
         if (exists)
         {
-            throw new InvalidOperationException("You already have a saved deck with this name.");
+            throw new InvalidOperationException("A shared command deck with this name already exists.");
         }
     }
 
     private async Task<string> BuildDuplicateNameAsync(
-        string ownerUserId,
         string sourceName,
         CancellationToken cancellationToken)
     {
@@ -463,7 +488,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         {
             var candidate = number == 1 ? $"{sourceName} — Copy" : $"{sourceName} — Copy {number}";
             if (!await _db.Set<ProjectBriefingDeck>().AsNoTracking().AnyAsync(
-                    deck => deck.OwnerUserId == ownerUserId && deck.NormalizedName == NormalizeName(candidate),
+                    deck => deck.NormalizedName == NormalizeName(candidate),
                     cancellationToken))
             {
                 return candidate;
@@ -473,9 +498,10 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         return $"{sourceName} — {_clock.UtcNow:yyyyMMddHHmmss}";
     }
 
-    private void Touch(ProjectBriefingDeck deck)
+    private void Touch(ProjectBriefingDeck deck, string userId)
     {
         deck.UpdatedAtUtc = _clock.UtcNow.ToUniversalTime();
+        deck.LastModifiedByUserId = userId;
         deck.RowVersion = NewRowVersion();
     }
 
@@ -538,7 +564,7 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
         if (expected.Length == 0 || !deck.RowVersion.SequenceEqual(expected))
         {
-            throw new DbUpdateConcurrencyException("This deck was changed in another session. Reload the page before saving.");
+            throw new DbUpdateConcurrencyException("This deck was updated by another user. Reload the page before saving.");
         }
     }
 

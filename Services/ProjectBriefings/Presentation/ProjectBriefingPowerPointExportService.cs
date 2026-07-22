@@ -1,10 +1,6 @@
 using System.Text.RegularExpressions;
-using ProjectManagement.Utilities;
 using ProjectManagement.Models.ProjectBriefings;
-using ProjectManagement.Services.Projects;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.Processing;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services.ProjectBriefings.Presentation;
 
@@ -15,29 +11,29 @@ public sealed partial class ProjectBriefingPowerPointExportService : IProjectBri
     private readonly IProjectBriefingDataService _dataService;
     private readonly IProjectBriefingDeckService _deckService;
     private readonly IProjectBriefingSlideComposer _composer;
-    private readonly IProjectPhotoService _projectPhotoService;
+    private readonly IProjectBriefingPhotoLoader _photoLoader;
     private readonly ILogger<ProjectBriefingPowerPointExportService> _logger;
 
     public ProjectBriefingPowerPointExportService(
         IProjectBriefingDataService dataService,
         IProjectBriefingDeckService deckService,
         IProjectBriefingSlideComposer composer,
-        IProjectPhotoService projectPhotoService,
+        IProjectBriefingPhotoLoader photoLoader,
         ILogger<ProjectBriefingPowerPointExportService> logger)
     {
         _dataService = dataService ?? throw new ArgumentNullException(nameof(dataService));
         _deckService = deckService ?? throw new ArgumentNullException(nameof(deckService));
         _composer = composer ?? throw new ArgumentNullException(nameof(composer));
-        _projectPhotoService = projectPhotoService ?? throw new ArgumentNullException(nameof(projectPhotoService));
+        _photoLoader = photoLoader ?? throw new ArgumentNullException(nameof(photoLoader));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<ProjectBriefingExportResult> GenerateAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
         CancellationToken cancellationToken = default)
     {
-        var data = await _dataService.BuildPresentationDataAsync(deckId, ownerUserId, cancellationToken);
+        var data = await _dataService.BuildPresentationDataAsync(deckId, requestingUserId, cancellationToken);
         if (data.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects
             or ProjectBriefingPresentationMode.Combined)
         {
@@ -45,7 +41,7 @@ public sealed partial class ProjectBriefingPowerPointExportService : IProjectBri
         }
 
         var (content, slideCount) = _composer.Compose(data);
-        await _deckService.MarkGeneratedAsync(deckId, ownerUserId, slideCount, cancellationToken);
+        await _deckService.MarkGeneratedAsync(deckId, requestingUserId, slideCount, cancellationToken);
 
         var date = TimeZoneInfo.ConvertTime(data.GeneratedAtUtc, TimeZoneHelper.GetIst()).ToString("yyyyMMdd");
         var safeName = FileNameSanitizer().Replace(data.DeckName, "_").Trim('_');
@@ -74,41 +70,23 @@ public sealed partial class ProjectBriefingPowerPointExportService : IProjectBri
 
             try
             {
-                var opened = await _projectPhotoService.OpenDerivativeAsync(
+                var loaded = await _photoLoader.LoadAsync(
                     project.ProjectId,
                     project.CoverPhotoId.Value,
-                    "xl",
-                    "jpg",
                     cancellationToken);
-
-                opened ??= await _projectPhotoService.OpenDerivativeAsync(
-                    project.ProjectId,
-                    project.CoverPhotoId.Value,
-                    "xl",
-                    "png",
-                    cancellationToken);
-
-                opened ??= await _projectPhotoService.OpenDerivativeAsync(
-                    project.ProjectId,
-                    project.CoverPhotoId.Value,
-                    "md",
-                    preferWebp: false,
-                    cancellationToken);
-
-                if (opened is null)
+                if (loaded is null)
                 {
-                    _logger.LogWarning(
-                        "No presentation-compatible derivative was found for project {ProjectId}, photo {PhotoId}.",
-                        project.ProjectId,
-                        project.CoverPhotoId.Value);
                     continue;
                 }
 
-                await using var stream = opened.Value.Stream;
-                using var memory = new MemoryStream();
-                await stream.CopyToAsync(memory, cancellationToken);
-                project.CoverPhoto = NormalizePhotoForSlide(memory.ToArray());
-                project.CoverPhotoContentType = "image/jpeg";
+                project.CoverPhoto = loaded.Content;
+                project.CoverPhotoContentType = loaded.ContentType;
+                _logger.LogDebug(
+                    "Attached briefing photograph. DeckId={DeckId}, ProjectId={ProjectId}, PhotoId={PhotoId}, Variant={Variant}",
+                    data.DeckId,
+                    project.ProjectId,
+                    project.CoverPhotoId.Value,
+                    loaded.SourceVariant);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -123,24 +101,6 @@ public sealed partial class ProjectBriefingPowerPointExportService : IProjectBri
                     data.DeckId);
             }
         }
-    }
-
-
-    private static byte[] NormalizePhotoForSlide(byte[] source)
-    {
-        using var image = Image.Load(source);
-        image.Mutate(context => context
-            .AutoOrient()
-            .Resize(new ResizeOptions
-            {
-                Size = new Size(1600, 1048),
-                Mode = ResizeMode.Crop,
-                Position = AnchorPositionMode.Center
-            }));
-
-        using var output = new MemoryStream();
-        image.Save(output, new JpegEncoder { Quality = 88 });
-        return output.ToArray();
     }
 
     [GeneratedRegex(@"[^A-Za-z0-9._-]+", RegexOptions.Compiled)]

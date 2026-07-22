@@ -22,9 +22,14 @@ public sealed class ProjectBriefingDeck
 {
     public long Id { get; set; }
 
+    // The creator is retained for attribution and audit. Deck visibility is command-workspace wide.
     [Required, MaxLength(450)]
     public string OwnerUserId { get; set; } = string.Empty;
     public ApplicationUser OwnerUser { get; set; } = null!;
+
+    [MaxLength(450)]
+    public string? LastModifiedByUserId { get; set; }
+    public ApplicationUser? LastModifiedByUser { get; set; }
 
     [Required, MaxLength(160)]
     public string Name { get; set; } = string.Empty;

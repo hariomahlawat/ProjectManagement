@@ -108,17 +108,20 @@ public sealed class IndexModel : PageModel
         }
         catch (DbUpdateException)
         {
-            ErrorMessage = "The deck could not be duplicated because the saved collection changed. Reload and try again.";
+            ErrorMessage = "The deck could not be duplicated because the shared deck was updated. Reload and try again.";
             return RedirectToPage(new { deckId });
         }
     }
 
-    public async Task<IActionResult> OnPostDeleteAsync(long deckId, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostDeleteAsync(
+        long deckId,
+        string rowVersion,
+        CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
         try
         {
-            await _deckService.DeleteAsync(deckId, userId, cancellationToken);
+            await _deckService.DeleteAsync(deckId, userId, rowVersion, cancellationToken);
             StatusMessage = "Briefing deck deleted.";
             return RedirectToPage();
         }
@@ -129,7 +132,7 @@ public sealed class IndexModel : PageModel
         }
         catch (DbUpdateConcurrencyException)
         {
-            ErrorMessage = "The deck changed in another session and was not deleted. Reload and try again.";
+            ErrorMessage = "The deck was updated by another user and was not deleted. Reload and try again.";
             return RedirectToPage(new { deckId });
         }
     }
@@ -167,7 +170,7 @@ public sealed class IndexModel : PageModel
         }
         catch (DbUpdateConcurrencyException)
         {
-            ErrorMessage = "This deck was changed in another session. Reload the page before saving.";
+            ErrorMessage = "This deck was updated by another user. Reload the page before saving.";
         }
         catch (DbUpdateException)
         {
@@ -186,6 +189,12 @@ public sealed class IndexModel : PageModel
         CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
+        if (string.IsNullOrWhiteSpace(input.RowVersion))
+        {
+            ErrorMessage = "The deck version is missing. Reload and try again.";
+            return RedirectToPage(new { deckId = input.DeckId });
+        }
+
         try
         {
             var selection = await _selectionService.ResolveAsync(
@@ -211,6 +220,7 @@ public sealed class IndexModel : PageModel
                 userId,
                 selection.ProjectIds,
                 selection.SelectionRulesJson,
+                input.RowVersion,
                 cancellationToken);
             StatusMessage = added == 0
                 ? "All matching projects are already in this deck."
@@ -220,9 +230,13 @@ public sealed class IndexModel : PageModel
         {
             ErrorMessage = exception.Message;
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            ErrorMessage = "The matching projects could not be added because another user updated the deck. Reload and try again.";
+        }
         catch (DbUpdateException)
         {
-            ErrorMessage = "The matching projects could not be added because the deck changed in another session. Reload and try again.";
+            ErrorMessage = "The matching projects could not be added because of a database error. Reload and try again.";
         }
 
         return RedirectToPage(new { deckId = input.DeckId });
@@ -231,12 +245,13 @@ public sealed class IndexModel : PageModel
     public async Task<IActionResult> OnPostRemoveProjectAsync(
         long deckId,
         int projectId,
+        string rowVersion,
         CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
         try
         {
-            await _deckService.RemoveProjectAsync(deckId, projectId, userId, cancellationToken);
+            await _deckService.RemoveProjectAsync(deckId, projectId, userId, rowVersion, cancellationToken);
             StatusMessage = "Project removed from the deck.";
         }
         catch (KeyNotFoundException exception)
@@ -245,7 +260,7 @@ public sealed class IndexModel : PageModel
         }
         catch (DbUpdateConcurrencyException)
         {
-            ErrorMessage = "The deck changed in another session. Reload the page before removing the project.";
+            ErrorMessage = "The deck was updated by another user. Reload the page before removing the project.";
         }
 
         return RedirectToPage(new { deckId });
@@ -256,21 +271,26 @@ public sealed class IndexModel : PageModel
         CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
-        if (input is null || input.DeckId <= 0 || input.ProjectIds is null)
+        if (input is null || input.DeckId <= 0 || input.ProjectIds is null || string.IsNullOrWhiteSpace(input.RowVersion))
         {
             return BadRequest(new { message = "The deck order request is invalid." });
         }
 
         try
         {
-            var rowVersion = await _deckService.ReorderAsync(input.DeckId, userId, input.ProjectIds, cancellationToken);
+            var rowVersion = await _deckService.ReorderAsync(
+                input.DeckId,
+                userId,
+                input.ProjectIds,
+                input.RowVersion,
+                cancellationToken);
             return new JsonResult(new { saved = true, rowVersion });
         }
         catch (DbUpdateConcurrencyException)
         {
             return new JsonResult(new
             {
-                message = "The deck changed in another session. Reload before changing the slide order."
+                message = "The deck was updated by another user. Reload before changing the slide order."
             })
             {
                 StatusCode = StatusCodes.Status409Conflict
@@ -287,7 +307,7 @@ public sealed class IndexModel : PageModel
         CancellationToken cancellationToken)
     {
         var userId = RequireUserId();
-        if (input is null || input.DeckId <= 0 || input.ProjectId <= 0)
+        if (input is null || input.DeckId <= 0 || input.ProjectId <= 0 || string.IsNullOrWhiteSpace(input.RowVersion))
         {
             return BadRequest(new { message = "The briefing-description request is invalid." });
         }
@@ -299,6 +319,7 @@ public sealed class IndexModel : PageModel
                 input.ProjectId,
                 userId,
                 input.Value,
+                input.RowVersion,
                 cancellationToken);
             return new JsonResult(new { saved = true, rowVersion });
         }
@@ -306,7 +327,7 @@ public sealed class IndexModel : PageModel
         {
             return new JsonResult(new
             {
-                message = "The deck changed in another session. Reload before editing the description."
+                message = "The deck was updated by another user. Reload before editing the description."
             })
             {
                 StatusCode = StatusCodes.Status409Conflict
@@ -462,12 +483,14 @@ public sealed class IndexModel : PageModel
         public List<int> ProjectIds { get; set; } = new();
         public int? CompletionYearFrom { get; set; }
         public int? CompletionYearTo { get; set; }
+        public string RowVersion { get; set; } = string.Empty;
     }
 
     public sealed class ReorderInput
     {
         public long DeckId { get; set; }
         public List<int> ProjectIds { get; set; } = new();
+        public string RowVersion { get; set; } = string.Empty;
     }
 
     public sealed class UpdateDescriptionInput
@@ -475,5 +498,6 @@ public sealed class IndexModel : PageModel
         public long DeckId { get; set; }
         public int ProjectId { get; set; }
         public string? Value { get; set; }
+        public string RowVersion { get; set; } = string.Empty;
     }
 }

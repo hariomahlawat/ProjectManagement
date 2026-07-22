@@ -4382,6 +4382,10 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTimeOffset?>("LastGeneratedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("LastModifiedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(160)
@@ -4415,10 +4419,17 @@ namespace ProjectManagement.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("OwnerUserId", "NormalizedName")
-                        .IsUnique();
+                    b.HasIndex("LastModifiedByUserId");
 
-                    b.HasIndex("OwnerUserId", "UpdatedAtUtc");
+                    b.HasIndex("UpdatedAtUtc")
+                        .HasDatabaseName("IX_ProjectBriefingDecks_UpdatedAtUtc");
+
+                    b.HasIndex("OwnerUserId")
+                        .HasDatabaseName("IX_ProjectBriefingDecks_OwnerUserId");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProjectBriefingDecks_NormalizedName");
 
                     b.ToTable("ProjectBriefingDecks");
                 });
@@ -7745,11 +7756,18 @@ namespace ProjectManagement.Migrations
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
                 {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "LastModifiedByUser")
+                        .WithMany()
+                        .HasForeignKey("LastModifiedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ProjectManagement.Models.ApplicationUser", "OwnerUser")
                         .WithMany()
                         .HasForeignKey("OwnerUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("LastModifiedByUser");
 
                     b.Navigation("OwnerUser");
                 });

@@ -1,175 +1,141 @@
-# PRISM — Project Briefing Deck Builder
+# Project Briefing Deck Builder — Phase 2
 
-## Purpose
+## Shared Command Decks and Professional Presentation Hardening
 
-This package adds **Briefing decks** to the Comdt/HoD Command Workspace and provides a reusable, professional PowerPoint-deck workflow for selected projects.
+This package is a ready-to-replace update for the existing **Project Briefing Deck Builder** in PRISM ERP.
 
-Route:
-
-```text
-/Workspace/BriefingDecks
-```
-
-Access is restricted by the new policy:
-
-```text
-ProjectBriefingDecks.Manage
-```
-
-Allowed roles in this phase:
-
-```text
-Comdt
-HoD
-```
-
-## Implemented functionality
-
-### Saved decks
-
-- Create, rename, duplicate and delete multiple personal saved decks.
-- Save project membership, briefing order, deck format, cost mode, summary-slide options and handling/classification marking.
-- Refresh stage, costs, latest external status, project description and cover photograph from live PRISM data whenever PowerPoint is generated.
-- Optimistic concurrency protection for settings and inline edits.
-- Audit logging for collection changes and PowerPoint generation.
-
-### Project selection
-
-Projects can be added through:
-
-- All ongoing projects.
-- Recently completed projects using a completion-year range.
-- One or more project categories, including child categories.
-- One or more technical categories.
-- All projects explicitly marked available for proliferation.
-- Searchable individual selection by project name, case-file number, Project Officer, project category or technical category.
-
-Duplicates are ignored. The final collection can be reordered by drag-and-drop or keyboard arrow keys.
-
-### Authoritative presentation rules
-
-```text
-STATUS
-Latest non-deleted General External remark only.
-No internal, conference, Project Officer, MCO or other remark is used.
-
-COST (R&D)
-Latest valid L1 value; otherwise latest valid AoN value; otherwise latest valid IPA value.
-
-PROLIFERATION COST
-ProjectProductionCostFact.ApproxProductionCost, stored in lakh and presented as currency.
-```
-
-The user selects one deck-wide cost mode:
-
-- Cost (R&D) only.
-- Proliferation cost only.
-- Both costs, shown separately.
-- Do not include cost.
-
-### PowerPoint formats
-
-- **Executive table deck** — cover, portfolio summary, selected summary charts and native editable project tables.
-- **Detailed project deck** — cover, portfolio summary, selected summary charts and one slide per project.
-- **Combined deck** — executive table slides followed by one slide per project.
-
-Detailed project slides include:
-
-- Project name.
-- Lifecycle and category context.
-- Present stage.
-- Selected cost information.
-- Latest external status.
-- Cover photograph or deliberate professional placeholder.
-- Brief capability overview, with an optional deck-specific override.
-
-### Professional presentation standard
-
-- 16:9 widescreen.
-- Native editable PowerPoint text, tables and chart shapes.
-- Institutional navy/white visual system with restrained accents.
-- Native editable horizontal summary charts rather than screenshots.
-- SDD/PRISM footer, slide number and optional handling/classification marking.
-- High-resolution centre-cropped project photographs.
-- No browser screenshots and no AI-generated rewriting of external remarks.
-
-## Database migration
-
-This implementation adds:
+It assumes the Phase 1 / v2 briefing-deck implementation is already present, including migration:
 
 ```text
 20261202090000_AddProjectBriefingDecks
 ```
 
-Tables:
+Extract the ZIP into the `ProjectManagement` project root and replace the matching files.
+
+## Implemented
+
+### Shared command decks
+
+- Saved decks are now visible to every user authorised for the Comdt/HoD workspace.
+- `OwnerUserId` is retained as the creator/audit record and is no longer used as a visibility filter.
+- The latest modifying user is stored and shown in the saved-deck rail and deck header.
+- Shared deck names are unique across the command workspace.
+- Create, settings changes, project additions/removals, slide order, description overrides, duplication, generation and deletion continue to be audited.
+- Optimistic concurrency is enforced across settings, additions, removals, reordering, description changes and deletion.
+
+### Builder UX
+
+- New-deck placeholder changed to **Project Update Review**.
+- Saved-deck area is labelled **Shared decks**.
+- Added estimated slide count with cover/summary/table/project-slide breakdown.
+- Added pre-generation content-readiness warnings.
+- Photo readiness now means an image can actually be decoded for PowerPoint, not merely that a photo database record exists.
+- Readiness icons include explanatory tooltips and capability-overview status.
+
+### Stage-wise summary
+
+- All stage bars are rendered on one slide.
+- Stages are ordered by reverse workflow sequence, with Completed first and IPA last.
+- Share percentages are shown beside project counts.
+- A separate native editable PowerPoint table follows the chart.
+- The table contains Present stage, Projects and Share, plus a total row.
+
+### Executive table deck
+
+- Slide title changed to **Project status summary**.
+- Native editable PowerPoint tables are retained.
+- Status receives the largest column.
+- Internal borders are lighter, alternate row shading is used, and missing values are visually muted.
+- Cost basis remains a smaller second line.
+
+### Detailed project slide
+
+- The slide is rebalanced to prioritise the project explanation.
+- Left column: photograph, combined **Project position** card, then cost card(s).
+- Project position contains both Present stage and latest External status.
+- Right column: enlarged **Capability overview** occupying nearly the full content height.
+- Capability overview supports substantially more text and deterministic readable font sizing.
+- The no-photo state uses a compact deliberate placeholder and releases space to project facts.
+- One selected cost expands to full width; two costs remain separate.
+
+### Photograph pipeline
+
+- Added `ProjectBriefingPhotoLoader`.
+- Checks configured derivatives from larger to smaller sizes and then preserved master files.
+- Supports JPEG, PNG and WebP source files.
+- Verifies actual decodability for builder readiness.
+- Auto-orients and crops to a presentation-ready 16:9 JPEG using ImageSharp.
+- A missing or corrupt project photograph does not fail the complete deck generation.
+
+## Authoritative briefing rules retained
 
 ```text
-ProjectBriefingDecks
-ProjectBriefingDeckItems
+Status = latest non-deleted General External remark only
+Cost (R&D) = L1 → AoN → IPA
+Proliferation cost = recorded indicative proliferation cost
 ```
 
-Back up the production database before deployment. The application can apply the migration through the existing automatic-startup migration path. For a controlled local deployment, run `dotnet ef database update` after building.
+Cost (R&D) and proliferation cost remain separate and are never added into one combined value.
 
-## Replacement procedure
+## Database migration
 
-1. Stop IIS Express/IIS or the running PRISM process.
-2. Back up the application directory and PostgreSQL database.
-3. Copy the contents of this folder into the project root, preserving paths, and replace matching files.
-4. Do not omit the PowerPoint template:
+This phase adds:
 
 ```text
-Resources/ProjectBriefing/ProjectBriefingTemplate.pptx
+20261203090000_ShareProjectBriefingDecksAndHardenPresentation
 ```
 
-5. Clean and validate:
+The migration:
+
+- adds `LastModifiedByUserId`;
+- backfills it from the deck creator;
+- converts deck-name uniqueness from per-user to command-workspace-wide;
+- safely renames duplicate pre-existing personal deck names;
+- adds shared-deck indexes and creator/modifier foreign keys.
+
+Back up the PostgreSQL database before applying the migration.
+
+## Deployment
+
+1. Stop the running PRISM application.
+2. Back up the database and current source tree.
+3. Extract this ZIP into the project root and replace matching files.
+4. Run:
 
 ```powershell
 Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
-npm ci
-npm test
+
 dotnet restore .\ProjectManagement.csproj
 dotnet build .\ProjectManagement.csproj
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
 dotnet ef database update
 ```
 
-6. Start PRISM and force-refresh the browser with `Ctrl+F5`.
+The existing production startup migration process may also apply the migration automatically, but a controlled `dotnet ef database update` is recommended before deployment.
 
-## Program.cs note
+No package, appsettings or PowerPoint-template change is required.
 
-The supplied `Program.cs` is based on the latest corrected Program file available for this implementation and retains the previously required:
+## Verification checklist
 
-- Proliferation analysis/data-quality registrations.
-- FFC Word/Excel export registrations.
-- Simulators Compendium registrations.
+After deployment, verify:
 
-A source patch is also supplied for review. Avoid replacing `Program.cs` with an older copy.
+1. A deck created by one Comdt/HoD user is visible to another.
+2. Another authorised user can edit and generate the shared deck.
+3. The stage chart is one slide and begins with Completed.
+4. A native stage table immediately follows the chart.
+5. Detailed slides use left facts and right Capability overview.
+6. Present stage and latest external status appear in one Project position card.
+7. Projects with usable cover photographs display them in PowerPoint.
+8. No-photo slides use the compact layout.
+9. The builder slide estimate matches the generated deck count.
+10. Cost and external-status policies remain unchanged.
 
-## Release verification
+## Validation performed in the preparation environment
 
-Verify the following after deployment:
-
-1. **Briefing decks** appears in the Comdt/HoD Command Workspace rail.
-2. A Comdt/HoD can create at least two named saved decks.
-3. Every bulk-selection method adds the expected projects without duplicates.
-4. Individual search finds projects by name, case file and Project Officer.
-5. Drag-and-drop and keyboard reordering persist after reload.
-6. The preview uses only the latest external remark for Status.
-7. Cost (R&D) follows L1 → AoN → IPA and shows its basis.
-8. Proliferation cost remains separate and is not added to Cost (R&D).
-9. Each of the four cost modes changes the generated deck correctly.
-10. Executive, detailed and combined `.pptx` files open in PowerPoint and remain editable.
-11. Project photographs are cropped without distortion; missing images use the intentional placeholder.
-12. Handling/classification marking appears consistently when entered.
-
-## Validation completed in the preparation environment
-
-- JavaScript syntax checks passed.
-- Full JavaScript suite passed: **226/226 tests**.
-- Modified/new C# files passed syntax parsing.
+- Briefing-deck JavaScript tests: **8/8 passed**.
+- JavaScript syntax check passed.
+- Changed C# files passed lexical delimiter/static structural checks.
 - CSS parsed without errors.
-- Project files parsed as valid XML.
-- PowerPoint template ZIP/XML integrity passed.
-- Git whitespace validation passed.
+- Project and test `.csproj` files passed XML validation.
 
-The preparation environment did not contain the .NET SDK, so the final C# build and .NET test execution must be completed locally before deployment.
+The preparation environment does not contain the .NET SDK, so the final .NET build, EF migration validation and .NET test suite must be run locally before publishing.

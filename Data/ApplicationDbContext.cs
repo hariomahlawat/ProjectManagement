@@ -493,6 +493,7 @@ namespace ProjectManagement.Data
             {
                 entity.ToTable("ProjectBriefingDecks");
                 entity.Property(deck => deck.OwnerUserId).HasMaxLength(450).IsRequired();
+                entity.Property(deck => deck.LastModifiedByUserId).HasMaxLength(450);
                 entity.Property(deck => deck.Name).HasMaxLength(160).IsRequired();
                 entity.Property(deck => deck.NormalizedName).HasMaxLength(160).IsRequired();
                 entity.Property(deck => deck.Description).HasMaxLength(600);
@@ -501,12 +502,21 @@ namespace ProjectManagement.Data
                 entity.Property(deck => deck.HandlingMarking).HasMaxLength(80);
                 entity.Property(deck => deck.SelectionRulesJson).HasColumnType("jsonb");
                 ConfigureRowVersion(entity);
-                entity.HasIndex(deck => new { deck.OwnerUserId, deck.NormalizedName }).IsUnique();
-                entity.HasIndex(deck => new { deck.OwnerUserId, deck.UpdatedAtUtc });
+                entity.HasIndex(deck => deck.NormalizedName)
+                    .HasDatabaseName("UX_ProjectBriefingDecks_NormalizedName")
+                    .IsUnique();
+                entity.HasIndex(deck => deck.UpdatedAtUtc)
+                    .HasDatabaseName("IX_ProjectBriefingDecks_UpdatedAtUtc");
+                entity.HasIndex(deck => deck.OwnerUserId)
+                    .HasDatabaseName("IX_ProjectBriefingDecks_OwnerUserId");
                 entity.HasOne(deck => deck.OwnerUser)
                     .WithMany()
                     .HasForeignKey(deck => deck.OwnerUserId)
-                    .OnDelete(DeleteBehavior.Cascade);
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(deck => deck.LastModifiedByUser)
+                    .WithMany()
+                    .HasForeignKey(deck => deck.LastModifiedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             builder.Entity<ProjectBriefingDeckItem>(entity =>

@@ -4,6 +4,6 @@ public interface IProjectBriefingPowerPointExportService
 {
     Task<ProjectBriefingExportResult> GenerateAsync(
         long deckId,
-        string ownerUserId,
+        string requestingUserId,
         CancellationToken cancellationToken = default);
 }

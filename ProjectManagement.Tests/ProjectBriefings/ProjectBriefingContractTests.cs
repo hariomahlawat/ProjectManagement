@@ -22,6 +22,10 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("Status <small>external remark</small>", page, StringComparison.Ordinal);
         Assert.Contains("Cost (R&amp;D)", page, StringComparison.Ordinal);
         Assert.Contains("Generate PowerPoint", page, StringComparison.Ordinal);
+        Assert.Contains("Project Update Review", page, StringComparison.Ordinal);
+        Assert.Contains("Shared decks", page, StringComparison.Ordinal);
+        Assert.Contains("Estimated deck size", page, StringComparison.Ordinal);
+        Assert.Contains("chart and table", page, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -58,6 +62,55 @@ public sealed class ProjectBriefingContractTests
         Assert.Contains("!remark.IsDeleted", source, StringComparison.Ordinal);
         Assert.Contains("row.LastEditedAtUtc ?? row.CreatedAtUtc", source, StringComparison.Ordinal);
         Assert.DoesNotContain("RemarkType.Internal", source, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public void SharedDecks_AreCommandWorkspaceWideAndTrackLastModifier()
+    {
+        var source = Read("ProjectBriefingDeckService.cs");
+
+        Assert.DoesNotContain("deck.OwnerUserId ==", source, StringComparison.Ordinal);
+        Assert.Contains("LastModifiedByUserId", source, StringComparison.Ordinal);
+        Assert.Contains("A shared command deck with this name already exists", source, StringComparison.Ordinal);
+        Assert.Contains("OrderByDescending(deck => deck.UpdatedAtUtc)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StageSummary_IsOneChartThenNativeTableInReverseWorkflowOrder()
+    {
+        var dataSource = Read("ProjectBriefingDataService.cs");
+        var composer = Read("ProjectBriefingSlideComposer.cs");
+
+        Assert.Contains("OrderByDescending(point => point.Order)", dataSource, StringComparison.Ordinal);
+        Assert.Contains("AddStageSummarySlides", composer, StringComparison.Ordinal);
+        Assert.Contains("RenderStageSummaryTable", composer, StringComparison.Ordinal);
+        Assert.Contains("Stage-wise summary — table", composer, StringComparison.Ordinal);
+        Assert.DoesNotContain("data.Summary.StageSummary.Chunk", composer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DetailedSlide_PrioritisesCapabilityOverviewAndCombinesStageWithStatus()
+    {
+        var composer = Read("ProjectBriefingSlideComposer.cs");
+
+        Assert.Contains("PROJECT POSITION", composer, StringComparison.Ordinal);
+        Assert.Contains("CAPABILITY OVERVIEW", composer, StringComparison.Ordinal);
+        Assert.Contains("const double rightWidth = 7.48", composer, StringComparison.Ordinal);
+        Assert.Contains("var photoHeight = hasPhoto ? 2.48 : 1.18", composer, StringComparison.Ordinal);
+        Assert.Contains("FitOverview", composer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PhotoLoader_ValidatesActualFilesAndProducesPowerPointReadyJpeg()
+    {
+        var source = Read("ProjectBriefingPhotoLoader.cs");
+
+        Assert.Contains("Image.Identify", source, StringComparison.Ordinal);
+        Assert.Contains("ResizeMode.Crop", source, StringComparison.Ordinal);
+        Assert.Contains("new JpegEncoder", source, StringComparison.Ordinal);
+        Assert.Contains("master/", source, StringComparison.Ordinal);
+        Assert.Contains("No PowerPoint-ready photograph was found", source, StringComparison.Ordinal);
     }
 
     private static string Read(string fileName)

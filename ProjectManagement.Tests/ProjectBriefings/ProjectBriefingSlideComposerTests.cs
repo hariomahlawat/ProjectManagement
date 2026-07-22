@@ -21,7 +21,7 @@ public sealed class ProjectBriefingSlideComposerTests
         var (content, slideCount) = composer.Compose(BuildData());
 
         Assert.True(content.Length > 10_000);
-        Assert.Equal(6, slideCount);
+        Assert.Equal(7, slideCount);
 
         using var stream = new MemoryStream(content, writable: false);
         using var document = PresentationDocument.Open(stream, false);
@@ -39,11 +39,14 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.Contains("PROLIFERATION COST", text, StringComparison.Ordinal);
         Assert.Contains("Latest external status for AURA", text, StringComparison.Ordinal);
         Assert.Contains("Stage-wise summary", text, StringComparison.Ordinal);
+        Assert.Contains("Stage-wise summary — table", text, StringComparison.Ordinal);
+        Assert.Contains("PROJECT POSITION", text, StringComparison.Ordinal);
+        Assert.Contains("CAPABILITY OVERVIEW", text, StringComparison.Ordinal);
 
         var nativeTables = slides
             .SelectMany(slide => slide.Slide.Descendants<A.Table>())
             .Count();
-        Assert.True(nativeTables >= 1, "The executive project table must remain a native editable PowerPoint table.");
+        Assert.True(nativeTables >= 2, "The stage and executive project tables must remain native editable PowerPoint tables.");
     }
 
     private static ProjectBriefingPresentationData BuildData()
@@ -111,8 +114,8 @@ public sealed class ProjectBriefingSlideComposerTests
                 MissingPhotoCount = 2,
                 StageSummary = new[]
                 {
-                    new ProjectBriefingSummaryPoint("Acceptance of Necessity", 1, 30),
-                    new ProjectBriefingSummaryPoint("Completed", 1, 10_000)
+                    new ProjectBriefingSummaryPoint("Completed", 1, 10_000),
+                    new ProjectBriefingSummaryPoint("Acceptance of Necessity", 1, 30)
                 }
             }
         };
