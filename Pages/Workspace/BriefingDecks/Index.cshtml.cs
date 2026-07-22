@@ -159,6 +159,8 @@ public sealed class IndexModel : PageModel
                     Description = input.Description,
                     PresentationMode = input.PresentationMode,
                     CostMode = input.CostMode,
+                    PresentationTheme = input.PresentationTheme,
+                    BrandingScope = input.BrandingScope,
                     IncludeStageSummary = input.IncludeStageSummary,
                     IncludeProjectCategorySummary = input.IncludeProjectCategorySummary,
                     IncludeTechnicalCategorySummary = input.IncludeTechnicalCategorySummary,
@@ -528,6 +530,12 @@ public sealed class IndexModel : PageModel
 
         [Required]
         public ProjectBriefingCostMode CostMode { get; set; }
+
+        [Required]
+        public ProjectBriefingPresentationTheme PresentationTheme { get; set; }
+
+        [Required]
+        public ProjectBriefingBrandingScope BrandingScope { get; set; }
 
         public bool IncludeStageSummary { get; set; }
         public bool IncludeProjectCategorySummary { get; set; }

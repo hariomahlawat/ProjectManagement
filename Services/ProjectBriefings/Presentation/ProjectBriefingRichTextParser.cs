@@ -38,6 +38,10 @@ public static class ProjectBriefingRichTextParser
         @"^\s*(?<marker>\(?[A-Za-z]\))\s+(?<text>.+)$",
         RegexOptions.Compiled);
 
+    private static readonly Regex StandaloneListMarkerRegex = new(
+        @"^\s*(?<marker>(?:\d{1,3}[.)]|\(?[A-Za-z]\)|[•●▪‣◦\-*]))\s*$",
+        RegexOptions.Compiled);
+
     private static readonly Regex MarkdownEmphasisRegex = new(
         @"(\*\*|__|\*|_)(?<text>[^*_]+)\1",
         RegexOptions.Compiled);
@@ -82,12 +86,42 @@ public static class ProjectBriefingRichTextParser
         var blocks = new List<ProjectBriefingCapabilityBlock>();
         var implicitListContext = false;
 
-        foreach (var rawLine in normalized.Split('\n'))
+        var lines = normalized.Split('\n');
+        for (var index = 0; index < lines.Length; index++)
         {
-            var line = rawLine.Trim();
+            var line = lines[index].Trim();
             if (line.Length == 0)
             {
                 implicitListContext = false;
+                continue;
+            }
+
+            // Source records sometimes place the list marker in one paragraph and its
+            // text in the next. Merge that pair before heading detection so a title-cased
+            // item cannot become a false slide heading.
+            if (TryStandaloneListMarker(line, out var standaloneType, out var standaloneMarker)
+                && index + 1 < lines.Length
+                && !string.IsNullOrWhiteSpace(lines[index + 1])
+                && !StandaloneListMarkerRegex.IsMatch(lines[index + 1].Trim()))
+            {
+                blocks.Add(new ProjectBriefingCapabilityBlock(
+                    standaloneType,
+                    CleanInline(lines[++index]),
+                    standaloneMarker));
+                implicitListContext = true;
+                continue;
+            }
+
+            // List recognition deliberately precedes heading recognition. Numeric and
+            // alphabetic list markers are common in source project records and must never
+            // be promoted to slide headings merely because the following text is title case.
+            if (TryListItem(line, out var type, out var marker, out var listText))
+            {
+                blocks.Add(new ProjectBriefingCapabilityBlock(
+                    type,
+                    CleanInline(listText),
+                    marker));
+                implicitListContext = true;
                 continue;
             }
 
@@ -97,16 +131,6 @@ public static class ProjectBriefingRichTextParser
                     ProjectBriefingCapabilityBlockType.Heading,
                     heading));
                 implicitListContext = IsListHeading(heading);
-                continue;
-            }
-
-            if (TryListItem(line, out var type, out var marker, out var listText))
-            {
-                blocks.Add(new ProjectBriefingCapabilityBlock(
-                    type,
-                    CleanInline(listText),
-                    marker));
-                implicitListContext = true;
                 continue;
             }
 
@@ -193,6 +217,14 @@ public static class ProjectBriefingRichTextParser
 
     private static bool TryHeading(string line, out string heading)
     {
+        if (BulletRegex.IsMatch(line)
+            || NumberedRegex.IsMatch(line)
+            || LetteredRegex.IsMatch(line))
+        {
+            heading = string.Empty;
+            return false;
+        }
+
         var markdown = MarkdownHeadingRegex.Match(line);
         if (markdown.Success)
         {
@@ -286,6 +318,36 @@ public static class ProjectBriefingRichTextParser
             || normalized.Contains("as under", StringComparison.OrdinalIgnoreCase)
             || normalized.Contains("listed below", StringComparison.OrdinalIgnoreCase)
             || normalized.Contains("salient features", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryStandaloneListMarker(
+        string line,
+        out ProjectBriefingCapabilityBlockType type,
+        out string marker)
+    {
+        var match = StandaloneListMarkerRegex.Match(line);
+        if (!match.Success)
+        {
+            type = ProjectBriefingCapabilityBlockType.Paragraph;
+            marker = string.Empty;
+            return false;
+        }
+
+        marker = match.Groups["marker"].Value;
+        if (char.IsDigit(marker[0]))
+        {
+            type = ProjectBriefingCapabilityBlockType.NumberedItem;
+        }
+        else if (marker.Any(char.IsLetter))
+        {
+            type = ProjectBriefingCapabilityBlockType.LetteredItem;
+        }
+        else
+        {
+            type = ProjectBriefingCapabilityBlockType.Bullet;
+            marker = "•";
+        }
+        return true;
     }
 
     private static bool TryListItem(

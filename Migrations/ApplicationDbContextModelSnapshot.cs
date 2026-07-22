@@ -4354,6 +4354,11 @@ namespace ProjectManagement.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
+                    b.Property<string>("BrandingScope")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<string>("CostMode")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -4402,6 +4407,11 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("character varying(450)");
 
                     b.Property<string>("PresentationMode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("PresentationTheme")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");

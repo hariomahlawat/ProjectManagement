@@ -195,6 +195,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             Description = NormalizeDescription(description),
             PresentationMode = ProjectBriefingPresentationMode.Combined,
             CostMode = ProjectBriefingCostMode.Both,
+            PresentationTheme = ProjectBriefingPresentationTheme.EditorialLight,
+            BrandingScope = ProjectBriefingBrandingScope.AllSlides,
             IncludeStageSummary = true,
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
@@ -227,6 +229,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             Description = source.Description,
             PresentationMode = source.PresentationMode,
             CostMode = source.CostMode,
+            PresentationTheme = source.PresentationTheme,
+            BrandingScope = source.BrandingScope,
             IncludeStageSummary = source.IncludeStageSummary,
             IncludeProjectCategorySummary = source.IncludeProjectCategorySummary,
             IncludeTechnicalCategorySummary = source.IncludeTechnicalCategorySummary,
@@ -266,7 +270,11 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             ?? throw new KeyNotFoundException("The shared command deck was not found.");
 
         EnsureVersion(deck, command.RowVersion);
-        ValidateEnums(command.PresentationMode, command.CostMode);
+        ValidateEnums(
+            command.PresentationMode,
+            command.CostMode,
+            command.PresentationTheme,
+            command.BrandingScope);
         var normalizedName = NormalizeName(command.Name);
         await EnsureUniqueNameAsync(normalizedName, deckId, cancellationToken);
 
@@ -275,6 +283,8 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
         deck.Description = NormalizeDescription(command.Description);
         deck.PresentationMode = command.PresentationMode;
         deck.CostMode = command.CostMode;
+        deck.PresentationTheme = command.PresentationTheme;
+        deck.BrandingScope = command.BrandingScope;
         deck.IncludeStageSummary = command.IncludeStageSummary;
         deck.IncludeProjectCategorySummary = command.IncludeProjectCategorySummary;
         deck.IncludeTechnicalCategorySummary = command.IncludeTechnicalCategorySummary;
@@ -604,7 +614,9 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
             ["DeckId"] = deck.Id.ToString(),
             ["DeckName"] = deck.Name,
             ["PresentationMode"] = deck.PresentationMode.ToString(),
-            ["CostMode"] = deck.CostMode.ToString()
+            ["CostMode"] = deck.CostMode.ToString(),
+            ["PresentationTheme"] = deck.PresentationTheme.ToString(),
+            ["BrandingScope"] = deck.BrandingScope.ToString()
         };
         if (extra is not null)
         {
@@ -657,11 +669,16 @@ public sealed class ProjectBriefingDeckService : IProjectBriefingDeckService
 
     private static void ValidateEnums(
         ProjectBriefingPresentationMode presentationMode,
-        ProjectBriefingCostMode costMode)
+        ProjectBriefingCostMode costMode,
+        ProjectBriefingPresentationTheme presentationTheme,
+        ProjectBriefingBrandingScope brandingScope)
     {
-        if (!Enum.IsDefined(presentationMode) || !Enum.IsDefined(costMode))
+        if (!Enum.IsDefined(presentationMode)
+            || !Enum.IsDefined(costMode)
+            || !Enum.IsDefined(presentationTheme)
+            || !Enum.IsDefined(brandingScope))
         {
-            throw new InvalidOperationException("The deck format or cost setting is invalid.");
+            throw new InvalidOperationException("The deck format, theme or branding setting is invalid.");
         }
     }
 

@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using ProjectManagement.Data;
@@ -23,9 +25,11 @@ public sealed class PostgresMigrationIntegrationTests
     {
         var connectionString = Environment.GetEnvironmentVariable("PRISM_TEST_POSTGRES_CONNECTION")!;
         var builder = new NpgsqlConnectionStringBuilder(connectionString);
-        Assert.True(
-            builder.Database.StartsWith("prism_test_", StringComparison.OrdinalIgnoreCase),
-            "The PostgreSQL migration test refuses to use a database whose name does not start with 'prism_test_'.");
+        var databaseName = Assert.IsType<string>(builder.Database);
+        Assert.StartsWith(
+            "prism_test_",
+            databaseName,
+            StringComparison.OrdinalIgnoreCase);
 
         await AssertDatabaseIsEmptyAsync(connectionString);
 
@@ -76,8 +80,10 @@ public sealed class PostgresMigrationIntegrationTests
         // the reconciliation migration, is recorded as applied, but legacy startup SQL
         // subsequently recreates the obsolete constraint. The final forward migration must
         // repair that physical drift even though the earlier repair IDs are already present.
-        await applicationDb.Database.MigrateAsync(
-            "20261201150000_ReconcileProjectStageCompletionConstraint");
+        var migrator = applicationDb.GetService<IMigrator>();
+        await migrator.MigrateAsync(
+            "20261201150000_ReconcileProjectStageCompletionConstraint",
+            CancellationToken.None);
         await SeedLegacyProjectStageConstraintDriftAsync(applicationDb);
 
         var results = await DatabaseStartupMigrator.ApplyDeploymentBoundaryAsync(

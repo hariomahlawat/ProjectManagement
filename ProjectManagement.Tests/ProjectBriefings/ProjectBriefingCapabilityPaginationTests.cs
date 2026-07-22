@@ -45,6 +45,68 @@ public sealed class ProjectBriefingCapabilityPaginationTests
 
 
     [Fact]
+    public void Parser_DoesNotPromoteNumberedOrLetteredItemsToHeadings()
+    {
+        const string source = """
+        1. Engine Familiarisation
+        2. Parts Familiarisation With CAT Part Number
+        (a) Portable System
+        (b) Indigenous Design
+        """;
+
+        var blocks = ProjectBriefingRichTextParser.Parse(source);
+
+        Assert.DoesNotContain(blocks, block => block.Type == ProjectBriefingCapabilityBlockType.Heading);
+        Assert.Equal(2, blocks.Count(block => block.Type == ProjectBriefingCapabilityBlockType.NumberedItem));
+        Assert.Equal(2, blocks.Count(block => block.Type == ProjectBriefingCapabilityBlockType.LetteredItem));
+    }
+
+
+    [Fact]
+    public void Parser_MergesStandaloneListMarkersWithFollowingText()
+    {
+        const string source = """
+        1.
+        Engine Familiarisation
+        2.
+        Valve Timing Setting Procedure
+        (a)
+        Portable System
+        •
+        Offline operation
+        """;
+
+        var blocks = ProjectBriefingRichTextParser.Parse(source);
+
+        Assert.Collection(
+            blocks,
+            block =>
+            {
+                Assert.Equal(ProjectBriefingCapabilityBlockType.NumberedItem, block.Type);
+                Assert.Equal("1.", block.Marker);
+                Assert.Equal("Engine Familiarisation", block.Text);
+            },
+            block =>
+            {
+                Assert.Equal(ProjectBriefingCapabilityBlockType.NumberedItem, block.Type);
+                Assert.Equal("2.", block.Marker);
+                Assert.Equal("Valve Timing Setting Procedure", block.Text);
+            },
+            block =>
+            {
+                Assert.Equal(ProjectBriefingCapabilityBlockType.LetteredItem, block.Type);
+                Assert.Equal("(a)", block.Marker);
+                Assert.Equal("Portable System", block.Text);
+            },
+            block =>
+            {
+                Assert.Equal(ProjectBriefingCapabilityBlockType.Bullet, block.Type);
+                Assert.Equal("•", block.Marker);
+                Assert.Equal("Offline operation", block.Text);
+            });
+    }
+
+    [Fact]
     public void TextNormalizer_PreservesFullStructuredSourceForPresentationPagination()
     {
         var longParagraph = string.Join(
@@ -56,7 +118,7 @@ public sealed class ProjectBriefingCapabilityPaginationTests
 
         var normalized = ProjectBriefingTextNormalizer.NormalizeFull(source);
 
-        Assert.True(normalized.StartsWith("# KEY DELIVERABLES", StringComparison.Ordinal));
+        Assert.StartsWith("# KEY DELIVERABLES", normalized, StringComparison.Ordinal);
         Assert.Contains("- Instructor station", normalized, StringComparison.Ordinal);
         Assert.Contains(longParagraph, normalized, StringComparison.Ordinal);
         Assert.DoesNotContain("…", normalized, StringComparison.Ordinal);

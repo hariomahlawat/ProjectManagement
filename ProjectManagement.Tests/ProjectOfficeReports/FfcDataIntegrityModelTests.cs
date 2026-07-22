@@ -43,7 +43,15 @@ public sealed class FfcDataIntegrityModelTests
         Assert.NotNull(projectType);
 
         var constraints = projectType!.GetCheckConstraints()
-            .ToDictionary(constraint => constraint.Name, constraint => constraint.Sql);
+            .Select(constraint => new
+            {
+                Name = Assert.IsType<string>(constraint.Name),
+                Sql = Assert.IsType<string>(constraint.Sql)
+            })
+            .ToDictionary(
+                constraint => constraint.Name,
+                constraint => constraint.Sql,
+                StringComparer.Ordinal);
 
         Assert.Equal(
             "\"IsInstalled\" = FALSE OR \"IsDelivered\" = TRUE",

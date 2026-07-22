@@ -539,7 +539,7 @@ public class ActivityServiceTests : IDisposable
     [Fact]
     public async Task ActivityTypeService_RestrictsNonPrivilegedUsers()
     {
-        var typeService = new ActivityTypeService(_activityTypeRepository, _typeValidator, _userContext, _clock);
+        var typeService = new ActivityTypeService(_activityTypeRepository, _typeValidator, _userContext, _clock, new NoOpAdminAuditService());
         await Assert.ThrowsAsync<ActivityAuthorizationException>(() => typeService.CreateAsync(new ActivityTypeInput("Operations", null, true)));
     }
 
@@ -547,7 +547,7 @@ public class ActivityServiceTests : IDisposable
     public async Task ActivityTypeService_AllowsAdmin()
     {
         var adminContext = new TestUserContext("admin", isAdmin: true);
-        var typeService = new ActivityTypeService(_activityTypeRepository, _typeValidator, adminContext, _clock);
+        var typeService = new ActivityTypeService(_activityTypeRepository, _typeValidator, adminContext, _clock, new NoOpAdminAuditService());
 
         var type = await typeService.CreateAsync(new ActivityTypeInput("Logistics", null, true));
         Assert.Equal("Logistics", type.Name);
@@ -816,4 +816,16 @@ internal sealed class StubPrismMediaIngestionCoordinator : IPrismMediaIngestionC
         string reason,
         CancellationToken cancellationToken)
         => Task.FromResult(new PrismMediaIngestionResult(true, "Synchronized"));
+}
+
+internal sealed class NoOpAdminAuditService : IAdminAuditService
+{
+    public Task RecordAsync(
+        AdminAuditEntry entry,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }
 }

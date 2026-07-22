@@ -856,7 +856,7 @@
 
 .pbd-project-table th {
     position: sticky;
-    top: var(--topbar-height, 56px);
+    top: calc(var(--topbar-height, 56px) + var(--pbd-selected-toolbar-height, 3.75rem));
     z-index: 2;
     padding: .55rem .5rem;
     border-bottom: 1px solid #cbd5e1;
@@ -1283,7 +1283,7 @@
         grid-template-columns: minmax(15rem, 1fr) repeat(2, minmax(10rem, .5fr));
     }
 
-    .pbd-visible-count {
+    .pbd-selected-filter-result {
         grid-column: 1 / -1;
         justify-self: start;
     }
@@ -1304,4 +1304,224 @@
         margin-left: 0;
         text-align: left;
     }
+}
+
+/* Presentation design controls */
+.pbd-presentation-design {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(16rem, .65fr);
+    gap: .8rem;
+}
+
+.pbd-theme-cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .55rem;
+}
+
+.pbd-theme-card {
+    position: relative;
+    margin: 0;
+}
+
+.pbd-theme-card > input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.pbd-theme-card__body {
+    display: grid;
+    grid-template-columns: 7.35rem minmax(0, 1fr);
+    align-items: center;
+    gap: .65rem;
+    min-height: 5.5rem;
+    padding: .58rem;
+    border: 1px solid var(--pbd-border);
+    border-radius: .62rem;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color .14s ease, background-color .14s ease, box-shadow .14s ease;
+}
+
+.pbd-theme-card strong,
+.pbd-theme-card small {
+    display: block;
+}
+
+.pbd-theme-card strong {
+    color: var(--pbd-ink);
+    font-size: .78rem;
+}
+
+.pbd-theme-card small {
+    margin-top: .17rem;
+    color: var(--pbd-muted);
+    font-size: .66rem;
+    line-height: 1.35;
+}
+
+.pbd-theme-card > input:checked + .pbd-theme-card__body {
+    border-color: #7ea6dc;
+    background: var(--pbd-blue-soft);
+    box-shadow: inset 0 0 0 1px #bfd4f2;
+}
+
+.pbd-theme-card > input:focus-visible + .pbd-theme-card__body {
+    outline: 3px solid rgba(40, 95, 184, .25);
+    outline-offset: 2px;
+}
+
+.pbd-theme-preview {
+    position: relative;
+    display: block;
+    width: 7.35rem;
+    height: 4.12rem;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, .14);
+    border-radius: .35rem;
+    box-shadow: 0 4px 10px rgba(16, 24, 40, .12);
+}
+
+.pbd-theme-preview::before,
+.pbd-theme-preview::after {
+    position: absolute;
+    top: .3rem;
+    width: .35rem;
+    height: .35rem;
+    border-radius: 50%;
+    content: "";
+}
+
+.pbd-theme-preview::before { left: .32rem; }
+.pbd-theme-preview::after { right: .32rem; }
+
+.pbd-theme-preview__header {
+    position: absolute;
+    top: .2rem;
+    left: .95rem;
+    right: .95rem;
+    height: .08rem;
+    border-radius: 99px;
+}
+
+.pbd-theme-preview__title {
+    position: absolute;
+    top: .54rem;
+    left: .72rem;
+    width: 3.55rem;
+    height: .25rem;
+    border-radius: .08rem;
+}
+
+.pbd-theme-preview__content {
+    position: absolute;
+    top: 1.15rem;
+    right: .55rem;
+    bottom: .5rem;
+    left: .55rem;
+    display: grid;
+    grid-template-columns: .72fr 1.28fr;
+    grid-template-rows: repeat(2, 1fr);
+    gap: .28rem;
+}
+
+.pbd-theme-preview__content i {
+    display: block;
+    border-radius: .18rem;
+}
+
+.pbd-theme-preview__content i:first-child { grid-row: 1 / 3; }
+
+.pbd-theme-preview--light { background: #f7f7f5; }
+.pbd-theme-preview--light::before,
+.pbd-theme-preview--light::after { background: #d9dde2; }
+.pbd-theme-preview--light .pbd-theme-preview__header { background: #315fa8; }
+.pbd-theme-preview--light .pbd-theme-preview__title { background: #262a31; }
+.pbd-theme-preview--light .pbd-theme-preview__content i { background: #fff; border: 1px solid #d7dade; }
+.pbd-theme-preview--light .pbd-theme-preview__content i:nth-child(2) { background: #e8eef7; }
+
+.pbd-theme-preview--dark { background: #15181e; border-color: #343b46; }
+.pbd-theme-preview--dark::before,
+.pbd-theme-preview--dark::after { background: #eef1f5; }
+.pbd-theme-preview--dark .pbd-theme-preview__header { background: #5b7cfa; }
+.pbd-theme-preview--dark .pbd-theme-preview__title { background: #f3f4f6; }
+.pbd-theme-preview--dark .pbd-theme-preview__content i { background: #242a34; border: 1px solid #353c47; }
+.pbd-theme-preview--dark .pbd-theme-preview__content i:nth-child(2) { background: #263659; }
+
+.pbd-branding-options {
+    display: grid;
+    gap: .38rem;
+}
+
+.pbd-branding-options label {
+    position: relative;
+    margin: 0;
+}
+
+.pbd-branding-options input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.pbd-branding-options label > span {
+    display: grid;
+    gap: .08rem;
+    min-height: 3.25rem;
+    padding: .52rem .62rem;
+    border: 1px solid var(--pbd-border);
+    border-radius: .55rem;
+    background: #fff;
+    cursor: pointer;
+}
+
+.pbd-branding-options strong { color: var(--pbd-ink); font-size: .74rem; }
+.pbd-branding-options small { color: var(--pbd-muted); font-size: .64rem; }
+.pbd-branding-options input:checked + span {
+    border-color: #87aee4;
+    background: var(--pbd-blue-soft);
+    box-shadow: inset 0 0 0 1px #bfd4f2;
+}
+.pbd-branding-options input:focus-visible + span {
+    outline: 3px solid rgba(40, 95, 184, .25);
+    outline-offset: 2px;
+}
+
+.pbd-selected-filter-result {
+    display: inline-flex;
+    align-items: center;
+    justify-self: end;
+    gap: .35rem;
+    white-space: nowrap;
+}
+
+.pbd-clear-filters {
+    min-height: 0;
+    padding: .15rem .25rem;
+    font-size: .67rem;
+    text-decoration: none;
+}
+
+.pbd-project-table tbody tr {
+    scroll-margin-top: calc(var(--topbar-height, 56px) + 8.4rem);
+}
+
+.pbd-project-table tbody tr.is-filter-match > td {
+    animation: pbd-filter-match 1.35s ease-out;
+}
+
+@keyframes pbd-filter-match {
+    0%, 32% { background: #e7f0ff; }
+    100% { background: transparent; }
+}
+
+@media (max-width: 1080px) {
+    .pbd-presentation-design { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+    .pbd-theme-cards { grid-template-columns: 1fr; }
+    .pbd-theme-card__body { grid-template-columns: 6.7rem minmax(0, 1fr); }
+    .pbd-theme-preview { width: 6.7rem; }
 }

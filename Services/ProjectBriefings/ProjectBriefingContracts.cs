@@ -54,6 +54,10 @@ public sealed class ProjectBriefingDeckVm
     public string? Description { get; init; }
     public ProjectBriefingPresentationMode PresentationMode { get; init; }
     public ProjectBriefingCostMode CostMode { get; init; }
+    public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
+        = ProjectBriefingPresentationTheme.EditorialLight;
+    public ProjectBriefingBrandingScope BrandingScope { get; init; }
+        = ProjectBriefingBrandingScope.AllSlides;
     public bool IncludeStageSummary { get; init; }
     public bool IncludeProjectCategorySummary { get; init; }
     public bool IncludeTechnicalCategorySummary { get; init; }
@@ -177,6 +181,8 @@ public sealed class ProjectBriefingDeckSettingsCommand
     public string? Description { get; init; }
     public ProjectBriefingPresentationMode PresentationMode { get; init; }
     public ProjectBriefingCostMode CostMode { get; init; }
+    public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
+    public ProjectBriefingBrandingScope BrandingScope { get; init; }
     public bool IncludeStageSummary { get; init; }
     public bool IncludeProjectCategorySummary { get; init; }
     public bool IncludeTechnicalCategorySummary { get; init; }
@@ -197,6 +203,10 @@ public sealed class ProjectBriefingPresentationData
     public string? DeckDescription { get; init; }
     public ProjectBriefingPresentationMode PresentationMode { get; init; }
     public ProjectBriefingCostMode CostMode { get; init; }
+    public ProjectBriefingPresentationTheme PresentationTheme { get; init; }
+        = ProjectBriefingPresentationTheme.EditorialLight;
+    public ProjectBriefingBrandingScope BrandingScope { get; init; }
+        = ProjectBriefingBrandingScope.AllSlides;
     public bool IncludeStageSummary { get; init; }
     public bool IncludeProjectCategorySummary { get; init; }
     public bool IncludeTechnicalCategorySummary { get; init; }

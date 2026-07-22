@@ -14,8 +14,8 @@ test('briefing deck JSON mutations use the configured antiforgery header and sam
 });
 
 test('briefing deck project search safely renders server values with textContent', () => {
-  assert.match(source, /name\.textContent = escapeText\(project\.projectName\)/);
-  assert.match(source, /meta\.textContent = parts\.join/);
+  assert.match(source, /name\.textContent = project\.projectName/);
+  assert.match(source, /meta\.textContent = \[project\.lifecycle/);
   assert.doesNotMatch(source, /project\.projectName.*innerHTML/);
 });
 
@@ -56,4 +56,16 @@ test('PowerPoint generation prevents duplicate submission and restores the butto
 test('briefing deck client updates optimistic concurrency after inline mutations', () => {
   assert.match(source, /updateRowVersion\(payload\?\.rowVersion\)/);
   assert.match(source, /input\[name="RowVersion"\]/);
+});
+
+test('selected-project filtering reveals the first matching row without changing slide order', () => {
+  assert.match(source, /revealFirstFilterMatch/);
+  assert.match(source, /applySelectedFilters\(\{ revealFirstMatch: true \}\)/);
+  assert.match(source, /sortable\.option\('disabled', filtered\)/);
+  assert.match(source, /matching \$\{noun\}/);
+});
+
+test('inline membership changes preserve the current page position', () => {
+  assert.match(source, /applyEditorState\(payload\?\.deck, \{ preserveScroll: true \}\)/);
+  assert.match(source, /window\.scrollTo\(\{ top: scrollTop, behavior: 'auto' \}\)/);
 });

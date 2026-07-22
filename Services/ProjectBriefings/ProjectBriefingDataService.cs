@@ -65,6 +65,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             Description = snapshot.Description,
             PresentationMode = snapshot.PresentationMode,
             CostMode = snapshot.CostMode,
+            PresentationTheme = snapshot.PresentationTheme,
+            BrandingScope = snapshot.BrandingScope,
             IncludeStageSummary = snapshot.IncludeStageSummary,
             IncludeProjectCategorySummary = snapshot.IncludeProjectCategorySummary,
             IncludeTechnicalCategorySummary = snapshot.IncludeTechnicalCategorySummary,
@@ -128,6 +130,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             DeckDescription = snapshot.Description,
             PresentationMode = snapshot.PresentationMode,
             CostMode = snapshot.CostMode,
+            PresentationTheme = snapshot.PresentationTheme,
+            BrandingScope = snapshot.BrandingScope,
             IncludeStageSummary = snapshot.IncludeStageSummary,
             IncludeProjectCategorySummary = snapshot.IncludeProjectCategorySummary,
             IncludeTechnicalCategorySummary = snapshot.IncludeTechnicalCategorySummary,
@@ -158,6 +162,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 candidate.Description,
                 candidate.PresentationMode,
                 candidate.CostMode,
+                candidate.PresentationTheme,
+                candidate.BrandingScope,
                 candidate.IncludeStageSummary,
                 candidate.IncludeProjectCategorySummary,
                 candidate.IncludeTechnicalCategorySummary,
@@ -182,10 +188,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
 
         var itemRows = await _db.Set<ProjectBriefingDeckItem>()
             .AsNoTracking()
-            .Where(item => item.DeckId == deckId
-                && !item.Project.IsDeleted
-                && !item.Project.IsArchived
-                && item.Project.LifecycleStatus != ProjectLifecycleStatus.Cancelled)
+            .Where(item => item.DeckId == deckId)
             .OrderBy(item => item.SortOrder)
             .ThenBy(item => item.Id)
             .Select(item => new DeckItemBaseSnapshot(
@@ -196,6 +199,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 item.Project.Name,
                 item.Project.Description,
                 item.Project.LifecycleStatus,
+                item.Project.IsDeleted,
+                item.Project.IsArchived,
                 item.Project.WorkflowVersion,
                 item.Project.Category != null ? item.Project.Category.Name : null,
                 item.Project.TechnicalCategory != null ? item.Project.TechnicalCategory.Name : null,
@@ -210,6 +215,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 deck.Description,
                 deck.PresentationMode,
                 deck.CostMode,
+                deck.PresentationTheme,
+                deck.BrandingScope,
                 deck.IncludeStageSummary,
                 deck.IncludeProjectCategorySummary,
                 deck.IncludeTechnicalCategorySummary,
@@ -271,6 +278,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 item.ProjectName,
                 item.ProjectDescription,
                 item.LifecycleStatus,
+                item.IsDeleted,
+                item.IsArchived,
                 item.WorkflowVersion,
                 item.ProjectCategory,
                 item.TechnicalCategory,
@@ -285,6 +294,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             deck.Description,
             deck.PresentationMode,
             deck.CostMode,
+            deck.PresentationTheme,
+            deck.BrandingScope,
             deck.IncludeStageSummary,
             deck.IncludeProjectCategorySummary,
             deck.IncludeTechnicalCategorySummary,
@@ -332,7 +343,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     ProjectId = item.ProjectId,
                     ProjectName = item.ProjectName,
                     LifecycleStatus = item.LifecycleStatus,
-                    LifecycleDisplay = item.LifecycleStatus == ProjectLifecycleStatus.Completed ? "Completed" : "Ongoing",
+                    LifecycleDisplay = ResolveLifecycleDisplay(item),
                     PresentStage = ResolveStageName(item),
                     ProjectCategory = item.ProjectCategory,
                     TechnicalCategory = item.TechnicalCategory,
@@ -355,6 +366,18 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             .ToList();
     }
 
+    private static string ResolveLifecycleDisplay(DeckItemSnapshot item)
+    {
+        if (item.IsDeleted) return "Deleted record";
+        if (item.IsArchived) return "Archived";
+        return item.LifecycleStatus switch
+        {
+            ProjectLifecycleStatus.Completed => "Completed",
+            ProjectLifecycleStatus.Cancelled => "Cancelled",
+            _ => "Ongoing"
+        };
+    }
+
     private static ProjectBriefingReadinessVm BuildReadiness(IReadOnlyList<ProjectBriefingProjectVm> projects)
         => new()
         {
@@ -366,12 +389,13 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             ProliferationCostAvailableCount = projects.Count(project => project.ProliferationCost.IsAvailable),
             CoverPhotoAvailableCount = projects.Count(project => project.HasCoverPhoto),
             SelectedCoverPhotoCount = projects.Count(project => project.HasSelectedCoverPhoto),
-            DescriptionAvailableCount = projects.Count(project =>
-                !string.Equals(
-                    project.BriefDescription,
-                    "Brief description not recorded.",
-                    StringComparison.Ordinal))
+            DescriptionAvailableCount = projects.Count(project => HasCapabilityOverview(project.BriefDescription))
         };
+
+    private static bool HasCapabilityOverview(string? value)
+        => !string.IsNullOrWhiteSpace(value)
+            && !string.Equals(value.Trim(), "Brief description not recorded.", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(value.Trim(), "Capability overview not recorded.", StringComparison.OrdinalIgnoreCase);
 
     private static ProjectBriefingPresentationSummary BuildPresentationSummary(
         IReadOnlyList<ProjectBriefingPresentationProject> projects)
@@ -544,6 +568,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         string? Description,
         ProjectBriefingPresentationMode PresentationMode,
         ProjectBriefingCostMode CostMode,
+        ProjectBriefingPresentationTheme PresentationTheme,
+        ProjectBriefingBrandingScope BrandingScope,
         bool IncludeStageSummary,
         bool IncludeProjectCategorySummary,
         bool IncludeTechnicalCategorySummary,
@@ -561,6 +587,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         string ProjectName,
         string? ProjectDescription,
         ProjectLifecycleStatus LifecycleStatus,
+        bool IsDeleted,
+        bool IsArchived,
         string WorkflowVersion,
         string? ProjectCategory,
         string? TechnicalCategory,
@@ -572,6 +600,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         string? Description,
         ProjectBriefingPresentationMode PresentationMode,
         ProjectBriefingCostMode CostMode,
+        ProjectBriefingPresentationTheme PresentationTheme,
+        ProjectBriefingBrandingScope BrandingScope,
         bool IncludeStageSummary,
         bool IncludeProjectCategorySummary,
         bool IncludeTechnicalCategorySummary,
@@ -590,6 +620,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
         string ProjectName,
         string? ProjectDescription,
         ProjectLifecycleStatus LifecycleStatus,
+        bool IsDeleted,
+        bool IsArchived,
         string WorkflowVersion,
         string? ProjectCategory,
         string? TechnicalCategory,

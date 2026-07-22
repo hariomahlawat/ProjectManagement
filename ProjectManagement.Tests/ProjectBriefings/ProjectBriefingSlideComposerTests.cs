@@ -55,6 +55,31 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.True(nativeTables >= 2, "The stage and executive project tables must remain native editable PowerPoint tables.");
     }
 
+
+    [Fact]
+    public void Compose_AppliesGraphiteThemeAndEmbedsBothHeaderInsigniaOnEverySlide()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+
+        var (content, slideCount) = composer.Compose(BuildData(
+            ProjectBriefingPresentationTheme.GraphiteDark,
+            ProjectBriefingBrandingScope.AllSlides));
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+
+        Assert.Equal(slideCount, slides.Length);
+        Assert.All(slides, slide => Assert.True(
+            slide.ImageParts.Count() >= 2,
+            "All-slide branding must embed both header insignia on every slide."));
+        Assert.All(slides.Skip(1), slide => Assert.Contains(
+            "15181E",
+            slide.Slide.OuterXml,
+            StringComparison.OrdinalIgnoreCase));
+    }
+
     [Fact]
     public void Compose_PaginatesFortyNineShortRowsIntoSevenBalancedProjectTables()
     {
@@ -180,7 +205,9 @@ public sealed class ProjectBriefingSlideComposerTests
         Assert.DoesNotContain("operational function,…", text, StringComparison.Ordinal);
     }
 
-    private static ProjectBriefingPresentationData BuildData()
+    private static ProjectBriefingPresentationData BuildData(
+        ProjectBriefingPresentationTheme presentationTheme = ProjectBriefingPresentationTheme.EditorialLight,
+        ProjectBriefingBrandingScope brandingScope = ProjectBriefingBrandingScope.AllSlides)
     {
         var projects = new[]
         {
@@ -229,6 +256,8 @@ public sealed class ProjectBriefingSlideComposerTests
             DeckDescription = "Selected development and completed projects",
             PresentationMode = ProjectBriefingPresentationMode.Combined,
             CostMode = ProjectBriefingCostMode.Both,
+            PresentationTheme = presentationTheme,
+            BrandingScope = brandingScope,
             IncludeStageSummary = true,
             GeneratedAtUtc = new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero),
             Projects = projects,

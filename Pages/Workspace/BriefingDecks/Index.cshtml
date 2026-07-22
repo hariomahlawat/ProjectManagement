@@ -24,6 +24,12 @@
         ProjectBriefingCostMode.None => "No cost",
         _ => "Cost setting"
     };
+    var themeLabel = deck?.PresentationTheme switch
+    {
+        ProjectBriefingPresentationTheme.EditorialLight => "Editorial Light",
+        ProjectBriefingPresentationTheme.GraphiteDark => "Graphite Dark",
+        _ => "Presentation theme"
+    };
     var includesDetailedSlides = deck?.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects or ProjectBriefingPresentationMode.Combined;
     var includesCostRd = deck?.CostMode is ProjectBriefingCostMode.CostRdOnly or ProjectBriefingCostMode.Both;
     var includesProliferationCost = deck?.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both;
@@ -233,7 +239,7 @@
                         <details class="pbd-settings" data-pbd-open-settings="@(deck.Projects.Count == 0 ? "true" : "false")">
                             <summary>
                                 <span><i class="bi bi-sliders" aria-hidden="true"></i> Deck settings</span>
-                                <small>@presentationModeLabel · @costModeLabel</small>
+                                <small>@presentationModeLabel · @themeLabel · @costModeLabel</small>
                             </summary>
                             <form method="post" asp-page-handler="SaveSettings" class="pbd-settings__form">
                                 <input type="hidden" name="DeckId" value="@deck.Id" />
@@ -267,6 +273,60 @@
                                         </label>
                                     </div>
                                 </fieldset>
+
+                                <div class="pbd-presentation-design">
+                                    <fieldset class="pbd-choice-group">
+                                        <legend>Presentation theme</legend>
+                                        <div class="pbd-theme-cards">
+                                            <label class="pbd-theme-card">
+                                                <input type="radio" name="PresentationTheme" value="EditorialLight" checked="@(deck.PresentationTheme == ProjectBriefingPresentationTheme.EditorialLight)" />
+                                                <span class="pbd-theme-card__body">
+                                                    <span class="pbd-theme-preview pbd-theme-preview--light" aria-hidden="true">
+                                                        <span class="pbd-theme-preview__header"></span>
+                                                        <span class="pbd-theme-preview__title"></span>
+                                                        <span class="pbd-theme-preview__content"><i></i><i></i><i></i></span>
+                                                    </span>
+                                                    <span>
+                                                        <strong>Editorial Light</strong>
+                                                        <small>Clean, restrained and suitable for circulation or print.</small>
+                                                    </span>
+                                                </span>
+                                            </label>
+                                            <label class="pbd-theme-card">
+                                                <input type="radio" name="PresentationTheme" value="GraphiteDark" checked="@(deck.PresentationTheme == ProjectBriefingPresentationTheme.GraphiteDark)" />
+                                                <span class="pbd-theme-card__body">
+                                                    <span class="pbd-theme-preview pbd-theme-preview--dark" aria-hidden="true">
+                                                        <span class="pbd-theme-preview__header"></span>
+                                                        <span class="pbd-theme-preview__title"></span>
+                                                        <span class="pbd-theme-preview__content"><i></i><i></i><i></i></span>
+                                                    </span>
+                                                    <span>
+                                                        <strong>Graphite Dark</strong>
+                                                        <small>Designed for command briefings, large displays and projection.</small>
+                                                    </span>
+                                                </span>
+                                            </label>
+                                        </div>
+                                    </fieldset>
+
+                                    <fieldset class="pbd-choice-group">
+                                        <legend>Header branding</legend>
+                                        <div class="pbd-branding-options">
+                                            <label>
+                                                <input type="radio" name="BrandingScope" value="None" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.None)" />
+                                                <span><strong>None</strong><small>No insignia in slide headers</small></span>
+                                            </label>
+                                            <label>
+                                                <input type="radio" name="BrandingScope" value="CoverAndSummary" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.CoverAndSummary)" />
+                                                <span><strong>Cover and summary</strong><small>Brand portfolio-level slides only</small></span>
+                                            </label>
+                                            <label>
+                                                <input type="radio" name="BrandingScope" value="AllSlides" checked="@(deck.BrandingScope == ProjectBriefingBrandingScope.AllSlides)" />
+                                                <span><strong>All slides</strong><small>Compact insignia on project slides too</small></span>
+                                            </label>
+                                        </div>
+                                    </fieldset>
+                                </div>
 
                                 <fieldset class="pbd-choice-group">
                                     <legend>Cost information</legend>
@@ -449,7 +509,10 @@
                                     <option value="missing-photo">Missing photograph</option>
                                     <option value="missing-description">Missing capability overview</option>
                                 </select>
-                                <span class="pbd-visible-count" data-pbd-visible-count>@deck.Projects.Count shown</span>
+                                <span class="pbd-selected-filter-result">
+                                    <span class="pbd-visible-count" data-pbd-visible-count>@deck.Projects.Count projects shown</span>
+                                    <button type="button" class="btn btn-sm btn-link pbd-clear-filters" data-pbd-clear-selected-filters hidden>Clear filters</button>
+                                </span>
                             </div>
                             <div class="pbd-selected-actions">
                                 <label><input type="checkbox" data-pbd-select-visible /> Select visible</label>
@@ -492,7 +555,9 @@
                                             var costReadinessTitle = project.CostRd.IsAvailable
                                                 ? $"Cost (R&D) available from {project.CostRd.BasisDisplay}"
                                                 : "Cost (R&D) not recorded";
-                                            var hasCapabilityOverview = !string.Equals(project.BriefDescription, "Brief description not recorded.", StringComparison.Ordinal);
+                                            var hasCapabilityOverview = !string.IsNullOrWhiteSpace(project.BriefDescription)
+                                                && !string.Equals(project.BriefDescription.Trim(), "Brief description not recorded.", StringComparison.OrdinalIgnoreCase)
+                                                && !string.Equals(project.BriefDescription.Trim(), "Capability overview not recorded.", StringComparison.OrdinalIgnoreCase);
                                             var searchText = string.Join(" ", new[]
                                             {
                                                 project.ProjectName,

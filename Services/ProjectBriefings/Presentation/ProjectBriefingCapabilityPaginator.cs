@@ -13,9 +13,9 @@ public static class ProjectBriefingCapabilityPaginator
         CharactersPerLine: 118);
 
     public static ProjectBriefingCapabilityPagination Paginate(string? value)
-        => Paginate(ProjectBriefingRichTextParser.Parse(value));
+        => PaginateBlocks(ProjectBriefingRichTextParser.Parse(value));
 
-    public static ProjectBriefingCapabilityPagination Paginate(
+    private static ProjectBriefingCapabilityPagination PaginateBlocks(
         IReadOnlyList<ProjectBriefingCapabilityBlock> sourceBlocks)
     {
         ArgumentNullException.ThrowIfNull(sourceBlocks);

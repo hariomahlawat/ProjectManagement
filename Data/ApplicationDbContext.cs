@@ -499,6 +499,8 @@ namespace ProjectManagement.Data
                 entity.Property(deck => deck.Description).HasMaxLength(600);
                 entity.Property(deck => deck.PresentationMode).HasConversion<string>().HasMaxLength(32).IsRequired();
                 entity.Property(deck => deck.CostMode).HasConversion<string>().HasMaxLength(32).IsRequired();
+                entity.Property(deck => deck.PresentationTheme).HasConversion<string>().HasMaxLength(32).IsRequired();
+                entity.Property(deck => deck.BrandingScope).HasConversion<string>().HasMaxLength(32).IsRequired();
                 entity.Property(deck => deck.HandlingMarking).HasMaxLength(80);
                 entity.Property(deck => deck.SelectionRulesJson).HasColumnType("jsonb");
                 ConfigureRowVersion(entity);

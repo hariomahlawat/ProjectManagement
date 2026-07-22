@@ -34,6 +34,7 @@
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
     <PackageReference Include="SixLabors.ImageSharp.Web" Version="3.2.0" />
     <PackageReference Include="TimeZoneConverter" Version="7.0.0" />
+    <PackageReference Include="xunit.extensibility.core" Version="2.4.2" />
   </ItemGroup>
 
   <ItemGroup>
@@ -71,10 +72,8 @@
     <!-- Embed the same immutable lineages so a complete DLL remains self-describing even
          when an IIS deployment tool omits non-code content files. External files remain the
          primary source and are still validated when present. -->
-    <EmbeddedResource Include="Migrations/immutable-migration-ids.txt"
-                      LogicalName="ProjectManagement.Migrations.immutable-migration-ids.txt" />
-    <EmbeddedResource Include="Features/MediaLibrary/Data/Migrations/immutable-migration-ids.txt"
-                      LogicalName="ProjectManagement.MediaLibrary.Migrations.immutable-migration-ids.txt" />
+    <EmbeddedResource Include="Migrations/immutable-migration-ids.txt" LogicalName="ProjectManagement.Migrations.immutable-migration-ids.txt" />
+    <EmbeddedResource Include="Features/MediaLibrary/Data/Migrations/immutable-migration-ids.txt" LogicalName="ProjectManagement.MediaLibrary.Migrations.immutable-migration-ids.txt" />
   </ItemGroup>
 
   <ItemGroup>

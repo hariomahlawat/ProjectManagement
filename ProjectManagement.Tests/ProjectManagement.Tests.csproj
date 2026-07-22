@@ -172,6 +172,12 @@
     <None Include="..\Resources\ProjectBriefing\ProjectBriefingTemplate.pptx"
           Link="TestData\ProjectBriefing\PresentationRoot\Resources\ProjectBriefing\ProjectBriefingTemplate.pptx"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\wwwroot\img\logos\artrac.png"
+          Link="TestData\ProjectBriefing\PresentationRoot\wwwroot\img\logos\artrac.png"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\wwwroot\img\logos\sdd.png"
+          Link="TestData\ProjectBriefing\PresentationRoot\wwwroot\img\logos\sdd.png"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\Pages\Shared\_PrismConfirmDialog.cshtml"
           Link="TestData\Ffc\Shared\_PrismConfirmDialog.cshtml"
           CopyToOutputDirectory="PreserveNewest" />

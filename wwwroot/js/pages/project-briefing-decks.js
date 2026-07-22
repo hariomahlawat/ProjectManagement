@@ -65,7 +65,7 @@ if (root) {
   // Preserve the user's working context for this deck.
   const restoreScroll = () => {
     const saved = Number(sessionStorage.getItem(`${storagePrefix}scroll`) || 0);
-    if (saved > 0) window.requestAnimationFrame(() => window.scrollTo({ top: saved, behavior: 'instant' }));
+    if (saved > 0) window.requestAnimationFrame(() => window.scrollTo({ top: saved, behavior: 'auto' }));
   };
   window.addEventListener('pagehide', () => sessionStorage.setItem(`${storagePrefix}scroll`, String(window.scrollY)));
   restoreScroll();
@@ -181,10 +181,12 @@ if (root) {
   const selectedTableWrap = root.querySelector('[data-pbd-selected-table-wrap]');
   const emptyProjects = root.querySelector('[data-pbd-empty-projects]');
   const noFilterResults = root.querySelector('[data-pbd-no-filter-results]');
+  const selectedToolbar = root.querySelector('[data-pbd-selected-toolbar]');
   const selectedSearch = root.querySelector('[data-pbd-selected-search]');
   const selectedStage = root.querySelector('[data-pbd-selected-stage]');
   const selectedReadiness = root.querySelector('[data-pbd-selected-readiness]');
   const visibleCount = root.querySelector('[data-pbd-visible-count]');
+  const clearSelectedFilters = root.querySelector('[data-pbd-clear-selected-filters]');
   const selectVisible = root.querySelector('[data-pbd-select-visible]');
   const bulkTop = root.querySelector('[data-pbd-bulk-top]');
   const bulkBottom = root.querySelector('[data-pbd-bulk-bottom]');
@@ -192,6 +194,16 @@ if (root) {
   const filterReorderNote = root.querySelector('[data-pbd-filter-reorder-note]');
   const sortStatus = root.querySelector('[data-pbd-sort-status]');
   let sortable = null;
+
+  const updateSelectedToolbarHeight = () => {
+    if (!selectedToolbar) return;
+    root.style.setProperty('--pbd-selected-toolbar-height', `${Math.ceil(selectedToolbar.getBoundingClientRect().height)}px`);
+  };
+  updateSelectedToolbarHeight();
+  if (selectedToolbar && 'ResizeObserver' in window) {
+    const selectedToolbarObserver = new ResizeObserver(updateSelectedToolbarHeight);
+    selectedToolbarObserver.observe(selectedToolbar);
+  }
 
   if (selectedSearch) selectedSearch.value = sessionStorage.getItem(`${storagePrefix}selectedSearch`) || '';
   if (selectedStage) selectedStage.value = sessionStorage.getItem(`${storagePrefix}selectedStage`) || '';
@@ -207,26 +219,64 @@ if (root) {
     [bulkTop, bulkBottom, bulkRemove].forEach((button) => { if (button) button.disabled = count === 0; });
   };
 
-  const applySelectedFilters = () => {
-    const term = normalize(selectedSearch?.value);
-    const stage = selectedStage?.value || '';
-    const readiness = selectedReadiness?.value || '';
-    let shown = 0;
-    currentRows().forEach((row) => {
+  const selectedFilterState = () => ({
+    term: normalize(selectedSearch?.value),
+    stage: selectedStage?.value || '',
+    readiness: selectedReadiness?.value || ''
+  });
+
+  const persistSelectedFilters = () => {
+    if (selectedSearch) sessionStorage.setItem(`${storagePrefix}selectedSearch`, selectedSearch.value);
+    if (selectedStage) sessionStorage.setItem(`${storagePrefix}selectedStage`, selectedStage.value);
+    if (selectedReadiness) sessionStorage.setItem(`${storagePrefix}selectedReadiness`, selectedReadiness.value);
+  };
+
+  let filterHighlightTimer = 0;
+  const revealFirstFilterMatch = (row) => {
+    if (!row || row.hidden) return;
+    const rect = row.getBoundingClientRect();
+    const topbarHeight = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--topbar-height')) || 56;
+    const toolbarHeight = selectedToolbar?.getBoundingClientRect().height || 58;
+    const clearance = topbarHeight + toolbarHeight + 54;
+    const outsideViewport = rect.top < clearance || rect.bottom > window.innerHeight - 18;
+    if (outsideViewport) {
+      const targetTop = Math.max(0, window.scrollY + rect.top - clearance - 12);
+      window.scrollTo({ top: targetTop, behavior: 'smooth' });
+    }
+    window.clearTimeout(filterHighlightTimer);
+    row.classList.remove('is-filter-match');
+    window.requestAnimationFrame(() => {
+      row.classList.add('is-filter-match');
+      filterHighlightTimer = window.setTimeout(() => row.classList.remove('is-filter-match'), 1450);
+    });
+  };
+
+  const applySelectedFilters = ({ revealFirstMatch = false } = {}) => {
+    const { term, stage, readiness } = selectedFilterState();
+    const rows = currentRows();
+    const visibleRows = [];
+    const readinessKey = readiness.replace(/-([a-z])/g, (_, character) => character.toUpperCase());
+
+    rows.forEach((row) => {
       const matchesText = !term || normalize(row.dataset.searchText).includes(term);
       const matchesStage = !stage || row.dataset.stage === stage;
-      const matchesReadiness = !readiness || row.dataset[readiness.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] === 'true';
+      const matchesReadiness = !readiness || row.dataset[readinessKey] === 'true';
       const visible = matchesText && matchesStage && matchesReadiness;
       row.hidden = !visible;
-      if (visible) shown += 1;
+      if (visible) visibleRows.push(row);
     });
 
     const filtered = Boolean(term || stage || readiness);
-    if (visibleCount) visibleCount.textContent = `${shown} shown`;
-    if (noFilterResults) noFilterResults.hidden = shown > 0 || currentRows().length === 0;
+    const shown = visibleRows.length;
+    if (visibleCount) {
+      const noun = shown === 1 ? 'project' : 'projects';
+      visibleCount.textContent = filtered ? `${shown} matching ${noun}` : `${shown} ${noun} shown`;
+    }
+    if (clearSelectedFilters) clearSelectedFilters.hidden = !filtered;
+    if (noFilterResults) noFilterResults.hidden = shown > 0 || rows.length === 0;
     if (filterReorderNote) filterReorderNote.hidden = !filtered;
     if (sortable) sortable.option('disabled', filtered);
-    currentRows().forEach((row) => {
+    rows.forEach((row) => {
       const handle = row.querySelector('.pbd-drag');
       if (handle) handle.disabled = filtered;
     });
@@ -235,14 +285,31 @@ if (root) {
       selectVisible.indeterminate = false;
     }
     refreshBulkActions();
+
+    if (filtered && revealFirstMatch && visibleRows.length > 0) {
+      window.requestAnimationFrame(() => revealFirstFilterMatch(visibleRows[0]));
+    }
   };
 
-  [selectedSearch, selectedStage, selectedReadiness].forEach((control) => control?.addEventListener('input', () => {
-    if (selectedSearch) sessionStorage.setItem(`${storagePrefix}selectedSearch`, selectedSearch.value);
-    if (selectedStage) sessionStorage.setItem(`${storagePrefix}selectedStage`, selectedStage.value);
-    if (selectedReadiness) sessionStorage.setItem(`${storagePrefix}selectedReadiness`, selectedReadiness.value);
-    applySelectedFilters();
+  let selectedSearchTimer = 0;
+  selectedSearch?.addEventListener('input', () => {
+    persistSelectedFilters();
+    window.clearTimeout(selectedSearchTimer);
+    selectedSearchTimer = window.setTimeout(() => applySelectedFilters({ revealFirstMatch: true }), 220);
+  });
+  [selectedStage, selectedReadiness].forEach((control) => control?.addEventListener('change', () => {
+    persistSelectedFilters();
+    applySelectedFilters({ revealFirstMatch: true });
   }));
+
+  clearSelectedFilters?.addEventListener('click', () => {
+    if (selectedSearch) selectedSearch.value = '';
+    if (selectedStage) selectedStage.value = '';
+    if (selectedReadiness) selectedReadiness.value = '';
+    persistSelectedFilters();
+    applySelectedFilters();
+    selectedSearch?.focus();
+  });
 
   selectVisible?.addEventListener('change', () => {
     currentRows().filter((row) => !row.hidden).forEach((row) => {
@@ -293,7 +360,10 @@ if (root) {
   };
 
   const buildProjectRow = (project) => {
-    const hasDescription = project.briefDescription && project.briefDescription !== 'Brief description not recorded.';
+    const normalizedDescription = normalize(project.briefDescription);
+    const hasDescription = Boolean(normalizedDescription)
+      && normalizedDescription !== 'brief description not recorded.'
+      && normalizedDescription !== 'capability overview not recorded.';
     const row = document.createElement('tr');
     row.dataset.projectId = String(project.projectId);
     row.dataset.searchText = [project.projectName, project.lifecycleDisplay, project.presentStage, project.projectCategory, project.technicalCategory, project.externalStatus].filter(Boolean).join(' ');
@@ -438,11 +508,15 @@ if (root) {
     refreshBulkActions();
   };
 
-  const applyEditorState = (deck) => {
+  const applyEditorState = (deck, { preserveScroll = false } = {}) => {
     if (!deck) return;
+    const scrollTop = preserveScroll ? window.scrollY : null;
     updateRowVersion(deck.rowVersion);
     updateReadinessSummary(deck);
     renderSelectedProjects(deck.projects || []);
+    if (scrollTop !== null) {
+      window.requestAnimationFrame(() => window.scrollTo({ top: scrollTop, behavior: 'auto' }));
+    }
   };
 
   const updateMembership = async (addProjectIds = [], removeProjectIds = [], statusElement = sortStatus) => {
@@ -453,7 +527,7 @@ if (root) {
         method: 'POST',
         body: JSON.stringify({ deckId, addProjectIds, removeProjectIds, rowVersion: currentRowVersion() })
       });
-      applyEditorState(payload?.deck);
+      applyEditorState(payload?.deck, { preserveScroll: true });
       if (searchRows.length > 0) {
         const added = new Set(addProjectIds.map(Number));
         const removed = new Set(removeProjectIds.map(Number));

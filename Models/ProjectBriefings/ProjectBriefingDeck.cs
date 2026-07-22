@@ -18,6 +18,19 @@ public enum ProjectBriefingCostMode
     None = 4
 }
 
+public enum ProjectBriefingPresentationTheme
+{
+    EditorialLight = 1,
+    GraphiteDark = 2
+}
+
+public enum ProjectBriefingBrandingScope
+{
+    None = 0,
+    CoverAndSummary = 1,
+    AllSlides = 2
+}
+
 public sealed class ProjectBriefingDeck
 {
     public long Id { get; set; }
@@ -45,6 +58,12 @@ public sealed class ProjectBriefingDeck
 
     public ProjectBriefingCostMode CostMode { get; set; }
         = ProjectBriefingCostMode.Both;
+
+    public ProjectBriefingPresentationTheme PresentationTheme { get; set; }
+        = ProjectBriefingPresentationTheme.EditorialLight;
+
+    public ProjectBriefingBrandingScope BrandingScope { get; set; }
+        = ProjectBriefingBrandingScope.AllSlides;
 
     public bool IncludeStageSummary { get; set; } = true;
     public bool IncludeProjectCategorySummary { get; set; }
