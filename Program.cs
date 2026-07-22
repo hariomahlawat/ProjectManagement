@@ -77,6 +77,8 @@ using ProjectManagement.Services.Ocr;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.ProjectOfficeReports.Training;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.ProjectBriefings;
+using ProjectManagement.Services.ProjectBriefings.Presentation;
 using ProjectManagement.Services.Remarks;
 using ProjectManagement.Services.Reports.ProgressReview;
 using ProjectManagement.Services.Scheduling;
@@ -277,6 +279,10 @@ builder.Services.AddAuthorization(options =>
     // SECTION: Action tracker authorization policy
     options.AddPolicy("ActionTracker.Access", policy =>
         policy.RequireRole(RoleNames.Comdt, RoleNames.HoD, RoleNames.ProjectOfficer, RoleNames.Mco, RoleNames.Ta, RoleNames.Ito));
+
+    // SECTION: Project briefing deck authorization policy
+    options.AddPolicy(Policies.ProjectBriefingDecks.Manage, policy =>
+        policy.RequireRole(Policies.ProjectBriefingDecks.ManageAllowedRoles));
 
     // SECTION: Conference review authorization policy
     options.AddPolicy(Policies.ConferenceRemarks.Manage, policy =>
@@ -607,6 +613,15 @@ builder.Services.AddScoped<ProliferationOverviewService>();
 builder.Services.AddScoped<IProliferationSummaryReadService, ProliferationSummaryReadService>();
 builder.Services.AddScoped<ProliferationDataQualityService>();
 builder.Services.AddScoped<IProliferationProjectReadService, ProliferationProjectReadService>();
+
+// SECTION: Project briefing decks
+builder.Services.AddScoped<IProjectBriefingSelectionService, ProjectBriefingSelectionService>();
+builder.Services.AddScoped<IProjectBriefingCostResolver, ProjectBriefingCostResolver>();
+builder.Services.AddScoped<IProjectBriefingExternalStatusService, ProjectBriefingExternalStatusService>();
+builder.Services.AddScoped<IProjectBriefingDeckService, ProjectBriefingDeckService>();
+builder.Services.AddScoped<IProjectBriefingDataService, ProjectBriefingDataService>();
+builder.Services.AddScoped<IProjectBriefingPowerPointExportService, ProjectBriefingPowerPointExportService>();
+builder.Services.AddSingleton<IProjectBriefingSlideComposer, ProjectBriefingSlideComposer>();
 
 // SECTION: Simulators Compendium (Projects module)
 builder.Services.AddScoped<ICompendiumReadService, CompendiumReadService>();

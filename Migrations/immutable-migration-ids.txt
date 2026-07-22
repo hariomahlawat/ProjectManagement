@@ -71,3 +71,4 @@
 20261201250000_AddIndustryPartnerContactOwnership
 20261201260000_HardenFfcFoundation
 20261201270000_AddFfcProjectConcurrency
+20261202090000_AddProjectBriefingDecks

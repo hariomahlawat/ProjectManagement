@@ -4346,6 +4346,119 @@ namespace ProjectManagement.Migrations
                     b.ToTable("StagePlans");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("CostMode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(600)
+                        .HasColumnType("character varying(600)");
+
+                    b.Property<string>("HandlingMarking")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<bool>("IncludeProjectCategorySummary")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IncludeStageSummary")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IncludeTechnicalCategorySummary")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("LastGeneratedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("OwnerUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("PresentationMode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("SelectionRulesJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerUserId", "NormalizedName")
+                        .IsUnique();
+
+                    b.HasIndex("OwnerUserId", "UpdatedAtUtc");
+
+                    b.ToTable("ProjectBriefingDecks");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeckItem", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("AddedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("BriefDescriptionOverride")
+                        .HasMaxLength(1200)
+                        .HasColumnType("character varying(1200)");
+
+                    b.Property<long>("DeckId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeckId", "ProjectId")
+                        .IsUnique();
+
+                    b.HasIndex("DeckId", "SortOrder");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("ProjectBriefingDeckItems");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Project", b =>
                 {
                     b.Property<int>("Id")
@@ -7630,6 +7743,36 @@ namespace ProjectManagement.Migrations
                     b.Navigation("PlanVersion");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "OwnerUser")
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("OwnerUser");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeckItem", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", "Deck")
+                        .WithMany("Items")
+                        .HasForeignKey("DeckId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Deck");
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Project", b =>
                 {
                     b.HasOne("ProjectManagement.Models.ProjectCategory", "Category")
@@ -8429,6 +8572,11 @@ namespace ProjectManagement.Migrations
             modelBuilder.Entity("ProjectManagement.Models.Plans.ProjectPlanSnapshot", b =>
                 {
                     b.Navigation("Rows");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectBriefings.ProjectBriefingDeck", b =>
+                {
+                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Project", b =>

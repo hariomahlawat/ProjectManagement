@@ -28,6 +28,7 @@ using ProjectManagement.Data.Projects;
 using ProjectManagement.Models.Projects;
 using ProjectManagement.Models.IndustryPartners;
 using ProjectManagement.Models.ProjectIdeas;
+using ProjectManagement.Models.ProjectBriefings;
 using ProjectManagement.Models.Usage;
 
 namespace ProjectManagement.Data
@@ -51,6 +52,8 @@ namespace ProjectManagement.Data
         public DbSet<ProjectProductionCostFact> ProjectProductionCostFacts => Set<ProjectProductionCostFact>();
         public DbSet<ProjectLppRecord> ProjectLppRecords => Set<ProjectLppRecord>();
         public DbSet<ProjectTechStatus> ProjectTechStatuses => Set<ProjectTechStatus>();
+        public DbSet<ProjectBriefingDeck> ProjectBriefingDecks => Set<ProjectBriefingDeck>();
+        public DbSet<ProjectBriefingDeckItem> ProjectBriefingDeckItems => Set<ProjectBriefingDeckItem>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<TodoItem> TodoItems => Set<TodoItem>();
         public DbSet<NotebookItem> NotebookItems => Set<NotebookItem>();
@@ -483,6 +486,43 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.DocumentId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // SECTION: Project briefing decks
+            builder.Entity<ProjectBriefingDeck>(entity =>
+            {
+                entity.ToTable("ProjectBriefingDecks");
+                entity.Property(deck => deck.OwnerUserId).HasMaxLength(450).IsRequired();
+                entity.Property(deck => deck.Name).HasMaxLength(160).IsRequired();
+                entity.Property(deck => deck.NormalizedName).HasMaxLength(160).IsRequired();
+                entity.Property(deck => deck.Description).HasMaxLength(600);
+                entity.Property(deck => deck.PresentationMode).HasConversion<string>().HasMaxLength(32).IsRequired();
+                entity.Property(deck => deck.CostMode).HasConversion<string>().HasMaxLength(32).IsRequired();
+                entity.Property(deck => deck.HandlingMarking).HasMaxLength(80);
+                entity.Property(deck => deck.SelectionRulesJson).HasColumnType("jsonb");
+                ConfigureRowVersion(entity);
+                entity.HasIndex(deck => new { deck.OwnerUserId, deck.NormalizedName }).IsUnique();
+                entity.HasIndex(deck => new { deck.OwnerUserId, deck.UpdatedAtUtc });
+                entity.HasOne(deck => deck.OwnerUser)
+                    .WithMany()
+                    .HasForeignKey(deck => deck.OwnerUserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ProjectBriefingDeckItem>(entity =>
+            {
+                entity.ToTable("ProjectBriefingDeckItems");
+                entity.Property(item => item.BriefDescriptionOverride).HasMaxLength(1200);
+                entity.HasIndex(item => new { item.DeckId, item.ProjectId }).IsUnique();
+                entity.HasIndex(item => new { item.DeckId, item.SortOrder });
+                entity.HasOne(item => item.Deck)
+                    .WithMany(deck => deck.Items)
+                    .HasForeignKey(item => item.DeckId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(item => item.Project)
+                    .WithMany()
+                    .HasForeignKey(item => item.ProjectId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             builder.Entity<Project>(e =>

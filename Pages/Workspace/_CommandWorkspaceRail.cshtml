@@ -7,6 +7,7 @@
     var isOfficers = activeView == "officers";
     var isPortfolio = activeView == "portfolio";
     var isConference = activeView == "conference";
+    var isBriefingDecks = activeView == "briefing-decks";
     var isAdoption = activeView == "adoption";
     var isUsagePattern = activeView == "usage-pattern";
     var isMyActivity = activeView == "my-activity";
@@ -73,6 +74,12 @@
                aria-current="@(isConference ? "page" : null)"
                data-tooltip="Conference review">
                 <i class="bi bi-clipboard2-check" aria-hidden="true"></i><span>Conference review</span>
+            </a>
+            <a asp-page="/Workspace/BriefingDecks/Index"
+               class="@(isBriefingDecks ? "is-active" : null)"
+               aria-current="@(isBriefingDecks ? "page" : null)"
+               data-tooltip="Briefing decks">
+                <i class="bi bi-file-earmark-slides" aria-hidden="true"></i><span>Briefing decks</span>
             </a>
         </div>
 

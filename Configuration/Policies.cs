@@ -135,6 +135,18 @@ public static class Policies
             "Project Office"
         };
     }
+    // SECTION: Project briefing decks
+    public static class ProjectBriefingDecks
+    {
+        public const string Manage = "ProjectBriefingDecks.Manage";
+
+        public static readonly string[] ManageAllowedRoles =
+        {
+            RoleNames.Comdt,
+            RoleNames.HoD
+        };
+    }
+
     // SECTION: Conference remark policies
     public static class ConferenceRemarks
     {

@@ -1,146 +1,175 @@
-# Simulators Compendium — Professional Hardening
+# PRISM — Project Briefing Deck Builder
 
-This package is prepared as a **ready-to-replace implementation** for the PRISM ERP source tree.
+## Purpose
 
-## What this phase implements
+This package adds **Briefing decks** to the Comdt/HoD Command Workspace and provides a reusable, professional PowerPoint-deck workflow for selected projects.
 
-### Publication preflight
-
-- Shows eligible simulators, completed-project scope, category count and selected-photo coverage.
-- Reports completed projects excluded because proliferation availability is disabled or not recorded.
-- Detects and displays:
-  - missing photographs;
-  - missing Arm/Service;
-  - missing or zero proliferation cost;
-  - missing description;
-  - missing completion year; and
-  - likely `AI`/`Al` title-entry errors.
-- Provides direct links to the project, photograph manager and completed-project editor where the user is authorised.
-- Does not block generation when warnings remain; the PDF uses deliberate placeholders.
-
-### Photograph selection and loading
-
-- Uses the explicit project cover photograph when valid.
-- Otherwise uses a photograph marked as cover.
-- Otherwise selects the best available project photograph, preferring non-low-resolution images.
-- Loads a PDF-friendly configured derivative first and falls back safely.
-- Preserves cancellation and logs missing or unreadable derivative files rather than swallowing failures silently.
-
-### PDF publication
-
-- Institutional SDD cover with title, subtitle, as-on date and portfolio summary.
-- Optional handling/classification marking repeated on the cover, page header and footer.
-- Category index with clickable simulator names and printed page references.
-- Repeating category/index headers when a category spans pages.
-- Simulator pages with:
-  - technical category;
-  - completion year;
-  - Arm/Service;
-  - indicative proliferation cost in ₹ lakh;
-  - project reference, where recorded;
-  - cost remarks, where recorded;
-  - project photograph or a deliberate no-photo placeholder; and
-  - Markdown-formatted description.
-- PDF document metadata.
-- Standard ligatures disabled to improve searchable/copyable text for words such as `completion`, `visualisation` and `firing`.
-- Professional PRISM footer and page numbering.
-
-### Web UX
-
-- Compact, professional readiness dashboard.
-- Controlled export error message.
-- Double-submit protection and generation progress state.
-- Expandable warning table without permanent filters.
-- Responsive and print-specific styling.
-
-## Replacement files
-
-Copy these paths over the corresponding project files:
+Route:
 
 ```text
-Configuration/CompendiumPdfOptions.cs
-Pages/Projects/Compendium/Index.cshtml
-Pages/Projects/Compendium/Index.cshtml.cs
-Services/Compendiums/CompendiumDtos.cs
-Services/Compendiums/ICompendiumExportService.cs
-Services/Compendiums/CompendiumExportService.cs
-Services/Compendiums/CompendiumReadService.cs
-Utilities/Reporting/CompendiumPdfReportBuilder.cs
-Utilities/Reporting/MarkdownPdfRenderer.cs
-wwwroot/css/pages/projects-compendium.css
-wwwroot/js/pages/projects-compendium.js
-ProjectManagement.Tests/Compendiums/CompendiumPublicationTests.cs
+/Workspace/BriefingDecks
 ```
 
-## Configuration
+Access is restricted by the new policy:
 
-Merge the supplied `appsettings.CompendiumPdf.fragment.json` into the root `appsettings.json`.
-Do not replace the full application configuration file.
-
-Recommended section:
-
-```json
-"CompendiumPdf": {
-  "Title": "SDD Simulators Compendium",
-  "Subtitle": "Available for Proliferation",
-  "UnitDisplayName": "Simulator Development Division",
-  "IssuerDisplayName": "Simulator Development Division",
-  "FileNamePrefix": "SDD_Simulators_Compendium",
-  "MiscCategoryNames": [ "Misc", "Miscellaneous" ],
-  "CoverPhotoDerivativeKey": "md",
-  "PreferredPhotoFormat": "jpg",
-  "PreferWebp": false,
-  "ShowMissingPhotoPlaceholder": true
-}
+```text
+ProjectBriefingDecks.Manage
 ```
 
-## Service registration
+Allowed roles in this phase:
 
-No new registration is required. The existing registrations remain valid:
-
-```csharp
-builder.Services.AddScoped<ICompendiumReadService, CompendiumReadService>();
-builder.Services.AddScoped<ICompendiumExportService, CompendiumExportService>();
-builder.Services.AddScoped<ICompendiumPdfReportBuilder, CompendiumPdfReportBuilder>();
+```text
+Comdt
+HoD
 ```
 
-`IClock`, `IProjectPhotoService`, `IWebHostEnvironment` and typed loggers are already resolved through the existing application container.
+## Implemented functionality
 
-## Database
+### Saved decks
 
-- No database migration.
-- No model/schema change.
-- Existing completed-project, technical-status, production-cost and project-photo records are used.
+- Create, rename, duplicate and delete multiple personal saved decks.
+- Save project membership, briefing order, deck format, cost mode, summary-slide options and handling/classification marking.
+- Refresh stage, costs, latest external status, project description and cover photograph from live PRISM data whenever PowerPoint is generated.
+- Optimistic concurrency protection for settings and inline edits.
+- Audit logging for collection changes and PowerPoint generation.
 
-## Build and verification
+### Project selection
 
-From the project directory:
+Projects can be added through:
+
+- All ongoing projects.
+- Recently completed projects using a completion-year range.
+- One or more project categories, including child categories.
+- One or more technical categories.
+- All projects explicitly marked available for proliferation.
+- Searchable individual selection by project name, case-file number, Project Officer, project category or technical category.
+
+Duplicates are ignored. The final collection can be reordered by drag-and-drop or keyboard arrow keys.
+
+### Authoritative presentation rules
+
+```text
+STATUS
+Latest non-deleted General External remark only.
+No internal, conference, Project Officer, MCO or other remark is used.
+
+COST (R&D)
+Latest valid L1 value; otherwise latest valid AoN value; otherwise latest valid IPA value.
+
+PROLIFERATION COST
+ProjectProductionCostFact.ApproxProductionCost, stored in lakh and presented as currency.
+```
+
+The user selects one deck-wide cost mode:
+
+- Cost (R&D) only.
+- Proliferation cost only.
+- Both costs, shown separately.
+- Do not include cost.
+
+### PowerPoint formats
+
+- **Executive table deck** — cover, portfolio summary, selected summary charts and native editable project tables.
+- **Detailed project deck** — cover, portfolio summary, selected summary charts and one slide per project.
+- **Combined deck** — executive table slides followed by one slide per project.
+
+Detailed project slides include:
+
+- Project name.
+- Lifecycle and category context.
+- Present stage.
+- Selected cost information.
+- Latest external status.
+- Cover photograph or deliberate professional placeholder.
+- Brief capability overview, with an optional deck-specific override.
+
+### Professional presentation standard
+
+- 16:9 widescreen.
+- Native editable PowerPoint text, tables and chart shapes.
+- Institutional navy/white visual system with restrained accents.
+- Native editable horizontal summary charts rather than screenshots.
+- SDD/PRISM footer, slide number and optional handling/classification marking.
+- High-resolution centre-cropped project photographs.
+- No browser screenshots and no AI-generated rewriting of external remarks.
+
+## Database migration
+
+This implementation adds:
+
+```text
+20261202090000_AddProjectBriefingDecks
+```
+
+Tables:
+
+```text
+ProjectBriefingDecks
+ProjectBriefingDeckItems
+```
+
+Back up the production database before deployment. The application can apply the migration through the existing automatic-startup migration path. For a controlled local deployment, run `dotnet ef database update` after building.
+
+## Replacement procedure
+
+1. Stop IIS Express/IIS or the running PRISM process.
+2. Back up the application directory and PostgreSQL database.
+3. Copy the contents of this folder into the project root, preserving paths, and replace matching files.
+4. Do not omit the PowerPoint template:
+
+```text
+Resources/ProjectBriefing/ProjectBriefingTemplate.pptx
+```
+
+5. Clean and validate:
 
 ```powershell
 Remove-Item .\bin, .\obj -Recurse -Force -ErrorAction SilentlyContinue
+npm ci
+npm test
 dotnet restore .\ProjectManagement.csproj
 dotnet build .\ProjectManagement.csproj
 dotnet test .\ProjectManagement.Tests\ProjectManagement.Tests.csproj
+dotnet ef database update
 ```
 
-Then:
+6. Start PRISM and force-refresh the browser with `Ctrl+F5`.
 
-1. Open `/Projects/Compendium`.
-2. Confirm the preflight counts and warning links.
-3. Generate without a marking and verify the PDF.
-4. Generate with an authorised marking and confirm it is repeated correctly.
-5. Confirm photographs appear for projects with any usable project photograph, even when no explicit cover was selected.
-6. Search the PDF for `completion`, `visualisation`, `firing` and `proliferation`.
-7. Verify index links and printed page numbers.
-8. Check a long Markdown description and a project with no photograph.
+## Program.cs note
 
-Use **Ctrl+F5** after deployment so the versioned CSS and JavaScript are refreshed.
+The supplied `Program.cs` is based on the latest corrected Program file available for this implementation and retains the previously required:
 
-## Preparation validation completed
+- Proliferation analysis/data-quality registrations.
+- FFC Word/Excel export registrations.
+- Simulators Compendium registrations.
 
-- C# files parsed successfully with a C# syntax parser.
-- JavaScript syntax check passed under Node.js.
-- CSS parsed without syntax errors.
-- Replacement paths and patch application were checked against the supplied source snapshot.
+A source patch is also supplied for review. Avoid replacing `Program.cs` with an older copy.
 
-The preparation container did not have a functioning .NET SDK or NuGet network access, so the final `dotnet build` and runtime QuestPDF test must be run in Visual Studio/local build environment using the commands above.
+## Release verification
+
+Verify the following after deployment:
+
+1. **Briefing decks** appears in the Comdt/HoD Command Workspace rail.
+2. A Comdt/HoD can create at least two named saved decks.
+3. Every bulk-selection method adds the expected projects without duplicates.
+4. Individual search finds projects by name, case file and Project Officer.
+5. Drag-and-drop and keyboard reordering persist after reload.
+6. The preview uses only the latest external remark for Status.
+7. Cost (R&D) follows L1 → AoN → IPA and shows its basis.
+8. Proliferation cost remains separate and is not added to Cost (R&D).
+9. Each of the four cost modes changes the generated deck correctly.
+10. Executive, detailed and combined `.pptx` files open in PowerPoint and remain editable.
+11. Project photographs are cropped without distortion; missing images use the intentional placeholder.
+12. Handling/classification marking appears consistently when entered.
+
+## Validation completed in the preparation environment
+
+- JavaScript syntax checks passed.
+- Full JavaScript suite passed: **226/226 tests**.
+- Modified/new C# files passed syntax parsing.
+- CSS parsed without errors.
+- Project files parsed as valid XML.
+- PowerPoint template ZIP/XML integrity passed.
+- Git whitespace validation passed.
+
+The preparation environment did not contain the .NET SDK, so the final C# build and .NET test execution must be completed locally before deployment.

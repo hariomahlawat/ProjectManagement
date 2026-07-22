@@ -1,0 +1,139 @@
+using DocumentFormat.OpenXml.Packaging;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.FileProviders;
+using ProjectManagement.Models;
+using ProjectManagement.Models.ProjectBriefings;
+using ProjectManagement.Services.ProjectBriefings;
+using ProjectManagement.Services.ProjectBriefings.Presentation;
+using Xunit;
+using A = DocumentFormat.OpenXml.Drawing;
+
+namespace ProjectManagement.Tests.ProjectBriefings;
+
+public sealed class ProjectBriefingSlideComposerTests
+{
+    [Fact]
+    public void Compose_CreatesOpenableEditableWidescreenDeck()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+
+        var (content, slideCount) = composer.Compose(BuildData());
+
+        Assert.True(content.Length > 10_000);
+        Assert.Equal(6, slideCount);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var presentationPart = Assert.IsType<PresentationPart>(document.PresentationPart);
+        var slides = presentationPart.SlideParts.ToArray();
+        Assert.Equal(slideCount, slides.Length);
+        Assert.Equal(12192000, presentationPart.Presentation.SlideSize?.Cx?.Value);
+        Assert.Equal(6858000, presentationPart.Presentation.SlideSize?.Cy?.Value);
+
+        var text = string.Join("\n", slides
+            .SelectMany(slide => slide.Slide.Descendants<A.Text>())
+            .Select(node => node.Text));
+        Assert.Contains("QUARTERLY COMMAND REVIEW", text, StringComparison.Ordinal);
+        Assert.Contains("COST (R&D)", text, StringComparison.Ordinal);
+        Assert.Contains("PROLIFERATION COST", text, StringComparison.Ordinal);
+        Assert.Contains("Latest external status for AURA", text, StringComparison.Ordinal);
+        Assert.Contains("Stage-wise summary", text, StringComparison.Ordinal);
+
+        var nativeTables = slides
+            .SelectMany(slide => slide.Slide.Descendants<A.Table>())
+            .Count();
+        Assert.True(nativeTables >= 1, "The executive project table must remain a native editable PowerPoint table.");
+    }
+
+    private static ProjectBriefingPresentationData BuildData()
+    {
+        var projects = new[]
+        {
+            new ProjectBriefingPresentationProject
+            {
+                ProjectId = 1,
+                ProjectName = "AURA",
+                LifecycleStatus = ProjectLifecycleStatus.Active,
+                LifecycleDisplay = "Ongoing",
+                PresentStageCode = "AON",
+                PresentStage = "Acceptance of Necessity",
+                PresentStageOrder = 30,
+                ProjectCategory = "CoE",
+                TechnicalCategory = "AR / VR",
+                CostRd = new ProjectBriefingCostValue(39_530_000m, ProjectBriefingCostBasis.AoN, "₹3.95 Cr", "AoN"),
+                ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+                ExternalStatus = "Latest external status for AURA",
+                ExternalStatusDate = new DateOnly(2026, 7, 20),
+                BriefDescription = "Augmented-reality situational-awareness capability for dismounted users.",
+                SortOrder = 10
+            },
+            new ProjectBriefingPresentationProject
+            {
+                ProjectId = 2,
+                ProjectName = "ASTRAE",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                LifecycleDisplay = "Completed",
+                PresentStageCode = "COMPLETED",
+                PresentStage = "Completed",
+                PresentStageOrder = 10_000,
+                ProjectCategory = "CoE",
+                TechnicalCategory = "AI",
+                CostRd = new ProjectBriefingCostValue(28_000_000m, ProjectBriefingCostBasis.L1, "₹2.8 Cr", "L1"),
+                ProliferationCost = new ProjectBriefingCostValue(1_850_000m, ProjectBriefingCostBasis.Proliferation, "₹18.5 Lakh", "Proliferation"),
+                ExternalStatus = "Trials completed and project available for briefing.",
+                ExternalStatusDate = new DateOnly(2026, 7, 18),
+                BriefDescription = "AI-enabled target acquisition and engagement system.",
+                SortOrder = 20
+            }
+        };
+
+        return new ProjectBriefingPresentationData
+        {
+            DeckId = 7,
+            DeckName = "Quarterly Command Review",
+            DeckDescription = "Selected development and completed projects",
+            PresentationMode = ProjectBriefingPresentationMode.Combined,
+            CostMode = ProjectBriefingCostMode.Both,
+            IncludeStageSummary = true,
+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 21, 10, 0, 0, TimeSpan.Zero),
+            Projects = projects,
+            Summary = new ProjectBriefingPresentationSummary
+            {
+                ProjectCount = 2,
+                OngoingCount = 1,
+                CompletedCount = 1,
+                TotalCostRdInRupees = 67_530_000m,
+                CostRdRecordedCount = 2,
+                TotalProliferationCostInRupees = 1_850_000m,
+                ProliferationCostRecordedCount = 1,
+                MissingExternalStatusCount = 0,
+                MissingPhotoCount = 2,
+                StageSummary = new[]
+                {
+                    new ProjectBriefingSummaryPoint("Acceptance of Necessity", 1, 30),
+                    new ProjectBriefingSummaryPoint("Completed", 1, 10_000)
+                }
+            }
+        };
+    }
+
+    private sealed class TestEnvironment : IWebHostEnvironment
+    {
+        public TestEnvironment(string contentRootPath)
+        {
+            ContentRootPath = contentRootPath;
+            WebRootPath = Path.Combine(contentRootPath, "wwwroot");
+            Directory.CreateDirectory(WebRootPath);
+            ContentRootFileProvider = new NullFileProvider();
+            WebRootFileProvider = new NullFileProvider();
+        }
+
+        public string ApplicationName { get; set; } = "ProjectManagement.Tests";
+        public IFileProvider WebRootFileProvider { get; set; }
+        public string WebRootPath { get; set; }
+        public string EnvironmentName { get; set; } = "Test";
+        public string ContentRootPath { get; set; }
+        public IFileProvider ContentRootFileProvider { get; set; }
+    }
+}
