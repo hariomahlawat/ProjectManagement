@@ -14,7 +14,8 @@ public sealed record ProjectBriefingCapabilityBlock(
     string Text,
     string? Marker = null,
     bool IsContinuation = false,
-    bool IsMuted = false);
+    bool IsMuted = false,
+    int IndentLevel = 0);
 
 public sealed record ProjectBriefingCapabilityLayoutBlock(
     ProjectBriefingCapabilityBlockType Type,
@@ -24,7 +25,8 @@ public sealed record ProjectBriefingCapabilityLayoutBlock(
     bool IsMuted,
     double FontSize,
     double TextHeight,
-    double SpaceAfter)
+    double SpaceAfter,
+    int IndentLevel = 0)
 {
     public double TotalHeight => TextHeight + SpaceAfter;
 }

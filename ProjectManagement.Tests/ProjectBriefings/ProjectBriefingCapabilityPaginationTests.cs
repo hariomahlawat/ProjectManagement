@@ -107,6 +107,29 @@ public sealed class ProjectBriefingCapabilityPaginationTests
     }
 
     [Fact]
+    public void Parser_PreservesNestedBulletIndentAcrossPaginationBlocks()
+    {
+        const string source = """
+        3. Eight vehicle variants i.e.
+        • Maruti Gypsy
+        • HMV 6x6
+        4. Training under varied terrain and weather conditions.
+        """;
+
+        var blocks = ProjectBriefingRichTextParser.Parse(source);
+
+        Assert.Equal(0, blocks[0].IndentLevel);
+        Assert.Equal(1, blocks[1].IndentLevel);
+        Assert.Equal(1, blocks[2].IndentLevel);
+        Assert.Equal(0, blocks[3].IndentLevel);
+
+        var pagination = ProjectBriefingCapabilityPaginator.Paginate(source);
+        var rendered = pagination.Pages.SelectMany(page => page.Blocks).ToArray();
+        Assert.Equal(1, rendered.Single(block => block.Text == "Maruti Gypsy").IndentLevel);
+        Assert.Equal(1, rendered.Single(block => block.Text == "HMV 6x6").IndentLevel);
+    }
+
+    [Fact]
     public void TextNormalizer_PreservesFullStructuredSourceForPresentationPagination()
     {
         var longParagraph = string.Join(

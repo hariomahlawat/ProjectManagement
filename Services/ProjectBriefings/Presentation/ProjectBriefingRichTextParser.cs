@@ -85,6 +85,7 @@ public static class ProjectBriefingRichTextParser
 
         var blocks = new List<ProjectBriefingCapabilityBlock>();
         var implicitListContext = false;
+        var nestedBulletContext = false;
 
         var lines = normalized.Split('\n');
         for (var index = 0; index < lines.Length; index++)
@@ -93,6 +94,7 @@ public static class ProjectBriefingRichTextParser
             if (line.Length == 0)
             {
                 implicitListContext = false;
+                nestedBulletContext = false;
                 continue;
             }
 
@@ -104,11 +106,21 @@ public static class ProjectBriefingRichTextParser
                 && !string.IsNullOrWhiteSpace(lines[index + 1])
                 && !StandaloneListMarkerRegex.IsMatch(lines[index + 1].Trim()))
             {
+                var standaloneText = CleanInline(lines[++index]);
                 blocks.Add(new ProjectBriefingCapabilityBlock(
                     standaloneType,
-                    CleanInline(lines[++index]),
-                    standaloneMarker));
+                    standaloneText,
+                    standaloneMarker,
+                    IndentLevel: standaloneType == ProjectBriefingCapabilityBlockType.Bullet
+                        && nestedBulletContext
+                            ? 1
+                            : 0));
                 implicitListContext = true;
+                if (standaloneType is ProjectBriefingCapabilityBlockType.NumberedItem
+                    or ProjectBriefingCapabilityBlockType.LetteredItem)
+                {
+                    nestedBulletContext = IntroducesList(standaloneText);
+                }
                 continue;
             }
 
@@ -117,11 +129,21 @@ public static class ProjectBriefingRichTextParser
             // be promoted to slide headings merely because the following text is title case.
             if (TryListItem(line, out var type, out var marker, out var listText))
             {
+                var cleanedListText = CleanInline(listText);
                 blocks.Add(new ProjectBriefingCapabilityBlock(
                     type,
-                    CleanInline(listText),
-                    marker));
+                    cleanedListText,
+                    marker,
+                    IndentLevel: type == ProjectBriefingCapabilityBlockType.Bullet
+                        && nestedBulletContext
+                            ? 1
+                            : 0));
                 implicitListContext = true;
+                if (type is ProjectBriefingCapabilityBlockType.NumberedItem
+                    or ProjectBriefingCapabilityBlockType.LetteredItem)
+                {
+                    nestedBulletContext = IntroducesList(cleanedListText);
+                }
                 continue;
             }
 
@@ -131,6 +153,7 @@ public static class ProjectBriefingRichTextParser
                     ProjectBriefingCapabilityBlockType.Heading,
                     heading));
                 implicitListContext = IsListHeading(heading);
+                nestedBulletContext = false;
                 continue;
             }
 
@@ -140,7 +163,8 @@ public static class ProjectBriefingRichTextParser
                 blocks.Add(new ProjectBriefingCapabilityBlock(
                     ProjectBriefingCapabilityBlockType.Bullet,
                     cleaned,
-                    "•"));
+                    "•",
+                    IndentLevel: nestedBulletContext ? 1 : 0));
                 continue;
             }
 
@@ -148,6 +172,7 @@ public static class ProjectBriefingRichTextParser
                 ProjectBriefingCapabilityBlockType.Paragraph,
                 cleaned));
             implicitListContext = IntroducesList(cleaned);
+            nestedBulletContext = false;
         }
 
         if (blocks.Count > 1

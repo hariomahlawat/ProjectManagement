@@ -133,7 +133,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         if (data.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects
             or ProjectBriefingPresentationMode.Combined)
         {
-            foreach (var project in OrderProjects(data.Projects))
+            foreach (var project in data.Projects.OrderBy(project => project.SortOrder))
             {
                 var capturedProject = project;
                 var capability = ProjectBriefingCapabilityPaginator.Paginate(project.BriefDescription);
@@ -159,14 +159,6 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
 
         return plans;
     }
-
-    private static IOrderedEnumerable<ProjectBriefingPresentationProject> OrderProjects(
-        IEnumerable<ProjectBriefingPresentationProject> projects)
-        => projects
-            .OrderBy(project => project.PresentStageOrder)
-            .ThenBy(project => project.SortOrder)
-            .ThenBy(project => project.ProjectName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(project => project.ProjectId);
 
     private static void RenderCover(
         SlideCanvas canvas,
@@ -520,7 +512,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
 
     private static void AddExecutiveTableSlides(List<SlidePlan> plans, ProjectBriefingPresentationData data)
     {
-        var projects = OrderProjects(data.Projects).ToArray();
+        var projects = data.Projects.OrderBy(project => project.SortOrder).ToArray();
         var pages = ProjectBriefingTablePagination.Paginate(
             projects,
             data.CostMode,
@@ -563,19 +555,19 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         {
             case ProjectBriefingCostMode.Both:
                 headers.AddRange(new[] { "COST (R&D)", "PROLIFERATION COST", "PRESENT STAGE", "STATUS" });
-                widths.AddRange(new[] { 2.65, 1.25, 1.35, 1.65, 5.25 });
+                widths.AddRange(new[] { 2.50, 1.30, 1.40, 1.65, 5.30 });
                 break;
             case ProjectBriefingCostMode.CostRdOnly:
                 headers.AddRange(new[] { "COST (R&D)", "PRESENT STAGE", "STATUS" });
-                widths.AddRange(new[] { 2.95, 1.40, 1.90, 5.90 });
+                widths.AddRange(new[] { 2.80, 1.45, 1.95, 5.95 });
                 break;
             case ProjectBriefingCostMode.ProliferationOnly:
                 headers.AddRange(new[] { "PROLIFERATION COST", "PRESENT STAGE", "STATUS" });
-                widths.AddRange(new[] { 2.95, 1.55, 1.90, 5.75 });
+                widths.AddRange(new[] { 2.80, 1.60, 1.95, 5.80 });
                 break;
             default:
                 headers.AddRange(new[] { "PRESENT STAGE", "STATUS" });
-                widths.AddRange(new[] { 3.10, 1.95, 7.10 });
+                widths.AddRange(new[] { 2.95, 2.00, 7.20 });
                 break;
         }
 
@@ -601,7 +593,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
                     10.0,
                     project.CostRd.IsAvailable ? canvas.Theme.TextPrimary : canvas.Theme.TextMuted,
                     project.CostRd.IsAvailable,
-                    "r",
+                    "l",
                     costFill));
             }
             if (data.CostMode is ProjectBriefingCostMode.ProliferationOnly or ProjectBriefingCostMode.Both)
@@ -611,7 +603,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
                     10.0,
                     project.ProliferationCost.IsAvailable ? canvas.Theme.TextPrimary : canvas.Theme.TextMuted,
                     project.ProliferationCost.IsAvailable,
-                    "r",
+                    "l",
                     costFill));
             }
 
@@ -640,7 +632,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
             displayRowHeights = displayRowHeights.Select(height => height * scale).ToArray();
         }
 
-        var heights = new List<double> { .48 };
+        var heights = new List<double> { .43 };
         heights.AddRange(displayRowHeights);
         canvas.AddNativeTable(.58, 1.06, widths, heights, rows, "Project status summary table");
     }
@@ -684,9 +676,18 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         var positionBottom = costCards.Count == 0 ? contentBottom : costY - sectionGap;
         var layout = CalculateDetailedLayout(project.ExternalStatus, hasPhoto, contentTop, positionBottom, sectionGap);
 
-        canvas.AddRoundedRect(leftX, contentTop, leftWidth, layout.PhotoHeight, canvas.Theme.Surface, canvas.Theme.Border, .08);
         if (hasPhoto)
         {
+            canvas.AddRoundedRect(
+                leftX,
+                contentTop,
+                leftWidth,
+                layout.PhotoHeight,
+                canvas.Theme.Surface,
+                canvas.Theme.Border,
+                .08,
+                "Project photograph frame");
+
             var imageHeight = layout.PhotoHeight - .20;
             var imageWidth = imageHeight * 16d / 9d;
             var imageX = leftX + ((leftWidth - imageWidth) / 2d);
@@ -701,11 +702,35 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         }
         else
         {
-            canvas.AddRect(leftX + .10, contentTop + .10, leftWidth - .20, layout.PhotoHeight - .20, canvas.Theme.Placeholder, canvas.Theme.Border);
-            canvas.AddRect(leftX + 1.70, contentTop + .26, 1.00, .05, canvas.Theme.Divider);
-            canvas.AddRect(leftX + 1.87, contentTop + .43, .66, .05, canvas.Theme.Border);
-            canvas.AddText(leftX + .45, contentTop + .51, leftWidth - .90, .20,
-                "PHOTOGRAPH NOT AVAILABLE", 8.7, canvas.Theme.TextMuted, true, "ctr");
+            canvas.AddTextShape(
+                leftX,
+                contentTop,
+                leftWidth,
+                layout.PhotoHeight,
+                canvas.Theme.Placeholder,
+                canvas.Theme.Border,
+                .75,
+                "roundRect",
+                new[]
+                {
+                    new RichTextParagraph(
+                        new[]
+                        {
+                            new RichTextRun(
+                                "PHOTOGRAPH NOT AVAILABLE",
+                                8.7,
+                                canvas.Theme.TextMuted,
+                                Bold: true)
+                        },
+                        Align: "ctr")
+                },
+                "Project photograph placeholder",
+                verticalAnchor: "ctr",
+                allowAutoFit: false,
+                leftInset: .12,
+                rightInset: .12,
+                topInset: .06,
+                bottomInset: .06);
         }
 
         var statusY = contentTop + layout.PhotoHeight + sectionGap;
@@ -772,77 +797,143 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         string heading,
         ProjectBriefingCapabilityPage page)
     {
-        canvas.AddRoundedRect(x, y, width, height, canvas.Theme.Surface, canvas.Theme.Border, .08);
-        canvas.AddRect(x, y, .08, height, canvas.Theme.SecondaryAccent);
-        canvas.AddText(x + .32, y + .22, width - .62, .28, heading, 10.5, canvas.Theme.SecondaryAccent, true, "l");
+        canvas.AddRoundedRect(
+            x,
+            y,
+            width,
+            height,
+            canvas.Theme.Surface,
+            canvas.Theme.Border,
+            .08,
+            "Capability panel");
+        canvas.AddRect(
+            x,
+            y,
+            .08,
+            height,
+            canvas.Theme.SecondaryAccent,
+            name: "Capability accent");
 
-        RenderCapabilityBlocks(
-            canvas,
-            x + .32,
-            y + .66,
-            width - .64,
-            page.Blocks);
+        canvas.AddRichTextBox(
+            x + .25,
+            y + .17,
+            width - .50,
+            height - .34,
+            BuildCapabilityParagraphs(canvas, heading, page.Blocks),
+            "Capability overview",
+            verticalAnchor: "t",
+            allowAutoFit: false,
+            leftInset: .05,
+            rightInset: .05,
+            topInset: .02,
+            bottomInset: .02);
     }
 
-    private static void RenderCapabilityBlocks(
+    private static IReadOnlyList<RichTextParagraph> BuildCapabilityParagraphs(
         SlideCanvas canvas,
-        double x,
-        double y,
-        double width,
+        string heading,
         IReadOnlyList<ProjectBriefingCapabilityLayoutBlock> blocks)
     {
-        var cursorY = y;
+        var paragraphs = new List<RichTextParagraph>(blocks.Count + 1)
+        {
+            new(
+                new[]
+                {
+                    new RichTextRun(
+                        heading,
+                        10.5,
+                        canvas.Theme.SecondaryAccent,
+                        Bold: true)
+                },
+                SpaceAfterPoints: 10.0,
+                LineSpacingPoints: 12.6)
+        };
+
         foreach (var block in blocks)
         {
-            var textColor = block.IsMuted ? canvas.Theme.TextMuted : canvas.Theme.TextPrimary;
-            var bold = false;
-            var textX = x;
-            var textWidth = width;
-            var text = block.Text;
+            var textColor = block.IsMuted
+                ? canvas.Theme.TextMuted
+                : canvas.Theme.TextPrimary;
+            var spaceAfter = Math.Max(0, block.SpaceAfter * 72d);
+            var lineSpacing = block.Type == ProjectBriefingCapabilityBlockType.Heading
+                ? 16.2
+                : block.FontSize * 1.20;
 
-            switch (block.Type)
+            if (block.Type == ProjectBriefingCapabilityBlockType.Heading)
             {
-                case ProjectBriefingCapabilityBlockType.Heading:
-                    textColor = canvas.Theme.SecondaryAccent;
-                    bold = true;
-                    break;
-
-                case ProjectBriefingCapabilityBlockType.Bullet:
-                case ProjectBriefingCapabilityBlockType.NumberedItem:
-                case ProjectBriefingCapabilityBlockType.LetteredItem:
-                    textX += .30;
-                    textWidth -= .30;
-                    if (!block.IsContinuation && !string.IsNullOrWhiteSpace(block.Marker))
+                paragraphs.Add(new RichTextParagraph(
+                    new[]
                     {
-                        canvas.AddText(
-                            x,
-                            cursorY,
-                            .26,
-                            block.TextHeight,
-                            block.Marker!,
+                        new RichTextRun(
+                            block.Text,
                             block.FontSize,
-                            textColor,
-                            block.Type != ProjectBriefingCapabilityBlockType.Bullet,
-                            "l",
-                            "t");
-                    }
-                    break;
+                            canvas.Theme.SecondaryAccent,
+                            Bold: true)
+                    },
+                    SpaceAfterPoints: spaceAfter,
+                    LineSpacingPoints: lineSpacing));
+                continue;
             }
 
-            canvas.AddText(
-                textX,
-                cursorY,
-                textWidth,
-                block.TextHeight,
-                text,
-                block.FontSize,
-                textColor,
-                bold,
-                "l",
-                "t");
+            if (block.Type is ProjectBriefingCapabilityBlockType.Bullet
+                or ProjectBriefingCapabilityBlockType.NumberedItem
+                or ProjectBriefingCapabilityBlockType.LetteredItem)
+            {
+                var bodyIndent = .36 + (Math.Max(0, block.IndentLevel) * .19);
 
-            cursorY += block.TotalHeight;
+                if (block.IsContinuation || string.IsNullOrWhiteSpace(block.Marker))
+                {
+                    paragraphs.Add(new RichTextParagraph(
+                        new[]
+                        {
+                            new RichTextRun(
+                                block.Text,
+                                block.FontSize,
+                                textColor)
+                        },
+                        LeftMarginInches: bodyIndent,
+                        SpaceAfterPoints: spaceAfter,
+                        LineSpacingPoints: lineSpacing));
+                }
+                else
+                {
+                    paragraphs.Add(new RichTextParagraph(
+                        new[]
+                        {
+                            new RichTextRun(
+                                block.Marker!,
+                                block.FontSize,
+                                textColor,
+                                Bold: block.Type != ProjectBriefingCapabilityBlockType.Bullet),
+                            new RichTextRun(
+                                block.Text,
+                                block.FontSize,
+                                textColor)
+                        },
+                        LeftMarginInches: bodyIndent,
+                        FirstLineIndentInches: -bodyIndent,
+                        TabStopInches: bodyIndent,
+                        TabAfterFirstRun: true,
+                        SpaceAfterPoints: spaceAfter,
+                        LineSpacingPoints: lineSpacing));
+                }
+
+                continue;
+            }
+
+            paragraphs.Add(new RichTextParagraph(
+                new[]
+                {
+                    new RichTextRun(
+                        block.Text,
+                        block.FontSize,
+                        textColor)
+                },
+                SpaceAfterPoints: spaceAfter,
+                LineSpacingPoints: lineSpacing));
         }
+
+        return paragraphs;
     }
 
     private static DetailedSlideLayout CalculateDetailedLayout(
@@ -870,18 +961,86 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         double height,
         ProjectBriefingPresentationProject project)
     {
-        canvas.AddRoundedRect(x, y, width, height, canvas.Theme.Surface, canvas.Theme.Border, .08);
-        canvas.AddText(x + .25, y + .18, width - .50, .22, "PRESENT STATUS", 9.5, canvas.Theme.Accent, true, "l");
-        canvas.AddText(x + .25, y + .48, width - .50, .18, "PRESENT STAGE", 7.8, canvas.Theme.TextMuted, true, "l");
-        canvas.AddRoundedRect(x + .25, y + .70, Math.Min(width - .50, 2.92), .38, canvas.Theme.AccentSoft, canvas.Theme.Accent, .06);
-        canvas.AddText(x + .37, y + .74, Math.Min(width - .74, 2.66), .28,
-            TruncateAtWord(project.PresentStage, 42), 10.3, canvas.Theme.TextPrimary, true, "l");
+        canvas.AddRoundedRect(
+            x,
+            y,
+            width,
+            height,
+            canvas.Theme.Surface,
+            canvas.Theme.Border,
+            .08,
+            "Present status panel");
+
+        canvas.AddRichTextBox(
+            x + .21,
+            y + .14,
+            width - .42,
+            .50,
+            new[]
+            {
+                new RichTextParagraph(
+                    new[]
+                    {
+                        new RichTextRun(
+                            "PRESENT STATUS",
+                            9.5,
+                            canvas.Theme.Accent,
+                            Bold: true)
+                    },
+                    SpaceAfterPoints: 7.0,
+                    LineSpacingPoints: 11.2),
+                new RichTextParagraph(
+                    new[]
+                    {
+                        new RichTextRun(
+                            "PRESENT STAGE",
+                            7.8,
+                            canvas.Theme.TextMuted,
+                            Bold: true)
+                    },
+                    LineSpacingPoints: 9.4)
+            },
+            "Present status labels",
+            verticalAnchor: "t",
+            allowAutoFit: false,
+            leftInset: .02,
+            rightInset: .02,
+            topInset: 0,
+            bottomInset: 0);
+
+        canvas.AddTextShape(
+            x + .25,
+            y + .70,
+            Math.Min(width - .50, 2.92),
+            .38,
+            canvas.Theme.AccentSoft,
+            canvas.Theme.Accent,
+            .75,
+            "roundRect",
+            new[]
+            {
+                new RichTextParagraph(
+                    new[]
+                    {
+                        new RichTextRun(
+                            TruncateAtWord(project.PresentStage, 42),
+                            10.3,
+                            canvas.Theme.TextPrimary,
+                            Bold: true)
+                    })
+            },
+            "Present stage",
+            verticalAnchor: "ctr",
+            allowAutoFit: true,
+            leftInset: .12,
+            rightInset: .10,
+            topInset: .02,
+            bottomInset: .02);
 
         var statusLabel = project.ExternalStatusDate.HasValue
             ? $"STATUS · {project.ExternalStatusDate.Value:dd MMM yyyy}"
             : "STATUS";
-        canvas.AddText(x + .25, y + 1.18, width - .50, .20, statusLabel, 8.2, canvas.Theme.Accent, true, "l");
-        var statusHeight = Math.Max(.30, height - 1.47);
+        var statusHeight = Math.Max(.30, height - 1.34);
         var availableLines = Math.Max(1, (int)Math.Floor(statusHeight / .205));
         var normalized = NormalizePresentationText(project.ExternalStatus);
         var maximumCharacters = Math.Max(56, availableLines * 50);
@@ -893,8 +1052,42 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
             <= 4 => 9.5,
             _ => 8.9
         };
-        canvas.AddText(x + .25, y + 1.43, width - .50, statusHeight,
-            fitted, statusFont, canvas.Theme.TextPrimary, false, "l", "t");
+
+        canvas.AddRichTextBox(
+            x + .21,
+            y + 1.18,
+            width - .42,
+            statusHeight,
+            new[]
+            {
+                new RichTextParagraph(
+                    new[]
+                    {
+                        new RichTextRun(
+                            statusLabel,
+                            8.2,
+                            canvas.Theme.Accent,
+                            Bold: true)
+                    },
+                    SpaceAfterPoints: 6.0,
+                    LineSpacingPoints: 9.8),
+                new RichTextParagraph(
+                    new[]
+                    {
+                        new RichTextRun(
+                            fitted,
+                            statusFont,
+                            canvas.Theme.TextPrimary)
+                    },
+                    LineSpacingPoints: statusFont * 1.20)
+            },
+            "External status",
+            verticalAnchor: "t",
+            allowAutoFit: true,
+            leftInset: .02,
+            rightInset: .02,
+            topInset: 0,
+            bottomInset: 0);
     }
 
     private static string NormalizePresentationText(string? value)
@@ -977,14 +1170,65 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         string fill,
         string? note = null)
     {
-        canvas.AddRoundedRect(x, y, width, height, fill, canvas.Theme.Border, .08);
-        canvas.AddRect(x, y, .06, height, accent);
-        canvas.AddText(x + .20, y + .14, width - .38, .22, title, width < 2.3 ? 8.0 : 9.2, accent, true, "l");
-        canvas.AddText(x + .20, y + .40, width - .38, .30, Truncate(value, 70), width < 2.3 ? 12.0 : 13.5, canvas.Theme.TextPrimary, true, "l");
+        var titleFont = width < 2.3 ? 8.0 : 9.2;
+        var valueFont = width < 2.3 ? 12.0 : 13.5;
+        var paragraphs = new List<RichTextParagraph>
+        {
+            new(
+                new[]
+                {
+                    new RichTextRun(
+                        title,
+                        titleFont,
+                        accent,
+                        Bold: true)
+                },
+                SpaceAfterPoints: 6.0,
+                LineSpacingPoints: titleFont * 1.12),
+            new(
+                new[]
+                {
+                    new RichTextRun(
+                        Truncate(value, 70),
+                        valueFont,
+                        canvas.Theme.TextPrimary,
+                        Bold: true)
+                },
+                SpaceAfterPoints: string.IsNullOrWhiteSpace(note) ? 0 : 6.0,
+                LineSpacingPoints: valueFont * 1.10)
+        };
+
         if (!string.IsNullOrWhiteSpace(note))
         {
-            canvas.AddText(x + .20, y + height - .23, width - .38, .17, note, 7.8, canvas.Theme.TextMuted, false, "l");
+            paragraphs.Add(new RichTextParagraph(
+                new[]
+                {
+                    new RichTextRun(
+                        note!,
+                        7.8,
+                        canvas.Theme.TextMuted)
+                },
+                LineSpacingPoints: 9.0));
         }
+
+        canvas.AddTextShape(
+            x,
+            y,
+            width,
+            height,
+            fill,
+            canvas.Theme.Border,
+            .75,
+            "roundRect",
+            paragraphs,
+            $"{title} card",
+            verticalAnchor: "t",
+            allowAutoFit: true,
+            leftInset: .20,
+            rightInset: .16,
+            topInset: .13,
+            bottomInset: .08);
+        canvas.AddRect(x, y, .06, height, accent, name: $"{title} accent");
     }
 
     private static void AddSlideTitle(SlideCanvas canvas, string title, string? subtitle = null)
@@ -1146,15 +1390,27 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
 
     private sealed record DetailedSlideLayout(double PhotoHeight);
     private sealed record CostCard(string Title, string Value, string Accent, string Fill, string? Note);
+    private sealed record RichTextRun(
+        string Text,
+        double FontSize,
+        string Color,
+        bool Bold = false,
+        bool Italic = false);
+    private sealed record RichTextParagraph(
+        IReadOnlyList<RichTextRun> Runs,
+        string Align = "l",
+        double LeftMarginInches = 0,
+        double FirstLineIndentInches = 0,
+        double? TabStopInches = null,
+        bool TabAfterFirstRun = false,
+        double SpaceAfterPoints = 0,
+        double? LineSpacingPoints = null);
     private sealed record NativeTableCell(string Value, double FontSize, string Color, bool Bold, string Align, string Fill);
     private sealed record ProjectBriefingBrandingAssets(byte[]? LeftLogo, byte[]? RightLogo);
     private sealed record SlidePlan(SlidePlanKind Kind, Action<SlideCanvas> Render);
 
     private sealed class SlideCanvas
     {
-        private const double NativeTableHorizontalMargin = .11;
-        private const double NativeTableVerticalMargin = .04;
-
         private readonly SlidePart _slidePart;
         private readonly ProjectBriefingBrandingAssets _branding;
         private readonly List<string> _elements = new();
@@ -1175,11 +1431,59 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         public ProjectBriefingThemeDefinition Theme { get; }
         public bool ShowBranding { get; }
 
-        public void AddRect(double x, double y, double width, double height, string fill, string? line = null, double lineWidth = .75)
-            => AddShape(x, y, width, height, fill, line, lineWidth, "rect", null, 0, Theme.TextPrimary, false, "l");
+        public void AddRect(
+            double x,
+            double y,
+            double width,
+            double height,
+            string fill,
+            string? line = null,
+            double lineWidth = .75,
+            string? name = null)
+            => AddShape(
+                x,
+                y,
+                width,
+                height,
+                fill,
+                line,
+                lineWidth,
+                "rect",
+                null,
+                0,
+                Theme.TextPrimary,
+                false,
+                "l",
+                "ctr",
+                name ?? "Rectangle",
+                isTextBox: false);
 
-        public void AddRoundedRect(double x, double y, double width, double height, string fill, string? line, double radius)
-            => AddShape(x, y, width, height, fill, line, .75, "roundRect", null, 0, Theme.TextPrimary, false, "l");
+        public void AddRoundedRect(
+            double x,
+            double y,
+            double width,
+            double height,
+            string fill,
+            string? line,
+            double radius,
+            string? name = null)
+            => AddShape(
+                x,
+                y,
+                width,
+                height,
+                fill,
+                line,
+                .75,
+                "roundRect",
+                null,
+                0,
+                Theme.TextPrimary,
+                false,
+                "l",
+                "ctr",
+                name ?? "Rounded rectangle",
+                isTextBox: false);
 
         public void AddBrandingImages(HeaderVariant variant)
         {
@@ -1240,8 +1544,93 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
             string color,
             bool bold,
             string align,
-            string verticalAnchor = "ctr")
-            => AddShape(x, y, width, height, null, null, 0, "rect", text, fontSize, color, bold, align, verticalAnchor);
+            string verticalAnchor = "ctr",
+            string? name = null)
+            => AddShape(
+                x,
+                y,
+                width,
+                height,
+                null,
+                null,
+                0,
+                "rect",
+                text,
+                fontSize,
+                color,
+                bold,
+                align,
+                verticalAnchor,
+                name ?? "Text",
+                isTextBox: true);
+
+        public void AddRichTextBox(
+            double x,
+            double y,
+            double width,
+            double height,
+            IReadOnlyList<RichTextParagraph> paragraphs,
+            string name,
+            string verticalAnchor = "t",
+            bool allowAutoFit = false,
+            double leftInset = .05,
+            double rightInset = .05,
+            double topInset = .03,
+            double bottomInset = .03)
+            => AddRichTextShape(
+                x,
+                y,
+                width,
+                height,
+                null,
+                null,
+                0,
+                "rect",
+                paragraphs,
+                name,
+                isTextBox: true,
+                verticalAnchor: verticalAnchor,
+                allowAutoFit: allowAutoFit,
+                leftInset: leftInset,
+                rightInset: rightInset,
+                topInset: topInset,
+                bottomInset: bottomInset);
+
+        public void AddTextShape(
+            double x,
+            double y,
+            double width,
+            double height,
+            string fill,
+            string? line,
+            double lineWidth,
+            string geometry,
+            IReadOnlyList<RichTextParagraph> paragraphs,
+            string name,
+            string verticalAnchor = "t",
+            bool allowAutoFit = false,
+            double leftInset = .05,
+            double rightInset = .05,
+            double topInset = .03,
+            double bottomInset = .03)
+            => AddRichTextShape(
+                x,
+                y,
+                width,
+                height,
+                fill,
+                line,
+                lineWidth,
+                geometry,
+                paragraphs,
+                name,
+                isTextBox: false,
+                verticalAnchor: verticalAnchor,
+                allowAutoFit: allowAutoFit,
+                leftInset: leftInset,
+                rightInset: rightInset,
+                topInset: topInset,
+                bottomInset: bottomInset);
 
         public void AddNativeTable(
             double x,
@@ -1273,7 +1662,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
                     rowXml.Append($"""
 <a:tc>
   {BuildTableTextBody(cell)}
-  <a:tcPr marL="{Emu(NativeTableHorizontalMargin)}" marR="{Emu(NativeTableHorizontalMargin)}" marT="{Emu(NativeTableVerticalMargin)}" marB="{Emu(NativeTableVerticalMargin)}" anchor="ctr">
+  <a:tcPr marL="45720" marR="45720" marT="22860" marB="22860" anchor="ctr">
     <a:solidFill><a:srgbClr val="{CleanColor(cell.Fill)}"/></a:solidFill>
     {TableBorders()}
   </a:tcPr>
@@ -1395,7 +1784,81 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
             string color,
             bool bold,
             string align,
-            string verticalAnchor = "ctr")
+            string verticalAnchor,
+            string name,
+            bool isTextBox)
+        {
+            var textXml = text is null
+                ? string.Empty
+                : BuildTextBody(text, fontSize, color, bold, align, verticalAnchor);
+            AddShapeXml(
+                x,
+                y,
+                width,
+                height,
+                fill,
+                line,
+                lineWidth,
+                geometry,
+                textXml,
+                name,
+                isTextBox);
+        }
+
+        private void AddRichTextShape(
+            double x,
+            double y,
+            double width,
+            double height,
+            string? fill,
+            string? line,
+            double lineWidth,
+            string geometry,
+            IReadOnlyList<RichTextParagraph> paragraphs,
+            string name,
+            bool isTextBox,
+            string verticalAnchor,
+            bool allowAutoFit,
+            double leftInset,
+            double rightInset,
+            double topInset,
+            double bottomInset)
+        {
+            ArgumentNullException.ThrowIfNull(paragraphs);
+            var textXml = BuildRichTextBody(
+                paragraphs,
+                verticalAnchor,
+                allowAutoFit,
+                leftInset,
+                rightInset,
+                topInset,
+                bottomInset);
+            AddShapeXml(
+                x,
+                y,
+                width,
+                height,
+                fill,
+                line,
+                lineWidth,
+                geometry,
+                textXml,
+                name,
+                isTextBox);
+        }
+
+        private void AddShapeXml(
+            double x,
+            double y,
+            double width,
+            double height,
+            string? fill,
+            string? line,
+            double lineWidth,
+            string geometry,
+            string textXml,
+            string name,
+            bool isTextBox)
         {
             var id = _nextShapeId++;
             var fillXml = string.IsNullOrWhiteSpace(fill)
@@ -1404,11 +1867,13 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
             var lineXml = string.IsNullOrWhiteSpace(line)
                 ? "<a:ln><a:noFill/></a:ln>"
                 : $"<a:ln w=\"{LineWidth(lineWidth)}\"><a:solidFill><a:srgbClr val=\"{CleanColor(line)}\"/></a:solidFill></a:ln>";
-            var textXml = text is null ? string.Empty : BuildTextBody(text, fontSize, color, bold, align, verticalAnchor);
+            var nonVisualShapeProperties = isTextBox
+                ? "<p:cNvSpPr txBox=\"1\"/>"
+                : "<p:cNvSpPr/>";
 
             _elements.Add($"""
 <p:sp>
-  <p:nvSpPr><p:cNvPr id="{id}" name="Shape {id}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+  <p:nvSpPr><p:cNvPr id="{id}" name="{Escape(name)}"/>{nonVisualShapeProperties}<p:nvPr/></p:nvSpPr>
   <p:spPr><a:xfrm><a:off x="{Emu(x)}" y="{Emu(y)}"/><a:ext cx="{Emu(width)}" cy="{Emu(height)}"/></a:xfrm><a:prstGeom prst="{geometry}"><a:avLst/></a:prstGeom>{fillXml}{lineXml}</p:spPr>
   {textXml}
 </p:sp>
@@ -1431,6 +1896,61 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         {
             var line = $"<a:solidFill><a:srgbClr val=\"{CleanColor(Theme.Border)}\"/></a:solidFill><a:prstDash val=\"solid\"/>";
             return $"<a:lnL w=\"3175\">{line}</a:lnL><a:lnR w=\"3175\">{line}</a:lnR><a:lnT w=\"3175\">{line}</a:lnT><a:lnB w=\"3175\">{line}</a:lnB>";
+        }
+
+        private static string BuildRichTextBody(
+            IReadOnlyList<RichTextParagraph> paragraphs,
+            string verticalAnchor,
+            bool allowAutoFit,
+            double leftInset,
+            double rightInset,
+            double topInset,
+            double bottomInset)
+        {
+            var anchor = VerticalAnchor(verticalAnchor);
+            var autoFit = allowAutoFit
+                ? "<a:normAutofit fontScale=\"94000\" lnSpcReduction=\"6000\"/>"
+                : "<a:noAutofit/>";
+            var paragraphXml = new StringBuilder();
+
+            foreach (var paragraph in paragraphs)
+            {
+                if (paragraph.Runs.Count == 0)
+                {
+                    continue;
+                }
+
+                var alignment = Alignment(paragraph.Align);
+                var lineSpacingXml = paragraph.LineSpacingPoints.HasValue
+                    ? $"<a:lnSpc><a:spcPts val=\"{FontSize(paragraph.LineSpacingPoints.Value)}\"/></a:lnSpc>"
+                    : string.Empty;
+                var spaceAfterXml = paragraph.SpaceAfterPoints > 0
+                    ? $"<a:spcAft><a:spcPts val=\"{FontSize(paragraph.SpaceAfterPoints)}\"/></a:spcAft>"
+                    : string.Empty;
+                var tabXml = paragraph.TabStopInches.HasValue
+                    ? $"<a:tabLst><a:tab pos=\"{Emu(paragraph.TabStopInches.Value)}\"/></a:tabLst>"
+                    : string.Empty;
+                var marginAttributes = $" marL=\"{Emu(paragraph.LeftMarginInches)}\" indent=\"{Emu(paragraph.FirstLineIndentInches)}\"";
+
+                paragraphXml.Append($"<a:p><a:pPr algn=\"{alignment}\"{marginAttributes}>{lineSpacingXml}{spaceAfterXml}{tabXml}</a:pPr>");
+                for (var runIndex = 0; runIndex < paragraph.Runs.Count; runIndex++)
+                {
+                    var run = paragraph.Runs[runIndex];
+                    var runText = paragraph.TabAfterFirstRun
+                        && runIndex == 0
+                        && paragraph.Runs.Count > 1
+                            ? Escape(run.Text) + "&#x9;"
+                            : Escape(run.Text);
+                    paragraphXml.Append($"""
+<a:r><a:rPr lang="en-IN" sz="{FontSize(run.FontSize)}" b="{(run.Bold ? 1 : 0)}" i="{(run.Italic ? 1 : 0)}"><a:solidFill><a:srgbClr val="{CleanColor(run.Color)}"/></a:solidFill><a:latin typeface="Aptos"/></a:rPr><a:t xml:space="preserve">{runText}</a:t></a:r>
+""");
+                }
+
+                var finalRun = paragraph.Runs[^1];
+                paragraphXml.Append($"<a:endParaRPr lang=\"en-IN\" sz=\"{FontSize(finalRun.FontSize)}\"/></a:p>");
+            }
+
+            return $"<p:txBody><a:bodyPr wrap=\"square\" vertOverflow=\"clip\" horzOverflow=\"clip\" lIns=\"{Emu(leftInset)}\" rIns=\"{Emu(rightInset)}\" tIns=\"{Emu(topInset)}\" bIns=\"{Emu(bottomInset)}\" anchor=\"{anchor}\">{autoFit}</a:bodyPr><a:lstStyle/>{paragraphXml}</p:txBody>";
         }
 
         private static string BuildTextBody(

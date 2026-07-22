@@ -133,7 +133,7 @@ public static class ProjectBriefingCapabilityPaginator
             or ProjectBriefingCapabilityBlockType.NumberedItem
             or ProjectBriefingCapabilityBlockType.LetteredItem)
         {
-            characterBudget = Math.Max(20, characterBudget - 7);
+            characterBudget = Math.Max(20, characterBudget - 7 - (block.IndentLevel * 4));
         }
 
         var lines = EstimateLines(block.Text, characterBudget);
@@ -147,7 +147,8 @@ public static class ProjectBriefingCapabilityPaginator
             block.IsMuted,
             fontSize,
             textHeight,
-            spaceAfter);
+            spaceAfter,
+            block.IndentLevel);
     }
 
     private static double MinimumFollowingHeight(
@@ -226,7 +227,7 @@ public static class ProjectBriefingCapabilityPaginator
             or ProjectBriefingCapabilityBlockType.NumberedItem
             or ProjectBriefingCapabilityBlockType.LetteredItem)
         {
-            characterBudget = Math.Max(20, characterBudget - 7);
+            characterBudget = Math.Max(20, characterBudget - 7 - (block.IndentLevel * 4));
         }
 
         if (EstimateLines(block.Text, characterBudget) <= maximumLines)
