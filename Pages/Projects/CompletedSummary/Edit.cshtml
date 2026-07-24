@@ -15,7 +15,7 @@
 
     <div class="col-12 col-md-4">
         <label asp-for="Input.ApproxProductionCost" class="form-label">Approx Prod cost (lakh)</label>
-        <input asp-for="Input.ApproxProductionCost" class="form-control" />
+        <input asp-for="Input.ApproxProductionCost" class="form-control" type="number" min="0.01" step="0.01" inputmode="decimal" />
         <span asp-validation-for="Input.ApproxProductionCost" class="text-danger"></span>
     </div>
 
@@ -31,17 +31,36 @@
         <span asp-validation-for="Input.TechStatus" class="text-danger"></span>
     </div>
 
-    <div class="col-12 col-md-4">
-        <div class="form-check mt-md-4 pt-md-2">
-            <input asp-for="Input.AvailableForProliferation" class="form-check-input" />
-            <label asp-for="Input.AvailableForProliferation" class="form-check-label">Available for proliferation</label>
-        </div>
+    <div class="col-12 col-lg-8">
+        <fieldset>
+            <legend class="form-label">Availability for proliferation</legend>
+            <div class="d-flex flex-wrap gap-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="Input.AvailableForProliferation" id="availabilityNotAssessed" value="" checked="@(Model.Input.AvailableForProliferation is null ? "checked" : null)" />
+                    <label class="form-check-label" for="availabilityNotAssessed">Not assessed</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="Input.AvailableForProliferation" id="availabilityYes" value="true" checked="@(Model.Input.AvailableForProliferation == true ? "checked" : null)" />
+                    <label class="form-check-label" for="availabilityYes">Available</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="Input.AvailableForProliferation" id="availabilityNo" value="false" checked="@(Model.Input.AvailableForProliferation == false ? "checked" : null)" />
+                    <label class="form-check-label" for="availabilityNo">Not available</label>
+                </div>
+            </div>
+        </fieldset>
     </div>
 
     <div class="col-12">
         <label asp-for="Input.NotAvailableReason" class="form-label">Reason if not available</label>
-        <textarea asp-for="Input.NotAvailableReason" rows="2" class="form-control"></textarea>
+        <textarea asp-for="Input.NotAvailableReason" rows="2" maxlength="500" class="form-control"></textarea>
         <span asp-validation-for="Input.NotAvailableReason" class="text-danger"></span>
+    </div>
+
+    <div class="col-12">
+        <label asp-for="Input.ProliferationRemarks" class="form-label">Proliferation remarks</label>
+        <textarea asp-for="Input.ProliferationRemarks" rows="2" maxlength="500" class="form-control"></textarea>
+        <span asp-validation-for="Input.ProliferationRemarks" class="text-danger"></span>
     </div>
 
     <div class="col-12">

@@ -54,9 +54,9 @@ public sealed class ProjectBriefingStageOrderTests
     }
 
     [Fact]
-    public void BuildCompleteSummary_KeepsZeroCountStagesAndAddsOnlyOneUnresolvedRow()
+    public void BuildSummary_OmitsZeroCountStagesAndAddsOnlyOneUnresolvedRow()
     {
-        var summary = ProjectBriefingStageOrder.BuildCompleteSummary(new[]
+        var summary = ProjectBriefingStageOrder.BuildSummary(new[]
         {
             ProjectBriefingStageOrder.Completed,
             ProjectBriefingStageOrder.Completed,
@@ -65,11 +65,20 @@ public sealed class ProjectBriefingStageOrderTests
             8_888
         });
 
-        Assert.Equal(ProjectBriefingStageOrder.Stages.Count + 1, summary.Count);
+        Assert.Equal(4, summary.Count);
+        Assert.Equal(
+            new[]
+            {
+                "Completed",
+                "Development",
+                "Acceptance of Necessity",
+                "Stage unresolved"
+            },
+            summary.Select(point => point.Label));
         Assert.Equal(2, Assert.Single(summary, point => point.Label == "Completed").Count);
         Assert.Equal(1, Assert.Single(summary, point => point.Label == "Development").Count);
-        Assert.Equal(0, Assert.Single(summary, point => point.Label == "In-Principle Approval").Count);
-        Assert.Equal(0, Assert.Single(summary, point => point.Label == "Scope of Work Vetting").Count);
+        Assert.DoesNotContain(summary, point => point.Label == "In-Principle Approval");
+        Assert.DoesNotContain(summary, point => point.Label == "Scope of Work Vetting");
         Assert.Equal(1, Assert.Single(summary, point => point.Label == "Stage unresolved").Count);
     }
 

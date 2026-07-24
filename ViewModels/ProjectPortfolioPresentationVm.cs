@@ -33,11 +33,34 @@ public sealed class ProjectPortfolioPresentationVm
     public string ScheduleStatus { get; init; } = "Not assessed";
     public string ScheduleDetail { get; init; } = "Set the current-stage planned completion date";
     public string CurrentStageDisplay => IsWorkflowConcluded ? "Lifecycle concluded" : CurrentStage?.Name ?? "Not started";
-    public string CurrentStageDetail => IsWorkflowConcluded
-        ? "All applicable stages are complete or skipped"
-        : CurrentStage?.HasPendingRequest == true
-            ? $"{PendingActionLabel(CurrentStage.PendingStatus)} · Awaiting HoD approval"
-            : CurrentStage?.Code ?? "No active stage";
+    public string CurrentStageDetail
+    {
+        get
+        {
+            if (IsWorkflowConcluded)
+            {
+                return BackfillStageCount > 0
+                    ? $"Workflow concluded · {BackfillStageCount} stage{(BackfillStageCount == 1 ? string.Empty : "s")} require backfill"
+                    : "All applicable stages are complete or skipped";
+            }
+
+            var currentDetail = CurrentStage?.HasPendingRequest == true
+                ? $"{PendingActionLabel(CurrentStage.PendingStatus)} · Awaiting HoD approval"
+                : CurrentStage?.Code ?? "No active stage";
+
+            if (NextStage is not null)
+            {
+                return $"{currentDetail} · Next: {NextStage.Name}";
+            }
+
+            if (BackfillStageCount > 0)
+            {
+                return $"{currentDetail} · {BackfillStageCount} stage{(BackfillStageCount == 1 ? string.Empty : "s")} require backfill";
+            }
+
+            return currentDetail;
+        }
+    }
     public string NextAction { get; init; } = "Review project status";
     public string NextActionDetail { get; init; } = "Operational follow-up";
     public string ProfileCompletenessDetail => CompletenessPercent == 100

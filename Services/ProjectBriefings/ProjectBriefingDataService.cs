@@ -398,7 +398,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     private static ProjectBriefingPresentationSummary BuildPresentationSummary(
         IReadOnlyList<ProjectBriefingPresentationProject> projects)
     {
-        var stageSummary = ProjectBriefingStageOrder.BuildCompleteSummary(
+        var stageSummary = ProjectBriefingStageOrder.BuildSummary(
             projects.Select(project => project.PresentStageOrder));
 
         var projectCategorySummary = projects

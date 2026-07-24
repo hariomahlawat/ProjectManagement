@@ -88,7 +88,7 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
 
         var proliferationCount = await baseQuery
             .CountAsync(project => _db.ProjectTechStatuses.Any(status =>
-                status.ProjectId == project.Id && status.AvailableForProliferation), cancellationToken);
+                status.ProjectId == project.Id && status.AvailableForProliferation == true), cancellationToken);
 
         return new ProjectBriefingSelectionOptionsVm
         {
@@ -167,7 +167,7 @@ public sealed class ProjectBriefingSelectionService : IProjectBriefingSelectionS
 
             case ProjectBriefingSelectionKind.AvailableForProliferation:
                 query = query.Where(project => _db.ProjectTechStatuses.Any(status =>
-                    status.ProjectId == project.Id && status.AvailableForProliferation));
+                    status.ProjectId == project.Id && status.AvailableForProliferation == true));
                 summary = "Projects available for proliferation";
                 break;
 

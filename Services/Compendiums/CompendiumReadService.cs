@@ -77,16 +77,16 @@ public sealed class CompendiumReadService : ICompendiumReadService
             .ToDictionaryAsync(status => status.ProjectId, cancellationToken);
 
         var eligibleProjectIds = technicalStatuses
-            .Where(item => item.Value.AvailableForProliferation)
+            .Where(item => item.Value.AvailableForProliferation == true)
             .Select(item => item.Key)
             .ToHashSet();
 
         var missingAvailabilityStatusCount = completedProjects.Count(project =>
-            !technicalStatuses.ContainsKey(project.Id));
+            !technicalStatuses.TryGetValue(project.Id, out var status) || !status.AvailableForProliferation.HasValue);
 
         var excludedNotAvailableCount = completedProjects.Count(project =>
             technicalStatuses.TryGetValue(project.Id, out var status)
-            && !status.AvailableForProliferation);
+            && status.AvailableForProliferation == false);
 
         if (eligibleProjectIds.Count == 0)
         {

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Npgsql;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -49,10 +50,11 @@ namespace ProjectManagement.Pages.Projects
         private readonly ProjectLifecycleService _lifecycleService;
         private readonly IMarkdownRenderer _markdownRenderer;
         private readonly ProjectRecordHealthService _recordHealthService;
+        private readonly ProjectProliferationProfileService _proliferationProfiles;
 
         public PlanCompareService PlanCompare { get; }
 
-        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService, IMarkdownRenderer markdownRenderer, ProjectRecordHealthService recordHealthService)
+        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService, IMarkdownRenderer markdownRenderer, ProjectRecordHealthService recordHealthService, ProjectProliferationProfileService proliferationProfiles)
         {
             _db = db;
             _procureRead = procureRead;
@@ -66,6 +68,7 @@ namespace ProjectManagement.Pages.Projects
             _lifecycleService = lifecycleService;
             _markdownRenderer = markdownRenderer;
             _recordHealthService = recordHealthService;
+            _proliferationProfiles = proliferationProfiles;
         }
 
         public Project Project { get; private set; } = default!;
@@ -106,6 +109,8 @@ namespace ProjectManagement.Pages.Projects
         public ProjectRemarkSummaryViewModel RemarkSummary { get; private set; } = ProjectRemarkSummaryViewModel.Empty;
         public ProjectTotSummaryViewModel TotSummary { get; private set; } = ProjectTotSummaryViewModel.Empty;
         public ProjectCostSummaryViewModel CostSummary { get; private set; } = ProjectCostSummaryViewModel.Empty;
+        public ProjectProliferationProfileVm ProliferationProfile { get; private set; } = ProjectProliferationProfileVm.Empty(0);
+        public bool CanManageProliferation { get; private set; }
         public IReadOnlyList<JdpPartnerLinkVm> JdpPartners { get; private set; } = Array.Empty<JdpPartnerLinkVm>();
         public bool CanManageTot { get; private set; }
         public bool CanManageIndustryPartners { get; private set; }
@@ -142,6 +147,9 @@ namespace ProjectManagement.Pages.Projects
 
         [BindProperty]
         public ReactivateLifecycleInput ReactivateProjectInput { get; set; } = new();
+
+        [BindProperty]
+        public ProjectProliferationUpdateInput ProliferationInput { get; set; } = new();
 
         public sealed class CompleteLifecycleInput
         {
@@ -395,7 +403,19 @@ namespace ProjectManagement.Pages.Projects
             };
 
             CanManageTot = isAdmin || isHoD || isThisProjectsPo;
+            CanManageProliferation = isAdmin || isHoD || isThisProjectsPo;
             CanManageIndustryPartners = Policies.IndustryPartners.ManageAllowedRoles.Any(User.IsInRole);
+
+            ProliferationProfile = await _proliferationProfiles.GetAsync(project.Id, ct)
+                ?? ProjectProliferationProfileVm.Empty(project.Id);
+            ProliferationInput = new ProjectProliferationUpdateInput
+            {
+                ProjectId = project.Id,
+                CostLakhs = ProliferationProfile.CostLakhs,
+                AvailableForProliferation = ProliferationProfile.AvailableForProliferation,
+                NotAvailableReason = ProliferationProfile.NotAvailableReason,
+                Remarks = ProliferationProfile.Remarks
+            };
 
             var todayLocalDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst()));
 
@@ -472,12 +492,6 @@ namespace ProjectManagement.Pages.Projects
                 draftExists);
 
             // SECTION: Cost summary
-            var approxProductionCost = await _db.ProjectProductionCostFacts
-                .AsNoTracking()
-                .Where(f => f.ProjectId == id)
-                .Select(f => f.ApproxProductionCost)
-                .FirstOrDefaultAsync(ct);
-
             decimal? rdOrL1CostLakhs = null;
 
             // Prefer PNC cost, then L1 cost, then project R&D cost
@@ -497,7 +511,7 @@ namespace ProjectManagement.Pages.Projects
             CostSummary = new ProjectCostSummaryViewModel
             {
                 RdCostLakhs = rdOrL1CostLakhs,
-                ApproxProductionCost = approxProductionCost
+                ApproxProductionCost = ProliferationProfile.CostLakhs
             };
 
             var pendingMetaRequest = await _db.ProjectMetaChangeRequests
@@ -523,6 +537,128 @@ namespace ProjectManagement.Pages.Projects
                 .ToList();
 
             return Page();
+        }
+
+        public async Task<IActionResult> OnPostProliferationAsync(int id, CancellationToken ct)
+        {
+            if (id <= 0 || ProliferationInput.ProjectId != id)
+            {
+                return new JsonResult(new { error = "The proliferation form is not valid for this project." })
+                {
+                    StatusCode = StatusCodes.Status400BadRequest
+                };
+            }
+
+            var currentUserId = _users.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(currentUserId))
+            {
+                return Forbid();
+            }
+
+            var project = await _db.Projects
+                .AsNoTracking()
+                .Where(item => item.Id == id && !item.IsDeleted)
+                .Select(item => new { item.Id, item.LeadPoUserId })
+                .SingleOrDefaultAsync(ct);
+
+            if (project is null)
+            {
+                return new JsonResult(new { error = "Project not found." })
+                {
+                    StatusCode = StatusCodes.Status404NotFound
+                };
+            }
+
+            var canEdit = User.IsInRole(RoleNames.Admin)
+                || User.IsInRole(RoleNames.HoD)
+                || (User.IsInRole(RoleNames.ProjectOfficer)
+                    && string.Equals(project.LeadPoUserId, currentUserId, StringComparison.OrdinalIgnoreCase));
+
+            if (!canEdit)
+            {
+                return new JsonResult(new { error = "You are not authorised to update proliferation details for this project." })
+                {
+                    StatusCode = StatusCodes.Status403Forbidden
+                };
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return ProliferationValidationResponse(ModelState);
+            }
+
+            var result = await _proliferationProfiles.UpdateAsync(
+                new ProjectProliferationUpdateCommand(
+                    ProliferationInput.ProjectId,
+                    ProliferationInput.CostLakhs,
+                    ProliferationInput.AvailableForProliferation,
+                    ProliferationInput.NotAvailableReason,
+                    ProliferationInput.Remarks),
+                currentUserId,
+                User.Identity?.Name,
+                ct);
+
+            if (result.Status == ProjectProliferationUpdateStatus.NotFound)
+            {
+                return new JsonResult(new { error = "Project not found." })
+                {
+                    StatusCode = StatusCodes.Status404NotFound
+                };
+            }
+
+            if (result.Status == ProjectProliferationUpdateStatus.Forbidden)
+            {
+                return new JsonResult(new { error = "You are not authorised to update proliferation details for this project." })
+                {
+                    StatusCode = StatusCodes.Status403Forbidden
+                };
+            }
+
+            if (result.Status == ProjectProliferationUpdateStatus.ValidationFailed)
+            {
+                return new JsonResult(new { errors = result.Errors })
+                {
+                    StatusCode = StatusCodes.Status400BadRequest
+                };
+            }
+
+            var profile = result.Profile ?? ProjectProliferationProfileVm.Empty(id);
+            return new JsonResult(new
+            {
+                success = true,
+                message = "Proliferation details updated.",
+                profile = new
+                {
+                    projectId = profile.ProjectId,
+                    costLakhs = profile.CostLakhs,
+                    costDisplay = profile.CostDisplay,
+                    availableForProliferation = profile.AvailableForProliferation,
+                    availabilityDisplay = profile.AvailabilityDisplay,
+                    availabilityTone = profile.AvailabilityTone,
+                    notAvailableReason = profile.NotAvailableReason,
+                    remarks = profile.Remarks,
+                    updatedDisplay = profile.UpdatedDisplay
+                }
+            });
+        }
+
+        private static JsonResult ProliferationValidationResponse(Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateDictionary modelState)
+        {
+            var errors = modelState
+                .Where(entry => entry.Value?.Errors.Count > 0)
+                .ToDictionary(
+                    entry => entry.Key,
+                    entry => entry.Value!.Errors
+                        .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
+                            ? "The value entered is not valid."
+                            : error.ErrorMessage)
+                        .ToArray(),
+                    StringComparer.OrdinalIgnoreCase);
+
+            return new JsonResult(new { errors })
+            {
+                StatusCode = StatusCodes.Status400BadRequest
+            };
         }
 
         public async Task<IActionResult> OnPostCompleteAsync(int id, CancellationToken ct)

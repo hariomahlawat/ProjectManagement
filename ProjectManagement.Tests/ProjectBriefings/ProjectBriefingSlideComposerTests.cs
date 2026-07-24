@@ -321,7 +321,7 @@ public sealed class ProjectBriefingSlideComposerTests
                 ProjectCount = projects.Length,
                 OngoingCount = 2,
                 CompletedCount = 2,
-                StageSummary = ProjectBriefingStageOrder.BuildCompleteSummary(
+                StageSummary = ProjectBriefingStageOrder.BuildSummary(
                     projects.Select(project => project.PresentStageOrder))
             }
         };
@@ -456,7 +456,7 @@ public sealed class ProjectBriefingSlideComposerTests
                 ProliferationCostRecordedCount = 1,
                 MissingExternalStatusCount = 0,
                 MissingPhotoCount = 2,
-                StageSummary = ProjectBriefingStageOrder.BuildCompleteSummary(
+                StageSummary = ProjectBriefingStageOrder.BuildSummary(
                     projects.Select(project => project.PresentStageOrder))
             }
         };

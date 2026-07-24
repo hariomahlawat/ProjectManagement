@@ -90,38 +90,45 @@
                 <span>@portfolio.CompletedStages completed@(portfolio.SkippedStages > 0 ? $" · {portfolio.SkippedStages} skipped" : string.Empty)</span>
             }
         </div>
-        <button class="project-intelligence-card" type="button" data-scroll-target="@StageTarget(portfolio.NextStage)">
-            @if (portfolio.NextStage is not null)
-            {
-                <span class="project-intelligence-card__label">Next stage</span>
-                <strong>@portfolio.NextStage.Name</strong>
-                @if (portfolio.NextStage.HasPendingRequest)
-                {
-                    <span>@ProjectManagement.ViewModels.ProjectPortfolioPresentationVm.PendingActionLabel(portfolio.NextStage.PendingStatus) · Awaiting HoD approval</span>
-                }
-                else if (portfolio.CurrentStage?.HasPendingRequest == true
-                    && string.Equals(portfolio.CurrentStage.PendingStatus, "Completed", StringComparison.OrdinalIgnoreCase))
-                {
-                    <span>Becomes current after HoD approval</span>
-                }
-                else
-                {
-                    <span>@portfolio.NextStage.Code</span>
-                }
-            }
-            else if (portfolio.BackfillStageCount > 0)
-            {
-                <span class="project-intelligence-card__label">Attention required</span>
-                <strong>@portfolio.BackfillStageCount stage@(portfolio.BackfillStageCount == 1 ? string.Empty : "s")</strong>
-                <span>Complete missing stage details</span>
-            }
-            else
-            {
-                <span class="project-intelligence-card__label">Next stage</span>
-                <strong>No subsequent stage</strong>
-                <span>@(portfolio.IsWorkflowConcluded ? "Workflow sequence concluded" : "No next stage available")</span>
-            }
-        </button>
+        @if (Model.CanManageProliferation)
+        {
+            <button id="project-proliferation-card"
+                    class="project-intelligence-card project-intelligence-card--proliferation"
+                    type="button"
+                    data-bs-toggle="offcanvas"
+                    data-bs-target="#offcanvasProliferation"
+                    aria-controls="offcanvasProliferation"
+                    aria-label="Edit proliferation details">
+                <span class="project-intelligence-card__label">
+                    Proliferation
+                    <i class="bi bi-pencil-square project-intelligence-card__edit-icon" aria-hidden="true"></i>
+                </span>
+                <strong data-proliferation-cost>@Model.ProliferationProfile.CostDisplay</strong>
+                <span class="project-intelligence-card__status project-intelligence-card__status--@Model.ProliferationProfile.AvailabilityTone"
+                      data-proliferation-status-wrap>
+                    <span class="project-intelligence-card__status-dot" aria-hidden="true"></span>
+                    <span data-proliferation-status>@Model.ProliferationProfile.AvailabilityDisplay</span>
+                </span>
+            </button>
+        }
+        else
+        {
+            <button id="project-proliferation-card"
+                    class="project-intelligence-card project-intelligence-card--proliferation"
+                    type="button"
+                    data-bs-toggle="offcanvas"
+                    data-bs-target="#offcanvasProliferation"
+                    aria-controls="offcanvasProliferation"
+                    aria-label="View proliferation details">
+                <span class="project-intelligence-card__label">Proliferation</span>
+                <strong data-proliferation-cost>@Model.ProliferationProfile.CostDisplay</strong>
+                <span class="project-intelligence-card__status project-intelligence-card__status--@Model.ProliferationProfile.AvailabilityTone"
+                      data-proliferation-status-wrap>
+                    <span class="project-intelligence-card__status-dot" aria-hidden="true"></span>
+                    <span data-proliferation-status>@Model.ProliferationProfile.AvailabilityDisplay</span>
+                </span>
+            </button>
+        }
         <button class="project-intelligence-card" type="button" data-bs-toggle="modal" data-bs-target="#recordCompletenessModal" aria-controls="recordCompletenessModal">
             <span class="project-intelligence-card__label">Record completeness</span>
             <strong>@Model.RecordHealth.HealthPercent%</strong>

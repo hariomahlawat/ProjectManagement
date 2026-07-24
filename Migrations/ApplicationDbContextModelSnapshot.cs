@@ -5965,7 +5965,7 @@ namespace ProjectManagement.Migrations
                     b.Property<int>("ProjectId")
                         .HasColumnType("integer");
 
-                    b.Property<bool>("AvailableForProliferation")
+                    b.Property<bool?>("AvailableForProliferation")
                         .HasColumnType("boolean");
 
                     b.Property<DateTimeOffset>("MarkedAtUtc")
@@ -5977,6 +5977,10 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("character varying(64)");
 
                     b.Property<string>("NotAvailableReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ProliferationRemarks")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 

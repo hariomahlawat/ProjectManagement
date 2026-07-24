@@ -86,11 +86,12 @@ public static class ProjectBriefingStageOrder
     }
 
     /// <summary>
-    /// Builds the complete stage table in canonical order. Zero-count stages remain
-    /// visible so that the briefing never suggests that a valid workflow stage is
-    /// missing. Unmapped stages are consolidated into one exception row.
+    /// Builds the visible stage summary in canonical maturity order. Valid workflow
+    /// stages remain available through <see cref="Stages"/>, but stages with no
+    /// selected projects are omitted from the briefing. Unmapped stages are
+    /// consolidated into one exception row.
     /// </summary>
-    public static IReadOnlyList<ProjectBriefingSummaryPoint> BuildCompleteSummary(
+    public static IReadOnlyList<ProjectBriefingSummaryPoint> BuildSummary(
         IEnumerable<int> stageOrders)
     {
         ArgumentNullException.ThrowIfNull(stageOrders);
@@ -103,9 +104,10 @@ public static class ProjectBriefingStageOrder
             .ToHashSet();
 
         var result = CanonicalStages
+            .Where(stage => counts.GetValueOrDefault(stage.Order) > 0)
             .Select(stage => new ProjectBriefingSummaryPoint(
                 stage.Label,
-                counts.GetValueOrDefault(stage.Order),
+                counts[stage.Order],
                 stage.Order))
             .ToList();
 

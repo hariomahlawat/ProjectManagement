@@ -658,6 +658,7 @@ builder.Services.AddScoped<ProjectFactsReadService>();
 builder.Services.AddScoped<IProjectCostResolver, ProjectCostResolver>();
 builder.Services.AddScoped<ProjectProcurementReadService>();
 builder.Services.AddScoped<CompletedProjectsSummaryService>();
+builder.Services.AddScoped<ProjectProliferationProfileService>();
 builder.Services.AddScoped<ProjectTimelineReadService>();
 builder.Services.AddScoped<ProjectLifecycleService>();
 builder.Services.AddScoped<ProjectTotService>();

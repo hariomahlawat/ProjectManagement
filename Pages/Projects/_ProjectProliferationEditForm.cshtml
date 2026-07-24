@@ -1,0 +1,120 @@
+@model ProjectManagement.Pages.Projects.OverviewModel
+@{
+    var availability = Model.ProliferationInput.AvailableForProliferation;
+}
+<form method="post"
+      asp-page="/Projects/Overview"
+      asp-route-id="@Model.Project.Id"
+      asp-page-handler="Proliferation"
+      data-proliferation-form
+      novalidate>
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="ProliferationInput.ProjectId" />
+
+    <div class="alert alert-danger d-none" role="alert" data-proliferation-errors></div>
+
+    <div class="proliferation-editor__intro">
+        <span class="proliferation-editor__icon" aria-hidden="true"><i class="bi bi-diagram-2"></i></span>
+        <div>
+            <strong>Proliferation position</strong>
+            <p class="mb-0">Record the indicative cost and whether this project is presently available for proliferation.</p>
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <label asp-for="ProliferationInput.CostLakhs" class="form-label">Indicative proliferation cost</label>
+        <div class="input-group">
+            <span class="input-group-text">₹</span>
+            <input asp-for="ProliferationInput.CostLakhs"
+                   class="form-control"
+                   type="number"
+                   min="0.01"
+                   step="0.01"
+                   inputmode="decimal"
+                   autocomplete="off"
+                   placeholder="Leave blank if not recorded" />
+            <span class="input-group-text">lakh</span>
+        </div>
+        <div class="form-text">Enter the indicative cost for one proliferation unit or package, as applicable.</div>
+        <span class="text-danger small" data-proliferation-field-error="CostLakhs"></span>
+    </div>
+
+    <fieldset class="mb-4">
+        <legend class="form-label mb-2">Availability for proliferation</legend>
+        <div class="proliferation-choice-grid" role="radiogroup" aria-label="Availability for proliferation">
+            <label class="proliferation-choice">
+                <input type="radio"
+                       name="ProliferationInput.AvailableForProliferation"
+                       value=""
+                       checked="@(availability is null ? "checked" : null)" />
+                <span class="proliferation-choice__body">
+                    <i class="bi bi-dash-circle" aria-hidden="true"></i>
+                    <strong>Not assessed</strong>
+                    <small>No formal availability decision recorded</small>
+                </span>
+            </label>
+            <label class="proliferation-choice proliferation-choice--positive">
+                <input type="radio"
+                       name="ProliferationInput.AvailableForProliferation"
+                       value="true"
+                       checked="@(availability == true ? "checked" : null)" />
+                <span class="proliferation-choice__body">
+                    <i class="bi bi-check-circle" aria-hidden="true"></i>
+                    <strong>Available</strong>
+                    <small>Can be considered for proliferation</small>
+                </span>
+            </label>
+            <label class="proliferation-choice proliferation-choice--negative">
+                <input type="radio"
+                       name="ProliferationInput.AvailableForProliferation"
+                       value="false"
+                       checked="@(availability == false ? "checked" : null)" />
+                <span class="proliferation-choice__body">
+                    <i class="bi bi-x-circle" aria-hidden="true"></i>
+                    <strong>Not available</strong>
+                    <small>Not presently suitable for proliferation</small>
+                </span>
+            </label>
+        </div>
+        <span class="text-danger small" data-proliferation-field-error="AvailableForProliferation"></span>
+    </fieldset>
+
+    <div class="mb-4 @(availability == false ? string.Empty : "d-none")" data-proliferation-reason-wrap>
+        <label asp-for="ProliferationInput.NotAvailableReason" class="form-label">Reason not available</label>
+        <textarea asp-for="ProliferationInput.NotAvailableReason"
+                  class="form-control"
+                  rows="3"
+                  maxlength="500"
+                  placeholder="State the principal technical, commercial or support constraint"></textarea>
+        <div class="d-flex justify-content-between gap-3 mt-1">
+            <span class="text-danger small" data-proliferation-field-error="NotAvailableReason"></span>
+            <small class="text-muted ms-auto" data-character-count-for="ProliferationInput_NotAvailableReason">0 / 500</small>
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <label asp-for="ProliferationInput.Remarks" class="form-label">Proliferation remarks <span class="text-muted fw-normal">(optional)</span></label>
+        <textarea asp-for="ProliferationInput.Remarks"
+                  class="form-control"
+                  rows="4"
+                  maxlength="500"
+                  placeholder="Add relevant conditions, package assumptions, likely users or follow-up action"></textarea>
+        <div class="d-flex justify-content-between gap-3 mt-1">
+            <span class="text-danger small" data-proliferation-field-error="Remarks"></span>
+            <small class="text-muted ms-auto" data-character-count-for="ProliferationInput_Remarks">0 / 500</small>
+        </div>
+    </div>
+
+    <div class="proliferation-editor__audit" data-proliferation-updated>
+        <i class="bi bi-clock-history" aria-hidden="true"></i>
+        <span>@Model.ProliferationProfile.UpdatedDisplay</span>
+    </div>
+
+    <div class="offcanvas-form-actions">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+        <button type="submit" class="btn btn-primary" data-proliferation-save>
+            <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-proliferation-spinner></span>
+            <span data-proliferation-save-label>Save details</span>
+        </button>
+    </div>
+</form>

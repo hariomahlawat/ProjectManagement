@@ -11,10 +11,11 @@ public class ProjectTechStatus
 
     // SECTION: Status metadata
     public string TechStatus { get; set; } = ProjectTechStatusCodes.Current;
-    public bool AvailableForProliferation { get; set; }
+    public bool? AvailableForProliferation { get; set; }
 
     // SECTION: Remarks and notes
     public string? NotAvailableReason { get; set; }
+    public string? ProliferationRemarks { get; set; }
     public string? Remarks { get; set; }
 
     // SECTION: Audit metadata

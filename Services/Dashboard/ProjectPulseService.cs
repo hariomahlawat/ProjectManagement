@@ -440,7 +440,7 @@ public sealed class ProjectPulseService : IProjectPulseService
     {
         var count = await _db.ProjectTechStatuses
             .AsNoTracking()
-            .Where(ts => ts.AvailableForProliferation
+            .Where(ts => ts.AvailableForProliferation == true
                 && ts.Project != null
                 && ts.Project.LifecycleStatus == ProjectLifecycleStatus.Completed
                 && !ts.Project.IsDeleted

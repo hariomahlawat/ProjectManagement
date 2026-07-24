@@ -35,6 +35,7 @@ public sealed partial class AuditActionPresentationCatalog : IAuditActionPresent
             ["Projects.MetaChangedDirect"] = new("Project details changed", "bi-pencil-square", "neutral", "Projects", "Project"),
             ["Projects.AssignRoles"] = new("Project roles assigned", "bi-people", "neutral", "Projects", "Project"),
             ["Projects.StageChanged"] = new("Project stage changed", "bi-signpost-split", "neutral", "Projects", "Project"),
+            ["Project.ProliferationProfileUpdated"] = new("Project proliferation details updated", "bi-diagram-2", "neutral", "Projects", "Project"),
             ["Archive"] = new("Project archived", "bi-archive", "neutral", "Recovery", "Project"),
             ["RestoreArchive"] = new("Archived project restored", "bi-folder2-open", "success", "Recovery", "Project"),
             ["Trash"] = new("Project moved to trash", "bi-trash3", "warning", "Recovery", "Project"),

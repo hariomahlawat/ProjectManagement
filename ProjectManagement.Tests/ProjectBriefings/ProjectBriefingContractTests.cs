@@ -82,7 +82,7 @@ public sealed class ProjectBriefingContractTests
         var dataSource = Read("ProjectBriefingDataService.cs");
         var composer = Read("ProjectBriefingSlideComposer.cs");
 
-        Assert.Contains("ProjectBriefingStageOrder.BuildCompleteSummary", dataSource, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingStageOrder.BuildSummary", dataSource, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingProjectOrdering.OrderProjects", dataSource, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingStageOrder.Resolve", dataSource, StringComparison.Ordinal);
         Assert.Contains("OrderProjects(data.Projects)", composer, StringComparison.Ordinal);

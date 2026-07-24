@@ -1,0 +1,45 @@
+@model ProjectManagement.Pages.Projects.OverviewModel
+@{
+    var profile = Model.ProliferationProfile;
+}
+<div class="proliferation-details" aria-label="Proliferation details">
+    <div class="proliferation-editor__intro">
+        <span class="proliferation-editor__icon" aria-hidden="true"><i class="bi bi-diagram-2"></i></span>
+        <div>
+            <strong>Proliferation position</strong>
+            <p class="mb-0">Indicative cost and current availability recorded for this project.</p>
+        </div>
+    </div>
+
+    <dl class="proliferation-details__list">
+        <div>
+            <dt>Indicative proliferation cost</dt>
+            <dd>@profile.CostDisplay</dd>
+        </div>
+        <div>
+            <dt>Availability</dt>
+            <dd>
+                <span class="project-intelligence-card__status project-intelligence-card__status--@profile.AvailabilityTone">
+                    <span class="project-intelligence-card__status-dot" aria-hidden="true"></span>
+                    <span>@profile.AvailabilityDisplay</span>
+                </span>
+            </dd>
+        </div>
+        @if (profile.AvailableForProliferation == false && !string.IsNullOrWhiteSpace(profile.NotAvailableReason))
+        {
+            <div>
+                <dt>Reason not available</dt>
+                <dd class="proliferation-details__narrative">@profile.NotAvailableReason</dd>
+            </div>
+        }
+        <div>
+            <dt>Proliferation remarks</dt>
+            <dd class="proliferation-details__narrative">@(string.IsNullOrWhiteSpace(profile.Remarks) ? "No remarks recorded" : profile.Remarks)</dd>
+        </div>
+    </dl>
+
+    <div class="proliferation-editor__audit">
+        <i class="bi bi-clock-history" aria-hidden="true"></i>
+        <span>@profile.UpdatedDisplay</span>
+    </div>
+</div>

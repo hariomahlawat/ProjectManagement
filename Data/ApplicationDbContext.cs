@@ -2005,6 +2005,7 @@ namespace ProjectManagement.Data
                     .HasDefaultValue(ProjectTechStatusCodes.Current)
                     .IsRequired();
                 e.Property(x => x.NotAvailableReason).HasMaxLength(500);
+                e.Property(x => x.ProliferationRemarks).HasMaxLength(500);
                 e.Property(x => x.Remarks).HasMaxLength(500);
                 e.Property(x => x.MarkedByUserId).HasMaxLength(64).IsRequired();
                 e.HasOne(x => x.Project)

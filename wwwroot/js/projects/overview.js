@@ -30,6 +30,252 @@
         }).catch(() => 'Unable to complete the request.');
     }
 
+    function initProliferationEditor() {
+        const offcanvas = document.getElementById('offcanvasProliferation');
+        const form = offcanvas?.querySelector('[data-proliferation-form]');
+        if (!offcanvas || !(form instanceof HTMLFormElement)) {
+            return;
+        }
+
+        const reasonWrap = form.querySelector('[data-proliferation-reason-wrap]');
+        const reasonInput = form.querySelector('[name="ProliferationInput.NotAvailableReason"]');
+        const availabilityInputs = Array.from(form.querySelectorAll('[name="ProliferationInput.AvailableForProliferation"]'));
+        const errorSummary = form.querySelector('[data-proliferation-errors]');
+        const saveButton = form.querySelector('[data-proliferation-save]');
+        const spinner = form.querySelector('[data-proliferation-spinner]');
+        const saveLabel = form.querySelector('[data-proliferation-save-label]');
+        const card = document.getElementById('project-proliferation-card');
+
+        function availabilityValue() {
+            const selected = availabilityInputs.find((input) => input.checked);
+            return selected?.value ?? '';
+        }
+
+        function updateReasonVisibility() {
+            const notAvailable = availabilityValue() === 'false';
+            reasonWrap?.classList.toggle('d-none', !notAvailable);
+            if (reasonInput instanceof HTMLTextAreaElement) {
+                reasonInput.required = notAvailable;
+                if (!notAvailable) {
+                    reasonInput.setCustomValidity('');
+                }
+            }
+        }
+
+        function updateCharacterCount(textarea) {
+            if (!(textarea instanceof HTMLTextAreaElement) || !textarea.id) {
+                return;
+            }
+
+            const counter = form.querySelector(`[data-character-count-for="${textarea.id}"]`);
+            if (counter) {
+                const maximum = Number.parseInt(textarea.getAttribute('maxlength') || '500', 10);
+                counter.textContent = `${textarea.value.length} / ${Number.isFinite(maximum) ? maximum : 500}`;
+            }
+        }
+
+        function clearErrors() {
+            form.querySelectorAll('[data-proliferation-field-error]').forEach((element) => {
+                element.textContent = '';
+            });
+
+            if (errorSummary) {
+                errorSummary.textContent = '';
+                errorSummary.classList.add('d-none');
+            }
+        }
+
+        function normalizeFieldName(key) {
+            if (typeof key !== 'string' || key.length === 0) {
+                return '';
+            }
+
+            const parts = key.split('.');
+            return parts[parts.length - 1];
+        }
+
+        function renderErrors(errors, fallbackMessage) {
+            clearErrors();
+            const messages = [];
+
+            if (errors && typeof errors === 'object') {
+                Object.entries(errors).forEach(([key, values]) => {
+                    const fieldName = normalizeFieldName(key);
+                    const fieldTarget = form.querySelector(`[data-proliferation-field-error="${fieldName}"]`);
+                    const fieldMessages = Array.isArray(values) ? values : [values];
+                    const cleanMessages = fieldMessages
+                        .filter((value) => typeof value === 'string' && value.trim().length > 0)
+                        .map((value) => value.trim());
+
+                    if (fieldTarget && cleanMessages.length > 0) {
+                        fieldTarget.textContent = cleanMessages[0];
+                    }
+
+                    messages.push(...cleanMessages);
+                });
+            }
+
+            if (messages.length === 0 && fallbackMessage) {
+                messages.push(fallbackMessage);
+            }
+
+            if (errorSummary && messages.length > 0) {
+                const list = document.createElement('ul');
+                list.className = 'mb-0 ps-3';
+                Array.from(new Set(messages)).forEach((message) => {
+                    const item = document.createElement('li');
+                    item.textContent = message;
+                    list.appendChild(item);
+                });
+                errorSummary.appendChild(list);
+                errorSummary.classList.remove('d-none');
+            }
+
+            const firstError = form.querySelector('[data-proliferation-field-error]:not(:empty)');
+            firstError?.closest('.mb-4, fieldset')?.querySelector('input, textarea')?.focus();
+        }
+
+        function setBusy(busy) {
+            if (saveButton instanceof HTMLButtonElement) {
+                saveButton.disabled = busy;
+            }
+            spinner?.classList.toggle('d-none', !busy);
+            if (saveLabel) {
+                saveLabel.textContent = busy ? 'Saving…' : 'Save details';
+            }
+        }
+
+        function updateCard(profile) {
+            if (!card || !profile) {
+                return;
+            }
+
+            const cost = card.querySelector('[data-proliferation-cost]');
+            const status = card.querySelector('[data-proliferation-status]');
+            const statusWrap = card.querySelector('[data-proliferation-status-wrap]');
+
+            if (cost && typeof profile.costDisplay === 'string') {
+                cost.textContent = profile.costDisplay;
+            }
+            if (status && typeof profile.availabilityDisplay === 'string') {
+                status.textContent = profile.availabilityDisplay;
+            }
+            if (statusWrap && typeof profile.availabilityTone === 'string') {
+                statusWrap.classList.remove(
+                    'project-intelligence-card__status--positive',
+                    'project-intelligence-card__status--negative',
+                    'project-intelligence-card__status--neutral');
+                statusWrap.classList.add(`project-intelligence-card__status--${profile.availabilityTone}`);
+            }
+        }
+
+        function synchronizeForm(profile) {
+            if (!profile) {
+                return;
+            }
+
+            const costInput = form.querySelector('[name="ProliferationInput.CostLakhs"]');
+            if (costInput instanceof HTMLInputElement) {
+                costInput.value = profile.costLakhs == null ? '' : String(profile.costLakhs);
+            }
+
+            const desiredAvailability = profile.availableForProliferation == null
+                ? ''
+                : String(profile.availableForProliferation);
+            availabilityInputs.forEach((input) => {
+                input.checked = input.value === desiredAvailability;
+            });
+
+            if (reasonInput instanceof HTMLTextAreaElement) {
+                reasonInput.value = profile.notAvailableReason || '';
+                updateCharacterCount(reasonInput);
+            }
+
+            const remarksInput = form.querySelector('[name="ProliferationInput.Remarks"]');
+            if (remarksInput instanceof HTMLTextAreaElement) {
+                remarksInput.value = profile.remarks || '';
+                updateCharacterCount(remarksInput);
+            }
+
+            const updated = form.querySelector('[data-proliferation-updated] span');
+            if (updated && typeof profile.updatedDisplay === 'string') {
+                updated.textContent = profile.updatedDisplay;
+            }
+
+            updateReasonVisibility();
+        }
+
+        availabilityInputs.forEach((input) => {
+            input.addEventListener('change', () => {
+                updateReasonVisibility();
+                clearErrors();
+            });
+        });
+
+        form.querySelectorAll('textarea[maxlength]').forEach((textarea) => {
+            updateCharacterCount(textarea);
+            textarea.addEventListener('input', () => updateCharacterCount(textarea));
+        });
+
+        offcanvas.addEventListener('shown.bs.offcanvas', () => {
+            clearErrors();
+            updateReasonVisibility();
+            const costInput = form.querySelector('[name="ProliferationInput.CostLakhs"]');
+            costInput?.focus();
+        });
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            clearErrors();
+
+            if (availabilityValue() === 'false' && reasonInput instanceof HTMLTextAreaElement && !reasonInput.value.trim()) {
+                renderErrors({ NotAvailableReason: ['Enter the reason the project is not available for proliferation.'] });
+                return;
+            }
+
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            setBusy(true);
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    body: new FormData(form),
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                });
+
+                let payload = null;
+                try {
+                    payload = await response.json();
+                } catch (error) {
+                    payload = null;
+                }
+
+                if (!response.ok || !payload?.success) {
+                    renderErrors(payload?.errors, payload?.error || 'Unable to update proliferation details.');
+                    return;
+                }
+
+                updateCard(payload.profile);
+                synchronizeForm(payload.profile);
+                bootstrap.Offcanvas.getOrCreateInstance(offcanvas).hide();
+                showToast(payload.message || 'Proliferation details updated.', 'success');
+            } catch (error) {
+                renderErrors(null, 'A network error prevented the proliferation details from being saved.');
+            } finally {
+                setBusy(false);
+            }
+        });
+
+        updateReasonVisibility();
+    }
+
     function initProjectModeration() {
         const tokenInput = document.querySelector('[data-project-moderation-token]');
         if (!tokenInput) {
@@ -142,6 +388,7 @@
     }
 
     initProjectModeration();
+    initProliferationEditor();
 
     function setBackfillVisibility(hasBackfill) {
         const banner = document.querySelector('[data-backfill-banner]');

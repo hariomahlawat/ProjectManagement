@@ -83,9 +83,24 @@ public sealed class EditModel : PageModel
         }
 
         // 2. validate production cost
-        if (Input.ApproxProductionCost is < 0)
+        if (Input.ApproxProductionCost is <= 0m)
         {
-            ModelState.AddModelError(nameof(Input.ApproxProductionCost), "Approximate production cost cannot be negative.");
+            ModelState.AddModelError(nameof(Input.ApproxProductionCost), "Enter a cost greater than zero, or leave it blank.");
+        }
+
+        if (Input.AvailableForProliferation == false && string.IsNullOrWhiteSpace(Input.NotAvailableReason))
+        {
+            ModelState.AddModelError(nameof(Input.NotAvailableReason), "Enter the reason the project is not available for proliferation.");
+        }
+
+        if (Normalize(Input.NotAvailableReason)?.Length > 500)
+        {
+            ModelState.AddModelError(nameof(Input.NotAvailableReason), "Reason cannot exceed 500 characters.");
+        }
+
+        if (Normalize(Input.ProliferationRemarks)?.Length > 500)
+        {
+            ModelState.AddModelError(nameof(Input.ProliferationRemarks), "Proliferation remarks cannot exceed 500 characters.");
         }
 
         // 3. validate existing LPP edits
@@ -211,15 +226,16 @@ public sealed class EditModel : PageModel
         tech.TechStatus = Input.TechStatus ?? ProjectTechStatusCodes.Current;
         tech.AvailableForProliferation = Input.AvailableForProliferation;
 
-        if (Input.AvailableForProliferation)
-        {
-            tech.NotAvailableReason = null;
-        }
-        else
+        if (Input.AvailableForProliferation == false)
         {
             tech.NotAvailableReason = Normalize(Input.NotAvailableReason);
         }
+        else
+        {
+            tech.NotAvailableReason = null;
+        }
 
+        tech.ProliferationRemarks = Normalize(Input.ProliferationRemarks);
         tech.Remarks = Normalize(Input.TechRemarks);
         tech.MarkedAtUtc = now;
         tech.MarkedByUserId = userId;
@@ -317,8 +333,9 @@ public sealed class EditModel : PageModel
             Input.ApproxProductionCost = prod?.ApproxProductionCost;
             Input.ProductionRemarks = prod?.Remarks;
             Input.TechStatus = tech?.TechStatus ?? ProjectTechStatusCodes.Current;
-            Input.AvailableForProliferation = tech?.AvailableForProliferation ?? false;
+            Input.AvailableForProliferation = tech?.AvailableForProliferation;
             Input.NotAvailableReason = tech?.NotAvailableReason;
+            Input.ProliferationRemarks = tech?.ProliferationRemarks;
             Input.TechRemarks = tech?.Remarks;
         }
 
@@ -351,8 +368,9 @@ public sealed class EditModel : PageModel
         public string? ProductionRemarks { get; set; }
 
         public string? TechStatus { get; set; } = ProjectTechStatusCodes.Current;
-        public bool AvailableForProliferation { get; set; }
+        public bool? AvailableForProliferation { get; set; }
         public string? NotAvailableReason { get; set; }
+        public string? ProliferationRemarks { get; set; }
         public string? TechRemarks { get; set; }
 
         public List<LppRecordInput> LppRecords { get; set; } = new();

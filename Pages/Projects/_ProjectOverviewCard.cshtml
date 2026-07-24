@@ -164,11 +164,6 @@
                     <dt class="project-facts__label">Initial procurement / R&amp;D cost</dt>
                     <dd class="project-facts__value">@FormatCost(Model.CostSummary.RdCostLakhs)</dd>
                 }
-                @if (Model.CostSummary.ApproxProductionCost.HasValue)
-                {
-                    <dt class="project-facts__label">Approx. production cost</dt>
-                    <dd class="project-facts__value">@FormatCost(Model.CostSummary.ApproxProductionCost)</dd>
-                }
             </dl>
 
             @if (!string.IsNullOrWhiteSpace(Model.DescriptionHtml))
