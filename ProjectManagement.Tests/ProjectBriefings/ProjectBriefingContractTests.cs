@@ -82,7 +82,8 @@ public sealed class ProjectBriefingContractTests
         var dataSource = Read("ProjectBriefingDataService.cs");
         var composer = Read("ProjectBriefingSlideComposer.cs");
 
-        Assert.Contains("OrderBy(point => point.Order)", dataSource, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingStageOrder.BuildCompleteSummary", dataSource, StringComparison.Ordinal);
+        Assert.Contains("ProjectBriefingProjectOrdering.OrderProjects", dataSource, StringComparison.Ordinal);
         Assert.Contains("ProjectBriefingStageOrder.Resolve", dataSource, StringComparison.Ordinal);
         Assert.Contains("OrderProjects(data.Projects)", composer, StringComparison.Ordinal);
         Assert.Contains("AddStageSummarySlides", composer, StringComparison.Ordinal);
@@ -186,9 +187,10 @@ public sealed class ProjectBriefingContractTests
         var script = Read("project-briefing-decks.js");
         var composer = Read("ProjectBriefingSlideComposer.cs");
 
-        Assert.Contains("Completed projects are shown first", page, StringComparison.Ordinal);
+        Assert.Contains("Projects are grouped by present stage in maturity order", page, StringComparison.Ordinal);
         Assert.Contains("Top of stage", page, StringComparison.Ordinal);
         Assert.Contains("data-stage-order", page, StringComparison.Ordinal);
+        Assert.Contains("row.dataset.stageCode === stage", script, StringComparison.Ordinal);
         Assert.Contains("sameStage", script, StringComparison.Ordinal);
         Assert.Contains("Projects remain grouped by maturity", script, StringComparison.Ordinal);
         Assert.Contains("NativeTableHorizontalMargin = .11", composer, StringComparison.Ordinal);

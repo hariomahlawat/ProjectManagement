@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.FileProviders;
 using ProjectManagement.Models;
 using ProjectManagement.Models.ProjectBriefings;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.ProjectBriefings;
 using ProjectManagement.Services.ProjectBriefings.Presentation;
 using Xunit;
@@ -295,6 +296,99 @@ public sealed class ProjectBriefingSlideComposerTests
             $"The project slide should remain easy to edit; found {textBoxCount} independent text boxes.");
     }
 
+    [Fact]
+    public void Compose_UsesIdenticalMaturityOrderForExecutiveAndDetailedSlides()
+    {
+        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
+        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
+        var projects = new[]
+        {
+            BriefingProject(1, "Development project", StageCodes.DEVP, ProjectBriefingStageOrder.Development, 10),
+            BriefingProject(2, "Completed project B", ProjectBriefingStageOrder.CompletedCode, ProjectBriefingStageOrder.Completed, 900, ProjectLifecycleStatus.Completed),
+            BriefingProject(3, "AoN project", StageCodes.AON, ProjectBriefingStageOrder.AcceptanceOfNecessity, 20),
+            BriefingProject(4, "Completed project A", ProjectBriefingStageOrder.CompletedCode, ProjectBriefingStageOrder.Completed, 30, ProjectLifecycleStatus.Completed)
+        };
+        var data = new ProjectBriefingPresentationData
+        {
+            DeckId = 110,
+            DeckName = "Ordering Regression Review",
+            PresentationMode = ProjectBriefingPresentationMode.Combined,
+            CostMode = ProjectBriefingCostMode.None,
+            GeneratedAtUtc = new DateTimeOffset(2026, 7, 24, 4, 0, 0, TimeSpan.Zero),
+            Projects = projects,
+            Summary = new ProjectBriefingPresentationSummary
+            {
+                ProjectCount = projects.Length,
+                OngoingCount = 2,
+                CompletedCount = 2,
+                StageSummary = ProjectBriefingStageOrder.BuildCompleteSummary(
+                    projects.Select(project => project.PresentStageOrder))
+            }
+        };
+
+        var (content, _) = composer.Compose(data);
+
+        using var stream = new MemoryStream(content, writable: false);
+        using var document = PresentationDocument.Open(stream, false);
+        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
+        var slideTexts = slides.Select(SlideText).ToArray();
+
+        var executiveText = Assert.Single(slideTexts.Where(text =>
+            text.Contains("Project status summary", StringComparison.Ordinal)));
+        AssertProjectSequence(
+            executiveText,
+            "Completed project A",
+            "Completed project B",
+            "Development project",
+            "AoN project");
+
+        var detailTexts = slideTexts
+            .Where(text => text.Contains("CAPABILITY OVERVIEW", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(4, detailTexts.Length);
+        Assert.Contains("Completed project A", detailTexts[0], StringComparison.Ordinal);
+        Assert.Contains("Completed project B", detailTexts[1], StringComparison.Ordinal);
+        Assert.Contains("Development project", detailTexts[2], StringComparison.Ordinal);
+        Assert.Contains("AoN project", detailTexts[3], StringComparison.Ordinal);
+    }
+
+    private static ProjectBriefingPresentationProject BriefingProject(
+        int id,
+        string name,
+        string stageCode,
+        int stageOrder,
+        int sortOrder,
+        ProjectLifecycleStatus lifecycleStatus = ProjectLifecycleStatus.Active)
+        => new()
+        {
+            ProjectId = id,
+            ProjectName = name,
+            LifecycleStatus = lifecycleStatus,
+            LifecycleDisplay = lifecycleStatus == ProjectLifecycleStatus.Completed ? "Completed" : "Ongoing",
+            PresentStageCode = stageCode,
+            PresentStage = lifecycleStatus == ProjectLifecycleStatus.Completed ? "Completed" : stageCode,
+            PresentStageOrder = stageOrder,
+            CostRd = ProjectBriefingCostValue.Missing(),
+            ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
+            ExternalStatus = "Status recorded.",
+            BriefDescription = "Capability description for ordering regression coverage.",
+            SortOrder = sortOrder
+        };
+
+    private static string SlideText(SlidePart slide)
+        => string.Join("\n", slide.Slide.Descendants<A.Text>().Select(node => node.Text));
+
+    private static void AssertProjectSequence(string text, params string[] projectNames)
+    {
+        var previous = -1;
+        foreach (var projectName in projectNames)
+        {
+            var index = text.IndexOf(projectName, StringComparison.Ordinal);
+            Assert.True(index > previous, $"Expected {projectName} after the preceding project in the generated sequence.");
+            previous = index;
+        }
+    }
+
     private static ProjectBriefingPresentationData BuildData(
         ProjectBriefingPresentationTheme presentationTheme = ProjectBriefingPresentationTheme.EditorialLight,
         ProjectBriefingBrandingScope brandingScope = ProjectBriefingBrandingScope.AllSlides)
@@ -309,7 +403,7 @@ public sealed class ProjectBriefingSlideComposerTests
                 LifecycleDisplay = "Ongoing",
                 PresentStageCode = "AON",
                 PresentStage = "Acceptance of Necessity",
-                PresentStageOrder = 30,
+                PresentStageOrder = ProjectBriefingStageOrder.AcceptanceOfNecessity,
                 ProjectCategory = "CoE",
                 TechnicalCategory = "AR / VR",
                 CostRd = new ProjectBriefingCostValue(39_530_000m, ProjectBriefingCostBasis.AoN, "₹3.95 Cr", "AoN"),
@@ -327,7 +421,7 @@ public sealed class ProjectBriefingSlideComposerTests
                 LifecycleDisplay = "Completed",
                 PresentStageCode = "COMPLETED",
                 PresentStage = "Completed",
-                PresentStageOrder = 10_000,
+                PresentStageOrder = ProjectBriefingStageOrder.Completed,
                 ProjectCategory = "CoE",
                 TechnicalCategory = "AI",
                 CostRd = new ProjectBriefingCostValue(28_000_000m, ProjectBriefingCostBasis.L1, "₹2.8 Cr", "L1"),
@@ -362,11 +456,8 @@ public sealed class ProjectBriefingSlideComposerTests
                 ProliferationCostRecordedCount = 1,
                 MissingExternalStatusCount = 0,
                 MissingPhotoCount = 2,
-                StageSummary = new[]
-                {
-                    new ProjectBriefingSummaryPoint("Completed", 1, 10_000),
-                    new ProjectBriefingSummaryPoint("Acceptance of Necessity", 1, 30)
-                }
+                StageSummary = ProjectBriefingStageOrder.BuildCompleteSummary(
+                    projects.Select(project => project.PresentStageOrder))
             }
         };
     }

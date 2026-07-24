@@ -497,12 +497,17 @@
                                 <select class="form-select" data-pbd-selected-stage aria-label="Filter selected projects by present stage">
                                     <option value="">All stages</option>
                                     @foreach (var stage in deck.Projects
-                                        .GroupBy(project => project.PresentStage, StringComparer.OrdinalIgnoreCase)
-                                        .Select(group => new { Name = group.Key, Order = group.Min(project => project.PresentStageOrder) })
+                                        .GroupBy(project => new { project.PresentStageOrder, project.PresentStageCode })
+                                        .Select(group => new
+                                        {
+                                            Code = group.Key.PresentStageCode,
+                                            Name = group.Select(project => project.PresentStage).First(),
+                                            Order = group.Key.PresentStageOrder
+                                        })
                                         .OrderBy(stage => stage.Order)
                                         .ThenBy(stage => stage.Name))
                                     {
-                                        <option value="@stage.Name">@stage.Name</option>
+                                        <option value="@stage.Code">@stage.Name</option>
                                     }
                                 </select>
                                 <select class="form-select" data-pbd-selected-readiness aria-label="Filter selected projects by content readiness">
@@ -523,7 +528,7 @@
                                 <button type="button" class="btn btn-sm btn-outline-secondary" disabled data-pbd-bulk-top><i class="bi bi-arrow-bar-up" aria-hidden="true"></i> Top of stage</button>
                                 <button type="button" class="btn btn-sm btn-outline-secondary" disabled data-pbd-bulk-bottom><i class="bi bi-arrow-bar-down" aria-hidden="true"></i> Bottom of stage</button>
                                 <button type="button" class="btn btn-sm btn-outline-danger" disabled data-pbd-bulk-remove><i class="bi bi-trash" aria-hidden="true"></i> Remove selected</button>
-                                <span class="pbd-ordering-note">Completed projects are shown first; ongoing projects follow in maturity order.</span>
+                                <span class="pbd-ordering-note">Projects are grouped by present stage in maturity order. Drag to arrange projects within the same stage.</span>
                                 <span class="pbd-filter-reorder-note" data-pbd-filter-reorder-note hidden>Clear filters to reorder projects within a stage.</span>
                                 <span class="pbd-save-state" data-pbd-sort-status aria-live="polite"></span>
                             </div>

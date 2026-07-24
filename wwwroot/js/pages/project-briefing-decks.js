@@ -254,7 +254,7 @@ if (root) {
 
     rows.forEach((row) => {
       const matchesText = !term || normalize(row.dataset.searchText).includes(term);
-      const matchesStage = !stage || row.dataset.stage === stage;
+      const matchesStage = !stage || row.dataset.stageCode === stage;
       const matchesReadiness = !readiness || row.dataset[readinessKey] === 'true';
       const visible = matchesText && matchesStage && matchesReadiness;
       row.hidden = !visible;
@@ -503,14 +503,19 @@ if (root) {
     selectedStage.replaceChildren(new Option('All stages', ''));
     const stages = new Map();
     projects.forEach((project) => {
-      if (!project.presentStage) return;
-      const current = stages.get(project.presentStage);
-      const order = Number(project.presentStageOrder ?? 10000);
-      if (current === undefined || order < current) stages.set(project.presentStage, order);
+      const code = project.presentStageCode || project.presentStage || '';
+      if (!code) return;
+      const candidate = {
+        code,
+        label: project.presentStage || 'Not recorded',
+        order: Number(project.presentStageOrder ?? 10000)
+      };
+      const current = stages.get(code);
+      if (!current || candidate.order < current.order) stages.set(code, candidate);
     });
-    [...stages.entries()]
-      .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))
-      .forEach(([stage]) => selectedStage.append(new Option(stage, stage)));
+    [...stages.values()]
+      .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
+      .forEach((stage) => selectedStage.append(new Option(stage.label, stage.code)));
     selectedStage.value = [...selectedStage.options].some((option) => option.value === selected) ? selected : '';
   };
 

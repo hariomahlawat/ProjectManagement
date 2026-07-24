@@ -67,6 +67,11 @@ test('selected-project filtering reveals the first matching row without changing
   assert.match(source, /matching \$\{noun\}/);
 });
 
+test('selected-project stage filtering uses canonical stage codes rather than display labels', () => {
+  assert.match(source, /row\.dataset\.stageCode === stage/);
+  assert.match(source, /new Option\(stage\.label, stage\.code\)/);
+});
+
 test('inline membership changes preserve the current page position', () => {
   assert.match(source, /applyEditorState\(payload\?\.deck, \{ preserveScroll: true \}\)/);
   assert.match(source, /window\.scrollTo\(\{ top: scrollTop, behavior: 'auto' \}\)/);

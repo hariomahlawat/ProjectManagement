@@ -96,9 +96,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             throw new InvalidOperationException("Add at least one project before generating the PowerPoint deck.");
         }
 
-        var projects = projectVms.Select(project =>
-        {
-            return new ProjectBriefingPresentationProject
+        var projects = ProjectBriefingProjectOrdering.OrderProjects(projectVms.Select(project =>
+            new ProjectBriefingPresentationProject
             {
                 ProjectId = project.ProjectId,
                 ProjectName = project.ProjectName,
@@ -117,8 +116,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                 SortOrder = project.SortOrder,
                 CoverPhotoId = project.CoverPhotoId,
                 CoverPhotoIsReady = project.HasCoverPhoto
-            };
-        }).ToList();
+            }));
 
         var summary = BuildPresentationSummary(projects);
         return new ProjectBriefingPresentationData
@@ -326,7 +324,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
             .ToArray();
         var photoProbes = await _photoLoader.ProbeAsync(photoReferences, cancellationToken);
 
-        return items
+        var projectedProjects = items
             .Select(item =>
             {
                 var coverPhotoId = coverByProject[item.ProjectId];
@@ -361,12 +359,9 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
                     SortOrder = item.SortOrder,
                     OpenUrl = $"/Projects/Overview/{item.ProjectId}"
                 };
-            })
-            .OrderBy(project => project.PresentStageOrder)
-            .ThenBy(project => project.SortOrder)
-            .ThenBy(project => project.ProjectName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(project => project.ProjectId)
-            .ToList();
+            });
+
+        return ProjectBriefingProjectOrdering.OrderProjects(projectedProjects);
     }
 
     private static string ResolveLifecycleDisplay(DeckItemSnapshot item)
@@ -403,12 +398,8 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     private static ProjectBriefingPresentationSummary BuildPresentationSummary(
         IReadOnlyList<ProjectBriefingPresentationProject> projects)
     {
-        var stageSummary = projects
-            .GroupBy(project => new { project.PresentStage, project.PresentStageOrder })
-            .Select(group => new ProjectBriefingSummaryPoint(group.Key.PresentStage, group.Count(), group.Key.PresentStageOrder))
-            .OrderBy(point => point.Order)
-            .ThenBy(point => point.Label)
-            .ToList();
+        var stageSummary = ProjectBriefingStageOrder.BuildCompleteSummary(
+            projects.Select(project => project.PresentStageOrder));
 
         var projectCategorySummary = projects
             .GroupBy(project => string.IsNullOrWhiteSpace(project.ProjectCategory) ? "Not categorised" : project.ProjectCategory!)
@@ -535,7 +526,7 @@ public sealed class ProjectBriefingDataService : IProjectBriefingDataService
     {
         if (item.LifecycleStatus == ProjectLifecycleStatus.Completed)
         {
-            return "COMPLETED";
+            return ProjectBriefingStageOrder.CompletedCode;
         }
 
         var codes = ProcurementWorkflow.StageCodesFor(item.WorkflowVersion);

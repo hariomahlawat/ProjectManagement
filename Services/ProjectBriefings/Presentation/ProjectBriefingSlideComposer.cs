@@ -103,6 +103,7 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
 
     private static List<SlidePlan> BuildPlans(ProjectBriefingPresentationData data)
     {
+        var orderedProjects = OrderProjects(data.Projects);
         var plans = new List<SlidePlan>
         {
             new(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)),
@@ -127,13 +128,13 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         if (data.PresentationMode is ProjectBriefingPresentationMode.ExecutiveTable
             or ProjectBriefingPresentationMode.Combined)
         {
-            AddExecutiveTableSlides(plans, data);
+            AddExecutiveTableSlides(plans, data, orderedProjects);
         }
 
         if (data.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects
             or ProjectBriefingPresentationMode.Combined)
         {
-            foreach (var project in data.Projects.OrderBy(project => project.SortOrder))
+            foreach (var project in orderedProjects)
             {
                 var capturedProject = project;
                 var capability = ProjectBriefingCapabilityPaginator.Paginate(project.BriefDescription);
@@ -159,6 +160,10 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
 
         return plans;
     }
+
+    private static IReadOnlyList<ProjectBriefingPresentationProject> OrderProjects(
+        IEnumerable<ProjectBriefingPresentationProject> projects)
+        => ProjectBriefingProjectOrdering.OrderProjects(projects);
 
     private static void RenderCover(
         SlideCanvas canvas,
@@ -372,11 +377,15 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
         List<SlidePlan> plans,
         ProjectBriefingPresentationData data)
     {
+        var chartPoints = data.Summary.StageSummary
+            .Where(point => point.Count > 0)
+            .ToArray();
+
         plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderBarChart(
             canvas,
             "Stage-wise summary",
             null,
-            data.Summary.StageSummary,
+            chartPoints,
             ThemeAccent.Primary,
             data.Summary.ProjectCount,
             showShare: true)));
@@ -479,40 +488,53 @@ public sealed class ProjectBriefingSlideComposer : IProjectBriefingSlideComposer
             }
         };
 
+        var bodyFontSize = points.Count switch
+        {
+            >= 16 => 9.2,
+            >= 13 => 9.8,
+            >= 10 => 10.5,
+            _ => 12.0
+        };
+
         for (var index = 0; index < points.Count; index++)
         {
             var point = points[index];
             var fill = index % 2 == 0 ? canvas.Theme.TableRow : canvas.Theme.TableAlternateRow;
+            var isZero = point.Count == 0;
+            var textColour = isZero ? canvas.Theme.TextMuted : canvas.Theme.TextPrimary;
             var share = data.Summary.ProjectCount == 0
                 ? "0%"
                 : $"{point.Count * 100d / data.Summary.ProjectCount:0.#}%";
             rows.Add(new[]
             {
-                Cell(point.Label, 12.0, canvas.Theme.TextPrimary, true, "l", fill),
-                Cell(point.Count.ToString(CultureInfo.InvariantCulture), 12.0, canvas.Theme.TextPrimary, true, "r", fill),
-                Cell(share, 11.8, canvas.Theme.TextMuted, false, "r", fill)
+                Cell(point.Label, bodyFontSize, textColour, !isZero, "l", fill),
+                Cell(point.Count.ToString(CultureInfo.InvariantCulture), bodyFontSize, textColour, !isZero, "r", fill),
+                Cell(share, Math.Max(8.8, bodyFontSize - .2), canvas.Theme.TextMuted, false, "r", fill)
             });
         }
 
+        var totalFontSize = Math.Max(9.4, bodyFontSize);
         rows.Add(new[]
         {
-            Cell("TOTAL SELECTED PROJECTS", 12.0, canvas.Theme.TextPrimary, true, "l", canvas.Theme.AccentSoft),
-            Cell(data.Summary.ProjectCount.ToString(CultureInfo.InvariantCulture), 12.0, canvas.Theme.TextPrimary, true, "r", canvas.Theme.AccentSoft),
-            Cell("100%", 12.0, canvas.Theme.TextPrimary, true, "r", canvas.Theme.AccentSoft)
+            Cell("TOTAL SELECTED PROJECTS", totalFontSize, canvas.Theme.TextPrimary, true, "l", canvas.Theme.AccentSoft),
+            Cell(data.Summary.ProjectCount.ToString(CultureInfo.InvariantCulture), totalFontSize, canvas.Theme.TextPrimary, true, "r", canvas.Theme.AccentSoft),
+            Cell(data.Summary.ProjectCount == 0 ? "0%" : "100%", totalFontSize, canvas.Theme.TextPrimary, true, "r", canvas.Theme.AccentSoft)
         });
 
         var bodyRows = rows.Count - 1;
         const double availableHeight = 5.70;
-        const double headerHeight = .48;
+        const double headerHeight = .42;
         var rowHeight = Math.Min(.46, (availableHeight - headerHeight) / bodyRows);
         var heights = new List<double> { headerHeight };
         heights.AddRange(Enumerable.Repeat(rowHeight, bodyRows));
         canvas.AddNativeTable(1.02, 1.10, new[] { 8.05, 1.75, 1.55 }, heights, rows, "Stage-wise project distribution table");
     }
 
-    private static void AddExecutiveTableSlides(List<SlidePlan> plans, ProjectBriefingPresentationData data)
+    private static void AddExecutiveTableSlides(
+        List<SlidePlan> plans,
+        ProjectBriefingPresentationData data,
+        IReadOnlyList<ProjectBriefingPresentationProject> projects)
     {
-        var projects = data.Projects.OrderBy(project => project.SortOrder).ToArray();
         var pages = ProjectBriefingTablePagination.Paginate(
             projects,
             data.CostMode,

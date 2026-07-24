@@ -1,0 +1,762 @@
+diff -ruN '--exclude=bin' '--exclude=obj' project_order_original/ProjectManagement-master/Pages/Workspace/BriefingDecks/Index.cshtml project_order_fix/ProjectManagement-master/Pages/Workspace/BriefingDecks/Index.cshtml
+--- project_order_original/ProjectManagement-master/Pages/Workspace/BriefingDecks/Index.cshtml	2026-07-22 18:25:49.000000000 +0000
++++ project_order_fix/ProjectManagement-master/Pages/Workspace/BriefingDecks/Index.cshtml	2026-07-24 04:57:00.901274898 +0000
+@@ -497,12 +497,17 @@
+                                 <select class="form-select" data-pbd-selected-stage aria-label="Filter selected projects by present stage">
+                                     <option value="">All stages</option>
+                                     @foreach (var stage in deck.Projects
+-                                        .GroupBy(project => project.PresentStage, StringComparer.OrdinalIgnoreCase)
+-                                        .Select(group => new { Name = group.Key, Order = group.Min(project => project.PresentStageOrder) })
++                                        .GroupBy(project => new { project.PresentStageOrder, project.PresentStageCode })
++                                        .Select(group => new
++                                        {
++                                            Code = group.Key.PresentStageCode,
++                                            Name = group.Select(project => project.PresentStage).First(),
++                                            Order = group.Key.PresentStageOrder
++                                        })
+                                         .OrderBy(stage => stage.Order)
+                                         .ThenBy(stage => stage.Name))
+                                     {
+-                                        <option value="@stage.Name">@stage.Name</option>
++                                        <option value="@stage.Code">@stage.Name</option>
+                                     }
+                                 </select>
+                                 <select class="form-select" data-pbd-selected-readiness aria-label="Filter selected projects by content readiness">
+@@ -523,7 +528,7 @@
+                                 <button type="button" class="btn btn-sm btn-outline-secondary" disabled data-pbd-bulk-top><i class="bi bi-arrow-bar-up" aria-hidden="true"></i> Top of stage</button>
+                                 <button type="button" class="btn btn-sm btn-outline-secondary" disabled data-pbd-bulk-bottom><i class="bi bi-arrow-bar-down" aria-hidden="true"></i> Bottom of stage</button>
+                                 <button type="button" class="btn btn-sm btn-outline-danger" disabled data-pbd-bulk-remove><i class="bi bi-trash" aria-hidden="true"></i> Remove selected</button>
+-                                <span class="pbd-ordering-note">Completed projects are shown first; ongoing projects follow in maturity order.</span>
++                                <span class="pbd-ordering-note">Projects are grouped by present stage in maturity order. Drag to arrange projects within the same stage.</span>
+                                 <span class="pbd-filter-reorder-note" data-pbd-filter-reorder-note hidden>Clear filters to reorder projects within a stage.</span>
+                                 <span class="pbd-save-state" data-pbd-sort-status aria-live="polite"></span>
+                             </div>
+diff -ruN '--exclude=bin' '--exclude=obj' project_order_original/ProjectManagement-master/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs project_order_fix/ProjectManagement-master/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
+--- project_order_original/ProjectManagement-master/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs	2026-07-22 18:25:49.000000000 +0000
++++ project_order_fix/ProjectManagement-master/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs	2026-07-24 04:59:18.037278944 +0000
+@@ -82,7 +82,8 @@
+         var dataSource = Read("ProjectBriefingDataService.cs");
+         var composer = Read("ProjectBriefingSlideComposer.cs");
+ 
+-        Assert.Contains("OrderBy(point => point.Order)", dataSource, StringComparison.Ordinal);
++        Assert.Contains("ProjectBriefingStageOrder.BuildCompleteSummary", dataSource, StringComparison.Ordinal);
++        Assert.Contains("ProjectBriefingProjectOrdering.OrderProjects", dataSource, StringComparison.Ordinal);
+         Assert.Contains("ProjectBriefingStageOrder.Resolve", dataSource, StringComparison.Ordinal);
+         Assert.Contains("OrderProjects(data.Projects)", composer, StringComparison.Ordinal);
+         Assert.Contains("AddStageSummarySlides", composer, StringComparison.Ordinal);
+@@ -186,9 +187,10 @@
+         var script = Read("project-briefing-decks.js");
+         var composer = Read("ProjectBriefingSlideComposer.cs");
+ 
+-        Assert.Contains("Completed projects are shown first", page, StringComparison.Ordinal);
++        Assert.Contains("Projects are grouped by present stage in maturity order", page, StringComparison.Ordinal);
+         Assert.Contains("Top of stage", page, StringComparison.Ordinal);
+         Assert.Contains("data-stage-order", page, StringComparison.Ordinal);
++        Assert.Contains("row.dataset.stageCode === stage", script, StringComparison.Ordinal);
+         Assert.Contains("sameStage", script, StringComparison.Ordinal);
+         Assert.Contains("Projects remain grouped by maturity", script, StringComparison.Ordinal);
+         Assert.Contains("NativeTableHorizontalMargin = .11", composer, StringComparison.Ordinal);
+diff -ruN '--exclude=bin' '--exclude=obj' project_order_original/ProjectManagement-master/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingProjectOrderingTests.cs project_order_fix/ProjectManagement-master/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingProjectOrderingTests.cs
+--- project_order_original/ProjectManagement-master/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingProjectOrderingTests.cs	1970-01-01 00:00:00.000000000 +0000
++++ project_order_fix/ProjectManagement-master/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingProjectOrderingTests.cs	2026-07-24 04:57:38.533276009 +0000
+@@ -0,0 +1,54 @@
++using ProjectManagement.Models;
++using ProjectManagement.Models.Stages;
++using ProjectManagement.Services.ProjectBriefings;
++using Xunit;
++
++namespace ProjectManagement.Tests.ProjectBriefings;
++
++public sealed class ProjectBriefingProjectOrderingTests
++{
++    [Fact]
++    public void OrderProjects_KeepsEveryStageContiguousAndUsesManualOrderWithinStage()
++    {
++        var projects = new[]
++        {
++            Project(1, "Development first in saved deck", StageCodes.DEVP, ProjectBriefingStageOrder.Development, 10),
++            Project(2, "Completed later in saved deck", ProjectBriefingStageOrder.CompletedCode, ProjectBriefingStageOrder.Completed, 900, ProjectLifecycleStatus.Completed),
++            Project(3, "AoN project", StageCodes.AON, ProjectBriefingStageOrder.AcceptanceOfNecessity, 20),
++            Project(4, "Completed earlier in saved deck", ProjectBriefingStageOrder.CompletedCode, ProjectBriefingStageOrder.Completed, 30, ProjectLifecycleStatus.Completed),
++            Project(5, "Development second", StageCodes.DEVP, ProjectBriefingStageOrder.Development, 40)
++        };
++
++        var ordered = ProjectBriefingProjectOrdering.OrderProjects(projects);
++
++        Assert.Equal(new[] { 4, 2, 1, 5, 3 }, ordered.Select(project => project.ProjectId));
++        Assert.Equal(
++            new[]
++            {
++                ProjectBriefingStageOrder.Completed,
++                ProjectBriefingStageOrder.Completed,
++                ProjectBriefingStageOrder.Development,
++                ProjectBriefingStageOrder.Development,
++                ProjectBriefingStageOrder.AcceptanceOfNecessity
++            },
++            ordered.Select(project => project.PresentStageOrder));
++    }
++
++    private static ProjectBriefingPresentationProject Project(
++        int id,
++        string name,
++        string stageCode,
++        int stageOrder,
++        int sortOrder,
++        ProjectLifecycleStatus lifecycleStatus = ProjectLifecycleStatus.Active)
++        => new()
++        {
++            ProjectId = id,
++            ProjectName = name,
++            PresentStageCode = stageCode,
++            PresentStage = stageCode,
++            PresentStageOrder = stageOrder,
++            SortOrder = sortOrder,
++            LifecycleStatus = lifecycleStatus
++        };
++}
+diff -ruN '--exclude=bin' '--exclude=obj' project_order_original/ProjectManagement-master/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs project_order_fix/ProjectManagement-master/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
+--- project_order_original/ProjectManagement-master/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs	2026-07-22 18:25:49.000000000 +0000
++++ project_order_fix/ProjectManagement-master/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs	2026-07-24 04:58:20.001277232 +0000
+@@ -3,6 +3,7 @@
+ using Microsoft.Extensions.FileProviders;
+ using ProjectManagement.Models;
+ using ProjectManagement.Models.ProjectBriefings;
++using ProjectManagement.Models.Stages;
+ using ProjectManagement.Services.ProjectBriefings;
+ using ProjectManagement.Services.ProjectBriefings.Presentation;
+ using Xunit;
+@@ -295,6 +296,99 @@
+             $"The project slide should remain easy to edit; found {textBoxCount} independent text boxes.");
+     }
+ 
++    [Fact]
++    public void Compose_UsesIdenticalMaturityOrderForExecutiveAndDetailedSlides()
++    {
++        var root = Path.Combine(AppContext.BaseDirectory, "TestData", "ProjectBriefing", "PresentationRoot");
++        var composer = new ProjectBriefingSlideComposer(new TestEnvironment(root));
++        var projects = new[]
++        {
++            BriefingProject(1, "Development project", StageCodes.DEVP, ProjectBriefingStageOrder.Development, 10),
++            BriefingProject(2, "Completed project B", ProjectBriefingStageOrder.CompletedCode, ProjectBriefingStageOrder.Completed, 900, ProjectLifecycleStatus.Completed),
++            BriefingProject(3, "AoN project", StageCodes.AON, ProjectBriefingStageOrder.AcceptanceOfNecessity, 20),
++            BriefingProject(4, "Completed project A", ProjectBriefingStageOrder.CompletedCode, ProjectBriefingStageOrder.Completed, 30, ProjectLifecycleStatus.Completed)
++        };
++        var data = new ProjectBriefingPresentationData
++        {
++            DeckId = 110,
++            DeckName = "Ordering Regression Review",
++            PresentationMode = ProjectBriefingPresentationMode.Combined,
++            CostMode = ProjectBriefingCostMode.None,
++            GeneratedAtUtc = new DateTimeOffset(2026, 7, 24, 4, 0, 0, TimeSpan.Zero),
++            Projects = projects,
++            Summary = new ProjectBriefingPresentationSummary
++            {
++                ProjectCount = projects.Length,
++                OngoingCount = 2,
++                CompletedCount = 2,
++                StageSummary = ProjectBriefingStageOrder.BuildCompleteSummary(
++                    projects.Select(project => project.PresentStageOrder))
++            }
++        };
++
++        var (content, _) = composer.Compose(data);
++
++        using var stream = new MemoryStream(content, writable: false);
++        using var document = PresentationDocument.Open(stream, false);
++        var slides = Assert.IsType<PresentationPart>(document.PresentationPart).SlideParts.ToArray();
++        var slideTexts = slides.Select(SlideText).ToArray();
++
++        var executiveText = Assert.Single(slideTexts.Where(text =>
++            text.Contains("Project status summary", StringComparison.Ordinal)));
++        AssertProjectSequence(
++            executiveText,
++            "Completed project A",
++            "Completed project B",
++            "Development project",
++            "AoN project");
++
++        var detailTexts = slideTexts
++            .Where(text => text.Contains("CAPABILITY OVERVIEW", StringComparison.Ordinal))
++            .ToArray();
++        Assert.Equal(4, detailTexts.Length);
++        Assert.Contains("Completed project A", detailTexts[0], StringComparison.Ordinal);
++        Assert.Contains("Completed project B", detailTexts[1], StringComparison.Ordinal);
++        Assert.Contains("Development project", detailTexts[2], StringComparison.Ordinal);
++        Assert.Contains("AoN project", detailTexts[3], StringComparison.Ordinal);
++    }
++
++    private static ProjectBriefingPresentationProject BriefingProject(
++        int id,
++        string name,
++        string stageCode,
++        int stageOrder,
++        int sortOrder,
++        ProjectLifecycleStatus lifecycleStatus = ProjectLifecycleStatus.Active)
++        => new()
++        {
++            ProjectId = id,
++            ProjectName = name,
++            LifecycleStatus = lifecycleStatus,
++            LifecycleDisplay = lifecycleStatus == ProjectLifecycleStatus.Completed ? "Completed" : "Ongoing",
++            PresentStageCode = stageCode,
++            PresentStage = lifecycleStatus == ProjectLifecycleStatus.Completed ? "Completed" : stageCode,
++            PresentStageOrder = stageOrder,
++            CostRd = ProjectBriefingCostValue.Missing(),
++            ProliferationCost = ProjectBriefingCostValue.Missing(ProjectBriefingCostBasis.Proliferation),
++            ExternalStatus = "Status recorded.",
++            BriefDescription = "Capability description for ordering regression coverage.",
++            SortOrder = sortOrder
++        };
++
++    private static string SlideText(SlidePart slide)
++        => string.Join("\n", slide.Slide.Descendants<A.Text>().Select(node => node.Text));
++
++    private static void AssertProjectSequence(string text, params string[] projectNames)
++    {
++        var previous = -1;
++        foreach (var projectName in projectNames)
++        {
++            var index = text.IndexOf(projectName, StringComparison.Ordinal);
++            Assert.True(index > previous, $"Expected {projectName} after the preceding project in the generated sequence.");
++            previous = index;
++        }
++    }
++
+     private static ProjectBriefingPresentationData BuildData(
+         ProjectBriefingPresentationTheme presentationTheme = ProjectBriefingPresentationTheme.EditorialLight,
+         ProjectBriefingBrandingScope brandingScope = ProjectBriefingBrandingScope.AllSlides)
+@@ -309,7 +403,7 @@
+                 LifecycleDisplay = "Ongoing",
+                 PresentStageCode = "AON",
+                 PresentStage = "Acceptance of Necessity",
+-                PresentStageOrder = 30,
++                PresentStageOrder = ProjectBriefingStageOrder.AcceptanceOfNecessity,
+                 ProjectCategory = "CoE",
+                 TechnicalCategory = "AR / VR",
+                 CostRd = new ProjectBriefingCostValue(39_530_000m, ProjectBriefingCostBasis.AoN, "₹3.95 Cr", "AoN"),
+@@ -327,7 +421,7 @@
+                 LifecycleDisplay = "Completed",
+                 PresentStageCode = "COMPLETED",
+                 PresentStage = "Completed",
+-                PresentStageOrder = 10_000,
++                PresentStageOrder = ProjectBriefingStageOrder.Completed,
+                 ProjectCategory = "CoE",
+                 TechnicalCategory = "AI",
+                 CostRd = new ProjectBriefingCostValue(28_000_000m, ProjectBriefingCostBasis.L1, "₹2.8 Cr", "L1"),
+@@ -362,11 +456,8 @@
+                 ProliferationCostRecordedCount = 1,
+                 MissingExternalStatusCount = 0,
+                 MissingPhotoCount = 2,
+-                StageSummary = new[]
+-                {
+-                    new ProjectBriefingSummaryPoint("Completed", 1, 10_000),
+-                    new ProjectBriefingSummaryPoint("Acceptance of Necessity", 1, 30)
+-                }
++                StageSummary = ProjectBriefingStageOrder.BuildCompleteSummary(
++                    projects.Select(project => project.PresentStageOrder))
+             }
+         };
+     }
+diff -ruN '--exclude=bin' '--exclude=obj' project_order_original/ProjectManagement-master/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingStageOrderTests.cs project_order_fix/ProjectManagement-master/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingStageOrderTests.cs
+--- project_order_original/ProjectManagement-master/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingStageOrderTests.cs	2026-07-22 18:25:49.000000000 +0000
++++ project_order_fix/ProjectManagement-master/ProjectManagement.Tests/ProjectBriefings/ProjectBriefingStageOrderTests.cs	2026-07-24 04:57:38.533276009 +0000
+@@ -8,34 +8,79 @@
+ public sealed class ProjectBriefingStageOrderTests
+ {
+     [Fact]
+-    public void Resolve_OrdersProjectsFromCompletionBackToEarlyApproval()
++    public void Stages_ExposeCompleteCurrentWorkflowInMaturityFirstOrder()
++    {
++        var codes = ProjectBriefingStageOrder.Stages
++            .Select(stage => stage.Code)
++            .ToArray();
++
++        Assert.Equal(new[]
++        {
++            ProjectBriefingStageOrder.CompletedCode,
++            StageCodes.TOT,
++            StageCodes.PAYMENT,
++            StageCodes.ATP,
++            StageCodes.DEVP,
++            StageCodes.SO,
++            StageCodes.EAS,
++            StageCodes.PNC,
++            StageCodes.COB,
++            StageCodes.BM,
++            StageCodes.TEC,
++            StageCodes.BID,
++            StageCodes.AON,
++            StageCodes.IPA,
++            StageCodes.SOW,
++            StageCodes.FS
++        }, codes);
++
++        Assert.Equal(
++            ProjectBriefingStageOrder.Stages.Select(stage => stage.Order).OrderBy(order => order),
++            ProjectBriefingStageOrder.Stages.Select(stage => stage.Order));
++    }
++
++    [Fact]
++    public void Resolve_UsesCurrentWorkflowRelationshipBetweenAonIpaSowAndFs()
+     {
+         var ranks = new[]
+         {
+-            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Completed, StageCodes.PAYMENT),
+-            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.DEVP),
+-            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.SO),
+-            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.EAS),
+-            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.PNC),
+-            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.COB),
+-            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.BM),
+-            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.TEC),
+-            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.BID),
+             ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.AON),
++            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.IPA),
+             ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.SOW),
+-            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.IPA)
++            ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, StageCodes.FS)
+         };
+ 
+         Assert.Equal(ranks.OrderBy(value => value), ranks);
+     }
+ 
+     [Fact]
++    public void BuildCompleteSummary_KeepsZeroCountStagesAndAddsOnlyOneUnresolvedRow()
++    {
++        var summary = ProjectBriefingStageOrder.BuildCompleteSummary(new[]
++        {
++            ProjectBriefingStageOrder.Completed,
++            ProjectBriefingStageOrder.Completed,
++            ProjectBriefingStageOrder.Development,
++            ProjectBriefingStageOrder.AcceptanceOfNecessity,
++            8_888
++        });
++
++        Assert.Equal(ProjectBriefingStageOrder.Stages.Count + 1, summary.Count);
++        Assert.Equal(2, Assert.Single(summary, point => point.Label == "Completed").Count);
++        Assert.Equal(1, Assert.Single(summary, point => point.Label == "Development").Count);
++        Assert.Equal(0, Assert.Single(summary, point => point.Label == "In-Principle Approval").Count);
++        Assert.Equal(0, Assert.Single(summary, point => point.Label == "Scope of Work Vetting").Count);
++        Assert.Equal(1, Assert.Single(summary, point => point.Label == "Stage unresolved").Count);
++    }
++
++    [Fact]
+     public void Resolve_PlacesClosureStagesBeforeDevelopmentAndUnknownStagesLast()
+     {
+         Assert.True(ProjectBriefingStageOrder.Payment < ProjectBriefingStageOrder.Development);
+         Assert.True(ProjectBriefingStageOrder.AcceptanceTesting < ProjectBriefingStageOrder.Development);
+         Assert.True(ProjectBriefingStageOrder.Development < ProjectBriefingStageOrder.SupplyOrder);
+-        Assert.True(ProjectBriefingStageOrder.InPrincipleApproval < ProjectBriefingStageOrder.Unknown);
++        Assert.True(ProjectBriefingStageOrder.InPrincipleApproval < ProjectBriefingStageOrder.SowVetting);
++        Assert.True(ProjectBriefingStageOrder.SowVetting < ProjectBriefingStageOrder.Unknown);
+         Assert.Equal(
+             ProjectBriefingStageOrder.Unknown,
+             ProjectBriefingStageOrder.Resolve(ProjectLifecycleStatus.Active, "UNMAPPED"));
+diff -ruN '--exclude=bin' '--exclude=obj' project_order_original/ProjectManagement-master/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs project_order_fix/ProjectManagement-master/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
+--- project_order_original/ProjectManagement-master/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs	2026-07-22 18:25:49.000000000 +0000
++++ project_order_fix/ProjectManagement-master/Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs	2026-07-24 04:56:35.505274149 +0000
+@@ -103,6 +103,7 @@
+ 
+     private static List<SlidePlan> BuildPlans(ProjectBriefingPresentationData data)
+     {
++        var orderedProjects = OrderProjects(data.Projects);
+         var plans = new List<SlidePlan>
+         {
+             new(SlidePlanKind.Cover, canvas => RenderCover(canvas, data)),
+@@ -127,13 +128,13 @@
+         if (data.PresentationMode is ProjectBriefingPresentationMode.ExecutiveTable
+             or ProjectBriefingPresentationMode.Combined)
+         {
+-            AddExecutiveTableSlides(plans, data);
++            AddExecutiveTableSlides(plans, data, orderedProjects);
+         }
+ 
+         if (data.PresentationMode is ProjectBriefingPresentationMode.DetailedProjects
+             or ProjectBriefingPresentationMode.Combined)
+         {
+-            foreach (var project in data.Projects.OrderBy(project => project.SortOrder))
++            foreach (var project in orderedProjects)
+             {
+                 var capturedProject = project;
+                 var capability = ProjectBriefingCapabilityPaginator.Paginate(project.BriefDescription);
+@@ -160,6 +161,10 @@
+         return plans;
+     }
+ 
++    private static IReadOnlyList<ProjectBriefingPresentationProject> OrderProjects(
++        IEnumerable<ProjectBriefingPresentationProject> projects)
++        => ProjectBriefingProjectOrdering.OrderProjects(projects);
++
+     private static void RenderCover(
+         SlideCanvas canvas,
+         ProjectBriefingPresentationData data)
+@@ -372,11 +377,15 @@
+         List<SlidePlan> plans,
+         ProjectBriefingPresentationData data)
+     {
++        var chartPoints = data.Summary.StageSummary
++            .Where(point => point.Count > 0)
++            .ToArray();
++
+         plans.Add(new SlidePlan(SlidePlanKind.Summary, canvas => RenderBarChart(
+             canvas,
+             "Stage-wise summary",
+             null,
+-            data.Summary.StageSummary,
++            chartPoints,
+             ThemeAccent.Primary,
+             data.Summary.ProjectCount,
+             showShare: true)));
+@@ -479,40 +488,53 @@
+             }
+         };
+ 
++        var bodyFontSize = points.Count switch
++        {
++            >= 16 => 9.2,
++            >= 13 => 9.8,
++            >= 10 => 10.5,
++            _ => 12.0
++        };
++
+         for (var index = 0; index < points.Count; index++)
+         {
+             var point = points[index];
+             var fill = index % 2 == 0 ? canvas.Theme.TableRow : canvas.Theme.TableAlternateRow;
++            var isZero = point.Count == 0;
++            var textColour = isZero ? canvas.Theme.TextMuted : canvas.Theme.TextPrimary;
+             var share = data.Summary.ProjectCount == 0
+                 ? "0%"
+                 : $"{point.Count * 100d / data.Summary.ProjectCount:0.#}%";
+             rows.Add(new[]
+             {
+-                Cell(point.Label, 12.0, canvas.Theme.TextPrimary, true, "l", fill),
+-                Cell(point.Count.ToString(CultureInfo.InvariantCulture), 12.0, canvas.Theme.TextPrimary, true, "r", fill),
+-                Cell(share, 11.8, canvas.Theme.TextMuted, false, "r", fill)
++                Cell(point.Label, bodyFontSize, textColour, !isZero, "l", fill),
++                Cell(point.Count.ToString(CultureInfo.InvariantCulture), bodyFontSize, textColour, !isZero, "r", fill),
++                Cell(share, Math.Max(8.8, bodyFontSize - .2), canvas.Theme.TextMuted, false, "r", fill)
+             });
+         }
+ 
++        var totalFontSize = Math.Max(9.4, bodyFontSize);
+         rows.Add(new[]
+         {
+-            Cell("TOTAL SELECTED PROJECTS", 12.0, canvas.Theme.TextPrimary, true, "l", canvas.Theme.AccentSoft),
+-            Cell(data.Summary.ProjectCount.ToString(CultureInfo.InvariantCulture), 12.0, canvas.Theme.TextPrimary, true, "r", canvas.Theme.AccentSoft),
+-            Cell("100%", 12.0, canvas.Theme.TextPrimary, true, "r", canvas.Theme.AccentSoft)
++            Cell("TOTAL SELECTED PROJECTS", totalFontSize, canvas.Theme.TextPrimary, true, "l", canvas.Theme.AccentSoft),
++            Cell(data.Summary.ProjectCount.ToString(CultureInfo.InvariantCulture), totalFontSize, canvas.Theme.TextPrimary, true, "r", canvas.Theme.AccentSoft),
++            Cell(data.Summary.ProjectCount == 0 ? "0%" : "100%", totalFontSize, canvas.Theme.TextPrimary, true, "r", canvas.Theme.AccentSoft)
+         });
+ 
+         var bodyRows = rows.Count - 1;
+         const double availableHeight = 5.70;
+-        const double headerHeight = .48;
++        const double headerHeight = .42;
+         var rowHeight = Math.Min(.46, (availableHeight - headerHeight) / bodyRows);
+         var heights = new List<double> { headerHeight };
+         heights.AddRange(Enumerable.Repeat(rowHeight, bodyRows));
+         canvas.AddNativeTable(1.02, 1.10, new[] { 8.05, 1.75, 1.55 }, heights, rows, "Stage-wise project distribution table");
+     }
+ 
+-    private static void AddExecutiveTableSlides(List<SlidePlan> plans, ProjectBriefingPresentationData data)
++    private static void AddExecutiveTableSlides(
++        List<SlidePlan> plans,
++        ProjectBriefingPresentationData data,
++        IReadOnlyList<ProjectBriefingPresentationProject> projects)
+     {
+-        var projects = data.Projects.OrderBy(project => project.SortOrder).ToArray();
+         var pages = ProjectBriefingTablePagination.Paginate(
+             projects,
+             data.CostMode,
+diff -ruN '--exclude=bin' '--exclude=obj' project_order_original/ProjectManagement-master/Services/ProjectBriefings/ProjectBriefingDataService.cs project_order_fix/ProjectManagement-master/Services/ProjectBriefings/ProjectBriefingDataService.cs
+--- project_order_original/ProjectManagement-master/Services/ProjectBriefings/ProjectBriefingDataService.cs	2026-07-22 18:25:49.000000000 +0000
++++ project_order_fix/ProjectManagement-master/Services/ProjectBriefings/ProjectBriefingDataService.cs	2026-07-24 04:55:45.089272662 +0000
+@@ -96,9 +96,8 @@
+             throw new InvalidOperationException("Add at least one project before generating the PowerPoint deck.");
+         }
+ 
+-        var projects = projectVms.Select(project =>
+-        {
+-            return new ProjectBriefingPresentationProject
++        var projects = ProjectBriefingProjectOrdering.OrderProjects(projectVms.Select(project =>
++            new ProjectBriefingPresentationProject
+             {
+                 ProjectId = project.ProjectId,
+                 ProjectName = project.ProjectName,
+@@ -117,8 +116,7 @@
+                 SortOrder = project.SortOrder,
+                 CoverPhotoId = project.CoverPhotoId,
+                 CoverPhotoIsReady = project.HasCoverPhoto
+-            };
+-        }).ToList();
++            }));
+ 
+         var summary = BuildPresentationSummary(projects);
+         return new ProjectBriefingPresentationData
+@@ -326,7 +324,7 @@
+             .ToArray();
+         var photoProbes = await _photoLoader.ProbeAsync(photoReferences, cancellationToken);
+ 
+-        return items
++        var projectedProjects = items
+             .Select(item =>
+             {
+                 var coverPhotoId = coverByProject[item.ProjectId];
+@@ -361,12 +359,9 @@
+                     SortOrder = item.SortOrder,
+                     OpenUrl = $"/Projects/Overview/{item.ProjectId}"
+                 };
+-            })
+-            .OrderBy(project => project.PresentStageOrder)
+-            .ThenBy(project => project.SortOrder)
+-            .ThenBy(project => project.ProjectName, StringComparer.OrdinalIgnoreCase)
+-            .ThenBy(project => project.ProjectId)
+-            .ToList();
++            });
++
++        return ProjectBriefingProjectOrdering.OrderProjects(projectedProjects);
+     }
+ 
+     private static string ResolveLifecycleDisplay(DeckItemSnapshot item)
+@@ -403,12 +398,8 @@
+     private static ProjectBriefingPresentationSummary BuildPresentationSummary(
+         IReadOnlyList<ProjectBriefingPresentationProject> projects)
+     {
+-        var stageSummary = projects
+-            .GroupBy(project => new { project.PresentStage, project.PresentStageOrder })
+-            .Select(group => new ProjectBriefingSummaryPoint(group.Key.PresentStage, group.Count(), group.Key.PresentStageOrder))
+-            .OrderBy(point => point.Order)
+-            .ThenBy(point => point.Label)
+-            .ToList();
++        var stageSummary = ProjectBriefingStageOrder.BuildCompleteSummary(
++            projects.Select(project => project.PresentStageOrder));
+ 
+         var projectCategorySummary = projects
+             .GroupBy(project => string.IsNullOrWhiteSpace(project.ProjectCategory) ? "Not categorised" : project.ProjectCategory!)
+@@ -535,7 +526,7 @@
+     {
+         if (item.LifecycleStatus == ProjectLifecycleStatus.Completed)
+         {
+-            return "COMPLETED";
++            return ProjectBriefingStageOrder.CompletedCode;
+         }
+ 
+         var codes = ProcurementWorkflow.StageCodesFor(item.WorkflowVersion);
+diff -ruN '--exclude=bin' '--exclude=obj' project_order_original/ProjectManagement-master/Services/ProjectBriefings/ProjectBriefingProjectOrdering.cs project_order_fix/ProjectManagement-master/Services/ProjectBriefings/ProjectBriefingProjectOrdering.cs
+--- project_order_original/ProjectManagement-master/Services/ProjectBriefings/ProjectBriefingProjectOrdering.cs	1970-01-01 00:00:00.000000000 +0000
++++ project_order_fix/ProjectManagement-master/Services/ProjectBriefings/ProjectBriefingProjectOrdering.cs	2026-07-24 04:55:20.865271947 +0000
+@@ -0,0 +1,44 @@
++namespace ProjectManagement.Services.ProjectBriefings;
++
++/// <summary>
++/// Single ordering contract for the briefing builder, executive tables and project
++/// detail slides. Stage maturity is authoritative; the saved deck order applies only
++/// within the same present-stage group.
++/// </summary>
++public static class ProjectBriefingProjectOrdering
++{
++    public static IReadOnlyList<ProjectBriefingProjectVm> OrderProjects(
++        IEnumerable<ProjectBriefingProjectVm> projects)
++        => OrderCore(
++            projects,
++            project => project.PresentStageOrder,
++            project => project.SortOrder,
++            project => project.ProjectName,
++            project => project.ProjectId);
++
++    public static IReadOnlyList<ProjectBriefingPresentationProject> OrderProjects(
++        IEnumerable<ProjectBriefingPresentationProject> projects)
++        => OrderCore(
++            projects,
++            project => project.PresentStageOrder,
++            project => project.SortOrder,
++            project => project.ProjectName,
++            project => project.ProjectId);
++
++    private static IReadOnlyList<T> OrderCore<T>(
++        IEnumerable<T> projects,
++        Func<T, int> stageOrder,
++        Func<T, int> manualOrder,
++        Func<T, string> projectName,
++        Func<T, int> projectId)
++    {
++        ArgumentNullException.ThrowIfNull(projects);
++
++        return projects
++            .OrderBy(stageOrder)
++            .ThenBy(manualOrder)
++            .ThenBy(projectName, StringComparer.OrdinalIgnoreCase)
++            .ThenBy(projectId)
++            .ToArray();
++    }
++}
+diff -ruN '--exclude=bin' '--exclude=obj' project_order_original/ProjectManagement-master/Services/ProjectBriefings/ProjectBriefingStageOrder.cs project_order_fix/ProjectManagement-master/Services/ProjectBriefings/ProjectBriefingStageOrder.cs
+--- project_order_original/ProjectManagement-master/Services/ProjectBriefings/ProjectBriefingStageOrder.cs	2026-07-22 18:25:49.000000000 +0000
++++ project_order_fix/ProjectManagement-master/Services/ProjectBriefings/ProjectBriefingStageOrder.cs	2026-07-24 04:55:20.865271947 +0000
+@@ -4,11 +4,14 @@
+ namespace ProjectManagement.Services.ProjectBriefings;
+ 
+ /// <summary>
+-/// Defines the single presentation sequence used by the deck builder, executive
+-/// tables, stage summaries and detailed project slides.
++/// Defines the authoritative maturity-first sequence used by the project briefing
++/// builder and every briefing export. The sequence is the current SDD workflow in
++/// reverse progression, with completed projects placed first.
+ /// </summary>
+ public static class ProjectBriefingStageOrder
+ {
++    public const string CompletedCode = "COMPLETED";
++
+     public const int Completed = 0;
+     public const int TransferOfTechnology = 10;
+     public const int Payment = 20;
+@@ -22,15 +25,41 @@
+     public const int TechnicalEvaluation = 100;
+     public const int BiddingTendering = 110;
+     public const int AcceptanceOfNecessity = 120;
+-    public const int SowVetting = 130;
+-    public const int InPrincipleApproval = 140;
++    public const int InPrincipleApproval = 130;
++    public const int SowVetting = 140;
+     public const int FeasibilityStudy = 150;
+     public const int Unknown = 10_000;
+ 
++    private static readonly IReadOnlyList<ProjectBriefingStageDefinition> CanonicalStages =
++        Array.AsReadOnly(new[]
++        {
++            new ProjectBriefingStageDefinition(CompletedCode, "Completed", Completed),
++            new ProjectBriefingStageDefinition(StageCodes.TOT, "Transfer of Technology", TransferOfTechnology),
++            new ProjectBriefingStageDefinition(StageCodes.PAYMENT, "Payment", Payment),
++            new ProjectBriefingStageDefinition(StageCodes.ATP, "Acceptance Testing", AcceptanceTesting),
++            new ProjectBriefingStageDefinition(StageCodes.DEVP, "Development", Development),
++            new ProjectBriefingStageDefinition(StageCodes.SO, "Supply Order", SupplyOrder),
++            new ProjectBriefingStageDefinition(StageCodes.EAS, "EAS Approval", EasApproval),
++            new ProjectBriefingStageDefinition(StageCodes.PNC, "Price Negotiation", Pnc),
++            new ProjectBriefingStageDefinition(StageCodes.COB, "Commercial Opening", CommercialBidOpening),
++            new ProjectBriefingStageDefinition(StageCodes.BM, "Benchmarking", Benchmarking),
++            new ProjectBriefingStageDefinition(StageCodes.TEC, "Technical Evaluation", TechnicalEvaluation),
++            new ProjectBriefingStageDefinition(StageCodes.BID, "Bidding / Tendering", BiddingTendering),
++            new ProjectBriefingStageDefinition(StageCodes.AON, "Acceptance of Necessity", AcceptanceOfNecessity),
++            new ProjectBriefingStageDefinition(StageCodes.IPA, "In-Principle Approval", InPrincipleApproval),
++            new ProjectBriefingStageDefinition(StageCodes.SOW, "Scope of Work Vetting", SowVetting),
++            new ProjectBriefingStageDefinition(StageCodes.FS, "Feasibility Study", FeasibilityStudy)
++        });
++
++    /// <summary>
++    /// Complete presentation catalogue, including stages with no selected projects.
++    /// </summary>
++    public static IReadOnlyList<ProjectBriefingStageDefinition> Stages => CanonicalStages;
++
+     public static int Resolve(ProjectLifecycleStatus lifecycleStatus, string? stageCode)
+     {
+         if (lifecycleStatus == ProjectLifecycleStatus.Completed
+-            || string.Equals(stageCode, "COMPLETED", StringComparison.OrdinalIgnoreCase))
++            || string.Equals(stageCode, CompletedCode, StringComparison.OrdinalIgnoreCase))
+         {
+             return Completed;
+         }
+@@ -49,10 +78,47 @@
+             StageCodes.TEC => TechnicalEvaluation,
+             StageCodes.BID => BiddingTendering,
+             StageCodes.AON => AcceptanceOfNecessity,
+-            StageCodes.SOW => SowVetting,
+             StageCodes.IPA => InPrincipleApproval,
++            StageCodes.SOW => SowVetting,
+             StageCodes.FS => FeasibilityStudy,
+             _ => Unknown
+         };
+     }
++
++    /// <summary>
++    /// Builds the complete stage table in canonical order. Zero-count stages remain
++    /// visible so that the briefing never suggests that a valid workflow stage is
++    /// missing. Unmapped stages are consolidated into one exception row.
++    /// </summary>
++    public static IReadOnlyList<ProjectBriefingSummaryPoint> BuildCompleteSummary(
++        IEnumerable<int> stageOrders)
++    {
++        ArgumentNullException.ThrowIfNull(stageOrders);
++
++        var counts = stageOrders
++            .GroupBy(order => order)
++            .ToDictionary(group => group.Key, group => group.Count());
++        var knownOrders = CanonicalStages
++            .Select(stage => stage.Order)
++            .ToHashSet();
++
++        var result = CanonicalStages
++            .Select(stage => new ProjectBriefingSummaryPoint(
++                stage.Label,
++                counts.GetValueOrDefault(stage.Order),
++                stage.Order))
++            .ToList();
++
++        var unresolvedCount = counts
++            .Where(pair => !knownOrders.Contains(pair.Key))
++            .Sum(pair => pair.Value);
++        if (unresolvedCount > 0)
++        {
++            result.Add(new ProjectBriefingSummaryPoint("Stage unresolved", unresolvedCount, Unknown));
++        }
++
++        return result;
++    }
+ }
++
++public sealed record ProjectBriefingStageDefinition(string Code, string Label, int Order);
+diff -ruN '--exclude=bin' '--exclude=obj' project_order_original/ProjectManagement-master/wwwroot/js/pages/project-briefing-decks.js project_order_fix/ProjectManagement-master/wwwroot/js/pages/project-briefing-decks.js
+--- project_order_original/ProjectManagement-master/wwwroot/js/pages/project-briefing-decks.js	2026-07-22 18:25:49.000000000 +0000
++++ project_order_fix/ProjectManagement-master/wwwroot/js/pages/project-briefing-decks.js	2026-07-24 04:57:00.901274898 +0000
+@@ -254,7 +254,7 @@
+ 
+     rows.forEach((row) => {
+       const matchesText = !term || normalize(row.dataset.searchText).includes(term);
+-      const matchesStage = !stage || row.dataset.stage === stage;
++      const matchesStage = !stage || row.dataset.stageCode === stage;
+       const matchesReadiness = !readiness || row.dataset[readinessKey] === 'true';
+       const visible = matchesText && matchesStage && matchesReadiness;
+       row.hidden = !visible;
+@@ -503,14 +503,19 @@
+     selectedStage.replaceChildren(new Option('All stages', ''));
+     const stages = new Map();
+     projects.forEach((project) => {
+-      if (!project.presentStage) return;
+-      const current = stages.get(project.presentStage);
+-      const order = Number(project.presentStageOrder ?? 10000);
+-      if (current === undefined || order < current) stages.set(project.presentStage, order);
++      const code = project.presentStageCode || project.presentStage || '';
++      if (!code) return;
++      const candidate = {
++        code,
++        label: project.presentStage || 'Not recorded',
++        order: Number(project.presentStageOrder ?? 10000)
++      };
++      const current = stages.get(code);
++      if (!current || candidate.order < current.order) stages.set(code, candidate);
+     });
+-    [...stages.entries()]
+-      .sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))
+-      .forEach(([stage]) => selectedStage.append(new Option(stage, stage)));
++    [...stages.values()]
++      .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
++      .forEach((stage) => selectedStage.append(new Option(stage.label, stage.code)));
+     selectedStage.value = [...selectedStage.options].some((option) => option.value === selected) ? selected : '';
+   };
+ 
+diff -ruN '--exclude=bin' '--exclude=obj' project_order_original/ProjectManagement-master/wwwroot/js/projects/project-briefing-decks.test.js project_order_fix/ProjectManagement-master/wwwroot/js/projects/project-briefing-decks.test.js
+--- project_order_original/ProjectManagement-master/wwwroot/js/projects/project-briefing-decks.test.js	2026-07-22 18:25:49.000000000 +0000
++++ project_order_fix/ProjectManagement-master/wwwroot/js/projects/project-briefing-decks.test.js	2026-07-24 04:59:18.041278944 +0000
+@@ -67,6 +67,11 @@
+   assert.match(source, /matching \$\{noun\}/);
+ });
+ 
++test('selected-project stage filtering uses canonical stage codes rather than display labels', () => {
++  assert.match(source, /row\.dataset\.stageCode === stage/);
++  assert.match(source, /new Option\(stage\.label, stage\.code\)/);
++});
++
+ test('inline membership changes preserve the current page position', () => {
+   assert.match(source, /applyEditorState\(payload\?\.deck, \{ preserveScroll: true \}\)/);
+   assert.match(source, /window\.scrollTo\(\{ top: scrollTop, behavior: 'auto' \}\)/);
