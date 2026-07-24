@@ -32,6 +32,7 @@ using ProjectsOverviewModel = ProjectManagement.Pages.Projects.OverviewModel;
 using UploadModel = ProjectManagement.Pages.Projects.Photos.UploadModel;
 using EditModel = ProjectManagement.Pages.Projects.Photos.EditModel;
 using ProjectManagement.Services;
+using ProjectManagement.Services.IndustryPartners;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Storage;
 using ProjectManagement.Services.Stages;
@@ -432,7 +433,8 @@ public sealed class ProjectPhotoPageTests
         var lifecycle = new ProjectLifecycleService(db, audit, clock);
         var recordHealth = new ProjectManagement.Services.Workspace.ProjectRecordHealthService(db, procure);
         var proliferationProfiles = new ProjectProliferationProfileService(db, clock, audit);
-        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth, proliferationProfiles);
+        var industryPartners = new IndustryPartnerService(db);
+        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth, proliferationProfiles, industryPartners);
     }
 
     private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext db)

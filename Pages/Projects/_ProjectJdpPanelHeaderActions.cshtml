@@ -2,38 +2,40 @@
 @model ProjectManagement.Pages.Projects.OverviewModel
 
 @{
-    // SECTION: JDP header action state
-    var canManageIndustryPartners = Model.CanManageIndustryPartners;
     var primaryPartner = Model.JdpPartners.FirstOrDefault();
-    var hasActions = canManageIndustryPartners || primaryPartner is not null;
+    var hasActions = Model.CanManageJdp || primaryPartner is not null;
 }
 
 @if (hasActions)
 {
-    <!-- SECTION: JDP kebab action menu -->
     <div class="dropdown">
         <button class="btn btn-sm pm-kebab"
                 type="button"
                 id="jdp-actions-menu"
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
-                aria-label="Joint Development Partner actions">
+                aria-label="JDP actions">
             <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
         </button>
         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="jdp-actions-menu">
-            @if (canManageIndustryPartners)
+            @if (Model.CanManageJdp)
             {
                 <li>
-                    <a class="dropdown-item" asp-page="/IndustryPartners/Index" asp-route-projectId="@Model.Project.Id">
-                        Manage links
-                    </a>
+                    <button class="dropdown-item"
+                            type="button"
+                            data-bs-toggle="offcanvas"
+                            data-bs-target="#offcanvasJdp"
+                            aria-controls="offcanvasJdp"
+                            data-jdp-lower-action>
+                        @(Model.JdpProfile.HasJdp ? "Manage JDP" : "Link JDP")
+                    </button>
                 </li>
             }
             @if (primaryPartner is not null)
             {
                 <li>
                     <a class="dropdown-item" href="/IndustryPartners?id=@primaryPartner.Id&amp;projectId=@Model.Project.Id&amp;tab=projects">
-                        Open partner
+                        Open JDP
                     </a>
                 </li>
             }

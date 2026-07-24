@@ -1,36 +1,25 @@
 @model ProjectManagement.Pages.Projects.OverviewModel
 
-@{
-    // SECTION: JDP partner list presentation
-    var partnerCount = Model.JdpPartners.Count;
-}
+<div data-jdp-lower-panel>
+    <div class="project-exploitation-empty @(Model.JdpProfile.HasJdp ? "d-none" : null)"
+         data-jdp-lower-empty>
+        <strong>No JDP linked</strong>
+        <span>This project does not have a Joint Development Partner.</span>
+    </div>
 
-@if (partnerCount == 0)
-{
-    <!-- SECTION: JDP nil / not-linked state -->
-    <div class="project-exploitation-empty">
-        <strong>No partner linked</strong>
-        <span>The project currently has no Joint Development Partner association.</span>
+    <div class="pm-summary-row-list @(Model.JdpProfile.HasJdp ? null : "d-none")"
+         data-jdp-lower-linked>
+        <a class="pm-summary-row-link pm-summary-row-link--stacked"
+           href="@(Model.JdpProfile.PartnerId.HasValue ? $"/IndustryPartners?id={Model.JdpProfile.PartnerId.Value}&projectId={Model.Project.Id}&tab=projects" : "#")"
+           title="Open JDP details"
+           data-jdp-lower-link>
+            <span class="pm-summary-row-main">
+                <span class="pm-summary-row-title" data-jdp-lower-name>@Model.JdpProfile.PartnerName</span>
+                <span class="pm-summary-row-meta @(string.IsNullOrWhiteSpace(Model.JdpProfile.PartnerLocation) ? "d-none" : null)"
+                      data-jdp-lower-location>@Model.JdpProfile.PartnerLocation</span>
+                <span class="pm-summary-row-meta" data-jdp-lower-summary>@Model.JdpProfile.CardSummary</span>
+            </span>
+            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+        </a>
     </div>
-}
-else
-{
-    <!-- SECTION: JDP linked partner rows -->
-    <div class="pm-summary-row-list">
-        @foreach (var partner in Model.JdpPartners)
-        {
-            <a class="pm-summary-row-link pm-summary-row-link--stacked"
-               href="/IndustryPartners?id=@partner.Id&amp;projectId=@Model.Project.Id&amp;tab=projects"
-               title="Open industry partner details">
-                <span class="pm-summary-row-main">
-                    <span class="pm-summary-row-title">@partner.Name</span>
-                    @if (!string.IsNullOrWhiteSpace(partner.Location))
-                    {
-                        <span class="pm-summary-row-meta">@partner.Location</span>
-                    }
-                </span>
-                <i class="bi bi-chevron-right" aria-hidden="true"></i>
-            </a>
-        }
-    </div>
-}
+</div>

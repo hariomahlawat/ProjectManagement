@@ -23,6 +23,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.IndustryPartners;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Services.Text;
@@ -361,7 +362,8 @@ public sealed class ProjectOverviewLifecycleTests
         var lifecycle = new ProjectLifecycleService(db, audit, clock);
         var recordHealth = new ProjectManagement.Services.Workspace.ProjectRecordHealthService(db, procure);
         var proliferationProfiles = new ProjectProliferationProfileService(db, clock, audit);
-        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth, proliferationProfiles);
+        var industryPartners = new IndustryPartnerService(db);
+        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, new PassThroughMarkdownRenderer(), recordHealth, proliferationProfiles, industryPartners);
     }
 
     private sealed class PassThroughMarkdownRenderer : IMarkdownRenderer

@@ -42,6 +42,24 @@
     <div class="offcanvas-body"><partial name="Projects/Timeline/_EditPlanForm" model="Model.PlanEdit" /></div>
 </div>
 
+<div class="offcanvas offcanvas-end project-jdp-offcanvas"
+     tabindex="-1"
+     id="offcanvasJdp"
+     aria-labelledby="offcanvasJdpLabel"
+     data-bs-backdrop="static"
+     data-bs-keyboard="false">
+    <div class="offcanvas-header">
+        <div>
+            <h5 id="offcanvasJdpLabel" class="mb-0">JDP details</h5>
+            <p class="text-muted small mb-0 mt-1">@Model.Project.Name</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+        <partial name="_ProjectJdpDrawer" model="Model" />
+    </div>
+</div>
+
 <div class="offcanvas offcanvas-end proliferation-editor"
      tabindex="-1"
      id="offcanvasProliferation"

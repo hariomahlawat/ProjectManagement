@@ -1,16 +1,35 @@
-Project Briefing Deck — Maturity Order and Table Readability
-
-Replacement files:
-- Pages/Workspace/BriefingDecks/Index.cshtml
-- ProjectManagement.Tests/ProjectBriefings/ProjectBriefingContractTests.cs
-- ProjectManagement.Tests/ProjectBriefings/ProjectBriefingSlideComposerTests.cs
-- ProjectManagement.Tests/ProjectBriefings/ProjectBriefingStageOrderTests.cs
-- Services/ProjectBriefings/Presentation/ProjectBriefingSlideComposer.cs
-- Services/ProjectBriefings/Presentation/ProjectBriefingThemeDefinition.cs
-- Services/ProjectBriefings/ProjectBriefingContracts.cs
-- Services/ProjectBriefings/ProjectBriefingDataService.cs
-- Services/ProjectBriefings/ProjectBriefingStageOrder.cs
-- Services/ProjectBriefings/ProjectBriefingTablePagination.cs
-- wwwroot/css/pages/project-briefing-decks.css
-- wwwroot/js/pages/project-briefing-decks.js
-- wwwroot/js/projects/project-briefing-decks.test.js
+Data/ApplicationDbContext.cs
+Migrations/20261205090000_AddProjectProliferationProfileFields.cs
+Migrations/ApplicationDbContextModelSnapshot.cs
+Migrations/immutable-migration-ids.txt
+Models/Projects/ProjectTechStatus.cs
+Pages/Projects/CompletedSummary/Edit.cshtml
+Pages/Projects/CompletedSummary/Edit.cshtml.cs
+Pages/Projects/Overview.cshtml.cs
+Pages/Projects/_ProjectCommandHeader.cshtml
+Pages/Projects/_ProjectJdpDrawer.cshtml
+Pages/Projects/_ProjectJdpPanel.cshtml
+Pages/Projects/_ProjectJdpPanelBody.cshtml
+Pages/Projects/_ProjectJdpPanelFooter.cshtml
+Pages/Projects/_ProjectJdpPanelHeaderActions.cshtml
+Pages/Projects/_ProjectOverviewCard.cshtml
+Pages/Projects/_ProjectProliferationEditForm.cshtml
+Pages/Projects/_ProjectProliferationReadOnly.cshtml
+Pages/Projects/_ProjectWorkspaceHosts.cshtml
+Program.cs
+ProjectManagement.Tests/ProjectJdpServiceTests.cs
+ProjectManagement.Tests/ProjectOverviewLifecycleTests.cs
+ProjectManagement.Tests/ProjectPhotoPageTests.cs
+README-APPLY-FIRST.md
+Services/Admin/AuditActionPresentationCatalog.cs
+Services/Compendiums/CompendiumReadService.cs
+Services/Dashboard/ProjectPulseService.cs
+Services/IndustryPartners/IIndustryPartnerService.cs
+Services/IndustryPartners/IndustryPartnerProjectEligibility.cs
+Services/IndustryPartners/IndustryPartnerService.cs
+Services/ProjectBriefings/ProjectBriefingSelectionService.cs
+Services/Projects/ProjectProliferationProfileService.cs
+ViewModels/ProjectPortfolioPresentationVm.cs
+ViewModels/ProjectProliferationProfileVm.cs
+wwwroot/css/pages/project-portfolio.css
+wwwroot/js/projects/overview.js

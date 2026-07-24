@@ -387,8 +387,489 @@
         });
     }
 
+
+    function initJdpEditor() {
+        const offcanvas = document.getElementById('offcanvasJdp');
+        const root = offcanvas?.querySelector('[data-jdp-root]');
+        if (!offcanvas || !root) {
+            return;
+        }
+
+        const form = root.querySelector('[data-jdp-form]');
+        const removeForm = root.querySelector('[data-jdp-remove-form]');
+        const card = document.getElementById('project-jdp-card');
+        const searchInput = form?.querySelector('[data-jdp-search]');
+        const partnerIdInput = form?.querySelector('[data-jdp-partner-id]');
+        const results = form?.querySelector('[data-jdp-results]');
+        const selection = form?.querySelector('[data-jdp-selection]');
+        const selectedName = form?.querySelector('[data-jdp-selected-name]');
+        const selectedMeta = form?.querySelector('[data-jdp-selected-meta]');
+        const clearButton = form?.querySelector('[data-jdp-clear]');
+        const errorTarget = form?.querySelector('[data-jdp-error]');
+        const saveButton = form?.querySelector('[data-jdp-save]');
+        const saveSpinner = form?.querySelector('[data-jdp-spinner]');
+        const saveLabel = form?.querySelector('[data-jdp-save-label]');
+        const optionsUrl = form?.getAttribute('data-options-url');
+
+        let searchTimer = null;
+        let searchController = null;
+
+        function setError(message) {
+            if (!errorTarget) {
+                return;
+            }
+
+            errorTarget.textContent = message || '';
+            errorTarget.classList.toggle('d-none', !message);
+        }
+
+        function setBusy(busy, mode = 'save') {
+            if (saveButton instanceof HTMLButtonElement) {
+                saveButton.disabled = busy;
+            }
+
+            const removeButton = removeForm?.querySelector('[data-jdp-remove]');
+            if (removeButton instanceof HTMLButtonElement) {
+                removeButton.disabled = busy;
+            }
+
+            saveSpinner?.classList.toggle('d-none', !busy || mode !== 'save');
+            if (saveLabel) {
+                saveLabel.textContent = busy ? 'Saving…' : (partnerIdInput?.value ? 'Save JDP' : 'Link JDP');
+            }
+        }
+
+        function closeResults() {
+            if (!results) {
+                return;
+            }
+
+            results.classList.add('d-none');
+            results.replaceChildren();
+            searchInput?.setAttribute('aria-expanded', 'false');
+        }
+
+        function selectOption(option) {
+            if (!form || !partnerIdInput || !searchInput) {
+                return;
+            }
+
+            partnerIdInput.value = String(option.id);
+            searchInput.value = option.name;
+            searchInput.setAttribute('aria-expanded', 'false');
+
+            if (selectedName) {
+                selectedName.textContent = option.name;
+            }
+            if (selectedMeta) {
+                selectedMeta.textContent = option.usageSummary || 'Not linked to any other project';
+            }
+
+            selection?.classList.remove('d-none');
+            clearButton?.classList.remove('d-none');
+            setError('');
+            closeResults();
+
+            if (saveLabel) {
+                saveLabel.textContent = 'Save JDP';
+            }
+        }
+
+        function clearSelection({ clearSearch = true } = {}) {
+            if (partnerIdInput) {
+                partnerIdInput.value = '';
+            }
+
+            if (clearSearch && searchInput) {
+                searchInput.value = '';
+            }
+
+            selection?.classList.add('d-none');
+            clearButton?.classList.add('d-none');
+            setError('');
+
+            if (saveLabel) {
+                saveLabel.textContent = 'Link JDP';
+            }
+        }
+
+        function renderResults(items) {
+            if (!results) {
+                return;
+            }
+
+            results.replaceChildren();
+            const options = Array.isArray(items) ? items : [];
+
+            if (options.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'project-jdp-picker__empty';
+                empty.textContent = 'No matching organisation found.';
+                results.appendChild(empty);
+            } else {
+                options.forEach((option) => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = 'project-jdp-picker__option';
+                    button.setAttribute('role', 'option');
+                    button.setAttribute('aria-selected', option.isLinkedToProject ? 'true' : 'false');
+
+                    const identity = document.createElement('span');
+                    identity.className = 'project-jdp-picker__option-identity';
+
+                    const name = document.createElement('strong');
+                    name.textContent = option.name;
+                    identity.appendChild(name);
+
+                    if (option.location) {
+                        const location = document.createElement('small');
+                        location.textContent = option.location;
+                        identity.appendChild(location);
+                    }
+
+                    const usage = document.createElement('span');
+                    usage.className = 'project-jdp-picker__option-usage';
+                    usage.textContent = option.isLinkedToProject
+                        ? 'Linked to this project'
+                        : (option.usageSummary || 'Not linked to any other project');
+
+                    button.append(identity, usage);
+                    button.addEventListener('click', () => selectOption(option));
+                    results.appendChild(button);
+                });
+            }
+
+            results.classList.remove('d-none');
+            searchInput?.setAttribute('aria-expanded', 'true');
+        }
+
+        async function searchPartners(query) {
+            if (!optionsUrl || !results) {
+                return;
+            }
+
+            searchController?.abort();
+            searchController = new AbortController();
+
+            try {
+                const url = new URL(optionsUrl, window.location.origin);
+                if (query) {
+                    url.searchParams.set('q', query);
+                } else {
+                    url.searchParams.delete('q');
+                }
+
+                const response = await fetch(url, {
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    signal: searchController.signal
+                });
+
+                if (!response.ok) {
+                    closeResults();
+                    return;
+                }
+
+                const payload = await response.json();
+                renderResults(payload?.items);
+            } catch (error) {
+                if (error?.name !== 'AbortError') {
+                    closeResults();
+                }
+            }
+        }
+
+        function renderOtherProjects(profile) {
+            const section = root.querySelector('[data-jdp-projects-section]');
+            const list = root.querySelector('[data-jdp-project-list]');
+            const count = root.querySelector('[data-jdp-project-count]');
+            const projects = Array.isArray(profile?.otherProjects) ? profile.otherProjects : [];
+
+            section?.classList.toggle('d-none', projects.length === 0);
+            if (count) {
+                count.textContent = String(projects.length);
+            }
+            if (!list) {
+                return;
+            }
+
+            list.replaceChildren();
+            projects.forEach((project) => {
+                const link = document.createElement('a');
+                link.className = 'project-jdp-editor__project';
+                link.href = `/Projects/Overview/${project.projectId}`;
+
+                const identity = document.createElement('span');
+                identity.className = 'min-w-0';
+
+                const name = document.createElement('strong');
+                name.textContent = project.projectName;
+                identity.appendChild(name);
+
+                if (project.caseFileNumber) {
+                    const fileNumber = document.createElement('small');
+                    fileNumber.textContent = project.caseFileNumber;
+                    identity.appendChild(fileNumber);
+                }
+
+                const status = document.createElement('span');
+                const statusKey = String(project.statusLabel || 'other').toLowerCase();
+                status.className = `badge rounded-pill project-jdp-editor__status project-jdp-editor__status--${statusKey}`;
+                status.textContent = project.statusLabel || 'Other';
+
+                link.append(identity, status);
+                list.appendChild(link);
+            });
+        }
+
+        function updateProfile(profile) {
+            if (!profile) {
+                return;
+            }
+
+            const hasJdp = !!profile.hasJdp;
+            const cardTitle = card?.querySelector('[data-jdp-card-title]');
+            const cardSummary = card?.querySelector('[data-jdp-card-summary]');
+            if (cardTitle) {
+                const titleText = profile.cardTitle || (hasJdp ? profile.partnerName : 'No JDP linked');
+                cardTitle.textContent = titleText;
+                cardTitle.setAttribute('title', titleText || '');
+            }
+            if (cardSummary) {
+                const summaryText = profile.cardSummary || (hasJdp
+                    ? 'Not linked to any other project'
+                    : 'Link an industry partner');
+                cardSummary.textContent = summaryText;
+                cardSummary.setAttribute('title', summaryText);
+            }
+
+            const lowerPanel = document.querySelector('[data-jdp-lower-panel]');
+            if (lowerPanel) {
+                const lowerEmpty = lowerPanel.querySelector('[data-jdp-lower-empty]');
+                const lowerLinked = lowerPanel.querySelector('[data-jdp-lower-linked]');
+                const lowerName = lowerPanel.querySelector('[data-jdp-lower-name]');
+                const lowerLocation = lowerPanel.querySelector('[data-jdp-lower-location]');
+                const lowerSummary = lowerPanel.querySelector('[data-jdp-lower-summary]');
+                const lowerLink = lowerPanel.querySelector('[data-jdp-lower-link]');
+
+                lowerEmpty?.classList.toggle('d-none', hasJdp);
+                lowerLinked?.classList.toggle('d-none', !hasJdp);
+
+                if (lowerName) {
+                    lowerName.textContent = profile.partnerName || '';
+                }
+                if (lowerLocation) {
+                    lowerLocation.textContent = profile.partnerLocation || '';
+                    lowerLocation.classList.toggle('d-none', !profile.partnerLocation);
+                }
+                if (lowerSummary) {
+                    lowerSummary.textContent = profile.cardSummary || '';
+                }
+                if (lowerLink instanceof HTMLAnchorElement && profile.partnerId) {
+                    const projectId = root.getAttribute('data-project-id');
+                    lowerLink.href = `/IndustryPartners?id=${profile.partnerId}&projectId=${projectId}&tab=projects`;
+                }
+            }
+
+            const lowerCard = document.querySelector('.project-exploitation-card--jdp');
+            const lowerBadge = lowerCard?.querySelector('.pm-right-summary-card__header .badge');
+            if (lowerBadge) {
+                lowerBadge.textContent = hasJdp ? 'Linked' : 'Not linked';
+                lowerBadge.classList.toggle('text-bg-primary', hasJdp);
+                lowerBadge.classList.toggle('text-bg-secondary', !hasJdp);
+            }
+            document.querySelectorAll('[data-jdp-lower-action]').forEach((action) => {
+                action.textContent = hasJdp ? 'Manage JDP' : 'Link JDP';
+                if (action.classList.contains('btn')) {
+                    action.classList.toggle('btn-primary', !hasJdp);
+                    action.classList.toggle('btn-outline-secondary', hasJdp);
+                }
+            });
+
+            const linkedSummary = root.querySelector('[data-jdp-linked-summary]');
+            const emptyState = root.querySelector('[data-jdp-empty-state]');
+            linkedSummary?.classList.toggle('d-none', !hasJdp);
+            emptyState?.classList.toggle('d-none', hasJdp);
+
+            const partnerName = root.querySelector('[data-jdp-partner-name]');
+            const partnerLocation = root.querySelector('[data-jdp-partner-location]');
+            const partnerLink = root.querySelector('[data-jdp-partner-link]');
+            if (partnerName) {
+                partnerName.textContent = profile.partnerName || '';
+            }
+            if (partnerLocation) {
+                partnerLocation.textContent = profile.partnerLocation || '';
+                partnerLocation.classList.toggle('d-none', !profile.partnerLocation);
+            }
+            if (partnerLink && profile.partnerId) {
+                const projectId = root.getAttribute('data-project-id');
+                partnerLink.href = `/IndustryPartners?id=${profile.partnerId}&projectId=${projectId}&tab=projects`;
+            }
+
+            const warning = root.querySelector('[data-jdp-multiple-warning]');
+            warning?.classList.toggle('d-none', !profile.hasMultipleProjectLinks);
+
+            renderOtherProjects(profile);
+
+            if (partnerIdInput) {
+                partnerIdInput.value = profile.partnerId == null ? '' : String(profile.partnerId);
+            }
+            if (searchInput) {
+                searchInput.value = profile.partnerName || '';
+            }
+            if (selectedName) {
+                selectedName.textContent = profile.partnerName || '';
+            }
+            if (selectedMeta) {
+                selectedMeta.textContent = profile.cardSummary || '';
+            }
+
+            selection?.classList.toggle('d-none', !hasJdp);
+            clearButton?.classList.toggle('d-none', !hasJdp);
+            removeForm?.classList.toggle('d-none', !hasJdp);
+
+            if (saveLabel) {
+                saveLabel.textContent = hasJdp ? 'Save JDP' : 'Link JDP';
+            }
+        }
+
+        if (form instanceof HTMLFormElement && searchInput instanceof HTMLInputElement) {
+            searchInput.addEventListener('focus', () => {
+                searchPartners(searchInput.value.trim());
+            });
+
+            searchInput.addEventListener('input', () => {
+                clearSelection({ clearSearch: false });
+                window.clearTimeout(searchTimer);
+                searchTimer = window.setTimeout(() => {
+                    searchPartners(searchInput.value.trim());
+                }, 220);
+            });
+
+            searchInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    closeResults();
+                    return;
+                }
+
+                if (event.key === 'ArrowDown') {
+                    const firstOption = results?.querySelector('[role="option"]');
+                    if (firstOption instanceof HTMLButtonElement) {
+                        event.preventDefault();
+                        firstOption.focus();
+                    }
+                }
+            });
+
+            clearButton?.addEventListener('click', () => {
+                clearSelection();
+                closeResults();
+                searchInput.focus();
+            });
+
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                setError('');
+
+                if (!partnerIdInput?.value) {
+                    setError('Select a JDP from the search results.');
+                    searchInput.focus();
+                    return;
+                }
+
+                setBusy(true);
+                try {
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        body: new FormData(form),
+                        credentials: 'same-origin',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+
+                    const payload = await response.json().catch(() => null);
+                    if (!response.ok) {
+                        setError(payload?.error || 'Unable to update the JDP.');
+                        return;
+                    }
+
+                    updateProfile(payload?.profile);
+                    bootstrap.Offcanvas.getOrCreateInstance(offcanvas).hide();
+                    showToast(payload?.message || 'JDP updated.', 'success');
+                } catch (error) {
+                    setError('A network error prevented the JDP from being updated.');
+                } finally {
+                    setBusy(false);
+                }
+            });
+        }
+
+        if (removeForm instanceof HTMLFormElement) {
+            removeForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                setError('');
+
+                if (!window.confirm('Remove the JDP from this project? The organisation and its links to other projects will remain unchanged.')) {
+                    return;
+                }
+
+                setBusy(true, 'remove');
+                try {
+                    const response = await fetch(removeForm.action, {
+                        method: 'POST',
+                        body: new FormData(removeForm),
+                        credentials: 'same-origin',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+
+                    const payload = await response.json().catch(() => null);
+                    if (!response.ok) {
+                        setError(payload?.error || 'Unable to remove the JDP.');
+                        return;
+                    }
+
+                    updateProfile(payload?.profile);
+                    bootstrap.Offcanvas.getOrCreateInstance(offcanvas).hide();
+                    showToast(payload?.message || 'JDP removed from the project.', 'success');
+                } catch (error) {
+                    setError('A network error prevented the JDP from being removed.');
+                } finally {
+                    setBusy(false);
+                }
+            });
+        }
+
+        offcanvas.addEventListener('shown.bs.offcanvas', () => {
+            setError('');
+            if (searchInput instanceof HTMLInputElement && !searchInput.value) {
+                searchInput.focus();
+            }
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!results || results.classList.contains('d-none')) {
+                return;
+            }
+
+            if (event.target instanceof Node &&
+                !results.contains(event.target) &&
+                event.target !== searchInput) {
+                closeResults();
+            }
+        });
+    }
+
     initProjectModeration();
     initProliferationEditor();
+    initJdpEditor();
 
     function setBackfillVisibility(hasBackfill) {
         const banner = document.querySelector('[data-backfill-banner]');

@@ -1,66 +1,53 @@
-# Project Overview Proliferation Profile — Ready-to-replace implementation
+# PRISM ERP — Project Overview JDP Header
 
-## Apply
+## Which bundle to use
 
-1. Back up the current source tree.
-2. Extract this bundle into the directory containing `ProjectManagement.csproj`.
-3. Preserve the included folder structure and overwrite matching files.
-4. Add the new files when prompted.
-5. Build and run the test project before deployment.
-6. Deploy normally. The application’s existing automatic EF Core migration process will apply:
-   `20261205090000_AddProjectProliferationProfileFields`.
+- **Incremental production bundle**: use when `Project-Overview-Proliferation-v1` has already been applied.
+- **Cumulative production bundle**: use when starting from the uploaded `ProjectManagement-master (6)(3).zip`, or when unsure whether the proliferation files were all applied.
+- **Ready-to-replace bundle**: cumulative production files plus regression tests and this guide.
 
-Do not manually alter the database and do not create a second migration for the same change.
+Extract the selected ZIP into the directory containing `ProjectManagement.csproj` and allow matching files to be replaced.
 
-## User-visible result
+## Implemented behaviour
 
-- The separate **Next stage** card is removed.
-- The current-stage card now includes the next stage as supporting text.
-- A new **Proliferation** card shows indicative proliferation cost and a clear tri-state availability position:
-  - Available for proliferation
-  - Not available for proliferation
-  - Availability not assessed
-- Admin, HoD and the assigned Project Officer can edit proliferation details in a right-side editor without leaving the project overview.
-- Other authorised viewers can open the same card in read-only mode and see cost, availability, reason, remarks and update information.
-- Cost, availability and remarks are saved to the existing authoritative project cost and technology-status records; downstream completed-project, compendium, dashboard and briefing queries continue to use the same data.
+- Replaces the low-value **Lifecycle progress** header card with **JDP**.
+- A project has either one JDP or no JDP.
+- The JDP card shows the linked organisation and whether that organisation is linked to other ongoing or completed projects.
+- Clicking the card opens a right-side JDP drawer.
+- Authorised users can search the existing Industry Directory, link/change the JDP, or remove it without leaving the project page.
+- The same drawer remains read-only for users without edit authority.
+- JDP edit rights are enforced server-side for Admin, HoD, Comdt and the assigned Project Officer.
+- The lower JDP panel remains synchronised after an AJAX update and links to the organisation record.
+- Existing directory creation remains available as a secondary action when an organisation is not yet recorded.
+- Existing legacy records with more than one JDP link are explicitly flagged; selecting and saving the correct JDP safely removes only the extra links for that project.
+- Existing partner links to other projects are never removed when this project's JDP is changed or removed.
 
-## Data-model change
+## Database impact
 
-- `ProjectTechStatus.AvailableForProliferation` is now nullable so that **Not assessed** is distinct from **Not available**.
-- `ProjectTechStatus.ProliferationRemarks` is added as a dedicated optional field.
-- Existing true/false records are preserved by the migration.
+The JDP enhancement requires **no new migration**. It uses the existing `IndustryPartnerProjects` relationship. The application service now enforces the one-project/one-JDP contract across both the overview workflow and the existing directory link workflow.
 
-## Validation and safeguards
+The cumulative bundle also contains the previously supplied proliferation migration because it includes the complete proliferation implementation.
 
-- Proliferation cost may be blank or greater than zero, with at most two decimal places.
-- A reason is mandatory when the project is marked **Not available**.
-- Reason and remarks are limited to 500 characters.
-- Updates are permission checked, anti-forgery protected and audit logged.
-- The offcanvas editor uses a static backdrop to avoid loss through an inadvertent outside click.
+## Verification
 
-## Verification after replacement
-
-Run from the solution root:
+Run from the project root:
 
 ```powershell
-dotnet build ProjectManagement.csproj
+dotnet build ProjectManagement.sln
 dotnet test ProjectManagement.Tests/ProjectManagement.Tests.csproj
 ```
 
-Then verify one project in each state:
+Then verify:
 
-1. No cost and not assessed.
-2. Cost recorded and available.
-3. Cost recorded and not available with a reason.
-4. Save optional proliferation remarks and reopen the card.
-5. Confirm an unassigned Project Officer has read-only access.
-6. Confirm Admin, HoD and the assigned Project Officer can edit.
-7. Confirm completed-project and briefing filters still return only `AvailableForProliferation == true` projects.
+1. Open a project with no JDP and link an organisation from the header card.
+2. Confirm the card and lower JDP panel update without a page reload.
+3. Open a project whose JDP is linked to other projects and confirm ongoing/completed counts and project links.
+4. Change the JDP and confirm links belonging to other projects remain intact.
+5. Sign in as an unrelated Project Officer and confirm the drawer is read-only.
 
-## Environment validation performed while preparing this bundle
+## Validation completed in this environment
 
-- `wwwroot/js/projects/overview.js` passed `node --check`.
-- Migration lineage and migration-file presence validation passed.
-- The replacement diff passed whitespace/error checks.
-- The full JavaScript test runner could not complete because `jsdom` is not installed in this execution environment; unaffected tests that do not require `jsdom` ran, while `jsdom`-dependent suites failed at module loading.
-- The .NET SDK is not installed in this execution environment, so C# compilation and xUnit execution must be completed on the development machine before deployment.
+- JavaScript syntax validation passed with `node --check`.
+- Static source-contract and delimiter checks passed.
+- The .NET SDK was not available in this environment, so the C# build and xUnit suite could not be executed here.
+- The repository-wide JavaScript suite could not be completed because `jsdom` is not installed in this environment.

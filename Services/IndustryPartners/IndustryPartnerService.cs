@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Data;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
@@ -262,6 +263,124 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+
+    public async Task<ProjectJdpProfileDto> GetProjectJdpProfileAsync(
+        int projectId,
+        CancellationToken cancellationToken = default)
+    {
+        var projectExists = await _db.Projects
+            .AsNoTracking()
+            .AnyAsync(project => project.Id == projectId && !project.IsDeleted, cancellationToken);
+
+        if (!projectExists)
+        {
+            return ProjectJdpProfileDto.Empty(projectId);
+        }
+
+        var links = await _db.IndustryPartnerProjects
+            .AsNoTracking()
+            .Where(link => link.ProjectId == projectId)
+            .OrderBy(link => link.LinkedUtc)
+            .ThenBy(link => link.IndustryPartnerId)
+            .Select(link => new
+            {
+                link.IndustryPartnerId,
+                link.IndustryPartner.Name,
+                link.IndustryPartner.Location
+            })
+            .ToListAsync(cancellationToken);
+
+        var selected = links.FirstOrDefault();
+        if (selected is null)
+        {
+            return ProjectJdpProfileDto.Empty(projectId);
+        }
+
+        var otherProjects = await _db.IndustryPartnerProjects
+            .AsNoTracking()
+            .Where(link =>
+                link.IndustryPartnerId == selected.IndustryPartnerId &&
+                link.ProjectId != projectId &&
+                !link.Project.IsDeleted)
+            .Select(link => new ProjectJdpLinkedProjectDto(
+                link.ProjectId,
+                link.Project.Name,
+                link.Project.CaseFileNumber,
+                link.Project.LifecycleStatus,
+                link.Project.IsArchived,
+                link.Project.IsDeleted))
+            .ToListAsync(cancellationToken);
+
+        otherProjects = otherProjects
+            .OrderBy(project => project.StatusOrder)
+            .ThenBy(project => project.ProjectName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(project => project.ProjectId)
+            .ToList();
+
+        return new ProjectJdpProfileDto(
+            projectId,
+            selected.IndustryPartnerId,
+            selected.Name,
+            selected.Location,
+            otherProjects,
+            links.Count > 1);
+    }
+
+    public async Task<IReadOnlyList<ProjectJdpOptionDto>> SearchProjectJdpOptionsAsync(
+        int projectId,
+        string? query,
+        int take = 10,
+        CancellationToken cancellationToken = default)
+    {
+        take = Math.Clamp(take, 1, 20);
+        var normalizedQuery = Normalize(query);
+        var loweredQuery = NullIfEmpty(query)?.ToLowerInvariant();
+        var activeStatus = ProjectLifecycleStatus.Active;
+        var completedStatus = ProjectLifecycleStatus.Completed;
+
+        var partners = _db.IndustryPartners.AsNoTracking().AsQueryable();
+        if (!string.IsNullOrWhiteSpace(normalizedQuery) || !string.IsNullOrWhiteSpace(loweredQuery))
+        {
+            partners = partners.Where(partner =>
+                (!string.IsNullOrWhiteSpace(normalizedQuery) &&
+                 (partner.NormalizedName.Contains(normalizedQuery) ||
+                  (partner.NormalizedLocation ?? string.Empty).Contains(normalizedQuery))) ||
+                (!string.IsNullOrWhiteSpace(loweredQuery) &&
+                 ((partner.Name ?? string.Empty).ToLower().Contains(loweredQuery) ||
+                  (partner.Location ?? string.Empty).ToLower().Contains(loweredQuery) ||
+                  partner.Contacts.Any(contact =>
+                      (contact.Name ?? string.Empty).ToLower().Contains(loweredQuery) ||
+                      (contact.Email ?? string.Empty).ToLower().Contains(loweredQuery) ||
+                      (contact.Phone ?? string.Empty).ToLower().Contains(loweredQuery)))))
+            ;
+        }
+
+        return await partners
+            .OrderByDescending(partner => partner.PartnerProjects.Any(link => link.ProjectId == projectId))
+            .ThenBy(partner => partner.Name)
+            .ThenBy(partner => partner.Id)
+            .Take(take)
+            .Select(partner => new ProjectJdpOptionDto(
+                partner.Id,
+                partner.Name,
+                partner.Location,
+                partner.PartnerProjects.Count(link =>
+                    link.ProjectId != projectId &&
+                    !link.Project.IsDeleted),
+                partner.PartnerProjects.Count(link =>
+                    link.ProjectId != projectId &&
+                    !link.Project.IsDeleted &&
+                    !link.Project.IsArchived &&
+                    link.Project.LifecycleStatus == activeStatus),
+                partner.PartnerProjects.Count(link =>
+                    link.ProjectId != projectId &&
+                    !link.Project.IsDeleted &&
+                    !link.Project.IsArchived &&
+                    link.Project.LifecycleStatus == completedStatus),
+                partner.PartnerProjects.Any(link => link.ProjectId == projectId)))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<int> CreateAsync(
         CreateIndustryPartnerRequest request,
         ClaimsPrincipal user,
@@ -276,6 +395,7 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         if (request.ProjectId.HasValue)
         {
             await EnsureProjectCanBeLinkedAsync(request.ProjectId.Value, cancellationToken);
+            await EnsureProjectHasNoJdpAsync(request.ProjectId.Value, cancellationToken);
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -434,13 +554,26 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
 
         await EnsureProjectCanBeLinkedAsync(projectId, cancellationToken);
 
-        var alreadyLinked = await _db.IndustryPartnerProjects.AnyAsync(
-            link => link.IndustryPartnerId == partnerId && link.ProjectId == projectId,
-            cancellationToken);
+        var existingLink = await _db.IndustryPartnerProjects
+            .AsNoTracking()
+            .Where(link => link.ProjectId == projectId)
+            .Select(link => new
+            {
+                link.IndustryPartnerId,
+                PartnerName = link.IndustryPartner.Name
+            })
+            .FirstOrDefaultAsync(cancellationToken);
 
-        if (alreadyLinked)
+        if (existingLink is not null)
         {
-            throw Error("project", "This organisation is already linked to the selected project as JDP.");
+            if (existingLink.IndustryPartnerId == partnerId)
+            {
+                throw Error("project", "This organisation is already linked to the selected project as JDP.");
+            }
+
+            throw Error(
+                "project",
+                $"This project already has JDP {existingLink.PartnerName}. Change or remove the existing JDP before linking another organisation.");
         }
 
         _db.IndustryPartnerProjects.Add(new IndustryPartnerProject
@@ -476,6 +609,90 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         _db.IndustryPartnerProjects.Remove(link);
         Touch(partner, user);
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+
+    public async Task<ProjectJdpProfileDto> SetProjectJdpAsync(
+        int projectId,
+        int? partnerId,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await _db.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+
+        var projectExists = await _db.Projects
+            .AnyAsync(project => project.Id == projectId && !project.IsDeleted, cancellationToken);
+        if (!projectExists)
+        {
+            throw new KeyNotFoundException("Project not found.");
+        }
+
+        IndustryPartner? selectedPartner = null;
+        if (partnerId.HasValue)
+        {
+            selectedPartner = await _db.IndustryPartners
+                .FirstOrDefaultAsync(partner => partner.Id == partnerId.Value, cancellationToken)
+                ?? throw new KeyNotFoundException("Industry organisation not found.");
+        }
+
+        var existingLinks = await _db.IndustryPartnerProjects
+            .Where(link => link.ProjectId == projectId)
+            .ToListAsync(cancellationToken);
+
+        var retainedLink = partnerId.HasValue
+            ? existingLinks.FirstOrDefault(link => link.IndustryPartnerId == partnerId.Value)
+            : null;
+
+        var linksToRemove = existingLinks
+            .Where(link => !ReferenceEquals(link, retainedLink))
+            .ToList();
+
+        var needsNewLink = selectedPartner is not null && retainedLink is null;
+        var hasChanges = linksToRemove.Count > 0 || needsNewLink;
+
+        if (hasChanges)
+        {
+            var affectedPartnerIds = linksToRemove
+                .Select(link => link.IndustryPartnerId)
+                .ToHashSet();
+
+            if (selectedPartner is not null)
+            {
+                affectedPartnerIds.Add(selectedPartner.Id);
+            }
+
+            _db.IndustryPartnerProjects.RemoveRange(linksToRemove);
+
+            if (needsNewLink)
+            {
+                _db.IndustryPartnerProjects.Add(new IndustryPartnerProject
+                {
+                    IndustryPartnerId = selectedPartner!.Id,
+                    ProjectId = projectId,
+                    LinkedByUserId = GetUserId(user),
+                    LinkedUtc = DateTimeOffset.UtcNow
+                });
+            }
+
+            if (affectedPartnerIds.Count > 0)
+            {
+                var affectedPartners = await _db.IndustryPartners
+                    .Where(partner => affectedPartnerIds.Contains(partner.Id))
+                    .ToListAsync(cancellationToken);
+
+                foreach (var affectedPartner in affectedPartners)
+                {
+                    Touch(affectedPartner, user);
+                }
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return await GetProjectJdpProfileAsync(projectId, cancellationToken);
     }
 
     public async Task DeletePartnerAsync(
@@ -534,6 +751,24 @@ public sealed class IndustryPartnerService : IIndustryPartnerService
         if (!exists)
         {
             throw Error("project", "Selected project was not found.");
+        }
+    }
+
+    private async Task EnsureProjectHasNoJdpAsync(
+        int projectId,
+        CancellationToken cancellationToken)
+    {
+        var existingPartnerName = await _db.IndustryPartnerProjects
+            .AsNoTracking()
+            .Where(link => link.ProjectId == projectId)
+            .Select(link => link.IndustryPartner.Name)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(existingPartnerName))
+        {
+            throw Error(
+                "project",
+                $"This project already has JDP {existingPartnerName}. Change or remove the existing JDP before linking another organisation.");
         }
     }
 

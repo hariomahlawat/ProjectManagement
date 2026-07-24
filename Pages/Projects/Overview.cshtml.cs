@@ -26,6 +26,7 @@ using ProjectManagement.Models.IndustryPartners;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.IndustryPartners;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Services.Text;
@@ -51,10 +52,11 @@ namespace ProjectManagement.Pages.Projects
         private readonly IMarkdownRenderer _markdownRenderer;
         private readonly ProjectRecordHealthService _recordHealthService;
         private readonly ProjectProliferationProfileService _proliferationProfiles;
+        private readonly IIndustryPartnerService _industryPartners;
 
         public PlanCompareService PlanCompare { get; }
 
-        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService, IMarkdownRenderer markdownRenderer, ProjectRecordHealthService recordHealthService, ProjectProliferationProfileService proliferationProfiles)
+        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService, IMarkdownRenderer markdownRenderer, ProjectRecordHealthService recordHealthService, ProjectProliferationProfileService proliferationProfiles, IIndustryPartnerService industryPartners)
         {
             _db = db;
             _procureRead = procureRead;
@@ -69,6 +71,7 @@ namespace ProjectManagement.Pages.Projects
             _markdownRenderer = markdownRenderer;
             _recordHealthService = recordHealthService;
             _proliferationProfiles = proliferationProfiles;
+            _industryPartners = industryPartners;
         }
 
         public Project Project { get; private set; } = default!;
@@ -111,6 +114,8 @@ namespace ProjectManagement.Pages.Projects
         public ProjectCostSummaryViewModel CostSummary { get; private set; } = ProjectCostSummaryViewModel.Empty;
         public ProjectProliferationProfileVm ProliferationProfile { get; private set; } = ProjectProliferationProfileVm.Empty(0);
         public bool CanManageProliferation { get; private set; }
+        public ProjectJdpProfileDto JdpProfile { get; private set; } = ProjectJdpProfileDto.Empty(0);
+        public bool CanManageJdp { get; private set; }
         public IReadOnlyList<JdpPartnerLinkVm> JdpPartners { get; private set; } = Array.Empty<JdpPartnerLinkVm>();
         public bool CanManageTot { get; private set; }
         public bool CanManageIndustryPartners { get; private set; }
@@ -151,6 +156,9 @@ namespace ProjectManagement.Pages.Projects
         [BindProperty]
         public ProjectProliferationUpdateInput ProliferationInput { get; set; } = new();
 
+        [BindProperty]
+        public ProjectJdpUpdateInput JdpInput { get; set; } = new();
+
         public sealed class CompleteLifecycleInput
         {
             public int ProjectId { get; set; }
@@ -179,6 +187,14 @@ namespace ProjectManagement.Pages.Projects
             public int ProjectId { get; set; }
 
             public string? Reason { get; set; }
+        }
+
+
+        public sealed class ProjectJdpUpdateInput
+        {
+            public int ProjectId { get; set; }
+
+            public int? PartnerId { get; set; }
         }
 
         // SECTION: Project Overview - Joint Development Partner panel view model
@@ -365,19 +381,24 @@ namespace ProjectManagement.Pages.Projects
                     .ToList();
             }
 
-            // SECTION: Project Overview - Joint Development Partner portfolio data
-            // JDP is a project-level portfolio record for every project. An empty link set
-            // represents the current nil / not-linked position and must remain visible.
-            JdpPartners = await _db.IndustryPartnerProjects
-                .AsNoTracking()
-                .Where(x => x.ProjectId == project.Id)
-                .OrderBy(x => x.IndustryPartner.Name)
-                .Select(x => new JdpPartnerLinkVm(
-                    x.IndustryPartnerId,
-                    x.IndustryPartner.Name,
-                    x.IndustryPartner.Location
-                ))
-                .ToListAsync(ct);
+            // SECTION: Project Overview - Joint Development Partner position
+            // A project has either one JDP or none. The profile also reports the other
+            // ongoing and completed projects linked to the same organisation.
+            JdpProfile = await _industryPartners.GetProjectJdpProfileAsync(project.Id, ct);
+            JdpPartners = JdpProfile.HasJdp
+                ? new[]
+                {
+                    new JdpPartnerLinkVm(
+                        JdpProfile.PartnerId!.Value,
+                        JdpProfile.PartnerName ?? "JDP",
+                        JdpProfile.PartnerLocation)
+                }
+                : Array.Empty<JdpPartnerLinkVm>();
+            JdpInput = new ProjectJdpUpdateInput
+            {
+                ProjectId = project.Id,
+                PartnerId = JdpProfile.PartnerId
+            };
 
             var stageLookup = projectStages
                 .Where(s => s.StageCode is not null)
@@ -404,7 +425,8 @@ namespace ProjectManagement.Pages.Projects
 
             CanManageTot = isAdmin || isHoD || isThisProjectsPo;
             CanManageProliferation = isAdmin || isHoD || isThisProjectsPo;
-            CanManageIndustryPartners = Policies.IndustryPartners.ManageAllowedRoles.Any(User.IsInRole);
+            CanManageJdp = isAdmin || isHoD || isThisProjectsPo || User.IsInRole(RoleNames.Comdt);
+            CanManageIndustryPartners = CanManageJdp;
 
             ProliferationProfile = await _proliferationProfiles.GetAsync(project.Id, ct)
                 ?? ProjectProliferationProfileVm.Empty(project.Id);
@@ -537,6 +559,204 @@ namespace ProjectManagement.Pages.Projects
                 .ToList();
 
             return Page();
+        }
+
+
+        public async Task<IActionResult> OnGetJdpOptionsAsync(
+            int id,
+            string? q,
+            CancellationToken ct)
+        {
+            if (id <= 0)
+            {
+                return new JsonResult(new { error = "Project not found." })
+                {
+                    StatusCode = StatusCodes.Status404NotFound
+                };
+            }
+
+            var exists = await _db.Projects
+                .AsNoTracking()
+                .AnyAsync(project => project.Id == id && !project.IsDeleted, ct);
+            if (!exists)
+            {
+                return new JsonResult(new { error = "Project not found." })
+                {
+                    StatusCode = StatusCodes.Status404NotFound
+                };
+            }
+
+            if (!await CanManageProjectJdpAsync(id, ct))
+            {
+                return new JsonResult(new { error = "You are not authorised to change the JDP for this project." })
+                {
+                    StatusCode = StatusCodes.Status403Forbidden
+                };
+            }
+
+            var options = await _industryPartners.SearchProjectJdpOptionsAsync(id, q, 12, ct);
+            return new JsonResult(new
+            {
+                items = options.Select(option => new
+                {
+                    id = option.Id,
+                    name = option.Name,
+                    location = option.Location,
+                    usageSummary = option.UsageSummary,
+                    isLinkedToProject = option.IsLinkedToProject
+                })
+            });
+        }
+
+        public async Task<IActionResult> OnPostJdpAsync(int id, CancellationToken ct)
+        {
+            if (id <= 0 || JdpInput.ProjectId != id || !JdpInput.PartnerId.HasValue || JdpInput.PartnerId.Value <= 0)
+            {
+                return new JsonResult(new { error = "Select a JDP from the search results." })
+                {
+                    StatusCode = StatusCodes.Status400BadRequest
+                };
+            }
+
+            if (!await CanManageProjectJdpAsync(id, ct))
+            {
+                return new JsonResult(new { error = "You are not authorised to update the JDP for this project." })
+                {
+                    StatusCode = StatusCodes.Status403Forbidden
+                };
+            }
+
+            try
+            {
+                var profile = await _industryPartners.SetProjectJdpAsync(
+                    id,
+                    JdpInput.PartnerId.Value,
+                    User,
+                    ct);
+
+                return JdpSuccessResponse(profile, "JDP updated.");
+            }
+            catch (KeyNotFoundException exception)
+            {
+                return new JsonResult(new { error = exception.Message })
+                {
+                    StatusCode = StatusCodes.Status404NotFound
+                };
+            }
+            catch (IndustryPartnerValidationException exception)
+            {
+                var message = exception.Errors
+                    .SelectMany(entry => entry.Value)
+                    .FirstOrDefault()
+                    ?? "Unable to update the JDP.";
+
+                return new JsonResult(new { error = message })
+                {
+                    StatusCode = StatusCodes.Status400BadRequest
+                };
+            }
+        }
+
+        public async Task<IActionResult> OnPostRemoveJdpAsync(int id, CancellationToken ct)
+        {
+            if (id <= 0 || JdpInput.ProjectId != id)
+            {
+                return new JsonResult(new { error = "The JDP form is not valid for this project." })
+                {
+                    StatusCode = StatusCodes.Status400BadRequest
+                };
+            }
+
+            if (!await CanManageProjectJdpAsync(id, ct))
+            {
+                return new JsonResult(new { error = "You are not authorised to update the JDP for this project." })
+                {
+                    StatusCode = StatusCodes.Status403Forbidden
+                };
+            }
+
+            try
+            {
+                var profile = await _industryPartners.SetProjectJdpAsync(
+                    id,
+                    null,
+                    User,
+                    ct);
+
+                return JdpSuccessResponse(profile, "JDP removed from the project.");
+            }
+            catch (KeyNotFoundException exception)
+            {
+                return new JsonResult(new { error = exception.Message })
+                {
+                    StatusCode = StatusCodes.Status404NotFound
+                };
+            }
+        }
+
+        private async Task<bool> CanManageProjectJdpAsync(
+            int projectId,
+            CancellationToken ct)
+        {
+            var currentUserId = _users.GetUserId(User);
+            if (string.IsNullOrWhiteSpace(currentUserId))
+            {
+                return false;
+            }
+
+            if (User.IsInRole(RoleNames.Admin) ||
+                User.IsInRole(RoleNames.HoD) ||
+                User.IsInRole(RoleNames.Comdt))
+            {
+                return await _db.Projects
+                    .AsNoTracking()
+                    .AnyAsync(project => project.Id == projectId && !project.IsDeleted, ct);
+            }
+
+            if (!User.IsInRole(RoleNames.ProjectOfficer))
+            {
+                return false;
+            }
+
+            return await _db.Projects
+                .AsNoTracking()
+                .AnyAsync(project =>
+                    project.Id == projectId &&
+                    !project.IsDeleted &&
+                    project.LeadPoUserId == currentUserId,
+                    ct);
+        }
+
+        private static JsonResult JdpSuccessResponse(
+            ProjectJdpProfileDto profile,
+            string message)
+        {
+            return new JsonResult(new
+            {
+                success = true,
+                message,
+                profile = new
+                {
+                    projectId = profile.ProjectId,
+                    partnerId = profile.PartnerId,
+                    partnerName = profile.PartnerName,
+                    partnerLocation = profile.PartnerLocation,
+                    hasJdp = profile.HasJdp,
+                    hasMultipleProjectLinks = profile.HasMultipleProjectLinks,
+                    cardTitle = profile.CardTitle,
+                    cardSummary = profile.CardSummary,
+                    otherProjectCount = profile.OtherProjectCount,
+                    otherOngoingProjectCount = profile.OtherOngoingProjectCount,
+                    otherCompletedProjectCount = profile.OtherCompletedProjectCount,
+                    otherProjects = profile.OtherProjects.Select(project => new
+                    {
+                        projectId = project.ProjectId,
+                        projectName = project.ProjectName,
+                        caseFileNumber = project.CaseFileNumber,
+                        statusLabel = project.StatusLabel
+                    })
+                }
+            });
         }
 
         public async Task<IActionResult> OnPostProliferationAsync(int id, CancellationToken ct)
