@@ -1,0 +1,70 @@
+@page "{id:int}"
+@using System
+@using System.Linq
+@using System.Text.Json
+@using ProjectManagement.Models
+@using ProjectManagement.Models.Execution
+@using ProjectManagement.Models.Plans
+@using ProjectManagement.ViewModels
+@model ProjectManagement.Pages.Projects.OverviewModel
+@{
+    ViewData["Title"] = Model.Portfolio.PageTitle;
+}
+
+<div class="project-portfolio project-portfolio-shell">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-page="/Projects/Index">Projects</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Overview</li>
+        </ol>
+    </nav>
+
+    <partial name="_ProjectCommandHeader" model="Model" />
+
+    <partial name="_ProjectOperationalState" model="Model" />
+
+    <div class="project-portfolio-layout mb-4">
+        <main class="d-flex flex-column gap-3 project-portfolio-main">
+            @if (Model.LifecycleSummary.Status != ProjectLifecycleStatus.Active || Model.LifecycleSummary.IsLegacy)
+            {
+                <partial name="_ProjectLifecycleSummaryPanel" model="Model" />
+            }
+
+            <partial name="_ProjectOverviewCard" model="Model" />
+            <partial name="_ProjectProcurementAtAGlance" model="Model.Procurement" />
+            <partial name="_ProjectLifecyclePosition" model="Model.Portfolio" />
+            <section class="project-portfolio-files-column">
+                <partial name="_ProjectMediaCards" model="Model" />
+            </section>
+        </main>
+        <aside class="d-flex flex-column gap-3 project-portfolio-rail">
+            <partial name="_ProjectPendingActions" model="Model" />
+            <partial name="_ProjectLifecycleWorkspace" model="Model" />
+        </aside>
+    </div>
+
+    <partial name="_ProjectWorkspaceHosts" model="Model" />
+</div>
+
+<partial name="_ProjectRecordCompleteness" model="Model" />
+<partial name="_PlanDiscardDraftModal" model="Model.Project.Id" />
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/projects/timeline.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/project-portfolio.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/project-lifecycle-actions.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/project-tot-drawer.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script type="module" src="~/js/gallery-lightbox.js" asp-append-version="true"></script>
+    <script src="~/js/projects/remarks-panel.js" asp-append-version="true"></script>
+    <script src="~/js/projects/overview.js" asp-append-version="true"></script>
+    <script src="~/js/projects/overview-multi-jdp.js" asp-append-version="true"></script>
+    <script src="~/js/projects/overview-tot.js" asp-append-version="true"></script>
+    <script src="~/js/projects/lifecycle-actions.js" asp-append-version="true"></script>
+    <script src="~/js/pages/project-portfolio.js" asp-append-version="true"></script>
+    <script src="~/js/projects/actuals-edit.js" asp-append-version="true"></script>
+    <script src="~/js/projects/plan-edit.js" asp-append-version="true"></script>
+    <script src="~/js/projects/stages.js" asp-append-version="true"></script>
+}
