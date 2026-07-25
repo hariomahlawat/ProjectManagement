@@ -118,6 +118,23 @@ public sealed class IndustryPartnersIndexPageAttachmentUploadTests
         public Task<IndustryPartnerProjectContextDto?> GetProjectContextAsync(int projectId, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
+        public Task<ProjectJdpProfileDto> GetProjectJdpProfileAsync(
+            int projectId,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<ProjectMultiJdpProfileDto> GetProjectMultiJdpProfileAsync(
+            int projectId,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ProjectJdpOptionDto>> SearchProjectJdpOptionsAsync(
+            int projectId,
+            string? query,
+            int take = 10,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
         public Task<int> CreateAsync(CreateIndustryPartnerRequest request, ClaimsPrincipal user, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
@@ -137,6 +154,20 @@ public sealed class IndustryPartnersIndexPageAttachmentUploadTests
             => throw new NotSupportedException();
 
         public Task UnlinkProjectAsync(int partnerId, int projectId, ClaimsPrincipal user, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<ProjectMultiJdpProfileDto> AddProjectJdpAsync(
+            int projectId,
+            int partnerId,
+            ClaimsPrincipal user,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public Task<ProjectMultiJdpProfileDto> RemoveProjectJdpAsync(
+            int projectId,
+            int partnerId,
+            ClaimsPrincipal user,
+            CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
         public Task DeletePartnerAsync(int partnerId, ClaimsPrincipal user, CancellationToken cancellationToken = default)

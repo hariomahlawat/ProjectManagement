@@ -6,8 +6,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>aspnet-ProjectManagement-afb29f29-9396-45b6-b189-1a731fdf1a3a</UserSecretsId>
-    <!-- Prevent stale publish output from being included recursively in a later build. -->
-    <DefaultItemExcludes>$(DefaultItemExcludes);publish/**;artifacts/**</DefaultItemExcludes>
+    <!--
+      Prevent generated output and retained replacement bundles from being
+      discovered by the Web SDK's recursive Compile/Content/Razor item globs.
+      ReadyToReplace is distribution material, never application source.
+    -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);publish/**;artifacts/**;ReadyToReplace/**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -38,11 +42,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Exclude the nested test project and all of its generated artifacts from the web application's SDK globs. -->
-    <Compile Remove="ProjectManagement.Tests/**;publish/**;artifacts/**" />
-    <Content Remove="ProjectManagement.Tests/**;publish/**;artifacts/**" />
-    <EmbeddedResource Remove="ProjectManagement.Tests/**;publish/**;artifacts/**" />
-    <None Remove="ProjectManagement.Tests/**;publish/**;artifacts/**" />
+    <!--
+      Keep nested tests, generated output, and replacement-package source out
+      of the web application even if another imported target widens an item
+      glob. This is intentionally repeated alongside DefaultItemExcludes.
+    -->
+    <Compile Remove="ProjectManagement.Tests/**;publish/**;artifacts/**;ReadyToReplace/**" />
+    <Content Remove="ProjectManagement.Tests/**;publish/**;artifacts/**;ReadyToReplace/**" />
+    <EmbeddedResource Remove="ProjectManagement.Tests/**;publish/**;artifacts/**;ReadyToReplace/**" />
+    <None Remove="ProjectManagement.Tests/**;publish/**;artifacts/**;ReadyToReplace/**" />
   </ItemGroup>
 
   <ItemGroup>

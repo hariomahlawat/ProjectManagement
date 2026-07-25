@@ -7,6 +7,7 @@ using ClosedXML.Excel;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Models;
 using ProjectManagement.Utilities;
+using ProjectManagement.Utilities.PartialDates;
 
 namespace ProjectManagement.Utilities.Reporting;
 
@@ -91,8 +92,14 @@ public sealed class ProjectTotExcelWorkbookBuilder : IProjectTotExcelWorkbookBui
             worksheet.Cell(rowNumber, 3).Value = row.SponsoringUnit ?? string.Empty;
             worksheet.Cell(rowNumber, 4).Value = row.LeadProjectOfficer ?? string.Empty;
             worksheet.Cell(rowNumber, 5).Value = FormatTotStatus(row.TotStatus);
-            SetDateOnlyCell(worksheet.Cell(rowNumber, 6), row.TotStartedOn);
-            SetDateOnlyCell(worksheet.Cell(rowNumber, 7), row.TotCompletedOn);
+            SetPartialDateCell(
+                worksheet.Cell(rowNumber, 6),
+                row.TotStartedOn,
+                row.TotStartDatePrecision);
+            SetPartialDateCell(
+                worksheet.Cell(rowNumber, 7),
+                row.TotCompletedOn,
+                row.TotCompletionDatePrecision);
             var metDetailsCell = worksheet.Cell(rowNumber, 8);
             metDetailsCell.Value = row.TotMetDetails ?? string.Empty;
             SetDateOnlyCell(worksheet.Cell(rowNumber, 9), row.TotMetCompletedOn);
@@ -169,6 +176,26 @@ public sealed class ProjectTotExcelWorkbookBuilder : IProjectTotExcelWorkbookBui
         {
             cell.Value = string.Empty;
         }
+    }
+
+    private static void SetPartialDateCell(
+        IXLCell cell,
+        DateOnly? value,
+        PartialDatePrecision precision)
+    {
+        if (!value.HasValue || precision == PartialDatePrecision.None)
+        {
+            cell.Value = string.Empty;
+            return;
+        }
+
+        if (precision == PartialDatePrecision.Day)
+        {
+            SetDateOnlyCell(cell, value);
+            return;
+        }
+
+        cell.Value = PartialDateDisplay.Format(value.Value, precision);
     }
 
     private static string FormatTotStatus(ProjectTotStatus? status)

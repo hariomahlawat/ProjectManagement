@@ -43,7 +43,7 @@ public sealed class ProjectTotCommandCardViewComponent : ViewComponent
                 "Approval pending",
                 $"Proposed: {StatusLabel(pending.ProposedStatus)}",
                 "info",
-                canManage: false)
+                CanManage: false)
             : Build(projectId, tot?.Status, tot?.StartedOn, tot?.StartDatePrecision,
                 tot?.CompletedOn, tot?.CompletionDatePrecision, canManage);
 

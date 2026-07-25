@@ -12,6 +12,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services;
 using ProjectManagement.Tests.Fakes;
+using ProjectManagement.Utilities.PartialDates;
 using ProjectManagement.Utilities.Reporting;
 using Xunit;
 
@@ -60,7 +61,9 @@ public sealed class ProjectTotExportServiceTests
                     ProjectId = 10,
                     Status = ProjectTotStatus.Completed,
                     StartedOn = new DateOnly(2024, 1, 10),
+                    StartDatePrecision = PartialDatePrecision.Day,
                     CompletedOn = new DateOnly(2024, 2, 15),
+                    CompletionDatePrecision = PartialDatePrecision.Day,
                     LastApprovedByUserId = "hod-1",
                     LastApprovedOnUtc = new DateTime(2024, 2, 20, 6, 0, 0, DateTimeKind.Utc)
                 },
@@ -68,6 +71,8 @@ public sealed class ProjectTotExportServiceTests
                 {
                     ProjectId = 10,
                     ProposedStatus = ProjectTotStatus.Completed,
+                    ProposedStartDatePrecision = PartialDatePrecision.None,
+                    ProposedCompletionDatePrecision = PartialDatePrecision.None,
                     DecisionState = ProjectTotRequestDecisionState.Pending,
                     SubmittedByUserId = "po-1",
                     SubmittedOnUtc = new DateTime(2024, 2, 22, 8, 0, 0, DateTimeKind.Utc)
@@ -83,12 +88,16 @@ public sealed class ProjectTotExportServiceTests
                     ProjectId = 11,
                     Status = ProjectTotStatus.Completed,
                     StartedOn = new DateOnly(2023, 12, 1),
-                    CompletedOn = new DateOnly(2024, 1, 5)
+                    StartDatePrecision = PartialDatePrecision.Day,
+                    CompletedOn = new DateOnly(2024, 1, 5),
+                    CompletionDatePrecision = PartialDatePrecision.Day
                 },
                 TotRequest = new ProjectTotRequest
                 {
                     ProjectId = 11,
                     ProposedStatus = ProjectTotStatus.Completed,
+                    ProposedStartDatePrecision = PartialDatePrecision.None,
+                    ProposedCompletionDatePrecision = PartialDatePrecision.None,
                     DecisionState = ProjectTotRequestDecisionState.Approved,
                     SubmittedByUserId = "po-2",
                     SubmittedOnUtc = new DateTime(2024, 1, 6, 8, 0, 0, DateTimeKind.Utc),
@@ -171,8 +180,10 @@ public sealed class ProjectTotExcelWorkbookBuilderTests
                 ProjectCompletedOn: new DateOnly(2024, 2, 29),
                 ProjectCompletedYear: null,
                 TotStatus: ProjectTotStatus.Completed,
-                TotStartedOn: new DateOnly(2024, 1, 10),
-                TotCompletedOn: new DateOnly(2024, 2, 20),
+                TotStartedOn: new DateOnly(2024, 1, 1),
+                TotStartDatePrecision: PartialDatePrecision.Year,
+                TotCompletedOn: new DateOnly(2024, 2, 29),
+                TotCompletionDatePrecision: PartialDatePrecision.Month,
                 TotMetDetails: "MET signed off",
                 TotMetCompletedOn: new DateOnly(2024, 2, 18),
                 TotFirstProductionModelManufactured: true,
@@ -182,7 +193,9 @@ public sealed class ProjectTotExcelWorkbookBuilderTests
                 RequestState: ProjectTotRequestDecisionState.Pending,
                 RequestedStatus: ProjectTotStatus.Completed,
                 RequestedStartedOn: new DateOnly(2024, 1, 5),
+                RequestedStartDatePrecision: PartialDatePrecision.Day,
                 RequestedCompletedOn: new DateOnly(2024, 2, 25),
+                RequestedCompletionDatePrecision: PartialDatePrecision.Day,
                 RequestedMetDetails: "Awaiting sign-off",
                 RequestedMetCompletedOn: new DateOnly(2024, 2, 24),
                 RequestedFirstProductionModelManufactured: false,
@@ -238,6 +251,8 @@ public sealed class ProjectTotExcelWorkbookBuilderTests
         Assert.Equal("Aerospace", worksheet.Cell(2, 3).GetString());
         Assert.Equal("Lead Project Officer", worksheet.Cell(2, 4).GetString());
         Assert.Equal("Completed", worksheet.Cell(2, 5).GetString());
+        Assert.Equal("2024", worksheet.Cell(2, 6).GetString());
+        Assert.Equal("Feb 2024", worksheet.Cell(2, 7).GetString());
         Assert.Equal("MET signed off", worksheet.Cell(2, 8).GetString());
         Assert.Equal("Yes", worksheet.Cell(2, 10).GetString());
         Assert.Equal("Latest external remark", worksheet.Cell(1, 12).GetString());

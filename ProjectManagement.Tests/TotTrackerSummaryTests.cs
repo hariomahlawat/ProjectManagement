@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot;
 using ProjectManagement.Models;
+using ProjectManagement.Utilities.PartialDates;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -144,7 +145,9 @@ public sealed class TotTrackerSummaryTests
             ProjectCompletedYear: projectCompletedYear,
             TotStatus: totStatus,
             TotStartedOn: null,
+            TotStartDatePrecision: PartialDatePrecision.None,
             TotCompletedOn: null,
+            TotCompletionDatePrecision: PartialDatePrecision.None,
             TotMetDetails: null,
             TotMetCompletedOn: totMetCompletedOn,
             TotFirstProductionModelManufactured: totFirstProductionModelManufactured,
@@ -154,7 +157,9 @@ public sealed class TotTrackerSummaryTests
             RequestState: requestState,
             RequestedStatus: null,
             RequestedStartedOn: null,
+            RequestedStartDatePrecision: PartialDatePrecision.None,
             RequestedCompletedOn: null,
+            RequestedCompletionDatePrecision: PartialDatePrecision.None,
             RequestedMetDetails: null,
             RequestedMetCompletedOn: null,
             RequestedFirstProductionModelManufactured: null,
