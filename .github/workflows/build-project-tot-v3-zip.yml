@@ -1,0 +1,41 @@
+name: Build Project ToT v3 replacement ZIP
+
+on:
+  push:
+    paths:
+      - 'ReadyToReplace/Project-Tot-Precision-and-UX-v3/**'
+      - '.github/workflows/build-project-tot-v3-zip.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate replacement files
+        run: python ReadyToReplace/Project-Tot-Precision-and-UX-v3/build_package.py
+
+      - name: Create ZIP archive
+        run: |
+          rm -f ReadyToReplace/Project-Tot-Precision-and-UX-v3.zip
+          cd ReadyToReplace/Project-Tot-Precision-and-UX-v3/Generated
+          zip -r ../../Project-Tot-Precision-and-UX-v3.zip .
+
+      - name: Commit ZIP archive
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ReadyToReplace/Project-Tot-Precision-and-UX-v3.zip
+          if git diff --cached --quiet; then
+            echo 'ZIP archive is already current.'
+            exit 0
+          fi
+          git commit -m 'Add Project ToT precision and UX v3 replacement ZIP'
+          git push
