@@ -4,7 +4,7 @@ This is an incremental ready-to-replace update for the current Project Overview 
 
 ## Apply
 
-Copy the contents of `Project-Tot-Header-v2` into the directory containing `ProjectManagement.csproj`, preserving all relative paths. Replace existing files when prompted. Files marked **new** must be added.
+Run `Apply-Project-Tot-Header-v2.ps1` from the directory containing `ProjectManagement.csproj`, or copy the replacement folder contents into that directory while preserving the relative paths. Replace existing files when prompted. Files marked **new** must be added.
 
 ## Files
 
@@ -25,7 +25,7 @@ No database migration is required.
 - Cancelled projects show **Project status** instead of an obsolete stage.
 - The ToT card opens a right-side summary/editor drawer.
 - ToT status, partial start/completion dates, MET details and first-production-model information can be recorded from the drawer.
-- The latest ToT remark is visible and an authorised user can add a ToT remark in the same drawer.
+- The latest ToT remark is visible in the drawer.
 - Pending ToT approval is displayed and editing is disabled until the request is decided.
 - The lower Technology Transfer panel is removed from Project Overview.
 - ToT updates from Project Overview are rejected unless the project is completed and not archived/deleted.
