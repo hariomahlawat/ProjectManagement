@@ -34,7 +34,10 @@
 }
 @if (TempData["Flash"] is string message)
 {
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
+    <div class="alert alert-success alert-dismissible fade show"
+         role="status"
+         aria-live="polite"
+         data-auto-dismiss="6000">
         @message
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>

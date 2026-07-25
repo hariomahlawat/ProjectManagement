@@ -455,7 +455,9 @@ public partial class OverviewModel
             return new { title = "Approval pending", summary = $"Proposed: {TotStatusLabel(proposedStatus.Value)}", tone = "info" };
         }
 
-        var title = hasRecord ? TotStatusLabel(status) : "Not recorded";
+        var title = hasRecord
+            ? status == ProjectTotStatus.Completed ? "ToT completed" : TotStatusLabel(status)
+            : "Not recorded";
         var summary = status switch
         {
             ProjectTotStatus.NotRequired => "No ToT action required",

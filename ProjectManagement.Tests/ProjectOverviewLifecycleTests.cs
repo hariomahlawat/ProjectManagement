@@ -74,6 +74,7 @@ public sealed class ProjectOverviewLifecycleTests
         Assert.Equal(ProjectLifecycleStatus.Completed, overview.LifecycleSummary.Status);
         Assert.Contains("completed on", overview.LifecycleSummary.PrimaryDetail!, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(overview.LifecycleSummary.Facts, fact => fact.Label == "Completed on");
+        Assert.Equal("05 Apr 2024", overview.LifecycleSummary.CompletionDisplay);
         Assert.Equal(2, overview.MediaSummary.PhotoCount);
         Assert.True(overview.MediaSummary.HasAdditionalPhotos);
         Assert.Equal(1, overview.DocumentSummary.PublishedCount);

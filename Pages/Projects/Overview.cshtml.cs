@@ -1446,6 +1446,7 @@ namespace ProjectManagement.Pages.Projects
             var facts = new List<ProjectLifecycleSummaryViewModel.LifecycleFact>();
             string? primaryDetail = null;
             string? secondaryDetail = null;
+            string? completionDisplay = null;
 
             if (project.LifecycleStatus == ProjectLifecycleStatus.Completed)
             {
@@ -1453,10 +1454,11 @@ namespace ProjectManagement.Pages.Projects
                     project.CompletedOn,
                     project.CompletedYear,
                     project.CompletedMonth);
-                var completionDisplay = ProjectCompletionFormatter.Format(
+                completionDisplay = ProjectCompletionFormatter.Format(
                     project.CompletedOn,
                     project.CompletedYear,
-                    project.CompletedMonth);
+                    project.CompletedMonth,
+                    "Date not recorded");
 
                 switch (precision)
                 {
@@ -1527,6 +1529,7 @@ namespace ProjectManagement.Pages.Projects
                 IsLegacy = project.IsLegacy,
                 PrimaryDetail = primaryDetail,
                 SecondaryDetail = secondaryDetail,
+                CompletionDisplay = completionDisplay,
                 BadgeText = project.IsLegacy ? "Legacy" : null,
                 Facts = facts
             };

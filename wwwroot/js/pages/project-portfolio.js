@@ -130,8 +130,35 @@
         }
     }
 
+    function initializeAutoDismissAlerts() {
+        root.querySelectorAll('[data-auto-dismiss]').forEach((alertElement) => {
+            if (!(alertElement instanceof HTMLElement) || alertElement.dataset.autoDismissReady === 'true') {
+                return;
+            }
+
+            alertElement.dataset.autoDismissReady = 'true';
+            const configuredDelay = Number.parseInt(alertElement.dataset.autoDismiss || '', 10);
+            const delay = Number.isFinite(configuredDelay) && configuredDelay >= 1000
+                ? configuredDelay
+                : 6000;
+
+            window.setTimeout(() => {
+                if (!alertElement.isConnected) return;
+
+                const BootstrapAlert = window.bootstrap?.Alert;
+                if (BootstrapAlert) {
+                    BootstrapAlert.getOrCreateInstance(alertElement).close();
+                    return;
+                }
+
+                alertElement.remove();
+            }, delay);
+        });
+    }
+
     initializeTimelineDensity();
     initializeRemarkComposer();
+    initializeAutoDismissAlerts();
 
     document.addEventListener('pm:remarks-rendered', () => {
         initializeRemarkComposer();

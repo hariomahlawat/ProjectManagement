@@ -11,6 +11,7 @@
     var lifecycleStatus = Model.LifecycleSummary.Status;
     var isCompleted = lifecycleStatus == ProjectLifecycleStatus.Completed;
     var isActive = lifecycleStatus == ProjectLifecycleStatus.Active;
+    var completionDisplay = Model.LifecycleSummary.CompletionDisplay ?? "Date not recorded";
     static string DisplayUser(ApplicationUser? user)
     {
         if (user is null) return "—";
@@ -20,7 +21,7 @@
     static string StageTarget(ProjectManagement.ViewModels.TimelineItemVm? stage) =>
         stage is null ? "#timeline" : $"#timeline-stage-{stage.Code}";
 }
-<section class="project-command-header" aria-labelledby="project-title">
+<section class="project-command-header@(isCompleted ? " project-command-header--completed" : string.Empty)" aria-labelledby="project-title">
     <div class="project-command-header__main">
         <div class="project-command-header__identity">
             <div class="project-command-header__eyebrow">Project portfolio</div>
@@ -30,7 +31,7 @@
                 {
                     <span class="project-command-header__case">@project.CaseFileNumber</span>
                 }
-                @if (!isActive)
+                @if (!isActive && !isCompleted)
                 {
                     <span class="badge rounded-pill text-bg-secondary">@Model.LifecycleSummary.StatusLabel</span>
                 }
@@ -42,38 +43,52 @@
                 <span><i class="bi bi-person-check" aria-hidden="true"></i> HoD @DisplayUser(project?.HodUser)</span>
             </div>
         </div>
-        <div class="project-command-header__actions">
-            @if (Model.RemarksPanel.ShowComposer)
-            {
-                <button type="button" class="btn btn-primary" data-project-quick-action="remark">
-                    <i class="bi bi-chat-left-text" aria-hidden="true"></i>
-                    Add remark
-                </button>
-            }
-            <partial name="_AssignRolesOffcanvas" model="Model.AssignRoles" />
-            @if (Model.LifecycleActions.CanManageLifecycle)
-            {
-                <div class="dropdown">
-                    <button class="btn btn-outline-secondary" type="button" id="project-actions-menu" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-three-dots" aria-hidden="true"></i>
-                        <span class="visually-hidden">Project actions</span>
+        <div class="project-command-header__commands">
+            <div class="project-command-header__actions">
+                @if (Model.RemarksPanel.ShowComposer)
+                {
+                    <button type="button" class="btn btn-primary" data-project-quick-action="remark">
+                        <i class="bi bi-chat-left-text" aria-hidden="true"></i>
+                        Add remark
                     </button>
-                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="project-actions-menu">
-                        <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectLifecycleActionsModal">Manage lifecycle</button></li>
-                        @if (access.CanAssignRoles)
-                        {
-                            <li><hr class="dropdown-divider" /></li>
-                            @if (project?.IsArchived == true)
+                }
+                <partial name="_AssignRolesOffcanvas" model="Model.AssignRoles" />
+                @if (Model.LifecycleActions.CanManageLifecycle)
+                {
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary" type="button" id="project-actions-menu" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-three-dots" aria-hidden="true"></i>
+                            <span class="visually-hidden">Project actions</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="project-actions-menu">
+                            <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectLifecycleActionsModal">Manage lifecycle</button></li>
+                            @if (access.CanAssignRoles)
                             {
-                                <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectRestoreArchiveModal">Restore from archive</button></li>
+                                <li><hr class="dropdown-divider" /></li>
+                                @if (project?.IsArchived == true)
+                                {
+                                    <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectRestoreArchiveModal">Restore from archive</button></li>
+                                }
+                                else
+                                {
+                                    <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectArchiveModal">Archive project</button></li>
+                                }
+                                <li><button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#projectTrashModal">Move to Trash</button></li>
                             }
-                            else
-                            {
-                                <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectArchiveModal">Archive project</button></li>
-                            }
-                            <li><button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#projectTrashModal">Move to Trash</button></li>
-                        }
-                    </ul>
+                        </ul>
+                    </div>
+                }
+            </div>
+            @if (isCompleted)
+            {
+                <div class="project-completion-lockup" aria-label="Project completed. Completion date: @completionDisplay.">
+                    <span class="project-completion-lockup__icon" aria-hidden="true">
+                        <i class="bi bi-check2"></i>
+                    </span>
+                    <span class="project-completion-lockup__copy">
+                        <span class="project-completion-lockup__label">Project completed</span>
+                        <strong class="project-completion-lockup__date">@completionDisplay</strong>
+                    </span>
                 </div>
             }
         </div>

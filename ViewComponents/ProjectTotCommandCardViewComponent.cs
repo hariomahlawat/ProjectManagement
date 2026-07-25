@@ -64,7 +64,9 @@ public sealed class ProjectTotCommandCardViewComponent : ViewComponent
             return new(projectId, "Not recorded", canManage ? "Record ToT position" : "No ToT position recorded", "warning", canManage);
         }
 
-        var title = StatusLabel(status.Value);
+        var title = status.Value == ProjectTotStatus.Completed
+            ? "ToT completed"
+            : StatusLabel(status.Value);
         var summary = status.Value switch
         {
             ProjectTotStatus.NotRequired => "No ToT action required",
