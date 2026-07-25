@@ -1211,9 +1211,13 @@ app.UseStaticFiles(new StaticFileOptions
     ContentTypeProvider = contentTypeProvider,
     OnPrepareResponse = context =>
     {
-        // SECTION: Development-only JavaScript cache prevention for coherent ES module loading.
+        // SECTION: Development-only frontend cache prevention.
+        // Visual Studio may decline CSS Hot Reload for large stylesheets. Do not let a normal
+        // reload reuse an earlier CSS response in that case; production remains fingerprinted
+        // through asp-append-version and retains its normal caching behaviour.
         if (app.Environment.IsDevelopment() &&
-            context.Context.Request.Path.StartsWithSegments("/js", StringComparison.OrdinalIgnoreCase))
+            (context.Context.Request.Path.StartsWithSegments("/js", StringComparison.OrdinalIgnoreCase)
+             || context.Context.Request.Path.StartsWithSegments("/css", StringComparison.OrdinalIgnoreCase)))
         {
             var headers = context.Context.Response.GetTypedHeaders();
             headers.CacheControl = new Microsoft.Net.Http.Headers.CacheControlHeaderValue
