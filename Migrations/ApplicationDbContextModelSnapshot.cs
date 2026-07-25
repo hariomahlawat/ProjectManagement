@@ -4516,6 +4516,9 @@ namespace ProjectManagement.Migrations
                     b.Property<int?>("CategoryId")
                         .HasColumnType("integer");
 
+                    b.Property<short?>("CompletedMonth")
+                        .HasColumnType("smallint");
+
                     b.Property<DateOnly?>("CompletedOn")
                         .HasColumnType("date");
 
@@ -4686,7 +4689,14 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("IsDeleted", "IsArchived")
                         .HasDatabaseName("IX_Projects_IsDeleted_IsArchived");
 
-                    b.ToTable("Projects");
+                    b.ToTable("Projects", t =>
+                        {
+                            t.HasCheckConstraint("CK_Projects_CompletedMonth_Range", "\"CompletedMonth\" IS NULL OR (\"CompletedMonth\" BETWEEN 1 AND 12)");
+
+                            t.HasCheckConstraint("CK_Projects_CompletedMonth_RequiresYear", "\"CompletedMonth\" IS NULL OR \"CompletedYear\" IS NOT NULL");
+
+                            t.HasCheckConstraint("CK_Projects_ExactCompletion_ClearsMonth", "\"CompletedOn\" IS NULL OR \"CompletedMonth\" IS NULL");
+                        });
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectAonFact", b =>

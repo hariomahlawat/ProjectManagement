@@ -562,11 +562,24 @@ namespace ProjectManagement.Data
                 e.Property(x => x.IsLegacy).HasDefaultValue(false);
                 e.Property(x => x.CompletedOn).HasColumnType("date");
                 e.Property(x => x.CompletedYear);
+                e.Property(x => x.CompletedMonth).HasColumnType("smallint");
                 e.Property(x => x.CancelledOn).HasColumnType("date");
                 e.Property(x => x.CancelReason).HasMaxLength(512);
                 e.HasIndex(x => x.LifecycleStatus);
                 e.HasIndex(x => x.IsLegacy);
                 e.HasIndex(x => x.CompletedYear);
+                e.ToTable(table =>
+                {
+                    table.HasCheckConstraint(
+                        "CK_Projects_CompletedMonth_Range",
+                        "\"CompletedMonth\" IS NULL OR (\"CompletedMonth\" BETWEEN 1 AND 12)");
+                    table.HasCheckConstraint(
+                        "CK_Projects_CompletedMonth_RequiresYear",
+                        "\"CompletedMonth\" IS NULL OR \"CompletedYear\" IS NOT NULL");
+                    table.HasCheckConstraint(
+                        "CK_Projects_ExactCompletion_ClearsMonth",
+                        "\"CompletedOn\" IS NULL OR \"CompletedMonth\" IS NULL");
+                });
                 e.HasMany(x => x.Photos)
                     .WithOne(x => x.Project)
                     .HasForeignKey(x => x.ProjectId)

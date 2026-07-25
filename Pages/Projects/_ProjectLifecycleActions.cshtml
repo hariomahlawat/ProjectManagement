@@ -1,121 +1,378 @@
+@using ProjectManagement.Models
 @model ProjectManagement.Pages.Projects.OverviewModel
 
 @{
     var project = Model.Project;
     var actions = Model.LifecycleActions;
     var hasCompletionForm = actions.CanMarkCompleted;
-    var hasEndorseForm = actions.CanEndorseCompletedDate;
     var hasCancelForm = actions.CanCancel;
     var hasReactivateForm = actions.CanReactivate;
+    var isCompleted = actions.Status == ProjectLifecycleStatus.Completed;
+    var selectedPrecision = Model.CompleteProjectInput.Precision;
+    var actionCount = (hasCompletionForm ? 1 : 0) + (hasCancelForm ? 1 : 0) + (hasReactivateForm ? 1 : 0);
+    var defaultAction = hasCompletionForm
+        ? "complete"
+        : hasCancelForm
+            ? "cancel"
+            : hasReactivateForm
+                ? "reactivate"
+                : "none";
+    var maxDate = actions.TodayLocal == default
+        ? DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")
+        : actions.TodayLocal.ToString("yyyy-MM-dd");
+    var maxMonth = actions.TodayLocal == default
+        ? DateTime.Today.ToString("yyyy-MM")
+        : $"{actions.TodayLocal.Year:0000}-{actions.TodayLocal.Month:00}";
+    var maxYear = actions.TodayLocal == default ? DateTime.Today.Year : actions.TodayLocal.Year;
+
+    var completePaneClass = defaultAction == "complete" ? string.Empty : "d-none";
+    var cancelPaneClass = defaultAction == "cancel" ? string.Empty : "d-none";
+    var reactivatePaneClass = defaultAction == "reactivate" ? string.Empty : "d-none";
+
+    string FieldClass(ProjectCompletionPrecision precision) => selectedPrecision == precision
+        ? "lifecycle-completion-field"
+        : "lifecycle-completion-field d-none";
 }
 
-<div class="modal fade" id="projectLifecycleActionsModal" tabindex="-1" aria-labelledby="projectLifecycleActionsLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+<div class="modal fade lifecycle-actions-modal"
+     id="projectLifecycleActionsModal"
+     tabindex="-1"
+     aria-labelledby="projectLifecycleActionsLabel"
+     aria-hidden="true"
+     data-lifecycle-actions-root
+     data-default-action="@defaultAction">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 class="modal-title fs-5" id="projectLifecycleActionsLabel">Lifecycle actions</h2>
+                <div>
+                    <h2 class="modal-title fs-5" id="projectLifecycleActionsLabel">Lifecycle actions</h2>
+                    <p class="lifecycle-actions-modal__subtitle mb-0">Update the project lifecycle status and the best completion information available.</p>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
+
             <div class="modal-body">
-                <p class="text-muted">Update the project lifecycle status and key dates.</p>
-                <div class="d-flex flex-column gap-4">
-                    @if (hasCompletionForm)
-                    {
-                        <section>
-                            <!-- SECTION: Mark completed -->
-                            <h3 class="h6 mb-3">Mark completed</h3>
-                            <form method="post" asp-page-handler="Complete" asp-route-id="@project.Id" class="d-flex flex-column gap-3">
-                                <input asp-for="CompleteProjectInput.ProjectId" type="hidden" />
-                                <div class="mb-0">
-                                    <label asp-for="CompleteProjectInput.CompletedYear" class="form-label">Completion year (optional)</label>
-                                    <input asp-for="CompleteProjectInput.CompletedYear" type="number" class="form-control" min="1900" max="2099" />
-                                    <div class="form-text">Provide the year the project completed if the exact date is not known.</div>
-                                </div>
-                                <div class="d-flex gap-2">
-                                    <button type="submit" class="btn btn-primary btn-sm">Save completion</button>
-                                </div>
-                            </form>
-                        </section>
-                    }
+                @if (actionCount > 1)
+                {
+                    <div class="lifecycle-action-switch" role="tablist" aria-label="Lifecycle action">
+                        @if (hasCompletionForm)
+                        {
+                            <button type="button"
+                                    class="lifecycle-action-switch__item @(defaultAction == "complete" ? "is-active" : null)"
+                                    id="lifecycle-action-tab-complete"
+                                    role="tab"
+                                    aria-selected="@(defaultAction == "complete" ? "true" : "false")"
+                                    aria-controls="lifecycle-action-pane-complete"
+                                    data-lifecycle-action-tab="complete">
+                                <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                                <span>Complete project</span>
+                            </button>
+                        }
+                        @if (hasCancelForm)
+                        {
+                            <button type="button"
+                                    class="lifecycle-action-switch__item lifecycle-action-switch__item--danger @(defaultAction == "cancel" ? "is-active" : null)"
+                                    id="lifecycle-action-tab-cancel"
+                                    role="tab"
+                                    aria-selected="@(defaultAction == "cancel" ? "true" : "false")"
+                                    aria-controls="lifecycle-action-pane-cancel"
+                                    data-lifecycle-action-tab="cancel">
+                                <i class="bi bi-x-circle" aria-hidden="true"></i>
+                                <span>Cancel project</span>
+                            </button>
+                        }
+                        @if (hasReactivateForm)
+                        {
+                            <button type="button"
+                                    class="lifecycle-action-switch__item @(defaultAction == "reactivate" ? "is-active" : null)"
+                                    id="lifecycle-action-tab-reactivate"
+                                    role="tab"
+                                    aria-selected="@(defaultAction == "reactivate" ? "true" : "false")"
+                                    aria-controls="lifecycle-action-pane-reactivate"
+                                    data-lifecycle-action-tab="reactivate">
+                                <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i>
+                                <span>Reactivate project</span>
+                            </button>
+                        }
+                    </div>
+                }
 
-                    @if (hasEndorseForm)
-                    {
-                        <section>
-                            <!-- SECTION: Endorse completion -->
-                            <h3 class="h6 mb-3">Endorse completion date</h3>
-                            <form method="post" asp-page-handler="Endorse" asp-route-id="@project.Id" class="d-flex flex-column gap-3">
-                                <input asp-for="EndorseCompletionInput.ProjectId" type="hidden" />
-                                <div class="mb-0">
-                                    <label asp-for="EndorseCompletionInput.CompletedOn" class="form-label">Completion date</label>
-                                    <input asp-for="EndorseCompletionInput.CompletedOn" type="date" class="form-control" />
-                                    <div class="form-text">Set the exact date the project finished to finalise completion.</div>
-                                </div>
-                                <div class="d-flex gap-2">
-                                    <button type="submit" class="btn btn-success btn-sm">Endorse date</button>
-                                </div>
-                            </form>
-                        </section>
-                    }
-
-                    @if (hasCancelForm)
-                    {
-                        <section>
-                            <!-- SECTION: Cancel project -->
-                            <h3 class="h6 mb-3">Cancel project</h3>
-                            <form method="post" asp-page-handler="Cancel" asp-route-id="@project.Id" class="d-flex flex-column gap-3">
-                                <input asp-for="CancelProjectInput.ProjectId" type="hidden" />
-                                <div class="mb-0">
-                                    <label asp-for="CancelProjectInput.CancelledOn" class="form-label">Cancellation date</label>
-                                    <input asp-for="CancelProjectInput.CancelledOn" type="date" class="form-control" />
-                                </div>
-                                <div class="mb-0">
-                                    <label asp-for="CancelProjectInput.Reason" class="form-label">Reason</label>
-                                    <textarea asp-for="CancelProjectInput.Reason" class="form-control" rows="3" maxlength="512"></textarea>
-                                </div>
-                                <div class="d-flex gap-2">
-                                    <button type="submit" class="btn btn-danger btn-sm">Cancel project</button>
-                                </div>
-                            </form>
-                        </section>
-                    }
-
-                    @if (hasReactivateForm)
-                    {
-                        <section>
-                            <!-- SECTION: Reactivate project -->
-                            <h3 class="h6 mb-3">Reactivate project</h3>
-                            <form method="post" asp-page-handler="Reactivate" asp-route-id="@project.Id" class="d-flex flex-column gap-3">
-                                <input asp-for="ReactivateProjectInput.ProjectId" type="hidden" />
-                                <div class="alert alert-warning mb-0" role="alert">
-                                    This will revert project status to Active. Completion or cancellation details will be cleared.
-                                </div>
-                                <div class="mb-0">
-                                    <label asp-for="ReactivateProjectInput.Reason" class="form-label">Reason <span class="text-muted">(optional)</span></label>
-                                    <textarea asp-for="ReactivateProjectInput.Reason" class="form-control" rows="3" maxlength="512"></textarea>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="reactivate-confirm" required />
-                                    <label class="form-check-label" for="reactivate-confirm">
-                                        I understand this will reset completion or cancellation details.
-                                    </label>
-                                </div>
-                                <div class="d-flex gap-2">
-                                    <button type="submit" class="btn btn-warning btn-sm">Mark Active</button>
-                                </div>
-                            </form>
-                        </section>
-                    }
-
-                    @if (!hasCompletionForm && !hasEndorseForm && !hasCancelForm && !hasReactivateForm)
-                    {
-                        <div class="alert alert-secondary mb-0" role="status">
-                            No lifecycle actions are currently available for this project.
+                @if (hasCompletionForm)
+                {
+                    <section id="lifecycle-action-pane-complete"
+                             class="lifecycle-action-pane @completePaneClass"
+                             role="tabpanel"
+                             aria-labelledby="@(actionCount > 1 ? "lifecycle-action-tab-complete" : null)"
+                             aria-label="@(actionCount > 1 ? null : "Complete project")"
+                             data-lifecycle-action-pane="complete">
+                        <div class="lifecycle-action-pane__heading">
+                            <div>
+                                <h3>@(isCompleted ? "Update completion details" : "Mark project completed")</h3>
+                                <p>Record the most precise completion information that is presently available.</p>
+                            </div>
                         </div>
-                    }
-                </div>
+
+                        @if (isCompleted)
+                        {
+                            <div class="lifecycle-current-value" role="status">
+                                <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+                                <div>
+                                    <span>Currently recorded</span>
+                                    <strong>@actions.CompletionDisplay</strong>
+                                    <small>More precise information may be recorded at any time.</small>
+                                </div>
+                            </div>
+                        }
+
+                        <form method="post"
+                              asp-page-handler="Complete"
+                              asp-route-id="@project.Id"
+                              id="project-completion-form"
+                              class="lifecycle-action-form"
+                              data-project-completion-form>
+                            <input asp-for="CompleteProjectInput.ProjectId" type="hidden" />
+
+                            <fieldset class="lifecycle-precision-fieldset">
+                                <legend>Completion information available</legend>
+                                <div class="lifecycle-precision-grid" role="radiogroup" aria-label="Completion information available">
+                                    <div class="lifecycle-precision-option">
+                                        <input class="btn-check"
+                                               asp-for="CompleteProjectInput.Precision"
+                                               type="radio"
+                                               value="@ProjectCompletionPrecision.ExactDate"
+                                               id="completion-precision-exact"
+                                               data-completion-precision />
+                                        <label for="completion-precision-exact">
+                                            <i class="bi bi-calendar-check" aria-hidden="true"></i>
+                                            <span>
+                                                <strong>Exact date</strong>
+                                                <small>Day, month and year</small>
+                                            </span>
+                                        </label>
+                                    </div>
+                                    <div class="lifecycle-precision-option">
+                                        <input class="btn-check"
+                                               asp-for="CompleteProjectInput.Precision"
+                                               type="radio"
+                                               value="@ProjectCompletionPrecision.MonthAndYear"
+                                               id="completion-precision-month"
+                                               data-completion-precision />
+                                        <label for="completion-precision-month">
+                                            <i class="bi bi-calendar3" aria-hidden="true"></i>
+                                            <span>
+                                                <strong>Month and year</strong>
+                                                <small>Exact day not known</small>
+                                            </span>
+                                        </label>
+                                    </div>
+                                    <div class="lifecycle-precision-option">
+                                        <input class="btn-check"
+                                               asp-for="CompleteProjectInput.Precision"
+                                               type="radio"
+                                               value="@ProjectCompletionPrecision.YearOnly"
+                                               id="completion-precision-year"
+                                               data-completion-precision />
+                                        <label for="completion-precision-year">
+                                            <i class="bi bi-calendar2" aria-hidden="true"></i>
+                                            <span>
+                                                <strong>Year only</strong>
+                                                <small>Month not known</small>
+                                            </span>
+                                        </label>
+                                    </div>
+                                    <div class="lifecycle-precision-option">
+                                        <input class="btn-check"
+                                               asp-for="CompleteProjectInput.Precision"
+                                               type="radio"
+                                               value="@ProjectCompletionPrecision.NotKnown"
+                                               id="completion-precision-unknown"
+                                               data-completion-precision />
+                                        <label for="completion-precision-unknown">
+                                            <i class="bi bi-question-circle" aria-hidden="true"></i>
+                                            <span>
+                                                <strong>Not known</strong>
+                                                <small>Record later</small>
+                                            </span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </fieldset>
+
+                            <div class="@FieldClass(ProjectCompletionPrecision.ExactDate)"
+                                 data-completion-field="ExactDate">
+                                <label asp-for="CompleteProjectInput.CompletedOn" class="form-label">Completion date</label>
+                                <input asp-for="CompleteProjectInput.CompletedOn"
+                                       type="date"
+                                       class="form-control"
+                                       min="1900-01-01"
+                                       max="@maxDate"
+                                       disabled="@(selectedPrecision != ProjectCompletionPrecision.ExactDate ? "disabled" : null)"
+                                       required="@(selectedPrecision == ProjectCompletionPrecision.ExactDate ? "required" : null)" />
+                                <div class="form-text">Use the exact date when the day is known.</div>
+                            </div>
+
+                            <div class="@FieldClass(ProjectCompletionPrecision.MonthAndYear)"
+                                 data-completion-field="MonthAndYear">
+                                <label asp-for="CompleteProjectInput.CompletedMonthYear" class="form-label">Completion month</label>
+                                <input asp-for="CompleteProjectInput.CompletedMonthYear"
+                                       type="month"
+                                       class="form-control"
+                                       min="1900-01"
+                                       max="@maxMonth"
+                                       disabled="@(selectedPrecision != ProjectCompletionPrecision.MonthAndYear ? "disabled" : null)"
+                                       required="@(selectedPrecision == ProjectCompletionPrecision.MonthAndYear ? "required" : null)" />
+                                <div class="form-text">The month and year are stored without inventing a day.</div>
+                            </div>
+
+                            <div class="@FieldClass(ProjectCompletionPrecision.YearOnly)"
+                                 data-completion-field="YearOnly">
+                                <label asp-for="CompleteProjectInput.CompletedYear" class="form-label">Completion year</label>
+                                <input asp-for="CompleteProjectInput.CompletedYear"
+                                       type="number"
+                                       class="form-control"
+                                       min="1900"
+                                       max="@maxYear"
+                                       inputmode="numeric"
+                                       disabled="@(selectedPrecision != ProjectCompletionPrecision.YearOnly ? "disabled" : null)"
+                                       required="@(selectedPrecision == ProjectCompletionPrecision.YearOnly ? "required" : null)" />
+                                <div class="form-text">Use this when only the year is available.</div>
+                            </div>
+
+                            <div class="@FieldClass(ProjectCompletionPrecision.NotKnown) lifecycle-completion-unknown"
+                                 data-completion-field="NotKnown">
+                                <i class="bi bi-info-circle" aria-hidden="true"></i>
+                                <span>The project will be marked completed without a completion date. This information can be added later.</span>
+                            </div>
+                        </form>
+                    </section>
+                }
+
+                @if (hasCancelForm)
+                {
+                    <section id="lifecycle-action-pane-cancel"
+                             class="lifecycle-action-pane @cancelPaneClass"
+                             role="tabpanel"
+                             aria-labelledby="@(actionCount > 1 ? "lifecycle-action-tab-cancel" : null)"
+                             aria-label="@(actionCount > 1 ? null : "Cancel project")"
+                             data-lifecycle-action-pane="cancel">
+                        <div class="lifecycle-action-pane__heading lifecycle-action-pane__heading--danger">
+                            <div>
+                                <h3>Cancel project</h3>
+                                <p>Use this only when the project will not proceed. The project can be reactivated later by an authorised user.</p>
+                            </div>
+                        </div>
+
+                        <form method="post"
+                              asp-page-handler="Cancel"
+                              asp-route-id="@project.Id"
+                              id="project-cancellation-form"
+                              class="lifecycle-action-form">
+                            <input asp-for="CancelProjectInput.ProjectId" type="hidden" />
+                            <div>
+                                <label asp-for="CancelProjectInput.CancelledOn" class="form-label">Cancellation date</label>
+                                <input asp-for="CancelProjectInput.CancelledOn"
+                                       type="date"
+                                       class="form-control"
+                                       max="@maxDate" />
+                            </div>
+                            <div>
+                                <label asp-for="CancelProjectInput.Reason" class="form-label">Reason</label>
+                                <textarea asp-for="CancelProjectInput.Reason"
+                                          class="form-control"
+                                          rows="4"
+                                          maxlength="512"
+                                          placeholder="Record why the project is being cancelled."></textarea>
+                            </div>
+                        </form>
+                    </section>
+                }
+
+                @if (hasReactivateForm)
+                {
+                    <section id="lifecycle-action-pane-reactivate"
+                             class="lifecycle-action-pane @reactivatePaneClass"
+                             role="tabpanel"
+                             aria-labelledby="@(actionCount > 1 ? "lifecycle-action-tab-reactivate" : null)"
+                             aria-label="@(actionCount > 1 ? null : "Reactivate project")"
+                             data-lifecycle-action-pane="reactivate">
+                        <div class="lifecycle-action-pane__heading">
+                            <div>
+                                <h3>Reactivate project</h3>
+                                <p>Return the project to Active status and clear the recorded completion or cancellation details.</p>
+                            </div>
+                        </div>
+
+                        <form method="post"
+                              asp-page-handler="Reactivate"
+                              asp-route-id="@project.Id"
+                              id="project-reactivation-form"
+                              class="lifecycle-action-form">
+                            <input asp-for="ReactivateProjectInput.ProjectId" type="hidden" />
+                            <div class="lifecycle-reactivation-warning" role="alert">
+                                <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                                <span>Completion or cancellation information already recorded for this project will be cleared.</span>
+                            </div>
+                            <div>
+                                <label asp-for="ReactivateProjectInput.Reason" class="form-label">Reason <span class="text-muted">(optional)</span></label>
+                                <textarea asp-for="ReactivateProjectInput.Reason"
+                                          class="form-control"
+                                          rows="4"
+                                          maxlength="512"></textarea>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="reactivate-confirm" required />
+                                <label class="form-check-label" for="reactivate-confirm">
+                                    I understand that completion or cancellation details will be reset.
+                                </label>
+                            </div>
+                        </form>
+                    </section>
+                }
+
+                @if (!hasCompletionForm && !hasCancelForm && !hasReactivateForm)
+                {
+                    <div class="alert alert-secondary mb-0" role="status">
+                        No lifecycle actions are currently available for this project.
+                    </div>
+                }
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+
+            <div class="modal-footer lifecycle-actions-modal__footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+
+                @if (hasCompletionForm)
+                {
+                    <button type="submit"
+                            form="project-completion-form"
+                            class="btn btn-primary @(defaultAction == "complete" ? null : "d-none")"
+                            data-lifecycle-footer-action="complete"
+                            data-lifecycle-submit>
+                        <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-lifecycle-submit-spinner></span>
+                        <span data-lifecycle-submit-label>@(isCompleted ? "Update completion details" : "Mark project completed")</span>
+                    </button>
+                }
+                @if (hasCancelForm)
+                {
+                    <button type="submit"
+                            form="project-cancellation-form"
+                            class="btn btn-danger @(defaultAction == "cancel" ? null : "d-none")"
+                            data-lifecycle-footer-action="cancel"
+                            data-lifecycle-submit>
+                        <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-lifecycle-submit-spinner></span>
+                        <span data-lifecycle-submit-label>Cancel project</span>
+                    </button>
+                }
+                @if (hasReactivateForm)
+                {
+                    <button type="submit"
+                            form="project-reactivation-form"
+                            class="btn btn-warning @(defaultAction == "reactivate" ? null : "d-none")"
+                            data-lifecycle-footer-action="reactivate"
+                            data-lifecycle-submit>
+                        <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-lifecycle-submit-spinner></span>
+                        <span data-lifecycle-submit-label>Mark Active</span>
+                    </button>
+                }
             </div>
         </div>
     </div>

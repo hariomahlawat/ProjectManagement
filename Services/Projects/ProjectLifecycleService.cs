@@ -22,10 +22,14 @@ public sealed class ProjectLifecycleService
         _clock = clock;
     }
 
-    public async Task<ProjectLifecycleOperationResult> MarkCompletedAsync(
+    /// <summary>
+    /// Marks an active project as completed or improves the completion information
+    /// already recorded for a completed project.
+    /// </summary>
+    public async Task<ProjectLifecycleOperationResult> UpdateCompletionAsync(
         int projectId,
         string actorUserId,
-        int? provisionalYear,
+        ProjectCompletionValue completion,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(actorUserId))
@@ -33,49 +37,84 @@ public sealed class ProjectLifecycleService
             throw new ArgumentException("A valid user is required to update the lifecycle.", nameof(actorUserId));
         }
 
+        ArgumentNullException.ThrowIfNull(completion);
+
         var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
         if (project is null)
         {
             return ProjectLifecycleOperationResult.NotFound();
         }
 
-        var canUpdateExistingCompletion = project.LifecycleStatus == ProjectLifecycleStatus.Completed && project.CompletedOn is null;
-        var isActive = project.LifecycleStatus == ProjectLifecycleStatus.Active;
-
-        if (!isActive && !canUpdateExistingCompletion)
+        if (project.LifecycleStatus != ProjectLifecycleStatus.Active &&
+            project.LifecycleStatus != ProjectLifecycleStatus.Completed)
         {
-            return ProjectLifecycleOperationResult.InvalidStatus("Project must be active or awaiting endorsement to update completion details.");
+            return ProjectLifecycleOperationResult.InvalidStatus(
+                "Only active or completed projects can have completion details recorded.");
         }
 
-        if (provisionalYear.HasValue)
+        var todayLocal = DateOnly.FromDateTime(
+            TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst()));
+
+        var validation = ValidateCompletion(completion, todayLocal);
+        if (validation is not null)
         {
-            var year = provisionalYear.Value;
-            var todayLocal = TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst());
-            var maxYear = todayLocal.Year;
-            if (year < 1900 || year > maxYear)
-            {
-                return ProjectLifecycleOperationResult.ValidationFailed($"Completion year must be between 1900 and {maxYear}.");
-            }
+            return ProjectLifecycleOperationResult.ValidationFailed(validation);
         }
 
+        var previousStatus = project.LifecycleStatus;
+        ApplyCompletion(project, completion);
         project.LifecycleStatus = ProjectLifecycleStatus.Completed;
-        project.CompletedYear = provisionalYear;
-        if (isActive)
-        {
-            project.CompletedOn = null;
-        }
         project.CancelledOn = null;
         project.CancelReason = null;
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        await Audit.Events.ProjectLifecycleMarkedCompleted(
+        await Audit.Events.ProjectLifecycleCompletionUpdated(
                 project.Id,
                 actorUserId,
-                provisionalYear)
+                previousStatus,
+                completion.Precision,
+                project.CompletedOn,
+                project.CompletedYear,
+                project.CompletedMonth)
             .WriteAsync(_audit);
 
         return ProjectLifecycleOperationResult.Success();
+    }
+
+    // Compatibility wrappers retained for callers outside the Project Overview workflow.
+    public async Task<ProjectLifecycleOperationResult> MarkCompletedAsync(
+        int projectId,
+        string actorUserId,
+        int? provisionalYear,
+        CancellationToken cancellationToken = default)
+    {
+        var state = await _db.Projects
+            .AsNoTracking()
+            .Where(project => project.Id == projectId)
+            .Select(project => new { project.LifecycleStatus, project.CompletedOn })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (state is null)
+        {
+            return ProjectLifecycleOperationResult.NotFound();
+        }
+
+        var canUpdateExistingCompletion =
+            state.LifecycleStatus == ProjectLifecycleStatus.Completed && state.CompletedOn is null;
+        if (state.LifecycleStatus != ProjectLifecycleStatus.Active && !canUpdateExistingCompletion)
+        {
+            return ProjectLifecycleOperationResult.InvalidStatus(
+                "Project must be active or awaiting endorsement to update completion details.");
+        }
+
+        return await UpdateCompletionAsync(
+            projectId,
+            actorUserId,
+            provisionalYear.HasValue
+                ? ProjectCompletionValue.YearOnly(provisionalYear.Value)
+                : ProjectCompletionValue.NotKnown(),
+            cancellationToken);
     }
 
     public async Task<ProjectLifecycleOperationResult> EndorseCompletionAsync(
@@ -84,48 +123,130 @@ public sealed class ProjectLifecycleService
         DateOnly completionDate,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(actorUserId))
-        {
-            throw new ArgumentException("A valid user is required to update the lifecycle.", nameof(actorUserId));
-        }
+        var state = await _db.Projects
+            .AsNoTracking()
+            .Where(project => project.Id == projectId)
+            .Select(project => new { project.LifecycleStatus, project.CompletedYear })
+            .FirstOrDefaultAsync(cancellationToken);
 
-        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
-        if (project is null)
+        if (state is null)
         {
             return ProjectLifecycleOperationResult.NotFound();
         }
 
-        if (project.LifecycleStatus != ProjectLifecycleStatus.Completed)
+        if (state.LifecycleStatus != ProjectLifecycleStatus.Completed)
         {
-            return ProjectLifecycleOperationResult.InvalidStatus("Only completed projects can be endorsed with a final date.");
+            return ProjectLifecycleOperationResult.InvalidStatus(
+                "Only completed projects can be endorsed with a final date.");
         }
 
-        if (!project.CompletedYear.HasValue)
+        if (!state.CompletedYear.HasValue)
         {
-            return ProjectLifecycleOperationResult.InvalidStatus("Set a completion year before endorsing an exact date.");
+            return ProjectLifecycleOperationResult.InvalidStatus(
+                "Set a completion year before endorsing an exact date.");
         }
 
-        var todayLocal = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst()));
-        if (completionDate > todayLocal)
+        return await UpdateCompletionAsync(
+            projectId,
+            actorUserId,
+            ProjectCompletionValue.Exact(completionDate),
+            cancellationToken);
+    }
+
+    private static string? ValidateCompletion(ProjectCompletionValue completion, DateOnly todayLocal)
+    {
+        switch (completion.Precision)
         {
-            return ProjectLifecycleOperationResult.ValidationFailed("Completion date cannot be in the future.");
+            case ProjectCompletionPrecision.ExactDate:
+                if (!completion.ExactDate.HasValue)
+                {
+                    return "Completion date is required when exact date is selected.";
+                }
+
+                if (completion.ExactDate.Value.Year < 1900)
+                {
+                    return "Completion date must be on or after 01 Jan 1900.";
+                }
+
+                if (completion.ExactDate.Value > todayLocal)
+                {
+                    return "Completion date cannot be in the future.";
+                }
+
+                return null;
+
+            case ProjectCompletionPrecision.MonthAndYear:
+                if (!completion.Year.HasValue || !completion.Month.HasValue)
+                {
+                    return "Completion month and year are required when month and year is selected.";
+                }
+
+                if (completion.Year.Value < 1900 || completion.Year.Value > todayLocal.Year)
+                {
+                    return $"Completion year must be between 1900 and {todayLocal.Year}.";
+                }
+
+                if (completion.Month.Value is < 1 or > 12)
+                {
+                    return "Completion month must be between January and December.";
+                }
+
+                if (completion.Year.Value == todayLocal.Year && completion.Month.Value > todayLocal.Month)
+                {
+                    return "Completion month cannot be in the future.";
+                }
+
+                return null;
+
+            case ProjectCompletionPrecision.YearOnly:
+                if (!completion.Year.HasValue)
+                {
+                    return "Completion year is required when year only is selected.";
+                }
+
+                if (completion.Year.Value < 1900 || completion.Year.Value > todayLocal.Year)
+                {
+                    return $"Completion year must be between 1900 and {todayLocal.Year}.";
+                }
+
+                return null;
+
+            case ProjectCompletionPrecision.NotKnown:
+                return null;
+
+            default:
+                return "Select the completion information available.";
         }
+    }
 
-        project.CompletedOn = completionDate;
-        project.CompletedYear = completionDate.Year;
-        project.CancelledOn = null;
-        project.CancelReason = null;
+    private static void ApplyCompletion(Project project, ProjectCompletionValue completion)
+    {
+        project.CompletedOn = null;
+        project.CompletedYear = null;
+        project.CompletedMonth = null;
 
-        await _db.SaveChangesAsync(cancellationToken);
+        switch (completion.Precision)
+        {
+            case ProjectCompletionPrecision.ExactDate:
+                project.CompletedOn = completion.ExactDate;
+                project.CompletedYear = completion.ExactDate!.Value.Year;
+                break;
 
-        await Audit.Events.ProjectLifecycleCompletionEndorsed(
-                project.Id,
-                actorUserId,
-                completionDate,
-                project.CompletedYear)
-            .WriteAsync(_audit);
+            case ProjectCompletionPrecision.MonthAndYear:
+                project.CompletedYear = completion.Year;
+                project.CompletedMonth = checked((short)completion.Month!.Value);
+                break;
 
-        return ProjectLifecycleOperationResult.Success();
+            case ProjectCompletionPrecision.YearOnly:
+                project.CompletedYear = completion.Year;
+                break;
+
+            case ProjectCompletionPrecision.NotKnown:
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(completion), "Unsupported completion precision.");
+        }
     }
 
     public async Task<ProjectLifecycleOperationResult> CancelProjectAsync(
@@ -178,6 +299,7 @@ public sealed class ProjectLifecycleService
         project.CancelReason = trimmedReason;
         project.CompletedOn = null;
         project.CompletedYear = null;
+        project.CompletedMonth = null;
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -225,6 +347,7 @@ public sealed class ProjectLifecycleService
         project.LifecycleStatus = ProjectLifecycleStatus.Active;
         project.CompletedOn = null;
         project.CompletedYear = null;
+        project.CompletedMonth = null;
         project.CancelledOn = null;
         project.CancelReason = null;
 

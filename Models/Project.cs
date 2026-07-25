@@ -38,6 +38,12 @@ namespace ProjectManagement.Models
 
         public int? CompletedYear { get; set; }
 
+        /// <summary>
+        /// Completion month when the month and year are known but the exact day is not.
+        /// Null for exact-date, year-only and unknown completion records.
+        /// </summary>
+        public short? CompletedMonth { get; set; }
+
         public DateOnly? CancelledOn { get; set; }
 
         [MaxLength(512)]

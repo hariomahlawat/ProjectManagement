@@ -19,7 +19,9 @@
         _ => "text-bg-primary"
     };
 
-    var completedYear = lifecycle.Facts.FirstOrDefault(f => f.Label == "Completed in")?.Value;
+    var completionDisplay = lifecycle.Facts
+        .FirstOrDefault(f => f.Label == "Completed on" || f.Label == "Completed in")
+        ?.Value;
 }
 
 <!-- SECTION: Lifecycle status banner -->
@@ -35,9 +37,9 @@
         </div>
         <div class="pm-card-actions pm-card-header-actions">
             <span class="badge @lifecycleStatusBadgeClass">@lifecycle.StatusLabel</span>
-            @if (!string.IsNullOrWhiteSpace(completedYear))
+            @if (!string.IsNullOrWhiteSpace(completionDisplay))
             {
-                <span class="text-muted small pm-lifecycle-banner__year">@completedYear</span>
+                <span class="text-muted small pm-lifecycle-banner__year">@completionDisplay</span>
             }
             @if (!string.IsNullOrWhiteSpace(lifecycle.BadgeText))
             {

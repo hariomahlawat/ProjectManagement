@@ -137,6 +137,7 @@ public sealed class ProjectOverviewLifecycleTests
         overview.CompleteProjectInput = new ProjectsOverviewModel.CompleteLifecycleInput
         {
             ProjectId = 4,
+            Precision = ProjectCompletionPrecision.YearOnly,
             CompletedYear = 2024
         };
 
@@ -150,6 +151,62 @@ public sealed class ProjectOverviewLifecycleTests
         Assert.NotNull(project);
         Assert.Equal(ProjectLifecycleStatus.Completed, project!.LifecycleStatus);
         Assert.Equal(2024, project.CompletedYear);
+    }
+
+    [Fact]
+    public async Task CompleteLifecycle_AllowsExactCompletionDateInOneOperation()
+    {
+        await using var db = CreateContext();
+        await SeedLifecycleProjectAsync(db, projectId: 41, hodUserId: "hod-41", poUserId: "po-41");
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 8, 1, 0, 0, 0, TimeSpan.Zero));
+        var overview = CreateOverviewPage(db, clock);
+        overview.CompleteProjectInput = new ProjectsOverviewModel.CompleteLifecycleInput
+        {
+            ProjectId = 41,
+            Precision = ProjectCompletionPrecision.ExactDate,
+            CompletedOn = new DateOnly(2024, 7, 25)
+        };
+
+        ConfigurePageContext(overview, CreateUser("admin-41", "Admin"));
+
+        var result = await overview.OnPostCompleteAsync(41, CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        var project = await db.Projects.FindAsync(41);
+        Assert.NotNull(project);
+        Assert.Equal(ProjectLifecycleStatus.Completed, project!.LifecycleStatus);
+        Assert.Equal(new DateOnly(2024, 7, 25), project.CompletedOn);
+        Assert.Equal(2024, project.CompletedYear);
+        Assert.Null(project.CompletedMonth);
+    }
+
+    [Fact]
+    public async Task CompleteLifecycle_AllowsMonthAndYearWithoutInventingDay()
+    {
+        await using var db = CreateContext();
+        await SeedLifecycleProjectAsync(db, projectId: 42, hodUserId: "hod-42", poUserId: "po-42");
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 8, 1, 0, 0, 0, TimeSpan.Zero));
+        var overview = CreateOverviewPage(db, clock);
+        overview.CompleteProjectInput = new ProjectsOverviewModel.CompleteLifecycleInput
+        {
+            ProjectId = 42,
+            Precision = ProjectCompletionPrecision.MonthAndYear,
+            CompletedMonthYear = "2024-07"
+        };
+
+        ConfigurePageContext(overview, CreateUser("admin-42", "Admin"));
+
+        var result = await overview.OnPostCompleteAsync(42, CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        var project = await db.Projects.FindAsync(42);
+        Assert.NotNull(project);
+        Assert.Equal(ProjectLifecycleStatus.Completed, project!.LifecycleStatus);
+        Assert.Null(project.CompletedOn);
+        Assert.Equal(2024, project.CompletedYear);
+        Assert.Equal<short?>((short)7, project.CompletedMonth);
     }
 
     [Fact]

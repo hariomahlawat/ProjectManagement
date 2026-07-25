@@ -69,6 +69,28 @@ public static class Audit
             return new AuditEvent("Project.PhotoReordered", userId, data);
         }
 
+        public static AuditEvent ProjectLifecycleCompletionUpdated(
+            int projectId,
+            string userId,
+            ProjectLifecycleStatus previousStatus,
+            ProjectCompletionPrecision precision,
+            DateOnly? completionDate,
+            int? completionYear,
+            short? completionMonth)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
+                ["PreviousStatus"] = previousStatus.ToString(),
+                ["Precision"] = precision.ToString(),
+                ["CompletionDate"] = completionDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                ["CompletionYear"] = completionYear?.ToString(CultureInfo.InvariantCulture),
+                ["CompletionMonth"] = completionMonth?.ToString(CultureInfo.InvariantCulture)
+            };
+
+            return new AuditEvent("Project.LifecycleCompletionUpdated", userId, data);
+        }
+
         public static AuditEvent ProjectLifecycleMarkedCompleted(int projectId, string userId, int? completionYear)
         {
             var data = new Dictionary<string, string?>

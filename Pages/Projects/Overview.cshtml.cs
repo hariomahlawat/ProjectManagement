@@ -164,7 +164,44 @@ namespace ProjectManagement.Pages.Projects
         {
             public int ProjectId { get; set; }
 
+            public ProjectCompletionPrecision Precision { get; set; } = ProjectCompletionPrecision.YearOnly;
+
+            public DateOnly? CompletedOn { get; set; }
+
+            /// <summary>Month-and-year value posted by an HTML month control (yyyy-MM).</summary>
+            public string? CompletedMonthYear { get; set; }
+
             public int? CompletedYear { get; set; }
+
+            public ProjectCompletionValue ToCompletionValue()
+            {
+                if (Precision == ProjectCompletionPrecision.ExactDate)
+                {
+                    return new ProjectCompletionValue(Precision, ExactDate: CompletedOn);
+                }
+
+                if (Precision == ProjectCompletionPrecision.MonthAndYear)
+                {
+                    if (DateOnly.TryParseExact(
+                            $"{CompletedMonthYear}-01",
+                            "yyyy-MM-dd",
+                            CultureInfo.InvariantCulture,
+                            DateTimeStyles.None,
+                            out var parsedMonth))
+                    {
+                        return ProjectCompletionValue.MonthAndYear(parsedMonth.Year, parsedMonth.Month);
+                    }
+
+                    return new ProjectCompletionValue(Precision);
+                }
+
+                if (Precision == ProjectCompletionPrecision.YearOnly)
+                {
+                    return new ProjectCompletionValue(Precision, Year: CompletedYear);
+                }
+
+                return ProjectCompletionValue.NotKnown();
+            }
         }
 
         public sealed class EndorseLifecycleInput
@@ -443,7 +480,19 @@ namespace ProjectManagement.Pages.Projects
 
             CompleteProjectInput ??= new CompleteLifecycleInput();
             CompleteProjectInput.ProjectId = project.Id;
+            CompleteProjectInput.Precision = project.LifecycleStatus == ProjectLifecycleStatus.Active &&
+                                               !project.CompletedOn.HasValue &&
+                                               !project.CompletedYear.HasValue
+                ? ProjectCompletionPrecision.ExactDate
+                : ProjectCompletionFormatter.InferPrecision(
+                    project.CompletedOn,
+                    project.CompletedYear,
+                    project.CompletedMonth);
+            CompleteProjectInput.CompletedOn = project.CompletedOn;
             CompleteProjectInput.CompletedYear = project.CompletedYear;
+            CompleteProjectInput.CompletedMonthYear = ProjectCompletionFormatter.ToMonthInputValue(
+                project.CompletedYear,
+                project.CompletedMonth);
 
             EndorseCompletionInput ??= new EndorseLifecycleInput();
             EndorseCompletionInput.ProjectId = project.Id;
@@ -796,7 +845,11 @@ namespace ProjectManagement.Pages.Projects
                 return Forbid();
             }
 
-            var result = await _lifecycleService.MarkCompletedAsync(id, userId, CompleteProjectInput.CompletedYear, ct);
+            var result = await _lifecycleService.UpdateCompletionAsync(
+                id,
+                userId,
+                CompleteProjectInput.ToCompletionValue(),
+                ct);
 
             if (result.Status == ProjectLifecycleOperationStatus.NotFound)
             {
@@ -1341,25 +1394,32 @@ namespace ProjectManagement.Pages.Projects
 
             var canMarkCompleted = canManage &&
                 (project.LifecycleStatus == ProjectLifecycleStatus.Active ||
-                 (project.LifecycleStatus == ProjectLifecycleStatus.Completed && project.CompletedOn is null));
-
-            var canEndorse = canManage &&
-                project.LifecycleStatus == ProjectLifecycleStatus.Completed &&
-                project.CompletedYear.HasValue &&
-                project.CompletedOn is null;
+                 project.LifecycleStatus == ProjectLifecycleStatus.Completed);
 
             var canCancel = canManage && project.LifecycleStatus == ProjectLifecycleStatus.Active;
+            var todayLocal = DateOnly.FromDateTime(
+                TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst()));
 
             return new ProjectLifecycleActionsViewModel
             {
                 Status = project.LifecycleStatus,
                 CanManageLifecycle = canManage,
                 CanMarkCompleted = canMarkCompleted,
-                CanEndorseCompletedDate = canEndorse,
+                CanEndorseCompletedDate = false,
                 CanCancel = canCancel,
                 CanReactivate = canReactivate,
                 CompletedYear = project.CompletedYear,
+                CompletedMonth = project.CompletedMonth,
                 CompletedOn = project.CompletedOn,
+                CompletionPrecision = ProjectCompletionFormatter.InferPrecision(
+                    project.CompletedOn,
+                    project.CompletedYear,
+                    project.CompletedMonth),
+                CompletionDisplay = ProjectCompletionFormatter.Format(
+                    project.CompletedOn,
+                    project.CompletedYear,
+                    project.CompletedMonth),
+                TodayLocal = todayLocal,
                 CancelledOn = project.CancelledOn,
                 CancelReason = project.CancelReason
             };
@@ -1388,21 +1448,37 @@ namespace ProjectManagement.Pages.Projects
 
             if (project.LifecycleStatus == ProjectLifecycleStatus.Completed)
             {
-                if (project.CompletedOn.HasValue)
-                {
-                    var completedOn = project.CompletedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
-                    primaryDetail = string.Format(CultureInfo.InvariantCulture, "Project completed on {0}.", completedOn);
-                    facts.Add(new ProjectLifecycleSummaryViewModel.LifecycleFact("Completed on", completedOn));
-                }
-                else
-                {
-                    primaryDetail = "Project marked as completed.";
-                }
+                var precision = ProjectCompletionFormatter.InferPrecision(
+                    project.CompletedOn,
+                    project.CompletedYear,
+                    project.CompletedMonth);
+                var completionDisplay = ProjectCompletionFormatter.Format(
+                    project.CompletedOn,
+                    project.CompletedYear,
+                    project.CompletedMonth);
 
-                if (project.CompletedYear.HasValue)
+                switch (precision)
                 {
-                    var yearDisplay = project.CompletedYear.Value.ToString(CultureInfo.InvariantCulture);
-                    facts.Add(new ProjectLifecycleSummaryViewModel.LifecycleFact("Completed in", yearDisplay));
+                    case ProjectCompletionPrecision.ExactDate:
+                        primaryDetail = string.Format(
+                            CultureInfo.InvariantCulture,
+                            "Project completed on {0}.",
+                            completionDisplay);
+                        facts.Add(new ProjectLifecycleSummaryViewModel.LifecycleFact("Completed on", completionDisplay));
+                        break;
+
+                    case ProjectCompletionPrecision.MonthAndYear:
+                    case ProjectCompletionPrecision.YearOnly:
+                        primaryDetail = string.Format(
+                            CultureInfo.InvariantCulture,
+                            "Project completed in {0}.",
+                            completionDisplay);
+                        facts.Add(new ProjectLifecycleSummaryViewModel.LifecycleFact("Completed in", completionDisplay));
+                        break;
+
+                    default:
+                        primaryDetail = "Project marked as completed. Completion date not recorded.";
+                        break;
                 }
             }
             else if (project.LifecycleStatus == ProjectLifecycleStatus.Cancelled)
