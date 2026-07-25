@@ -4,6 +4,20 @@
     var project = Model.Project;
     var portfolio = Model.Portfolio;
     var access = Model.Access;
+    var jdpCount = Model.JdpPartners.Count;
+    var jdpTitle = jdpCount switch
+    {
+        0 => "No JDP linked",
+        1 => Model.JdpPartners[0].Name,
+        _ => $"{jdpCount} JDPs linked"
+    };
+    var jdpSummary = jdpCount switch
+    {
+        0 => Model.CanManageJdp ? "Link an industry partner" : "No JDP recorded",
+        1 => "Open to view this JDP and its other projects",
+        _ => string.Join(" · ", Model.JdpPartners.Take(2).Select(item => item.Name)) +
+             (jdpCount > 2 ? $" · +{jdpCount - 2} more" : string.Empty)
+    };
 
     static string DisplayUser(ApplicationUser? user)
     {
@@ -84,7 +98,7 @@
                 data-bs-toggle="offcanvas"
                 data-bs-target="#offcanvasJdp"
                 aria-controls="offcanvasJdp"
-                aria-label="@(Model.CanManageJdp ? "View or change the project JDP" : "View the project JDP")">
+                aria-label="@(Model.CanManageJdp ? "View or manage project JDPs" : "View project JDPs")">
             <span class="project-intelligence-card__label">
                 JDP
                 @if (Model.CanManageJdp)
@@ -92,10 +106,8 @@
                     <i class="bi bi-pencil-square project-intelligence-card__edit-icon" aria-hidden="true"></i>
                 }
             </span>
-            <strong data-jdp-card-title title="@Model.JdpProfile.CardTitle">@Model.JdpProfile.CardTitle</strong>
-            <span data-jdp-card-summary title="@Model.JdpProfile.CardSummary">@(Model.JdpProfile.HasJdp
-                ? Model.JdpProfile.CardSummary
-                : Model.CanManageJdp ? "Link an industry partner" : "No JDP recorded")</span>
+            <strong data-jdp-card-title title="@jdpTitle">@jdpTitle</strong>
+            <span data-jdp-card-summary title="@jdpSummary">@jdpSummary</span>
         </button>
         @if (Model.CanManageProliferation)
         {

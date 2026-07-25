@@ -1,160 +1,146 @@
 @model ProjectManagement.Pages.Projects.OverviewModel
 @{
-    var profile = Model.JdpProfile;
     var projectId = Model.Project.Id;
+    var profileUrl = Url.Page("/Projects/Overview", "MultiJdpProfile", new { id = projectId });
     var optionsUrl = Url.Page("/Projects/Overview", "JdpOptions", new { id = projectId });
+    var addUrl = Url.Page("/Projects/Overview", "AddProjectJdp", new { id = projectId });
+    var removeUrl = Url.Page("/Projects/Overview", "RemoveProjectJdp", new { id = projectId });
 }
 
 <div class="project-jdp-editor"
-     data-jdp-root
+     data-multi-jdp-root
      data-project-id="@projectId"
-     data-can-manage="@Model.CanManageJdp.ToString().ToLowerInvariant()">
-    <div class="alert alert-warning @(profile.HasMultipleProjectLinks ? null : "d-none")"
-         role="alert"
-         data-jdp-multiple-warning>
-        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
-        <span>More than one JDP link is recorded for this project. Select the correct JDP and save to correct the record.</span>
-    </div>
+     data-can-manage="@Model.CanManageJdp.ToString().ToLowerInvariant()"
+     data-profile-url="@profileUrl"
+     data-options-url="@optionsUrl"
+     data-add-url="@addUrl"
+     data-remove-url="@removeUrl">
+    @Html.AntiForgeryToken()
 
-    <section class="project-jdp-editor__summary @(profile.HasJdp ? null : "d-none")"
-             aria-label="Linked JDP"
-             data-jdp-linked-summary>
-        <span class="project-jdp-editor__icon" aria-hidden="true"><i class="bi bi-building"></i></span>
-        <div class="min-w-0 flex-grow-1">
-            <span class="project-jdp-editor__eyebrow">JDP</span>
-            <a class="project-jdp-editor__partner-name"
-               href="@(profile.PartnerId.HasValue ? $"/IndustryPartners?id={profile.PartnerId.Value}&projectId={projectId}&tab=projects" : "#")"
-               data-jdp-partner-link>
-                <span data-jdp-partner-name>@profile.PartnerName</span>
-                <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
-            </a>
-            <span class="project-jdp-editor__location @(string.IsNullOrWhiteSpace(profile.PartnerLocation) ? "d-none" : null)"
-                  data-jdp-partner-location>@profile.PartnerLocation</span>
-        </div>
-    </section>
-
-    <section class="project-jdp-editor__empty @(profile.HasJdp ? "d-none" : null)"
-             data-jdp-empty-state>
-        <span class="project-jdp-editor__empty-icon" aria-hidden="true"><i class="bi bi-building-add"></i></span>
-        <div>
-            <strong>No JDP linked</strong>
-            <span>This project does not presently have a Joint Development Partner.</span>
-        </div>
-    </section>
-
-    <section class="project-jdp-editor__projects @(profile.OtherProjectCount > 0 ? null : "d-none")"
-             data-jdp-projects-section>
+    <section class="project-jdp-editor__linked-section" data-multi-jdp-linked-section>
         <div class="project-jdp-editor__section-heading">
             <div>
-                <h6>Other projects linked to this JDP</h6>
-                <p>Ongoing and completed projects linked to the same organisation.</p>
+                <h6>JDPs linked to this project</h6>
+                <p>Each organisation remains independently linked and can support this project alongside other JDPs.</p>
             </div>
-            <span class="badge rounded-pill text-bg-light" data-jdp-project-count>@profile.OtherProjectCount</span>
+            <span class="badge rounded-pill text-bg-light" data-multi-jdp-count>@Model.JdpPartners.Count</span>
         </div>
-        <div class="project-jdp-editor__project-list" data-jdp-project-list>
-            @foreach (var linkedProject in profile.OtherProjects)
+
+        <div class="project-jdp-editor__partner-list" data-multi-jdp-partner-list>
+            @foreach (var partner in Model.JdpPartners)
             {
-                <a class="project-jdp-editor__project"
-                   asp-page="/Projects/Overview"
-                   asp-route-id="@linkedProject.ProjectId">
-                    <span class="min-w-0">
-                        <strong>@linkedProject.ProjectName</strong>
-                        @if (!string.IsNullOrWhiteSpace(linkedProject.CaseFileNumber))
+                <article class="project-jdp-editor__partner-card" data-partner-id="@partner.Id">
+                    <div class="project-jdp-editor__partner-card-main">
+                        <span class="project-jdp-editor__icon" aria-hidden="true"><i class="bi bi-building"></i></span>
+                        <div class="min-w-0 flex-grow-1">
+                            <a class="project-jdp-editor__partner-name"
+                               href="/IndustryPartners?id=@partner.Id&projectId=@projectId&tab=projects">
+                                <span>@partner.Name</span>
+                                <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                            </a>
+                            @if (!string.IsNullOrWhiteSpace(partner.Location))
+                            {
+                                <span class="project-jdp-editor__location">@partner.Location</span>
+                            }
+                            <span class="project-jdp-editor__usage">Loading linked-project position…</span>
+                        </div>
+                        @if (Model.CanManageJdp)
                         {
-                            <small>@linkedProject.CaseFileNumber</small>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-danger project-jdp-editor__remove-partner"
+                                    data-multi-jdp-remove="@partner.Id"
+                                    data-partner-name="@partner.Name">
+                                Remove
+                            </button>
                         }
-                    </span>
-                    <span class="badge rounded-pill project-jdp-editor__status project-jdp-editor__status--@linkedProject.StatusLabel.ToLowerInvariant()">@linkedProject.StatusLabel</span>
-                </a>
+                    </div>
+                    <div class="project-jdp-editor__project-list d-none" data-multi-jdp-project-list></div>
+                </article>
             }
+        </div>
+
+        <div class="project-jdp-editor__empty @(Model.JdpPartners.Count == 0 ? null : "d-none")"
+             data-multi-jdp-empty>
+            <span class="project-jdp-editor__empty-icon" aria-hidden="true"><i class="bi bi-building-add"></i></span>
+            <div>
+                <strong>No JDP linked</strong>
+                <span>This project does not have a JDP.</span>
+            </div>
         </div>
     </section>
 
     @if (Model.CanManageJdp)
     {
-        <form method="post"
-              asp-page-handler="Jdp"
-              asp-route-id="@projectId"
-              class="project-jdp-editor__form"
-              data-jdp-form
-              data-options-url="@optionsUrl">
-            @Html.AntiForgeryToken()
-            <input type="hidden" asp-for="JdpInput.ProjectId" />
-            <input type="hidden" asp-for="JdpInput.PartnerId" data-jdp-partner-id />
+        <section class="project-jdp-editor__add-section">
+            <button type="button"
+                    class="btn btn-outline-primary"
+                    data-multi-jdp-show-add>
+                <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                Add JDP
+            </button>
 
-            <div class="project-jdp-editor__section-heading project-jdp-editor__section-heading--form">
-                <div>
-                    <h6>@(profile.HasJdp ? "Change JDP" : "Link JDP")</h6>
-                    <p>Search the Industry Directory and select one organisation.</p>
+            <form class="project-jdp-editor__form d-none" data-multi-jdp-add-form>
+                <div class="project-jdp-editor__section-heading project-jdp-editor__section-heading--form">
+                    <div>
+                        <h6>Add JDP</h6>
+                        <p>Search the Industry Directory and select one organisation.</p>
+                    </div>
                 </div>
-            </div>
 
-            <div class="project-jdp-picker">
-                <label class="form-label" for="projectJdpSearch">Organisation</label>
-                <div class="project-jdp-picker__control">
-                    <i class="bi bi-search" aria-hidden="true"></i>
-                    <input id="projectJdpSearch"
-                           type="search"
-                           class="form-control"
-                           value="@profile.PartnerName"
-                           placeholder="Search organisation, city or contact"
-                           autocomplete="off"
-                           aria-autocomplete="list"
-                           aria-expanded="false"
-                           aria-controls="projectJdpResults"
-                           data-jdp-search />
-                    <button type="button"
-                            class="project-jdp-picker__clear @(profile.HasJdp ? null : "d-none")"
-                            aria-label="Clear selected organisation"
-                            data-jdp-clear>
-                        <i class="bi bi-x-lg" aria-hidden="true"></i>
+                <input type="hidden" data-multi-jdp-selected-id />
+                <div class="project-jdp-picker">
+                    <label class="form-label" for="projectMultiJdpSearch">Organisation</label>
+                    <div class="project-jdp-picker__control">
+                        <i class="bi bi-search" aria-hidden="true"></i>
+                        <input id="projectMultiJdpSearch"
+                               type="search"
+                               class="form-control"
+                               placeholder="Search organisation, city or contact"
+                               autocomplete="off"
+                               aria-autocomplete="list"
+                               aria-expanded="false"
+                               aria-controls="projectMultiJdpResults"
+                               data-multi-jdp-search />
+                        <button type="button"
+                                class="project-jdp-picker__clear d-none"
+                                aria-label="Clear selected organisation"
+                                data-multi-jdp-clear>
+                            <i class="bi bi-x-lg" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <div id="projectMultiJdpResults"
+                         class="project-jdp-picker__results d-none"
+                         role="listbox"
+                         data-multi-jdp-results></div>
+                    <div class="project-jdp-picker__selection d-none" data-multi-jdp-selection>
+                        <i class="bi bi-check-circle" aria-hidden="true"></i>
+                        <span>
+                            <strong data-multi-jdp-selected-name></strong>
+                            <small data-multi-jdp-selected-meta></small>
+                        </span>
+                    </div>
+                    <div class="invalid-feedback d-block d-none" data-multi-jdp-error></div>
+                </div>
+
+                <div class="project-jdp-editor__directory-link">
+                    <span>Organisation not listed?</span>
+                    <a asp-page="/IndustryPartners/Index"
+                       asp-route-projectId="@projectId"
+                       target="_blank"
+                       rel="noopener">
+                        Add it in the Industry Directory
+                        <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                    </a>
+                </div>
+
+                <div class="project-jdp-editor__actions">
+                    <button type="button" class="btn btn-outline-secondary" data-multi-jdp-cancel-add>Cancel</button>
+                    <button type="submit" class="btn btn-primary" disabled data-multi-jdp-save>
+                        <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-multi-jdp-spinner></span>
+                        Add JDP
                     </button>
                 </div>
-                <div id="projectJdpResults"
-                     class="project-jdp-picker__results d-none"
-                     role="listbox"
-                     data-jdp-results></div>
-                <div class="project-jdp-picker__selection @(profile.HasJdp ? null : "d-none")"
-                     data-jdp-selection>
-                    <i class="bi bi-check-circle" aria-hidden="true"></i>
-                    <span>
-                        <strong data-jdp-selected-name>@profile.PartnerName</strong>
-                        <small data-jdp-selected-meta>@profile.CardSummary</small>
-                    </span>
-                </div>
-                <div class="invalid-feedback d-block d-none" data-jdp-error></div>
-            </div>
-
-            <div class="project-jdp-editor__directory-link">
-                <span>Organisation not listed?</span>
-                <a asp-page="/IndustryPartners/Index"
-                   asp-route-projectId="@projectId"
-                   target="_blank"
-                   rel="noopener">
-                    Add it in the Industry Directory
-                    <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
-                </a>
-            </div>
-
-            <div class="project-jdp-editor__actions">
-                <button type="submit" class="btn btn-primary" data-jdp-save>
-                    <span class="spinner-border spinner-border-sm d-none" aria-hidden="true" data-jdp-spinner></span>
-                    <span data-jdp-save-label>@(profile.HasJdp ? "Save JDP" : "Link JDP")</span>
-                </button>
-            </div>
-        </form>
-
-        <form method="post"
-              asp-page-handler="RemoveJdp"
-              asp-route-id="@projectId"
-              class="project-jdp-editor__remove @(profile.HasJdp ? null : "d-none")"
-              data-jdp-remove-form>
-            @Html.AntiForgeryToken()
-            <input type="hidden" name="JdpInput.ProjectId" value="@projectId" />
-            <button type="submit" class="btn btn-link text-danger p-0" data-jdp-remove>
-                <i class="bi bi-link-45deg" aria-hidden="true"></i>
-                Remove JDP from this project
-            </button>
-        </form>
+            </form>
+        </section>
     }
 </div>
